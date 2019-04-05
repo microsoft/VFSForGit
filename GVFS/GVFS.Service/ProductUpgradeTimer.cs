@@ -17,9 +17,9 @@ namespace GVFS.Service
         private LocalGVFSConfig gvfsConfig;
         private HttpClient httpClient;
         private Timer timer;
-        private IInstallerPreRunChecker installerPreRunChecker;
+        private InstallerRunPreCheckerBase installerPreRunChecker;
 
-            public ProductUpgradeTimer(ITracer tracer, PhysicalFileSystem fileSystem, LocalGVFSConfig gvfsConfig, HttpClient httpClient, IInstallerPreRunChecker installerPreRunChecker)
+            public ProductUpgradeTimer(ITracer tracer, PhysicalFileSystem fileSystem, LocalGVFSConfig gvfsConfig, HttpClient httpClient, InstallerRunPreCheckerBase installerPreRunChecker)
         {
             this.tracer = tracer;
             this.fileSystem = fileSystem;
@@ -67,18 +67,7 @@ namespace GVFS.Service
             }
         }
 
-        private static EventMetadata CreateEventMetadata(Exception e)
-        {
-            EventMetadata metadata = new EventMetadata();
-            if (e != null)
-            {
-                metadata.Add("Exception", e.ToString());
-            }
-
-            return metadata;
-        }
-
-        private void TimerCallback(object unusedState)
+        public void TimerCallback(object unusedState)
         {
             string errorMessage = null;
 
@@ -187,6 +176,17 @@ namespace GVFS.Service
                     Environment.Exit((int)ReturnCode.GenericError);
                 }
             }
+        }
+
+        private static EventMetadata CreateEventMetadata(Exception e)
+        {
+            EventMetadata metadata = new EventMetadata();
+            if (e != null)
+            {
+                metadata.Add("Exception", e.ToString());
+            }
+
+            return metadata;
         }
 
         private bool TryQueryForNewerVersion(ITracer tracer, GitHubUpgrader productUpgrader, out Version newVersion, out string errorMessage)

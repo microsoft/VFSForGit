@@ -29,7 +29,7 @@ namespace GVFS.UnitTests.Windows.Windows.Service
             Mock<PhysicalFileSystem> fileSystemMock = new Mock<PhysicalFileSystem>();
             MockLocalGVFSConfig gvfsConfig = this.BuildGvfsConfig();
 
-            Mock<IInstallerPreRunChecker> installerPreRunChecker = new Mock<IInstallerPreRunChecker>();
+            Mock<InstallerRunPreCheckerBase> installerPreRunChecker = new Mock<InstallerRunPreCheckerBase>();
 
             Mock<HttpMessageHandler> handlerMock = new Mock<HttpMessageHandler>();
 

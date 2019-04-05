@@ -10,7 +10,7 @@ using System.Threading;
 
 namespace GVFS.Upgrader
 {
-    public class InstallerPreRunChecker : IInstallerPreRunChecker
+    public class InstallerPreRunChecker : InstallerRunPreCheckerBase
     {
         private static readonly HashSet<string> BlockingProcessSet = new HashSet<string> { "GVFS", "GVFS.Mount", "git", "ssh-agent", "bash", "wish", "git-bash" };
 
@@ -24,7 +24,7 @@ namespace GVFS.Upgrader
 
         protected string CommandToRerun { private get; set; }
 
-        public virtual bool TryRunPreUpgradeChecks(out string consoleError)
+        public override bool TryRunPreUpgradeChecks(out string consoleError)
         {
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryRunPreUpgradeChecks), EventLevel.Informational))
             {
@@ -49,12 +49,12 @@ namespace GVFS.Upgrader
 
         // TODO: Move repo mount calls to GVFS.Upgrader project.
         // https://github.com/Microsoft/VFSForGit/issues/293
-        public virtual bool TryMountAllGVFSRepos(out string consoleError)
+        public override bool TryMountAllGVFSRepos(out string consoleError)
         {
             return this.TryRunGVFSWithArgs("service --mount-all", out consoleError);
         }
 
-        public virtual bool TryUnmountAllGVFSRepos(out string consoleError)
+        public override bool TryUnmountAllGVFSRepos(out string consoleError)
         {
             consoleError = null;
             this.tracer.RelatedInfo("Unmounting any mounted GVFS repositories.");
@@ -73,7 +73,7 @@ namespace GVFS.Upgrader
             return true;
         }
 
-        public virtual bool IsInstallationBlockedByRunningProcess(out string consoleError)
+        public override bool IsInstallationBlockedByRunningProcess(out string consoleError)
         {
             consoleError = null;
 
