@@ -103,7 +103,7 @@ namespace GVFS.Common
                 // Try to load other upgraders as appropriate.
             }
 
-            newUpgrader = GitHubUpgrader.Create(tracer, fileSystem, dryRun, noVerify, out error);
+            newUpgrader = GitHubUpgrader.Create(tracer, fileSystem, new LocalGVFSConfig(), dryRun, noVerify, out error);
             if (newUpgrader == null)
             {
                 tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
