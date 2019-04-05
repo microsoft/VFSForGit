@@ -14,18 +14,20 @@ namespace GVFS.Service
         private static readonly TimeSpan TimeInterval = TimeSpan.FromDays(1);
         private ITracer tracer;
         private PhysicalFileSystem fileSystem;
+        private LocalGVFSConfig gvfsConfig;
         private HttpClient httpClient;
         private Timer timer;
 
-        public ProductUpgradeTimer(ITracer tracer, PhysicalFileSystem fileSystem, HttpClient httpClient)
+        public ProductUpgradeTimer(ITracer tracer, PhysicalFileSystem fileSystem, LocalGVFSConfig gvfsConfig, HttpClient httpClient)
         {
             this.tracer = tracer;
             this.fileSystem = fileSystem;
+            this.gvfsConfig = gvfsConfig;
             this.httpClient = httpClient;
         }
 
         public ProductUpgradeTimer(ITracer tracer)
-            : this(tracer, new PhysicalFileSystem(), new HttpClient())
+            : this(tracer, new PhysicalFileSystem(), new LocalGVFSConfig(), new HttpClient())
         {
         }
 
@@ -90,7 +92,7 @@ namespace GVFS.Service
                     GitHubUpgrader productUpgrader = GitHubUpgrader.Create(
                         this.tracer,
                         this.fileSystem,
-                        new LocalGVFSConfig(),
+                        this.gvfsConfig,
                         this.httpClient,
                         dryRun: false,
                         noVerify: false,
