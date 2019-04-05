@@ -1,4 +1,5 @@
 using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.NuGetUpgrade;
 using GVFS.Common.Tracing;
 using System;
@@ -81,9 +82,16 @@ namespace GVFS.Common
             out ProductUpgrader newUpgrader,
             out string error)
         {
+            ICredentialStore credentialStore = null;
+            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+            if (string.IsNullOrEmpty(gitBinPath))
+            {
+                credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null);
+            }
+
             // Prefer to use the NuGet upgrader if it is configured. If the NuGet upgrader is not configured,
             // then try to use the GitHubUpgrader.
-            if (NuGetUpgrader.TryCreate(tracer, fileSystem, gvfsConfig, dryRun, noVerify, out NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
+            if (NuGetUpgrader.TryCreate(tracer, fileSystem, gvfsConfig, credentialStore, dryRun, noVerify, out NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
             {
                 // We were successfully able to load a NuGetUpgrader - use that.
                 newUpgrader = nuGetUpgrader;

@@ -4,6 +4,7 @@ using GVFS.Common.Tracing;
 using NuGet.Protocol.Core.Types;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
@@ -96,6 +97,7 @@ namespace GVFS.Common.NuGetUpgrade
             ITracer tracer,
             PhysicalFileSystem fileSystem,
             LocalGVFSConfig gvfsConfig,
+            ICredentialStore credentialStore,
             bool dryRun,
             bool noVerify,
             out NuGetUpgrader nuGetUpgrader,
@@ -124,15 +126,6 @@ namespace GVFS.Common.NuGetUpgrade
             {
                 return false;
             }
-
-            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            if (string.IsNullOrEmpty(gitBinPath))
-            {
-                error = $"NuGetUpgrader: Unable to locate git installation. Ensure git is installed and try again.";
-                return false;
-            }
-
-            ICredentialStore credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null);
 
             nuGetUpgrader = new NuGetUpgrader(
                 ProcessHelper.GetCurrentProcessVersion(),
@@ -598,6 +591,13 @@ namespace GVFS.Common.NuGetUpgrade
         {
             if (!this.isNuGetFeedInitialized)
             {
+                Debug.Assert(this.credentialStore != null, "Attempting to access nuget feed without a credential store configured.");
+                if (this.credentialStore == null)
+                {
+                    error = "Program error - no Credential Store configured";
+                    return false;
+                }
+
                 string authUrl;
                 if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
                 {
