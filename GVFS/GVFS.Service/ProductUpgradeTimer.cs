@@ -4,6 +4,7 @@ using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Threading;
 
 namespace GVFS.Service
@@ -88,6 +89,7 @@ namespace GVFS.Service
                         this.tracer,
                         this.fileSystem,
                         new LocalGVFSConfig(),
+                        new HttpClient(),
                         dryRun: false,
                         noVerify: false,
                         error: out errorMessage);

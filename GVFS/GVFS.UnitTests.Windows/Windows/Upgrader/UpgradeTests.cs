@@ -7,6 +7,7 @@ using GVFS.UnitTests.Windows.Mock.Upgrader;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
 
 namespace GVFS.UnitTests.Windows.Upgrader
 {
@@ -73,6 +74,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             GitHubUpgrader.Create(
                 this.Tracer,
                 this.FileSystem,
+                new HttpClient(),
                 dryRun: false,
                 noVerify: false,
                 localConfig: this.LocalConfig,

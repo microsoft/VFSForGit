@@ -35,6 +35,8 @@ namespace GVFS.Common
             "VFSForGit"
         };
 
+        private HttpClient httpClient;
+
         private Version newestVersion;
         private Release newestRelease;
 
@@ -43,11 +45,13 @@ namespace GVFS.Common
             ITracer tracer,
             PhysicalFileSystem fileSystem,
             GitHubUpgraderConfig upgraderConfig,
+            HttpClient httpClient,
             bool dryRun = false,
             bool noVerify = false)
             : base(currentVersion, tracer, dryRun, noVerify, fileSystem)
         {
             this.Config = upgraderConfig;
+            this.httpClient = httpClient;
 
             string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
@@ -59,16 +63,18 @@ namespace GVFS.Common
             ITracer tracer,
             PhysicalFileSystem fileSystem,
             LocalGVFSConfig gvfsConfig,
+            HttpClient httpClient,
             bool dryRun,
             bool noVerify,
             out string error)
         {
-            return Create(tracer, fileSystem, dryRun, noVerify, gvfsConfig, out error);
+            return Create(tracer, fileSystem, httpClient, dryRun, noVerify, gvfsConfig, out error);
         }
 
         public static GitHubUpgrader Create(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
+            HttpClient httpClient,
             bool dryRun,
             bool noVerify,
             LocalGVFSConfig localConfig,
@@ -93,6 +99,7 @@ namespace GVFS.Common
                     tracer,
                     fileSystem,
                     gitHubUpgraderConfig,
+                    httpClient,
                     dryRun,
                     noVerify);
 
@@ -284,18 +291,16 @@ namespace GVFS.Common
 
         protected virtual bool TryFetchReleases(out List<Release> releases, out string errorMessage)
         {
-            HttpClient client = new HttpClient();
-
-            client.DefaultRequestHeaders.Accept.Clear();
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(JSONMediaType));
-            client.DefaultRequestHeaders.Add("User-Agent", UserAgent);
+            this.httpClient.DefaultRequestHeaders.Accept.Clear();
+            this.httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(JSONMediaType));
+            this.httpClient.DefaultRequestHeaders.Add("User-Agent", UserAgent);
 
             releases = null;
             errorMessage = null;
 
             try
             {
-                Stream result = client.GetStreamAsync(GitHubReleaseURL).GetAwaiter().GetResult();
+                Stream result = this.httpClient.GetStreamAsync(GitHubReleaseURL).GetAwaiter().GetResult();
 
                 DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(List<Release>));
                 releases = serializer.ReadObject(result) as List<Release>;
