@@ -192,13 +192,13 @@ namespace PrjFSLib.Linux.Interop
             uint nattrs);
 
         [StructLayout(LayoutKind.Sequential)]
-        public unsafe struct Event
+        public struct Event
         {
             public IntPtr Fs;
             public ulong Mask;
             public int Pid;
-            public byte* Path;
-            public byte* TargetPath;
+            public IntPtr Path;
+            public IntPtr TargetPath;
             public int Fd;
         }
 
