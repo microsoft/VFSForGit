@@ -56,7 +56,6 @@ while read line; do
 	 [[ $line != *"TryGetVirtualizationRoot"* ]] &&                  #SHOULD ADD COVERAGE
 	 [[ $line != *"CurrentProcessWasSpawnedByRegularUser"* ]] &&     #SHOULD ADD COVERAGE
 	 [[ $line != *"ShouldHandleFileOpEvent"* ]] &&                   #SHOULD ADD COVERAGE
-	 [[ $line != *"ShouldIgnoreVnodeType"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"WaitForListenerCompletion"* ]] && 
 	 [[ $line != *"KextLog_"* ]] && 
 	 [[ $line != *"Definition"* ]] && 
@@ -83,7 +82,7 @@ while read line; do
 	 [[ $line != *".xctest"* ]] && 
 	 [[ $line != *".cpp"* ]] && 
 	 [[ $line != *".hpp"* ]]; then
-       printf "\nError: Not at 100% Code Coverage: $line"
+       echo "Error: not at 100% Code Coverage $line"
        exit 1
   fi
 done < $PROJFS/CoverageResult.txt 
