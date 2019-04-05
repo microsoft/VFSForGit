@@ -182,8 +182,17 @@ namespace GVFS.Upgrader
         {
             if (this.upgrader == null)
             {
+                string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+                if (string.IsNullOrEmpty(gitBinPath))
+                {
+                    errorMessage = $"nameof(this.TryInitialize): Unable to locate git installation. Ensure git is installed and try again.";
+                    return false;
+                }
+
+                ICredentialStore credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null);
+
                 ProductUpgrader upgrader;
-                if (!ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, new LocalGVFSConfig(), this.DryRun, this.NoVerify, out upgrader, out errorMessage))
+                if (!ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, new LocalGVFSConfig(), credentialStore, this.DryRun, this.NoVerify, out upgrader, out errorMessage))
                 {
                     return false;
                 }

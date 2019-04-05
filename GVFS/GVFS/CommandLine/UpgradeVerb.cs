@@ -1,6 +1,7 @@
 using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
@@ -116,8 +117,17 @@ namespace GVFS.CommandLine
                     this.tracer = jsonTracer;
                     this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
 
+                    string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+                    if (string.IsNullOrEmpty(gitBinPath))
+                    {
+                        error = $"nameof(this.TryInitializeUpgrader): Unable to locate git installation. Ensure git is installed and try again.";
+                        return false;
+                    }
+
+                    ICredentialStore credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null);
+
                     ProductUpgrader upgrader;
-                    if (ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, new LocalGVFSConfig(), this.DryRun, this.NoVerify, out upgrader, out error))
+                    if (ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, new LocalGVFSConfig(), credentialStore, this.DryRun, this.NoVerify, out upgrader, out error))
                     {
                         this.upgrader = upgrader;
                     }

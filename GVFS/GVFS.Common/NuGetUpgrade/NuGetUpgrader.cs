@@ -591,11 +591,9 @@ namespace GVFS.Common.NuGetUpgrade
         {
             if (!this.isNuGetFeedInitialized)
             {
-                Debug.Assert(this.credentialStore != null, "Attempting to access nuget feed without a credential store configured.");
                 if (this.credentialStore == null)
                 {
-                    error = "Program error - no Credential Store configured";
-                    return false;
+                    throw new InvalidOperationException("Attempted to call method that requires authentication but no CredentialStore is configured.");
                 }
 
                 string authUrl;
