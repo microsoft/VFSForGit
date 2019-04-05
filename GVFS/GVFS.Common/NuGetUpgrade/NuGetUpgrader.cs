@@ -178,8 +178,8 @@ namespace GVFS.Common.NuGetUpgrade
         /// <returns>The argument string with tokens replaced.</returns>
         public static string ReplaceArgTokens(string src, string installationId, string logsDirectory)
         {
-            string dst = src.Replace(NuGetUpgrader.replacementToken(InstallActionInfo.ManifestEntryLogDirectoryToken), logsDirectory)
-                .Replace(NuGetUpgrader.replacementToken(InstallActionInfo.ManifestEntryInstallationIdToken), installationId);
+            string dst = src.Replace(NuGetUpgrader.ReplacementToken(InstallActionInfo.ManifestEntryLogDirectoryToken), logsDirectory)
+                .Replace(NuGetUpgrader.ReplacementToken(InstallActionInfo.ManifestEntryInstallationIdToken), installationId);
             return dst;
         }
 
@@ -462,7 +462,7 @@ namespace GVFS.Common.NuGetUpgrade
             return metadata;
         }
 
-        private static string replacementToken(string tokenString)
+        private static string ReplacementToken(string tokenString)
         {
             return "{" + tokenString + "}";
         }
