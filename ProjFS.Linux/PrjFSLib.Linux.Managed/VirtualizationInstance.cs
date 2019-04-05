@@ -253,11 +253,13 @@ namespace PrjFSLib.Linux
         private int HandleProjEvent(ref ProjFS.Event ev)
         {
             string triggeringProcessName = GetProcCmdline(ev.Pid);
+            string relativePath;
             Result result;
 
             unsafe
             {
-                string relativePath = PtrToStringUTF8(ev.Path);
+                relativePath = PtrToStringUTF8(ev.Path);
+            }
 
                 if ((ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0)
                 {
@@ -289,7 +291,6 @@ namespace PrjFSLib.Linux
                             fd: ev.Fd);
                     }
                 }
-            }
 
             return -result.ToErrno();
         }
@@ -319,11 +320,13 @@ namespace PrjFSLib.Linux
             string triggeringProcessName = GetProcCmdline(ev.Pid);
             byte[] providerId = new byte[PlaceholderIdLength];
             byte[] contentId = new byte[PlaceholderIdLength];
+            string relativePath;
             Result result = Result.Success;
 
             unsafe
             {
-                string relativePath = PtrToStringUTF8(ev.Path);
+                relativePath = PtrToStringUTF8(ev.Path);
+            }
 
                 if (!isDirectory)
                 {
@@ -332,7 +335,10 @@ namespace PrjFSLib.Linux
                     // TODO(Linux): can other intermediate file ops race us here?
                     if (nt == NotificationType.FileRenamed)
                     {
+                        unsafe
+                        {
                         currentRelativePath = PtrToStringUTF8(ev.TargetPath);
+                        }
                     }
 
                     result = this.projfs.GetProjAttrs(
@@ -353,7 +359,6 @@ namespace PrjFSLib.Linux
                         isDirectory: isDirectory,
                         notificationType: nt);
                 }
-            }
 
             int ret = -result.ToErrno();
 
