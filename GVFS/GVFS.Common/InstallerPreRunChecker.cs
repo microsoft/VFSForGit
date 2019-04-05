@@ -10,7 +10,7 @@ using System.Threading;
 
 namespace GVFS.Upgrader
 {
-    public class InstallerPreRunChecker
+    public class InstallerPreRunChecker : IInstallerPreRunChecker
     {
         private static readonly HashSet<string> BlockingProcessSet = new HashSet<string> { "GVFS", "GVFS.Mount", "git", "ssh-agent", "bash", "wish", "git-bash" };
 

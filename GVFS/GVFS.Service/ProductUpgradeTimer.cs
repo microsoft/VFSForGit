@@ -17,17 +17,19 @@ namespace GVFS.Service
         private LocalGVFSConfig gvfsConfig;
         private HttpClient httpClient;
         private Timer timer;
+        private IInstallerPreRunChecker installerPreRunChecker;
 
-        public ProductUpgradeTimer(ITracer tracer, PhysicalFileSystem fileSystem, LocalGVFSConfig gvfsConfig, HttpClient httpClient)
+            public ProductUpgradeTimer(ITracer tracer, PhysicalFileSystem fileSystem, LocalGVFSConfig gvfsConfig, HttpClient httpClient, IInstallerPreRunChecker installerPreRunChecker)
         {
             this.tracer = tracer;
             this.fileSystem = fileSystem;
             this.gvfsConfig = gvfsConfig;
             this.httpClient = httpClient;
+            this.installerPreRunChecker = installerPreRunChecker;
         }
 
         public ProductUpgradeTimer(ITracer tracer)
-            : this(tracer, new PhysicalFileSystem(), new LocalGVFSConfig(), new HttpClient())
+                : this(tracer, new PhysicalFileSystem(), new LocalGVFSConfig(), new HttpClient(), new InstallerPreRunChecker(tracer, string.Empty))
         {
         }
 
@@ -115,8 +117,7 @@ namespace GVFS.Service
                         return;
                     }
 
-                    InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
-                    if (!prerunChecker.TryRunPreUpgradeChecks(out errorMessage))
+                    if (!this.installerPreRunChecker.TryRunPreUpgradeChecks(out errorMessage))
                     {
                         string message = string.Format(
                             "{0}.{1}: PreUpgradeChecks failed with: {2}",
