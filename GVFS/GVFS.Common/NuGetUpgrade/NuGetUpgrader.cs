@@ -95,13 +95,14 @@ namespace GVFS.Common.NuGetUpgrade
         public static bool TryCreate(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
+            LocalGVFSConfig gvfsConfig,
             bool dryRun,
             bool noVerify,
             out NuGetUpgrader nuGetUpgrader,
             out bool isConfigured,
             out string error)
         {
-            NuGetUpgraderConfig upgraderConfig = new NuGetUpgraderConfig(tracer, new LocalGVFSConfig());
+            NuGetUpgraderConfig upgraderConfig = new NuGetUpgraderConfig(tracer, gvfsConfig);
             nuGetUpgrader = null;
             isConfigured = false;
 
