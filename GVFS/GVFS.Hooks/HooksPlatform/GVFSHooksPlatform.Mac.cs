@@ -1,4 +1,3 @@
-using GVFS.Platform.Mac;
 using GVFS.Platform.POSIX;
 
 namespace GVFS.Hooks.HooksPlatform

@@ -9,7 +9,7 @@ namespace GVFS.Platform.Mac
     {
         public MacPlatform()
             : base(
-                installerExtension: "." + InstallerExtension)
+                installerExtension: ".dmg")
         {
         }
 
