@@ -223,11 +223,6 @@ namespace PrjFSLib.Linux
         // TODO(Linux): replace with netstandard2.1 Marshal.PtrToStringUTF8()
         private static string PtrToStringUTF8(IntPtr ptr)
         {
-            if (ptr == IntPtr.Zero)
-            {
-                return null;
-            }
-
             return Marshal.PtrToStringAnsi(ptr);
         }
 
