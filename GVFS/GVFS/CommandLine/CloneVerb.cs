@@ -70,7 +70,7 @@ namespace GVFS.CommandLine
         [Option(
             "local-cache-path",
             Required = false,
-            HelpText = "Use this option to override the path for the local GVFS cache. The default location is the .gvfsCache folder in the root of the volume.")]
+            HelpText = VerbConstants.CloneVerb.LocalCacheRootHelpText)]
         public string LocalCacheRoot { get; set; }
 
         protected override string VerbName
@@ -152,7 +152,13 @@ namespace GVFS.CommandLine
                         string resolvedLocalCacheRoot;
                         if (string.IsNullOrWhiteSpace(this.LocalCacheRoot))
                         {
-                            resolvedLocalCacheRoot = LocalCacheResolver.GetDefaultLocalCacheRoot(enlistment);
+                            string localCacheRootError;
+                            if (!LocalCacheResolver.TryGetDefaultLocalCacheRoot(enlistment, out resolvedLocalCacheRoot, out localCacheRootError))
+                            {
+                                this.ReportErrorAndExit(
+                                    tracer,
+                                    $"Failed to determine the default location for the local GVFS cache: `{localCacheRootError}`");
+                            }
                         }
                         else
                         {

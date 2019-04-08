@@ -325,6 +325,14 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
         }
 
+        public override bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError)
+        {
+            string pathRoot = Path.GetPathRoot(enlistmentRoot);
+            localCacheRoot = Path.Combine(pathRoot, GVFSConstants.DefaultGVFSCacheFolderName);
+            localCacheRootError = null;
+            return true;
+        }
+
         public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
         {
             ProcessResult result = ProcessHelper.Run("taskkill", $"/pid {processId} /f /t");

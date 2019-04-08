@@ -124,6 +124,30 @@ namespace GVFS.Platform.POSIX
             return POSIXPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
         }
 
+        public override bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError)
+        {
+            string homeDirectory = Environment.GetEnvironmentVariable("HOME");
+            if (string.IsNullOrEmpty(homeDirectory))
+            {
+                localCacheRoot = null;
+                localCacheRootError = "Failed to read HOME environment variable";
+                return false;
+            }
+
+            try
+            {
+                localCacheRoot = Path.Combine(homeDirectory, GVFSConstants.DefaultGVFSCacheFolderName);
+                localCacheRootError = null;
+                return true;
+            }
+            catch (ArgumentException e)
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to build local cache path using HOME: {e.Message}";
+                return false;
+            }
+        }
+
         public override bool IsGitStatusCacheSupported()
         {
             // TODO(POSIX): support git status cache
