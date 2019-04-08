@@ -224,9 +224,19 @@ The design review process is as follows:
   if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
   ```
 
-- *Add new interfaces when it makes sense for the product, not simply for unit testing*
+- *Testability of a class should be a priority in the design of a class and during code reviews.*
 
-  When a class needs to be mocked (or have a subset of its behavior mocked), prefer using virtual methods instead of adding a new interface.  VFS4G uses interfaces when multiple implementations of the interface exist in the product code.
+  When writing new code, aim to follow existing coding guidelines. However, when exiting guidelines and testability goals of a design conflict, optimize for testability.
+
+- *When writing tests, prefer a well defined boundary for what dependencies are test classes and what dependencies are product classes.*
+
+  When a test needs to control a dependency, try to implement test class from a contract instead of extending a product implementation class. This will ensure that we understand what behaviors are test classes and what are product classes.
+
+  When a class might be substituted for a test class in other componenents, consider defining the public API of the class explicity, either deriving from an abstract base class or as an interface as appropriate. The ability to substite a test class that implements an API is more important than following the style of existing code.
+
+  The Moq framework used by the project works best when paired with explicit contracts.
+
+- *If code need to be refactored to enable new functionality to be testable, make the refactoring changes in a self contained set of commits.*
 
 - *Check for `null` using the equality (`==`) and inequality (`!=`) operators rather than `is`*
 
