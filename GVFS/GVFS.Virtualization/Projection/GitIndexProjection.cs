@@ -1163,20 +1163,25 @@ namespace GVFS.Virtualization.Projection
                         bool keepFolder = true;
                         if (!folderPlaceholdersToKeep.Contains(folderPlaceholder.Path))
                         {
-                            this.GetChildNameAndParentKey(folderPlaceholder.Path, out string childName, out string parentKey);
-                            FolderData folderData = this.GetProjectedFolderEntryData(CancellationToken.None, blobSizesConnection, availableSizes, childName, parentKey, out string _) as FolderData;
+                            bool isProjected = this.IsPathProjected(folderPlaceholder.Path, out string fileName, out bool isFolder);
 
                             // Check the projection for the folder to determine if the folder needs to be deleted
                             // The delete will be attempted if one of the following is true
                             // 1. not in the projection anymore
                             // 2. in the projection but is not a folder in the projection
                             // 3. Folder no longer exist on disk - this is to remove the tombstone
-                            if (folderData == null ||
-                                !folderData.IsFolder ||
-                                !this.context.FileSystem.DirectoryExists(Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, folderPlaceholder.Path)))
+                            if (!isProjected ||
+                                !isFolder ||
+                                (!GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories &&
+                                !this.context.FileSystem.DirectoryExists(Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, folderPlaceholder.Path))))
                             {
                                 keepFolder = !this.RemoveFolderPlaceholderIfEmpty(folderPlaceholder);
                                 ++deleteFolderPlaceholderAttempted;
+                            }
+
+                            if (keepFolder)
+                            {
+                                this.AddParentFoldersToListToKeep(folderPlaceholder.Path, folderPlaceholdersToKeep);
                             }
                         }
 
