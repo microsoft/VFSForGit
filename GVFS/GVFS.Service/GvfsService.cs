@@ -45,7 +45,6 @@ namespace GVFS.Service
 
                 this.repoRegistry = new RepoRegistry(this.tracer, new PhysicalFileSystem(), this.serviceDataLocation);
                 this.repoRegistry.Upgrade();
-                this.productUpgradeTimer.Start();
                 string pipeName = this.serviceName + ".Pipe";
                 this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
 
@@ -55,9 +54,17 @@ namespace GVFS.Service
 
                     using (ITracer activity = this.tracer.StartActivity("EnsurePrjFltHealthy", EventLevel.Informational))
                     {
+                        // Make a best-effort to enable PrjFlt. Continue even if it fails.
+                        // This will be tried again when user attempts to mount an enlistment.
                         string error;
                         EnableAndAttachProjFSHandler.TryEnablePrjFlt(activity, out error);
                     }
+
+                    // Start product upgrade timer only after attempting to enable prjflt.
+                    // On Windows server (where PrjFlt is not inboxed) this helps avoid
+                    // a race between TryEnablePrjFlt() and installer pre-check which is
+                    // performed by UpgradeTimer in parallel.
+                    this.productUpgradeTimer.Start();
 
                     this.serviceStopped.WaitOne();
                 }

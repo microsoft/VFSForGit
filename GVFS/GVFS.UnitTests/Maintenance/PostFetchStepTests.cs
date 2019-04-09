@@ -105,8 +105,8 @@ namespace GVFS.UnitTests.Maintenance
             PostFetchStep step = new PostFetchStep(this.context, new List<string>() { "pack" }, requireObjectCacheLock: false);
             step.Execute();
 
-            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(1);
-            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(1);
 
             List<string> commands = this.gitProcess.CommandsRun;
 
@@ -142,8 +142,8 @@ namespace GVFS.UnitTests.Maintenance
             PostFetchStep step = new PostFetchStep(this.context, new List<string>() { "pack" }, requireObjectCacheLock: false);
             step.Execute();
 
-            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(1);
-            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(1);
 
             List<string> commands = this.gitProcess.CommandsRun;
             commands.Count.ShouldEqual(5);

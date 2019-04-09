@@ -314,6 +314,7 @@ namespace GVFS.Mount
                 else if (lockAcquired)
                 {
                     response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.AcceptResult);
+                    this.tracer.SetGitCommandSessionId(requester.GitCommandSessionId);
                 }
                 else if (existingExternalHolder == null)
                 {
@@ -340,6 +341,11 @@ namespace GVFS.Mount
             }
 
             NamedPipeMessages.ReleaseLock.Response response = this.fileSystemCallbacks.TryReleaseExternalLock(request.RequestData.PID);
+            if (response.Result == NamedPipeMessages.ReleaseLock.SuccessResult)
+            {
+                this.tracer.SetGitCommandSessionId(string.Empty);
+            }
+
             connection.TrySendResponse(response.CreateMessage());
         }
 
@@ -459,7 +465,7 @@ namespace GVFS.Mount
             response.RepoUrl = this.enlistment.RepoUrl;
             response.CacheServer = this.cacheServer.ToString();
             response.LockStatus = this.context?.Repository.GVFSLock != null ? this.context.Repository.GVFSLock.GetStatus() : "Unavailable";
-            response.DiskLayoutVersion = RepoMetadata.Instance.GetCurrentDiskLayoutVersion();
+            response.DiskLayoutVersion = $"{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion}.{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion}";
 
             switch (this.currentState)
             {
@@ -539,6 +545,10 @@ namespace GVFS.Mount
             {
                 this.tracer.RelatedInfo("Git status cache enabled. Backoff time: {0}ms", this.gitStatusCacheConfig.BackoffTime.TotalMilliseconds);
             }
+            else
+            {
+                this.tracer.RelatedInfo("Git status cache is not enabled");
+            }
 
             this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer, gitStatusCache), "Failed to create src folder callback listener");
             this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
@@ -550,12 +560,12 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Error: {0}", error);
             }
 
-            if (majorVersion != RepoMetadata.DiskLayoutVersion.CurrentMajorVersion)
+            if (majorVersion != GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
             {
                 this.FailMountAndExit(
                     "Error: On disk version ({0}) does not match current version ({1})",
                     majorVersion,
-                    RepoMetadata.DiskLayoutVersion.CurrentMajorVersion);
+                    GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion);
             }
 
             try

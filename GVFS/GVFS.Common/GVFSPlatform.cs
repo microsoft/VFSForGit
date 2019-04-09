@@ -51,8 +51,6 @@ namespace GVFS.Common
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
-        public abstract IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId);
-
         public abstract bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error);
 
         public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly);
@@ -130,7 +128,7 @@ namespace GVFS.Common
 
             public string GVFSUpgraderExecutableName
             {
-                get { return "GVFS.Upgrader" + this.ExecutableExtension;  }
+                get { return "GVFS.Upgrader" + this.ExecutableExtension; }
             }
         }
 

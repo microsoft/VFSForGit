@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
@@ -19,6 +20,17 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             File.Move(sourcePath, targetPath);
             return string.Empty;
+        }
+
+        public override void CreateFileWithoutClose(string path)
+        {
+            File.Create(path);
+        }
+
+        public override void OpenFileAndWriteWithoutClose(string path, string content)
+        {
+            StreamWriter file = new StreamWriter(path);
+            file.Write(content);
         }
 
         public override void MoveFileShouldFail(string sourcePath, string targetPath)

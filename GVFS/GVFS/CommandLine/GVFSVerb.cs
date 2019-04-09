@@ -353,6 +353,19 @@ namespace GVFS.CommandLine
             return serverGVFSConfig;
         }
 
+        protected bool IsExistingPipeListening(string enlistmentRoot)
+        {
+            using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot)))
+            {
+                if (pipeClient.Connect(500))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, ServerGVFSConfig gvfsConfig, bool showWarnings)
         {
             this.CheckGitVersion(tracer, enlistment, out string gitVersion);
@@ -1107,21 +1120,12 @@ You can specify a URL, a name of a configured cache server, or the special names
                 GVFSEnlistment enlistment = null;
                 try
                 {
-                    if (this.validateOriginURL)
-                    {
-                        enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
-                    }
-                    else
-                    {
-                        enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
-                    }
-
-                    if (enlistment == null)
-                    {
-                        this.ReportErrorAndExit(
-                            "Error: '{0}' is not a valid GVFS enlistment",
-                            enlistmentRootPath);
-                    }
+                    enlistment = GVFSEnlistment.CreateFromDirectory(
+                        enlistmentRootPath,
+                        gitBinPath,
+                        hooksPath,
+                        authentication,
+                        createWithoutRepoURL: !this.validateOriginURL);
                 }
                 catch (InvalidRepoException e)
                 {

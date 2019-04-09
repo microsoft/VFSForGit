@@ -476,7 +476,7 @@ namespace GVFS.Common.NuGetUpgrade
         private static void ErasePersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer)
         {
             GitProcess gitProcess = new GitProcess(gitBinaryPath, null, null);
-            gitProcess.RevokeCredential(credentialUrl);
+            gitProcess.RejectCredentials(credentialUrl);
         }
 
         private static bool TryReacquirePersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer, out string token, out string error)

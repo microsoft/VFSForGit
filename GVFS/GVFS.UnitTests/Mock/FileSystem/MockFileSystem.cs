@@ -21,6 +21,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
         public MockDirectory RootDirectory { get; private set; }
 
         public bool DeleteFileThrowsException { get; set; }
+        public Exception ExceptionThrownByCreateDirectory { get; set; }
 
         public bool TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed { get; set; }
 
@@ -38,8 +39,13 @@ namespace GVFS.UnitTests.Mock.FileSystem
         /// </summary>
         public bool DeleteNonExistentFileThrowsException { get; set; }
 
-        public override void RecursiveDelete(string path)
+        public override void DeleteDirectory(string path, bool recursive = true)
         {
+            if (!recursive)
+            {
+                throw new NotImplementedException();
+            }
+
             this.RootDirectory.DeleteDirectory(path);
         }
 
@@ -149,6 +155,32 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
         }
 
+        public override byte[] ReadAllBytes(string path)
+        {
+            MockFile file = this.RootDirectory.FindFile(path);
+
+            using (Stream s = file.GetContentStream())
+            {
+                int count = (int)s.Length;
+
+                int pos = 0;
+                byte[] result = new byte[count];
+                while (count > 0)
+                {
+                    int n = s.Read(result, pos, count);
+                    if (n == 0)
+                    {
+                        throw new IOException("Unexpected end of stream");
+                    }
+
+                    pos += n;
+                    count -= n;
+                }
+
+                return result;
+            }
+        }
+
         public override IEnumerable<string> ReadLines(string path)
         {
             MockFile file = this.RootDirectory.FindFile(path);
@@ -163,6 +195,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override void CreateDirectory(string path)
         {
+            if (this.ExceptionThrownByCreateDirectory != null)
+            {
+                throw this.ExceptionThrownByCreateDirectory;
+            }
+
             this.RootDirectory.CreateDirectory(path);
         }
 
@@ -192,14 +229,6 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
 
             return false;
-        }
-
-        public override void DeleteDirectory(string path, bool recursive = false)
-        {
-            MockDirectory directory = this.RootDirectory.FindDirectory(path);
-            directory.ShouldNotBeNull();
-
-            this.RootDirectory.DeleteDirectory(path);
         }
 
         public override IEnumerable<DirectoryItemInfo> ItemsInDirectory(string path)

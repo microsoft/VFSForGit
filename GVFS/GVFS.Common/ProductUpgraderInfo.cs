@@ -38,7 +38,7 @@ namespace GVFS.Common
         {
             try
             {
-                this.fileSystem.RecursiveDelete(GetAssetDownloadsPath());
+                this.fileSystem.DeleteDirectory(GetAssetDownloadsPath());
             }
             catch (Exception ex)
             {

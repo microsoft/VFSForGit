@@ -8,5 +8,6 @@ namespace PrjFSLib.Mac.Interop
         public EnumerateDirectoryCallback OnEnumerateDirectory;
         public GetFileStreamCallback OnGetFileStream;
         public NotifyOperationCallback OnNotifyOperation;
+        public LogErrorCallback OnLogError;
     }
 }

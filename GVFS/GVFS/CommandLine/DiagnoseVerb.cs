@@ -176,7 +176,7 @@ namespace GVFS.CommandLine
                 () =>
                 {
                     ZipFile.CreateFromDirectory(archiveFolderPath, zipFilePath);
-                    this.fileSystem.RecursiveDelete(archiveFolderPath);
+                    this.fileSystem.DeleteDirectory(archiveFolderPath);
 
                     return true;
                 },

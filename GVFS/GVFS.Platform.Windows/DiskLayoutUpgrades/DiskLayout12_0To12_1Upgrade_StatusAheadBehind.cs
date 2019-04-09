@@ -18,15 +18,13 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
 
         public override bool TryUpgrade(ITracer tracer, string enlistmentRoot)
         {
-            string errorMessage;
             if (!this.TrySetGitConfig(
                 tracer,
                 enlistmentRoot,
                 new Dictionary<string, string>
                 {
                     { "status.aheadbehind", "false" },
-                },
-                out errorMessage))
+                }))
             {
                 return false;
             }

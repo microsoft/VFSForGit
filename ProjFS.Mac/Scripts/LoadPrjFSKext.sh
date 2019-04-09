@@ -16,7 +16,7 @@ sudo chown -R root:wheel $BUILDDIR/debug.PrjFSKext.kext
 
 kextstat | grep PrjFSKext
 if [ $? -eq 0 ]; then
-  sudo kextunload -b io.gvfs.PrjFSKext 
+  sudo kextunload -b org.vfsforgit.PrjFSKext 
 fi
 
 mkdir -p $BUILDDIR/Symbols

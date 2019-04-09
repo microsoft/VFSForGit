@@ -1,5 +1,4 @@
 ﻿using CommandLine;
-using GVFS.PlatformLoader;
 
 namespace GVFS.FunctionalTests.LockHolder
 {
@@ -7,8 +6,6 @@ namespace GVFS.FunctionalTests.LockHolder
     {
         public static void Main(string[] args)
         {
-            GVFSPlatformLoader.Initialize();
-
             Parser.Default.ParseArguments<AcquireGVFSLockVerb>(args)
                     .WithParsed(acquireGVFSLock => acquireGVFSLock.Execute());
         }

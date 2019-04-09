@@ -75,33 +75,6 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
-        {
-            string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
-
-            // If we do not have a git binary, then we cannot check if we should set up telemetry
-            // We also cannot log this, as we are setting up tracer.
-            if (string.IsNullOrEmpty(gitBinRoot))
-            {
-                yield break;
-            }
-
-            ETWTelemetryEventListener etwListener = ETWTelemetryEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
-            if (etwListener != null)
-            {
-                yield return etwListener;
-            }
-
-            // TODO: enable the daemon-based telemetry listener once we're happy.
-            // See GitHub issue: https://github.com/Microsoft/VFSForGit/issues/739
-            //
-            // TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
-            // if (daemonListener != null)
-            // {
-            //     yield return daemonListener;
-            // }
-        }
-
         public override void InitializeEnlistmentACLs(string enlistmentPath)
         {
             // The following permissions are typically present on deskop and missing on Server
@@ -220,27 +193,37 @@ namespace GVFS.Platform.Windows
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
-            const string GitBinPathEnd = "\\cmd\\git.exe";
-            string[] gitVSRegistryKeyNames =
+            try
             {
-                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl",
-                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\16.0\\TeamFoundation\\GitSourceControl"
-            };
-            const string GitVSRegistryValueName = "GitPath";
+                const string GitBinPathEnd = "\\cmd\\git.exe";
+                string[] gitVSRegistryKeyNames =
+                {
+                    "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl",
+                    "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\16.0\\TeamFoundation\\GitSourceControl"
+                };
+                const string GitVSRegistryValueName = "GitPath";
 
-            if (!gitBinPath.EndsWith(GitBinPathEnd))
-            {
-                tracer.RelatedWarning(
-                    "Unable to configure Visual Studio’s GitSourceControl regkey because invalid git.exe path found: " + gitBinPath,
-                    Keywords.Telemetry);
+                if (!gitBinPath.EndsWith(GitBinPathEnd))
+                {
+                    tracer.RelatedWarning(
+                        "Unable to configure Visual Studio’s GitSourceControl regkey because invalid git.exe path found: " + gitBinPath,
+                        Keywords.Telemetry);
 
-                return;
+                    return;
+                }
+
+                string regKeyValue = gitBinPath.Substring(0, gitBinPath.Length - GitBinPathEnd.Length);
+                foreach (string registryKeyName in gitVSRegistryKeyNames)
+                {
+                    Registry.SetValue(registryKeyName, GitVSRegistryValueName, regKeyValue);
+                }
             }
-
-            string regKeyValue = gitBinPath.Substring(0, gitBinPath.Length - GitBinPathEnd.Length);
-            foreach (string registryKeyName in gitVSRegistryKeyNames)
+            catch (Exception ex)
             {
-                Registry.SetValue(registryKeyName, GitVSRegistryValueName, regKeyValue);
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Operation", nameof(this.ConfigureVisualStudio));
+                metadata.Add("Exception", ex.ToString());
+                tracer.RelatedWarning(metadata, "Error while trying to set Visual Studio’s GitSourceControl regkey");
             }
         }
 

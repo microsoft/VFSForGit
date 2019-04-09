@@ -39,6 +39,22 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        public void CreateFileWithoutClose()
+        {
+            string srcPath = @"CreateFileWithoutClose.md";
+            this.CreateFileWithoutClose(srcPath);
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
+        public void WriteWithoutClose()
+        {
+            string srcPath = @"Readme.md";
+            this.ReadFileAndWriteWithoutClose(srcPath, "More Stuff");
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
         [Category(Categories.MacTODO.M4)]
         public void ModifyingAndDeletingRepositoryExcludeFileInvalidatesCache()
         {

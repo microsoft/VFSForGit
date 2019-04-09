@@ -196,6 +196,7 @@ namespace GVFS.Common
                 if (externalHolderTerminatedWithoutReleasingLock)
                 {
                     this.ReleaseLockForTerminatedProcess(existingExternalHolder.PID);
+                    this.tracer.SetGitCommandSessionId(string.Empty);
                     existingExternalHolder = null;
                 }
 
@@ -262,8 +263,13 @@ namespace GVFS.Common
             private Stopwatch lockAcquiredTime;
             private long lockHeldExternallyTimeMs;
 
-            private long placeholderUpdateTimeMs;
+            private long placeholderTotalUpdateTimeMs;
+            private long placeholderUpdateFilesTimeMs;
+            private long placeholderUpdateFoldersTimeMs;
+            private long placeholderWriteAndFlushTimeMs;
+            private int deleteFolderPlacehoderAttempted;
             private long parseGitIndexTimeMs;
+            private long projectionWriteLockHeldMs;
 
             private int numBlobs;
             private long blobDownloadTimeMs;
@@ -284,9 +290,18 @@ namespace GVFS.Common
                 this.lockHeldExternallyTimeMs = this.lockAcquiredTime.ElapsedMilliseconds;
             }
 
-            public void RecordUpdatePlaceholders(long durationMs)
+            public void RecordUpdatePlaceholders(long durationMs, long updateFilesMs, long updateFoldersMs, long writeAndFlushMs, int deleteFolderPlacehoderAttempted)
             {
-                this.placeholderUpdateTimeMs = durationMs;
+                this.placeholderTotalUpdateTimeMs = durationMs;
+                this.placeholderUpdateFilesTimeMs = updateFilesMs;
+                this.placeholderUpdateFoldersTimeMs = updateFoldersMs;
+                this.placeholderWriteAndFlushTimeMs = writeAndFlushMs;
+                this.deleteFolderPlacehoderAttempted = deleteFolderPlacehoderAttempted;
+            }
+
+            public void RecordProjectionWriteLockHeld(long durationMs)
+            {
+                this.projectionWriteLockHeldMs = durationMs;
             }
 
             public void RecordParseGitIndex(long durationMs)
@@ -319,7 +334,12 @@ namespace GVFS.Common
                 metadata.Add("DurationMS", this.lockAcquiredTime.ElapsedMilliseconds);
                 metadata.Add("LockHeldExternallyMS", this.lockHeldExternallyTimeMs);
                 metadata.Add("ParseGitIndexMS", this.parseGitIndexTimeMs);
-                metadata.Add("UpdatePlaceholdersMS", this.placeholderUpdateTimeMs);
+                metadata.Add("UpdatePlaceholdersMS", this.placeholderTotalUpdateTimeMs);
+                metadata.Add("UpdateFilePlaceholdersMS", this.placeholderUpdateFilesTimeMs);
+                metadata.Add("UpdateFolderPlaceholdersMS", this.placeholderUpdateFoldersTimeMs);
+                metadata.Add("DeleteFolderPlacehoderAttempted", this.deleteFolderPlacehoderAttempted);
+                metadata.Add("PlaceholdersWriteAndFlushMS", this.placeholderWriteAndFlushTimeMs);
+                metadata.Add("ProjectionWriteLockHeldMs", this.projectionWriteLockHeldMs);
 
                 metadata.Add("BlobsDownloaded", this.numBlobs);
                 metadata.Add("BlobDownloadTimeMS", this.blobDownloadTimeMs);

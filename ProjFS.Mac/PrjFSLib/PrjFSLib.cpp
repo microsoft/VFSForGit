@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/sys_domain.h>
 #include <sys/xattr.h>
+#include <sys/fsgetpath.h>
 #include <thread>
 #include <unistd.h>
 #include <dirent.h>
@@ -17,6 +18,8 @@
 #include <IOKit/IODataQueueClient.h>
 #include <mach/mach_port.h>
 #include <CoreFoundation/CFNumber.h>
+#include <string>
+#include <sstream>
 
 #include "stdlib.h"
 
@@ -42,6 +45,7 @@ using std::map;
 using std::move;
 using std::mutex;
 using std::oct;
+using std::ostringstream;
 using std::pair;
 using std::queue;
 using std::set;
@@ -97,6 +101,7 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
 
 static bool IsVirtualizationRoot(const char* fullPath);
 static void CombinePaths(const char* root, const char* relative, char (&combined)[PrjFSMaxPath]);
+static const char* GetRelativePath(const char* fullPath, const char* root);
 
 static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType responseType);
 static errno_t RegisterVirtualizationRootPath(const char* fullPath);
@@ -161,13 +166,15 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
         << callbacks.EnumerateDirectory << ", "
         << callbacks.GetFileStream << ", "
         << callbacks.NotifyOperation << ", "
+        << callbacks.LogError << ","
         << poolThreadCount << ")" << endl;
 #endif
     
     if (nullptr == virtualizationRootFullPath ||
         nullptr == callbacks.EnumerateDirectory ||
         nullptr == callbacks.GetFileStream ||
-        nullptr == callbacks.NotifyOperation)
+        nullptr == callbacks.NotifyOperation ||
+        nullptr == callbacks.LogError)
     {
         return PrjFS_Result_EInvalidArgs;
     }
@@ -621,7 +628,7 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
         abort();
     }
             
-    const char* path = "";
+    const char* path = nullptr;
     if (header->pathSizeBytes > 0)
     {
         path = static_cast<const char*>(messageMemory) + sizeof(*header);
@@ -637,11 +644,53 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     PrjFS_Result result = PrjFS_Result_EIOError;
     
     Message request = ParseMessageMemory(messageMemory, messageSize);
-    
-    // At the moment, we expect all messages to include a path
-    assert(request.path != nullptr);
-    
     const MessageHeader* requestHeader = request.messageHeader;
+    
+    char pathBuffer[PrjFSMaxPath];
+    if (request.path == nullptr)
+    {
+        fsid_t fsid = request.messageHeader->fsidInode.fsid;
+        ssize_t pathSize = fsgetpath(pathBuffer, sizeof(pathBuffer), &fsid, request.messageHeader->fsidInode.inode);
+
+        if (pathSize < 0)
+        {
+            // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
+            ostringstream ss;
+            ss
+                << "MessageType: " << requestHeader->messageType << " "
+                << "PrjFSLib.HandleKernelRequest: fsgetpath failed for fsid 0x"
+                << hex << fsid.val[0] << ":" << hex << fsid.val[1]
+                << ", inode "
+                << dec << request.messageHeader->fsidInode.inode
+                << "; error = "
+                << errno
+                << "(" << strerror(errno) << ")"
+                << endl;
+            string errorMessage = ss.str();
+
+            s_callbacks.LogError(errorMessage.c_str());
+            result = PrjFS_Result_Success;
+            goto CleanupAndReturn;
+        }
+        else
+        {
+            request.path = GetRelativePath(pathBuffer, s_virtualizationRootFullPath.c_str());
+#if DEBUG
+            cout
+                << "PrjFSLib.HandleKernelRequest: fsgetpath for fsid 0x"
+                << hex << fsid.val[0] << ":" << hex << fsid.val[1]
+                << ", inode "
+                << dec << request.messageHeader->fsidInode.inode
+                << " -> '"
+                << pathBuffer
+                << "' -> relative path '"
+                << (request.path != nullptr ? request.path : "[NULL]")
+                << "'"
+                << endl;
+#endif
+        }
+    }
+    
     switch (requestHeader->messageType)
     {
         case MessageType_KtoU_EnumerateDirectory:
@@ -665,6 +714,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyFileModified:
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
+        case MessageType_KtoU_NotifyFilePreConvertToFull:
         {
             char fullPath[PrjFSMaxPath];
             CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
@@ -698,6 +748,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     // async callbacks are not yet implemented
     assert(PrjFS_Result_Pending != result);
     
+CleanupAndReturn:
     if (PrjFS_Result_Pending != result)
     {
         MessageType responseType =
@@ -890,12 +941,15 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         
         // TODO(Mac): once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
         
-        if (fclose(fileHandle.file))
-        {
-            // TODO(Mac): under what conditions can fclose fail? How do we recover?
-            result = PrjFS_Result_EIOError;
-            goto CleanupAndReturn;
-        }
+        fflush(fileHandle.file);
+        
+        // Don't block on closing the file to avoid deadlock with some Antivirus software
+        dispatch_async(s_kernelRequestHandlingConcurrentQueue, ^{
+            if (fclose(fileHandle.file))
+            {
+                // TODO(Mac): under what conditions can fclose fail? How do we recover?
+            }
+        });
         
         if (PrjFS_Result_Success == result)
         {
@@ -972,7 +1026,7 @@ static PrjFS_Result HandleFileNotification(
 #endif
     
     PrjFSFileXAttrData xattrData = {};
-    bool partialFile = TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
+    bool placeholderFile = TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
 
     PrjFS_Result result = s_callbacks.NotifyOperation(
         0 /* commandId */,
@@ -985,10 +1039,8 @@ static PrjFS_Result HandleFileNotification(
         notificationType,
         nullptr /* destinationRelativePath */);
     
-    if (partialFile && PrjFS_NotificationType_FileModified == notificationType)
+    if (result == 0 && placeholderFile && PrjFS_NotificationType_PreConvertToFull == notificationType)
     {
-        // PrjFS_NotificationType_FileModified is a post-modified FileOp event (that cannot be stopped
-        // by the provider) and so there's no need to check the result of the call to NotifyOperation
         errno_t result = RemoveXAttrWithoutFollowingLinks(fullPath, PrjFSFileXAttrName);
         if (0 != result)
         {
@@ -1177,6 +1229,9 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
             return PrjFS_NotificationType_PreDelete;
+
+        case MessageType_KtoU_NotifyFilePreConvertToFull:
+            return PrjFS_NotificationType_PreConvertToFull;
             
         case MessageType_KtoU_NotifyFileCreated:
             return PrjFS_NotificationType_NewFileCreated;
@@ -1190,8 +1245,6 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         
         // Non-notification types
         case MessageType_Invalid:
-        case MessageType_UtoK_StartVirtualizationInstance:
-        case MessageType_UtoK_StopVirtualizationInstance:
         case MessageType_KtoU_EnumerateDirectory:
         case MessageType_KtoU_RecursivelyEnumerateDirectory:
         case MessageType_KtoU_HydrateFile:
@@ -1344,4 +1397,30 @@ static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator)
     {
         s_fileLocks.erase(lockIterator);
     }
+}
+
+static const char* GetRelativePath(const char* fullPath, const char* root)
+{
+    size_t rootLength = strlen(root);
+    size_t pathLength = strlen(fullPath);
+    if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
+    {
+        // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
+        fprintf(stderr, "GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
+        return nullptr;
+    }
+    
+    const char* relativePath = fullPath + rootLength;
+    if (relativePath[0] == '/')
+    {
+        relativePath++;
+    }
+    else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
+    {
+        // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
+        fprintf(stderr, "GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
+        return nullptr;
+    }
+    
+    return relativePath;
 }

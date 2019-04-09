@@ -980,6 +980,7 @@ namespace GVFS.Virtualization.Projection
                         return;
                     }
 
+                    Stopwatch stopwatch = Stopwatch.StartNew();
                     this.projectionReadWriteLock.EnterWriteLock();
 
                     // Record if the projection needed to be updated to ensure that placeholders and the negative cache
@@ -1026,6 +1027,9 @@ namespace GVFS.Virtualization.Projection
                     {
                         this.projectionReadWriteLock.ExitWriteLock();
                     }
+
+                    stopwatch.Stop();
+                    this.context.Repository.GVFSLock.Stats.RecordProjectionWriteLockHeld(stopwatch.ElapsedMilliseconds);
 
                     if (this.isStopping)
                     {
@@ -1085,6 +1089,7 @@ namespace GVFS.Virtualization.Projection
 
         private void UpdatePlaceholders()
         {
+            Stopwatch stopwatch = new Stopwatch();
             List<PlaceholderListDatabase.PlaceholderData> placeholderFilesListCopy;
             List<PlaceholderListDatabase.PlaceholderData> placeholderFoldersListCopy;
             this.placeholderList.GetAllEntriesAndPrepToWriteAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
@@ -1124,6 +1129,7 @@ namespace GVFS.Virtualization.Projection
                     addPlaceholderToUpdatedPlaceholders = (data) => updatedPlaceholderBag.Add(data);
                 }
 
+                stopwatch.Restart();
                 this.ProcessListOnThreads(
                     numThreads,
                     placeholderFilesListCopy,
@@ -1131,9 +1137,13 @@ namespace GVFS.Virtualization.Projection
                         this.BatchPopulateMissingSizesFromRemote(blobSizesConnection, placeholderBatch, start, end, availableSizes),
                     (placeholder, blobSizesConnection, availableSizes) =>
                         this.UpdateOrDeleteFilePlaceholder(blobSizesConnection, placeholder, addPlaceholderToUpdatedPlaceholders, folderPlaceholdersToKeep, availableSizes));
+                stopwatch.Stop();
+                long millisecondsUpdatingFilePlaceholders = stopwatch.ElapsedMilliseconds;
 
+                stopwatch.Restart();
                 this.blobSizes.Flush();
 
+                int deleteFolderPlaceholderAttempted = 0;
                 using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
                 {
                     // A hash of the folder placeholders is only required if the platform expands directories
@@ -1164,9 +1174,17 @@ namespace GVFS.Virtualization.Projection
                                 this.ReExpandFolder(blobSizesConnection, folderPlaceholder.Path, updatedPlaceholderDictionary, folderPlaceholders);
                             }
                         }
+                        else
+                        {
+                            ++deleteFolderPlaceholderAttempted;
+                        }
                     }
                 }
 
+                stopwatch.Stop();
+                long millisecondsUpdatingFolderPlaceholders = stopwatch.ElapsedMilliseconds;
+
+                stopwatch.Restart();
                 if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
                 {
                     if (updatedPlaceholderBag != null)
@@ -1190,8 +1208,16 @@ namespace GVFS.Virtualization.Projection
 
                 this.repoMetadata.SetPlaceholdersNeedUpdate(false);
 
+                stopwatch.Stop();
+                long millisecondsWriteAndFlush = stopwatch.ElapsedMilliseconds;
+
                 TimeSpan duration = activity.Stop(null);
-                this.context.Repository.GVFSLock.Stats.RecordUpdatePlaceholders((long)duration.TotalMilliseconds);
+                this.context.Repository.GVFSLock.Stats.RecordUpdatePlaceholders(
+                    (long)duration.TotalMilliseconds,
+                    millisecondsUpdatingFilePlaceholders,
+                    millisecondsUpdatingFolderPlaceholders,
+                    millisecondsWriteAndFlush,
+                    deleteFolderPlaceholderAttempted);
             }
         }
 

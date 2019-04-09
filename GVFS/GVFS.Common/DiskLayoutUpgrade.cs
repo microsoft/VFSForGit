@@ -73,33 +73,33 @@ namespace GVFS.DiskLayoutUpgrades
             {
                 if (TryGetDiskLayoutVersion(tracer, enlistmentRoot, out majorVersion, out minorVersion, out error))
                 {
-                    if (majorVersion < RepoMetadata.DiskLayoutVersion.MinimumSupportedMajorVersion)
+                    if (majorVersion < GVFSPlatform.Instance.DiskLayoutUpgrade.Version.MinimumSupportedMajorVersion)
                     {
                         error = string.Format(
                             "Breaking change to GVFS disk layout has been made since cloning. \r\nEnlistment disk layout version: {0} \r\nGVFS disk layout version: {1} \r\nMinimum supported version: {2}",
                             majorVersion,
-                            RepoMetadata.DiskLayoutVersion.CurrentMajorVersion,
-                            RepoMetadata.DiskLayoutVersion.MinimumSupportedMajorVersion);
+                            GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion,
+                            GVFSPlatform.Instance.DiskLayoutUpgrade.Version.MinimumSupportedMajorVersion);
 
                         return false;
                     }
-                    else if (majorVersion > RepoMetadata.DiskLayoutVersion.CurrentMajorVersion)
+                    else if (majorVersion > GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
                     {
                         error = string.Format(
                             "Changes to GVFS disk layout do not allow mounting after downgrade. Try mounting again using a more recent version of GVFS. \r\nEnlistment disk layout version: {0} \r\nGVFS disk layout version: {1}",
                             majorVersion,
-                            RepoMetadata.DiskLayoutVersion.CurrentMajorVersion);
+                            GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion);
 
                         return false;
                     }
-                    else if (majorVersion != RepoMetadata.DiskLayoutVersion.CurrentMajorVersion)
+                    else if (majorVersion != GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
                     {
                         error = string.Format(
                             "GVFS disk layout version doesn't match current version. Try running 'gvfs mount' to upgrade. \r\nEnlistment disk layout version: {0}.{1} \r\nGVFS disk layout version: {2}.{3}",
                             majorVersion,
                             minorVersion,
-                            RepoMetadata.DiskLayoutVersion.CurrentMajorVersion,
-                            RepoMetadata.DiskLayoutVersion.CurrentMinorVersion);
+                            GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion,
+                            GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion);
 
                         return false;
                     }
@@ -123,7 +123,7 @@ namespace GVFS.DiskLayoutUpgrades
             try
             {
                 PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-                fileSystem.RecursiveDelete(folderName);
+                fileSystem.DeleteDirectory(folderName);
             }
             catch (Exception e)
             {
@@ -168,15 +168,27 @@ namespace GVFS.DiskLayoutUpgrades
             return true;
         }
 
-        protected bool TrySetGitConfig(ITracer tracer, string enlistmentRoot, Dictionary<string, string> configSettings, out string errorMessage)
+        protected bool TrySetGitConfig(ITracer tracer, string enlistmentRoot, Dictionary<string, string> configSettings)
         {
-            errorMessage = null;
+            GVFSEnlistment enlistment;
 
-            GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
-                enlistmentRoot,
-                GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
-                ProcessHelper.GetCurrentProcessLocation(),
-                authentication: null);
+            try
+            {
+                enlistment = GVFSEnlistment.CreateFromDirectory(
+                    enlistmentRoot,
+                    GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
+                    ProcessHelper.GetCurrentProcessLocation(),
+                    authentication: null);
+            }
+            catch (InvalidRepoException e)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                metadata.Add(nameof(enlistmentRoot), enlistmentRoot);
+                tracer.RelatedError(metadata, $"{nameof(this.TrySetGitConfig)}: Failed to create GVFSEnlistment from directory");
+                return false;
+            }
+
             GitProcess git = enlistment.CreateGitProcess();
 
             foreach (string key in configSettings.Keys)

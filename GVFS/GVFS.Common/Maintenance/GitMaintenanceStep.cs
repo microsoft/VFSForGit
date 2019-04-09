@@ -119,16 +119,15 @@ namespace GVFS.Common.Maintenance
             EventMetadata metadata = this.CreateEventMetadata();
             metadata.Add("gitCommand", gitCommand);
 
-            using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, Keywords.Telemetry, metadata))
+            using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, metadata))
             {
                 if (this.Stopping)
                 {
-                    string message = $"{this.Area}: Not launching Git process {gitCommand} because the mount is stopping";
                     this.Context.Tracer.RelatedWarning(
                         metadata: null,
-                        message: message,
+                        message: $"{this.Area}: Not launching Git process {gitCommand} because the mount is stopping",
                         keywords: Keywords.Telemetry);
-                    return new GitProcess.Result(message, string.Empty, GitProcess.Result.ExitDueToShutDownCode);
+                    throw new StoppingException();
                 }
 
                 GitProcess.Result result = work.Invoke(this.MaintenanceGitProcess);
@@ -144,7 +143,7 @@ namespace GVFS.Common.Maintenance
 
                     this.Context.Tracer.RelatedWarning(
                         metadata: null,
-                         message: $"{this.Area}: Git process {gitCommand} failed with errors: {errorMessage}",
+                        message: $"{this.Area}: Git process {gitCommand} failed with errors: {errorMessage}",
                         keywords: Keywords.Telemetry);
                     return result;
                 }
@@ -208,7 +207,7 @@ namespace GVFS.Common.Maintenance
             GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.WriteMultiPackIndex));
             errorMetadata["RewriteResultExitCode"] = rewriteResult.ExitCode;
 
-            activity.RelatedError(errorMetadata, "multi-pack-index is corrupt after write. Deleting and rewriting.");
+            activity.RelatedWarning(errorMetadata, "multi-pack-index is corrupt after write. Deleting and rewriting.", Keywords.Telemetry);
         }
 
         protected void LogErrorAndRewriteCommitGraph(ITracer activity, List<string> packs)
@@ -220,7 +219,7 @@ namespace GVFS.Common.Maintenance
             GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, packs), nameof(GitProcess.WriteCommitGraph));
             errorMetadata["RewriteResultExitCode"] = rewriteResult.ExitCode;
 
-            activity.RelatedError(errorMetadata, "commit-graph is corrupt after write. Deleting and rewriting.");
+            activity.RelatedWarning(errorMetadata, "commit-graph is corrupt after write. Deleting and rewriting.", Keywords.Telemetry);
         }
 
         private void CreateProcessAndRun()
@@ -235,7 +234,18 @@ namespace GVFS.Common.Maintenance
                 this.MaintenanceGitProcess = this.Context.Enlistment.CreateGitProcess();
             }
 
-            this.PerformMaintenance();
+            try
+            {
+                this.PerformMaintenance();
+            }
+            catch (StoppingException)
+            {
+                // Part of shutdown, skipped commands have already been logged
+            }
+        }
+
+        protected class StoppingException : Exception
+        {
         }
     }
 }

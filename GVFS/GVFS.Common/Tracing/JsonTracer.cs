@@ -45,8 +45,20 @@ namespace GVFS.Common.Tracing
         {
             if (!disableTelemetry)
             {
-                IEnumerable<EventListener> telemetryListeners = GVFSPlatform.Instance.CreateTelemetryListeners(providerName, enlistmentId, mountId);
-                this.listeners.AddRange(telemetryListeners);
+                string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+
+                // If we do not have a git binary, then we cannot check if we should set up telemetry
+                // We also cannot log this, as we are setting up tracer.
+                if (string.IsNullOrEmpty(gitBinRoot))
+                {
+                    return;
+                }
+
+                TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+                if (daemonListener != null)
+                {
+                    this.listeners.Add(daemonListener);
+                }
             }
         }
 
@@ -66,6 +78,15 @@ namespace GVFS.Common.Tracing
             get
             {
                 return this.listeners.Any(listener => listener is LogFileEventListener);
+            }
+        }
+
+        public void SetGitCommandSessionId(string sessionId)
+        {
+            TelemetryDaemonEventListener daemonListener = this.listeners.FirstOrDefault(x => x is TelemetryDaemonEventListener) as TelemetryDaemonEventListener;
+            if (daemonListener != null)
+            {
+                daemonListener.GitCommandSessionId = sessionId;
             }
         }
 
@@ -126,8 +147,18 @@ namespace GVFS.Common.Tracing
 
         public virtual void RelatedInfo(string format, params object[] args)
         {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add(TracingConstants.MessageKey.InfoMessage, string.Format(format, args));
+            this.RelatedInfo(string.Format(format, args));
+        }
+
+        public virtual void RelatedInfo(string message)
+        {
+            this.RelatedInfo(new EventMetadata(), message);
+        }
+
+        public virtual void RelatedInfo(EventMetadata metadata, string message)
+        {
+            metadata = metadata ?? new EventMetadata();
+            metadata.Add(TracingConstants.MessageKey.InfoMessage, message);
             this.RelatedEvent(EventLevel.Informational, "Information", metadata);
         }
 
@@ -208,7 +239,9 @@ namespace GVFS.Common.Tracing
         public ITracer StartActivity(string childActivityName, EventLevel startStopLevel, Keywords startStopKeywords, EventMetadata startMetadata)
         {
             JsonTracer subTracer = new JsonTracer(this.listeners, this.activityId, childActivityName, startStopLevel, startStopKeywords);
-            subTracer.WriteStartEvent(startMetadata, startStopKeywords);
+
+            // Write the start event, disabling the Telemetry keyword so we will only dispatch telemetry at the end event.
+            subTracer.WriteStartEvent(startMetadata, startStopKeywords & ~Keywords.Telemetry);
 
             return subTracer;
         }
@@ -351,12 +384,7 @@ namespace GVFS.Common.Tracing
             if (this.failedListeners.TryRemove(recoveredListener, out _))
             {
                 TraceEventMessage message = CreateListenerRecoveryMessage(recoveredListener);
-
-                // Only log that the listener has recovered to the other good listeners
-                foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))
-                {
-                    listener.TryRecordMessage(message, out _);
-                }
+                this.LogMessageToNonFailedListeners(message);
             }
         }
 
@@ -369,8 +397,11 @@ namespace GVFS.Common.Tracing
             }
 
             TraceEventMessage message = CreateListenerFailureMessage(failedListener, errorMessage);
+            this.LogMessageToNonFailedListeners(message);
+        }
 
-            // Only log the failure to listeners that have not failed themselves
+        private void LogMessageToNonFailedListeners(TraceEventMessage message)
+        {
             foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))
             {
                 // To prevent infinitely recursive failures, we won't try and log that we failed to log that a listener failed :)

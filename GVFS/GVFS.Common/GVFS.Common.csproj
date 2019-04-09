@@ -30,4 +30,7 @@
     <PackageReference Include="NuGet.Protocol" Version="4.9.2" />
     <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.3.0" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="X509Certificates\" />
+  </ItemGroup>
 </Project>

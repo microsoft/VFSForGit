@@ -81,7 +81,13 @@ void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)
     va_start(args, fmt);
     int messageLength = vsnprintf(message.logString, sizeof(message.logString), fmt, args);
     va_end (args);
-    int messageSize = sizeof(KextLog_MessageHeader) + messageLength + 1 /* null terminator */;
+    uint32_t messageSize;
+    if (__builtin_uadd_overflow(sizeof(KextLog_MessageHeader), messageLength, &messageSize) ||
+        __builtin_uadd_overflow(messageSize, 1, &messageSize))
+    {
+        // Overflow occurred.
+        return;
+    }
 
     uint32_t messageFlags = 0;
     bool messageAllocated = false;
@@ -121,4 +127,11 @@ void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)
     {
         Memory_Free(messagePtr, messageSize);
     }
+}
+
+const void* KextLog_Unslide(const void* pointer)
+{
+    vm_offset_t outPointer = 0;
+    vm_kernel_unslide_or_perm_external(reinterpret_cast<vm_offset_t>(pointer), &outPointer);
+    return reinterpret_cast<const void*>(outPointer);
 }

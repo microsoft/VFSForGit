@@ -89,14 +89,6 @@ namespace GVFS.Common
             }
         }
 
-        public string GetCurrentDiskLayoutVersion()
-        {
-            return string.Format(
-                "{0}.{1}",
-                DiskLayoutVersion.CurrentMajorVersion,
-                DiskLayoutVersion.CurrentMinorVersion);
-        }
-
         public bool TryGetOnDiskLayoutVersion(out int majorVersion, out int minorVersion, out string error)
         {
             majorVersion = 0;
@@ -141,8 +133,8 @@ namespace GVFS.Common
             this.repoMetadata.SetValuesAndFlush(
                 new[]
                 {
-                    new KeyValuePair<string, string>(Keys.DiskLayoutMajorVersion, DiskLayoutVersion.CurrentMajorVersion.ToString()),
-                    new KeyValuePair<string, string>(Keys.DiskLayoutMinorVersion, DiskLayoutVersion.CurrentMinorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMajorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMinorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion.ToString()),
                     new KeyValuePair<string, string>(Keys.GitObjectsRoot, enlistment.GitObjectsRoot),
                     new KeyValuePair<string, string>(Keys.LocalCacheRoot, enlistment.LocalCacheRoot),
                     new KeyValuePair<string, string>(Keys.BlobSizesRoot, enlistment.BlobSizesRoot),
@@ -309,22 +301,6 @@ namespace GVFS.Common
             public const string LocalCacheRoot = "LocalCacheRoot";
             public const string BlobSizesRoot = "BlobSizesRoot";
             public const string EnlistmentId = "EnlistmentId";
-        }
-
-        public static class DiskLayoutVersion
-        {
-            // The major version should be bumped whenever there is an on-disk format change that requires a one-way upgrade.
-            // Increasing this version will make older versions of GVFS unable to mount a repo that has been mounted by a newer
-            // version of GVFS.
-            public const int CurrentMajorVersion = 17;
-
-            // The minor version should be bumped whenever there is an upgrade that can be safely ignored by older versions of GVFS.
-            // For example, this allows an upgrade step that sets a default value for some new config setting.
-            public const int CurrentMinorVersion = 0;
-
-            // This is the last time GVFS made a breaking change that required a reclone. This should not
-            // be incremented ever again as all format changes should now be supported with an upgrade step.
-            public const int MinimumSupportedMajorVersion = 7;
         }
     }
 }

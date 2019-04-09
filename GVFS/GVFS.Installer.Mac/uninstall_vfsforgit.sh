@@ -3,10 +3,14 @@
 KEXTFILENAME="PrjFSKext.kext"
 VFSFORDIRECTORY="/usr/local/vfsforgit"
 PRJFSKEXTDIRECTORY="/Library/Extensions"
+LAUNCHDAEMONDIRECTORY="/Library/LaunchDaemons"
+LAUNCHAGENTDIRECTORY="/Library/LaunchAgents"
+LOGDAEMONLAUNCHDFILENAME="org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist"
+SERVICEAGENTLAUNCHDFILENAME="org.vfsforgit.service.plist"
 GVFSCOMMANDPATH="/usr/local/bin/gvfs"
 UNINSTALLERCOMMANDPATH="/usr/local/bin/uninstall_vfsforgit.sh"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
-KEXTID="io.gvfs.PrjFSKext"
+KEXTID="org.vfsforgit.PrjFSKext"
 
 function UnloadKext()
 {
@@ -28,6 +32,32 @@ function UnInstallVFSForGit()
     
     if [ -d "${PRJFSKEXTDIRECTORY}/$KEXTFILENAME" ]; then
         rmCmd="sudo /bin/rm -Rf ${PRJFSKEXTDIRECTORY}/$KEXTFILENAME"
+        echo "$rmCmd..."
+        eval $rmCmd || exit 1
+    fi
+    
+    if [ -f "${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME" ]; then
+        unloadCmd="sudo launchctl unload -w ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME"
+        echo "$unloadCmd..."
+        eval $unloadCmd || exit 1
+        rmCmd="sudo /bin/rm -Rf ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME"
+        echo "$rmCmd..."
+        eval $rmCmd || exit 1
+    fi
+    
+    # Unloading Service LaunchAgent for each user
+    # There will be one loginwindow instance for each logged in user, 
+    # get its uid (this will correspond to the logged in user's id.) 
+    # Then use launchctl bootstrap gui/uid to auto load the Service 
+    # for each user.
+    if [ -f "${LAUNCHAGENTDIRECTORY}/$SERVICEAGENTLAUNCHDFILENAME" ]; then
+        for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
+            unloadCmd="sudo launchctl bootout gui/$uid ${LAUNCHAGENTDIRECTORY}/$SERVICEAGENTLAUNCHDFILENAME"
+            echo "$unloadCmd..."
+            eval $unloadCmd || exit 1
+        done
+        
+        rmCmd="sudo /bin/rm -Rf ${LAUNCHAGENTDIRECTORY}/$SERVICEAGENTLAUNCHDFILENAME"
         echo "$rmCmd..."
         eval $rmCmd || exit 1
     fi

@@ -28,7 +28,13 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PrjFSPerfCounter functionCounter,
     PrjFSPerfCounter innerLoopCounter,
     vnode_t _Nonnull vnode,
-    const FsidInode& vnodeFsidInode);
+    vfs_context_t _Nonnull context);
+
+struct ActiveProviderProperties
+{
+    bool isOnline;
+    pid_t pid;
+};
 
 struct VirtualizationRootResult
 {
@@ -36,12 +42,11 @@ struct VirtualizationRootResult
     VirtualizationRootHandle root;
 };
 VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* _Nonnull userClient, pid_t clientPID, const char* _Nonnull virtualizationRootPath);
-void ActiveProvider_Disconnect(VirtualizationRootHandle rootHandle);
+void ActiveProvider_Disconnect(VirtualizationRootHandle rootHandle, PrjFSProviderUserClient* _Nonnull userClient);
 
 struct Message;
 errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Message message);
 bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t _Nonnull vnode);
-bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle);
-bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, pid_t pid);
 bool VirtualizationRoot_IsValidRootHandle(VirtualizationRootHandle rootHandle);
 const char* _Nonnull VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle rootHandle, const char* _Nonnull path);
+ActiveProviderProperties VirtualizationRoot_GetActiveProvider(VirtualizationRootHandle rootHandle);

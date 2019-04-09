@@ -32,6 +32,7 @@ namespace GVFS.Common
             public const string DeprecatedCacheEndpointSuffix = ".cache-server-url";
             public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
             public const string GVFSTelemetryId = GitConfig.GVFSPrefix + "telemetry-id";
+            public const string GVFSTelemetryPipe = GitConfig.GVFSPrefix + "telemetry-pipe";
             public const string IKey = GitConfig.GVFSPrefix + "ikey";
             public const string HooksExtension = ".hooks";
         }
@@ -241,7 +242,7 @@ namespace GVFS.Common
             public const string NoRingConfigConsoleAlert = "Upgrade ring is not set. " + NoUpgradeCheckPerformed;
             public const string InvalidRingConsoleAlert = "Upgrade ring set to unknown value. " + NoUpgradeCheckPerformed;
             public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `gvfs config " + LocalGVFSConfig.UpgradeRing + " [\"Fast\"|\"Slow\"|\"None\"]` from a command prompt.";
-            public const string ReminderNotification = "A new version of GVFS is available. Run " + UpgradeVerbMessages.GVFSUpgrade + " to start the upgrade.";
+            public const string ReminderNotification = "A new version of GVFS is available. Run " + UpgradeVerbMessages.GVFSUpgradeConfirm + " from an elevated command prompt to upgrade.";
             public const string UnmountRepoWarning = "Upgrade will unmount and remount gvfs repos, ensure you are at a stopping point.";
             public const string UpgradeInstallAdvice = "When ready, run " + UpgradeVerbMessages.GVFSUpgradeConfirm + " from an elevated command prompt.";
         }

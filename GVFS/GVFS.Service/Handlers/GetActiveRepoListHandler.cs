@@ -1,7 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
-using GVFS.Platform.Windows;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -69,8 +68,7 @@ namespace GVFS.Service.Handlers
 
         private bool IsValidRepo(string repoRoot)
         {
-            WindowsGitInstallation windowsGitInstallation = new WindowsGitInstallation();
-            string gitBinPath = windowsGitInstallation.GetInstalledGitBinPath();
+            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             string hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             GVFSEnlistment enlistment = null;
 
@@ -78,13 +76,15 @@ namespace GVFS.Service.Handlers
             {
                 enlistment = GVFSEnlistment.CreateFromDirectory(repoRoot, gitBinPath, hooksPath, authentication: null);
             }
-            catch (InvalidRepoException)
+            catch (InvalidRepoException e)
             {
-                return false;
-            }
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(repoRoot), repoRoot);
+                metadata.Add(nameof(gitBinPath), gitBinPath);
+                metadata.Add(nameof(hooksPath), hooksPath);
+                metadata.Add("Exception", e.ToString());
+                this.tracer.RelatedInfo(metadata, $"{nameof(this.IsValidRepo)}: Found invalid repo");
 
-            if (enlistment == null)
-            {
                 return false;
             }
 

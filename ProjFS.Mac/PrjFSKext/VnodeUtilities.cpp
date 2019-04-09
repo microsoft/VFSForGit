@@ -6,12 +6,12 @@
 
 extern "C" int mac_vnop_getxattr(struct vnode *, const char *, char *, size_t, size_t *);
 
-FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t context)
+FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t context, bool useLinkIDForInode)
 {
     vnode_attr attrs;
     VATTR_INIT(&attrs);
-    // TODO: check this is correct for hardlinked files
-    VATTR_WANTED(&attrs, va_fileid);
+    // va_linkid is unique per hard link on HFS+, va_fileid identifies the link target. Always equal on APFS, no way to distinguish between links.
+    VATTR_WANTED(&attrs, va_linkid);
 
     int errno = vnode_getattr(vnode, &attrs, context);
     if (0 != errno)
@@ -20,7 +20,7 @@ FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t context)
     }
     
     vfsstatfs* statfs = vfs_statfs(vnode_mount(vnode));
-    return { statfs->f_fsid, attrs.va_fileid };
+    return { statfs->f_fsid, attrs.va_linkid };
 }
 
 SizeOrError Vnode_ReadXattr(vnode_t vnode, const char* xattrName, void* buffer, size_t bufferSize)

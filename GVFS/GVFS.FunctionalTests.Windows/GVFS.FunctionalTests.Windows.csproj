@@ -181,12 +181,13 @@
     <PostBuildEvent>
       xcopy /Y $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\$(Platform)\* $(TargetDir)
-      xcopy /Y $(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+      xcopy /Y $(BuildOutputDir)\GVFS.Service.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-      xcopy /Y $(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+      mkdir  $(TargetDir)\netcoreapp2.1
+      xcopy /Y $(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\netcoreapp2.1\* $(TargetDir)\netcoreapp2.1
 
       REM If there is an inbox version of the ProjFS dll, we must use that one to guarantee compat with the sys, so delete whatever is in our TargetDir
       if exist c:\Windows\System32\ProjectedFSLib.dll del $(TargetDir)\ProjectedFSLib.dll

@@ -286,6 +286,16 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             Assert.Fail("Unlike the other runners, bash.exe does not check folder handle before recusively deleting");
         }
 
+        public override void CreateFileWithoutClose(string path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void OpenFileAndWriteWithoutClose(string path, string data)
+        {
+            throw new NotImplementedException();
+        }
+
         private bool FileExistsOnDisk(string path, FileType type)
         {
             string checkArgument = string.Empty;

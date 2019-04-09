@@ -9,11 +9,17 @@ namespace GVFS.Common.Tracing
         ITracer StartActivity(string activityName, EventLevel level, EventMetadata metadata);
         ITracer StartActivity(string activityName, EventLevel level, Keywords startStopKeywords, EventMetadata metadata);
 
+        void SetGitCommandSessionId(string sessionId);
+
         void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata);
 
         void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata, Keywords keywords);
 
+        void RelatedInfo(string message);
+
         void RelatedInfo(string format, params object[] args);
+
+        void RelatedInfo(EventMetadata metadata, string message);
 
         void RelatedWarning(EventMetadata metadata, string message);
 

@@ -301,12 +301,19 @@ namespace GVFS.CommandLine
 
             string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
 
-            enlistment = new GVFSEnlistment(
-                normalizedEnlistementRootPath,
-                this.RepositoryURL,
-                gitBinPath,
-                hooksPath,
-                authentication: null);
+            try
+            {
+                enlistment = new GVFSEnlistment(
+                    normalizedEnlistementRootPath,
+                    this.RepositoryURL,
+                    gitBinPath,
+                    hooksPath,
+                    authentication: null);
+            }
+            catch (InvalidRepoException e)
+            {
+                return new Result($"Error when creating a new GVFS enlistment at '{normalizedEnlistementRootPath}'. {e.Message}");
+            }
 
             return new Result(true);
         }
@@ -447,6 +454,11 @@ namespace GVFS.CommandLine
             if (GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(normalizedEnlistmentRootPath, out existingEnlistmentRoot, out errorMessage))
             {
                 this.ReportErrorAndExit("Error: You can't clone inside an existing GVFS repo ({0})", existingEnlistmentRoot);
+            }
+
+            if (this.IsExistingPipeListening(normalizedEnlistmentRootPath))
+            {
+                this.ReportErrorAndExit($"Error: There is currently a GVFS.Mount process running for '{normalizedEnlistmentRootPath}'. This process must be stopped before cloning.");
             }
         }
 
@@ -654,10 +666,10 @@ namespace GVFS.CommandLine
 @"
 @echo OFF
 echo .
-echo ^[105;30m                                                                                     
-echo      This repo was cloned using GVFS, and the git repo is in the 'src' directory     
-echo      Switching you to the 'src' directory and rerunning your git command             
-echo                                                                                      [0m                                                                            
+echo ^[105;30m
+echo      This repo was cloned using GVFS, and the git repo is in the 'src' directory
+echo      Switching you to the 'src' directory and rerunning your git command
+echo                                                                                      [0m
 
 @echo ON
 cd src

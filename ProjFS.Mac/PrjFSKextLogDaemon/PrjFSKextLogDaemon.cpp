@@ -82,7 +82,7 @@ static os_log_type_t KextLogLevelAsOSLogType(KextLog_Level level)
     {
     case KEXTLOG_INFO:
         return OS_LOG_TYPE_INFO;
-    case KEXTLOG_NOTE:
+    case KEXTLOG_DEFAULT:
         return OS_LOG_TYPE_DEFAULT;
     case KEXTLOG_ERROR:
     default:

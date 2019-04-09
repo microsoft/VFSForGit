@@ -46,9 +46,20 @@ namespace GVFS.UnitTests.Mock.Common
             }
         }
 
+        public void RelatedInfo(string message)
+        {
+            this.RelatedInfoEvents.Add(message);
+        }
+
+        public void RelatedInfo(EventMetadata metadata, string message)
+        {
+            metadata[TracingConstants.MessageKey.InfoMessage] = message;
+            this.RelatedInfoEvents.Add(JsonConvert.SerializeObject(metadata));
+        }
+
         public void RelatedInfo(string format, params object[] args)
         {
-            this.RelatedInfoEvents.Add(string.Format(format, args));
+            this.RelatedInfo(string.Format(format, args));
         }
 
         public void RelatedWarning(EventMetadata metadata, string message)
@@ -57,6 +68,10 @@ namespace GVFS.UnitTests.Mock.Common
             {
                 metadata[TracingConstants.MessageKey.WarningMessage] = message;
                 this.RelatedWarningEvents.Add(JsonConvert.SerializeObject(metadata));
+            }
+            else if (message != null)
+            {
+                this.RelatedWarning(message);
             }
         }
 
@@ -115,6 +130,10 @@ namespace GVFS.UnitTests.Mock.Common
         public TimeSpan Stop(EventMetadata metadata)
         {
             return TimeSpan.Zero;
+        }
+
+        public void SetGitCommandSessionId(string sessionId)
+        {
         }
 
         public void Dispose()

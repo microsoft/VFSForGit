@@ -126,8 +126,8 @@ namespace GVFS.UnitTests.Maintenance
             PackfileMaintenanceStep step = new PackfileMaintenanceStep(this.context, requireObjectCacheLock: false, forceRun: true);
             step.Execute();
 
-            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(2);
-            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(2);
 
             List<string> commands = this.gitProcess.CommandsRun;
             commands.Count.ShouldEqual(6);
@@ -218,9 +218,11 @@ namespace GVFS.UnitTests.Maintenance
             List<MockDirectory> directories = new List<MockDirectory>() { gitObjectsRoot };
             PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, directories, null));
 
+            MockGitRepo repository = new MockGitRepo(this.tracer, enlistment, fileSystem);
+
             // Create and return Context
             this.tracer = new MockTracer();
-            this.context = new GVFSContext(this.tracer, fileSystem, repository: null, enlistment: enlistment);
+            this.context = new GVFSContext(this.tracer, fileSystem, repository, enlistment);
 
             this.gitProcess.SetExpectedCommandResult(
                 this.ExpireCommand,

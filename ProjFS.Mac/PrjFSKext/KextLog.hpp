@@ -8,16 +8,22 @@
 #include "kernel-header-wrappers/mount.h"
 #include <os/log.h>
 
+// Redeclared as printf-like to get format string warnings on assertf()
+extern "C" void panic(const char* fmt, ...) __printflike(1, 2);
+
 bool KextLog_Init();
 void KextLog_Cleanup();
 
 #define KextLog_Error(format, ...) KextLog_Printf(KEXTLOG_ERROR, format, ##__VA_ARGS__)
 #define KextLog_Info(format, ...) KextLog_Printf(KEXTLOG_INFO, format, ##__VA_ARGS__)
-#define KextLog_Note(format, ...) KextLog_Printf(KEXTLOG_NOTE, format, ##__VA_ARGS__)
+#define KextLog(format, ...) KextLog_Printf(KEXTLOG_DEFAULT, format, ##__VA_ARGS__)
 
 bool KextLog_RegisterUserClient(PrjFSLogUserClient* userClient);
 void KextLog_DeregisterUserClient(PrjFSLogUserClient* userClient);
 void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)  __printflike(2,3);
+// Prepares a kernel pointer for printing to user space without revealing the
+// genuine kernel-space address, which would be a security issue.
+const void* KextLog_Unslide(const void* pointer);
 
 
 // Helper macros/function for logging with file paths. Note that the path must
@@ -47,7 +53,7 @@ template <typename... args>
 // The %s at the end of the format string for the vnode path is implicit.
 #define KextLog_FileError(vnode, format, ...) ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_ERROR, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
 #define KextLog_FileInfo(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_INFO, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
-#define KextLog_FileNote(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_NOTE, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
+#define KextLog_File(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_DEFAULT, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
 
 
 // See comments for KextLogFile_Printf() above for rationale.
@@ -106,7 +112,7 @@ template <typename... args>
     do { \
         if (VDIR == vnodeType) \
         { \
-            KextLog_FileNote( \
+            KextLog_File( \
                 vnode, \
                 message ". Proc name: %s. Directory vnode action: %s%s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
                 procname, \
@@ -126,7 +132,7 @@ template <typename... args>
         } \
         else \
         { \
-            KextLog_FileNote( \
+            KextLog_File( \
                 vnode, \
                 message ". Proc name: %s. File vnode action: %s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
                 procname, \

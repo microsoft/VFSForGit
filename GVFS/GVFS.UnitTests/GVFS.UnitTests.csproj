@@ -5,8 +5,10 @@
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
     <GenerateProgramFile>false</GenerateProgramFile>
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
+    <RuntimeIdentifiers>win-x64;osx-x64</RuntimeIdentifiers>
   </PropertyGroup>
-  
+
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>GVFS.UnitTests</RootNamespace>
@@ -18,7 +20,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
-  
+
   <ItemGroup>
     <None Include="Data\backward.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
@@ -33,7 +35,7 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-  
+
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.SDK" Version="15.0.0" />
     <PackageReference Include="Moq" Version="4.10.1" />
@@ -46,7 +48,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
-  
+
   <ItemGroup>
     <ProjectReference Include="..\..\ProjFS.Mac\PrjFSLib.Mac.Managed\PrjFSLib.Mac.Managed.csproj" />
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
