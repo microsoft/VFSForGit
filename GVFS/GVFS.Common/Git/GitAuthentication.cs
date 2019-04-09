@@ -74,7 +74,6 @@ namespace GVFS.Common.Git
                             EventMetadata metadata = new EventMetadata(new Dictionary<string, object>
                             {
                                 ["RepoUrl"] = this.repoUrl,
-                                ["CredentialString"] = this.cachedCredentialString
                             });
                             tracer.RelatedError(metadata, "Failed to parse credential string for approval");
                         }
@@ -106,7 +105,6 @@ namespace GVFS.Common.Git
                         EventMetadata metadata = new EventMetadata(new Dictionary<string, object>
                         {
                             ["RepoUrl"] = this.repoUrl,
-                            ["CredentialString"] = this.cachedCredentialString
                         });
                         tracer.RelatedWarning(metadata, "Failed to parse credential string for rejection. Rejecting any credential for this repo URL.");
                         this.git.RejectCredentials(this.repoUrl);
