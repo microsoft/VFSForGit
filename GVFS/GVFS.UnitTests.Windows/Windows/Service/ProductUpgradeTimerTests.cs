@@ -61,6 +61,40 @@ namespace GVFS.UnitTests.Windows.Windows.Service
             productUpgradeInfoMock.VerifyAll();
         }
 
+        [TestCase]
+        public void GitHubUpgraderHandlesException()
+        {
+            MockTracer tracer = new MockTracer();
+            Mock<PhysicalFileSystem> fileSystemMock = new Mock<PhysicalFileSystem>();
+            MockLocalGVFSConfig gvfsConfig = this.BuildGvfsConfig();
+
+            Mock<InstallerRunPreCheckerBase> installerPreRunChecker = new Mock<InstallerRunPreCheckerBase>();
+
+            Mock<HttpMessageHandler> handlerMock = new Mock<HttpMessageHandler>();
+
+            handlerMock.Protected().As<IHttpMessageHandlerProtectedMembers>()
+                .Setup(m => m.SendAsync(It.IsAny<HttpRequestMessage>(), It.IsAny<CancellationToken>())).ThrowsAsync(new System.Net.Http.HttpRequestException("Status does not indicate success: 401"))
+                .Verifiable();
+
+            HttpClient httpClient = new HttpClient(handlerMock.Object);
+
+            string errorMessage = string.Empty;
+            installerPreRunChecker.Setup(m => m.IsInstallationBlockedByRunningProcess(out errorMessage)).Returns(true);
+            installerPreRunChecker.Setup(m => m.TryMountAllGVFSRepos(out errorMessage)).Returns(true);
+            installerPreRunChecker.Setup(m => m.TryRunPreUpgradeChecks(out errorMessage)).Returns(true);
+            installerPreRunChecker.Setup(m => m.TryUnmountAllGVFSRepos(out errorMessage)).Returns(true);
+
+            Mock<ProductUpgraderInfo> productUpgradeInfoMock = new Mock<ProductUpgraderInfo>(tracer, fileSystemMock.Object);
+            productUpgradeInfoMock.Setup(m => m.RecordHighestAvailableVersion(null)).Verifiable();
+
+            using (ProductUpgradeTimer upgradeChecker = new ProductUpgradeTimer(tracer, fileSystemMock.Object, gvfsConfig, httpClient, installerPreRunChecker.Object, productUpgradeInfoMock.Object))
+            {
+                upgradeChecker.TimerCallback(null);
+            }
+
+            productUpgradeInfoMock.VerifyAll();
+        }
+
         private MockLocalGVFSConfig BuildGvfsConfig()
         {
             MockLocalGVFSConfig gvfsConfig = new MockLocalGVFSConfig();
