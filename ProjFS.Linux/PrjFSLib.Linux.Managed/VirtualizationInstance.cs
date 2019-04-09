@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Text;
+using PrjFSLib.Linux.Interop;
 using static PrjFSLib.Linux.Interop.Errno;
 
 namespace PrjFSLib.Linux
@@ -9,7 +9,12 @@ namespace PrjFSLib.Linux
     {
         public const int PlaceholderIdLength = 128;
 
-        private Interop.ProjFS projfs;
+        private ProjFS projfs;
+
+        // We must hold a reference to the delegates to prevent garbage collection
+        private ProjFS.EventHandler preventGCOnProjEventDelegate;
+        private ProjFS.EventHandler preventGCOnNotifyEventDelegate;
+        private ProjFS.EventHandler preventGCOnPermEventDelegate;
 
         // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
@@ -33,14 +38,14 @@ namespace PrjFSLib.Linux
                 throw new InvalidOperationException();
             }
 
-            Interop.ProjFS.Handlers handlers = new Interop.ProjFS.Handlers
+            ProjFS.Handlers handlers = new ProjFS.Handlers
             {
-                HandleProjEvent = this.HandleProjEvent,
-                HandleNotifyEvent = this.HandleNotifyEvent,
-                HandlePermEvent = this.HandlePermEvent,
+                HandleProjEvent = this.preventGCOnProjEventDelegate = new ProjFS.EventHandler(this.HandleProjEvent),
+                HandleNotifyEvent = this.preventGCOnNotifyEventDelegate = new ProjFS.EventHandler(this.HandleNotifyEvent),
+                HandlePermEvent = this.preventGCOnPermEventDelegate = new ProjFS.EventHandler(this.HandlePermEvent)
             };
 
-            Interop.ProjFS fs = Interop.ProjFS.New(
+            ProjFS fs = ProjFS.New(
                 storageRootFullPath,
                 virtualizationRootFullPath,
                 handlers);
@@ -76,24 +81,9 @@ namespace PrjFSLib.Linux
             byte[] bytes,
             uint byteCount)
         {
-            unsafe
+            if (!NativeFileWriter.TryWrite(fd, bytes, byteCount))
             {
-                 fixed (byte* bytesPtr = bytes)
-                 {
-                     byte* bytesToWrite = bytesPtr;
-
-                     while (byteCount > 0)
-                     {
-                        long res = NativeMethods.Write(fd, bytesToWrite, byteCount);
-                        if (res == -1)
-                        {
-                            return Result.EIOError;
-                        }
-
-                        bytesToWrite += res;
-                        byteCount -= (uint)res;
-                    }
-                }
+                return Result.EIOError;
             }
 
             return Result.Success;
@@ -106,7 +96,7 @@ namespace PrjFSLib.Linux
         {
             /*
             UpdateFailureCause deleteFailureCause = UpdateFailureCause.NoFailure;
-            Result result = Interop.PrjFSLib.DeleteFile(
+            Result result = ProjFS.DeleteFile(
                 relativePath,
                 updateFlags,
                 ref deleteFailureCause);
@@ -164,14 +154,14 @@ namespace PrjFSLib.Linux
             out UpdateFailureCause failureCause)
         {
             /*
-            if (providerId.Length != Interop.PrjFSLib.PlaceholderIdLength ||
-                contentId.Length != Interop.PrjFSLib.PlaceholderIdLength)
+            if (providerId.Length != ProjFS.PlaceholderIdLength ||
+                contentId.Length != ProjFS.PlaceholderIdLength)
             {
                 throw new ArgumentException();
             }
 
             UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
-            Result result = Interop.PrjFSLib.UpdatePlaceholderFileIfNeeded(
+            Result result = ProjFS.UpdatePlaceholderFileIfNeeded(
                 relativePath,
                 providerId,
                 contentId,
@@ -195,7 +185,7 @@ namespace PrjFSLib.Linux
         {
             /*
             UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
-            Result result = Interop.PrjFSLib.ReplacePlaceholderFileWithSymLink(
+            Result result = ProjFS.ReplacePlaceholderFileWithSymLink(
                 relativePath,
                 symLinkTarget,
                 updateFlags,
@@ -231,74 +221,65 @@ namespace PrjFSLib.Linux
         }
 
         // TODO(Linux): replace with netstandard2.1 Marshal.PtrToStringUTF8()
-        private static unsafe string PtrToStringUTF8(byte* ptr)
+        private static string PtrToStringUTF8(IntPtr ptr)
         {
-            if (ptr == (byte*)IntPtr.Zero)
-            {
-                return null;
-            }
-
-            ulong length = NativeMethods.Strlen(ptr);
-            return Encoding.UTF8.GetString(ptr, (int)length);
+            return Marshal.PtrToStringAnsi(ptr);
         }
 
-        private int HandleProjEvent(ref Interop.ProjFS.Event ev)
+        private int HandleProjEvent(ref ProjFS.Event ev)
         {
             string triggeringProcessName = GetProcCmdline(ev.Pid);
+            string relativePath = PtrToStringUTF8(ev.Path);
+
             Result result;
 
-            unsafe
+            if ((ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0)
             {
-                string relativePath = PtrToStringUTF8(ev.Path);
+                result = this.OnEnumerateDirectory(
+                    commandId: 0,
+                    relativePath: relativePath,
+                    triggeringProcessId: ev.Pid,
+                    triggeringProcessName: triggeringProcessName);
+            }
+            else
+            {
+                byte[] providerId = new byte[PlaceholderIdLength];
+                byte[] contentId = new byte[PlaceholderIdLength];
 
-                if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_ONDIR) != 0)
+                result = this.projfs.GetProjAttrs(
+                    relativePath,
+                    providerId,
+                    contentId);
+
+                if (result == Result.Success)
                 {
-                    result = this.OnEnumerateDirectory(
+                    result = this.OnGetFileStream(
                         commandId: 0,
                         relativePath: relativePath,
+                        providerId: providerId,
+                        contentId: contentId,
                         triggeringProcessId: ev.Pid,
-                        triggeringProcessName: triggeringProcessName);
-                }
-                else
-                {
-                    byte[] providerId = new byte[PlaceholderIdLength];
-                    byte[] contentId = new byte[PlaceholderIdLength];
-
-                    result = this.projfs.GetProjAttrs(
-                        relativePath,
-                        providerId,
-                        contentId);
-
-                    if (result == Result.Success)
-                    {
-                        result = this.OnGetFileStream(
-                            commandId: 0,
-                            relativePath: relativePath,
-                            providerId: providerId,
-                            contentId: contentId,
-                            triggeringProcessId: ev.Pid,
-                            triggeringProcessName: triggeringProcessName,
-                            fd: ev.Fd);
-                    }
+                        triggeringProcessName: triggeringProcessName,
+                        fd: ev.Fd);
                 }
             }
 
             return -result.ToErrno();
         }
 
-        private int HandleNonProjEvent(ref Interop.ProjFS.Event ev, bool perm)
+        private int HandleNonProjEvent(ref ProjFS.Event ev, bool perm)
         {
             NotificationType nt;
 
-            if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_DELETE_SELF) != 0)
+            if ((ev.Mask & ProjFS.Constants.PROJFS_DELETE_SELF) != 0)
             {
                 nt = NotificationType.PreDelete;
             }
-            else if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_MOVE_SELF) != 0)
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_MOVE_SELF) != 0)
             {
                 nt = NotificationType.FileRenamed;
             }
-            else if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_CREATE_SELF) != 0)
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_CREATE_SELF) != 0)
             {
                 nt = NotificationType.NewFileCreated;
             }
@@ -307,36 +288,40 @@ namespace PrjFSLib.Linux
                 return 0;
             }
 
-            bool isDirectory = (ev.Mask & Interop.ProjFS.Constants.PROJFS_ONDIR) != 0;
+            bool isDirectory = (ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0;
             string triggeringProcessName = GetProcCmdline(ev.Pid);
             byte[] providerId = new byte[PlaceholderIdLength];
             byte[] contentId = new byte[PlaceholderIdLength];
+            string relativePath = PtrToStringUTF8(ev.Path);
             Result result = Result.Success;
 
-            unsafe
+            if (!isDirectory)
             {
-                string relativePath = PtrToStringUTF8(ev.Path);
+                string currentRelativePath = relativePath;
 
-                if (!isDirectory)
+                // TODO(Linux): can other intermediate file ops race us here?
+                if (nt == NotificationType.FileRenamed)
                 {
-                    result = this.projfs.GetProjAttrs(
-                        relativePath,
-                        providerId,
-                        contentId);
+                    currentRelativePath = PtrToStringUTF8(ev.TargetPath);
                 }
 
-                if (result == Result.Success)
-                {
-                    result = this.OnNotifyOperation(
-                        commandId: 0,
-                        relativePath: relativePath,
-                        providerId: providerId,
-                        contentId: contentId,
-                        triggeringProcessId: ev.Pid,
-                        triggeringProcessName: triggeringProcessName,
-                        isDirectory: isDirectory,
-                        notificationType: nt);
-                }
+                result = this.projfs.GetProjAttrs(
+                    currentRelativePath,
+                    providerId,
+                    contentId);
+            }
+
+            if (result == Result.Success)
+            {
+                result = this.OnNotifyOperation(
+                    commandId: 0,
+                    relativePath: relativePath,
+                    providerId: providerId,
+                    contentId: contentId,
+                    triggeringProcessId: ev.Pid,
+                    triggeringProcessName: triggeringProcessName,
+                    isDirectory: isDirectory,
+                    notificationType: nt);
             }
 
             int ret = -result.ToErrno();
@@ -345,23 +330,23 @@ namespace PrjFSLib.Linux
             {
                 if (ret == 0)
                 {
-                    ret = (int)Interop.ProjFS.Constants.PROJFS_ALLOW;
+                    ret = (int)ProjFS.Constants.PROJFS_ALLOW;
                 }
-                else if (ret == -Interop.Errno.Constants.EPERM)
+                else if (ret == -Errno.Constants.EPERM)
                 {
-                    ret = (int)Interop.ProjFS.Constants.PROJFS_DENY;
+                    ret = (int)ProjFS.Constants.PROJFS_DENY;
                 }
             }
 
             return ret;
         }
 
-        private int HandleNotifyEvent(ref Interop.ProjFS.Event ev)
+        private int HandleNotifyEvent(ref ProjFS.Event ev)
         {
             return this.HandleNonProjEvent(ref ev, false);
         }
 
-        private int HandlePermEvent(ref Interop.ProjFS.Event ev)
+        private int HandlePermEvent(ref ProjFS.Event ev)
         {
             return this.HandleNonProjEvent(ref ev, true);
         }
@@ -404,13 +389,32 @@ namespace PrjFSLib.Linux
             return Result.ENotYetImplemented;
         }
 
-        private static unsafe class NativeMethods
+        private static unsafe class NativeFileWriter
         {
-            [DllImport("libc", EntryPoint = "strlen")]
-            public static extern ulong Strlen(byte* s);
+            public static bool TryWrite(int fd, byte[] bytes, uint byteCount)
+            {
+                 fixed (byte* bytesPtr = bytes)
+                 {
+                     byte* bytesIndexPtr = bytesPtr;
+
+                     while (byteCount > 0)
+                     {
+                        long res = Write(fd, bytesIndexPtr, byteCount);
+                        if (res == -1)
+                        {
+                            return false;
+                        }
+
+                        bytesIndexPtr += res;
+                        byteCount -= (uint)res;
+                    }
+                }
+
+                return true;
+            }
 
             [DllImport("libc", EntryPoint = "write", SetLastError = true)]
-            public static extern long Write(int fd, byte* buf, ulong count);
+            private static extern long Write(int fd, byte* buf, ulong count);
         }
     }
 }
