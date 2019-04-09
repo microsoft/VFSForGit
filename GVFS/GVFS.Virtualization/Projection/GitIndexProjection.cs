@@ -1157,7 +1157,6 @@ namespace GVFS.Virtualization.Projection
                     //  1. Ensures child folders are deleted before their parents
                     //  2. Ensures that folders that have been deleted by git (but are still in the projection) are found before their
                     //     parent folder is re-expanded (only applies on platforms where EnumerationExpandsDirectories is true)
-                    Dictionary<string, long> availableSizes = new Dictionary<string, long>();
                     foreach (PlaceholderListDatabase.PlaceholderData folderPlaceholder in placeholderFoldersListCopy.OrderByDescending(x => x.Path))
                     {
                         bool keepFolder = true;
@@ -1471,11 +1470,8 @@ namespace GVFS.Virtualization.Projection
         /// </summary>
         /// <returns>
         /// <c>true</c>If the folder placeholder was deleted
-        /// <c>false</c>If RemoveFolderPlaceholderIfEmpty did not attempt to remove the folder placeholder
+        /// <c>false</c>If RemoveFolderPlaceholderIfEmpty failed attempting to remove the folder placeholder
         /// </returns>
-        /// <remarks>
-        /// If the platform expands on enumeration the folder will only be removed if it's not in the projection
-        /// </remarks>
         private bool RemoveFolderPlaceholderIfEmpty(PlaceholderListDatabase.PlaceholderData placeholder)
         {
             UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
@@ -1496,10 +1492,6 @@ namespace GVFS.Virtualization.Projection
                     metadata.Add("result.RawResult", result.RawResult);
                     metadata.Add("UpdateFailureCause", failureReason.ToString());
                     this.context.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.RemoveFolderPlaceholderIfEmpty) + "_DeleteFileFailure", metadata);
-
-                    // TODO(Mac): Issue #245, handle failures DeleteFile on Mac.  If we don't do anything we could leave an untracked folder
-                    // placeholder on disk that will never be updated by Git or VFSForGit
-
                     return false;
             }
         }
