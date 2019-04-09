@@ -549,7 +549,18 @@ PrjFS_Result PrjFS_DeleteFile(
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
     
     struct stat path_stat;
-    stat(fullPath, &path_stat);
+    if (0 != stat(fullPath, &path_stat))
+    {
+        switch(errno)
+        {
+            case ENOENT:  // A component of fullPath does not exist
+            case ENOTDIR: // A component of fullPath is not a directory
+                return PrjFS_Result_Success;
+            default:
+                return PrjFS_Result_EIOError;
+        }
+    }
+    
     if (!(S_ISREG(path_stat.st_mode) || S_ISDIR(path_stat.st_mode)))
     {
         // Only files and directories can be deleted with PrjFS_DeleteFile
