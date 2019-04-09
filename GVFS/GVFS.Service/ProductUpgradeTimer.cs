@@ -18,18 +18,20 @@ namespace GVFS.Service
         private HttpClient httpClient;
         private Timer timer;
         private InstallerRunPreCheckerBase installerPreRunChecker;
+        private ProductUpgraderInfo productUpgradeInfo;
 
-            public ProductUpgradeTimer(ITracer tracer, PhysicalFileSystem fileSystem, LocalGVFSConfig gvfsConfig, HttpClient httpClient, InstallerRunPreCheckerBase installerPreRunChecker)
+            public ProductUpgradeTimer(ITracer tracer, PhysicalFileSystem fileSystem, LocalGVFSConfig gvfsConfig, HttpClient httpClient, InstallerRunPreCheckerBase installerPreRunChecker, ProductUpgraderInfo productUpgradeInfo)
         {
             this.tracer = tracer;
             this.fileSystem = fileSystem;
             this.gvfsConfig = gvfsConfig;
             this.httpClient = httpClient;
             this.installerPreRunChecker = installerPreRunChecker;
+            this.productUpgradeInfo = productUpgradeInfo;
         }
 
         public ProductUpgradeTimer(ITracer tracer)
-                : this(tracer, new PhysicalFileSystem(), new LocalGVFSConfig(), new HttpClient(), new InstallerPreRunChecker(tracer, string.Empty))
+                : this(tracer, new PhysicalFileSystem(), new LocalGVFSConfig(), new HttpClient(), new InstallerPreRunChecker(tracer, string.Empty), new ProductUpgraderInfo(tracer, new PhysicalFileSystem()))
         {
         }
 
@@ -75,10 +77,6 @@ namespace GVFS.Service
             {
                 try
                 {
-                    ProductUpgraderInfo info = new ProductUpgraderInfo(
-                        this.tracer,
-                        this.fileSystem);
-
                     // The upgrade check always goes against GitHub
                     GitHubUpgrader productUpgrader = GitHubUpgrader.Create(
                         this.tracer,
@@ -102,7 +100,7 @@ namespace GVFS.Service
                             message: message,
                             keywords: Keywords.Telemetry);
 
-                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
+                        this.productUpgradeInfo.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
@@ -119,7 +117,7 @@ namespace GVFS.Service
                             message: message,
                             keywords: Keywords.Telemetry);
 
-                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
+                        this.productUpgradeInfo.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
@@ -132,7 +130,7 @@ namespace GVFS.Service
                             message: errorMessage,
                             keywords: Keywords.Telemetry);
 
-                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
+                        this.productUpgradeInfo.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
@@ -153,11 +151,11 @@ namespace GVFS.Service
                             message: message,
                             keywords: Keywords.Telemetry);
 
-                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
+                        this.productUpgradeInfo.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
-                    info.RecordHighestAvailableVersion(highestAvailableVersion: newerVersion);
+                    this.productUpgradeInfo.RecordHighestAvailableVersion(highestAvailableVersion: newerVersion);
                 }
                 catch (Exception ex) when (
                     ex is IOException ||

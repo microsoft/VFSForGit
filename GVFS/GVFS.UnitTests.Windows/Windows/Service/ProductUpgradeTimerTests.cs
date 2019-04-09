@@ -50,10 +50,15 @@ namespace GVFS.UnitTests.Windows.Windows.Service
             installerPreRunChecker.Setup(m => m.TryRunPreUpgradeChecks(out errorMessage)).Returns(true);
             installerPreRunChecker.Setup(m => m.TryUnmountAllGVFSRepos(out errorMessage)).Returns(true);
 
-            using (ProductUpgradeTimer upgradeChecker = new ProductUpgradeTimer(tracer, fileSystemMock.Object, gvfsConfig, httpClient, installerPreRunChecker.Object))
+            Mock<ProductUpgraderInfo> productUpgradeInfoMock = new Mock<ProductUpgraderInfo>(tracer, fileSystemMock.Object);
+            productUpgradeInfoMock.Setup(m => m.RecordHighestAvailableVersion(null)).Verifiable();
+
+            using (ProductUpgradeTimer upgradeChecker = new ProductUpgradeTimer(tracer, fileSystemMock.Object, gvfsConfig, httpClient, installerPreRunChecker.Object, productUpgradeInfoMock.Object))
             {
                 upgradeChecker.TimerCallback(null);
             }
+
+            productUpgradeInfoMock.VerifyAll();
         }
 
         private MockLocalGVFSConfig BuildGvfsConfig()

@@ -49,7 +49,7 @@ namespace GVFS.Common
             }
         }
 
-        public void RecordHighestAvailableVersion(Version highestAvailableVersion)
+        public virtual void RecordHighestAvailableVersion(Version highestAvailableVersion)
         {
             string highestAvailableVersionFile = GetHighestAvailableVersionFilePath();
 
