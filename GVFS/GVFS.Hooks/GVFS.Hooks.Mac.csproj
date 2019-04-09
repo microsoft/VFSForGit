@@ -93,11 +93,11 @@
     <Compile Include="..\GVFS.Common\Tracing\Keywords.cs">
       <Link>Common\Tracing\Keywords.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.Platform.Mac\MacFileSystem.Shared.cs">
-      <Link>Mac\MacFileSystem.Shared.cs</Link>
+    <Compile Include="..\GVFS.Platform.POSIX\POSIXFileSystem.Shared.cs">
+      <Link>POSIX\POSIXFileSystem.Shared.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.Platform.Mac\MacPlatform.Shared.cs">
-      <Link>Mac\MacPlatform.Shared.cs</Link>
+    <Compile Include="..\GVFS.Platform.POSIX\POSIXPlatform.Shared.cs">
+      <Link>POSIX\POSIXPlatform.Shared.cs</Link>
     </Compile>
   </ItemGroup>
   

@@ -1,9 +1,9 @@
 ﻿using GVFS.Common.Git;
 using System.IO;
 
-namespace GVFS.Platform.Mac
+namespace GVFS.Platform.POSIX
 {
-    public class MacGitInstallation : IGitInstallation
+    public class POSIXGitInstallation : IGitInstallation
     {
         private const string GitProcessName = "git";
 
@@ -19,7 +19,7 @@ namespace GVFS.Platform.Mac
 
         public string GetInstalledGitBinPath()
         {
-            // TODO(Mac): Use 'which' to find git (like the Windows platform uses "where")
+            // TODO(POSIX): Use 'which' to find git (like the Windows platform uses "where")
             string gitBinPath = $"/usr/local/bin/{GitProcessName}";
             if (File.Exists(gitBinPath))
             {
