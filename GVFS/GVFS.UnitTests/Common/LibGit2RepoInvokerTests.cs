@@ -143,16 +143,16 @@ namespace GVFS.UnitTests.Common
         {
             this.numConstructors.ShouldEqual(0);
 
-            this.invoker.TryInvoke(repo => { return true; }, out bool result);
-            result.ShouldEqual(true);
+            bool tryInvokeResult1 = this.invoker.TryInvoke(repo => { return true; }, out bool result);
+            result.ShouldEqual(true, string.Format("Unexcepted function result from first call to TryInvoke: {0} ReturnCode: {1}", result, tryInvokeResult1));
             this.numConstructors.ShouldEqual(1);
 
-            this.DisposalTriggers.TryTake(out object _, (int)this.disposalPeriod.TotalMilliseconds * 100).ShouldBeTrue();
+            this.DisposalTriggers.TryTake(out object _, (int)this.disposalPeriod.TotalMilliseconds * 100).ShouldBeTrue("Did not dispose object in time");
             this.numDisposals.ShouldEqual(1);
             this.numConstructors.ShouldEqual(1);
 
-            this.invoker.TryInvoke(repo => { return true; }, out result);
-            result.ShouldEqual(true);
+            bool tryInvokeResult2 = this.invoker.TryInvoke(repo => { return true; }, out result);
+            result.ShouldEqual(true, string.Format("Unexcepted function result from second call to TryInvoke: {0} ReturnCode: {1}", result, tryInvokeResult2));
             this.numConstructors.ShouldEqual(2);
         }
 
