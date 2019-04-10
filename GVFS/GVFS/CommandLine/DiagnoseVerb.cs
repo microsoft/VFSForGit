@@ -302,7 +302,7 @@ namespace GVFS.CommandLine
         {
             try
             {
-                string localCacheArchivePath = Path.Combine(archiveFolderPath, LocalCacheResolver.DefaultGVFSCacheFolderName);
+                string localCacheArchivePath = Path.Combine(archiveFolderPath, GVFSConstants.DefaultGVFSCacheFolderName);
                 Directory.CreateDirectory(localCacheArchivePath);
 
                 if (!string.IsNullOrWhiteSpace(localCacheRoot))

@@ -18,6 +18,8 @@ namespace GVFS.Common
         public const string WorkingDirectoryRootName = "src";
         public const string UnattendedEnvironmentVariable = "GVFS_UNATTENDED";
 
+        public const string DefaultGVFSCacheFolderName = ".gvfsCache";
+
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
         public static class GitConfig

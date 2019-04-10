@@ -1,6 +1,9 @@
-﻿using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Should;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 using System.Diagnostics;
 using System.IO;
 
@@ -41,6 +44,38 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             ProcessResult result = ProcessHelper.Run(processInfo);
             result.ExitCode.ShouldEqual(GVFSGenericError);
             result.Output.ShouldContain("'--local-cache-path' cannot be inside the src folder");
+        }
+
+        [TestCase]
+        [Category(Categories.MacOnly)]
+        public void CloneWithDefaultLocalCacheLocation()
+        {
+            FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
+            string homeDirectory = Environment.GetEnvironmentVariable("HOME");
+            homeDirectory.ShouldBeADirectory(fileSystem);
+
+            string newEnlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+
+            ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);
+            processInfo.Arguments = $"clone {Properties.Settings.Default.RepoToClone} {newEnlistmentRoot} --no-mount --no-prefetch";
+            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            processInfo.CreateNoWindow = true;
+            processInfo.UseShellExecute = false;
+            processInfo.RedirectStandardOutput = true;
+
+            ProcessResult result = ProcessHelper.Run(processInfo);
+            result.ExitCode.ShouldEqual(0, result.Errors);
+
+            string dotGVFSRoot = Path.Combine(newEnlistmentRoot, ".gvfs");
+            dotGVFSRoot.ShouldBeADirectory(fileSystem);
+            string localCacheRoot = GVFSHelpers.GetPersistedLocalCacheRoot(dotGVFSRoot);
+            string gitObjectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(dotGVFSRoot);
+
+            string defaultGVFSCacheRoot = Path.Combine(homeDirectory, ".gvfsCache");
+            localCacheRoot.StartsWith(defaultGVFSCacheRoot, StringComparison.Ordinal).ShouldBeTrue($"Local cache root did not default to using {homeDirectory}");
+            gitObjectsRoot.StartsWith(defaultGVFSCacheRoot, StringComparison.Ordinal).ShouldBeTrue($"Git objects root did not default to using {homeDirectory}");
+
+            RepositoryHelpers.DeleteTestDirectory(newEnlistmentRoot);
         }
 
         [TestCase]

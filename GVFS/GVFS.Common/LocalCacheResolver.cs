@@ -10,8 +10,6 @@ namespace GVFS.Common
 {
     public class LocalCacheResolver
     {
-        public const string DefaultGVFSCacheFolderName = ".gvfsCache";
-
         private const string EtwArea = nameof(LocalCacheResolver);
         private const string MappingFile = "mapping.dat";
         private const string MappingVersionKey = "GVFS_LocalCache_MappingVersion";
@@ -26,20 +24,16 @@ namespace GVFS.Common
             this.enlistment = enlistment;
         }
 
-        public static string GetDefaultLocalCacheRoot(GVFSEnlistment enlistment)
+        public static bool TryGetDefaultLocalCacheRoot(GVFSEnlistment enlistment, out string localCacheRoot, out string localCacheRootError)
         {
-            string localCacheRoot;
             if (GVFSEnlistment.IsUnattended(tracer: null))
             {
-                localCacheRoot = Path.Combine(enlistment.DotGVFSRoot, DefaultGVFSCacheFolderName);
-            }
-            else
-            {
-                string pathRoot = Path.GetPathRoot(enlistment.EnlistmentRoot);
-                localCacheRoot = Path.Combine(pathRoot, DefaultGVFSCacheFolderName);
+                localCacheRoot = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DefaultGVFSCacheFolderName);
+                localCacheRootError = null;
+                return true;
             }
 
-            return localCacheRoot;
+            return GVFSPlatform.Instance.TryGetDefaultLocalCacheRoot(enlistment.EnlistmentRoot, out localCacheRoot, out localCacheRootError);
         }
 
         public bool TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
