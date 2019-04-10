@@ -327,10 +327,38 @@ namespace GVFS.Platform.Windows
 
         public override bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError)
         {
-            string pathRoot = Path.GetPathRoot(enlistmentRoot);
-            localCacheRoot = Path.Combine(pathRoot, GVFSConstants.DefaultGVFSCacheFolderName);
-            localCacheRootError = null;
-            return true;
+            string pathRoot;
+
+            try
+            {
+                pathRoot = Path.GetPathRoot(enlistmentRoot);
+            }
+            catch (ArgumentException e)
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to determine the root of '{enlistmentRoot}'): {e.Message}";
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(pathRoot))
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to determine the root of '{enlistmentRoot}', path does not contain root directory information";
+                return false;
+            }
+
+            try
+            {
+                localCacheRoot = Path.Combine(pathRoot, GVFSConstants.DefaultGVFSCacheFolderName);
+                localCacheRootError = null;
+                return true;
+            }
+            catch (ArgumentException e)
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to build local cache path using root directory '{pathRoot}'): {e.Message}";
+                return false;
+            }
         }
 
         public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
