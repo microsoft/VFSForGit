@@ -126,7 +126,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PrjFSPerfCounter functionCounter,
     PrjFSPerfCounter innerLoopCounter,
     vnode_t _Nonnull initialVnode,
-    vfs_context_t context)
+    vfs_context_t _Nonnull context)
 {
     PerfSample findForVnodeSample(perfTracer, functionCounter);
     

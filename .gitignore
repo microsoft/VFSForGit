@@ -226,3 +226,6 @@ ModelManifest.xml
 
 # VS Code private directory
 .vscode/
+
+# ProjFS Kext Unit Test coverage results
+ProjFS.Mac/CoverageResult.txt

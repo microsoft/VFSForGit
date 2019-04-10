@@ -6,7 +6,7 @@
 
 extern "C" int mac_vnop_getxattr(struct vnode *, const char *, char *, size_t, size_t *);
 
-FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t context, bool useLinkIDForInode)
+FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t _Nonnull context, bool useLinkIDForInode)
 {
     vnode_attr attrs;
     VATTR_INIT(&attrs);
