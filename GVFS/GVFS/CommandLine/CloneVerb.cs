@@ -70,7 +70,7 @@ namespace GVFS.CommandLine
         [Option(
             "local-cache-path",
             Required = false,
-            HelpText = VerbConstants.CloneVerb.LocalCacheRootHelpText)]
+            HelpText = "Use this option to override the path for the local GVFS cache.")]
         public string LocalCacheRoot { get; set; }
 
         protected override string VerbName
