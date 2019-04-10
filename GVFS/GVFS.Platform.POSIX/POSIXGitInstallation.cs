@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
 using System.IO;
 
 namespace GVFS.Platform.POSIX
@@ -19,14 +20,13 @@ namespace GVFS.Platform.POSIX
 
         public string GetInstalledGitBinPath()
         {
-            // TODO(POSIX): Use 'which' to find git (like the Windows platform uses "where")
-            string gitBinPath = $"/usr/local/bin/{GitProcessName}";
-            if (File.Exists(gitBinPath))
+            ProcessResult result = ProcessHelper.Run("which", args: "git", redirectOutput: true);
+            if (result.ExitCode != 0)
             {
-                return gitBinPath;
+                return null;
             }
 
-            return null;
+            return result.Output.Trim();
         }
     }
 }
