@@ -182,7 +182,7 @@ kern_return_t KauthHandler_Cleanup()
     return result;
 }
 
-static void UseMainForkIfNamedStream(
+KEXT_STATIC void UseMainForkIfNamedStream(
     // In+out params:
     vnode_t& vnode,
     // Out params:

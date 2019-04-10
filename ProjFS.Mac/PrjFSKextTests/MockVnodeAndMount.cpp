@@ -384,5 +384,5 @@ int vnode_isvroot(vnode_t vnode)
 
 int vnode_isnamedstream(vnode_t vp)
 {
-    return 0;
+    return vp->namedStream ? 1 : 0;
 }
