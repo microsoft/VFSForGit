@@ -1159,10 +1159,37 @@ namespace GVFS.Virtualization.Projection
                     //     parent folder is re-expanded (only applies on platforms where EnumerationExpandsDirectories is true)
                     foreach (PlaceholderListDatabase.PlaceholderData folderPlaceholder in placeholderFoldersListCopy.OrderByDescending(x => x.Path))
                     {
-                        // Remove folder placeholders before re-expansion to ensure that projection changes that convert a folder to a file work
-                        // properly
-                        if (!this.RemoveFolderPlaceholderIfEmpty(folderPlaceholder, addPlaceholderToUpdatedPlaceholders, folderPlaceholdersToKeep))
+                        bool keepFolder = true;
+                        if (!folderPlaceholdersToKeep.Contains(folderPlaceholder.Path))
                         {
+                            bool isProjected = this.IsPathProjected(folderPlaceholder.Path, out string fileName, out bool isFolder);
+
+                            // Check the projection for the folder to determine if the folder needs to be deleted
+                            // The delete will be attempted if one of the following is true
+                            // 1. not in the projection anymore
+                            // 2. in the projection but is not a folder in the projection
+                            // 3. Folder no longer exist on disk - this is to remove the tombstone
+                            if (!isProjected ||
+                                !isFolder ||
+                                (!GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories &&
+                                !this.context.FileSystem.DirectoryExists(Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, folderPlaceholder.Path))))
+                            {
+                                keepFolder = !this.RemoveFolderPlaceholderIfEmpty(folderPlaceholder);
+                                ++deleteFolderPlaceholderAttempted;
+                            }
+
+                            if (keepFolder)
+                            {
+                                this.AddParentFoldersToListToKeep(folderPlaceholder.Path, folderPlaceholdersToKeep);
+                            }
+                        }
+
+                        if (keepFolder)
+                        {
+                            addPlaceholderToUpdatedPlaceholders(folderPlaceholder);
+
+                            // Remove folder placeholders before re-expansion to ensure that projection changes that convert a folder to a file work
+                            // properly
                             if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories && folderPlaceholder.IsExpandedFolder)
                             {
                                 if (updatedPlaceholderDictionary == null)
@@ -1173,10 +1200,6 @@ namespace GVFS.Virtualization.Projection
 
                                 this.ReExpandFolder(blobSizesConnection, folderPlaceholder.Path, updatedPlaceholderDictionary, folderPlaceholders);
                             }
-                        }
-                        else
-                        {
-                            ++deleteFolderPlaceholderAttempted;
                         }
                     }
                 }
@@ -1447,55 +1470,20 @@ namespace GVFS.Virtualization.Projection
         /// </summary>
         /// <returns>
         /// <c>true</c>If the folder placeholder was deleted
-        /// <c>false</c>If RemoveFolderPlaceholderIfEmpty did not attempt to remove the folder placeholder
+        /// <c>false</c>If RemoveFolderPlaceholderIfEmpty failed attempting to remove the folder placeholder
         /// </returns>
-        /// <remarks>
-        /// If the platform expands on enumeration the folder will only be removed if it's not in the projection
-        /// </remarks>
-        private bool RemoveFolderPlaceholderIfEmpty(
-            PlaceholderListDatabase.PlaceholderData placeholder,
-            Action<PlaceholderListDatabase.PlaceholderData> addPlaceholderToUpdatedPlaceholders,
-            ConcurrentHashSet<string> folderPlaceholdersToKeep)
+        private bool RemoveFolderPlaceholderIfEmpty(PlaceholderListDatabase.PlaceholderData placeholder)
         {
-            if (folderPlaceholdersToKeep.Contains(placeholder.Path))
-            {
-                addPlaceholderToUpdatedPlaceholders(placeholder);
-                return false;
-            }
-
-            if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
-            {
-                // If enumeration expands directories we should leave folder placeholders
-                // that are still in the projection on disk (they might still be physically empty
-                // on disk if they've not been expanded).
-                //
-                // If enumeration does not expand directories there is no harm in deleting empty
-                // folder placeholders that are in the projection as they will be re-projected during
-                // enumeration.  Additionally, there may be folder tombstones on disk that need to be
-                // cleaned up (e.g. git might have deleted a folder placeholder that was not in
-                // ModifiedPaths.dat, resulting in a tombstone getting created).
-
-                FolderData folderData;
-                if (this.TryGetOrAddFolderDataFromCache(placeholder.Path, out folderData))
-                {
-                    addPlaceholderToUpdatedPlaceholders(placeholder);
-                    return false;
-                }
-            }
-
             UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
             FileSystemResult result = this.fileSystemVirtualizer.DeleteFile(placeholder.Path, FolderPlaceholderDeleteFlags, out failureReason);
             switch (result.Result)
             {
                 case FSResult.Ok:
-                    break;
+                case FSResult.FileOrPathNotFound:
+                    return true;
 
                 case FSResult.DirectoryNotEmpty:
-                    addPlaceholderToUpdatedPlaceholders(placeholder);
-                    break;
-
-                case FSResult.FileOrPathNotFound:
-                    break;
+                    return false;
 
                 default:
                     EventMetadata metadata = CreateEventMetadata();
@@ -1504,14 +1492,8 @@ namespace GVFS.Virtualization.Projection
                     metadata.Add("result.RawResult", result.RawResult);
                     metadata.Add("UpdateFailureCause", failureReason.ToString());
                     this.context.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.RemoveFolderPlaceholderIfEmpty) + "_DeleteFileFailure", metadata);
-
-                    // TODO(Mac): Issue #245, handle failures DeleteFile on Mac.  If we don't do anything we could leave an untracked folder
-                    // placeholder on disk that will never be updated by Git or VFSForGit
-
-                    break;
+                    return false;
             }
-
-            return true;
         }
 
         private void UpdateOrDeleteFilePlaceholder(
