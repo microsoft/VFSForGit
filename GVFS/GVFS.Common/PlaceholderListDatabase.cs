@@ -13,6 +13,7 @@ namespace GVFS.Common
         // - Not be a valid SHA-1 value (to avoid collisions with files)
         public const string PartialFolderValue = "                          PARTIAL FOLDER";
         public const string ExpandedFolderValue = "                         EXPANDED FOLDER";
+        public const string TombstoneFolderValue = "                        TOMBSTONE FOLDER";
 
         private const char PathTerminator = '\0';
 
@@ -79,6 +80,11 @@ namespace GVFS.Common
         public void AddAndFlushFolder(string path, bool isExpanded)
         {
             this.AddAndFlush(path, isExpanded ? ExpandedFolderValue : PartialFolderValue);
+        }
+
+        public void AddAndFlushTombstoneFolder(string path)
+        {
+            this.AddAndFlush(path, TombstoneFolderValue);
         }
 
         public void RemoveAndFlush(string path)
@@ -172,7 +178,7 @@ namespace GVFS.Common
                     this.TryParseRemoveLine,
                     (key, value) =>
                     {
-                        if (value == PartialFolderValue || value == ExpandedFolderValue)
+                        if (PlaceholderData.IsShaAFolder(value))
                         {
                             folderPlaceholdersFromDisk.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value));
                         }
@@ -217,7 +223,7 @@ namespace GVFS.Common
                     this.TryParseRemoveLine,
                     (key, value) =>
                     {
-                        if (value != PartialFolderValue && value != ExpandedFolderValue)
+                        if (!PlaceholderData.IsShaAFolder(value))
                         {
                             filePlaceholdersFromDiskByPath[key] = new PlaceholderData(path: key, fileShaOrFolderValue: value);
                         }
@@ -360,7 +366,7 @@ namespace GVFS.Common
             {
                 get
                 {
-                    return this.Sha == PartialFolderValue || this.IsExpandedFolder;
+                    return IsShaAFolder(this.Sha);
                 }
             }
 
@@ -370,6 +376,19 @@ namespace GVFS.Common
                 {
                     return this.Sha == ExpandedFolderValue;
                 }
+            }
+
+            public bool IsTombstoneFolder
+            {
+                get
+                {
+                    return this.Sha == TombstoneFolderValue;
+                }
+            }
+
+            public static bool IsShaAFolder(string shaValue)
+            {
+                return shaValue == PartialFolderValue || shaValue == ExpandedFolderValue || shaValue == TombstoneFolderValue;
             }
         }
 

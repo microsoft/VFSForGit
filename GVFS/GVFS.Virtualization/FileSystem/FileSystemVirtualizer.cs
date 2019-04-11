@@ -203,6 +203,12 @@ namespace GVFS.Virtualization.FileSystem
                         this.FileSystemCallbacks.OnFolderDeleted(relativePath);
                     }
                 }
+                else if (!isPreDelete)
+                {
+                    // During a git command if it deletes a folder we need to track that as a tombstone
+                    // So that we can delete them if the projection changes
+                    this.FileSystemCallbacks.OnTombstoneFolderCreated(relativePath);
+                }
             }
             else
             {

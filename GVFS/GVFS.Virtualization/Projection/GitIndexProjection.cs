@@ -323,6 +323,11 @@ namespace GVFS.Virtualization.Projection
             this.placeholderList.AddAndFlushFolder(virtualPath, isExpanded: false);
         }
 
+        public void OnPlaceholderFolderTombstoned(string virtualPath)
+        {
+            this.placeholderList.AddAndFlushTombstoneFolder(virtualPath);
+        }
+
         public virtual void OnPlaceholderFolderExpanded(string relativePath)
         {
             this.placeholderList.AddAndFlushFolder(relativePath, isExpanded: true);
@@ -1172,7 +1177,7 @@ namespace GVFS.Virtualization.Projection
                             if (!isProjected ||
                                 !isFolder ||
                                 (!GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories &&
-                                !this.context.FileSystem.DirectoryExists(Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, folderPlaceholder.Path))))
+                                folderPlaceholder.IsTombstoneFolder))
                             {
                                 keepFolder = !this.RemoveFolderPlaceholderIfEmpty(folderPlaceholder);
                                 ++deleteFolderPlaceholderAttempted;
