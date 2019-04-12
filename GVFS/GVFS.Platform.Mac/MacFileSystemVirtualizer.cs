@@ -238,20 +238,6 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
-        protected override void OnFolderDeleteNotification(string relativePath, bool isGitCommandRunning)
-        {
-            // Don't want to add folders to the modified list if git is the one deleting the directory
-            if (!isGitCommandRunning)
-            {
-                this.FileSystemCallbacks.OnFolderPreDelete(relativePath);
-            }
-        }
-
-        protected override void OnFileDeleteNotification(string relativePath)
-        {
-            this.FileSystemCallbacks.OnFilePreDelete(relativePath);
-        }
-
         private static byte[] ToVersionIdByteArray(byte[] version)
         {
             byte[] bytes = new byte[VirtualizationInstance.PlaceholderIdLength];
@@ -496,7 +482,7 @@ namespace GVFS.Platform.Mac
                 }
                 else
                 {
-                    this.OnWorkingDirectoryFileOrFolderDeleteNotification(relativePath, isDirectory);
+                    this.OnWorkingDirectoryFileOrFolderDeleteNotification(relativePath, isDirectory, isPreDelete: true);
                 }
             }
             catch (Exception e)

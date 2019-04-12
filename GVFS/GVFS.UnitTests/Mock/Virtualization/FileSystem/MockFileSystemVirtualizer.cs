@@ -48,15 +48,5 @@ namespace GVFS.UnitTests.Mock.Virtualization.FileSystem
             error = null;
             return true;
         }
-
-        protected override void OnFileDeleteNotification(string relativePath)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected override void OnFolderDeleteNotification(string relativePath, bool isGitCommandRunning)
-        {
-            throw new NotImplementedException();
-        }
     }
 }

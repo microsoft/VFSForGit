@@ -186,22 +186,50 @@ namespace GVFS.Virtualization.FileSystem
             }
         }
 
-        protected abstract void OnFolderDeleteNotification(string relativePath, bool isGitCommandRunning);
-        protected abstract void OnFileDeleteNotification(string relativePath);
-
-        protected void OnWorkingDirectoryFileOrFolderDeleteNotification(string relativePath, bool isDirectory)
+        protected void OnWorkingDirectoryFileOrFolderDeleteNotification(string relativePath, bool isDirectory, bool isPreDelete)
         {
             if (isDirectory)
             {
+                // Don't want to add folders to the modified list if git is the one deleting the directory
                 GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
-                this.OnFolderDeleteNotification(relativePath, gitCommand.IsValidGitCommand);
+                if (!gitCommand.IsValidGitCommand)
+                {
+                    if (isPreDelete)
+                    {
+                        this.FileSystemCallbacks.OnFolderPreDelete(relativePath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnFolderDeleted(relativePath);
+                    }
+                }
+                else
+                {
+                    // During a git command if it deletes a folder we need to track that as a tombstone
+                    // So that we can delete them if the projection changes. This will be a no-op on platforms
+                    // that don't override OnPossibleTombstoneFolderCreated
+                    this.OnPossibleTombstoneFolderCreated(relativePath);
+                }
             }
             else
             {
-                this.OnFileDeleteNotification(relativePath);
+                if (isPreDelete)
+                {
+                    this.FileSystemCallbacks.OnFilePreDelete(relativePath);
+                }
+                else
+                {
+                    this.FileSystemCallbacks.OnFileDeleted(relativePath);
+                }
             }
 
             this.FileSystemCallbacks.InvalidateGitStatusCache();
+        }
+
+        // This method defaults to a no-op and is overridden in the platform specific
+        // FileSystemVirtualizer derived classes that support tombstones
+        protected virtual void OnPossibleTombstoneFolderCreated(string relativePath)
+        {
         }
 
         protected void OnFileRenamed(string relativeSourcePath, string relativeDestinationPath, bool isDirectory)
