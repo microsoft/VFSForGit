@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.NuGetUpgrade;
 using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
@@ -78,19 +79,20 @@ namespace GVFS.Service
                         this.tracer,
                         this.fileSystem);
 
-                    // The upgrade check always goes against GitHub
-                    GitHubUpgrader productUpgrader = GitHubUpgrader.Create(
+                    ProductUpgrader.TryCreateUpgrader(
                         this.tracer,
                         this.fileSystem,
                         new LocalGVFSConfig(),
+                        credentialStore: null,
                         dryRun: false,
                         noVerify: false,
+                        newUpgrader: out ProductUpgrader productUpgrader,
                         error: out errorMessage);
 
                     if (productUpgrader == null)
                     {
                         string message = string.Format(
-                            "{0}.{1}: GitHubUpgrader.Create failed to create upgrader: {2}",
+                            "{0}.{1}: failed to create upgrader: {2}",
                             nameof(ProductUpgradeTimer),
                             nameof(this.TimerCallback),
                             errorMessage);
@@ -106,13 +108,51 @@ namespace GVFS.Service
 
                     if (!productUpgrader.SupportsAnonymousVersionQuery)
                     {
-                        string message = string.Format(
+                        // If this is a NuGetUpgrader that does not support anonymous version query,
+                        // fall back to using the GitHubUpgrader, to preserve existing behavior.
+                        // Once we have completely transitioned to using the anonymous endpoint,
+                        // we can remove this code.
+                        if (productUpgrader is NuGetUpgrader)
+                        {
+                            productUpgrader = GitHubUpgrader.Create(
+                                this.tracer,
+                                this.fileSystem,
+                                new LocalGVFSConfig(),
+                                dryRun: false,
+                                noVerify: false,
+                                error: out errorMessage);
+
+                            if (productUpgrader == null)
+                            {
+                                string gitHubUpgraderFailedMessage = string.Format(
+                                    "{0}.{1}: GitHubUpgrader.Create failed to create upgrader: {2}",
+                                    nameof(ProductUpgradeTimer),
+                                    nameof(this.TimerCallback),
+                                    errorMessage);
+
+                                activity.RelatedWarning(
+                                    metadata: new EventMetadata(),
+                                    message: gitHubUpgraderFailedMessage,
+                                    keywords: Keywords.Telemetry);
+
+                                info.RecordHighestAvailableVersion(highestAvailableVersion: null);
+                                return;
+                            }
+                        }
+
+                        errorMessage = string.Format(
                             "{0}.{1}: Configured Product Upgrader does not support anonymous version queries.",
                             nameof(ProductUpgradeTimer),
                             nameof(this.TimerCallback),
                             errorMessage);
 
+                        activity.RelatedWarning(
+                            metadata: new EventMetadata(),
+                            message: errorMessage,
+                            keywords: Keywords.Telemetry);
+
                         info.RecordHighestAvailableVersion(highestAvailableVersion: null);
+                        return;
                     }
 
                     InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
@@ -188,10 +228,10 @@ namespace GVFS.Service
             }
         }
 
-        private bool TryQueryForNewerVersion(ITracer tracer, GitHubUpgrader productUpgrader, out Version newVersion, out string errorMessage)
+        private bool TryQueryForNewerVersion(ITracer tracer, ProductUpgrader productUpgrader, out Version newVersion, out string errorMessage)
         {
             errorMessage = null;
-            tracer.RelatedInfo($"Querying server for latest version in ring {productUpgrader.Config.UpgradeRing}...");
+            tracer.RelatedInfo($"Querying server for latest version...");
 
             if (!productUpgrader.TryQueryNewestVersion(out newVersion, out string detailedError))
             {
