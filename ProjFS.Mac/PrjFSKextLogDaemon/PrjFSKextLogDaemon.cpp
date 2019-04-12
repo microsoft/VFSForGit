@@ -1,4 +1,5 @@
 #include "../PrjFSKext/public/PrjFSLogClientShared.h"
+#include "../PrjFSKext/public/PrjFSHealthData.h"
 #include "../PrjFSLib/PrjFSUser.hpp"
 #include <iostream>
 #include <OS/log.h>
@@ -12,9 +13,16 @@ static IONotificationPortRef s_notificationPort;
 
 static void StartLoggingKextMessages(io_connect_t connection, io_service_t service, os_log_t daemonLogger, os_log_t kextLogger);
 static void SetupExitSignalHandler();
+static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection);
+static bool TryFetchAndLogKextHealthData(io_connect_t connection);
 
 int main(int argc, const char* argv[])
 {
+#ifdef DEBUG
+    printf("PrjFSKextLogDaemon starting up");
+    fflush(stdout);
+#endif
+    
     s_daemonLogger = os_log_create(PrjFSKextLogDaemon_OSLogSubsystem, "daemon");
     s_kextLogger = os_log_create(PrjFSKextLogDaemon_OSLogSubsystem, "kext");
     
@@ -129,12 +137,24 @@ static void StartLoggingKextMessages(io_connect_t connection, io_service_t prjfs
     });
     dispatch_resume(logDataQueue->dispatchSource);
 
+    dispatch_source_t timer = nullptr;
+    if (TryFetchAndLogKextHealthData(connection))
+    {
+        timer = StartKextHealthDataPolling(connection);
+    }
+
     PrjFSService_WatchForServiceTermination(
         prjfsService,
         s_notificationPort,
-        [prjfsServiceEntryID, connection, logDataQueue]()
+        [prjfsServiceEntryID, connection, logDataQueue, timer]()
         {
             DataQueue_Dispose(logDataQueue.get(), connection, LogMemoryType_MessageQueue);
+
+            if (nullptr != timer)
+            {
+                dispatch_cancel(timer);
+                dispatch_release(timer);
+            }
 
             IOServiceClose(connection);
             os_log(s_daemonLogger, "Stopped logging kext messages from PrjFS IOService with registry entry id 0x%llx", prjfsServiceEntryID);
@@ -160,4 +180,53 @@ static void SetupExitSignalHandler()
     struct sigaction newAction = { .sa_sigaction = HandleSigterm };
     struct sigaction oldAction = {};
     sigaction(SIGTERM, &newAction, &oldAction);
+}
+
+static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection)
+{
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(
+        timer,
+        DISPATCH_TIME_NOW,      // start
+        15 * 60 * NSEC_PER_SEC, // interval
+        10 * NSEC_PER_SEC);     // leeway
+    dispatch_source_set_event_handler(timer, ^{
+        TryFetchAndLogKextHealthData(connection);
+    });
+    dispatch_resume(timer);
+    return timer;
+}
+
+static bool TryFetchAndLogKextHealthData(io_connect_t connection)
+{
+    PrjFSHealthData healthData;
+    size_t out_size = sizeof(healthData);
+    IOReturn ret = IOConnectCallStructMethod(connection, LogSelector_FetchHealthData, nullptr, 0, &healthData, &out_size);
+    if (ret == kIOReturnUnsupported)
+    {
+        return false;
+    }
+    else if (ret == kIOReturnSuccess)
+    {
+        os_log_with_type(
+            s_kextLogger,
+            OS_LOG_TYPE_DEFAULT,
+            "PrjFS Vnode Cache Health: CacheCapacity=%u, CacheEntries=%u, InvalidationCount=%llu, CacheLookups=%llu, LookupCollisions=%llu, FindRootHits=%llu, FindRootMisses=%llu, RefreshRoot=%llu, InvalidateRoot=%llu",
+            healthData.cacheCapacity,
+            healthData.cacheEntries,
+            healthData.invalidateEntireCacheCount,
+            healthData.totalCacheLookups,
+            healthData.totalLookupCollisions,
+            healthData.totalFindRootForVnodeHits,
+            healthData.totalFindRootForVnodeMisses,
+            healthData.totalRefreshRootForVnode,
+            healthData.totalInvalidateVnodeRoot);
+    }
+    else
+    {
+        fprintf(stderr, "fetching profiling data from kernel failed: 0x%x\n", ret);
+        return false;
+    }
+    
+    return true;
 }

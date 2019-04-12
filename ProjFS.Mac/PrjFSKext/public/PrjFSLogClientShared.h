@@ -8,6 +8,7 @@ enum PrjFSLogUserClientSelector
     LogSelector_Invalid = 0,
     
     LogSelector_FetchProfilingData,
+    LogSelector_FetchHealthData,
 };
 
 enum PrjFSLogUserClientMemoryType

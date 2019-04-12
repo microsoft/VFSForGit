@@ -39,5 +39,10 @@ public:
         void* reference,
         IOExternalMethodArguments* arguments);
     
+    static IOReturn fetchHealthData(
+        OSObject* target,
+        void* reference,
+        IOExternalMethodArguments* arguments);
+    
     void sendLogMessage(KextLog_MessageHeader* message, uint32_t size);
 };

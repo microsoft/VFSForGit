@@ -1,4 +1,5 @@
 #include "kext-perf-tracing.hpp"
+#include "../../PrjFSKext/public/ArrayUtils.hpp"
 #include "../../PrjFSKext/public/PrjFSCommon.h"
 #include "../../PrjFSKext/public/PrjFSPerfCounter.h"
 #include "../../PrjFSKext/public/PrjFSLogClientShared.h"
@@ -74,16 +75,6 @@ static constexpr const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_CacheInvalidateCount]                                 = "VnodeCacheInvalidationCount",
     [PrjFSPerfCounter_CacheFullCount]                                       = "VnodeCacheFullCount",
 };
-
-template <typename T, size_t N>
-    constexpr bool AllArrayElementsInitialized(T (&array)[N], size_t fromIndex = 0)
-{
-    return
-        fromIndex >= N
-        ? true
-        : (array[fromIndex] != T()
-           && AllArrayElementsInitialized(array, fromIndex + 1));
-}
 
 static_assert(AllArrayElementsInitialized(PerfCounterNames), "There must be an initialization of PerfCounterNames elements corresponding to each PrjFSPerfCounter enum value");
 
