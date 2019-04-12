@@ -17,7 +17,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
     [Category(Categories.WindowsOnly)]
     public class DiskLayoutUpgradeTests : TestsWithEnlistmentPerTestCase
     {
-        public const int CurrentDiskLayoutMajorVersion = 17;
+        public const int CurrentDiskLayoutMajorVersion = 18;
         public const int CurrentDiskLayoutMinorVersion = 0;
 
         public const string BlobSizesCacheName = "blobSizes";
