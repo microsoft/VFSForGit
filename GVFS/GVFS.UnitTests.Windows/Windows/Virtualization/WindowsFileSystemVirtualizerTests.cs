@@ -185,7 +185,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Guid enumerationGuid = Guid.NewGuid();
                     gitIndexProjection.EnumerationInMemory = false;
-                    mockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", 1, "test").ShouldEqual(HResult.Pending);
+                    mockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
                     mockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
                     mockVirtualization.requiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
                 }
@@ -536,6 +536,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
+                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
@@ -551,6 +552,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
+                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
@@ -566,6 +568,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
+                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
@@ -607,6 +610,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
+                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
@@ -647,6 +651,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
+                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
@@ -660,6 +665,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
+                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(0);
@@ -885,7 +891,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
-        public void OnGetFileStreamHandlesNewResult()
+        public void OnGetFileStreamHandlesHResultHandleResult()
         {
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())

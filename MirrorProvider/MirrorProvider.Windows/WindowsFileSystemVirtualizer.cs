@@ -288,7 +288,7 @@ namespace MirrorProvider.Windows
 
         private bool OnPreDelete(string relativePath, bool isDirectory, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
-            Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
+            Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}, triggeringProcessId: {triggeringProcessId}, triggeringProcessImageFileName: {triggeringProcessImageFileName}");
             return true;
         }
 
@@ -300,7 +300,7 @@ namespace MirrorProvider.Windows
             out NotificationType notificationMask)
         {
             notificationMask = NotificationType.UseExistingMask;
-            Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
+            Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}, triggeringProcessId: {triggeringProcessId}, triggeringProcessImageFileName: {triggeringProcessImageFileName}");
         }
 
         private void OnFileModifiedOrDeleted(string relativePath, bool isDirectory, bool isFileModified, bool isFileDeleted, uint triggeringProcessId, string triggeringProcessImageFileName)
@@ -309,7 +309,7 @@ namespace MirrorProvider.Windows
             // NotificationType.FileHandleClosedFileModified and so this method will only be called for modifications.  
             // Once MacFileSystemVirtualizer supports delete notifications we'll register for
             // NotificationType.FileHandleClosedFileDeleted and this method will be called for both modifications and deletions.
-            Console.WriteLine($"OnFileModifiedOrDeleted: `{relativePath}`, isDirectory: {isDirectory}, isModfied: {isFileModified}, isDeleted: {isFileDeleted}");
+            Console.WriteLine($"OnFileModifiedOrDeleted: `{relativePath}`, isDirectory: {isDirectory}, isModfied: {isFileModified}, isDeleted: {isFileDeleted}, triggeringProcessId: {triggeringProcessId}, triggeringProcessImageFileName: {triggeringProcessImageFileName}");
         }
 
         private void OnFileRenamed(
@@ -321,7 +321,7 @@ namespace MirrorProvider.Windows
             out NotificationType notificationMask)
         {
             notificationMask = NotificationType.UseExistingMask;
-            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}), relativeSourcePath: {relativeSourcePath}, relativeDestinationPath: {relativeDestinationPath}");
+            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}), relativeSourcePath: {relativeSourcePath}, relativeDestinationPath: {relativeDestinationPath}, triggeringProcessId: {triggeringProcessId}, triggeringProcessImageFileName: {triggeringProcessImageFileName}");
         }
 
         private void OnHardlinkCreated(
@@ -330,7 +330,7 @@ namespace MirrorProvider.Windows
             uint triggeringProcessId,
             string triggeringProcessImageFileName)
         {
-            Console.WriteLine($"OnHardlinkCreated, relativeExistingFilePath: {relativeExistingFilePath}, relativeNewLinkFilePath: {relativeNewLinkFilePath}");
+            Console.WriteLine($"OnHardlinkCreated, relativeExistingFilePath: {relativeExistingFilePath}, relativeNewLinkFilePath: {relativeNewLinkFilePath}, triggeringProcessId: {triggeringProcessId}, triggeringProcessImageFileName: {triggeringProcessImageFileName}");
         }
 
         private bool OnFilePreConvertToFull(string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)

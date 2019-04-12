@@ -46,7 +46,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="ProjectedFSLib.Managed, Version=1.0.19079.1, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
-      <HintPath>..\..\..\packages\Microsoft.Windows.ProjFS.1.0.19079.1\lib\net461\ProjectedFSLib.Managed.dll</HintPath>
+      <HintPath>..\..\..\packages\$(ProjFSManagedPackage)\lib\net461\ProjectedFSLib.Managed.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />

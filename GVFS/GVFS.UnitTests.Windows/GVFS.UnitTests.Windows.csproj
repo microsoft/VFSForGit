@@ -77,7 +77,7 @@
       <HintPath>..\..\..\packages\NUnitLite.3.10.1\lib\net45\nunitlite.dll</HintPath>
     </Reference>
     <Reference Include="ProjectedFSLib.Managed, Version=1.0.19079.1, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
-      <HintPath>..\..\..\packages\Microsoft.Windows.ProjFS.1.0.19079.1\lib\net461\ProjectedFSLib.Managed.dll</HintPath>
+      <HintPath>..\..\..\packages\$(ProjFSManagedPackage)\lib\net461\ProjectedFSLib.Managed.dll</HintPath>
     </Reference>
     <Reference Include="SQLitePCLRaw.batteries_green, Version=1.0.0.0, Culture=neutral, PublicKeyToken=a84b7dcfb1391f7f, processorArchitecture=MSIL">
       <HintPath>..\..\..\packages\SQLitePCLRaw.bundle_green.1.1.7\lib\net45\SQLitePCLRaw.batteries_green.dll</HintPath>

@@ -4,8 +4,5 @@
         <None Condition="Exists('$(PackagesDir)\$(ProjFSNativePackage)\lib\x64\ProjectedFSLib.dll')" Include="$(PackagesDir)\$(ProjFSNativePackage)\lib\x64\ProjectedFSLib.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Condition="Exists('C:\Users\username\gvfs3\packages\GVFS.ProjFS.2018.823.2\lib\x64\ProjectedFSLib.dll')" Include="C:\Users\username\gvfs3\packages\GVFS.ProjFS.2018.823.2\lib\x64\ProjectedFSLib.dll">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
     </ItemGroup>
 </Project>

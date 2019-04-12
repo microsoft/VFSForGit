@@ -151,17 +151,15 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public HResult CompleteCommand(int commandId, NotificationType newNotificationMask)
         {
-            this.commandCompleted.Set();
-            return HResult.Ok;
+            throw new NotImplementedException();
         }
 
         public HResult CompleteCommand(int commandId, IDirectoryEnumerationResults results)
         {
-            this.commandCompleted.Set();
-            return HResult.Ok;
+            throw new NotImplementedException();
         }
 
-        HResult IVirtualizationInstance.CompleteCommand(int commandId, HResult completionResult)
+        public HResult CompleteCommand(int commandId, HResult completionResult)
         {
             this.commandCompleted.Set();
             this.CompletionResult = completionResult;
@@ -170,8 +168,7 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public HResult CompleteCommand(int commandId)
         {
-            this.commandCompleted.Set();
-            return HResult.Ok;
+            throw new NotImplementedException();
         }
 
         public void Dispose()
@@ -185,23 +182,17 @@ namespace GVFS.UnitTests.Windows.Mock
             return this.WriteFileReturnResult;
         }
 
-        IWriteBuffer IVirtualizationInstance.CreateWriteBuffer(ulong byteOffset, uint length, out ulong alignedByteOffset, out uint alignedLength)
+        public IWriteBuffer CreateWriteBuffer(ulong byteOffset, uint length, out ulong alignedByteOffset, out uint alignedLength)
         {
-            this.waitForCreateWriteBuffer.Set();
-            this.unblockCreateWriteBuffer.WaitOne();
-
-            alignedByteOffset = 0;
-            alignedLength = 100;
-
-            return new MockWriteBuffer(length, 1);
+            throw new NotImplementedException();
         }
 
-        IWriteBuffer IVirtualizationInstance.CreateWriteBuffer(uint desiredBufferSize)
+        public IWriteBuffer CreateWriteBuffer(uint desiredBufferSize)
         {
             this.waitForCreateWriteBuffer.Set();
             this.unblockCreateWriteBuffer.WaitOne();
 
-            return new MockWriteBuffer(desiredBufferSize, 1);
+            return new MockWriteBuffer(desiredBufferSize);
         }
 
         protected void Dispose(bool disposing)

@@ -50,10 +50,6 @@ namespace GVFS.Platform.Windows
             int numWorkerThreads)
             : base(context, gitObjects, numWorkerThreads)
         {
-            // We currently use twice as many threads as connections to allow for
-            // non-network operations to possibly succeed despite the connection limit
-            uint threadCount = (uint)Math.Max(MinPrjLibThreads, Environment.ProcessorCount * 2);
-
             List<NotificationMapping> notificationMappings = new List<NotificationMapping>()
             {
                 new NotificationMapping(Notifications.FilesInWorkingFolder | Notifications.FoldersInWorkingFolder, string.Empty),
@@ -65,6 +61,9 @@ namespace GVFS.Platform.Windows
                 new NotificationMapping(Notifications.FilesAndFoldersInRefsHeads, GVFSConstants.DotGit.Refs.Heads.Root),
             };
 
+            // We currently use twice as many threads as connections to allow for
+            // non-network operations to possibly succeed despite the connection limit
+            uint threadCount = (uint)Math.Max(MinPrjLibThreads, Environment.ProcessorCount * 2);
             this.virtualizationInstance = virtualizationInstance ?? new VirtualizationInstance(
                 context.Enlistment.WorkingDirectoryRoot,
                 poolThreadCount: threadCount,
@@ -939,7 +938,7 @@ namespace GVFS.Platform.Windows
                                     switch (writeResult)
                                     {
                                         case HResult.Handle:
-                                            // HResult.FileClosed is expected, and occurs when an application closes a file handle before OnGetFileStream
+                                            // HResult.Handle is expected, and occurs when an application closes a file handle before OnGetFileStream
                                             // is complete
                                             break;
 
@@ -1188,9 +1187,9 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        private bool NotifyFilePreConvertToFullHandler(string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)
+        private bool NotifyFilePreConvertToFullHandler(string relativePath, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
-            this.OnFilePreConvertToFull(virtualPath);
+            this.OnFilePreConvertToFull(relativePath);
             return true;
         }
 

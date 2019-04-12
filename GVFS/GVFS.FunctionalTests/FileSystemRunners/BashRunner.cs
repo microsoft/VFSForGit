@@ -329,15 +329,5 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             bashPath = bashPath.Replace('\\', '/');
             return bashPath;
         }
-
-        private string[] GetPermissionDeniedError()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return windowsPermissionDeniedMessage;
-            }
-
-            return macPermissionDeniedMessage;
-        }
     }
 }
