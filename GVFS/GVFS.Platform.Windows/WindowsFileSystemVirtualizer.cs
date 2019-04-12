@@ -933,20 +933,6 @@ namespace GVFS.Platform.Windows
                                             // is complete
                                             break;
 
-                                        case HResult.FileNotFound:
-                                            // WriteFile may return STATUS_OBJECT_NAME_NOT_FOUND if the stream guid provided is not valid (doesn’t exist in the stream table).
-                                            // For each file expansion, ProjFS creates a new get stream session with a new stream guid, the session starts at the beginning of the
-                                            // file expansion, and ends after the GetFileStream command returns or times out.
-                                            //
-                                            // If we hit this in GVFS, the most common explanation is that we're calling WriteFile after the ProjFS thread waiting on the respose
-                                            // from GetFileStream has already timed out
-                                            {
-                                                requestMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.virtualizationInstance.WriteFileData)} returned StatusObjectNameNotFound");
-                                                this.Context.Tracer.RelatedEvent(EventLevel.Informational, "WriteFile_ObjectNameNotFound", requestMetadata);
-                                            }
-
-                                            break;
-
                                         default:
                                             {
                                                 this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.virtualizationInstance.WriteFileData)} failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
