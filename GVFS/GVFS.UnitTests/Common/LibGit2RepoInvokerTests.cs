@@ -147,7 +147,7 @@ namespace GVFS.UnitTests.Common
             result.ShouldEqual(true, string.Format("Unexcepted function result from first call to TryInvoke: {0} ReturnCode: {1}", result, tryInvokeResult1));
             this.numConstructors.ShouldEqual(1);
 
-            this.DisposalTriggers.TryTake(out object _, (int)this.disposalPeriod.TotalMilliseconds * 100).ShouldBeTrue("Did not dispose object in time");
+            this.DisposalTriggers.TryTake(out object _, (int)this.disposalPeriod.TotalMilliseconds * 500).ShouldBeTrue("Did not dispose object in time");
             this.numDisposals.ShouldEqual(1);
             this.numConstructors.ShouldEqual(1);
 
