@@ -83,6 +83,7 @@ while read line; do
 	 [[ $line != *"RWLock_DropExclusiveToShared"* ]] && 
 	 [[ $line != *".xctest"* ]] && 
 	 [[ $line != *".cpp"* ]] && 
+	 [[ $line != *".a"* ]] && 
 	 [[ $line != *".hpp"* ]]; then
        echo "Error: not at 100% Code Coverage $line"
        exit 1
