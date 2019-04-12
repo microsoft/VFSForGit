@@ -323,9 +323,9 @@ namespace GVFS.Virtualization.Projection
             this.placeholderList.AddAndFlushFolder(virtualPath, isExpanded: false);
         }
 
-        public void OnPlaceholderFolderTombstoned(string virtualPath)
+        public void OnPossibleTombstoneFolderCreated(string virtualPath)
         {
-            this.placeholderList.AddAndFlushTombstoneFolder(virtualPath);
+            this.placeholderList.AddAndFlushPossibleTombstoneFolder(virtualPath);
         }
 
         public virtual void OnPlaceholderFolderExpanded(string relativePath)
@@ -1173,11 +1173,10 @@ namespace GVFS.Virtualization.Projection
                             // The delete will be attempted if one of the following is true
                             // 1. not in the projection anymore
                             // 2. in the projection but is not a folder in the projection
-                            // 3. Folder no longer exist on disk - this is to remove the tombstone
+                            // 3. Folder placeholder is a possible tombstone
                             if (!isProjected ||
                                 !isFolder ||
-                                (!GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories &&
-                                folderPlaceholder.IsTombstoneFolder))
+                                folderPlaceholder.IsPossibleTombstoneFolder)
                             {
                                 keepFolder = !this.RemoveFolderPlaceholderIfEmpty(folderPlaceholder);
                                 ++deleteFolderPlaceholderAttempted;

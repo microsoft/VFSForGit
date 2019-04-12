@@ -186,40 +186,19 @@ namespace GVFS.Virtualization.FileSystem
             }
         }
 
-        protected void OnWorkingDirectoryFileOrFolderDeleteNotification(string relativePath, bool isDirectory, bool isPreDelete)
+        protected abstract void OnFolderDeleteNotification(string relativePath, bool isGitCommandRunning);
+        protected abstract void OnFileDeleteNotification(string relativePath);
+
+        protected void OnWorkingDirectoryFileOrFolderDeleteNotification(string relativePath, bool isDirectory)
         {
             if (isDirectory)
             {
-                // Don't want to add folders to the modified list if git is the one deleting the directory
                 GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
-                if (!gitCommand.IsValidGitCommand)
-                {
-                    if (isPreDelete)
-                    {
-                        this.FileSystemCallbacks.OnFolderPreDelete(relativePath);
-                    }
-                    else
-                    {
-                        this.FileSystemCallbacks.OnFolderDeleted(relativePath);
-                    }
-                }
-                else if (!isPreDelete)
-                {
-                    // During a git command if it deletes a folder we need to track that as a tombstone
-                    // So that we can delete them if the projection changes
-                    this.FileSystemCallbacks.OnTombstoneFolderCreated(relativePath);
-                }
+                this.OnFolderDeleteNotification(relativePath, gitCommand.IsValidGitCommand);
             }
             else
             {
-                if (isPreDelete)
-                {
-                    this.FileSystemCallbacks.OnFilePreDelete(relativePath);
-                }
-                else
-                {
-                    this.FileSystemCallbacks.OnFileDeleted(relativePath);
-                }
+                this.OnFileDeleteNotification(relativePath);
             }
 
             this.FileSystemCallbacks.InvalidateGitStatusCache();

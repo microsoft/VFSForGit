@@ -13,7 +13,7 @@ namespace GVFS.Common
         // - Not be a valid SHA-1 value (to avoid collisions with files)
         public const string PartialFolderValue = "                          PARTIAL FOLDER";
         public const string ExpandedFolderValue = "                         EXPANDED FOLDER";
-        public const string TombstoneFolderValue = "                        TOMBSTONE FOLDER";
+        public const string PossibleTombstoneFolderValue = "               POSSIBLE TOMBSTONE FOLDER";
 
         private const char PathTerminator = '\0';
 
@@ -82,9 +82,9 @@ namespace GVFS.Common
             this.AddAndFlush(path, isExpanded ? ExpandedFolderValue : PartialFolderValue);
         }
 
-        public void AddAndFlushTombstoneFolder(string path)
+        public void AddAndFlushPossibleTombstoneFolder(string path)
         {
-            this.AddAndFlush(path, TombstoneFolderValue);
+            this.AddAndFlush(path, PossibleTombstoneFolderValue);
         }
 
         public void RemoveAndFlush(string path)
@@ -378,17 +378,17 @@ namespace GVFS.Common
                 }
             }
 
-            public bool IsTombstoneFolder
+            public bool IsPossibleTombstoneFolder
             {
                 get
                 {
-                    return this.Sha == TombstoneFolderValue;
+                    return this.Sha == PossibleTombstoneFolderValue;
                 }
             }
 
             public static bool IsShaAFolder(string shaValue)
             {
-                return shaValue == PartialFolderValue || shaValue == ExpandedFolderValue || shaValue == TombstoneFolderValue;
+                return shaValue == PartialFolderValue || shaValue == ExpandedFolderValue || shaValue == PossibleTombstoneFolderValue;
             }
         }
 

@@ -577,6 +577,26 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
+        protected override void OnFolderDeleteNotification(string relativePath, bool isGitCommandRunning)
+        {
+            // Don't want to add folders to the modified list if git is the one deleting the directory
+            if (!isGitCommandRunning)
+            {
+                this.FileSystemCallbacks.OnFolderDeleted(relativePath);
+            }
+            else
+            {
+                // During a git command if it deletes a folder we need to track that as a tombstone
+                // So that we can delete them if the projection changes
+                this.FileSystemCallbacks.OnPossibleTombstoneFolderCreated(relativePath);
+            }
+        }
+
+        protected override void OnFileDeleteNotification(string relativePath)
+        {
+            this.FileSystemCallbacks.OnFileDeleted(relativePath);
+        }
+
         private static void StreamCopyBlockTo(Stream input, Stream destination, long numBytes, byte[] buffer)
         {
             int read;
@@ -1150,7 +1170,7 @@ namespace GVFS.Platform.Windows
                     }
                     else
                     {
-                        this.OnWorkingDirectoryFileOrFolderDeleteNotification(virtualPath, isDirectory, isPreDelete: false);
+                        this.OnWorkingDirectoryFileOrFolderDeleteNotification(virtualPath, isDirectory);
                     }
                 }
             }

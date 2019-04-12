@@ -33,7 +33,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
         }
 
         public DiskLayoutVersion Version => new DiskLayoutVersion(
-                    currentMajorVersion: 17,
+                    currentMajorVersion: 18,
                     currentMinorVersion: 0,
                     minimumSupportedMajorVersion: 7);
 
