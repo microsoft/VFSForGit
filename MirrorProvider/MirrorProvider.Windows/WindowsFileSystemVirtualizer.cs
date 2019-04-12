@@ -7,10 +7,9 @@ using System.Linq;
 
 namespace MirrorProvider.Windows
 {
-    public class WindowsFileSystemVirtualizer : FileSystemVirtualizer
+    public class WindowsFileSystemVirtualizer : FileSystemVirtualizer, IRequiredCallbacks
     {
         private VirtualizationInstance virtualizationInstance;
-        private WindowsRequiredCallbacks requiredCallbacks;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations = new ConcurrentDictionary<Guid, ActiveEnumeration>();
 
         public override bool TryConvertVirtualizationRoot(string directory, out string error)
@@ -28,13 +27,6 @@ namespace MirrorProvider.Windows
 
         public override bool TryStartVirtualizationInstance(Enlistment enlistment, out string error)
         {
-            this.requiredCallbacks = new WindowsRequiredCallbacks();
-            this.requiredCallbacks.OnEndDirectoryEnumeration = this.EndDirectoryEnumeration;
-            this.requiredCallbacks.OnStartDirectoryEnumeration = this.StartDirectoryEnumeration;
-            this.requiredCallbacks.OnGetDirectoryEnumeration = this.GetDirectoryEnumeration;
-            this.requiredCallbacks.OnGetPlaceholderInformation = this.GetPlaceholderInformation;
-            this.requiredCallbacks.OnGetFileStream = this.GetFileStream;
-
             this.virtualizationInstance.OnQueryFileName = this.QueryFileName;
             this.virtualizationInstance.OnNotifyPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNotifyNewFileCreated = this.OnNewFileCreated;
@@ -63,7 +55,7 @@ namespace MirrorProvider.Windows
                 enableNegativePathCache: false,
                 notificationMappings: notificationMappings);
 
-            HResult result = this.virtualizationInstance.StartVirtualizing(this.requiredCallbacks);
+            HResult result = this.virtualizationInstance.StartVirtualizing(this);
 
             if (result == HResult.Ok)
             {
@@ -74,7 +66,7 @@ namespace MirrorProvider.Windows
             return false;
         }
 
-        private HResult StartDirectoryEnumeration(int commandId, Guid enumerationId, string relativePath, uint triggeringProcessId, string triggeringProcessImageFileName)
+        public HResult StartDirectoryEnumerationCallback(int commandId, Guid enumerationId, string relativePath, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
             Console.WriteLine($"StartDirectoryEnumeration: `{relativePath}`, {enumerationId}");
 
@@ -93,7 +85,7 @@ namespace MirrorProvider.Windows
             return HResult.Ok;
         }
 
-        private HResult EndDirectoryEnumeration(Guid enumerationId)
+        public HResult EndDirectoryEnumerationCallback(Guid enumerationId)
         {
             Console.WriteLine($"EndDirectioryEnumeration: {enumerationId}");
 
@@ -106,7 +98,7 @@ namespace MirrorProvider.Windows
             return HResult.Ok;
         }
 
-        private HResult GetDirectoryEnumeration(
+        public HResult GetDirectoryEnumerationCallback(
             int commandId,
             Guid enumerationId, 
             string filterFileName, 
@@ -172,27 +164,13 @@ namespace MirrorProvider.Windows
             }
         }
 
-        private HResult QueryFileName(string relativePath)
-        {
-            Console.WriteLine($"QueryFileName: `{relativePath}`");
-
-            string parentDirectory = Path.GetDirectoryName(relativePath);
-            string childName = Path.GetFileName(relativePath);
-            if (this.GetChildItems(parentDirectory).Any(child => child.Name.Equals(childName, StringComparison.OrdinalIgnoreCase)))
-            {
-                return HResult.Ok;
-            }
-
-            return HResult.FileNotFound;
-        }
-
-        private HResult GetPlaceholderInformation(
+        public HResult GetPlaceholderInfoCallback(
             int commandId,
             string relativePath,
             uint triggeringProcessId,
             string triggeringProcessImageFileName)
         {
-            Console.WriteLine($"GetPlaceholderInformation: `{relativePath}`");
+            Console.WriteLine($"GetPlaceholderInfoCallback: `{relativePath}`");
 
             ProjectedFileInfo fileInfo = this.GetFileInfo(relativePath);
             if (fileInfo == null)
@@ -221,7 +199,7 @@ namespace MirrorProvider.Windows
             return result;
         }
 
-        private HResult GetFileStream(
+        public HResult GetFileDataCallback(
             int commandId,
             string relativePath,
             ulong byteOffset,
@@ -232,7 +210,7 @@ namespace MirrorProvider.Windows
             uint triggeringProcessId,
             string triggeringProcessImageFileName)
         {
-            Console.WriteLine($"GetFileStream: `{relativePath}`");
+            Console.WriteLine($"GetFileDataCallback: `{relativePath}`");
 
             if (!this.FileExists(relativePath))
             {
@@ -274,16 +252,30 @@ namespace MirrorProvider.Windows
             }
             catch (IOException e)
             {
-                Console.WriteLine("IOException in GetFileStream: " + e.Message);
+                Console.WriteLine("IOException in GetFileDataCallback: " + e.Message);
                 return HResult.InternalError;
             }
             catch (UnauthorizedAccessException e)
             {
-                Console.WriteLine("UnauthorizedAccessException in GetFileStream: " + e.Message);
+                Console.WriteLine("UnauthorizedAccessException in GetFileDataCallback: " + e.Message);
                 return HResult.InternalError;
             }
 
             return HResult.Ok;
+        }
+
+        private HResult QueryFileName(string relativePath)
+        {
+            Console.WriteLine($"QueryFileName: `{relativePath}`");
+
+            string parentDirectory = Path.GetDirectoryName(relativePath);
+            string childName = Path.GetFileName(relativePath);
+            if (this.GetChildItems(parentDirectory).Any(child => child.Name.Equals(childName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return HResult.Ok;
+            }
+
+            return HResult.FileNotFound;
         }
 
         private bool OnPreDelete(string relativePath, bool isDirectory, uint triggeringProcessId, string triggeringProcessImageFileName)

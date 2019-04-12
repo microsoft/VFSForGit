@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 
 namespace GVFS.Platform.Windows
 {
-    public class WindowsFileSystemVirtualizer : FileSystemVirtualizer
+    public class WindowsFileSystemVirtualizer : FileSystemVirtualizer, IRequiredCallbacks
     {
         /// <summary>
         /// GVFS uses the first byte of the providerId field of placeholders to version
@@ -30,7 +30,6 @@ namespace GVFS.Platform.Windows
         private const int MinPrjLibThreads = 5;
 
         private IVirtualizationInstance virtualizationInstance;
-        private WindowsRequiredCallbacks requiredCallbacks;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
 
@@ -197,19 +196,359 @@ namespace GVFS.Platform.Windows
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
 
+        // TODO: Need ProjFS 13150199 to be fixed so that GVFS doesn't leak memory if the enumeration cancelled.
+        // Currently EndDirectoryEnumerationHandler must be called to remove the ActiveEnumeration from this.activeEnumerations
+        public HResult StartDirectoryEnumerationCallback(int commandId, Guid enumerationId, string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)
+        {
+            try
+            {
+                List<ProjectedFileInfo> projectedItems;
+                if (this.FileSystemCallbacks.GitIndexProjection.TryGetProjectedItemsFromMemory(virtualPath, out projectedItems))
+                {
+                    ActiveEnumeration activeEnumeration = new ActiveEnumeration(projectedItems);
+                    if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
+                    {
+                        this.Context.Tracer.RelatedError(
+                            this.CreateEventMetadata(enumerationId, virtualPath),
+                            nameof(this.StartDirectoryEnumerationCallback) + ": Failed to add enumeration ID to active collection");
+
+                        return HResult.InternalError;
+                    }
+
+                    return HResult.Ok;
+                }
+
+                CancellationTokenSource cancellationSource;
+                if (!this.TryRegisterCommand(commandId, out cancellationSource))
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath);
+                    metadata.Add("commandId", commandId);
+                    this.Context.Tracer.RelatedWarning(metadata, nameof(this.StartDirectoryEnumerationCallback) + ": Failed to register command");
+                }
+
+                FileOrNetworkRequest startDirectoryEnumerationHandler = new FileOrNetworkRequest(
+                    (blobSizesConnection) => this.StartDirectoryEnumerationAsyncHandler(
+                        cancellationSource.Token,
+                        blobSizesConnection,
+                        commandId,
+                        enumerationId,
+                        virtualPath),
+                    () => cancellationSource.Dispose());
+
+                Exception e;
+                if (!this.TryScheduleFileOrNetworkRequest(startDirectoryEnumerationHandler, out e))
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
+                    metadata.Add("commandId", commandId);
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.StartDirectoryEnumerationCallback) + ": Failed to schedule async handler");
+                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.StartDirectoryEnumerationCallback) + "_FailedToScheduleAsyncHandler", metadata);
+
+                    cancellationSource.Dispose();
+
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath, e);
+                metadata.Add("commandId", commandId);
+                this.LogUnhandledExceptionAndExit(nameof(this.StartDirectoryEnumerationCallback), metadata);
+            }
+
+            return HResult.Pending;
+        }
+
+        public HResult GetDirectoryEnumerationCallback(
+        int commandId,
+        Guid enumerationId,
+        string filterFileName,
+        bool restartScan,
+        IDirectoryEnumerationResults results)
+        {
+            try
+            {
+                ActiveEnumeration activeEnumeration = null;
+                if (!this.activeEnumerations.TryGetValue(enumerationId, out activeEnumeration))
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(enumerationId);
+                    metadata.Add("filterFileName", filterFileName);
+                    metadata.Add("restartScan", restartScan);
+                    this.Context.Tracer.RelatedError(metadata, nameof(this.GetDirectoryEnumerationCallback) + ": Failed to find active enumeration ID");
+
+                    return HResult.InternalError;
+                }
+
+                if (restartScan)
+                {
+                    activeEnumeration.RestartEnumeration(filterFileName);
+                }
+                else
+                {
+                    activeEnumeration.TrySaveFilterString(filterFileName);
+                }
+
+                HResult result = HResult.Ok;
+                bool entryAdded = false;
+                while (activeEnumeration.IsCurrentValid)
+                {
+                    ProjectedFileInfo fileInfo = activeEnumeration.Current;
+                    FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
+
+                    bool addResult = results.Add(
+                        fileName: fileInfo.Name,
+                        fileSize: fileInfo.IsFolder ? 0 : fileInfo.Size,
+                        isDirectory: fileInfo.IsFolder,
+                        fileAttributes: fileInfo.IsFolder ? FileAttributes.Directory : FileAttributes.Archive,
+                        creationTime: properties.CreationTimeUTC,
+                        lastAccessTime: properties.LastAccessTimeUTC,
+                        lastWriteTime: properties.LastWriteTimeUTC,
+                        changeTime: properties.LastWriteTimeUTC);
+
+                    if (addResult == true)
+                    {
+                        entryAdded = true;
+                        activeEnumeration.MoveNext();
+                    }
+                    else
+                    {
+                        if (entryAdded)
+                        {
+                            result = HResult.Ok;
+                        }
+
+                        break;
+                    }
+                }
+
+                return result;
+            }
+            catch (Win32Exception e)
+            {
+                this.Context.Tracer.RelatedWarning(
+                    this.CreateEventMetadata(enumerationId, relativePath: null, exception: e),
+                    nameof(this.GetDirectoryEnumerationCallback) + " caught Win32Exception");
+
+                return HResultExtensions.HResultFromWin32(e.NativeErrorCode);
+            }
+            catch (Exception e)
+            {
+                this.LogUnhandledExceptionAndExit(
+                    nameof(this.GetDirectoryEnumerationCallback),
+                    this.CreateEventMetadata(enumerationId, relativePath: null, exception: e));
+
+                return HResult.InternalError;
+            }
+        }
+
+        public HResult EndDirectoryEnumerationCallback(Guid enumerationId)
+        {
+            try
+            {
+                ActiveEnumeration activeEnumeration;
+                if (!this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration))
+                {
+                    this.Context.Tracer.RelatedWarning(
+                        this.CreateEventMetadata(enumerationId),
+                        nameof(this.EndDirectoryEnumerationCallback) + ": Failed to remove enumeration ID from active collection",
+                        Keywords.Telemetry);
+
+                    return HResult.InternalError;
+                }
+            }
+            catch (Exception e)
+            {
+                this.LogUnhandledExceptionAndExit(
+                    nameof(this.EndDirectoryEnumerationCallback),
+                    this.CreateEventMetadata(enumerationId, relativePath: null, exception: e));
+            }
+
+            return HResult.Ok;
+        }
+
+        public HResult GetPlaceholderInfoCallback(
+        int commandId,
+        string virtualPath,
+        uint triggeringProcessId,
+        string triggeringProcessImageFileName)
+        {
+            try
+            {
+                bool isFolder;
+                string fileName;
+                if (!this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder))
+                {
+                    return HResult.FileNotFound;
+                }
+
+                if (!isFolder &&
+                    !this.IsSpecialGitFile(fileName) &&
+                    !this.CanCreatePlaceholder())
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
+                    metadata.Add("commandId", commandId);
+                    metadata.Add("triggeringProcessId", triggeringProcessId);
+                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                    metadata.Add(TracingConstants.MessageKey.VerboseMessage, $"{nameof(this.GetPlaceholderInfoCallback)}: Not allowed to create placeholder");
+                    this.Context.Tracer.RelatedEvent(EventLevel.Verbose, nameof(this.GetPlaceholderInfoCallback), metadata);
+
+                    this.FileSystemCallbacks.OnPlaceholderCreateBlockedForGit();
+
+                    // Another process is modifying the working directory so we cannot modify it
+                    // until they are done.
+                    return HResult.FileNotFound;
+                }
+
+                CancellationTokenSource cancellationSource;
+                if (!this.TryRegisterCommand(commandId, out cancellationSource))
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
+                    metadata.Add("commandId", commandId);
+                    metadata.Add("triggeringProcessId", triggeringProcessId);
+                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                    this.Context.Tracer.RelatedWarning(metadata, nameof(this.GetPlaceholderInfoCallback) + ": Failed to register command");
+                }
+
+                FileOrNetworkRequest getPlaceholderInformationHandler = new FileOrNetworkRequest(
+                    (blobSizesConnection) => this.GetPlaceholderInformationAsyncHandler(
+                        cancellationSource.Token,
+                        blobSizesConnection,
+                        commandId,
+                        virtualPath,
+                        triggeringProcessId,
+                        triggeringProcessImageFileName),
+                    () => cancellationSource.Dispose());
+
+                Exception e;
+                if (!this.TryScheduleFileOrNetworkRequest(getPlaceholderInformationHandler, out e))
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
+                    metadata.Add("commandId", commandId);
+                    metadata.Add("triggeringProcessId", triggeringProcessId);
+                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetPlaceholderInfoCallback) + ": Failed to schedule async handler");
+                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetPlaceholderInfoCallback) + "_FailedToScheduleAsyncHandler", metadata);
+
+                    cancellationSource.Dispose();
+
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
+                metadata.Add("commandId", commandId);
+                metadata.Add("triggeringProcessId", triggeringProcessId);
+                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                this.LogUnhandledExceptionAndExit(nameof(this.GetPlaceholderInfoCallback), metadata);
+            }
+
+            return HResult.Pending;
+        }
+
+        public HResult GetFileDataCallback(
+        int commandId,
+        string virtualPath,
+        ulong byteOffset,
+        uint length,
+        Guid streamGuid,
+        byte[] contentId,
+        byte[] providerId,
+        uint triggeringProcessId,
+        string triggeringProcessImageFileName)
+        {
+            try
+            {
+                if (contentId == null)
+                {
+                    this.Context.Tracer.RelatedError($"{nameof(this.GetFileDataCallback)} called with null contentId, path: " + virtualPath);
+                    return HResult.InternalError;
+                }
+
+                if (providerId == null)
+                {
+                    this.Context.Tracer.RelatedError($"{nameof(this.GetFileDataCallback)} called with null epochId, path: " + virtualPath);
+                    return HResult.InternalError;
+                }
+
+                string sha = GetShaFromContentId(contentId);
+                byte placeholderVersion = GetPlaceholderVersionFromProviderId(providerId);
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("originalVirtualPath", virtualPath);
+                metadata.Add("byteOffset", byteOffset);
+                metadata.Add("length", length);
+                metadata.Add("streamGuid", streamGuid);
+                metadata.Add("triggeringProcessId", triggeringProcessId);
+                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                metadata.Add("sha", sha);
+                metadata.Add("placeholderVersion", placeholderVersion);
+                metadata.Add("commandId", commandId);
+
+                if (byteOffset != 0)
+                {
+                    this.Context.Tracer.RelatedError(metadata, "Invalid Parameter: byteOffset must be 0");
+                    return HResult.InternalError;
+                }
+
+                if (placeholderVersion != FileSystemVirtualizer.PlaceholderVersion)
+                {
+                    this.Context.Tracer.RelatedError(metadata, nameof(this.GetFileDataCallback) + ": Unexpected placeholder version");
+                    return HResult.InternalError;
+                }
+
+                CancellationTokenSource cancellationSource;
+                if (!this.TryRegisterCommand(commandId, out cancellationSource))
+                {
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetFileDataCallback) + ": Failed to register command");
+                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetFileDataCallback) + "_FailedToRegisterCommand", metadata);
+                }
+
+                FileOrNetworkRequest getFileStreamHandler = new FileOrNetworkRequest(
+                    (blobSizesConnection) => this.GetFileStreamHandlerAsyncHandler(
+                        cancellationSource.Token,
+                        commandId,
+                        length,
+                        streamGuid,
+                        sha,
+                        metadata),
+                    () =>
+                    {
+                        cancellationSource.Dispose();
+                    });
+
+                Exception e;
+                if (!this.TryScheduleFileOrNetworkRequest(getFileStreamHandler, out e))
+                {
+                    metadata.Add("Exception", e?.ToString());
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetFileDataCallback) + ": Failed to schedule async handler");
+                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetFileDataCallback) + "_FailedToScheduleAsyncHandler", metadata);
+
+                    cancellationSource.Dispose();
+
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
+                metadata.Add("originalVirtualPath", virtualPath);
+                metadata.Add("byteOffset", byteOffset);
+                metadata.Add("length", length);
+                metadata.Add("streamGuid", streamGuid);
+                metadata.Add("triggeringProcessId", triggeringProcessId);
+                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                metadata.Add("commandId", commandId);
+                this.LogUnhandledExceptionAndExit(nameof(this.GetFileDataCallback), metadata);
+            }
+
+            return HResult.Pending;
+        }
+
         protected override bool TryStart(out string error)
         {
             error = string.Empty;
 
             this.InitializeEnumerationPatternMatcher();
-
-            // Callbacks
-            this.requiredCallbacks = new WindowsRequiredCallbacks();
-            this.requiredCallbacks.OnEndDirectoryEnumeration = this.EndDirectoryEnumerationHandler;
-            this.requiredCallbacks.OnStartDirectoryEnumeration = this.StartDirectoryEnumerationHandler;
-            this.requiredCallbacks.OnGetDirectoryEnumeration = this.GetDirectoryEnumerationHandler;
-            this.requiredCallbacks.OnGetPlaceholderInformation = this.GetPlaceholderInformationHandler;
-            this.requiredCallbacks.OnGetFileStream = this.GetFileStreamHandler;
 
             this.virtualizationInstance.OnNotifyFileOverwritten = this.NotifyFileOverwrittenHandler;
             this.virtualizationInstance.OnNotifyPreCreateHardlink = null;
@@ -226,7 +565,7 @@ namespace GVFS.Platform.Windows
 
             this.virtualizationInstance.OnCancelCommand = this.CancelCommandHandler;
 
-            HResult result = this.virtualizationInstance.StartVirtualizing(this.requiredCallbacks);
+            HResult result = this.virtualizationInstance.StartVirtualizing(this);
 
             if (result != HResult.Ok)
             {
@@ -305,68 +644,6 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        // TODO: Need ProjFS 13150199 to be fixed so that GVFS doesn't leak memory if the enumeration cancelled.
-        // Currently EndDirectoryEnumerationHandler must be called to remove the ActiveEnumeration from this.activeEnumerations
-        private HResult StartDirectoryEnumerationHandler(int commandId, Guid enumerationId, string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)
-        {
-            try
-            {
-                List<ProjectedFileInfo> projectedItems;
-                if (this.FileSystemCallbacks.GitIndexProjection.TryGetProjectedItemsFromMemory(virtualPath, out projectedItems))
-                {
-                    ActiveEnumeration activeEnumeration = new ActiveEnumeration(projectedItems);
-                    if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
-                    {
-                        this.Context.Tracer.RelatedError(
-                            this.CreateEventMetadata(enumerationId, virtualPath),
-                            nameof(this.StartDirectoryEnumerationHandler) + ": Failed to add enumeration ID to active collection");
-
-                        return HResult.InternalError;
-                    }
-
-                    return HResult.Ok;
-                }
-
-                CancellationTokenSource cancellationSource;
-                if (!this.TryRegisterCommand(commandId, out cancellationSource))
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath);
-                    metadata.Add("commandId", commandId);
-                    this.Context.Tracer.RelatedWarning(metadata, nameof(this.StartDirectoryEnumerationHandler) + ": Failed to register command");
-                }
-
-                FileOrNetworkRequest startDirectoryEnumerationHandler = new FileOrNetworkRequest(
-                    (blobSizesConnection) => this.StartDirectoryEnumerationAsyncHandler(
-                        cancellationSource.Token,
-                        blobSizesConnection,
-                        commandId,
-                        enumerationId,
-                        virtualPath),
-                    () => cancellationSource.Dispose());
-
-                Exception e;
-                if (!this.TryScheduleFileOrNetworkRequest(startDirectoryEnumerationHandler, out e))
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.StartDirectoryEnumerationHandler) + ": Failed to schedule async handler");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.StartDirectoryEnumerationHandler) + "_FailedToScheduleAsyncHandler", metadata);
-
-                    cancellationSource.Dispose();
-
-                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
-                }
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath, e);
-                metadata.Add("commandId", commandId);
-                this.LogUnhandledExceptionAndExit(nameof(this.StartDirectoryEnumerationHandler), metadata);
-            }
-
-            return HResult.Pending;
-        }
-
         private void StartDirectoryEnumerationAsyncHandler(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection,
@@ -443,113 +720,6 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        private HResult EndDirectoryEnumerationHandler(Guid enumerationId)
-        {
-            try
-            {
-                ActiveEnumeration activeEnumeration;
-                if (!this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration))
-                {
-                    this.Context.Tracer.RelatedWarning(
-                        this.CreateEventMetadata(enumerationId),
-                        nameof(this.EndDirectoryEnumerationHandler) + ": Failed to remove enumeration ID from active collection",
-                        Keywords.Telemetry);
-
-                    return HResult.InternalError;
-                }
-            }
-            catch (Exception e)
-            {
-                this.LogUnhandledExceptionAndExit(
-                    nameof(this.EndDirectoryEnumerationHandler),
-                    this.CreateEventMetadata(enumerationId, relativePath: null, exception: e));
-            }
-
-            return HResult.Ok;
-        }
-
-        private HResult GetDirectoryEnumerationHandler(
-            int commandId,
-            Guid enumerationId,
-            string filterFileName,
-            bool restartScan,
-            IDirectoryEnumerationResults results)
-        {
-            try
-            {
-                ActiveEnumeration activeEnumeration = null;
-                if (!this.activeEnumerations.TryGetValue(enumerationId, out activeEnumeration))
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(enumerationId);
-                    metadata.Add("filterFileName", filterFileName);
-                    metadata.Add("restartScan", restartScan);
-                    this.Context.Tracer.RelatedError(metadata, nameof(this.GetDirectoryEnumerationHandler) + ": Failed to find active enumeration ID");
-
-                    return HResult.InternalError;
-                }
-
-                if (restartScan)
-                {
-                    activeEnumeration.RestartEnumeration(filterFileName);
-                }
-                else
-                {
-                    activeEnumeration.TrySaveFilterString(filterFileName);
-                }
-
-                HResult result = HResult.Ok;
-                bool entryAdded = false;
-                while (activeEnumeration.IsCurrentValid)
-                {
-                    ProjectedFileInfo fileInfo = activeEnumeration.Current;
-                    FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
-
-                    bool addResult = results.Add(
-                        fileName: fileInfo.Name,
-                        fileSize: fileInfo.IsFolder ? 0 : fileInfo.Size,
-                        isDirectory: fileInfo.IsFolder,
-                        fileAttributes: fileInfo.IsFolder ? FileAttributes.Directory : FileAttributes.Archive,
-                        creationTime: properties.CreationTimeUTC,
-                        lastAccessTime: properties.LastAccessTimeUTC,
-                        lastWriteTime: properties.LastWriteTimeUTC,
-                        changeTime: properties.LastWriteTimeUTC);
-
-                    if (addResult == true)
-                    {
-                        entryAdded = true;
-                        activeEnumeration.MoveNext();
-                    }
-                    else
-                    {
-                        if (entryAdded)
-                        {
-                            result = HResult.Ok;
-                        }
-
-                        break;
-                    }
-                }
-
-                return result;
-            }
-            catch (Win32Exception e)
-            {
-                this.Context.Tracer.RelatedWarning(
-                    this.CreateEventMetadata(enumerationId, relativePath: null, exception: e),
-                    nameof(this.GetDirectoryEnumerationHandler) + " caught Win32Exception");
-
-                return HResultExtensions.HResultFromWin32(e.NativeErrorCode);
-            }
-            catch (Exception e)
-            {
-                this.LogUnhandledExceptionAndExit(
-                    nameof(this.GetDirectoryEnumerationHandler),
-                    this.CreateEventMetadata(enumerationId, relativePath: null, exception: e));
-
-                return HResult.InternalError;
-            }
-        }
-
         /// <summary>
         /// QueryFileNameHandler is called by ProjFS when a file is being deleted or renamed.  It is an optimization so that ProjFS
         /// can avoid calling Start\Get\End enumeration to check if GVFS is still projecting a file.  This method uses the same
@@ -577,86 +747,6 @@ namespace GVFS.Platform.Windows
             }
 
             return HResult.Ok;
-        }
-
-        private HResult GetPlaceholderInformationHandler(
-            int commandId,
-            string virtualPath,
-            uint triggeringProcessId,
-            string triggeringProcessImageFileName)
-        {
-            try
-            {
-                bool isFolder;
-                string fileName;
-                if (!this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder))
-                {
-                    return HResult.FileNotFound;
-                }
-
-                if (!isFolder &&
-                    !this.IsSpecialGitFile(fileName) &&
-                    !this.CanCreatePlaceholder())
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    metadata.Add(TracingConstants.MessageKey.VerboseMessage, $"{nameof(this.GetPlaceholderInformationHandler)}: Not allowed to create placeholder");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Verbose, nameof(this.GetPlaceholderInformationHandler), metadata);
-
-                    this.FileSystemCallbacks.OnPlaceholderCreateBlockedForGit();
-
-                    // Another process is modifying the working directory so we cannot modify it
-                    // until they are done.
-                    return HResult.FileNotFound;
-                }
-
-                CancellationTokenSource cancellationSource;
-                if (!this.TryRegisterCommand(commandId, out cancellationSource))
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    this.Context.Tracer.RelatedWarning(metadata, nameof(this.GetPlaceholderInformationHandler) + ": Failed to register command");
-                }
-
-                FileOrNetworkRequest getPlaceholderInformationHandler = new FileOrNetworkRequest(
-                    (blobSizesConnection) => this.GetPlaceholderInformationAsyncHandler(
-                        cancellationSource.Token,
-                        blobSizesConnection,
-                        commandId,
-                        virtualPath,
-                        triggeringProcessId,
-                        triggeringProcessImageFileName),
-                    () => cancellationSource.Dispose());
-
-                Exception e;
-                if (!this.TryScheduleFileOrNetworkRequest(getPlaceholderInformationHandler, out e))
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetPlaceholderInformationHandler) + ": Failed to schedule async handler");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetPlaceholderInformationHandler) + "_FailedToScheduleAsyncHandler", metadata);
-
-                    cancellationSource.Dispose();
-
-                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
-                }
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
-                metadata.Add("commandId", commandId);
-                metadata.Add("triggeringProcessId", triggeringProcessId);
-                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                this.LogUnhandledExceptionAndExit(nameof(this.GetPlaceholderInformationHandler), metadata);
-            }
-
-            return HResult.Pending;
         }
 
         private void GetPlaceholderInformationAsyncHandler(
@@ -774,105 +864,6 @@ namespace GVFS.Platform.Windows
             }
 
             this.TryCompleteCommand(commandId, result);
-        }
-
-        private HResult GetFileStreamHandler(
-            int commandId,
-            string virtualPath,
-            ulong byteOffset,
-            uint length,
-            Guid streamGuid,
-            byte[] contentId,
-            byte[] providerId,
-            uint triggeringProcessId,
-            string triggeringProcessImageFileName)
-        {
-            try
-            {
-                if (contentId == null)
-                {
-                    this.Context.Tracer.RelatedError($"{nameof(this.GetFileStreamHandler)} called with null contentId, path: " + virtualPath);
-                    return HResult.InternalError;
-                }
-
-                if (providerId == null)
-                {
-                    this.Context.Tracer.RelatedError($"{nameof(this.GetFileStreamHandler)} called with null epochId, path: " + virtualPath);
-                    return HResult.InternalError;
-                }
-
-                string sha = GetShaFromContentId(contentId);
-                byte placeholderVersion = GetPlaceholderVersionFromProviderId(providerId);
-
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("originalVirtualPath", virtualPath);
-                metadata.Add("byteOffset", byteOffset);
-                metadata.Add("length", length);
-                metadata.Add("streamGuid", streamGuid);
-                metadata.Add("triggeringProcessId", triggeringProcessId);
-                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                metadata.Add("sha", sha);
-                metadata.Add("placeholderVersion", placeholderVersion);
-                metadata.Add("commandId", commandId);
-
-                if (byteOffset != 0)
-                {
-                    this.Context.Tracer.RelatedError(metadata, "Invalid Parameter: byteOffset must be 0");
-                    return HResult.InternalError;
-                }
-
-                if (placeholderVersion != FileSystemVirtualizer.PlaceholderVersion)
-                {
-                    this.Context.Tracer.RelatedError(metadata, nameof(this.GetFileStreamHandler) + ": Unexpected placeholder version");
-                    return HResult.InternalError;
-                }
-
-                CancellationTokenSource cancellationSource;
-                if (!this.TryRegisterCommand(commandId, out cancellationSource))
-                {
-                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetFileStreamHandler) + ": Failed to register command");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToRegisterCommand", metadata);
-                }
-
-                FileOrNetworkRequest getFileStreamHandler = new FileOrNetworkRequest(
-                    (blobSizesConnection) => this.GetFileStreamHandlerAsyncHandler(
-                        cancellationSource.Token,
-                        commandId,
-                        length,
-                        streamGuid,
-                        sha,
-                        metadata),
-                    () =>
-                    {
-                        cancellationSource.Dispose();
-                    });
-
-                Exception e;
-                if (!this.TryScheduleFileOrNetworkRequest(getFileStreamHandler, out e))
-                {
-                    metadata.Add("Exception", e?.ToString());
-                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetFileStreamHandler) + ": Failed to schedule async handler");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToScheduleAsyncHandler", metadata);
-
-                    cancellationSource.Dispose();
-
-                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
-                }
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
-                metadata.Add("originalVirtualPath", virtualPath);
-                metadata.Add("byteOffset", byteOffset);
-                metadata.Add("length", length);
-                metadata.Add("streamGuid", streamGuid);
-                metadata.Add("triggeringProcessId", triggeringProcessId);
-                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                metadata.Add("commandId", commandId);
-                this.LogUnhandledExceptionAndExit(nameof(this.GetFileStreamHandler), metadata);
-            }
-
-            return HResult.Pending;
         }
 
         private void GetFileStreamHandlerAsyncHandler(

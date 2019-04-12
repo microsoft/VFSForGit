@@ -91,7 +91,6 @@
     <Compile Include="WindowsPlatform.cs" />
     <Compile Include="WindowsPlatform.Shared.cs" />
     <Compile Include="WindowsFileSystem.cs" />
-    <Compile Include="WindowsRequiredCallbacks.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config">
