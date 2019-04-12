@@ -4,6 +4,7 @@ using GVFS.Common.Tracing;
 using NuGet.Protocol.Core.Types;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
@@ -95,13 +96,15 @@ namespace GVFS.Common.NuGetUpgrade
         public static bool TryCreate(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
+            LocalGVFSConfig gvfsConfig,
+            ICredentialStore credentialStore,
             bool dryRun,
             bool noVerify,
             out NuGetUpgrader nuGetUpgrader,
             out bool isConfigured,
             out string error)
         {
-            NuGetUpgraderConfig upgraderConfig = new NuGetUpgraderConfig(tracer, new LocalGVFSConfig());
+            NuGetUpgraderConfig upgraderConfig = new NuGetUpgraderConfig(tracer, gvfsConfig);
             nuGetUpgrader = null;
             isConfigured = false;
 
@@ -123,15 +126,6 @@ namespace GVFS.Common.NuGetUpgrade
             {
                 return false;
             }
-
-            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            if (string.IsNullOrEmpty(gitBinPath))
-            {
-                error = $"NuGetUpgrader: Unable to locate git installation. Ensure git is installed and try again.";
-                return false;
-            }
-
-            ICredentialStore credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null);
 
             nuGetUpgrader = new NuGetUpgrader(
                 ProcessHelper.GetCurrentProcessVersion(),
@@ -597,6 +591,11 @@ namespace GVFS.Common.NuGetUpgrade
         {
             if (!this.isNuGetFeedInitialized)
             {
+                if (this.credentialStore == null)
+                {
+                    throw new InvalidOperationException("Attempted to call method that requires authentication but no CredentialStore is configured.");
+                }
+
                 string authUrl;
                 if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
                 {

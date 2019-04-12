@@ -114,7 +114,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Windows\Mock\MockInstallerPreRunChecker.cs" />
-    <Compile Include="Windows\Mock\MockLocalGVFSConfig.cs" />
     <Compile Include="Windows\Mock\MockProcessLauncher.cs" />
     <Compile Include="Windows\Mock\MockGitHubUpgrader.cs" />
     <Compile Include="Windows\Mock\MockTextWriter.cs" />

@@ -1,7 +1,7 @@
 ﻿using GVFS.Common;
 using System.Collections.Generic;
 
-namespace GVFS.UnitTests.Windows.Mock.Upgrader
+namespace GVFS.UnitTests.Mock.Common
 {
     public class MockLocalGVFSConfig : LocalGVFSConfig
     {
