@@ -12,7 +12,8 @@ namespace GVFS.UnitTests.Common
     public class TryCreateProductUpgradeTests
     {
         private static string defaultUpgradeFeedPackageName = "package";
-        private static string defaultUpgradeFeedUrl = "https://pkgs.dev.azure.com/contoso";
+        private static string defaultUpgradeFeedUrl = "https://pkgs.dev.azure.com/contoso/";
+        private static string defaultOrgInfoServerUrl = "https://www.contoso.com";
         private static string defaultRing = "slow";
 
         private MockTracer tracer;
@@ -111,9 +112,75 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void CreatesOrgNuGetUpgrader()
+        {
+            MockLocalGVFSConfig gvfsConfig = this.ConstructDefaultMockOrgNuGetConfigBuilder()
+                .Build();
+
+            bool success = ProductUpgrader.TryCreateUpgrader(
+                this.tracer,
+                this.fileSystemMock.Object,
+                gvfsConfig,
+                this.credentialStoreMock.Object,
+                false,
+                false,
+                out ProductUpgrader productUpgrader,
+                out string error);
+
+            success.ShouldBeTrue();
+            productUpgrader.ShouldNotBeNull();
+            productUpgrader.ShouldBeOfType<OrgNuGetUpgrader>();
+            error.ShouldBeNull();
+        }
+
+        [TestCase]
         public void NoUpgraderWhenNuGetFeedMissing()
         {
             MockLocalGVFSConfig gvfsConfig = this.ConstructDefaultMockNuGetConfigBuilder()
+                .WithNoUpgradeFeedUrl()
+                .Build();
+
+            bool success = ProductUpgrader.TryCreateUpgrader(
+                this.tracer,
+                this.fileSystemMock.Object,
+                gvfsConfig,
+                this.credentialStoreMock.Object,
+                false,
+                false,
+                out ProductUpgrader productUpgrader,
+                out string error);
+
+            success.ShouldBeFalse();
+            productUpgrader.ShouldBeNull();
+            error.ShouldNotBeNull();
+        }
+
+        [TestCase]
+        public void NoOrgUpgraderWhenNuGetPackNameMissing()
+        {
+            MockLocalGVFSConfig gvfsConfig = this.ConstructDefaultMockOrgNuGetConfigBuilder()
+                .WithNoUpgradeFeedPackageName()
+                .Build();
+
+            bool success = ProductUpgrader.TryCreateUpgrader(
+                this.tracer,
+                this.fileSystemMock.Object,
+                gvfsConfig,
+                this.credentialStoreMock.Object,
+                false,
+                false,
+                out ProductUpgrader productUpgrader,
+                out string error);
+
+            success.ShouldBeFalse();
+            productUpgrader.ShouldBeNull();
+            error.ShouldNotBeNull();
+        }
+
+        [TestCase]
+        public void NoOrgUpgraderWhenNuGetFeedMissing()
+        {
+            MockLocalGVFSConfig gvfsConfig = this.ConstructDefaultMockOrgNuGetConfigBuilder()
                 .WithNoUpgradeFeedUrl()
                 .Build();
 
@@ -164,6 +231,17 @@ namespace GVFS.UnitTests.Common
             return configBuilder;
         }
 
+        private MockLocalGVFSConfigBuilder ConstructDefaultMockOrgNuGetConfigBuilder()
+        {
+            MockLocalGVFSConfigBuilder configBuilder = this.ConstructMockLocalGVFSConfigBuilder()
+                .WithUpgradeRing()
+                .WithUpgradeFeedPackageName()
+                .WithUpgradeFeedUrl()
+                .WithOrgInfoServerUrl();
+
+            return configBuilder;
+        }
+
         private MockLocalGVFSConfigBuilder ConstructDefaultGitHubConfigBuilder()
         {
             MockLocalGVFSConfigBuilder configBuilder = this.ConstructMockLocalGVFSConfigBuilder()
@@ -177,7 +255,8 @@ namespace GVFS.UnitTests.Common
             return new MockLocalGVFSConfigBuilder(
                 defaultRing,
                 defaultUpgradeFeedUrl,
-                defaultUpgradeFeedPackageName);
+                defaultUpgradeFeedPackageName,
+                defaultOrgInfoServerUrl);
         }
     }
 }

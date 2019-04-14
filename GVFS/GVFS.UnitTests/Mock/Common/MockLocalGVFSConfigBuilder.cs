@@ -8,17 +8,20 @@ namespace GVFS.UnitTests.Mock.Common
         private string defaultRing;
         private string defaultUpgradeFeedUrl;
         private string defaultUpgradeFeedPackageName;
+        private string defaultOrgServerUrl;
 
         private Dictionary<string, string> entries;
 
         public MockLocalGVFSConfigBuilder(
             string defaultRing,
             string defaultUpgradeFeedUrl,
-            string defaultUpgradeFeedPackageName)
+            string defaultUpgradeFeedPackageName,
+            string defaultOrgServerUrl)
         {
             this.defaultRing = defaultRing;
             this.defaultUpgradeFeedUrl = defaultUpgradeFeedUrl;
             this.defaultUpgradeFeedPackageName = defaultUpgradeFeedPackageName;
+            this.defaultOrgServerUrl = defaultOrgServerUrl;
             this.entries = new Dictionary<string, string>();
         }
 
@@ -50,6 +53,16 @@ namespace GVFS.UnitTests.Mock.Common
         public MockLocalGVFSConfigBuilder WithNoUpgradeFeedUrl()
         {
             return this.WithNo(GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl);
+        }
+
+        public MockLocalGVFSConfigBuilder WithOrgInfoServerUrl(string value = null)
+        {
+            return this.With(GVFSConstants.LocalGVFSConfig.OrgInfoServerUrl, value ?? this.defaultUpgradeFeedUrl);
+        }
+
+        public MockLocalGVFSConfigBuilder WithNoOrgInfoServerUrl()
+        {
+            return this.WithNo(GVFSConstants.LocalGVFSConfig.OrgInfoServerUrl);
         }
 
         public MockLocalGVFSConfig Build()
