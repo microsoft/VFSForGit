@@ -71,6 +71,8 @@ namespace GVFS.Common
         {
         }
 
+        public abstract bool SupportsAnonymousVersionQuery { get; }
+
         public string UpgradeInstanceId { get; set; } = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
         public static bool TryCreateUpgrader(

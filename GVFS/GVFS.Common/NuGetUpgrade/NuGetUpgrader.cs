@@ -81,6 +81,8 @@ namespace GVFS.Common.NuGetUpgrade
 
         public string DownloadedPackagePath { get; private set; }
 
+        public override bool SupportsAnonymousVersionQuery { get => false; }
+
         /// <summary>
         /// Path to unzip the downloaded upgrade package
         /// </summary>
