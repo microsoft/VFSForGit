@@ -11,14 +11,14 @@ namespace GVFS.Common.NuGetUpgrade
 {
     public class OrgNuGetUpgrader : NuGetUpgrader
     {
-        private HttpClient httpClient;
+        private IQueryGVFSVersion gvfsVersionFetcher;
         private string platform;
 
         public OrgNuGetUpgrader(
            string currentVersion,
            ITracer tracer,
            PhysicalFileSystem fileSystem,
-           HttpClient httpClient,
+           IQueryGVFSVersion gvfsVersionFetcher,
            bool dryRun,
            bool noVerify,
            OrgNuGetUpgraderConfig config,
@@ -35,15 +35,15 @@ namespace GVFS.Common.NuGetUpgrade
                downloadFolder,
                credentialStore)
         {
-            this.httpClient = httpClient;
             this.platform = platform;
+            this.gvfsVersionFetcher = gvfsVersionFetcher;
         }
 
         public OrgNuGetUpgrader(
            string currentVersion,
            ITracer tracer,
            PhysicalFileSystem fileSystem,
-           HttpClient httpClient,
+           IQueryGVFSVersion gvfsVersionFetcher,
            bool dryRun,
            bool noVerify,
            OrgNuGetUpgraderConfig config,
@@ -60,15 +60,13 @@ namespace GVFS.Common.NuGetUpgrade
                nuGetFeed,
                credentialStore)
         {
-            this.httpClient = httpClient;
+            this.gvfsVersionFetcher = gvfsVersionFetcher;
             this.platform = platform;
         }
 
         public override bool SupportsAnonymousVersionQuery { get => true; }
 
-        private OrgNuGetUpgraderConfig Config { get => this.nuGetUpgraderConfig as OrgNuGetUpgraderConfig;  }
-        private string OrgInfoServerUrl { get => this.Config.OrgInfoServer; }
-        private string Ring { get => this.Config.UpgradeRing; }
+        private ModernNuGetUpgraderConfig Config { get => this.nuGetUpgraderConfig as ModernNuGetUpgraderConfig;  }
 
         public static bool TryCreate(
             ITracer tracer,
@@ -102,11 +100,18 @@ namespace GVFS.Common.NuGetUpgrade
 
             string platform = GVFSPlatform.Instance.Name;
 
+            QueryGVFSVersionFromOrgInfo gvfsVersionFetcher = new QueryGVFSVersionFromOrgInfo(
+                httpClient,
+                upgraderConfig.OrgInfoServer,
+                orgName,
+                "windows",
+                upgraderConfig.UpgradeRing);
+
             upgrader = new OrgNuGetUpgrader(
                 ProcessHelper.GetCurrentProcessVersion(),
                 tracer,
                 fileSystem,
-                httpClient,
+                gvfsVersionFetcher,
                 dryRun,
                 noVerify,
                 upgraderConfig,
@@ -120,18 +125,9 @@ namespace GVFS.Common.NuGetUpgrade
         public override bool TryQueryNewestVersion(out Version newVersion, out string message)
         {
             newVersion = null;
-
-            if (!AzDevOpsOrgFromNuGetFeed.TryParseOrg(this.Config.FeedUrl, out string orgName))
-            {
-                message = "OrgNuGetUpgrader is not able to parse org name from NuGet Package Feed URL";
-                return false;
-            }
-
-            OrgInfoApiClient infoServer = new OrgInfoApiClient(this.httpClient, this.OrgInfoServerUrl);
-
             try
             {
-                this.highestVersionAvailable = infoServer.QueryNewestVersion(orgName, this.platform, this.Ring);
+                this.highestVersionAvailable = this.gvfsVersionFetcher.QueryNewestVersion(orgName, this.platform, this.Ring);
             }
             catch (Exception exception) when (exception is HttpRequestException ||
                                               exception is TaskCanceledException)
