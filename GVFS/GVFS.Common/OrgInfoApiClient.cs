@@ -43,6 +43,11 @@ namespace GVFS.Common
             string responseString = this.client.GetStringAsync(this.ConstructRequest(this.VersionUrl, queryParams)).GetAwaiter().GetResult();
             VersionResponse versionResponse = VersionResponse.FromJsonString(responseString);
 
+            if (string.IsNullOrEmpty(versionResponse.Version))
+            {
+                return null;
+            }
+
             return new Version(versionResponse.Version);
         }
 

@@ -37,6 +37,7 @@ namespace GVFS.Platform.Windows
         public override IGitInstallation GitInstallation { get; } = new WindowsGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new WindowsDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new WindowsFileSystem();
+        public override string Name { get => "Windows"; }
 
         public static string GetStringFromRegistry(string key, string valueName)
         {
