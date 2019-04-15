@@ -11,7 +11,7 @@ void Message_Init(
     int32_t pid,
     const char* procname,
     const char* path,
-    const char* sourcePath)
+    const char* fromPath)
 {
     header->messageId = messageId;
     header->messageType = messageType;
@@ -36,23 +36,23 @@ void Message_Init(
         header->pathSizeBytes = 0;
     }
 
-    if (nullptr != sourcePath)
+    if (nullptr != fromPath)
     {
-        header->sourcePathSizeBytes = strlen(sourcePath) + 1;
+        header->fromPathSizeBytes = strlen(fromPath) + 1;
     }
     else
     {
-        header->sourcePathSizeBytes = 0;
+        header->fromPathSizeBytes = 0;
     }
 
     spec->messageHeader = header;
     spec->path = path;
-    spec->sourcePath = sourcePath;
+    spec->fromPath = fromPath;
 }
 
 uint32_t Message_EncodedSize(const Message& message)
 {
-    return sizeof(*message.messageHeader) + message.messageHeader->pathSizeBytes + message.messageHeader->sourcePathSizeBytes;
+    return sizeof(*message.messageHeader) + message.messageHeader->pathSizeBytes + message.messageHeader->fromPathSizeBytes;
 }
 
 uint32_t Message_Encode(void* buffer, const uint32_t bufferSize, const Message& message)
