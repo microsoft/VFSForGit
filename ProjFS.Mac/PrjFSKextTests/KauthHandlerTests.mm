@@ -4,6 +4,8 @@
 #include "../PrjFSKext/VirtualizationRootsTestable.hpp"
 #import <XCTest/XCTest.h>
 #import <sys/stat.h>
+#include "KextLogMock.h"
+#include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
 #include "MockProc.hpp"
 #include "VnodeCacheEntriesWrapper.hpp"
@@ -21,15 +23,21 @@ class org_vfsforgit_PrjFSProviderUserClient
 @implementation KauthHandlerTests
 {
     VnodeCacheEntriesWrapper cacheWrapper;
+    vfs_context_t context;
 }
 
 - (void) setUp {
     kern_return_t initResult = VirtualizationRoots_Init();
     XCTAssertEqual(initResult, KERN_SUCCESS);
     self->cacheWrapper.AllocateCache();
+    context = vfs_context_create(nullptr);
+    MockProcess_AddContext(context, 501 /*pid*/);
+    MockProcess_SetSelfPid(501);
+    MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
 }
 
 - (void) tearDown {
+    MockProcess_Reset();
     self->cacheWrapper.FreeCache();
     MockVnodes_CheckAndClear();
     VirtualizationRoots_Cleanup();
@@ -247,7 +255,10 @@ class org_vfsforgit_PrjFSProviderUserClient
 
     // Test with file crawler trying to populate an empty file
     testVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
-    SetProcName("mds");
+    MockProcess_Reset();
+    MockProcess_SetSelfPid(501);
+    MockProcess_AddContext(context, 501 /*pid*/);
+    MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "mds" /*name*/);
     XCTAssertFalse(
         ShouldHandleVnodeOpEvent(
             &perfTracer,
@@ -261,10 +272,12 @@ class org_vfsforgit_PrjFSProviderUserClient
             &kauthResult,
             &kauthError));
     XCTAssertEqual(kauthResult, KAUTH_RESULT_DENY);
-
     
     // Test with finder trying to populate an empty file
-    SetProcName("Finder");
+    MockProcess_Reset();
+    MockProcess_SetSelfPid(501);
+    MockProcess_AddContext(context, 501 /*pid*/);
+    MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "Finder" /*name*/);
     XCTAssertTrue(
         ShouldHandleVnodeOpEvent(
             &perfTracer,
@@ -278,6 +291,49 @@ class org_vfsforgit_PrjFSProviderUserClient
             &kauthResult,
             &kauthError));
     XCTAssertEqual(kauthResult, KAUTH_RESULT_DEFER);
+}
+
+- (void)testCurrentProcessWasSpawnedByRegularUser {
+    // Defaults should pass for all tests
+    XCTAssertTrue(CurrentProcessWasSpawnedByRegularUser());
+    MockProcess_Reset();
+
+    // Process is a service user and does not have a parent
+    MockProcess_AddContext(context, 500 /*pid*/);
+    MockProcess_SetSelfPid(500);
+    MockProcess_AddCredential(1 /*credentialId*/, 1 /*UID*/);
+    MockProcess_AddProcess(500 /*pid*/, 1 /*credentialId*/, 501 /*ppid*/, "test" /*name*/);
+    XCTAssertFalse(CurrentProcessWasSpawnedByRegularUser());
+    MockProcess_Reset();
+
+    // Test a process with a service UID, valid parent pid, but proc_find fails to find parent pid
+    MockCalls::Clear();
+    MockProcess_AddContext(context, 500 /*pid*/);
+    MockProcess_SetSelfPid(500);
+    MockProcess_AddCredential(1 /*credentialId*/, 1 /*UID*/);
+    MockProcess_AddProcess(500 /*pid*/, 1 /*credentialId*/, 501 /*ppid*/, "test" /*name*/);
+    XCTAssertFalse(CurrentProcessWasSpawnedByRegularUser());
+    XCTAssertTrue(MockCalls::DidCallFunction(KextMessageLogged, KEXTLOG_ERROR));
+    MockProcess_Reset();
+
+    // 'sudo' scenario: Root process with non-root parent
+    MockProcess_AddContext(context, 502 /*pid*/);
+    MockProcess_SetSelfPid(502);
+    MockProcess_AddCredential(1 /*credentialId*/, 1 /*UID*/);
+    MockProcess_AddCredential(2 /*credentialId*/, 501 /*UID*/);
+    MockProcess_AddProcess(502 /*pid*/, 1 /*credentialId*/, 501 /*ppid*/, "test" /*name*/);
+    MockProcess_AddProcess(501 /*pid*/, 2 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
+    XCTAssertTrue(CurrentProcessWasSpawnedByRegularUser());
+    MockProcess_Reset();
+
+    // Process and it's parent are service users
+    MockProcess_AddContext(context, 502 /*pid*/);
+    MockProcess_SetSelfPid(502);
+    MockProcess_AddCredential(1 /*credentialId*/, 1 /*UID*/);
+    MockProcess_AddCredential(2 /*credentialId*/, 2 /*UID*/);
+    MockProcess_AddProcess(502 /*pid*/, 1 /*credentialId*/, 501 /*ppid*/, "test" /*name*/);
+    MockProcess_AddProcess(501 /*pid*/, 2 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
+    XCTAssertFalse(CurrentProcessWasSpawnedByRegularUser());
 }
 
 - (void)testUseMainForkIfNamedStream {
@@ -303,7 +359,6 @@ class org_vfsforgit_PrjFSProviderUserClient
 
 - (void)testShouldHandleFileOpEvent {
     PerfTracer perfTracer;
-    vfs_context_t _Nonnull context = vfs_context_create(nullptr);
     shared_ptr<mount> testMount = mount::Create();
     std::string repoPath = "/Users/test/code/Repo";
     shared_ptr<vnode> repoRootVnode = testMount->CreateVnodeTree(repoPath, VDIR);

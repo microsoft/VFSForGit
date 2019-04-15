@@ -54,7 +54,7 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
 KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 KEXT_STATIC_INLINE bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
-static bool CurrentProcessWasSpawnedByRegularUser();
+KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser();
 KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 
 static void WaitForListenerCompletion();
@@ -859,8 +859,7 @@ static bool TryGetVirtualizationRoot(
     return true;
 }
 
-
-static bool CurrentProcessWasSpawnedByRegularUser()
+KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser()
 {
     bool nonServiceUser = false;
     

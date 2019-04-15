@@ -17,4 +17,15 @@ extern "C"
     int proc_selfpid(void);
 }
 
-void SetProcName(const std::string& procName);
+struct proc {
+    int pid;
+    uintptr_t credentialId;
+    int ppid;
+    std::string name;
+};
+
+void MockProcess_SetSelfPid(int selfPid);
+void MockProcess_AddCredential(uintptr_t credentialId, uid_t UID);
+void MockProcess_AddContext(vfs_context_t context, int pid);
+void MockProcess_AddProcess(int pid, uintptr_t credentialId, int ppid, std::string procName);
+void MockProcess_Reset();

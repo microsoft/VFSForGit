@@ -53,7 +53,6 @@ while read line; do
 	 [[ $line != *"HandleVnodeOperation"* ]] &&                      #SHOULD ADD COVERAGE
 	 [[ $line != *"HandleFileOpOperation"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"TryGetVirtualizationRoot"* ]] &&                  #SHOULD ADD COVERAGE
-	 [[ $line != *"CurrentProcessWasSpawnedByRegularUser"* ]] &&     #SHOULD ADD COVERAGE
 	 [[ $line != *"ShouldHandleFileOpEvent"* ]] &&                   #SHOULD ADD COVERAGE
 	 [[ $line != *"WaitForListenerCompletion"* ]] && 
 	 [[ $line != *"KextLog_"* ]] && 
@@ -76,7 +75,8 @@ while read line; do
 	 [[ $line != *"proc_"* ]] && 
 	 [[ $line != *"ParentPathString"* ]] && 
 	 [[ $line != *"SetAndRegisterPath"* ]] && 
-	 [[ $line != *"vn_"* ]] && 
+	 [[ $line != *"vn_"* ]] &&
+	 [[ $line != *"vfs_"* ]] && 
 	 [[ $line != *"vnode_lookup"* ]] && 
 	 [[ $line != *"RetainIOCount"* ]] && 
 	 [[ $line != *"ProviderMessaging_"* ]] && 
