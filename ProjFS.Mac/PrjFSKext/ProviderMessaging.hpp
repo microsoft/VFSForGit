@@ -13,7 +13,7 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     const vnode_t vnode,
     const FsidInode& vnodeFsidInode,
     const char* vnodePath,
-    const char* sourcePath,
+    const char* fromPath,
     int pid,
     const char* procname,
     int* kauthResult,

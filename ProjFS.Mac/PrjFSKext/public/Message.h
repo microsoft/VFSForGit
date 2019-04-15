@@ -56,7 +56,7 @@ struct MessageHeader
             // Current/destination path
             uint16_t pathSizeBytes;
             // Original location (rename, hard link)
-            uint16_t sourcePathSizeBytes;
+            uint16_t fromPathSizeBytes;
         };
         uint16_t     stringSizesBytes[2];
     };
@@ -71,7 +71,7 @@ struct Message
         struct
         {
             const char* path;
-            const char* sourcePath;
+            const char* fromPath;
         };
         const char*     strings[2];
     };
@@ -89,7 +89,7 @@ void Message_Init(
     int32_t pid,
     const char* procname,
     const char* path,
-    const char* sourcePath);
+    const char* fromPath);
 
 uint32_t Message_EncodedSize(const Message& message);
 uint32_t Message_Encode(void* buffer, uint32_t bufferSize, const Message& message);
