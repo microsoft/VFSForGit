@@ -764,8 +764,8 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
-            const char* relativeFromPath = GetRelativePath(request.sourcePath, s_virtualizationRootFullPath.c_str());
-            cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ") << request.sourcePath << " -> " << absolutePath << " (absolute), ";
+            const char* relativeFromPath = GetRelativePath(request.fromPath, s_virtualizationRootFullPath.c_str());
+            cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ") << request.fromPath << " -> " << absolutePath << " (absolute), ";
             if (relativeFromPath != nullptr)
             {
                 cout << "from this root (relative path " << relativeFromPath << ") ";
