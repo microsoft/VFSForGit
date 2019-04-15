@@ -25,7 +25,6 @@ namespace GVFS.Common.NuGetUpgrade
         private InstallManifest installManifest;
         private NuGetFeed nuGetFeed;
         private ICredentialStore credentialStore;
-        private bool isNuGetFeedInitialized;
 
         public NuGetUpgrader(
             string currentVersion,
@@ -185,28 +184,19 @@ namespace GVFS.Common.NuGetUpgrade
         {
             try
             {
-                if (!this.EnsureNuGetFeedInitialized(out message))
-                {
-                    newVersion = null;
-                    return false;
-                }
+                IQueryGVFSVersion gvfsVersionFetcher = new QueryGVFSVersionFromNuGetFeed(
+                    this.tracer,
+                    this.credentialStore,
+                    this.nuGetFeed,
+                    this.nuGetUpgraderConfig.PackageFeedName,
+                    this.nuGetUpgraderConfig.FeedUrl);
 
-                IList<IPackageSearchMetadata> queryResults = this.QueryFeed(firstAttempt: true);
+                Version queryVersion = gvfsVersionFetcher.QueryVersion();
 
-                // Find the package with the highest version
-                IPackageSearchMetadata newestPackage = null;
-                foreach (IPackageSearchMetadata result in queryResults)
+                if (queryVersion != null &&
+                    queryVersion > this.installedVersion)
                 {
-                    if (newestPackage == null || result.Identity.Version > newestPackage.Identity.Version)
-                    {
-                        newestPackage = result;
-                    }
-                }
-
-                if (newestPackage != null &&
-                    newestPackage.Identity.Version.Version > this.installedVersion)
-                {
-                    this.highestVersionAvailable = newestPackage.Identity.Version.Version;
+                    this.highestVersionAvailable = queryVersion;
                 }
 
                 newVersion = this.highestVersionAvailable;
@@ -214,13 +204,13 @@ namespace GVFS.Common.NuGetUpgrade
                 if (newVersion != null)
                 {
                     this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - new version available: installedVersion: {this.installedVersion}, highestVersionAvailable: {newVersion}");
-                    message = $"New version {newestPackage.Identity.Version} is available.";
+                    message = $"New version {newVersion} is available.";
                     return true;
                 }
-                else if (newestPackage != null)
+                else if (queryVersion != null)
                 {
                     this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - up-to-date");
-                    message = $"highest version available is {newestPackage.Identity.Version}, you are up-to-date";
+                    message = $"highest version available is {queryVersion}, you are up-to-date";
                     return true;
                 }
                 else
@@ -255,11 +245,6 @@ namespace GVFS.Common.NuGetUpgrade
                 return false;
             }
 
-            if (!this.EnsureNuGetFeedInitialized(out errorMessage))
-            {
-                return false;
-            }
-
             if (!this.TryCreateAndConfigureDownloadDirectory(this.tracer, out errorMessage))
             {
                 this.tracer.RelatedError($"{nameof(NuGetUpgrader)}.{nameof(this.TryCreateAndConfigureDownloadDirectory)} failed. {errorMessage}");
@@ -270,15 +255,14 @@ namespace GVFS.Common.NuGetUpgrade
             {
                 try
                 {
-                    PackageIdentity packageId = this.GetPackageForVersion(this.highestVersionAvailable);
+                    QueryGVFSVersionFromNuGetFeed gvfsVersionFetcher = new QueryGVFSVersionFromNuGetFeed(
+                        this.tracer,
+                        this.credentialStore,
+                        this.nuGetFeed,
+                        this.nuGetUpgraderConfig.PackageFeedName,
+                        this.nuGetUpgraderConfig.FeedUrl);
 
-                    if (packageId == null)
-                    {
-                        errorMessage = $"The specified version {this.highestVersionAvailable} was not found in the NuGet feed. Please check with your administrator to make sure the feed is set up correctly.";
-                        return false;
-                    }
-
-                    this.DownloadedPackagePath = this.nuGetFeed.DownloadPackageAsync(packageId).GetAwaiter().GetResult();
+                    gvfsVersionFetcher.DownloadVersion(this.highestVersionAvailable);
                 }
                 catch (Exception ex)
                 {
@@ -454,40 +438,6 @@ namespace GVFS.Common.NuGetUpgrade
             return "{" + tokenString + "}";
         }
 
-        private PackageIdentity GetPackageForVersion(Version version)
-        {
-            IList<IPackageSearchMetadata> queryResults = this.QueryFeed(firstAttempt: true);
-
-            IPackageSearchMetadata packageForVersion = null;
-            foreach (IPackageSearchMetadata result in queryResults)
-            {
-                if (result.Identity.Version.Version == version)
-                {
-                    packageForVersion = result;
-                    break;
-                }
-            }
-
-            return packageForVersion?.Identity;
-        }
-
-        private bool TryGetPersonalAccessToken(string credentialUrl, ITracer tracer, out string token, out string error)
-        {
-            error = null;
-            return this.credentialStore.TryGetCredential(this.tracer, credentialUrl, out string username, out token, out error);
-        }
-
-        private bool TryReacquirePersonalAccessToken(string credentialUrl, ITracer tracer, out string token, out string error)
-        {
-            if (!this.credentialStore.TryDeleteCredential(this.tracer, credentialUrl, username: null, password: null, error: out error))
-            {
-                token = null;
-                return false;
-            }
-
-            return this.TryGetPersonalAccessToken(credentialUrl, tracer, out token, out error);
-        }
-
         private void UnzipPackage()
         {
             ZipFile.ExtractToDirectory(this.DownloadedPackagePath, this.ExtractedInstallerPath);
@@ -511,117 +461,6 @@ namespace GVFS.Common.NuGetUpgrade
                 return false;
             }
 
-            return true;
-        }
-
-        private IList<IPackageSearchMetadata> QueryFeed(bool firstAttempt)
-        {
-            try
-            {
-                return this.nuGetFeed.QueryFeedAsync(this.nuGetUpgraderConfig.PackageFeedName).GetAwaiter().GetResult();
-            }
-            catch (Exception ex) when (firstAttempt &&
-                                       this.IsAuthRelatedException(ex))
-            {
-                // If we fail to query the feed due to an authorization error, then it is possible we have stale
-                // credentials, or credentials without the correct scope. Re-aquire fresh credentials and try again.
-                EventMetadata data = CreateEventMetadata(ex);
-                this.tracer.RelatedWarning(data, "Failed to query feed due to unauthorized error. Re-acquiring new credentials and trying again.");
-
-                if (!this.TryRefreshCredentials(out string error))
-                {
-                    // If we were unable to re-acquire credentials, throw a new exception indicating that we tried to handle this, but were unable to.
-                    throw new Exception($"Failed to query the feed for upgrade packages due to: {ex.Message}, and was not able to re-acquire new credentials due to: {error}", ex);
-                }
-
-                // Now that we have re-acquired credentials, try again - but with the retry flag set to false.
-                return this.QueryFeed(firstAttempt: false);
-            }
-            catch (Exception ex)
-            {
-                EventMetadata data = CreateEventMetadata(ex);
-                string message = $"Error encountered when querying NuGet feed. Is first attempt: {firstAttempt}.";
-                this.tracer.RelatedWarning(data, message);
-                throw new Exception($"Failed to query the NuGet package feed due to error: {ex.Message}", ex);
-            }
-        }
-
-        private bool IsAuthRelatedException(Exception ex)
-        {
-            // In observation, we have seen either an HttpRequestException directly, or
-            // a FatalProtocolException wrapping an HttpRequestException when we are not able
-            // to auth against the NuGet feed.
-            System.Net.Http.HttpRequestException httpRequestException = null;
-            if (ex is System.Net.Http.HttpRequestException)
-            {
-                httpRequestException = ex as System.Net.Http.HttpRequestException;
-            }
-            else if (ex is FatalProtocolException &&
-                ex.InnerException is System.Net.Http.HttpRequestException)
-            {
-                httpRequestException = ex.InnerException as System.Net.Http.HttpRequestException;
-            }
-
-            if (httpRequestException != null &&
-                (httpRequestException.Message.Contains("401") || httpRequestException.Message.Contains("403")))
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        private bool TryRefreshCredentials(out string error)
-        {
-            try
-            {
-                string authUrl;
-                if (!AzDevOpsOrgFromNuGetFeed.TryCreateCredentialQueryUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
-                {
-                    return false;
-                }
-
-                if (!this.TryReacquirePersonalAccessToken(authUrl, this.tracer, out string token, out error))
-                {
-                    return false;
-                }
-
-                this.nuGetFeed.SetCredentials(token);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                this.TraceException(ex, nameof(this.TryRefreshCredentials), "Failed to refresh credentials.");
-                return false;
-            }
-        }
-
-        private bool EnsureNuGetFeedInitialized(out string error)
-        {
-            if (!this.isNuGetFeedInitialized)
-            {
-                if (this.credentialStore == null)
-                {
-                    throw new InvalidOperationException("Attempted to call method that requires authentication but no CredentialStore is configured.");
-                }
-
-                string authUrl;
-                if (!AzDevOpsOrgFromNuGetFeed.TryCreateCredentialQueryUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
-                {
-                    return false;
-                }
-
-                if (!this.TryGetPersonalAccessToken(authUrl, this.tracer, out string token, out error))
-                {
-                    return false;
-                }
-
-                this.nuGetFeed.SetCredentials(token);
-                this.isNuGetFeedInitialized = true;
-            }
-
-            error = null;
             return true;
         }
 
