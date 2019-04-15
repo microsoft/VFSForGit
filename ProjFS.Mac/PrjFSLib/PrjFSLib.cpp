@@ -629,6 +629,21 @@ PrjFS_Result PrjFS_WriteFileContents(
 // Private functions
 
 
+static void ParseMessageString(uint16_t stringSize,  uint32_t& messageBytesRemain, const char*& messagePosition, const char*& outParsedString)
+{
+    if (stringSize > 0)
+    {
+        assert(messageBytesRemain >= stringSize);
+        const char* string = messagePosition;
+        // Path string should fit exactly in reserved memory, with nul terminator in end position
+        assert(strnlen(string, stringSize) == stringSize - 1);
+        messagePosition += stringSize;
+        messageBytesRemain -= stringSize;
+        
+        outParsedString = string;
+    }
+}
+
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
 {
     const MessageHeader* header = static_cast<const MessageHeader*>(messageMemory);
@@ -644,32 +659,9 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
     const char* messagePosition = static_cast<const char*>(messageMemory) + sizeof(*header);
     uint32_t messageBytesRemain = size - sizeof(*header);
 
-    if (header->pathSizeBytes > 0)
-    {
-        uint16_t stringSize = header->pathSizeBytes;
-        assert(messageBytesRemain >= stringSize);
-        const char* string = messagePosition;
-        // Path string should fit exactly in reserved memory, with nul terminator in end position
-        assert(strnlen(string, stringSize) == stringSize - 1);
-        messagePosition += stringSize;
-        messageBytesRemain -= stringSize;
-        
-        parsedMessage.path = string;
-    }
-    
-    if (header->fromPathSizeBytes > 0)
-    {
-        uint16_t stringSize = header->pathSizeBytes;
-        assert(messageBytesRemain >= stringSize);
-        const char* string = messagePosition;
-        // Path string should fit exactly in reserved memory, with nul terminator in end position
-        assert(strnlen(string, stringSize) == stringSize - 1);
-        messagePosition += stringSize;
-        messageBytesRemain -= stringSize;
-        
-        parsedMessage.fromPath = string;
-    }
-    
+    ParseMessageString(header->pathSizeBytes, messageBytesRemain, messagePosition, parsedMessage.path);
+    ParseMessageString(header->fromPathSizeBytes, messageBytesRemain, messagePosition, parsedMessage.fromPath);
+
     assert(messageBytesRemain == 0);
 
     return parsedMessage;
