@@ -632,7 +632,7 @@ PrjFS_Result PrjFS_WriteFileContents(
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
 {
     const MessageHeader* header = static_cast<const MessageHeader*>(messageMemory);
-    if (size < sizeof(*header))
+    if (size != sizeof(*header) + header->pathSizeBytes + header->fromPathSizeBytes)
     {
         fprintf(stderr, "ParseMessageMemory: invariant failed, bad message? message size = %u, expecting minimum of %zu\n",
             size, sizeof(*header));
@@ -659,6 +659,8 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
         }
     }
     
+    assert(messageBytesRemain == 0);
+
     return parsedMessage;
 }
 
@@ -764,7 +766,10 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
+#if DEBUG
+            // TODO(Mac): Move the following line out of the DEBUG block once we actually need the information. Currently just causes warning-as-error in release build.
             const char* relativeFromPath = GetRelativePath(request.fromPath, s_virtualizationRootFullPath.c_str());
+
             cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ") << request.fromPath << " -> " << absolutePath << " (absolute), ";
             if (relativeFromPath != nullptr)
             {
@@ -775,6 +780,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                 cout << "into this root (relative path " << relativePath << ")";
             }
             cout << endl;
+#endif
             
             bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
             
