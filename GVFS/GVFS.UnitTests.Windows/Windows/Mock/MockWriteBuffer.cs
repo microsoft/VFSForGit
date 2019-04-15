@@ -12,6 +12,7 @@ namespace GVFS.UnitTests.Windows.Windows.Mock
     public class MockWriteBuffer : IWriteBuffer
     {
         private IntPtr memIntPtr;
+        private bool disposed = false;
 
         public MockWriteBuffer(long bufferSize)
         {
@@ -26,7 +27,7 @@ namespace GVFS.UnitTests.Windows.Windows.Mock
 
         ~MockWriteBuffer()
         {
-            Marshal.FreeHGlobal(this.memIntPtr);
+            this.Dispose(false);
         }
 
         public IntPtr Pointer => throw new NotImplementedException();
@@ -45,8 +46,33 @@ namespace GVFS.UnitTests.Windows.Windows.Mock
 
         public void Dispose()
         {
-            this.Stream.Dispose();
-            this.Stream = null;
+            this.Dispose(true);
+            GC.SuppressFinalize(true);
+        }
+
+        protected void Dispose(bool disposing)
+        {
+            if (this.disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                if (this.Stream != null)
+                {
+                    this.Stream.Dispose();
+                    this.Stream = null;
+                }
+            }
+
+            if (this.memIntPtr != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(this.memIntPtr);
+                this.memIntPtr = IntPtr.Zero;
+            }
+
+            this.disposed = true;
         }
     }
 }
