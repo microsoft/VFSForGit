@@ -30,7 +30,7 @@ namespace GVFS.UnitTests.Windows.Windows.Mock
             this.Dispose(false);
         }
 
-        public IntPtr Pointer => throw new NotImplementedException();
+        public IntPtr Pointer => this.memIntPtr;
 
         public UnmanagedMemoryStream Stream
         {

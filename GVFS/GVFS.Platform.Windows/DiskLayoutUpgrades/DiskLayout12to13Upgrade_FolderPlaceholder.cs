@@ -81,32 +81,28 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                 {
                     if (!directory.EndsWith(Path.DirectorySeparatorChar + GVFSConstants.DotGit.Root))
                     {
-                        if (Directory.Exists(directory))
+                        OnDiskFileState fileState = OnDiskFileState.Full;
+                        if (Utils.TryGetOnDiskFileState(directory, out fileState))
                         {
-                            OnDiskFileState fileState = OnDiskFileState.Full;
-                            bool result = Utils.TryGetOnDiskFileState(directory, out fileState);
-                            if (result == true)
+                            if (IsPlaceholder(fileState))
                             {
-                                if (IsPlaceholder(fileState))
-                                {
-                                    yield return directory;
-                                }
+                                yield return directory;
+                            }
 
-                                // Recurse into placeholders and full folders skipping the tombstones
-                                if (!IsTombstone(fileState))
+                            // Recurse into placeholders and full folders skipping the tombstones
+                            if (!IsTombstone(fileState))
+                            {
+                                foreach (string placeholderPath in GetFolderPlaceholdersFromDisk(tracer, fileSystem, directory))
                                 {
-                                    foreach (string placeholderPath in GetFolderPlaceholdersFromDisk(tracer, fileSystem, directory))
-                                    {
-                                        yield return placeholderPath;
-                                    }
+                                    yield return placeholderPath;
                                 }
                             }
-                            else
-                            {
-                                // May cause valid folder placeholders not to be written
-                                // to the placeholder database so we want to error out.
-                                throw new InvalidDataException($"Error getting on disk file state. HResult = {result} for {directory}");
-                            }
+                        }
+                        else
+                        {
+                            // May cause valid folder placeholders not to be written
+                            // to the placeholder database so we want to error out.
+                            throw new InvalidDataException($"Error getting on disk file state for {directory}");
                         }
                     }
                 }
