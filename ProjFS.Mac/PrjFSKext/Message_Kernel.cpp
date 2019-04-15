@@ -65,17 +65,27 @@ uint32_t Message_Encode(void* buffer, const uint32_t bufferSize, const Message& 
     bufferPosition +=    sizeof(*message.messageHeader);
     bufferBytesRemain -= sizeof(*message.messageHeader);
     
-    for (unsigned i = 0; i < 2; ++i)
     {
-        uint16_t stringSize = message.messageHeader->stringSizesBytes[i];
+        uint16_t stringSize = message.messageHeader->pathSizeBytes;
         if (stringSize > 0)
         {
             assert(bufferSize >= stringSize);
-            memcpy(bufferPosition, message.strings[i], stringSize);
+            memcpy(bufferPosition, message.path, stringSize);
             bufferPosition += stringSize;
             bufferBytesRemain -= stringSize;
         }
     }
-    
+
+    {
+        uint16_t stringSize = message.messageHeader->fromPathSizeBytes;
+        if (stringSize > 0)
+        {
+            assert(bufferSize >= stringSize);
+            memcpy(bufferPosition, message.fromPath, stringSize);
+            bufferPosition += stringSize;
+            bufferBytesRemain -= stringSize;
+        }
+    }
+
     return bufferSize - bufferBytesRemain;
 }

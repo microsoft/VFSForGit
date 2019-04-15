@@ -643,20 +643,31 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
     
     const char* messagePosition = static_cast<const char*>(messageMemory) + sizeof(*header);
     uint32_t messageBytesRemain = size - sizeof(*header);
-    for (unsigned i = 0; i < extent<decltype(parsedMessage.strings)>::value; ++i)
+
+    if (header->pathSizeBytes > 0)
     {
-        if (header->stringSizesBytes[i] > 0)
-        {
-            uint16_t stringSize = header->stringSizesBytes[i];
-            assert(messageBytesRemain >= stringSize);
-            const char* string = messagePosition;
-            // Path string should fit exactly in reserved memory, with nul terminator in end position
-            assert(strnlen(string, stringSize) == stringSize - 1);
-            messagePosition += stringSize;
-            messageBytesRemain -= stringSize;
-            
-            parsedMessage.strings[i] = string;
-        }
+        uint16_t stringSize = header->pathSizeBytes;
+        assert(messageBytesRemain >= stringSize);
+        const char* string = messagePosition;
+        // Path string should fit exactly in reserved memory, with nul terminator in end position
+        assert(strnlen(string, stringSize) == stringSize - 1);
+        messagePosition += stringSize;
+        messageBytesRemain -= stringSize;
+        
+        parsedMessage.path = string;
+    }
+    
+    if (header->fromPathSizeBytes > 0)
+    {
+        uint16_t stringSize = header->pathSizeBytes;
+        assert(messageBytesRemain >= stringSize);
+        const char* string = messagePosition;
+        // Path string should fit exactly in reserved memory, with nul terminator in end position
+        assert(strnlen(string, stringSize) == stringSize - 1);
+        messagePosition += stringSize;
+        messageBytesRemain -= stringSize;
+        
+        parsedMessage.fromPath = string;
     }
     
     assert(messageBytesRemain == 0);

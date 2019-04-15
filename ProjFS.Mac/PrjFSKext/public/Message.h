@@ -49,32 +49,20 @@ struct MessageHeader
 
     // Sizes of the flexible-length, nul-terminated paths following the message body.
     // Sizes include the nul characters but can be 0 to indicate total absence.
-    union
-    {
-        struct
-        {
-            // Current/destination path
-            uint16_t pathSizeBytes;
-            // Original location (rename, hard link)
-            uint16_t fromPathSizeBytes;
-        };
-        uint16_t     stringSizesBytes[2];
-    };
+
+    // Current/destination path
+    uint16_t pathSizeBytes;
+    // Original location (rename, hard link)
+    uint16_t fromPathSizeBytes;
 };
 
 // Description of a decomposed, in-memory message header plus variable length string field
 struct Message
 {
     const MessageHeader* messageHeader;
-    union
-    {
-        struct
-        {
-            const char* path;
-            const char* fromPath;
-        };
-        const char*     strings[2];
-    };
+
+    const char* path;
+    const char* fromPath;
 };
 
 #if defined(KERNEL) || defined(KEXT_UNIT_TESTING)
