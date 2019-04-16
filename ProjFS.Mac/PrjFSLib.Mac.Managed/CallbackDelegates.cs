@@ -44,9 +44,6 @@ namespace PrjFSLib.Mac
     public delegate Result NotifyFilePreConvertToFullEvent(
         string relativePath);
 
-    public delegate Result NotifyPreModifyEvent(
-        string relativePath);
-
     // Informational post-event notifications
     public delegate void NotifyNewFileCreatedEvent(
         string relativePath,
@@ -61,8 +58,4 @@ namespace PrjFSLib.Mac
 
     public delegate void NotifyFileModified(
         string relativePath);
-
-    public delegate void NotifyFileDeleted(
-        string relativePath,
-        bool isDirectory);
 }
