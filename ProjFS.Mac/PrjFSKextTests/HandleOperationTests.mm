@@ -74,6 +74,10 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&dummyClient, dummyClientPid, repoPath);
     XCTAssertEqual(result.error, 0);
     vnode_put(s_virtualizationRoots[result.root].rootVNode);
+
+    MockProcess_AddContext(context, 501 /*pid*/);
+    MockProcess_SetSelfPid(501);
+    MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
 }
 
 - (void) tearDown
@@ -88,6 +92,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     vfs_context_rele(context);
     MockVnodes_CheckAndClear();
     MockCalls::Clear();
+    MockProcess_Reset();
 }
 
 - (void) testEmptyFileHydrates {
