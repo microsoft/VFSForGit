@@ -110,12 +110,9 @@ namespace GVFS.Platform.Mac
 
         private static class NativeFileReader
         {
-            public const int ReadOnly = 0x0000;
-            public const int WriteOnly = 0x0001;
+            private const int ReadOnly = 0x0000;
 
-            public const int Create = 0x0200;
-
-            public static bool TryReadFirstByteOfFile(string fileName, byte[] buffer)
+            internal static bool TryReadFirstByteOfFile(string fileName, byte[] buffer)
             {
                 int fileDescriptor = -1;
                 bool readStatus = false;
@@ -136,13 +133,13 @@ namespace GVFS.Platform.Mac
             }
 
             [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-            public static extern int Open(string path, int flag);
+            private static extern int Open(string path, int flag);
 
             [DllImport("libc", EntryPoint = "close", SetLastError = true)]
-            public static extern int Close(int fd);
+            private static extern int Close(int fd);
 
             [DllImport("libc", EntryPoint = "read", SetLastError = true)]
-            public static extern int Read(int fd, [Out] byte[] buf, int count);
+            private static extern int Read(int fd, [Out] byte[] buf, int count);
 
             private static bool TryReadOneByte(int fileDescriptor, byte[] buffer)
             {
