@@ -11,8 +11,9 @@ namespace GVFS.Platform.Mac
         {
         }
 
-        public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new MacDiskLayoutUpgradeData();
         public override IKernelDriver KernelDriver { get; } = new ProjFSKext();
+        public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new MacDiskLayoutUpgradeData();
+        public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
 
         public override string GetOSVersionInformation()
         {
