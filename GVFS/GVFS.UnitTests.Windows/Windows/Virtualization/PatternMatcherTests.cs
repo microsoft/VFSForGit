@@ -1,7 +1,7 @@
 ﻿using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
+using Microsoft.Windows.ProjFS;
 using NUnit.Framework;
-using ProjFS;
 
 namespace GVFS.UnitTests.Windows.Virtualization
 {

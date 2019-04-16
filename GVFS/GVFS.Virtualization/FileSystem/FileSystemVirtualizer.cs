@@ -4,6 +4,7 @@ using GVFS.Common.Tracing;
 using GVFS.Virtualization.BlobSize;
 using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Text;
 using System.Threading;
 
@@ -104,7 +105,7 @@ namespace GVFS.Virtualization.FileSystem
             DateTime lastAccessTime,
             DateTime lastWriteTime,
             DateTime changeTime,
-            uint fileAttributes,
+            FileAttributes fileAttributes,
             long endOfFile,
             string shaContentId,
             UpdatePlaceholderType updateFlags,

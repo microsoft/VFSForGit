@@ -1,5 +1,5 @@
 ﻿using GVFS.Virtualization.Projection;
-
+using Microsoft.Windows.ProjFS;
 using System.Collections.Generic;
 
 namespace GVFS.Platform.Windows
@@ -125,7 +125,7 @@ namespace GVFS.Platform.Windows
             {
                 this.filterString = filter;
 
-                if (ProjFS.Utils.DoesNameContainWildCards(this.filterString))
+                if (Utils.DoesNameContainWildCards(this.filterString))
                 {
                     this.doesPatternMatch = doesWildcardPatternMatch;
                 }
