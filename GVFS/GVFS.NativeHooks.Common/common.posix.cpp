@@ -31,7 +31,8 @@ PATH_STRING GetGVFSPipeName(const char *appName)
     }
     
     PATH_STRING finalRootPath(GetFinalPathName(enlistmentRoot));
-    size_t enlistmentRootLength = strlen(finalRootPath.c_str());
+    size_t enlistmentRootLength = finalRootPath.length();
+    // allow an extra byte in case we need to add a trailing slash
     if (enlistmentRootLength + 2 > sizeof(enlistmentRoot))
     {
         die(ReturnCode::PipeConnectError,
@@ -42,7 +43,7 @@ PATH_STRING GetGVFSPipeName(const char *appName)
     }
     
     memcpy(enlistmentRoot, finalRootPath.c_str(), enlistmentRootLength);
-    if ('/' != enlistmentRoot[enlistmentRootLength - 1])
+    if (enlistmentRootLength == 0 || enlistmentRoot[enlistmentRootLength - 1] != '/')
     {
         enlistmentRoot[enlistmentRootLength++] = '/';
     }
@@ -116,7 +117,7 @@ PIPE_HANDLE CreatePipeToGVFS(const PATH_STRING& pipeName)
     memset(&socket_address, 0, sizeof(struct sockaddr_un));
     
     socket_address.sun_family = AF_UNIX;
-    size_t pathLength = strlen(pipeName.c_str());
+    size_t pathLength = pipeName.length();
     if (pathLength + 1 > sizeof(socket_address.sun_path))
     {
         die(ReturnCode::PipeConnectError,
