@@ -1,3 +1,4 @@
+using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
@@ -8,7 +9,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
-using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace GVFS.Common.NuGetUpgrade
@@ -140,30 +140,6 @@ namespace GVFS.Common.NuGetUpgrade
                 upgraderConfig,
                 ProductUpgraderInfo.GetAssetDownloadsPath(),
                 credentialStore);
-
-            return true;
-        }
-
-        public static bool TryCreateAzDevOrgUrlFromPackageFeedUrl(string packageFeedUrl, out string azureDevOpsUrl, out string error)
-        {
-            // We expect a URL of the form https://pkgs.dev.azure.com/{org}
-            // and want to convert it to a URL of the form https://{org}.visualstudio.com
-            Regex packageUrlRegex = new Regex(
-                @"^https://pkgs.dev.azure.com/(?<org>.+?)/",
-                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-            Match urlMatch = packageUrlRegex.Match(packageFeedUrl);
-
-            if (!urlMatch.Success)
-            {
-                azureDevOpsUrl = null;
-                error = $"Input URL {packageFeedUrl} did not match expected format for an Azure DevOps Package Feed URL";
-                return false;
-            }
-
-            string org = urlMatch.Groups["org"].Value;
-
-            azureDevOpsUrl = urlMatch.Result($"https://{org}.visualstudio.com");
-            error = null;
 
             return true;
         }
@@ -600,7 +576,7 @@ namespace GVFS.Common.NuGetUpgrade
             try
             {
                 string authUrl;
-                if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
+                if (!AzDevOpsOrgFromNuGetFeed.TryCreateCredentialQueryUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
                 {
                     return false;
                 }
@@ -631,7 +607,7 @@ namespace GVFS.Common.NuGetUpgrade
                 }
 
                 string authUrl;
-                if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
+                if (!AzDevOpsOrgFromNuGetFeed.TryCreateCredentialQueryUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
                 {
                     return false;
                 }

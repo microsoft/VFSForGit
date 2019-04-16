@@ -386,31 +386,6 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
             NuGetUpgrader.ReplaceArgTokens(sourceStringWithTokens, "unique_id", logDirectory).ShouldEqual(expectedProcessedString, "expected tokens have not been replaced");
         }
 
-        [TestCase("https://pkgs.dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", "https://test-pat.visualstudio.com")]
-        [TestCase("https://PKGS.DEV.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", "https://test-pat.visualstudio.com")]
-        [TestCase("https://dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", null)]
-        [TestCase("http://pkgs.dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", null)]
-        public void CanConstructAzureDevOpsUrlFromPackageFeedUrl(string packageFeedUrl, string expectedAzureDevOpsUrl)
-        {
-            bool success = NuGetUpgrader.TryCreateAzDevOrgUrlFromPackageFeedUrl(
-                packageFeedUrl,
-                out string azureDevOpsUrl,
-                out string error);
-
-            if (expectedAzureDevOpsUrl != null)
-            {
-                success.ShouldBeTrue();
-                azureDevOpsUrl.ShouldEqual(expectedAzureDevOpsUrl);
-                error.ShouldBeNull();
-            }
-            else
-            {
-                success.ShouldBeFalse();
-                azureDevOpsUrl.ShouldBeNull();
-                error.ShouldNotBeNull();
-            }
-        }
-
         [TestCase]
         public void TrySetupToolsDirectoryFailsIfCreateToolsDirectoryFails()
         {

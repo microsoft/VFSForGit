@@ -1,10 +1,10 @@
+using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Net.Http;
 using System.Runtime.Serialization;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace GVFS.Common.NuGetUpgrade
@@ -121,7 +121,7 @@ namespace GVFS.Common.NuGetUpgrade
         {
             newVersion = null;
 
-            if (!TryParseOrgFromNuGetFeedUrl(this.Config.FeedUrl, out string orgName))
+            if (!AzDevOpsOrgFromNuGetFeed.TryParseOrg(this.Config.FeedUrl, out string orgName))
             {
                 message = "OrgNuGetUpgrader is not able to parse org name from NuGet Package Feed URL";
                 return false;
@@ -184,25 +184,6 @@ namespace GVFS.Common.NuGetUpgrade
                 message = "No versions available via endpoint.";
                 return true;
             }
-        }
-
-        private static bool TryParseOrgFromNuGetFeedUrl(string packageFeedUrl, out string orgName)
-        {
-            // We expect a URL of the form https://pkgs.dev.azure.com/{org}
-            // and want to convert it to a URL of the form https://{org}.visualstudio.com
-            Regex packageUrlRegex = new Regex(
-                @"^https://pkgs.dev.azure.com/(?<org>.+?)/",
-                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-            Match urlMatch = packageUrlRegex.Match(packageFeedUrl);
-
-            if (!urlMatch.Success)
-            {
-                orgName = null;
-                return false;
-            }
-
-            orgName = urlMatch.Groups["org"].Value;
-            return true;
         }
 
         public class OrgNuGetUpgraderConfig : NuGetUpgraderConfig
