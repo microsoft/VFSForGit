@@ -881,6 +881,8 @@ static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHead
             
             dirEntry = readdir(directory);
         }
+        
+        closedir(directory);
     }
     
 CleanupAndReturn:
@@ -1346,6 +1348,8 @@ static PrjFS_Result RecursivelyMarkAllChildrenAsInRoot(const char* fullDirectory
             
             dirEntry = readdir(directory);
         }
+        
+        closedir(directory);
     }
     
 CleanupAndReturn:
