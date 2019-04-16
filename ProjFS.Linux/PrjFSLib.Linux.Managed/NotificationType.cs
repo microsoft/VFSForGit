@@ -14,8 +14,6 @@ namespace PrjFSLib.Linux
         HardLinkCreated     = 0x00000100,
         PreConvertToFull    = 0x00001000,
 
-        PreModify           = 0x10000001,
         FileModified        = 0x10000002,
-        FileDeleted         = 0x10000004,
     }
 }
