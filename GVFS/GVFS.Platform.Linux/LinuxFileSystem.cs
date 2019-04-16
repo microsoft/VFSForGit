@@ -1,82 +1,40 @@
 using GVFS.Common;
-using GVFS.Common.FileSystem;
-using GVFS.Common.Tracing;
+using GVFS.Platform.POSIX;
 using System;
-using System.IO;
 using System.Runtime.InteropServices;
 
 namespace GVFS.Platform.Linux
 {
-    public partial class LinuxFileSystem : IPlatformFileSystem
+    public class LinuxFileSystem : POSIXFileSystem
     {
-        public bool SupportsFileMode { get; } = true;
-
-        public void FlushFileBuffers(string path)
+        public override void ChangeMode(string path, ushort mode)
         {
-            // TODO(Linux): Use native API to flush file
+            Chmod(path, mode);
         }
 
-        public void MoveAndOverwriteFile(string sourceFileName, string destinationFilename)
-        {
-            if (Rename(sourceFileName, destinationFilename) != 0)
-            {
-                NativeMethods.ThrowLastWin32Exception($"Failed to rename {sourceFileName} to {destinationFilename}");
-            }
-        }
-
-        public void CreateHardLink(string newFileName, string existingFileName)
-        {
-            // TODO(Linux): Use native API to create a hardlink
-            File.Copy(existingFileName, newFileName);
-        }
-
-        public void ChangeMode(string path, ushort mode)
-        {
-            Chmod(path, (uint)mode);
-        }
-
-        public bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
-        {
-            return LinuxFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
-        }
-
-        public bool HydrateFile(string fileName, byte[] buffer)
+        public override bool HydrateFile(string fileName, byte[] buffer)
         {
             return NativeFileReader.TryReadFirstByteOfFile(fileName, buffer);
         }
 
-        public bool IsExecutable(string fileName)
+        public override bool IsExecutable(string fileName)
         {
             NativeStat.StatBuffer statBuffer = this.StatFile(fileName);
             return NativeStat.IsExecutable(statBuffer.Mode);
         }
 
-        public bool IsSocket(string fileName)
+        public override bool IsSocket(string fileName)
         {
             NativeStat.StatBuffer statBuffer = this.StatFile(fileName);
             return NativeStat.IsSock(statBuffer.Mode);
         }
 
-        public bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool TryCreateOrUpdateDirectoryToAdminModifyPermissions(ITracer tracer, string directoryPath, out string error)
-        {
-            throw new NotImplementedException();
-        }
-
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
         private static extern int Chmod(string pathname, uint mode);
 
-        [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
-        private static extern int Rename(string oldPath, string newPath);
-
         private NativeStat.StatBuffer StatFile(string fileName)
         {
-            NativeStat.StatBuffer statBuffer = new NativeStat.StatBuffer();
-            if (NativeStat.Stat(fileName, out statBuffer) != 0)
+            if (NativeStat.Stat(fileName, out NativeStat.StatBuffer statBuffer) != 0)
             {
                 NativeMethods.ThrowLastWin32Exception($"Failed to stat {fileName}");
             }
@@ -155,7 +113,7 @@ namespace GVFS.Platform.Linux
             }
         }
 
-        private class NativeFileReader
+        private static class NativeFileReader
         {
             public const int ReadOnly = 0x0000;
             public const int WriteOnly = 0x0001;
