@@ -115,12 +115,9 @@ namespace GVFS.Platform.Linux
 
         private static class NativeFileReader
         {
-            public const int ReadOnly = 0x0000;
-            public const int WriteOnly = 0x0001;
+            private const int ReadOnly = 0x0000;
 
-            public const int Create = 0x0040;
-
-            public static bool TryReadFirstByteOfFile(string fileName, byte[] buffer)
+            internal static bool TryReadFirstByteOfFile(string fileName, byte[] buffer)
             {
                 int fileDescriptor = -1;
                 bool readStatus = false;
@@ -141,13 +138,13 @@ namespace GVFS.Platform.Linux
             }
 
             [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-            public static extern int Open(string path, int flag);
+            private static extern int Open(string path, int flag);
 
             [DllImport("libc", EntryPoint = "close", SetLastError = true)]
-            public static extern int Close(int fd);
+            private static extern int Close(int fd);
 
             [DllImport("libc", EntryPoint = "read", SetLastError = true)]
-            public static extern long Read(int fd, [Out] byte[] buf, ulong count);
+            private static extern long Read(int fd, [Out] byte[] buf, ulong count);
 
             private static bool TryReadOneByte(int fileDescriptor, byte[] buffer)
             {
