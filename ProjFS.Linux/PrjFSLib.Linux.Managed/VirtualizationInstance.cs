@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using PrjFSLib.Linux.Interop;
 using static PrjFSLib.Linux.Interop.Errno;
@@ -10,6 +12,7 @@ namespace PrjFSLib.Linux
         public const int PlaceholderIdLength = 128;
 
         private ProjFS projfs;
+        private int currentProcessId = Process.GetCurrentProcess().Id;
 
         // We must hold a reference to the delegates to prevent garbage collection
         private ProjFS.EventHandler preventGCOnProjEventDelegate;
@@ -215,10 +218,18 @@ namespace PrjFSLib.Linux
 
         private static string GetProcCmdline(int pid)
         {
-            using (var stream = System.IO.File.OpenText(string.Format("/proc/{0}/cmdline", pid)))
+            try
             {
-                string[] parts = stream.ReadToEnd().Split('\0');
-                return parts.Length > 0 ? parts[0] : string.Empty;
+                using (var stream = File.OpenText(string.Format("/proc/{0}/cmdline", pid)))
+                {
+                    string[] parts = stream.ReadToEnd().Split('\0');
+                    return parts.Length > 0 ? parts[0] : string.Empty;
+                }
+            }
+            catch (IOException ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
+            {
+                // process with given pid may have exited; nothing to be done
+                return string.Empty;
             }
         }
 
@@ -228,8 +239,19 @@ namespace PrjFSLib.Linux
             return Marshal.PtrToStringAnsi(ptr);
         }
 
+        private bool IsProviderEvent(ProjFS.Event ev)
+        {
+            return (ev.Pid == this.currentProcessId);
+        }
+
         private int HandleProjEvent(ref ProjFS.Event ev)
         {
+            // ignore events triggered by own process to prevent deadlocks
+            if (this.IsProviderEvent(ev))
+            {
+                return 0;
+            }
+
             string triggeringProcessName = GetProcCmdline(ev.Pid);
             string relativePath = PtrToStringUTF8(ev.Path);
 
@@ -271,6 +293,12 @@ namespace PrjFSLib.Linux
 
         private int HandleNonProjEvent(ref ProjFS.Event ev, bool perm)
         {
+            // ignore events triggered by own process to prevent deadlocks
+            if (this.IsProviderEvent(ev))
+            {
+                return 0;
+            }
+
             NotificationType nt;
 
             if ((ev.Mask & ProjFS.Constants.PROJFS_DELETE_SELF) != 0)
