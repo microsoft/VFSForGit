@@ -13,7 +13,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
 {
     [TestFixture]
     [NonParallelizable]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     [Category(Categories.WindowsOnly)]
     public class ServiceTests : TestsWithEnlistmentPerFixture
     {

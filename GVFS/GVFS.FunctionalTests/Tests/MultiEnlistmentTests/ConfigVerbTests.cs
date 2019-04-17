@@ -9,7 +9,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     [Category(Categories.MacTODO.M4)]
     public class ConfigVerbTests : TestsWithMultiEnlistment
     {

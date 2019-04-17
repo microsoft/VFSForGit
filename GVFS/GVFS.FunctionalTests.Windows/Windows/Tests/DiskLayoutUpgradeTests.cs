@@ -13,7 +13,7 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Windows.Tests
 {
     [TestFixture]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     [Category(Categories.WindowsOnly)]
     public class DiskLayoutUpgradeTests : TestsWithEnlistmentPerTestCase
     {

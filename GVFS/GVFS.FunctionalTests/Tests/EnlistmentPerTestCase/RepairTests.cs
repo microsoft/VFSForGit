@@ -9,7 +9,7 @@ using System.Text;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     [Category(Categories.MacTODO.M4)]
     public class RepairTests : TestsWithEnlistmentPerTestCase
     {

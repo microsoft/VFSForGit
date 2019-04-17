@@ -62,7 +62,16 @@ namespace GVFS.FunctionalTests
                         new object[] { true }
                     };
 
-                excludeCategories.Add(Categories.FullSuiteOnly);
+                if (runner.HasCustomArg("--extra-only"))
+                {
+                    Console.WriteLine("Running only the tests marked as ExtraCoverage");
+                    includeCategories.Add(Categories.ExtraCoverage);
+                }
+                else
+                {
+                    excludeCategories.Add(Categories.ExtraCoverage);
+                }
+
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
             }
 

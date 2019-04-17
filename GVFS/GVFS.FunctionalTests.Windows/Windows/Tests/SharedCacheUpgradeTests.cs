@@ -13,7 +13,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Windows.Windows.Tests
 {
     [TestFixture]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     [Category(Categories.WindowsOnly)]
     public class SharedCacheUpgradeTests : TestsWithMultiEnlistment
     {
