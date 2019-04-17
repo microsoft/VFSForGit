@@ -501,7 +501,7 @@ namespace GVFS.FunctionalTests.Tests
                 fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.dll");
             }
 
-            File.Exists(fastfetch).ShouldBeTrue();
+            File.Exists(fastfetch).ShouldBeTrue($"{fastfetch} did not exist.");
             Console.WriteLine($"Using {fastfetch}");
 
             ProcessStartInfo processInfo = new ProcessStartInfo("dotnet");
