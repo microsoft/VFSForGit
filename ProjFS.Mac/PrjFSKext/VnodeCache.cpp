@@ -220,7 +220,6 @@ void VnodeCache_InvalidateCache(PerfTracer* _Nonnull perfTracer)
 {
     perfTracer->IncrementCount(PrjFSPerfCounter_CacheInvalidateCount, true /*ignoreSampling*/);
     AtomicFetchAddCacheHealthStat(VnodeCacheHealthStat_InvalidateEntireCacheCount, 1ULL);
-    atomic_exchange(&s_cacheStats.cacheEntries, 0U);
 
     RWLock_AcquireExclusive(s_entriesLock);
     {
@@ -280,6 +279,7 @@ IOReturn VnodeCache_ExportHealthData(IOExternalMethodArguments* _Nonnull argumen
 KEXT_STATIC_INLINE void InvalidateCache_ExclusiveLocked()
 {
     memset(s_entries, 0, s_entriesCapacity * sizeof(VnodeCacheEntry));
+    atomic_exchange(&s_cacheStats.cacheEntries, 0U);
 }
 
 KEXT_STATIC_INLINE uint32_t ComputePow2CacheCapacity(int expectedVnodeCount)

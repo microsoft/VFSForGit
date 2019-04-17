@@ -343,6 +343,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 
 - (void)testVnodeCache_InvalidateCache_SetsMemoryToZeros {
     self->cacheWrapper.FillAllEntries();
+    s_cacheStats.cacheEntries = self->cacheWrapper.GetCapacity();
 
     shared_ptr<VnodeCacheEntry> emptyArray(static_cast<VnodeCacheEntry*>(calloc(self->cacheWrapper.GetCapacity(), sizeof(VnodeCacheEntry))), free);
     XCTAssertTrue(0 != memcmp(emptyArray.get(), s_entries, sizeof(VnodeCacheEntry) * self->cacheWrapper.GetCapacity()));
@@ -350,6 +351,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
     VnodeCache_InvalidateCache(&self->dummyPerfTracer);
     XCTAssertTrue(0 == memcmp(emptyArray.get(), s_entries, sizeof(VnodeCacheEntry) * self->cacheWrapper.GetCapacity()));
     
+    XCTAssertTrue(s_cacheStats.cacheEntries == 0);
     XCTAssertTrue(s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount] == 1);
     
     // Sanity check: We don't expect any of the mock functions to have been called
@@ -358,12 +360,14 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 
 - (void)testInvalidateCache_ExclusiveLocked_SetsMemoryToZeros {
     self->cacheWrapper.FillAllEntries();
+    s_cacheStats.cacheEntries = self->cacheWrapper.GetCapacity();
     
     shared_ptr<VnodeCacheEntry> emptyArray(static_cast<VnodeCacheEntry*>(calloc(self->cacheWrapper.GetCapacity(), sizeof(VnodeCacheEntry))), free);
     XCTAssertTrue(0 != memcmp(emptyArray.get(), s_entries, sizeof(VnodeCacheEntry) * self->cacheWrapper.GetCapacity()));
     
     InvalidateCache_ExclusiveLocked();
     XCTAssertTrue(0 == memcmp(emptyArray.get(), s_entries, sizeof(VnodeCacheEntry) * self->cacheWrapper.GetCapacity()));
+    XCTAssertTrue(s_cacheStats.cacheEntries == 0);
     
     // VnodeCacheHealthStat_InvalidateEntireCacheCount is adjusted by VnodeCache_InvalidateCache
     XCTAssertTrue(s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount] == 0);
