@@ -220,7 +220,7 @@ namespace PrjFSLib.Linux
         {
             try
             {
-                using (var stream = File.OpenText(string.Format("/proc/{0}/cmdline", pid)))
+                using (var stream = File.OpenText($"/proc/{pid}/cmdline"))
                 {
                     string[] parts = stream.ReadToEnd().Split('\0');
                     return parts.Length > 0 ? parts[0] : string.Empty;
