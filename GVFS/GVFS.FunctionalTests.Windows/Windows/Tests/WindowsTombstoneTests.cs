@@ -44,7 +44,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string placeholderListContent = this.fileSystem.ReadAllText(placeholderListFile);
             placeholderListContent = string.Join(Delimiter, placeholderListContent.Split(new[] { Delimiter }, StringSplitOptions.RemoveEmptyEntries).Where(x => !x.StartsWith($"A {folderToDelete}")));
             this.fileSystem.WriteAllText(placeholderListFile, placeholderListContent + Delimiter);
-            this.fileSystem.AppendAllText(placeholderListFile, $"A {folderToDelete}\0               POSSIBLE TOMBSTONE FOLDER{Delimiter}");
+            string tombstoneEntry = $"A {folderToDelete}\0               POSSIBLE TOMBSTONE FOLDER{Delimiter}";
+            this.fileSystem.AppendAllText(placeholderListFile, tombstoneEntry);
 
             this.Enlistment.MountGVFS();
             directoryToDelete.ShouldNotExistOnDisk(this.fileSystem);
@@ -52,6 +53,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // checkout branch to remove tombstones and project the folder again
             GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "checkout -f HEAD");
             directoryToDelete.ShouldBeADirectory(this.fileSystem);
+
+            this.Enlistment.UnmountGVFS();
+            placeholderListContent = this.fileSystem.ReadAllText(placeholderListFile);
+            placeholderListContent.ShouldNotContain(ignoreCase: false, unexpectedSubstrings: tombstoneEntry);
         }
     }
 }
