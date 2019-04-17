@@ -188,7 +188,7 @@ static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection)
     dispatch_source_set_timer(
         timer,
         DISPATCH_TIME_NOW,      // start
-        15 * 60 * NSEC_PER_SEC, // interval
+        30 * 60 * NSEC_PER_SEC, // interval
         10 * NSEC_PER_SEC);     // leeway
     dispatch_source_set_event_handler(timer, ^{
         TryFetchAndLogKextHealthData(connection);
