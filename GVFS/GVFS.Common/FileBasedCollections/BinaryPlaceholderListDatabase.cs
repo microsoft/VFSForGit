@@ -10,12 +10,6 @@ namespace GVFS.Common.FileBasedCollections
 {
     public class BinaryPlaceholderListDatabase : BinaryFileBasedCollection<PlaceholderEvent>
     {
-        // Special folder values must:
-        // - Be 40 characters long
-        // - Not be a valid SHA-1 value (to avoid collisions with files)
-
-        private const char PathTerminator = '\0';
-
         // This list holds placeholder entries that are created between calls to
         // GetAllEntriesAndPrepToWriteAllEntries and WriteAllEntriesAndFlush.
         //

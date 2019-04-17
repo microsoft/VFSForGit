@@ -26,11 +26,13 @@ namespace GVFS.UnitTests.Common.FileBasedCollections
         private const string InputThirdFilePath = "thirdFile";
         private const string InputThirdFileSHA = "ff9630E00F715315FC90D4AEC98E6A7398F8BF11";
 
+        private static readonly byte[] TerminatingBytes = new byte[] { 0, 0, 0, 0 };
+
         // "A " + InputGitIgnorePath + "\0" + InputGitIgnoreSHA + PlaceholderDatabaseNewLine;
-        private readonly byte[] expectedGitIgnoreEntry = new byte[] { 1, 1 }.Concat(GetStringBytes(InputGitIgnorePath)).Concat(InputGitIgnoreSHA.Select(c => (byte)c)).ToArray();
+        private readonly byte[] expectedGitIgnoreEntry = new byte[] { 1, 1 }.Concat(GetStringBytes(InputGitIgnorePath)).Concat(InputGitIgnoreSHA.Select(c => (byte)c)).Concat(TerminatingBytes).ToArray();
 
         // "A " + InputGitAttributesPath + "\0" + InputGitAttributesSHA + PlaceholderDatabaseNewLine;
-        private readonly byte[] expectedGitAttributesEntry = new byte[] { 1, 1 }.Concat(GetStringBytes(InputGitAttributesPath)).Concat(InputGitAttributesSHA.Select(c => (byte)c)).ToArray();
+        private readonly byte[] expectedGitAttributesEntry = new byte[] { 1, 1 }.Concat(GetStringBytes(InputGitAttributesPath)).Concat(InputGitAttributesSHA.Select(c => (byte)c)).Concat(TerminatingBytes).ToArray();
 
         private byte[] ExpectedTwoEntries => this.expectedGitIgnoreEntry.Concat(this.expectedGitAttributesEntry).ToArray();
 
@@ -43,34 +45,34 @@ namespace GVFS.UnitTests.Common.FileBasedCollections
                 Enumerable.Empty<byte>()
 
                 // "A .gitignore\0AE930E4CF715315FC90D4AEC98E16A7398F8BF64\r\n" +
-                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes(".gitignore")).Concat("AE930E4CF715315FC90D4AEC98E16A7398F8BF64".Select(c => (byte)c)).ToArray()
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes(".gitignore")).Concat("AE930E4CF715315FC90D4AEC98E16A7398F8BF64".Select(c => (byte)c)).Concat(TerminatingBytes).ToArray()
 
                 // "A Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt\0B6948308A8633CC1ED94285A1F6BF33E35B7C321\r\n" +
-                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt")).Concat("B6948308A8633CC1ED94285A1F6BF33E35B7C321".Select(c => (byte)c)).ToArray()
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt")).Concat("B6948308A8633CC1ED94285A1F6BF33E35B7C321".Select(c => (byte)c)).Concat(TerminatingBytes).ToArray()
 
                 // "A Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt\0C7048308A8633CC1ED94285A1F6BF33E35B7C321\r\n" +
-                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt")).Concat("C7048308A8633CC1ED94285A1F6BF33E35B7C321".Select(c => (byte)c)).ToArray()
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt")).Concat("C7048308A8633CC1ED94285A1F6BF33E35B7C321".Select(c => (byte)c)).Concat(TerminatingBytes).ToArray()
 
                 // "A Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test2.txt\0D19198D6EA60F0D66F0432FEC6638D0A73B16E81\r\n" +
-                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test2.txt")).Concat("D19198D6EA60F0D66F0432FEC6638D0A73B16E81".Select(c => (byte)c)).ToArray()
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test2.txt")).Concat("D19198D6EA60F0D66F0432FEC6638D0A73B16E81".Select(c => (byte)c)).Concat(TerminatingBytes).ToArray()
 
                 // "A Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test3.txt\0E45EA0D328E581696CAF1F823686F3665A5F05C1\r\n" +
-                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test3.txt")).Concat("E45EA0D328E581696CAF1F823686F3665A5F05C1".Select(c => (byte)c)).ToArray()
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test3.txt")).Concat("E45EA0D328E581696CAF1F823686F3665A5F05C1".Select(c => (byte)c)).Concat(TerminatingBytes).ToArray()
 
                 // "A Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test4.txt\0FCB3E2C561649F102DD8110A87DA82F27CC05833\r\n" +
-                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test4.txt")).Concat("FCB3E2C561649F102DD8110A87DA82F27CC05833".Select(c => (byte)c)).ToArray()
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test4.txt")).Concat("FCB3E2C561649F102DD8110A87DA82F27CC05833".Select(c => (byte)c)).Concat(TerminatingBytes).ToArray()
 
                 // "A Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\0E51B377C95076E4C6A9E22A658C5690F324FD0AD\r\n" +
-                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt")).Concat("E51B377C95076E4C6A9E22A658C5690F324FD0AD".Select(c => (byte)c)).ToArray()
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt")).Concat("E51B377C95076E4C6A9E22A658C5690F324FD0AD".Select(c => (byte)c)).Concat(TerminatingBytes).ToArray()
 
                 // "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n" +
-                .Concat(new byte[] { 2 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt")).ToArray()
+                .Concat(new byte[] { 2 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt")).Concat(TerminatingBytes).ToArray()
 
                 // "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n" +
-                .Concat(new byte[] { 2 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt")).ToArray()
+                .Concat(new byte[] { 2 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt")).Concat(TerminatingBytes).ToArray()
 
                 // "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n");
-                .Concat(new byte[] { 2 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt")).ToArray());
+                .Concat(new byte[] { 2 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt")).Concat(TerminatingBytes).ToArray());
 
             // As per documentation on EstimatedCount "(# adds - # deletes)" - so EstimatedCount should be 5
             dut.EstimatedCount.ShouldEqual(4);
@@ -181,7 +183,7 @@ namespace GVFS.UnitTests.Common.FileBasedCollections
         public void HandlesRaceBetweenRemoveAndWriteAllEntries()
         {
             // "D .gitattributes" + PlaceholderDatabaseNewLine
-            byte[] deleteGitAttributesEntry = new byte[] { 2 }.Concat(GetStringBytes(".gitattributes")).ToArray();
+            byte[] deleteGitAttributesEntry = new byte[] { 2 }.Concat(GetStringBytes(".gitattributes")).Concat(TerminatingBytes).ToArray();
 
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             fs.ExpectedFiles.Add(MockEntryFileName + ".tmp", new ReusableMemoryStream(string.Empty));
@@ -194,6 +196,30 @@ namespace GVFS.UnitTests.Common.FileBasedCollections
 
             dut.WriteAllEntriesAndFlush(existingEntries);
             fs.ExpectedFiles[MockEntryFileName].ReadAllBytes().ShouldEqual(this.ExpectedTwoEntries.Concat(deleteGitAttributesEntry).ToArray());
+        }
+
+        [TestCase]
+        public void HandlesCorruptEntriesCorrectly()
+        {
+            ConfigurableFileSystem fs = new ConfigurableFileSystem();
+            BinaryPlaceholderListDatabase dut = CreatePlaceholderListDatabase(
+                fs,
+                Enumerable.Empty<byte>()
+
+                // "A .gitignore\0AE930E4CF715315FC90D4AEC98E16A7398F8BF64\r\n" +
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes(".gitignore")).Concat("AE930E4CF715315FC90D4AEC98E16A7398F8BF64".Select(c => (byte)c)).Concat(TerminatingBytes).ToArray()
+
+                // "A Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt\0B6948308A8633CC1ED94285A1F6BF33E35B7C321\r\n" +
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt")).Concat("B6948308A8633CC1ED94285A1F6BF33E35B7C321".Select(c => (byte)c)).ToArray()
+
+                // "A Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt\0C7048308A8633CC1ED94285A1F6BF33E35B7C321\r\n" +
+                .Concat(new byte[] { 1, 1 }).Concat(GetStringBytes("Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt")).Concat("C7048308A8633CC1ED94285A1F6BF33E35B7C321".Select(c => (byte)c)).Concat(new byte[] { 0, 0, 0 }).ToArray());
+
+            // As per documentation on EstimatedCount "(# adds - # deletes)" - so EstimatedCount should be 5
+            dut.EstimatedCount.ShouldEqual(1);
+
+            // The actual count is here
+            dut.GetAllEntriesAndPrepToWriteAllEntries().Count.ShouldEqual(1);
         }
 
         [TestCase]

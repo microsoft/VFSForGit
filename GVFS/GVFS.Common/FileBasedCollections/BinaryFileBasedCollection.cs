@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -11,6 +12,7 @@ namespace GVFS.Common.FileBasedCollections
 {
     public abstract class BinaryFileBasedCollection<TEntry> : IDisposable
     {
+        public static readonly byte[] EntryTerminator = new byte[] { 0, 0, 0, 0 };
         protected const byte AddEntryPrefix = 1 << 0;
         protected const byte RemoveEntryPrefix = 1 << 1;
         private const string EtwArea = nameof(FileBasedCollection);
@@ -272,6 +274,12 @@ namespace GVFS.Common.FileBasedCollections
                                 error = string.Format("{0} is corrupt on line {1}: Invalid Prefix '{2}'", this.GetType().Name, lineCount, prefix);
                                 return false;
                             }
+
+                            byte[] terminatingBytes = reader.ReadBytes(4);
+                            if (terminatingBytes.Length != 4 || !Array.TrueForAll(terminatingBytes, b => b == 0))
+                            {
+                                error = string.Format("{0} is corrupt on line {1}: Invalid entry suffix '{2}'", this.GetType().Name, lineCount, terminatingBytes.Aggregate(string.Empty, (s, b) => s+= b + " ", s => s.TrimEnd()));
+                            }
                         }
                         catch (EndOfStreamException)
                         {
@@ -393,8 +401,7 @@ namespace GVFS.Common.FileBasedCollections
             {
                 using (BinaryWriter w = new BinaryWriter(this.dataFileHandle, Encoding.UTF8, true))
                 {
-                    w.Write(prefix);
-                    this.serializeEntry(w, element);
+                    this.WriteEntry(w, prefix, element);
                 }
 
                 this.dataFileHandle.Flush();
@@ -406,6 +413,26 @@ namespace GVFS.Common.FileBasedCollections
         /// </summary>
         private void RemoveLastEntryIfInvalid()
         {
+            if (this.dataFileHandle.Length > EntryTerminator.Length)
+            {
+                this.dataFileHandle.Seek(0, SeekOrigin.End);
+                this.dataFileHandle.Seek(EntryTerminator.Length * -1, SeekOrigin.Current);
+                byte[] buffer = new byte[4];
+                if (this.dataFileHandle.Read(buffer, 0, EntryTerminator.Length) != EntryTerminator.Length || !buffer.SequenceEqual(EntryTerminator))
+                {
+                    long lastTerminatorPosition = 0;
+                    while (this.dataFileHandle.Position - (EntryTerminator.Length + 1) > 0)
+                    {
+                        this.dataFileHandle.Seek((EntryTerminator.Length + 1) * -1, SeekOrigin.Current);
+                        if (this.dataFileHandle.Read(buffer, 0, EntryTerminator.Length) == EntryTerminator.Length && buffer.SequenceEqual(EntryTerminator))
+                        {
+                            lastTerminatorPosition = this.dataFileHandle.Position;
+                        }
+                    }
+
+                    this.dataFileHandle.SetLength(lastTerminatorPosition);
+                }
+            }
         }
 
         /// <summary>
@@ -426,8 +453,7 @@ namespace GVFS.Common.FileBasedCollections
                 {
                     foreach ((byte prefix, TEntry element) in getDataElemenets())
                     {
-                        writer.Write(prefix);
-                        this.serializeEntry(writer, element);
+                        this.WriteEntry(writer, prefix, element);
                     }
 
                     tempFile.Flush();
@@ -445,6 +471,13 @@ namespace GVFS.Common.FileBasedCollections
                 handledException = e;
                 return false;
             }
+        }
+
+        private void WriteEntry(BinaryWriter writer, byte prefix, TEntry entry)
+        {
+            writer.Write(prefix);
+            this.serializeEntry(writer, entry);
+            writer.Write(EntryTerminator);
         }
     }
 }
