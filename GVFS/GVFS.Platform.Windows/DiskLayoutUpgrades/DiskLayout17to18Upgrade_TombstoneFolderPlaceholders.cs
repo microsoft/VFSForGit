@@ -12,6 +12,11 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
             // Don't need to upgrade since the tombstone folders are only needed when a git command deletes folders
             // And the git command would have needed to be cancelled or crashed to leave tombstones that would need
             // to be tracked and persisted to the placeholder database.
+            if (!this.TryIncrementMajorVersion(tracer, enlistmentRoot))
+            {
+                return false;
+            }
+
             return true;
         }
     }

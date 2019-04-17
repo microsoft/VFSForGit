@@ -10,7 +10,7 @@ namespace GVFS.FunctionalTests.Tests
     [Category(Categories.ExtraCoverage)]
     public class DiskLayoutVersionTests : TestsWithEnlistmentPerTestCase
     {
-        private const int WindowsCurrentDiskLayoutMajorVersion = 17;
+        private const int WindowsCurrentDiskLayoutMajorVersion = 18;
         private const int MacCurrentDiskLayoutMajorVersion = 18;
         private const int WindowsCurrentDiskLayoutMinimumMajorVersion = 7;
         private const int MacCurrentDiskLayoutMinimumMajorVersion = 18;
