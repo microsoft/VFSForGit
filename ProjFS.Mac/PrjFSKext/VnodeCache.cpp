@@ -5,7 +5,7 @@
 #include "Memory.hpp"
 #include "KextLog.hpp"
 #include "../PrjFSKext/public/PrjFSCommon.h"
-#include "../PrjFSKext/public/PrjFSHealthData.h"
+#include "../PrjFSKext/public/PrjFSVnodeCacheHealth.h"
 
 #include "VnodeCachePrivate.hpp"
 
@@ -230,7 +230,7 @@ void VnodeCache_InvalidateCache(PerfTracer* _Nonnull perfTracer)
 
 IOReturn VnodeCache_ExportHealthData(IOExternalMethodArguments* _Nonnull arguments)
 {
-    PrjFSHealthData healthData =
+    PrjFSVnodeCacheHealth healthData =
     {
         .cacheCapacity = s_entriesCapacity,
         .cacheEntries = s_cacheStats.cacheEntries, // cacheEntries is reset to 0 when VnodeCache_InvalidateCache is called
@@ -267,7 +267,7 @@ IOReturn VnodeCache_ExportHealthData(IOExternalMethodArguments* _Nonnull argumen
         return result;
     }
 
-    if (arguments->structureOutput == nullptr || arguments->structureOutputSize != sizeof(PrjFSHealthData))
+    if (arguments->structureOutput == nullptr || arguments->structureOutputSize != sizeof(PrjFSVnodeCacheHealth))
     {
         KextLog("VnodeCache_ExportHealthData: structure output size %u, expected %lu\n", arguments->structureOutputSize, sizeof(healthData));
         return kIOReturnBadArgument;

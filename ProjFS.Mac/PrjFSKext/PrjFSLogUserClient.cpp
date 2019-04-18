@@ -2,7 +2,7 @@
 #include "public/PrjFSLogClientShared.h"
 #include "KextLog.hpp"
 #include "public/PrjFSCommon.h"
-#include "public/PrjFSHealthData.h"
+#include "public/PrjFSVnodeCacheHealth.h"
 #include "PerformanceTracing.hpp"
 #include "VnodeCache.hpp"
 #include <IOKit/IOSharedDataQueue.h>
@@ -23,13 +23,13 @@ static const IOExternalMethodDispatch LogUserClientDispatch[] =
             .checkScalarOutputCount =   0,
             .checkStructureOutputSize = PrjFSPerfCounter_Count * sizeof(PrjFSPerfCounterResult), // array of results
         },
-    [LogSelector_FetchHealthData] =
+    [LogSelector_FetchVnodeCacheHealth] =
         {
-            .function =                 &PrjFSLogUserClient::fetchHealthData,
+            .function =                 &PrjFSLogUserClient::fetchVnodeCacheHealth,
             .checkScalarInputCount =    0,
             .checkStructureInputSize =  0,
             .checkScalarOutputCount =   0,
-            .checkStructureOutputSize = sizeof(PrjFSHealthData),
+            .checkStructureOutputSize = sizeof(PrjFSVnodeCacheHealth),
         },
 };
 
@@ -192,7 +192,7 @@ IOReturn PrjFSLogUserClient::fetchProfilingData(
     return PerfTracing_ExportDataUserClient(arguments);
 }
 
-IOReturn PrjFSLogUserClient::fetchHealthData(
+IOReturn PrjFSLogUserClient::fetchVnodeCacheHealth(
         OSObject* target,
         void* reference,
         IOExternalMethodArguments* arguments)

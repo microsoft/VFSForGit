@@ -1,5 +1,5 @@
 #include "../PrjFSKext/public/PrjFSLogClientShared.h"
-#include "../PrjFSKext/public/PrjFSHealthData.h"
+#include "../PrjFSKext/public/PrjFSVnodeCacheHealth.h"
 #include "../PrjFSLib/PrjFSUser.hpp"
 #include <iostream>
 #include <OS/log.h>
@@ -199,9 +199,9 @@ static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection)
 
 static bool TryFetchAndLogKextHealthData(io_connect_t connection)
 {
-    PrjFSHealthData healthData;
+    PrjFSVnodeCacheHealth healthData;
     size_t out_size = sizeof(healthData);
-    IOReturn ret = IOConnectCallStructMethod(connection, LogSelector_FetchHealthData, nullptr, 0, &healthData, &out_size);
+    IOReturn ret = IOConnectCallStructMethod(connection, LogSelector_FetchVnodeCacheHealth, nullptr, 0, &healthData, &out_size);
     if (ret == kIOReturnUnsupported)
     {
         return false;

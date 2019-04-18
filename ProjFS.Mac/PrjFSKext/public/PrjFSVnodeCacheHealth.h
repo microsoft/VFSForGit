@@ -1,6 +1,6 @@
 #pragma once
 
-struct PrjFSHealthData
+struct PrjFSVnodeCacheHealth
 {
     // Total capacity of the vnode cache
     uint32_t cacheCapacity;

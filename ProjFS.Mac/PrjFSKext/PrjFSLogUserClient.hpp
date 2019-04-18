@@ -39,7 +39,7 @@ public:
         void* reference,
         IOExternalMethodArguments* arguments);
     
-    static IOReturn fetchHealthData(
+    static IOReturn fetchVnodeCacheHealth(
         OSObject* target,
         void* reference,
         IOExternalMethodArguments* arguments);
