@@ -62,11 +62,11 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 - (void)testInitCacheStats {
     // We need to validate that InitCacheStats sets all of the cache health stats to zero, so
     // first set them all to something non-zero
-    atomic_exchange(&s_cacheStats.cacheEntries, 1U);
+    atomic_exchange_explicit(&s_cacheStats.cacheEntries, 1U, memory_order_relaxed);
     
     for (int32_t i = 0; i < VnodeCacheHealthStat_Count; ++i)
     {
-        atomic_exchange(&s_cacheStats.healthStats[i], 1ULL);
+        atomic_exchange_explicit(&s_cacheStats.healthStats[i], 1ULL, memory_order_relaxed);
     }
     
     InitCacheStats();
@@ -94,7 +94,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
     
     XCTAssertFalse(MockCalls::DidCallAnyFunctions());
     
-    atomic_exchange(&s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount], UINT64_MAX - 1000);
+    atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount], UINT64_MAX - 1000, memory_order_relaxed);
     AtomicFetchAddCacheHealthStat(VnodeCacheHealthStat_InvalidateEntireCacheCount, 1ULL);
     XCTAssertTrue(s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount] == UINT64_MAX - 999);
     AtomicFetchAddCacheHealthStat(VnodeCacheHealthStat_InvalidateEntireCacheCount, 1ULL);

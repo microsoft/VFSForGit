@@ -234,13 +234,14 @@ IOReturn VnodeCache_ExportHealthData(IOExternalMethodArguments* _Nonnull argumen
     {
         .cacheCapacity = s_entriesCapacity,
         .cacheEntries = s_cacheStats.cacheEntries, // cacheEntries is reset to 0 when VnodeCache_InvalidateCache is called
-        .invalidateEntireCacheCount = atomic_exchange(&s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount], 0ULL),
-        .totalCacheLookups = atomic_exchange(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalCacheLookups], 0ULL),
-        .totalLookupCollisions = atomic_exchange(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalLookupCollisions], 0ULL),
-        .totalFindRootForVnodeHits = atomic_exchange(&s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount], 0ULL),
-        .totalFindRootForVnodeMisses = atomic_exchange(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalFindRootForVnodeMisses], 0ULL),
-        .totalRefreshRootForVnode = atomic_exchange(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalRefreshRootForVnode], 0ULL),
-        .totalInvalidateVnodeRoot = atomic_exchange(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalInvalidateVnodeRoot], 0ULL),
+        .invalidateEntireCacheCount = atomic_exchange_explicit(
+            &s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount], 0ULL, memory_order_relaxed),
+        .totalCacheLookups = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalCacheLookups], 0ULL, memory_order_relaxed),
+        .totalLookupCollisions = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalLookupCollisions], 0ULL, memory_order_relaxed),
+        .totalFindRootForVnodeHits = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount], 0ULL, memory_order_relaxed),
+        .totalFindRootForVnodeMisses = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalFindRootForVnodeMisses], 0ULL, memory_order_relaxed),
+        .totalRefreshRootForVnode = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalRefreshRootForVnode], 0ULL, memory_order_relaxed),
+        .totalInvalidateVnodeRoot = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalInvalidateVnodeRoot], 0ULL, memory_order_relaxed),
     };
 
     // The buffer will come in either as a memory descriptor or direct pointer, depending on size
@@ -279,7 +280,7 @@ IOReturn VnodeCache_ExportHealthData(IOExternalMethodArguments* _Nonnull argumen
 KEXT_STATIC_INLINE void InvalidateCache_ExclusiveLocked()
 {
     memset(s_entries, 0, s_entriesCapacity * sizeof(VnodeCacheEntry));
-    atomic_exchange(&s_cacheStats.cacheEntries, 0U);
+    atomic_exchange_explicit(&s_cacheStats.cacheEntries, 0U, memory_order_relaxed);
 }
 
 KEXT_STATIC_INLINE uint32_t ComputePow2CacheCapacity(int expectedVnodeCount)
@@ -479,7 +480,7 @@ KEXT_STATIC bool TryInsertOrUpdateEntry_ExclusiveLocked(
         {
             if (NULLVP == s_entries[vnodeIndex].vnode)
             {
-                atomic_fetch_add(&s_cacheStats.cacheEntries, 1U);
+                atomic_fetch_add_explicit(&s_cacheStats.cacheEntries, 1U, memory_order_relaxed);
             }
         
             s_entries[vnodeIndex].vnode = vnode;
@@ -508,17 +509,17 @@ KEXT_STATIC bool TryInsertOrUpdateEntry_ExclusiveLocked(
 
 KEXT_STATIC_INLINE void InitCacheStats()
 {
-    atomic_exchange(&s_cacheStats.cacheEntries, 0U);
+    atomic_exchange_explicit(&s_cacheStats.cacheEntries, 0U, memory_order_relaxed);
     
     for (int32_t i = 0; i < VnodeCacheHealthStat_Count; ++i)
     {
-        atomic_exchange(&s_cacheStats.healthStats[i], 0ULL);
+        atomic_exchange_explicit(&s_cacheStats.healthStats[i], 0ULL, memory_order_relaxed);
     }
 }
 
 KEXT_STATIC_INLINE void AtomicFetchAddCacheHealthStat(VnodeCacheHealthStat healthStat, uint64_t value)
 {
-    uint64_t statValue = atomic_fetch_add(&s_cacheStats.healthStats[healthStat], value);
+    uint64_t statValue = atomic_fetch_add_explicit(&s_cacheStats.healthStats[healthStat], value, memory_order_relaxed);
     if (statValue > (UINT64_MAX - 1000))
     {
         // The logging daemon is not fetching stats quickly enough (or not running at all)
@@ -529,6 +530,6 @@ KEXT_STATIC_INLINE void AtomicFetchAddCacheHealthStat(VnodeCacheHealthStat healt
                 VnodeCacheHealthStatNames[healthStat],
                 statValue);
         
-        atomic_exchange(&s_cacheStats.healthStats[healthStat], 0ULL);
+        atomic_exchange_explicit(&s_cacheStats.healthStats[healthStat], 0ULL, memory_order_relaxed);
     }
 }
