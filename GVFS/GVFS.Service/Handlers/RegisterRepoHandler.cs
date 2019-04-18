@@ -8,11 +8,11 @@ namespace GVFS.Service.Handlers
         private NamedPipeServer.Connection connection;
         private NamedPipeMessages.RegisterRepoRequest request;
         private ITracer tracer;
-        private RepoRegistry registry;
+        private IRepoRegistry registry;
 
         public RegisterRepoHandler(
             ITracer tracer,
-            RepoRegistry registry,
+            IRepoRegistry registry,
             NamedPipeServer.Connection connection,
             NamedPipeMessages.RegisterRepoRequest request)
         {

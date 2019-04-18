@@ -24,9 +24,9 @@ namespace GVFS.Service.Handlers
 
         private string etwArea;
         private ITracer tracer;
-        private RepoRegistry repoRegistry;
+        private IRepoRegistry repoRegistry;
 
-        public RequestHandler(ITracer tracer, string etwArea, RepoRegistry repoRegistry)
+        public RequestHandler(ITracer tracer, string etwArea, IRepoRegistry repoRegistry)
         {
             this.tracer = tracer;
             this.etwArea = etwArea;

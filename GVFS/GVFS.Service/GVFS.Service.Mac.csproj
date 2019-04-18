@@ -4,7 +4,8 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>GVFS.Service</RootNamespace>
     <AssemblyName>GVFS.Service</AssemblyName>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <!-- Target netstandard2.0 as well so that .NET Framework unit tests can consume this assembly -->
+    <TargetFrameworks>netcoreapp2.1; netstandard2.0</TargetFrameworks>
     <Platforms>x64</Platforms>
     <RunTimeIdentifiers>osx-x64</RunTimeIdentifiers>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
@@ -27,6 +28,8 @@
     <Compile Include="Handlers\MessageHandler.cs" />
     <Compile Include="Handlers\RegisterRepoHandler.cs" />
     <Compile Include="Handlers\UnregisterRepoHandler.cs" />
+    <Compile Include="IRepoMounter.cs" />
+    <Compile Include="IRepoRegistry.cs" />
     <Compile Include="Program.Mac.cs" />
     <Compile Include="RepoRegistration.cs" />
     <Compile Include="RepoRegistry.cs" />

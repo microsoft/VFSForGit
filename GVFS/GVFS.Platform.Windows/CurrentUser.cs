@@ -5,7 +5,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 
-namespace GVFS.Service
+namespace GVFS.Platform.Windows
 {
     public class CurrentUser : IDisposable
     {

@@ -2,25 +2,42 @@
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
+using Moq;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 
-namespace GVFS.UnitTests.Windows.Service
+namespace GVFS.UnitTests.Service
 {
     [TestFixture]
     public class RepoRegistryTests
     {
+        private Mock<IRepoMounter> mockRepoMounter;
+
+         [SetUp]
+        public void Setup()
+        {
+            this.mockRepoMounter = new Mock<IRepoMounter>(MockBehavior.Strict);
+        }
+
+         [TearDown]
+        public void TearDown()
+        {
+            this.mockRepoMounter.VerifyAll();
+        }
+
         [TestCase]
         public void TryRegisterRepo_EmptyRegistry()
         {
-            string dataLocation = @"mock:\registryDataFolder";
-            MockFileSystem fileSystem = new MockFileSystem(new MockDirectory(dataLocation, null, null));
-            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation);
+            string dataLocation = Path.Combine("mock:", "registryDataFolder");
 
-            string repoRoot = @"c:\test";
+            MockFileSystem fileSystem = new MockFileSystem(new MockDirectory(dataLocation, null, null));
+            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation, this.mockRepoMounter.Object);
+
+            string repoRoot = Path.Combine("c:", "test");
             string ownerSID = Guid.NewGuid().ToString();
 
             string errorMessage;
@@ -34,33 +51,36 @@ namespace GVFS.UnitTests.Windows.Service
         [TestCase]
         public void ReadRegistry_Upgrade_ExistingVersion1()
         {
-            string dataLocation = @"mock:\registryDataFolder";
+            string dataLocation = Path.Combine("mock:", "registryDataFolder");
             MockFileSystem fileSystem = new MockFileSystem(new MockDirectory(dataLocation, null, null));
+
+            string repo1 = Path.Combine("mock:", "code", "repo1");
+            string repo2 = Path.Combine("mock:", "code", "repo2");
 
             // Create a version 1 registry file
             fileSystem.WriteAllText(
                 Path.Combine(dataLocation, RepoRegistry.RegistryName),
-@"1
-{""EnlistmentRoot"":""c:\\code\\repo1"",""IsActive"":false}
-{""EnlistmentRoot"":""c:\\code\\repo2"",""IsActive"":true}
+$@"1
+{{""EnlistmentRoot"":""{repo1.Replace("\\", "\\\\")}"",""IsActive"":false}}
+{{""EnlistmentRoot"":""{repo2.Replace("\\", "\\\\")}"",""IsActive"":true}}
 ");
 
-            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation);
+            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation, this.mockRepoMounter.Object);
             registry.Upgrade();
 
             Dictionary<string, RepoRegistration> repos = registry.ReadRegistry();
             repos.Count.ShouldEqual(2);
 
-            this.VerifyRepo(repos["c:\\code\\repo1"], expectedOwnerSID: null, expectedIsActive: false);
-            this.VerifyRepo(repos["c:\\code\\repo2"], expectedOwnerSID: null, expectedIsActive: true);
+            this.VerifyRepo(repos[repo1], expectedOwnerSID: null, expectedIsActive: false);
+            this.VerifyRepo(repos[repo2], expectedOwnerSID: null, expectedIsActive: true);
         }
 
         [TestCase]
         public void ReadRegistry_Upgrade_NoRegistry()
         {
-            string dataLocation = @"mock:\registryDataFolder";
+            string dataLocation = Path.Combine("mock:", "registryDataFolder");
             MockFileSystem fileSystem = new MockFileSystem(new MockDirectory(dataLocation, null, null));
-            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation);
+            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation, this.mockRepoMounter.Object);
             registry.Upgrade();
 
             Dictionary<string, RepoRegistration> repos = registry.ReadRegistry();
@@ -70,15 +90,15 @@ namespace GVFS.UnitTests.Windows.Service
         [TestCase]
         public void TryGetActiveRepos_BeforeAndAfterActivateAndDeactivate()
         {
-            string dataLocation = @"mock:\registryDataFolder";
+            string dataLocation = Path.Combine("mock:", "registryDataFolder");
             MockFileSystem fileSystem = new MockFileSystem(new MockDirectory(dataLocation, null, null));
-            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation);
+            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation, this.mockRepoMounter.Object);
 
-            string repo1Root = @"c:\test\repo1";
+            string repo1Root = Path.Combine("mock:", "test", "repo1");
             string owner1SID = Guid.NewGuid().ToString();
-            string repo2Root = @"c:\test\repo2";
+            string repo2Root = Path.Combine("mock:", "test", "repo2");
             string owner2SID = Guid.NewGuid().ToString();
-            string repo3Root = @"c:\test\repo3";
+            string repo3Root = Path.Combine("mock:", "test", "repo3");
             string owner3SID = Guid.NewGuid().ToString();
 
             // Register all 3 repos
@@ -118,11 +138,11 @@ namespace GVFS.UnitTests.Windows.Service
         [TestCase]
         public void TryDeactivateRepo()
         {
-            string dataLocation = @"mock:\registryDataFolder";
+            string dataLocation = Path.Combine("mock:", "registryDataFolder");
             MockFileSystem fileSystem = new MockFileSystem(new MockDirectory(dataLocation, null, null));
-            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation);
+            RepoRegistry registry = new RepoRegistry(new MockTracer(), fileSystem, dataLocation, this.mockRepoMounter.Object);
 
-            string repo1Root = @"c:\test\repo1";
+            string repo1Root = Path.Combine("mock:", "test", "repo1");
             string owner1SID = Guid.NewGuid().ToString();
             string errorMessage;
             registry.TryRegisterRepo(repo1Root, owner1SID, out errorMessage).ShouldEqual(true);
@@ -148,23 +168,24 @@ namespace GVFS.UnitTests.Windows.Service
             this.VerifyRepo(verifiableRegistry[repo1Root], owner1SID, expectedIsActive: false);
 
             // Deactivate non-existent repo should fail
-            registry.TryDeactivateRepo(@"c:\test\doesNotExist", out errorMessage).ShouldEqual(false);
+            string nonExistantPath = Path.Combine("mock:", "test", "doesNotExist");
+            registry.TryDeactivateRepo(nonExistantPath, out errorMessage).ShouldEqual(false);
             errorMessage.ShouldContain("Attempted to deactivate non-existent repo");
         }
 
         [TestCase]
         public void TraceStatus()
         {
-            string dataLocation = @"mock:\registryDataFolder";
+            string dataLocation = Path.Combine("mock:", "registryDataFolder");
             MockFileSystem fileSystem = new MockFileSystem(new MockDirectory(dataLocation, null, null));
             MockTracer tracer = new MockTracer();
-            RepoRegistry registry = new RepoRegistry(tracer, fileSystem, dataLocation);
+            RepoRegistry registry = new RepoRegistry(tracer, fileSystem, dataLocation, this.mockRepoMounter.Object);
 
-            string repo1Root = @"c:\test\repo1";
+            string repo1Root = Path.Combine("mock:", "test", "repo1");
             string owner1SID = Guid.NewGuid().ToString();
-            string repo2Root = @"c:\test\repo2";
+            string repo2Root = Path.Combine("mock:", "test", "repo2");
             string owner2SID = Guid.NewGuid().ToString();
-            string repo3Root = @"c:\test\repo3";
+            string repo3Root = Path.Combine("mock:", "test", "repo3");
             string owner3SID = Guid.NewGuid().ToString();
 
             string errorMessage;

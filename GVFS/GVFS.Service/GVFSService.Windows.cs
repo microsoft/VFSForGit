@@ -44,7 +44,11 @@ namespace GVFS.Service
                 metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
                 this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(GVFSService)}_{nameof(this.Run)}", metadata);
 
-                this.repoRegistry = new RepoRegistry(this.tracer, new PhysicalFileSystem(), this.serviceDataLocation);
+                this.repoRegistry = new RepoRegistry(
+                    this.tracer,
+                    new PhysicalFileSystem(),
+                    this.serviceDataLocation,
+                    new GVFSMountProcess(this.tracer));
                 this.repoRegistry.Upgrade();
                 this.requestHandler = new WindowsRequestHandler(this.tracer, EtwArea, this.repoRegistry);
 
@@ -136,7 +140,9 @@ namespace GVFS.Service
                         this.tracer.RelatedInfo("SessionLogon detected, sessionId: {0}", changeDescription.SessionId);
                         using (ITracer activity = this.tracer.StartActivity("LogonAutomount", EventLevel.Informational))
                         {
-                            this.repoRegistry.AutoMountRepos(changeDescription.SessionId);
+                            this.repoRegistry.AutoMountRepos(
+                                GVFSPlatform.Instance.GetUserIdFromLoginSessionId(changeDescription.SessionId, this.tracer),
+                                changeDescription.SessionId);
                             this.repoRegistry.TraceStatus();
                         }
                     }

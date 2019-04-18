@@ -110,6 +110,11 @@ namespace GVFS.Common.FileSystem
             GVFSPlatform.Instance.FileSystem.MoveAndOverwriteFile(sourceFileName, destinationFilename);
         }
 
+        public virtual bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
+        {
+            return GVFSPlatform.Instance.FileSystem.TryGetNormalizedPath(path, out normalizedPath, out errorMessage);
+        }
+
         public virtual Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool callFlushFileBuffers)
         {
             if (callFlushFileBuffers)
