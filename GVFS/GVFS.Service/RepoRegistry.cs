@@ -168,7 +168,7 @@ namespace GVFS.Service
             {
                 using (GVFSMountProcess process = new GVFSMountProcess(activity, sessionId))
                 {
-                    List<RepoRegistration> activeRepos = this.GetActiveReposForUser(process.CurrentUser.Identity.User.Value);
+                    List<RepoRegistration> activeRepos = this.GetActiveReposForUser(process.GetUserId());
                     if (activeRepos.Count == 0)
                     {
                         return;

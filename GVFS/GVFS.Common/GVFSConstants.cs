@@ -54,6 +54,7 @@ namespace GVFS.Common
         public static class Service
         {
             public const string ServiceName = "GVFS.Service";
+            public const string LogDirectory = "Logs";
             public const string UIName = "GVFS.Service.UI";
         }
 

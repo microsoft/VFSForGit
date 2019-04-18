@@ -56,22 +56,24 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Configuration.cs" />
-    <Compile Include="GVFSService.cs">
+    <Compile Include="GVFSMountProcess.Windows.cs" />
+    <Compile Include="GVFSService.Windows.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Handlers\EnableAndAttachProjFSHandler.cs" />
     <Compile Include="Handlers\MessageHandler.cs" />
-    <Compile Include="Handlers\NotificationHandler.cs" />
     <Compile Include="Handlers\GetActiveRepoListHandler.cs" />
+    <Compile Include="Handlers\NotificationHandler.Windows.cs" />
+    <Compile Include="Handlers\RequestHandler.cs" />
+    <Compile Include="Handlers\RequestHandler.Windows.cs" />
     <Compile Include="Handlers\UnregisterRepoHandler.cs" />
     <Compile Include="Handlers\RegisterRepoHandler.cs" />
     <Compile Include="CurrentUser.cs" />
     <Compile Include="ProductUpgradeTimer.cs" />
-    <Compile Include="Program.cs" />
+    <Compile Include="Program.Windows.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RepoRegistration.cs" />
     <Compile Include="RepoRegistry.cs" />
-    <Compile Include="GVFSMountProcess.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj">

@@ -36,5 +36,10 @@ namespace GVFS.Hooks.HooksPlatform
         {
             return WindowsFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
         }
+
+        public static string GetDataRootForGVFS()
+        {
+            return WindowsPlatform.GetDataRootForGVFSImplementation();
+        }
     }
 }

@@ -7,6 +7,7 @@ using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Pipes;
 
 namespace GVFS.UnitTests.Mock.Common
@@ -66,6 +67,19 @@ namespace GVFS.UnitTests.Mock.Common
         public override string GetOSVersionInformation()
         {
             throw new NotSupportedException();
+        }
+
+        public override string GetDataRootForGVFS()
+        {
+            // TODO: Update this method to return non existant file path.
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "GVFS");
+        }
+
+        public override string GetDataRootForGVFSComponent(string componentName)
+        {
+            return Path.Combine(this.GetDataRootForGVFS(), componentName);
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)

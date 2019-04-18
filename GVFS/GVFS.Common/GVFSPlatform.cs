@@ -43,6 +43,8 @@ namespace GVFS.Common
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
 
         public abstract string GetOSVersionInformation();
+        public abstract string GetDataRootForGVFS();
+        public abstract string GetDataRootForGVFSComponent(string componentName);
         public abstract void InitializeEnlistmentACLs(string enlistmentPath);
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
@@ -136,18 +138,15 @@ namespace GVFS.Common
         public class UnderConstructionFlags
         {
             public UnderConstructionFlags(
-                bool supportsGVFSService = true,
                 bool supportsGVFSUpgrade = true,
                 bool supportsGVFSConfig = true,
                 bool requiresDeprecatedGitHooksLoader = false)
             {
-                this.SupportsGVFSService = supportsGVFSService;
                 this.SupportsGVFSUpgrade = supportsGVFSUpgrade;
                 this.SupportsGVFSConfig = supportsGVFSConfig;
                 this.RequiresDeprecatedGitHooksLoader = requiresDeprecatedGitHooksLoader;
             }
 
-            public bool SupportsGVFSService { get; }
             public bool SupportsGVFSUpgrade { get; }
             public bool SupportsGVFSConfig { get; }
             public bool RequiresDeprecatedGitHooksLoader { get; }

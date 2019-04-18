@@ -67,6 +67,8 @@ namespace GVFS.Common
 
         public static string GetNewLogFileName(string logsRoot, string prefix, string logId = null)
         {
+            // TODO: Remove Directory.CreateDirectory() code from here
+            // Don't change the state from an accessor.
             if (!Directory.Exists(logsRoot))
             {
                 Directory.CreateDirectory(logsRoot);
