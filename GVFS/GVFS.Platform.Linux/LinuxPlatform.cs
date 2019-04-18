@@ -25,6 +25,16 @@ namespace GVFS.Platform.Linux
             return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
         }
 
+        public override string GetDataRootForGVFS()
+        {
+            return LinuxPlatform.GetDataRootForGVFSImplementation();
+        }
+
+        public override string GetDataRootForGVFSComponent(string componentName)
+        {
+            return LinuxPlatform.GetDataRootForGVFSComponentImplementation(componentName);
+        }
+
         public override FileBasedLock CreateFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,

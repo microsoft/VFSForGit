@@ -20,6 +20,7 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="HooksPlatform\GVFSHooksPlatform.Mac.cs" />
     <Compile Remove="HooksPlatform\GVFSHooksPlatform.Windows.cs" />
   </ItemGroup>
 
@@ -92,6 +93,9 @@
     </Compile>
     <Compile Include="..\GVFS.Common\Tracing\Keywords.cs">
       <Link>Common\Tracing\Keywords.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Platform.Linux\LinuxPlatform.Shared.cs">
+      <Link>"LinuxPlatform.Shared.cs"</Link>
     </Compile>
     <Compile Include="..\GVFS.Platform.POSIX\POSIXFileSystem.Shared.cs">
       <Link>POSIX\POSIXFileSystem.Shared.cs</Link>
