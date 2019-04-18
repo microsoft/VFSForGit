@@ -374,7 +374,7 @@ namespace GVFS.Common
             {
                 get
                 {
-                    return this.Sha == ExpandedFolderValue;
+                    return this.Sha.Equals(ExpandedFolderValue, StringComparison.Ordinal);
                 }
             }
 
@@ -382,13 +382,15 @@ namespace GVFS.Common
             {
                 get
                 {
-                    return this.Sha == PossibleTombstoneFolderValue;
+                    return this.Sha.Equals(PossibleTombstoneFolderValue, StringComparison.Ordinal);
                 }
             }
 
             public static bool IsShaAFolder(string shaValue)
             {
-                return shaValue == PartialFolderValue || shaValue == ExpandedFolderValue || shaValue == PossibleTombstoneFolderValue;
+                return shaValue.Equals(PartialFolderValue, StringComparison.Ordinal) ||
+                    shaValue.Equals(ExpandedFolderValue, StringComparison.Ordinal) ||
+                    shaValue.Equals(PossibleTombstoneFolderValue, StringComparison.Ordinal);
             }
         }
 
