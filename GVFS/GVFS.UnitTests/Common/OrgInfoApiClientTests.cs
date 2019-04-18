@@ -50,7 +50,7 @@ namespace GVFS.UnitTests.Common
             HttpClient httpClient = new HttpClient(handlerMock.Object);
 
             OrgInfoApiClient upgradeChecker = new OrgInfoApiClient(httpClient, this.baseUrl);
-            Version version = upgradeChecker.QueryNewestVersion(orgInfo.OrgName, orgInfo.Platform, orgInfo.Ring);
+            Version version = upgradeChecker.QueryVersion(orgInfo.OrgName, orgInfo.Platform, orgInfo.Ring);
 
             version.ShouldEqual(new Version(orgInfo.Version));
 

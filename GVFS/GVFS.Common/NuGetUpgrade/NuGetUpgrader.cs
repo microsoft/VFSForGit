@@ -26,52 +26,28 @@ namespace GVFS.Common.NuGetUpgrade
         private NuGetFeed nuGetFeed;
         private ICredentialStore credentialStore;
 
-        public NuGetUpgrader(
-            string currentVersion,
-            ITracer tracer,
-            PhysicalFileSystem fileSystem,
-            bool dryRun,
-            bool noVerify,
-            NuGetUpgraderConfig config,
-            string downloadFolder,
-            ICredentialStore credentialStore)
-            : this(
-                currentVersion,
-                tracer,
-                dryRun,
-                noVerify,
-                fileSystem,
-                config,
-                new NuGetFeed(
-                    config.FeedUrl,
-                    config.PackageFeedName,
-                    downloadFolder,
-                    null,
-                    tracer),
-                credentialStore)
-        {
-        }
+        private IQueryGVFSVersion gvfsVersionFetcher;
+        private IDownloadGVFSVersion gvfsVersionDownloader;
 
         internal NuGetUpgrader(
-            string currentVersion,
             ITracer tracer,
-            bool dryRun,
-            bool noVerify,
+            string currentVersion,
+            NuGetUpgradeOptions options,
             PhysicalFileSystem fileSystem,
-            NuGetUpgraderConfig config,
-            NuGetFeed nuGetFeed,
+            IQueryGVFSVersion gvfsVersionFetcher,
+            IDownloadGVFSVersion gvfsVersionDownloader,
             ICredentialStore credentialStore)
             : base(
                 currentVersion,
                 tracer,
-                dryRun,
-                noVerify,
+                options.DryRun,
+                options.NoVerify,
                 fileSystem)
         {
-            this.nuGetUpgraderConfig = config;
-
-            this.nuGetFeed = nuGetFeed;
             this.credentialStore = credentialStore;
+
+            this.gvfsVersionFetcher = gvfsVersionFetcher;
+            this.gvfsVersionDownloader = gvfsVersionDownloader;
 
             // Extract the folder inside ProductUpgraderInfo.GetAssetDownloadsPath to ensure the
             // correct ACLs are in place
@@ -99,45 +75,28 @@ namespace GVFS.Common.NuGetUpgrade
         public static bool TryCreate(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
-            LocalGVFSConfig gvfsConfig,
+            IQueryGVFSVersion gvfsVersionFetcher,
+            IDownloadGVFSVersion gvfsVersionDownloader,
             ICredentialStore credentialStore,
             bool dryRun,
             bool noVerify,
-            out NuGetUpgrader nuGetUpgrader,
-            out bool isConfigured,
-            out string error)
+            out NuGetUpgrader nuGetUpgrader)
         {
-            NuGetUpgraderConfig upgraderConfig = new NuGetUpgraderConfig(tracer, gvfsConfig);
             nuGetUpgrader = null;
-            isConfigured = false;
 
-            if (!upgraderConfig.TryLoad(out error))
+            NuGetUpgradeOptions options = new NuGetUpgradeOptions()
             {
-                nuGetUpgrader = null;
-                return false;
-            }
-
-            if (!(isConfigured = upgraderConfig.IsConfigured(out error)))
-            {
-                return false;
-            }
-
-            // At this point, we have determined that the system is set up to use
-            // the NuGetUpgrader
-
-            if (!upgraderConfig.IsReady(out error))
-            {
-                return false;
-            }
+                DryRun = dryRun,
+                NoVerify = noVerify,
+            };
 
             nuGetUpgrader = new NuGetUpgrader(
-                ProcessHelper.GetCurrentProcessVersion(),
                 tracer,
+                ProcessHelper.GetCurrentProcessVersion(),
+                options,
                 fileSystem,
-                dryRun,
-                noVerify,
-                upgraderConfig,
-                ProductUpgraderInfo.GetAssetDownloadsPath(),
+                gvfsVersionFetcher,
+                gvfsVersionDownloader,
                 credentialStore);
 
             return true;
@@ -165,17 +124,6 @@ namespace GVFS.Common.NuGetUpgrade
 
         public override bool UpgradeAllowed(out string message)
         {
-            if (string.IsNullOrEmpty(this.nuGetUpgraderConfig.FeedUrl))
-            {
-                message = "Nuget Feed URL has not been configured";
-                return false;
-            }
-            else if (string.IsNullOrEmpty(this.nuGetUpgraderConfig.PackageFeedName))
-            {
-                message = "NuGet package feed has not been configured";
-                return false;
-            }
-
             message = null;
             return true;
         }
@@ -184,14 +132,7 @@ namespace GVFS.Common.NuGetUpgrade
         {
             try
             {
-                IQueryGVFSVersion gvfsVersionFetcher = new QueryGVFSVersionFromNuGetFeed(
-                    this.tracer,
-                    this.credentialStore,
-                    this.nuGetFeed,
-                    this.nuGetUpgraderConfig.PackageFeedName,
-                    this.nuGetUpgraderConfig.FeedUrl);
-
-                Version queryVersion = gvfsVersionFetcher.QueryVersion();
+                Version queryVersion = this.gvfsVersionFetcher.QueryVersion();
 
                 if (queryVersion != null &&
                     queryVersion > this.installedVersion)
@@ -255,14 +196,7 @@ namespace GVFS.Common.NuGetUpgrade
             {
                 try
                 {
-                    QueryGVFSVersionFromNuGetFeed gvfsVersionFetcher = new QueryGVFSVersionFromNuGetFeed(
-                        this.tracer,
-                        this.credentialStore,
-                        this.nuGetFeed,
-                        this.nuGetUpgraderConfig.PackageFeedName,
-                        this.nuGetUpgraderConfig.FeedUrl);
-
-                    gvfsVersionFetcher.DownloadVersion(this.highestVersionAvailable);
+                    this.gvfsVersionDownloader.DownloadVersion(this.highestVersionAvailable);
                 }
                 catch (Exception ex)
                 {
@@ -419,18 +353,6 @@ namespace GVFS.Common.NuGetUpgrade
                     return true;
                 }
             }
-        }
-
-        protected static EventMetadata CreateEventMetadata(Exception e = null)
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", nameof(NuGetFeed));
-            if (e != null)
-            {
-                metadata.Add("Exception", e.ToString());
-            }
-
-            return metadata;
         }
 
         private static string replacementToken(string tokenString)

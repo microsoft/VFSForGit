@@ -33,11 +33,9 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         private const string DefaultOrgInfoServerUrl = "https://www.contoso.com";
         private const string DefaultRing = "slow";
 
-        private OrgNuGetUpgrader upgrader;
+        private NuGetUpgrader upgrader;
 
         private MockTracer tracer;
-
-        private OrgNuGetUpgrader.OrgNuGetUpgraderConfig upgraderConfig;
 
         private Mock<NuGetFeed> mockNuGetFeed;
         private MockFileSystem mockFileSystem;
@@ -74,9 +72,6 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 .WithOrgInfoServerUrl()
                 .Build();
 
-            this.upgraderConfig = new OrgNuGetUpgrader.OrgNuGetUpgraderConfig(this.tracer, mockGvfsConfig);
-            this.upgraderConfig.TryLoad(out _);
-
             this.tracer = new MockTracer();
 
             this.mockNuGetFeed = new Mock<NuGetFeed>(
@@ -109,16 +104,22 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
 
             HttpClient httpClient = new HttpClient(this.httpMessageHandlerMock.Object);
 
-            this.upgrader = new OrgNuGetUpgrader(
-                CurrentVersion,
+            NuGetUpgradeOptions options = new NuGetUpgradeOptions()
+            {
+                DryRun = false,
+                NoVerify = false,
+            };
+
+            QueryGVFSVersionFromOrgInfo gvfsQueryVersion = new QueryGVFSVersionFromOrgInfo(httpClient, "orgInfoServerUrl", "orgName", "platform", "ring");
+            Mock<IDownloadGVFSVersion> gvfsDownloaderMock = new Mock<IDownloadGVFSVersion>();
+
+            this.upgrader = new NuGetUpgrader(
                 this.tracer,
+                CurrentVersion,
+                options,
                 this.mockFileSystem,
-                httpClient,
-                false,
-                false,
-                this.upgraderConfig,
-                "windows",
-                this.mockNuGetFeed.Object,
+                gvfsQueryVersion,
+                gvfsDownloaderMock.Object,
                 this.mockCredentialManager.Object);
         }
 

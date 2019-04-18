@@ -28,7 +28,7 @@ namespace GVFS.Common
         public Version QueryVersion()
         {
             OrgInfoApiClient infoServer = new OrgInfoApiClient(this.httpClient, this.orgInfoServerUrl);
-            return infoServer.QueryNewestVersion(this.orgName, this.platform, this.ring);
+            return infoServer.QueryVersion(this.orgName, this.platform, this.ring);
         }
     }
 }

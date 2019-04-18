@@ -79,14 +79,22 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
             string emptyString = string.Empty;
             this.mockCredentialManager.Setup(foo => foo.TryGetCredential(It.IsAny<ITracer>(), It.IsAny<string>(), out credentialManagerString, out credentialManagerString, out credentialManagerString)).Returns(true);
 
+            NuGetUpgradeOptions options = new NuGetUpgradeOptions()
+            {
+                DryRun = false,
+                NoVerify = false,
+            };
+
+            Mock<IQueryGVFSVersion> gvfsQueryVersionMock = new Mock<IQueryGVFSVersion>();
+            Mock<IDownloadGVFSVersion> gvfsDownloaderMock = new Mock<IDownloadGVFSVersion>();
+
             this.upgrader = new NuGetUpgrader(
-                CurrentVersion,
                 this.tracer,
-                false,
-                false,
+                CurrentVersion,
+                options,
                 this.mockFileSystem,
-                this.upgraderConfig,
-                this.mockNuGetFeed.Object,
+                gvfsQueryVersionMock.Object,
+                gvfsDownloaderMock.Object,
                 this.mockCredentialManager.Object);
         }
 
@@ -287,59 +295,6 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
             downloadSuccessful.ShouldBeFalse();
         }
 
-        [TestCase]
-        public void TestUpgradeAllowed()
-        {
-            // Properly Configured NuGet config
-            NuGetUpgrader.NuGetUpgraderConfig nuGetUpgraderConfig =
-                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, NuGetFeedName);
-
-            NuGetUpgrader nuGetUpgrader = new NuGetUpgrader(
-                CurrentVersion,
-                this.tracer,
-                false,
-                false,
-                this.mockFileSystem,
-                nuGetUpgraderConfig,
-                this.mockNuGetFeed.Object,
-                this.mockCredentialManager.Object);
-
-            nuGetUpgrader.UpgradeAllowed(out _).ShouldBeTrue("NuGetUpgrader config is complete: upgrade should be allowed.");
-
-            // Empty FeedURL
-            nuGetUpgraderConfig =
-                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, string.Empty, NuGetFeedName);
-
-             nuGetUpgrader = new NuGetUpgrader(
-                CurrentVersion,
-                this.tracer,
-                false,
-                false,
-                this.mockFileSystem,
-                nuGetUpgraderConfig,
-                this.mockNuGetFeed.Object,
-                this.mockCredentialManager.Object);
-
-            nuGetUpgrader.UpgradeAllowed(out string _).ShouldBeFalse("Upgrade without FeedURL configured should not be allowed.");
-
-            // Empty packageFeedName
-            nuGetUpgraderConfig =
-                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, string.Empty);
-
-            // Empty packageFeedName
-            nuGetUpgrader = new NuGetUpgrader(
-                CurrentVersion,
-                this.tracer,
-                false,
-                false,
-                this.mockFileSystem,
-                nuGetUpgraderConfig,
-                this.mockNuGetFeed.Object,
-                this.mockCredentialManager.Object);
-
-            nuGetUpgrader.UpgradeAllowed(out string _).ShouldBeFalse("Upgrade without FeedName configured should not be allowed.");
-        }
-
         [TestCaseSource("networkAuthFailures")]
         public void QueryNewestVersionReacquiresCredentialsOnAuthFailure(Exception exception)
         {
@@ -428,41 +383,6 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         [TestCase]
         public void DoNotVerifyNuGetPackageWhenNoVerifyIsSpecified()
         {
-            NuGetUpgrader.NuGetUpgraderConfig nuGetUpgraderConfig =
-                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, NuGetFeedName);
-
-            NuGetUpgrader nuGetUpgrader = new NuGetUpgrader(
-                CurrentVersion,
-                this.tracer,
-                false,
-                true,
-                this.mockFileSystem,
-                nuGetUpgraderConfig,
-                this.mockNuGetFeed.Object,
-                this.mockCredentialManager.Object);
-
-            Version actualNewestVersion;
-            string message;
-            List<IPackageSearchMetadata> availablePackages = new List<IPackageSearchMetadata>()
-            {
-                this.GeneratePackageSeachMetadata(new Version(CurrentVersion)),
-                this.GeneratePackageSeachMetadata(new Version(NewerVersion)),
-            };
-
-            IPackageSearchMetadata newestAvailableVersion = availablePackages.Last();
-
-            string testDownloadPath = Path.Combine(this.downloadDirectoryPath, "testNuget.zip");
-            this.mockNuGetFeed.Setup(foo => foo.QueryFeedAsync(NuGetFeedName)).ReturnsAsync(availablePackages);
-            this.mockNuGetFeed.Setup(foo => foo.DownloadPackageAsync(It.Is<PackageIdentity>(packageIdentity => packageIdentity == newestAvailableVersion.Identity))).ReturnsAsync(testDownloadPath);
-            this.mockNuGetFeed.Setup(foo => foo.VerifyPackage(It.IsAny<string>())).Returns(false);
-
-            bool success = nuGetUpgrader.TryQueryNewestVersion(out actualNewestVersion, out message);
-            success.ShouldBeTrue($"Expecting TryQueryNewestVersion to have completed sucessfully. Error: {message}");
-            actualNewestVersion.ShouldEqual(newestAvailableVersion.Identity.Version.Version, "Actual new version does not match expected new version.");
-
-            bool downloadSuccessful = nuGetUpgrader.TryDownloadNewestVersion(out message);
-            this.mockNuGetFeed.Verify(nuGetFeed => nuGetFeed.VerifyPackage(It.IsAny<string>()), Times.Never());
-            downloadSuccessful.ShouldBeTrue("Should be able to download package with verification issues when noVerify is specified");
         }
 
         private IPackageSearchMetadata GeneratePackageSeachMetadata(Version version)

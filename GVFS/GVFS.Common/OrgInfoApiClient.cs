@@ -31,7 +31,7 @@ namespace GVFS.Common
             }
         }
 
-        public Version QueryNewestVersion(string orgName, string platform, string ring)
+        public Version QueryVersion(string orgName, string platform, string ring)
         {
             Dictionary<string, string> queryParams = new Dictionary<string, string>()
             {

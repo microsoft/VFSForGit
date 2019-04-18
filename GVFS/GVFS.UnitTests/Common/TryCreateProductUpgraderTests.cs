@@ -112,28 +112,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void CreatesOrgNuGetUpgrader()
-        {
-            MockLocalGVFSConfig gvfsConfig = this.ConstructDefaultMockOrgNuGetConfigBuilder()
-                .Build();
-
-            bool success = ProductUpgrader.TryCreateUpgrader(
-                this.tracer,
-                this.fileSystemMock.Object,
-                gvfsConfig,
-                this.credentialStoreMock.Object,
-                false,
-                false,
-                out ProductUpgrader productUpgrader,
-                out string error);
-
-            success.ShouldBeTrue();
-            productUpgrader.ShouldNotBeNull();
-            productUpgrader.ShouldBeOfType<OrgNuGetUpgrader>();
-            error.ShouldBeNull();
-        }
-
-        [TestCase]
         public void NoUpgraderWhenNuGetFeedMissing()
         {
             MockLocalGVFSConfig gvfsConfig = this.ConstructDefaultMockNuGetConfigBuilder()

@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 
 namespace GVFS.Common
 {
@@ -98,57 +99,46 @@ namespace GVFS.Common
             bool containsUpgradePackageName = entries.ContainsKey(GVFSConstants.LocalGVFSConfig.UpgradeFeedPackageName);
             bool containsOrgInfoServerUrl = entries.ContainsKey(GVFSConstants.LocalGVFSConfig.OrgInfoServerUrl);
 
+            string upgradeRing = entries["GVFSConstants.LocalGVFSConfig.UpgradeRing"];
+
             if (containsUpgradeFeedUrl || containsUpgradePackageName)
             {
-                // We are configured for NuGet - determine if we are using OrgNuGetUpgrader or not
+                string nuGetFeedUrl = entries[GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl];
+                string nuGetFeedName = entries[GVFSConstants.LocalGVFSConfig.UpgradeFeedPackageName];
+
+                NuGetFeed nuGetFeed = new NuGetFeed(nuGetFeedUrl, nuGetFeedName, "downloadFolder", null, tracer);
+
+                DownloadGVFSFromNuGetFeed gvfsDownloader = new DownloadGVFSFromNuGetFeed(tracer, credentialStore, nuGetFeed, nuGetFeedName, nuGetFeedName);
+
+                IQueryGVFSVersion gvfsQueryVersion;
                 if (containsOrgInfoServerUrl)
                 {
-                    if (OrgNuGetUpgrader.TryCreate(
-                        tracer,
-                        fileSystem,
-                        gvfsConfig,
-                        new HttpClient(),
-                        credentialStore,
-                        dryRun,
-                        noVerify,
-                        out OrgNuGetUpgrader orgNuGetUpgrader,
-                        out error))
-                    {
-                        // We were successfully able to load a NuGetUpgrader - use that.
-                        newUpgrader = orgNuGetUpgrader;
-                        return true;
-                    }
-                    else
-                    {
-                        tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create organization based upgrader. {error}");
-                        newUpgrader = null;
-                        return false;
-                    }
+                    string platform = GVFSPlatform.Instance.Name;
+
+                    string orgInfoServerUrl = entries[GVFSConstants.LocalGVFSConfig.OrgInfoServerUrl];
+                    AzDevOpsOrgFromNuGetFeed.TryParseOrg(nuGetFeedUrl, out string orgName);
+                    gvfsQueryVersion = new QueryGVFSVersionFromOrgInfo(new HttpClient(), orgInfoServerUrl, orgName, platform, upgradeRing);
                 }
                 else
                 {
-                    if (NuGetUpgrader.TryCreate(
-                        tracer,
-                        fileSystem,
-                        gvfsConfig,
-                        credentialStore,
-                        dryRun,
-                        noVerify,
-                        out NuGetUpgrader nuGetUpgrader,
-                        out bool isConfigured,
-                        out error))
-                    {
-                        // We were successfully able to load a NuGetUpgrader - use that.
-                        newUpgrader = nuGetUpgrader;
-                        return true;
-                    }
-                    else
-                    {
-                        tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create NuGet based upgrader. {error}");
-                        newUpgrader = null;
-                        return false;
-                    }
+                    gvfsQueryVersion = gvfsDownloader;
                 }
+
+                NuGetUpgradeOptions options = new NuGetUpgradeOptions()
+                {
+                    DryRun = dryRun,
+                    NoVerify = noVerify,
+                };
+
+                newUpgrader = new NuGetUpgrader(
+                    tracer,
+                    ProcessHelper.GetCurrentProcessVersion(),
+                    options,
+                    fileSystem,
+                    gvfsQueryVersion,
+                    gvfsDownloader,
+                    credentialStore);
+                return true;
             }
             else
             {
