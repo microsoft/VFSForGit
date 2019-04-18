@@ -203,6 +203,13 @@ namespace GVFS.Virtualization.FileSystem
                         this.FileSystemCallbacks.OnFolderDeleted(relativePath);
                     }
                 }
+                else
+                {
+                    // During a git command if it deletes a folder we need to track that as a tombstone
+                    // So that we can delete them if the projection changes. This will be a no-op on platforms
+                    // that don't override OnPossibleTombstoneFolderCreated
+                    this.OnPossibleTombstoneFolderCreated(relativePath);
+                }
             }
             else
             {
@@ -217,6 +224,12 @@ namespace GVFS.Virtualization.FileSystem
             }
 
             this.FileSystemCallbacks.InvalidateGitStatusCache();
+        }
+
+        // This method defaults to a no-op and is overridden in the platform specific
+        // FileSystemVirtualizer derived classes that support tombstones
+        protected virtual void OnPossibleTombstoneFolderCreated(string relativePath)
+        {
         }
 
         protected void OnFileRenamed(string relativeSourcePath, string relativeDestinationPath, bool isDirectory)

@@ -577,6 +577,11 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
+        protected override void OnPossibleTombstoneFolderCreated(string relativePath)
+        {
+            this.FileSystemCallbacks.OnPossibleTombstoneFolderCreated(relativePath);
+        }
+
         private static void StreamCopyBlockTo(Stream input, Stream destination, long numBytes, byte[] buffer)
         {
             int read;

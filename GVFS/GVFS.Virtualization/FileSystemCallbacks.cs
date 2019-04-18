@@ -441,6 +441,11 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderDeleted(relativePath));
         }
 
+        public void OnPossibleTombstoneFolderCreated(string relativePath)
+        {
+            this.GitIndexProjection.OnPossibleTombstoneFolderCreated(relativePath);
+        }
+
         public void OnFolderPreDelete(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderPreDelete(relativePath));
