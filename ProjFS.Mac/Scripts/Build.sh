@@ -53,7 +53,6 @@ while read line; do
 	 [[ $line != *"HandleVnodeOperation"* ]] &&                      #SHOULD ADD COVERAGE
 	 [[ $line != *"HandleFileOpOperation"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"TryGetVirtualizationRoot"* ]] &&                  #SHOULD ADD COVERAGE
-	 [[ $line != *"ShouldHandleFileOpEvent"* ]] &&                   #SHOULD ADD COVERAGE
 	 [[ $line != *"WaitForListenerCompletion"* ]] && 
 	 [[ $line != *"KextLog_"* ]] && 
 	 [[ $line != *"Definition"* ]] && 

@@ -364,9 +364,30 @@ class org_vfsforgit_PrjFSProviderUserClient
     shared_ptr<vnode> repoRootVnode = testMount->CreateVnodeTree(repoPath, VDIR);
     shared_ptr<vnode> testVnodeFile = testMount->CreateVnodeTree(repoPath + "/file.txt");
     shared_ptr<vnode> testVnodeDirectory = testMount->CreateVnodeTree(repoPath + "/directory", VDIR);
-    
+    shared_ptr<mount> testMountNone = mount::Create("none", fsid_t{}, 0);
+    shared_ptr<vnode> testVnodeNone = vnode::Create(testMountNone, "/none");
+    shared_ptr<vnode> testVnodeUnsupportedType = vnode::Create(testMount, "/foo", VNON);
+
     org_vfsforgit_PrjFSProviderUserClient userClient;
-    VirtualizationRootHandle testRootHandle = InsertVirtualizationRoot_Locked(
+
+    VirtualizationRootHandle rootHandle;
+    FsidInode vnodeFsidInode;
+    int pid;
+    VirtualizationRootHandle testRootHandle;
+
+    // Invalid Root Handle Test
+    XCTAssertFalse(
+        ShouldHandleFileOpEvent(
+            &perfTracer,
+            context,
+            repoRootVnode.get(),
+            KAUTH_FILEOP_RENAME,
+            true, // isDirectory,
+            &testRootHandle,
+            &vnodeFsidInode,
+            &pid));
+
+    testRootHandle = InsertVirtualizationRoot_Locked(
         &userClient,
         0,
         repoRootVnode.get(),
@@ -375,10 +396,76 @@ class org_vfsforgit_PrjFSProviderUserClient
         repoPath.c_str());
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
 
-    VirtualizationRootHandle rootHandle;
-    FsidInode vnodeFsidInode;
-    int pid;
+    // With Valid Root Handle we should pass
+    XCTAssertTrue(
+        ShouldHandleFileOpEvent(
+            &perfTracer,
+            context,
+            repoRootVnode.get(),
+            KAUTH_FILEOP_RENAME,
+            true, // isDirectory,
+            &testRootHandle,
+            &vnodeFsidInode,
+            &pid));
+
+    // Invalid File System should fail
+    XCTAssertFalse(
+        ShouldHandleFileOpEvent(
+            &perfTracer,
+            context,
+            testVnodeNone.get(),
+            KAUTH_FILEOP_RENAME,
+            true, // isDirectory,
+            &testRootHandle,
+            &vnodeFsidInode,
+            &pid));
     
+    // Invalid Vnode Type should fail
+    XCTAssertFalse(
+        ShouldHandleFileOpEvent(
+            &perfTracer,
+            context,
+            testVnodeUnsupportedType.get(),
+            KAUTH_FILEOP_RENAME,
+            true, // isDirectory,
+            &testRootHandle,
+            &vnodeFsidInode,
+            &pid));
+
+    // Fail when the provider is not online
+    s_virtualizationRoots[0].providerUserClient = nullptr;
+    XCTAssertFalse(
+        ShouldHandleFileOpEvent(
+            &perfTracer,
+            context,
+            repoRootVnode.get(),
+            KAUTH_FILEOP_RENAME,
+            true, // isDirectory,
+            &testRootHandle,
+            &vnodeFsidInode,
+            &pid));
+    s_virtualizationRoots[0].providerUserClient = &userClient;
+
+    // Fail when pid matches provider pid
+    MockProcess_Reset();
+    MockProcess_AddContext(context, 0 /*pid*/);
+    MockProcess_SetSelfPid(0);
+    MockProcess_AddProcess(0 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
+    XCTAssertFalse(
+        ShouldHandleFileOpEvent(
+            &perfTracer,
+            context,
+            repoRootVnode.get(),
+            KAUTH_FILEOP_RENAME,
+            true, // isDirectory,
+            &testRootHandle,
+            &vnodeFsidInode,
+            &pid));
+    MockProcess_Reset();
+    MockProcess_AddContext(context, 501 /*pid*/);
+    MockProcess_SetSelfPid(501);
+    MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
+
     // KAUTH_FILEOP_OPEN
     XCTAssertTrue(
         ShouldHandleFileOpEvent(
@@ -444,7 +531,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
-    
+
     // Validate the cache is empty except for the testVnodeDirectory entry
     uintptr_t directoryVnodeHash = ComputeVnodeHashIndex(testVnodeDirectory.get());
     for (uintptr_t index = 0; index < self->cacheWrapper.GetCapacity(); ++index)
