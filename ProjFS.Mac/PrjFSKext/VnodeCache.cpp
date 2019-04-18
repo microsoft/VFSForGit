@@ -234,11 +234,10 @@ IOReturn VnodeCache_ExportHealthData(IOExternalMethodArguments* _Nonnull argumen
     {
         .cacheCapacity = s_entriesCapacity,
         .cacheEntries = s_cacheStats.cacheEntries, // cacheEntries is reset to 0 when VnodeCache_InvalidateCache is called
-        .invalidateEntireCacheCount = atomic_exchange_explicit(
-            &s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount], 0ULL, memory_order_relaxed),
+        .invalidateEntireCacheCount = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount], 0ULL, memory_order_relaxed),
         .totalCacheLookups = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalCacheLookups], 0ULL, memory_order_relaxed),
         .totalLookupCollisions = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalLookupCollisions], 0ULL, memory_order_relaxed),
-        .totalFindRootForVnodeHits = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_InvalidateEntireCacheCount], 0ULL, memory_order_relaxed),
+        .totalFindRootForVnodeHits = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalFindRootForVnodeHits], 0ULL, memory_order_relaxed),
         .totalFindRootForVnodeMisses = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalFindRootForVnodeMisses], 0ULL, memory_order_relaxed),
         .totalRefreshRootForVnode = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalRefreshRootForVnode], 0ULL, memory_order_relaxed),
         .totalInvalidateVnodeRoot = atomic_exchange_explicit(&s_cacheStats.healthStats[VnodeCacheHealthStat_TotalInvalidateVnodeRoot], 0ULL, memory_order_relaxed),
