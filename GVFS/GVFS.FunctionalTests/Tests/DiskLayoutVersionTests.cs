@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 namespace GVFS.FunctionalTests.Tests
 {
     [TestFixture]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     public class DiskLayoutVersionTests : TestsWithEnlistmentPerTestCase
     {
         private const int WindowsCurrentDiskLayoutMajorVersion = 17;

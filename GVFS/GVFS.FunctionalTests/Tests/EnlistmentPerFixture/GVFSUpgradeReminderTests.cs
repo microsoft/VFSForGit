@@ -12,7 +12,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [NonParallelizable]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     [Category(Categories.WindowsOnly)]
     public class UpgradeReminderTests : TestsWithEnlistmentPerFixture
     {

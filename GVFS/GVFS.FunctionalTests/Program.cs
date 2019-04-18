@@ -36,8 +36,8 @@ namespace GVFS.FunctionalTests
 
             GVFSTestConfig.LocalCacheRoot = runner.GetCustomArgWithParam("--shared-gvfs-cache-root");
 
-            List<string> includeCategories = new List<string>();
-            List<string> excludeCategories = new List<string>();
+            HashSet<string> includeCategories = new HashSet<string>();
+            HashSet<string> excludeCategories = new HashSet<string>();
 
             if (runner.HasCustomArg("--full-suite"))
             {
@@ -62,13 +62,26 @@ namespace GVFS.FunctionalTests
                         new object[] { true }
                     };
 
-                excludeCategories.Add(Categories.FullSuiteOnly);
+                if (runner.HasCustomArg("--extra-only"))
+                {
+                    Console.WriteLine("Running only the tests marked as ExtraCoverage");
+                    includeCategories.Add(Categories.ExtraCoverage);
+                }
+                else
+                {
+                    excludeCategories.Add(Categories.ExtraCoverage);
+                }
+
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
             }
 
             if (runner.HasCustomArg("--windows-only"))
             {
                 includeCategories.Add(Categories.WindowsOnly);
+
+                // RunTests unions all includeCategories.  Remove ExtraCoverage to
+                // ensure that we only run tests flagged as WindowsOnly
+                includeCategories.Remove(Categories.ExtraCoverage);
             }
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
