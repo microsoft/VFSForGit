@@ -280,7 +280,7 @@ IOReturn VnodeCache_ExportHealthData(IOExternalMethodArguments* _Nonnull argumen
 KEXT_STATIC_INLINE void InvalidateCache_ExclusiveLocked()
 {
     memset(s_entries, 0, s_entriesCapacity * sizeof(VnodeCacheEntry));
-    atomic_exchange_explicit(&s_cacheStats.cacheEntries, 0U, memory_order_relaxed);
+    atomic_store_explicit(&s_cacheStats.cacheEntries, 0U, memory_order_relaxed);
 }
 
 KEXT_STATIC_INLINE uint32_t ComputePow2CacheCapacity(int expectedVnodeCount)
@@ -509,11 +509,11 @@ KEXT_STATIC bool TryInsertOrUpdateEntry_ExclusiveLocked(
 
 KEXT_STATIC_INLINE void InitCacheStats()
 {
-    atomic_exchange_explicit(&s_cacheStats.cacheEntries, 0U, memory_order_relaxed);
+    atomic_store_explicit(&s_cacheStats.cacheEntries, 0U, memory_order_relaxed);
     
     for (int32_t i = 0; i < VnodeCacheHealthStat_Count; ++i)
     {
-        atomic_exchange_explicit(&s_cacheStats.healthStats[i], 0ULL, memory_order_relaxed);
+        atomic_store_explicit(&s_cacheStats.healthStats[i], 0ULL, memory_order_relaxed);
     }
 }
 
@@ -530,6 +530,6 @@ KEXT_STATIC_INLINE void AtomicFetchAddCacheHealthStat(VnodeCacheHealthStat healt
                 VnodeCacheHealthStatNames[healthStat],
                 statValue);
         
-        atomic_exchange_explicit(&s_cacheStats.healthStats[healthStat], 0ULL, memory_order_relaxed);
+        atomic_store_explicit(&s_cacheStats.healthStats[healthStat], 0ULL, memory_order_relaxed);
     }
 }

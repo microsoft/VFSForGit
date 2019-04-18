@@ -8,6 +8,7 @@ using std::atomic_uint_least64_t;
 using std::atomic_int;
 using std::memory_order_seq_cst;
 using std::memory_order_relaxed;
+using std::atomic_store_explicit;
 using std::atomic_exchange_explicit;
 using std::atomic_fetch_add_explicit;
 #else
