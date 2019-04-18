@@ -167,7 +167,7 @@ namespace GVFS.Service
             }
 
             string serviceLogsDirectoryPath = Path.Combine(
-                    GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName),
+                    GVFSPlatform.Instance.GetDataRootForGVFSComponent(this.serviceName),
                     GVFSConstants.Service.LogDirectory);
 
             // Create the logs directory explicitly *before* creating a log file event listener to ensure that it
