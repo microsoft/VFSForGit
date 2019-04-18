@@ -29,12 +29,14 @@ namespace GVFS.Platform.Linux
             return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
         }
 
-        public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
+        public override string GetDataRootForGVFS()
         {
-            // TODO(Linux): Collect disk information
-            Dictionary<string, string> result = new Dictionary<string, string>();
-            result.Add("GetPhysicalDiskInfo", "Not yet implemented on Linux");
-            return result;
+            return LinuxPlatform.GetDataRootForGVFSImplementation();
+        }
+
+        public override string GetDataRootForGVFSComponent(string componentName)
+        {
+            return LinuxPlatform.GetDataRootForGVFSComponentImplementation(componentName);
         }
 
         public override void InitializeStorageMapping(string dotGVFSRoot, string workingDirectoryRoot)
