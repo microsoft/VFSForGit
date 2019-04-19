@@ -7,6 +7,8 @@ kern_return_t VnodeCache_Init();
 
 kern_return_t VnodeCache_Cleanup();
 
+IOReturn VnodeCache_ExportHealthData(IOExternalMethodArguments* _Nonnull arguments);
+
 VirtualizationRootHandle VnodeCache_FindRootForVnode(
         PerfTracer* _Nonnull perfTracer,
         PrjFSPerfCounter cacheHitCounter,

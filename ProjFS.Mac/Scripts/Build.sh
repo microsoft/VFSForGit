@@ -48,6 +48,7 @@ xcrun xccov view "$COVERAGE_FILE" | tee $PROJFS/CoverageResult.txt
 while read line; do
   if [[ $line != *"100.00%"* ]] && 
      [[ $line == *"%"* ]] && 
+	 [[ $line != *"AllArrayElementsInitialized"* ]] &&              #Function is used for compile time checks only
 	 [[ $line != *"KauthHandler_Init"* ]] && 
 	 [[ $line != *"KauthHandler_Cleanup"* ]] && 
 	 [[ $line != *"HandleVnodeOperation"* ]] &&                      #SHOULD ADD COVERAGE
@@ -62,6 +63,7 @@ while read line; do
 	 [[ $line != *"VirtualizationRoots_Cleanup"* ]] && 
 	 [[ $line != *"VnodeCache_Init"* ]] && 
 	 [[ $line != *"VnodeCache_Cleanup"* ]] && 
+	 [[ $line != *"VnodeCache_ExportHealthData"* ]] &&               # IOKit related functions are not unit tested
 	 [[ $line != *"FindOrDetectRootAtVnode"* ]] &&                   #SHOULD ADD COVERAGE
 	 [[ $line != *"FindUnusedIndexOrGrow_Locked"* ]] &&              #SHOULD ADD COVERAGE
 	 [[ $line != *"FindRootAtVnode_Locked"* ]] &&                    #SHOULD ADD COVERAGE
