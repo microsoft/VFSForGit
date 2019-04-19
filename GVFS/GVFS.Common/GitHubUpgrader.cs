@@ -55,6 +55,8 @@ namespace GVFS.Common
 
         public GitHubUpgraderConfig Config { get; private set; }
 
+        public override bool SupportsAnonymousVersionQuery { get => true; }
+
         public static GitHubUpgrader Create(
             ITracer tracer,
             PhysicalFileSystem fileSystem,

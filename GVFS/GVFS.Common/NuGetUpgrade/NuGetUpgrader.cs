@@ -1,26 +1,28 @@
+using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
+using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
-using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace GVFS.Common.NuGetUpgrade
 {
     public class NuGetUpgrader : ProductUpgrader
     {
+        protected readonly NuGetUpgraderConfig nuGetUpgraderConfig;
+        protected Version highestVersionAvailable;
+
         private const string ContentDirectoryName = "content";
         private const string InstallManifestFileName = "install-manifest.json";
         private const string ExtractedInstallerDirectoryName = "InstallerTemp";
-        private readonly NuGetUpgraderConfig nuGetUpgraderConfig;
 
         private InstallManifest installManifest;
-        private IPackageSearchMetadata highestVersionAvailable;
         private NuGetFeed nuGetFeed;
         private ICredentialStore credentialStore;
         private bool isNuGetFeedInitialized;
@@ -81,6 +83,8 @@ namespace GVFS.Common.NuGetUpgrade
 
         public string DownloadedPackagePath { get; private set; }
 
+        public override bool SupportsAnonymousVersionQuery { get => false; }
+
         /// <summary>
         /// Path to unzip the downloaded upgrade package
         /// </summary>
@@ -140,30 +144,6 @@ namespace GVFS.Common.NuGetUpgrade
             return true;
         }
 
-        public static bool TryCreateAzDevOrgUrlFromPackageFeedUrl(string packageFeedUrl, out string azureDevOpsUrl, out string error)
-        {
-            // We expect a URL of the form https://pkgs.dev.azure.com/{org}
-            // and want to convert it to a URL of the form https://{org}.visualstudio.com
-            Regex packageUrlRegex = new Regex(
-                @"^https://pkgs.dev.azure.com/(?<org>.+?)/",
-                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-            Match urlMatch = packageUrlRegex.Match(packageFeedUrl);
-
-            if (!urlMatch.Success)
-            {
-                azureDevOpsUrl = null;
-                error = $"Input URL {packageFeedUrl} did not match expected format for an Azure DevOps Package Feed URL";
-                return false;
-            }
-
-            string org = urlMatch.Groups["org"].Value;
-
-            azureDevOpsUrl = urlMatch.Result($"https://{org}.visualstudio.com");
-            error = null;
-
-            return true;
-        }
-
         /// <summary>
         /// Performs a replacement on well known strings in the arguments field of a manifest entry.
         /// </summary>
@@ -214,33 +194,33 @@ namespace GVFS.Common.NuGetUpgrade
                 IList<IPackageSearchMetadata> queryResults = this.QueryFeed(firstAttempt: true);
 
                 // Find the package with the highest version
-                IPackageSearchMetadata highestVersionAvailable = null;
+                IPackageSearchMetadata newestPackage = null;
                 foreach (IPackageSearchMetadata result in queryResults)
                 {
-                    if (highestVersionAvailable == null || result.Identity.Version > highestVersionAvailable.Identity.Version)
+                    if (newestPackage == null || result.Identity.Version > newestPackage.Identity.Version)
                     {
-                        highestVersionAvailable = result;
+                        newestPackage = result;
                     }
                 }
 
-                if (highestVersionAvailable != null &&
-                    highestVersionAvailable.Identity.Version.Version > this.installedVersion)
+                if (newestPackage != null &&
+                    newestPackage.Identity.Version.Version > this.installedVersion)
                 {
-                    this.highestVersionAvailable = highestVersionAvailable;
+                    this.highestVersionAvailable = newestPackage.Identity.Version.Version;
                 }
 
-                newVersion = this.highestVersionAvailable?.Identity?.Version?.Version;
+                newVersion = this.highestVersionAvailable;
 
                 if (newVersion != null)
                 {
                     this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - new version available: installedVersion: {this.installedVersion}, highestVersionAvailable: {newVersion}");
-                    message = $"New version {highestVersionAvailable.Identity.Version} is available.";
+                    message = $"New version {newestPackage.Identity.Version} is available.";
                     return true;
                 }
-                else if (highestVersionAvailable != null)
+                else if (newestPackage != null)
                 {
                     this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - up-to-date");
-                    message = $"highest version available is {highestVersionAvailable.Identity.Version}, you are up-to-date";
+                    message = $"highest version available is {newestPackage.Identity.Version}, you are up-to-date";
                     return true;
                 }
                 else
@@ -275,6 +255,11 @@ namespace GVFS.Common.NuGetUpgrade
                 return false;
             }
 
+            if (!this.EnsureNuGetFeedInitialized(out errorMessage))
+            {
+                return false;
+            }
+
             if (!this.TryCreateAndConfigureDownloadDirectory(this.tracer, out errorMessage))
             {
                 this.tracer.RelatedError($"{nameof(NuGetUpgrader)}.{nameof(this.TryCreateAndConfigureDownloadDirectory)} failed. {errorMessage}");
@@ -285,7 +270,15 @@ namespace GVFS.Common.NuGetUpgrade
             {
                 try
                 {
-                    this.DownloadedPackagePath = this.nuGetFeed.DownloadPackageAsync(this.highestVersionAvailable.Identity).GetAwaiter().GetResult();
+                    PackageIdentity packageId = this.GetPackageForVersion(this.highestVersionAvailable);
+
+                    if (packageId == null)
+                    {
+                        errorMessage = $"The specified version {this.highestVersionAvailable} was not found in the NuGet feed. Please check with your administrator to make sure the feed is set up correctly.";
+                        return false;
+                    }
+
+                    this.DownloadedPackagePath = this.nuGetFeed.DownloadPackageAsync(packageId).GetAwaiter().GetResult();
                 }
                 catch (Exception ex)
                 {
@@ -461,6 +454,23 @@ namespace GVFS.Common.NuGetUpgrade
             return "{" + tokenString + "}";
         }
 
+        private PackageIdentity GetPackageForVersion(Version version)
+        {
+            IList<IPackageSearchMetadata> queryResults = this.QueryFeed(firstAttempt: true);
+
+            IPackageSearchMetadata packageForVersion = null;
+            foreach (IPackageSearchMetadata result in queryResults)
+            {
+                if (result.Identity.Version.Version == version)
+                {
+                    packageForVersion = result;
+                    break;
+                }
+            }
+
+            return packageForVersion?.Identity;
+        }
+
         private bool TryGetPersonalAccessToken(string credentialUrl, ITracer tracer, out string token, out string error)
         {
             error = null;
@@ -566,7 +576,7 @@ namespace GVFS.Common.NuGetUpgrade
             try
             {
                 string authUrl;
-                if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
+                if (!AzDevOpsOrgFromNuGetFeed.TryCreateCredentialQueryUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
                 {
                     return false;
                 }
@@ -597,7 +607,7 @@ namespace GVFS.Common.NuGetUpgrade
                 }
 
                 string authUrl;
-                if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
+                if (!AzDevOpsOrgFromNuGetFeed.TryCreateCredentialQueryUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
                 {
                     return false;
                 }
@@ -617,8 +627,8 @@ namespace GVFS.Common.NuGetUpgrade
 
         public class NuGetUpgraderConfig
         {
-            private readonly ITracer tracer;
-            private readonly LocalGVFSConfig localConfig;
+            protected readonly ITracer tracer;
+            protected readonly LocalGVFSConfig localConfig;
 
             public NuGetUpgraderConfig(ITracer tracer, LocalGVFSConfig localGVFSConfig)
             {
@@ -646,7 +656,7 @@ namespace GVFS.Common.NuGetUpgrade
             /// NuGetUpgrader is considered ready if all required
             /// config settings are present.
             /// </summary>
-            public bool IsReady(out string error)
+            public virtual bool IsReady(out string error)
             {
                 if (string.IsNullOrEmpty(this.FeedUrl) ||
                     string.IsNullOrEmpty(this.PackageFeedName))
@@ -665,7 +675,7 @@ namespace GVFS.Common.NuGetUpgrade
             /// <summary>
             /// Check if the NuGetUpgrader is configured.
             /// </summary>
-            public bool IsConfigured(out string error)
+            public virtual bool IsConfigured(out string error)
             {
                 if (string.IsNullOrEmpty(this.FeedUrl) &&
                     string.IsNullOrEmpty(this.PackageFeedName))
@@ -684,7 +694,7 @@ namespace GVFS.Common.NuGetUpgrade
             /// <summary>
             /// Try to load the config for a NuGet upgrader. Returns false if there was an error reading the config.
             /// </summary>
-            public bool TryLoad(out string error)
+            public virtual bool TryLoad(out string error)
             {
                 string configValue;
                 if (!this.localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl, out configValue, out error))
