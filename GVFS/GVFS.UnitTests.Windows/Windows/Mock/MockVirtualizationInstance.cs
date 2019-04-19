@@ -2,7 +2,6 @@
 using GVFS.UnitTests.Windows.Windows.Mock;
 using Microsoft.Windows.ProjFS;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
@@ -28,12 +27,6 @@ namespace GVFS.UnitTests.Windows.Mock
             this.waitForCreateWriteBuffer = new ManualResetEvent(true);
 
             this.WriteFileReturnResult = HResult.Ok;
-        }
-
-        public HResult CompletionResult
-        {
-            get { return this.completionResult; }
-            set { this.completionResult = value; }
         }
 
         public ConcurrentHashSet<string> CreatedPlaceholders { get; private set; }
@@ -132,7 +125,7 @@ namespace GVFS.UnitTests.Windows.Mock
         public HResult WaitForCompletionStatus()
         {
             this.commandCompleted.WaitOne();
-            return this.CompletionResult;
+            return this.completionResult;
         }
 
         public void WaitForPlaceholderCreate()
@@ -172,7 +165,7 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public HResult CompleteCommand(int commandId, HResult completionResult)
         {
-            this.CompletionResult = completionResult;
+            this.completionResult = completionResult;
             this.commandCompleted.Set();
             return HResult.Ok;
         }
