@@ -2,7 +2,6 @@
 using GVFS.UnitTests.Windows.Windows.Mock;
 using Microsoft.Windows.ProjFS;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
@@ -15,6 +14,9 @@ namespace GVFS.UnitTests.Windows.Mock
         private ManualResetEvent unblockCreateWriteBuffer;
         private ManualResetEvent waitForCreateWriteBuffer;
 
+        private volatile HResult completionResult;
+        private volatile HResult writeFileReturnResult;
+
         public MockVirtualizationInstance()
         {
             this.commandCompleted = new AutoResetEvent(false);
@@ -26,8 +28,6 @@ namespace GVFS.UnitTests.Windows.Mock
 
             this.WriteFileReturnResult = HResult.Ok;
         }
-
-        public HResult CompletionResult { get; set; }
 
         public ConcurrentHashSet<string> CreatedPlaceholders { get; private set; }
 
@@ -47,7 +47,11 @@ namespace GVFS.UnitTests.Windows.Mock
         public NotifyPreCreateHardlinkCallback OnNotifyPreCreateHardlink { get; set; }
         public QueryFileNameCallback OnQueryFileName { get; set; }
 
-        public HResult WriteFileReturnResult { get; set; }
+        public HResult WriteFileReturnResult
+        {
+            get { return this.writeFileReturnResult; }
+            set { this.writeFileReturnResult = value; }
+        }
 
         public uint NegativePathCacheCount { get; set; }
 
@@ -121,7 +125,7 @@ namespace GVFS.UnitTests.Windows.Mock
         public HResult WaitForCompletionStatus()
         {
             this.commandCompleted.WaitOne();
-            return this.CompletionResult;
+            return this.completionResult;
         }
 
         public void WaitForPlaceholderCreate()
@@ -161,8 +165,8 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public HResult CompleteCommand(int commandId, HResult completionResult)
         {
+            this.completionResult = completionResult;
             this.commandCompleted.Set();
-            this.CompletionResult = completionResult;
             return HResult.Ok;
         }
 
