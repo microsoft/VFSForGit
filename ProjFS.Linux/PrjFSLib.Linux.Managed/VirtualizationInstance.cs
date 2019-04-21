@@ -299,19 +299,24 @@ namespace PrjFSLib.Linux
                 return 0;
             }
 
+            bool isLink = (ev.Mask & ProjFS.Constants.PROJFS_ONLINK) != 0;
             NotificationType nt;
 
             if ((ev.Mask & ProjFS.Constants.PROJFS_DELETE_PERM) != 0)
             {
                 nt = NotificationType.PreDelete;
             }
-            else if ((ev.Mask & ProjFS.Constants.PROJFS_CREATE) != 0)
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_CREATE) != 0 && !isLink)
             {
                 nt = NotificationType.NewFileCreated;
             }
             else if ((ev.Mask & ProjFS.Constants.PROJFS_MOVE) != 0)
             {
                 nt = NotificationType.FileRenamed;
+            }
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_CREATE) != 0 && isLink)
+            {
+                nt = NotificationType.HardLinkCreated;
             }
             else if ((ev.Mask & ProjFS.Constants.PROJFS_OPEN_PERM) != 0)
             {
@@ -334,9 +339,14 @@ namespace PrjFSLib.Linux
                 string currentRelativePath = relativePath;
 
                 // TODO(Linux): can other intermediate file ops race us here?
-                if (nt == NotificationType.FileRenamed)
+                if (nt == NotificationType.FileRenamed || nt == NotificationType.HardLinkCreated)
                 {
                     currentRelativePath = PtrToStringUTF8(ev.TargetPath);
+
+                    if (nt == NotificationType.HardLinkCreated)
+                    {
+                        relativePath = currentRelativePath;
+                    }
                 }
 
                 result = this.projfs.GetProjAttrs(
