@@ -306,6 +306,10 @@ namespace PrjFSLib.Linux
             {
                 nt = NotificationType.PreDelete;
             }
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_CLOSE_WRITE) != 0)
+            {
+                nt = NotificationType.FileModified;
+            }
             else if ((ev.Mask & ProjFS.Constants.PROJFS_CREATE) != 0 && !isLink)
             {
                 nt = NotificationType.NewFileCreated;
