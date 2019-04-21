@@ -14,6 +14,7 @@ namespace PrjFSLib.Linux.Interop
             public const ulong PROJFS_OPEN_PERM = 0x00010000;
             public const ulong PROJFS_ONDIR = 0x40000000;
             public const ulong PROJFS_DELETE_PERM = 0x000100000000;
+            public const ulong PROJFS_ONLINK = 0x100000000000;
         }
     }
 }
