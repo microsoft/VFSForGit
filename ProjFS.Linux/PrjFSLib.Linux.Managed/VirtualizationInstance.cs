@@ -301,17 +301,21 @@ namespace PrjFSLib.Linux
 
             NotificationType nt;
 
-            if ((ev.Mask & ProjFS.Constants.PROJFS_DELETE_SELF) != 0)
+            if ((ev.Mask & ProjFS.Constants.PROJFS_DELETE_PERM) != 0)
             {
                 nt = NotificationType.PreDelete;
             }
-            else if ((ev.Mask & ProjFS.Constants.PROJFS_MOVE_SELF) != 0)
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_CREATE) != 0)
+            {
+                nt = NotificationType.NewFileCreated;
+            }
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_MOVE) != 0)
             {
                 nt = NotificationType.FileRenamed;
             }
-            else if ((ev.Mask & ProjFS.Constants.PROJFS_CREATE_SELF) != 0)
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_OPEN_PERM) != 0)
             {
-                nt = NotificationType.NewFileCreated;
+                nt = NotificationType.PreConvertToFull;
             }
             else
             {
