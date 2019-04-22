@@ -253,13 +253,6 @@ namespace GVFS.Platform.Windows
                     return true;
                 }
 
-                if (!isProjFSFeatureAvailable)
-                {
-                    // If enabling ProjFS failed because we were unable to find the optional feature, fallback
-                    // on installing ProjFS via the INF
-                    return TryInstallProjFSViaINF(tracer, fileSystem);
-                }
-
                 return false;
             }
 
