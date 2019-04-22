@@ -5,6 +5,7 @@ using Microsoft.Win32;
 using Microsoft.Windows.ProjFS;
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -26,6 +27,7 @@ namespace GVFS.Platform.Windows
         private const string PrjFltAutoLoggerStartValue = "Start";
 
         private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
+        private const string System32DriversRoot = @"%SystemRoot%\System32\drivers";
 
         // From "Autologger" section of prjflt.inf
         private const string FilterLoggerGuid = "ee4206ff-4a4d-452f-be56-6bd0ed272b44";
@@ -284,6 +286,90 @@ namespace GVFS.Platform.Windows
             metadata.Add(nameof(existsInAppDirectory), existsInAppDirectory);
             tracer.RelatedEvent(EventLevel.Informational, nameof(IsNativeLibInstalled), metadata);
             return existsInSystem32 || existsInAppDirectory;
+        }
+
+        public static bool TryCopyNativeLibIfDriverVersionsMatch(ITracer tracer, PhysicalFileSystem fileSystem, out string copyNativeDllError)
+        {
+            string system32NativeLibraryPath = Path.Combine(Environment.SystemDirectory, ProjFSNativeLibFileName);
+            if (fileSystem.FileExists(system32NativeLibraryPath))
+            {
+                copyNativeDllError = $"{ProjFSNativeLibFileName} already exists at {system32NativeLibraryPath}";
+                return false;
+            }
+
+            string gvfsProcessLocation = ProcessHelper.GetCurrentProcessLocation();
+            string appDirectoryNativeLibraryPath;
+            string installedNativeLibraryPath;
+            GetNativeLibPaths(gvfsProcessLocation, out installedNativeLibraryPath, out appDirectoryNativeLibraryPath);
+            if (fileSystem.FileExists(appDirectoryNativeLibraryPath))
+            {
+                copyNativeDllError = $"{ProjFSNativeLibFileName} already exists at {appDirectoryNativeLibraryPath}";
+                return false;
+            }
+
+            if (!fileSystem.FileExists(installedNativeLibraryPath))
+            {
+                copyNativeDllError = $"{installedNativeLibraryPath} not found, no {ProjFSNativeLibFileName} available to copy";
+                return false;
+            }
+
+            string installedPrjfltDriverPath = Path.Combine(gvfsProcessLocation, "Filter", DriverFileName);
+            if (!fileSystem.FileExists(installedPrjfltDriverPath))
+            {
+                copyNativeDllError = $"{installedPrjfltDriverPath} not found, unable to validate that packaged driver matches installed driver";
+                return false;
+            }
+
+            string system32PrjfltDriverPath = Path.Combine(Environment.ExpandEnvironmentVariables(System32DriversRoot), DriverFileName);
+            if (!fileSystem.FileExists(system32PrjfltDriverPath))
+            {
+                copyNativeDllError = $"{system32PrjfltDriverPath} not found, unable to validate that packaged driver matches installed driver";
+                return false;
+            }
+
+            FileVersionInfo packagedDriverVersion;
+            FileVersionInfo system32DriverVersion;
+            try
+            {
+                packagedDriverVersion = FileVersionInfo.GetVersionInfo(installedPrjfltDriverPath);
+                system32DriverVersion = FileVersionInfo.GetVersionInfo(system32PrjfltDriverPath);
+                if (packagedDriverVersion.FileVersion != system32DriverVersion.FileVersion)
+                {
+                    copyNativeDllError = $"Packaged sys FileVersion '{packagedDriverVersion.FileVersion}' does not match System32 sys FileVersion '{system32DriverVersion.FileVersion}'";
+                    return false;
+                }
+
+                if (packagedDriverVersion.ProductVersion != system32DriverVersion.ProductVersion)
+                {
+                    copyNativeDllError = $"Packaged sys ProductVersion '{packagedDriverVersion.ProductVersion}' does not match System32 sys ProductVersion '{system32DriverVersion.ProductVersion}'";
+                    return false;
+                }
+            }
+            catch (FileNotFoundException e)
+            {
+                EventMetadata metadata = CreateEventMetadata(e);
+                tracer.RelatedWarning(
+                    metadata,
+                    $"{nameof(TryCopyNativeLibIfDriverVersionsMatch)}: Exception caught while comparing sys versions");
+                copyNativeDllError = $"Exception caught while comparing sys versions: {e.Message}";
+                return false;
+            }
+
+            EventMetadata driverVersionMetadata = CreateEventMetadata();
+            driverVersionMetadata.Add($"{nameof(packagedDriverVersion)}.FileVersion", packagedDriverVersion.FileVersion.ToString());
+            driverVersionMetadata.Add($"{nameof(system32DriverVersion)}.FileVersion", system32DriverVersion.FileVersion.ToString());
+            driverVersionMetadata.Add($"{nameof(packagedDriverVersion)}.ProductVersion", packagedDriverVersion.ProductVersion.ToString());
+            driverVersionMetadata.Add($"{nameof(system32DriverVersion)}.ProductVersion", system32DriverVersion.ProductVersion.ToString());
+            tracer.RelatedInfo(driverVersionMetadata, $"{nameof(TryCopyNativeLibIfDriverVersionsMatch)}: Copying native library");
+
+            if (!TryCopyNativeLibToAppDirectory(tracer, fileSystem, gvfsProcessLocation))
+            {
+                copyNativeDllError = "Failed to copy native library";
+                return false;
+            }
+
+            copyNativeDllError = null;
+            return true;
         }
 
         public bool IsGVFSUpgradeSupported()

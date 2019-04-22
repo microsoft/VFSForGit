@@ -87,9 +87,26 @@ namespace GVFS.Service.Handlers
                 isNativeLibInstalled = ProjFSFilter.IsNativeLibInstalled(tracer, new PhysicalFileSystem());
                 if (!isNativeLibInstalled)
                 {
-                    string missingNativeLibMessage = "Native library is not installed";
-                    error = string.IsNullOrEmpty(error) ? missingNativeLibMessage : $"{error}. {missingNativeLibMessage}";
-                    tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: {missingNativeLibMessage}");
+                    if (isRunning)
+                    {
+                        tracer.RelatedInfo($"{nameof(TryEnablePrjFlt)}: Native ProjFS library is not installed, attempting to copy packaged version");
+                        string copyNativeDllError;
+                        if (ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(tracer, new PhysicalFileSystem(), out copyNativeDllError))
+                        {
+                            tracer.RelatedInfo($"{nameof(TryEnablePrjFlt)}: Successfully copied packaged ProjFS native library");
+                            isNativeLibInstalled = true;
+                        }
+                        else
+                        {
+                            tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: Failed to copy packaged ProjFS native library {copyNativeDllError}");
+                        }
+                    }
+                    else
+                    {
+                        string missingNativeLibMessage = "Native ProjFS library is not installed";
+                        error = string.IsNullOrEmpty(error) ? missingNativeLibMessage : $"{error}. {missingNativeLibMessage}";
+                        tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: {missingNativeLibMessage}");
+                    }
                 }
 
                 bool isAutoLoggerEnabled = ProjFSFilter.IsAutoLoggerEnabled(tracer);
