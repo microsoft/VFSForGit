@@ -9,9 +9,9 @@
   <PropertyGroup Label="DefaultSettings">
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
-    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..</SolutionDir>
-    <BuildOutputDir>$(SolutionDir)\..\BuildOutput</BuildOutputDir>
-    <PackagesDir>$(SolutionDir)\..\packages</PackagesDir>
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..\</SolutionDir>
+    <BuildOutputDir>$(SolutionDir)..\BuildOutput</BuildOutputDir>
+    <PackagesDir>$(SolutionDir)..\packages</PackagesDir>
   </PropertyGroup>
 
 </Project>
