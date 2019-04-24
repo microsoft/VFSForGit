@@ -29,6 +29,7 @@ namespace GVFS.Platform.Windows
             : base(
                 executableExtension: ".exe",
                 installerExtension: ".exe",
+                storagePath: GVFSConstants.WorkingDirectoryRootName,
                 underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
         {
         }

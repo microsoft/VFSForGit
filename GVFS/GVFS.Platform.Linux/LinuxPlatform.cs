@@ -15,7 +15,8 @@ namespace GVFS.Platform.Linux
 
         public LinuxPlatform()
             : base(
-                installerExtension: string.Empty)
+                installerExtension: string.Empty,
+                storagePath: GVFSConstants.DotGVFS.LowerPath)
         {
         }
 

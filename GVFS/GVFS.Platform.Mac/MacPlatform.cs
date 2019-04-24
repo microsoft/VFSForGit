@@ -7,7 +7,7 @@ namespace GVFS.Platform.Mac
 {
     public partial class MacPlatform : POSIXPlatform
     {
-        public MacPlatform() : base(installerExtension: ".dmg")
+        public MacPlatform() : base(installerExtension: ".dmg", storagePath: GVFSConstants.WorkingDirectoryRootName)
         {
         }
 

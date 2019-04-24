@@ -253,7 +253,7 @@ namespace GVFS.Common.Prefetch
             this.DownloadMissingCommit(commitToFetch, this.GitObjects);
 
             // For FastFetch only, examine the shallow file to determine the previous commit that had been fetched
-            string shallowFile = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Shallow);
+            string shallowFile = Path.Combine(this.Enlistment.StorageRoot, GVFSConstants.DotGit.Shallow);
             string previousCommit = null;
 
             // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check.
@@ -435,7 +435,7 @@ namespace GVFS.Common.Prefetch
             }
 
             // Update shallow file to ensure this is a valid shallow repo
-            AppendToNewlineSeparatedFile(Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Shallow), commitSha);
+            AppendToNewlineSeparatedFile(Path.Combine(this.Enlistment.StorageRoot, GVFSConstants.DotGit.Shallow), commitSha);
         }
 
         protected bool UpdateRef(ITracer tracer, string refName, string targetCommitish)
@@ -474,7 +474,7 @@ namespace GVFS.Common.Prefetch
 
             using (ITracer activity = this.Tracer.StartActivity("DownloadTrees", EventLevel.Informational, Keywords.Telemetry, startMetadata))
             {
-                using (LibGit2Repo repo = new LibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryRoot))
+                using (LibGit2Repo repo = new LibGit2Repo(this.Tracer, this.Enlistment.StorageRoot))
                 {
                     if (!repo.ObjectExists(commitSha))
                     {

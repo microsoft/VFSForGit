@@ -105,6 +105,7 @@ namespace GVFS.Common
 
             public static readonly string LogPath = Path.Combine(DotGVFS.Root, "logs");
             public static readonly string CorruptObjectsPath = Path.Combine(DotGVFS.Root, CorruptObjectsName);
+            public static readonly string LowerPath = Path.Combine(DotGVFS.Root, "lower");
 
             public static class Databases
             {

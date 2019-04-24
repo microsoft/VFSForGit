@@ -164,13 +164,13 @@ namespace GVFS.Mount
 
         private void ValidateMountPoints()
         {
-            DirectoryInfo workingDirectoryRootInfo = new DirectoryInfo(this.enlistment.WorkingDirectoryRoot);
+            DirectoryInfo workingDirectoryRootInfo = new DirectoryInfo(this.enlistment.StorageRoot);
             if (!workingDirectoryRootInfo.Exists)
             {
-                this.FailMountAndExit("Failed to initialize file system callbacks. Directory \"{0}\" must exist.", this.enlistment.WorkingDirectoryRoot);
+                this.FailMountAndExit("Failed to initialize file system callbacks. Directory \"{0}\" must exist.", this.enlistment.StorageRoot);
             }
 
-            string dotGitPath = Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
+            string dotGitPath = Path.Combine(this.enlistment.StorageRoot, GVFSConstants.DotGit.Root);
             DirectoryInfo dotGitPathInfo = new DirectoryInfo(dotGitPath);
             if (!dotGitPathInfo.Exists)
             {

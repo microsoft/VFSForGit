@@ -10,9 +10,9 @@ namespace GVFS.Common
 {
     public abstract class GVFSPlatform
     {
-        public GVFSPlatform(string executableExtension, string installerExtension, UnderConstructionFlags underConstruction)
+        public GVFSPlatform(string executableExtension, string installerExtension, string storagePath, UnderConstructionFlags underConstruction)
         {
-            this.Constants = new GVFSPlatformConstants(executableExtension, installerExtension);
+            this.Constants = new GVFSPlatformConstants(executableExtension, installerExtension, storagePath);
             this.UnderConstruction = underConstruction;
         }
 
@@ -91,14 +91,16 @@ namespace GVFS.Common
         {
             public static readonly char PathSeparator = Path.DirectorySeparatorChar;
 
-            public GVFSPlatformConstants(string executableExtension, string installerExtension)
+            public GVFSPlatformConstants(string executableExtension, string installerExtension, string storagePath)
             {
                 this.ExecutableExtension = executableExtension;
                 this.InstallerExtension = installerExtension;
+                this.StoragePath = storagePath;
             }
 
             public string ExecutableExtension { get; }
             public string InstallerExtension { get; }
+            public string StoragePath { get; }
 
             public string GVFSExecutableName
             {

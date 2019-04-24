@@ -15,7 +15,7 @@ namespace GVFS.UnitTests.Mock.Common
     public class MockPlatform : GVFSPlatform
     {
         public MockPlatform()
-            : base(executableExtension: ".mockexe", installerExtension: ".mockexe", underConstruction: new UnderConstructionFlags())
+            : base(executableExtension: ".mockexe", installerExtension: ".mockexe", storagePath: GVFSConstants.WorkingDirectoryRootName, underConstruction: new UnderConstructionFlags())
         {
         }
 

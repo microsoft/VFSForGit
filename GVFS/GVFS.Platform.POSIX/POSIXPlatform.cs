@@ -15,9 +15,10 @@ namespace GVFS.Platform.POSIX
     {
         private const string GVFSBinPath = "/usr/local/vfsforgit";
 
-        public POSIXPlatform(string installerExtension) : base(
+        public POSIXPlatform(string installerExtension, string storagePath) : base(
             executableExtension: string.Empty,
             installerExtension: installerExtension,
+            storagePath: storagePath,
             underConstruction: new UnderConstructionFlags(
                 supportsGVFSUpgrade: false,
                 supportsGVFSConfig: false))

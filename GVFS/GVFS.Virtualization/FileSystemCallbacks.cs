@@ -130,7 +130,7 @@ namespace GVFS.Virtualization
             // This lets us from having to add null checks to callsites into GitStatusCache.
             this.gitStatusCache = gitStatusCache ?? new GitStatusCache(context, TimeSpan.Zero);
 
-            this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Logs.Head);
+            this.logsHeadPath = Path.Combine(this.context.Enlistment.StorageRoot, GVFSConstants.DotGit.Logs.Head);
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("placeholders.Count", placeholders.EstimatedCount);
@@ -305,7 +305,7 @@ namespace GVFS.Virtualization
             metadata.Add(
                 "PhysicalDiskInfo",
                 GVFSPlatform.Instance.GetPhysicalDiskInfo(
-                    this.context.Enlistment.WorkingDirectoryRoot,
+                    this.context.Enlistment.StorageRoot,
                     sizeStatsOnly: true));
 
             return metadata;
