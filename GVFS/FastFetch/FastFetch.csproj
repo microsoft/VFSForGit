@@ -24,6 +24,8 @@
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
   </ItemGroup>
   
+  <!-- ItemGroup Conditions are not supported on VS for Mac and Choose/When must be
+       Used instead, see https://github.com/mono/monodevelop/issues/7417 -->
   <Choose>
     <When Condition="'$(OS)' == 'Windows_NT'">
       <ItemGroup>
