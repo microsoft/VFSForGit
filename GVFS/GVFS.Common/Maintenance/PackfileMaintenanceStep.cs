@@ -155,7 +155,8 @@ namespace GVFS.Common.Maintenance
                 this.GetPackFilesInfo(out int expireCount, out long expireSize, out hasKeep);
 
                 GitProcess.Result verifyAfterExpire = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyMultiPackIndex));
-                if (verifyAfterExpire.ExitCodeIsFailure)
+
+                if (!this.Stopping && verifyAfterExpire.ExitCodeIsFailure)
                 {
                     this.LogErrorAndRewriteMultiPackIndex(activity);
                 }
@@ -164,7 +165,8 @@ namespace GVFS.Common.Maintenance
                 this.GetPackFilesInfo(out int afterCount, out long afterSize, out hasKeep);
 
                 GitProcess.Result verifyAfterRepack = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyMultiPackIndex));
-                if (verifyAfterRepack.ExitCodeIsFailure)
+
+                if (!this.Stopping && verifyAfterRepack.ExitCodeIsFailure)
                 {
                     this.LogErrorAndRewriteMultiPackIndex(activity);
                 }
