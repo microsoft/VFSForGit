@@ -1,12 +1,18 @@
 #include "../PrjFSKext/ProviderMessaging.hpp"
 #include "../PrjFSKext/Locks.hpp"
+#include "../PrjFSKext/VirtualizationRoots.hpp"
 #include "KextLogMock.h"
 #include "KextMockUtilities.hpp"
 
 #include <sys/proc.h>
 #include <libkern/OSAtomic.h>
 #include <sys/kauth.h>
+#include "ProviderMessagingMock.hpp"
 
+bool static s_defaultRequestResult = true;
+bool static s_secondRequestResult = true;
+bool static s_cleanupRootsAfterRequest = false;
+int static s_requestCount = 0;
 
 bool ProviderMessaging_Init()
 {
@@ -18,6 +24,25 @@ void ProviderMessaging_Cleanup()
 {
 }
 
+void ProviderMessageMock_SetDefaultRequestResult(bool success)
+{
+    s_defaultRequestResult = success;
+}
+
+void ProviderMessageMock_SetCleanupRootsAfterRequest(bool cleanupRoots)
+{
+    s_cleanupRootsAfterRequest = cleanupRoots;
+}
+
+void ProviderMessageMock_SetSecondRequestResult(bool secondRequestResult)
+{
+    s_secondRequestResult = secondRequestResult;
+}
+
+void ProvidermessageMock_ResetResultCount()
+{
+    s_requestCount = 0;
+}
 
 void ProviderMessaging_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType)
 {
@@ -49,7 +74,22 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
         procname,
         kauthResult,
         kauthError);
-    return true;
+    
+    if (s_cleanupRootsAfterRequest)
+    {
+        VirtualizationRoots_Cleanup();
+    }
+    
+    s_requestCount++;
+    
+    if (s_requestCount == 2)
+    {
+        return s_secondRequestResult;
+    }
+    else
+    {
+        return s_defaultRequestResult;
+    }
 }
 
 void ProviderMessaging_AbortAllOutstandingEvents()

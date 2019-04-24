@@ -14,6 +14,7 @@
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
 #include "MockProc.hpp"
+#include "ProviderMessagingMock.hpp"
 #include "VnodeCacheEntriesWrapper.hpp"
 #include <tuple>
 
@@ -78,6 +79,11 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     MockProcess_AddContext(context, 501 /*pid*/);
     MockProcess_SetSelfPid(501);
     MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
+    
+    ProvidermessageMock_ResetResultCount();
+    ProviderMessageMock_SetDefaultRequestResult(true);
+    ProviderMessageMock_SetSecondRequestResult(true);
+    ProviderMessageMock_SetCleanupRootsAfterRequest(false);
 }
 
 - (void) tearDown
@@ -704,6 +710,177 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
         0);
     
     XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+- (void) testDeleteWithNoVirtualizationRoot {
+    VirtualizationRoots_Cleanup();
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_DELETE,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        0,
+        0);
+
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+- (void) testDeleteWhenRequestFails {
+    ProviderMessageMock_SetDefaultRequestResult(false);
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_DELETE,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        0,
+        0);
+
+   XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
+}
+
+- (void) testDeleteDirectoryWithNoVirtualizationRoot {
+    ProviderMessageMock_SetCleanupRootsAfterRequest(true);
+    testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_DELETE,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testDirVnode.get()),
+        0,
+        0);
+
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
+}
+
+
+- (void) testDeleteDirectoryWhenSecondRequestFails {
+    ProviderMessageMock_SetSecondRequestResult(false);
+    testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_DELETE,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testDirVnode.get()),
+        0,
+        0);
+
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
+}
+
+- (void) testReadAttributesDirectoryWithNoVirtualizationRoot {
+    VirtualizationRoots_Cleanup();
+    testDirVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_READ_ATTRIBUTES,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testDirVnode.get()),
+        0,
+        0);
+
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+- (void) testReadAttributesDirectoryWhenRequestFails {
+    ProviderMessageMock_SetDefaultRequestResult(false);
+    testDirVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_READ_ATTRIBUTES,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testDirVnode.get()),
+        0,
+        0);
+
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
+}
+
+- (void) testReadAttributesWithNoVirtualizationRoot {
+    VirtualizationRoots_Cleanup();
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_READ_ATTRIBUTES,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        0,
+        0);
+
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+- (void) testReadAttributesWhenRequestFails {
+    ProviderMessageMock_SetDefaultRequestResult(false);
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_READ_ATTRIBUTES,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        0,
+        0);
+
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
+}
+
+- (void) testWriteWithNoVirtualizationRoot {
+    ProviderMessageMock_SetCleanupRootsAfterRequest(true);
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_WRITE_DATA,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        0,
+        0);
+
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
+}
+
+- (void) testWriteWhenSecondRequestFails {
+    ProviderMessageMock_SetSecondRequestResult(false);
+    SetPrjFSFileXattrData(testFileVnode);
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_WRITE_DATA,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        0,
+        0);
+
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
+}
+
+- (void) testWriteDataToForkedPath {
+    // By setting namedStream, HandleVnodeOperation with treat testFileVnode as a named fork
+    testFileVnode->namedStream = true;
+    testFileVnode->GetParentVnode()->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(testFileVnode);
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+
+    HandleVnodeOperation(
+        nullptr,
+        nullptr,
+        KAUTH_VNODE_WRITE_DATA,
+        reinterpret_cast<uintptr_t>(context),
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        0,
+        0);
+
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 0);
 }
 
 

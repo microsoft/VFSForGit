@@ -1,0 +1,4 @@
+void ProvidermessageMock_ResetResultCount();
+void ProviderMessageMock_SetDefaultRequestResult(bool success);
+void ProviderMessageMock_SetCleanupRootsAfterRequest(bool cleanupRoots);
+void ProviderMessageMock_SetSecondRequestResult(bool secondRequestResult);
