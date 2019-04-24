@@ -7,6 +7,10 @@ INTEROP_DIR="$SCRIPTDIR/../PrjFSLib.Linux.Managed/Interop"
 
 CC=${CC:-cc}
 
+for includedir in '/usr/local/include/projfs' '/usr/include/projfs'; do
+  CPPFLAGS="${CPPFLAGS:+$CPPFLAGS }-I$includedir"
+done
+
 TMPFILE=$(mktemp -t vfsforgit.tmp.XXXXXX) || exit 1
 trap "rm -f -- '$TMPFILE'" EXIT
 
