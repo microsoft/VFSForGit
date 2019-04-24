@@ -560,7 +560,7 @@ namespace GVFS.CommandLine
             }
 
             File.WriteAllText(
-                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head),
+                Path.Combine(enlistment.LocalStorageRoot, GVFSConstants.DotGit.Head),
                 "ref: refs/heads/" + branch);
 
             if (!this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
@@ -646,7 +646,7 @@ namespace GVFS.CommandLine
             // Prepare the working directory folder for GVFS last to ensure that gvfs mount will fail if gvfs clone has failed
             Exception exception;
             string prepFileSystemError;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError, out exception))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.LocalStorageRoot, out prepFileSystemError, out exception))
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add(nameof(prepFileSystemError), prepFileSystemError);
@@ -688,7 +688,7 @@ git %*
 
         private Result TryInitRepo(ITracer tracer, GitRefs refs, Enlistment enlistmentToInit)
         {
-            string repoPath = enlistmentToInit.WorkingDirectoryRoot;
+            string repoPath = enlistmentToInit.LocalStorageRoot;
             GitProcess.Result initResult = GitProcess.Init(enlistmentToInit);
             if (initResult.ExitCodeIsFailure)
             {

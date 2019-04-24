@@ -104,7 +104,7 @@ namespace GVFS.Virtualization.Projection
             this.projectionParseComplete = new ManualResetEventSlim(initialState: false);
             this.wakeUpIndexParsingThread = new AutoResetEvent(initialState: false);
             this.projectionIndexBackupPath = Path.Combine(this.context.Enlistment.DotGVFSRoot, ProjectionIndexBackupName);
-            this.indexPath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index);
+            this.indexPath = Path.Combine(this.context.Enlistment.LocalStorageRoot, GVFSConstants.DotGit.Index);
             this.placeholderList = placeholderList;
             this.modifiedPaths = modifiedPaths;
         }

@@ -26,7 +26,7 @@ namespace GVFS.Common.Git
 
             this.libgit2RepoInvoker = new LibGit2RepoInvoker(
                 tracer,
-                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot)));
+                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.LocalStorageRoot)));
         }
 
         // For Unit Testing

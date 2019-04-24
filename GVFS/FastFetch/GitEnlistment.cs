@@ -10,6 +10,7 @@ namespace FastFetch
             : base(
                   repoRoot,
                   repoRoot,
+                  repoRoot,
                   null,
                   gitBinPath,
                   gvfsHooksRoot: null,

@@ -98,7 +98,7 @@ namespace GVFS.CommandLine
 
         public static bool TrySetRequiredGitConfigSettings(Enlistment enlistment)
         {
-            string expectedHooksPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.Root);
+            string expectedHooksPath = Path.Combine(enlistment.LocalStorageRoot, GVFSConstants.DotGit.Hooks.Root);
             expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
 
             string gitStatusCachePath = null;
@@ -683,7 +683,7 @@ You can specify a URL, a name of a configured cache server, or the special names
 
         private string GetAlternatesPath(GVFSEnlistment enlistment)
         {
-            return Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
+            return Path.Combine(enlistment.LocalStorageRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
         }
 
         private void CheckFileSystemSupportsRequiredFeatures(ITracer tracer, Enlistment enlistment)

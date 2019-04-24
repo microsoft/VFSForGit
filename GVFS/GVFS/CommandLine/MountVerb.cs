@@ -233,7 +233,7 @@ namespace GVFS.CommandLine
 
             try
             {
-                GitIndexProjection.ReadIndex(tracer, Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index));
+                GitIndexProjection.ReadIndex(tracer, Path.Combine(enlistment.LocalStorageRoot, GVFSConstants.DotGit.Index));
             }
             catch (Exception e)
             {

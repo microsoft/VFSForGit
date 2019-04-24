@@ -10,6 +10,7 @@ namespace GVFS.Common
         protected Enlistment(
             string enlistmentRoot,
             string workingDirectoryRoot,
+            string localStorageRoot,
             string repoUrl,
             string gitBinPath,
             string gvfsHooksRoot,
@@ -23,7 +24,8 @@ namespace GVFS.Common
 
             this.EnlistmentRoot = enlistmentRoot;
             this.WorkingDirectoryRoot = workingDirectoryRoot;
-            this.DotGitRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
+            this.LocalStorageRoot = localStorageRoot;
+            this.DotGitRoot = Path.Combine(this.LocalStorageRoot, GVFSConstants.DotGit.Root);
             this.GitBinPath = gitBinPath;
             this.GVFSHooksRoot = gvfsHooksRoot;
             this.FlushFileBuffersForPacks = flushFileBuffersForPacks;
@@ -54,6 +56,7 @@ namespace GVFS.Common
 
         public string EnlistmentRoot { get; }
         public string WorkingDirectoryRoot { get; }
+        public string LocalStorageRoot { get; }
         public string DotGitRoot { get; private set; }
         public abstract string GitObjectsRoot { get; protected set; }
         public abstract string LocalObjectsRoot { get; protected set; }
