@@ -37,8 +37,8 @@
     <Reference Include="CommandLine, Version=2.2.1.0, Culture=neutral, PublicKeyToken=de6f01bd326f8c32, processorArchitecture=MSIL">
       <HintPath>..\..\..\packages\CommandLineParser.2.2.1\lib\net45\CommandLine.dll</HintPath>
     </Reference>
-    <Reference Include="ProjectedFSLib.Managed, Version=1.0.19079.1, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
-      <HintPath>..\..\..\packages\Microsoft.Windows.ProjFS.1.0.19079.1\lib\net461\ProjectedFSLib.Managed.dll</HintPath>
+    <Reference Include="ProjectedFSLib.Managed, Version=1.0.19108.2, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
+      <HintPath>..\..\..\packages\Microsoft.Windows.ProjFS.1.0.19108.2\lib\net461\ProjectedFSLib.Managed.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
