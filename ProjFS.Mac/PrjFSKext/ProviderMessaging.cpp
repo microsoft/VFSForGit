@@ -23,13 +23,15 @@ struct OutstandingMessage
 static LIST_HEAD(OutstandingMessage_Head, OutstandingMessage) s_outstandingMessages = LIST_HEAD_INITIALIZER(OutstandingMessage_Head);
 static Mutex s_outstandingMessagesMutex = {};
 static atomic_uint_least64_t s_nextMessageId;
+static atomic_uint_least64_t s_messagesSent;
 static volatile bool s_isShuttingDown;
 
 
 bool ProviderMessaging_Init()
 {
     LIST_INIT(&s_outstandingMessages);
-    s_nextMessageId = 1;
+    s_nextMessageId = 0;
+    s_messagesSent = 0;
     
     s_isShuttingDown = false;
     
@@ -146,7 +148,13 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     };
     
     uint64_t nextMessageId = atomic_fetch_add(&s_nextMessageId, UINT64_C(1));
-    
+
+    if ((nextMessageId % 1000) == 0)
+    {
+        KextLog_Error("Message Health Count: Count:%lld Processed:%lld messageType:%d", s_nextMessageId, s_messagesSent, messageType);
+    }
+
+
     Message messageSpec = {};
     Message_Init(
         &messageSpec,
@@ -180,10 +188,22 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
         }
         else
         {
+            int loopCount = 0;
             while (!message.receivedResult &&
                    !s_isShuttingDown)
             {
+                if (loopCount > 12)
+                {
+                    KextLog_Error("NO RESPONSE AFTER %d seconds Count: Count:%lld Processed:%lld messageType:%d", loopCount * 5, nextMessageId, s_messagesSent, messageType);
+                }
+                
+                if (s_nextMessageId - s_messagesSent > 1000)
+                {
+                    KextLog_Error("While Loop Message Count: Count:%lld Processed:%lld messageType:%d", s_nextMessageId, s_messagesSent, messageType);
+                }
+                
                 Mutex_Sleep(5, &message, &s_outstandingMessagesMutex);
+                loopCount++;
             }
         
             if (s_isShuttingDown)
@@ -207,6 +227,12 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     }
     Mutex_Release(s_outstandingMessagesMutex);
     
+    atomic_fetch_add(&s_messagesSent, UINT64_C(1));
+
+    if (s_nextMessageId - s_messagesSent > 1000)
+    {
+         KextLog_Error("Ending Function Message Count: Count:%lld Processed:%lld messageType:%d", s_nextMessageId, s_messagesSent, messageType);
+    }
     return result;
 }
 

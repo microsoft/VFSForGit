@@ -656,6 +656,11 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     
     Message request = ParseMessageMemory(messageMemory, messageSize);
     const MessageHeader* requestHeader = request.messageHeader;
+
+    ostringstream ss2;
+    ss2 << "HandleKernelRequest: " << requestHeader->messageId;
+    string kernelMessage = ss2.str();
+    s_callbacks.LogError(kernelMessage.c_str());
     
     const char* absolutePath = nullptr;
     const char* relativePath = nullptr;
@@ -1279,6 +1284,12 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
 static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType responseType)
 {
     const uint64_t inputs[] = { messageId, responseType };
+    
+    ostringstream ss2;
+    ss2 << "SendKernelMessageResponse: " << messageId;
+    string kernelMessage = ss2.str();
+    s_callbacks.LogError(kernelMessage.c_str());
+
     IOReturn callResult = IOConnectCallScalarMethod(
         s_kernelServiceConnection,
         ProviderSelector_KernelMessageResponse,
