@@ -67,6 +67,7 @@ struct Message
 
 #if defined(KERNEL) || defined(KEXT_UNIT_TESTING)
 
+// TODO(Mac): Move to kernel-only header.
 void Message_Init(
     Message* spec,
     MessageHeader* header,
