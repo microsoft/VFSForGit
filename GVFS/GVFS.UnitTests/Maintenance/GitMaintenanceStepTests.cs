@@ -15,15 +15,23 @@ namespace GVFS.UnitTests.Maintenance
     {
         private GVFSContext context;
 
+        public enum WhenToStop
+        {
+            Never,
+            BeforeGitCommand,
+            DuringGitCommand
+        }
+
         [TestCase]
         public void GitMaintenanceStepRunsGitAction()
         {
             this.TestSetup();
 
-            CheckMethodStep step = new CheckMethodStep(this.context);
+            CheckMethodStep step = new CheckMethodStep(this.context, WhenToStop.Never);
             step.Execute();
 
             step.SawWorkInvoked.ShouldBeTrue();
+            step.SawEndOfMethod.ShouldBeTrue();
         }
 
         [TestCase]
@@ -32,12 +40,13 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup();
 
-            CheckMethodStep step = new CheckMethodStep(this.context);
+            CheckMethodStep step = new CheckMethodStep(this.context, WhenToStop.Never);
 
             step.Stop();
             step.Execute();
 
             step.SawWorkInvoked.ShouldBeFalse();
+            step.SawEndOfMethod.ShouldBeFalse();
         }
 
         [TestCase]
@@ -46,11 +55,12 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup();
 
-            CheckStopStep step = new CheckStopStep(this.context);
+            CheckMethodStep step = new CheckMethodStep(this.context, WhenToStop.BeforeGitCommand);
 
             step.Execute();
 
             step.SawWorkInvoked.ShouldBeFalse();
+            step.SawEndOfMethod.ShouldBeFalse();
         }
 
         [TestCase]
@@ -58,8 +68,7 @@ namespace GVFS.UnitTests.Maintenance
         public void GitMaintenanceStepThrowsIfStoppedDuringGitCommand()
         {
             this.TestSetup();
-
-            CheckStopDuringGitStep step = new CheckStopDuringGitStep(this.context);
+            CheckMethodStep step = new CheckMethodStep(this.context, WhenToStop.DuringGitCommand);
 
             step.Execute();
 
@@ -78,56 +87,12 @@ namespace GVFS.UnitTests.Maintenance
 
         public class CheckMethodStep : GitMaintenanceStep
         {
-            public CheckMethodStep(GVFSContext context)
+            private WhenToStop when;
+
+            public CheckMethodStep(GVFSContext context, WhenToStop when)
                 : base(context, requireObjectCacheLock: true)
             {
-            }
-
-            public bool SawWorkInvoked { get; set; }
-
-            public override string Area => "CheckMethodStep";
-
-            protected override void PerformMaintenance()
-            {
-                this.RunGitCommand(
-                    process =>
-                    {
-                        this.SawWorkInvoked = true;
-                        return null;
-                    },
-                    nameof(this.SawWorkInvoked));
-            }
-        }
-
-        public class CheckStopStep : GitMaintenanceStep
-        {
-            public CheckStopStep(GVFSContext context)
-                : base(context, requireObjectCacheLock: true)
-            {
-            }
-
-            public bool SawWorkInvoked { get; set; }
-
-            public override string Area => "CheckMethodStep";
-
-            protected override void PerformMaintenance()
-            {
-                this.Stop();
-                this.RunGitCommand(
-                    process =>
-                    {
-                        this.SawWorkInvoked = true;
-                        return null;
-                    },
-                    nameof(this.SawWorkInvoked));
-            }
-        }
-
-        public class CheckStopDuringGitStep : GitMaintenanceStep
-        {
-            public CheckStopDuringGitStep(GVFSContext context)
-                : base(context, requireObjectCacheLock: true)
-            {
+                this.when = when;
             }
 
             public bool SawWorkInvoked { get; set; }
@@ -137,11 +102,21 @@ namespace GVFS.UnitTests.Maintenance
 
             protected override void PerformMaintenance()
             {
+                if (this.when == WhenToStop.BeforeGitCommand)
+                {
+                    this.Stop();
+                }
+
                 this.RunGitCommand(
                     process =>
                     {
                         this.SawWorkInvoked = true;
-                        this.Stop();
+
+                        if (this.when == WhenToStop.DuringGitCommand)
+                        {
+                            this.Stop();
+                        }
+
                         return null;
                     },
                     nameof(this.SawWorkInvoked));
