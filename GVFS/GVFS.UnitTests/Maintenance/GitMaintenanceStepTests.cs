@@ -53,6 +53,20 @@ namespace GVFS.UnitTests.Maintenance
             step.SawWorkInvoked.ShouldBeFalse();
         }
 
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void GitMaintenanceStepThrowsIfStoppedDuringGitCommand()
+        {
+            this.TestSetup();
+
+            CheckStopDuringGitStep step = new CheckStopDuringGitStep(this.context);
+
+            step.Execute();
+
+            step.SawWorkInvoked.ShouldBeTrue();
+            step.SawEndOfMethod.ShouldBeFalse();
+        }
+
         private void TestSetup()
         {
             ITracer tracer = new MockTracer();
@@ -106,6 +120,33 @@ namespace GVFS.UnitTests.Maintenance
                         return null;
                     },
                     nameof(this.SawWorkInvoked));
+            }
+        }
+
+        public class CheckStopDuringGitStep : GitMaintenanceStep
+        {
+            public CheckStopDuringGitStep(GVFSContext context)
+                : base(context, requireObjectCacheLock: true)
+            {
+            }
+
+            public bool SawWorkInvoked { get; set; }
+            public bool SawEndOfMethod { get; set; }
+
+            public override string Area => "CheckMethodStep";
+
+            protected override void PerformMaintenance()
+            {
+                this.RunGitCommand(
+                    process =>
+                    {
+                        this.SawWorkInvoked = true;
+                        this.Stop();
+                        return null;
+                    },
+                    nameof(this.SawWorkInvoked));
+
+                this.SawEndOfMethod = true;
             }
         }
     }

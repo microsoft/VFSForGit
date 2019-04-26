@@ -132,7 +132,12 @@ namespace GVFS.Common.Maintenance
 
                 GitProcess.Result result = work.Invoke(this.MaintenanceGitProcess);
 
-                if (!this.Stopping && result?.ExitCodeIsFailure == true)
+                if (this.Stopping)
+                {
+                    throw new StoppingException();
+                }
+
+                if (result?.ExitCodeIsFailure == true)
                 {
                     string errorMessage = result?.Errors == null ? string.Empty : result.Errors;
                     if (errorMessage.Length > 1000)
