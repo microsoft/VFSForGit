@@ -1,45 +1,47 @@
 ﻿using System;
 using System.IO.Pipes;
-using System.Text;
 using GVFS.Common.Git;
 using Newtonsoft.Json;
 
 namespace GVFS.Common.Tracing
 {
-    public class TelemetryDaemonEventListener : EventListener
+    public class TelemetryDaemonEventListener : EventListener, IQueuedPipeStringWriterEventSink
     {
-        private readonly string pipeName;
         private readonly string providerName;
         private readonly string enlistmentId;
         private readonly string mountId;
         private readonly string vfsVersion;
 
-        private NamedPipeClientStream pipeClient;
+        private QueuedPipeStringWriter pipeWriter;
 
         private TelemetryDaemonEventListener(
             string providerName,
             string enlistmentId,
             string mountId,
-            string pipeName)
-            : base(EventLevel.Verbose, Keywords.Telemetry)
+            string pipeName,
+            IEventListenerEventSink eventSink)
+            : base(EventLevel.Verbose, Keywords.Telemetry, eventSink)
         {
-            this.pipeName = pipeName;
             this.providerName = providerName;
             this.enlistmentId = enlistmentId;
             this.mountId = mountId;
             this.vfsVersion = ProcessHelper.GetCurrentProcessVersion();
+
+            this.pipeWriter = new QueuedPipeStringWriter(
+                () => new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous),
+                this);
+            this.pipeWriter.Start();
         }
 
         public string GitCommandSessionId { get; set; }
 
-        public static TelemetryDaemonEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
+        public static TelemetryDaemonEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId, IEventListenerEventSink eventSink)
         {
             // This listener is disabled unless the user specifies the proper git config setting.
-
             string telemetryPipe = GetConfigValue(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryPipe);
             if (!string.IsNullOrEmpty(telemetryPipe))
             {
-                return new TelemetryDaemonEventListener(providerName, enlistmentId, mountId, telemetryPipe);
+                return new TelemetryDaemonEventListener(providerName, enlistmentId, mountId, telemetryPipe, eventSink);
             }
             else
             {
@@ -49,14 +51,42 @@ namespace GVFS.Common.Tracing
 
         public override void Dispose()
         {
-            this.pipeClient?.Dispose();
+            if (this.pipeWriter != null)
+            {
+                this.pipeWriter.Stop();
+                this.pipeWriter.Dispose();
+                this.pipeWriter = null;
+            }
+
             base.Dispose();
+        }
+
+        void IQueuedPipeStringWriterEventSink.OnStateChanged(
+            QueuedPipeStringWriter writer,
+            QueuedPipeStringWriterState state,
+            Exception exception)
+        {
+            switch (state)
+            {
+                case QueuedPipeStringWriterState.Failing:
+                    this.RaiseListenerFailure(exception?.ToString());
+                    break;
+                case QueuedPipeStringWriterState.Healthy:
+                    this.RaiseListenerRecovery();
+                    break;
+            }
         }
 
         protected override void RecordMessageInternal(TraceEventMessage message)
         {
-            string json = this.SerializeMessage(message);
-            this.SendMessage(json);
+            string pipeMessage = this.CreatePipeMessage(message);
+
+            bool dropped = !this.pipeWriter.TryEnqueue(pipeMessage);
+
+            if (dropped)
+            {
+                this.RaiseListenerFailure("Pipe delivery queue is full. Message was dropped.");
+            }
         }
 
         private static string GetConfigValue(string gitBinRoot, string configKey)
@@ -74,16 +104,16 @@ namespace GVFS.Common.Tracing
             return value.TrimEnd('\r', '\n');
         }
 
-        private string SerializeMessage(TraceEventMessage message)
+        private string CreatePipeMessage(TraceEventMessage message)
         {
-            var pipeMessage = new TelemetryMessage
+            var pipeMessage = new PipeMessage
             {
                 Version = this.vfsVersion,
                 ProviderName = this.providerName,
                 EventName = message.EventName,
                 EventLevel = message.Level,
                 EventOpcode = message.Opcode,
-                Payload = new TelemetryMessage.TelemetryMessagePayload
+                Payload = new PipeMessage.PipeMessagePayload
                 {
                     EnlistmentId = this.enlistmentId,
                     MountId = this.mountId,
@@ -97,45 +127,7 @@ namespace GVFS.Common.Tracing
             return pipeMessage.ToJson();
         }
 
-        private void SendMessage(string message)
-        {
-            // Create pipe if this is the first message, or if the last connection broke for any reason
-            if (this.pipeClient == null)
-            {
-                var pipe = new NamedPipeClientStream(".", this.pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
-
-                // Specify a instantaneous timeout because we don't want to hold up the rest of the
-                // application if the pipe is not available; we will just drop this event.
-                // We let any TimeoutExceptions bubble up and will try again with a new pipe on the next SendMessage call.
-                pipe.Connect(timeout: 0);
-
-                // Keep a hold of this connected pipe for future messages
-                this.pipeClient = pipe;
-            }
-
-            try
-            {
-                // If we're in byte/stream transmission mode rather than message mode
-                // we should signal the end of each message with a line-feed (LF) character.
-                if (this.pipeClient.TransmissionMode == PipeTransmissionMode.Byte)
-                {
-                    message += '\n';
-                }
-
-                var buffer = Encoding.UTF8.GetBytes(message);
-                this.pipeClient.Write(buffer, 0, buffer.Length);
-            }
-            catch (Exception)
-            {
-                // We can't send this message for some reason (e.g., broken pipe); we attempt no recovery or retry
-                // mechanism and drop this message. We will try to recreate/connect the pipe on the next message.
-                this.pipeClient.Dispose();
-                this.pipeClient = null;
-                throw;
-            }
-        }
-
-        public class TelemetryMessage
+        public class PipeMessage
         {
             [JsonProperty("version")]
             public string Version { get; set; }
@@ -148,11 +140,11 @@ namespace GVFS.Common.Tracing
             [JsonProperty("eventOpcode")]
             public EventOpcode EventOpcode { get; set; }
             [JsonProperty("payload")]
-            public TelemetryMessagePayload Payload { get; set; }
+            public PipeMessagePayload Payload { get; set; }
 
-            public static TelemetryMessage FromJson(string json)
+            public static PipeMessage FromJson(string json)
             {
-                return JsonConvert.DeserializeObject<TelemetryMessage>(json);
+                return JsonConvert.DeserializeObject<PipeMessage>(json);
             }
 
             public string ToJson()
@@ -160,7 +152,7 @@ namespace GVFS.Common.Tracing
                 return JsonConvert.SerializeObject(this);
             }
 
-            public class TelemetryMessagePayload
+            public class PipeMessagePayload
             {
                 [JsonProperty("enlistmentId")]
                 public string EnlistmentId { get; set; }

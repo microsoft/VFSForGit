@@ -8,8 +8,8 @@ namespace GVFS.Common.Tracing
         private FileStream logFile;
         private TextWriter writer;
 
-        public LogFileEventListener(string logFilePath, EventLevel maxVerbosity, Keywords keywordFilter)
-            : base(maxVerbosity, keywordFilter)
+        public LogFileEventListener(string logFilePath, EventLevel maxVerbosity, Keywords keywordFilter, IEventListenerEventSink eventSink)
+            : base(maxVerbosity, keywordFilter, eventSink)
         {
             this.SetLogFilePath(logFilePath);
         }

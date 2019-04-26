@@ -7,37 +7,32 @@ namespace GVFS.Common.Tracing
     {
         private readonly EventLevel maxVerbosity;
         private readonly Keywords keywordFilter;
+        private readonly IEventListenerEventSink eventSink;
 
-        protected EventListener(EventLevel maxVerbosity, Keywords keywordFilter)
+        protected EventListener(EventLevel maxVerbosity, Keywords keywordFilter, IEventListenerEventSink eventSink)
         {
             this.maxVerbosity = maxVerbosity;
             this.keywordFilter = keywordFilter;
+            this.eventSink = eventSink;
         }
 
         public virtual void Dispose()
         {
         }
 
-        public bool? TryRecordMessage(TraceEventMessage message, out string errorMessage)
+        public void RecordMessage(TraceEventMessage message)
         {
             if (this.IsEnabled(message.Level, message.Keywords))
             {
                 try
                 {
                     this.RecordMessageInternal(message);
-
-                    errorMessage = null;
-                    return true;
                 }
                 catch (Exception ex)
                 {
-                    errorMessage = ex.ToString();
-                    return false;
+                    this.RaiseListenerFailure(ex.ToString());
                 }
             }
-
-            errorMessage = null;
-            return null;
         }
 
         protected abstract void RecordMessageInternal(TraceEventMessage message);
@@ -66,6 +61,16 @@ namespace GVFS.Common.Tracing
             return this.keywordFilter != Keywords.None &&
                 this.maxVerbosity >= level &&
                 (this.keywordFilter & keyword) != 0;
+        }
+
+        protected void RaiseListenerRecovery()
+        {
+            this.eventSink?.OnListenerRecovery(this);
+        }
+
+        protected void RaiseListenerFailure(string errorMessage)
+        {
+            this.eventSink?.OnListenerFailure(this, errorMessage);
         }
     }
 }
