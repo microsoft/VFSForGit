@@ -43,12 +43,12 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     string workingDirectoryRoot = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName);
 
                     // Run through the folder placeholders adding to the placeholder list
-                    IEnumerable<PlaceholderListDatabase.PlaceholderData> folderPlaceholderPaths =
+                    IEnumerable<IPlaceholderData> folderPlaceholderPaths =
                         GetFolderPlaceholdersFromDisk(tracer, new PhysicalFileSystem(), workingDirectoryRoot)
                         .Select(x => x.Substring(workingDirectoryRoot.Length + 1))
                         .Select(x => new PlaceholderListDatabase.PlaceholderData(x, GVFSConstants.AllZeroSha));
 
-                    List<PlaceholderListDatabase.PlaceholderData> placeholderEntries = placeholders.GetAllEntriesAndPrepToWriteAllEntries();
+                    List<IPlaceholderData> placeholderEntries = placeholders.GetAllEntriesAndPrepToWriteAllEntries();
                     placeholderEntries.AddRange(folderPlaceholderPaths);
 
                     placeholders.WriteAllEntriesAndFlush(placeholderEntries);

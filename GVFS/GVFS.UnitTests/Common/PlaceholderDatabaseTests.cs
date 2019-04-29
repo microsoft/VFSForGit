@@ -75,7 +75,7 @@ namespace GVFS.UnitTests.Common
             string error;
             PlaceholderListDatabase dut2;
             PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
-            List<PlaceholderListDatabase.PlaceholderData> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
+            List<IPlaceholderData> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
             allData.Count.ShouldEqual(2);
         }
 
@@ -97,8 +97,8 @@ namespace GVFS.UnitTests.Common
             string error;
             PlaceholderListDatabase dut2;
             PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
-            List<PlaceholderListDatabase.PlaceholderData> fileData;
-            List<PlaceholderListDatabase.PlaceholderData> folderData;
+            List<IPlaceholderData> fileData;
+            List<IPlaceholderData> folderData;
             dut2.GetAllEntriesAndPrepToWriteAllEntries(out fileData, out folderData);
             fileData.Count.ShouldEqual(2);
             folderData.Count.ShouldEqual(3);
@@ -138,7 +138,7 @@ namespace GVFS.UnitTests.Common
 
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedGitIgnoreEntry);
 
-            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
+            List<IPlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
 
             dut.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
 
@@ -156,7 +156,7 @@ namespace GVFS.UnitTests.Common
 
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedTwoEntries);
 
-            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
+            List<IPlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
 
             dut.RemoveAndFlush(InputGitAttributesPath);
 

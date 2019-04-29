@@ -120,11 +120,11 @@ namespace GVFS.Common
         ///     - If WriteAllEntriesAndFlush is *not* called entries that were added to the PlaceholderListDatabase after
         ///       calling GetAllEntriesAndPrepToWriteAllEntries will be lost
         /// </remarks>
-        public List<PlaceholderData> GetAllEntriesAndPrepToWriteAllEntries()
+        public List<IPlaceholderData> GetAllEntriesAndPrepToWriteAllEntries()
         {
             try
             {
-                List<PlaceholderData> placeholders = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
+                List<IPlaceholderData> placeholders = new List<IPlaceholderData>(Math.Max(1, this.EstimatedCount));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -165,12 +165,12 @@ namespace GVFS.Common
         ///     - If WriteAllEntriesAndFlush is *not* called entries that were added to the PlaceholderListDatabase after
         ///       calling GetAllEntriesAndPrepToWriteAllEntries will be lost
         /// </remarks>
-        public void GetAllEntriesAndPrepToWriteAllEntries(out List<PlaceholderData> filePlaceholders, out List<PlaceholderData> folderPlaceholders)
+        public void GetAllEntriesAndPrepToWriteAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders)
         {
             try
             {
-                List<PlaceholderData> filePlaceholdersFromDisk = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
-                List<PlaceholderData> folderPlaceholdersFromDisk = new List<PlaceholderData>(Math.Max(1, (int)(this.EstimatedCount * .3)));
+                List<IPlaceholderData> filePlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, this.EstimatedCount));
+                List<IPlaceholderData> folderPlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, (int)(this.EstimatedCount * .3)));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -210,12 +210,12 @@ namespace GVFS.Common
             }
         }
 
-        public Dictionary<string, PlaceholderListDatabase.PlaceholderData> GetAllFileEntries()
+        public Dictionary<string, IPlaceholderData> GetAllFileEntries()
         {
             try
             {
-                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholdersFromDiskByPath =
-                    new Dictionary<string, PlaceholderListDatabase.PlaceholderData>(Math.Max(1, this.EstimatedCount), StringComparer.Ordinal);
+                Dictionary<string, IPlaceholderData> filePlaceholdersFromDiskByPath =
+                    new Dictionary<string, IPlaceholderData>(Math.Max(1, this.EstimatedCount), StringComparer.Ordinal);
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -241,7 +241,7 @@ namespace GVFS.Common
             }
         }
 
-        public void WriteAllEntriesAndFlush(IEnumerable<PlaceholderData> updatedPlaceholders)
+        public void WriteAllEntriesAndFlush(IEnumerable<IPlaceholderData> updatedPlaceholders)
         {
             try
             {
@@ -253,12 +253,12 @@ namespace GVFS.Common
             }
         }
 
-        private IEnumerable<string> GenerateDataLines(IEnumerable<PlaceholderData> updatedPlaceholders)
+        private IEnumerable<string> GenerateDataLines(IEnumerable<IPlaceholderData> updatedPlaceholders)
         {
             HashSet<string> keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             this.EstimatedCount = 0;
-            foreach (PlaceholderData updated in updatedPlaceholders)
+            foreach (IPlaceholderData updated in updatedPlaceholders)
             {
                 if (keys.Add(updated.Path))
                 {
