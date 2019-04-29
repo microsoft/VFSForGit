@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <ItemGroup>
-        <None Condition="Exists('$(PackagesDir)\$(ProjFSNativePackage)\lib\x64\ProjectedFSLib.dll')" Include="$(PackagesDir)\$(ProjFSNativePackage)\lib\x64\ProjectedFSLib.dll">
+        <None Condition="Exists('$(PackagesDir)\$(ProjFSNativePackage)\lib\ProjectedFSLib.dll')" Include="$(PackagesDir)\$(ProjFSNativePackage)\lib\ProjectedFSLib.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>
