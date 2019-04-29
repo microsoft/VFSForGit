@@ -118,6 +118,7 @@
     <Compile Include="Windows\Mock\MockGitHubUpgrader.cs" />
     <Compile Include="Windows\Mock\MockTextWriter.cs" />
     <Compile Include="Windows\Mock\MockWriteBuffer.cs" />
+    <Compile Include="Windows\Platform\ProjFSFilterTests.cs" />
     <Compile Include="Windows\Service\RepoRegistryTests.cs" />
     <Compile Include="Windows\Upgrader\ProductUpgraderTests.cs" />
     <Compile Include="Windows\Upgrader\UpgradeOrchestratorWithGitHubUpgraderTests.cs" />

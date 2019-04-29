@@ -265,17 +265,17 @@ namespace GVFS.Platform.Windows
             bool existsInSystem32 = fileSystem.FileExists(system32Path);
 
             string gvfsAppDirectory = ProcessHelper.GetCurrentProcessLocation();
-            string appFilePath;
-            string installFilePath;
-            GetNativeLibPaths(gvfsAppDirectory, out installFilePath, out appFilePath);
-            bool existsInAppDirectory = fileSystem.FileExists(appFilePath);
+            string nonInboxNativeLibInstallPath;
+            string packagedNativeLibPath;
+            GetNativeLibPaths(gvfsAppDirectory, out packagedNativeLibPath, out nonInboxNativeLibInstallPath);
+            bool existsInAppDirectory = fileSystem.FileExists(nonInboxNativeLibInstallPath);
 
             EventMetadata metadata = CreateEventMetadata();
             metadata.Add(nameof(system32Path), system32Path);
             metadata.Add(nameof(existsInSystem32), existsInSystem32);
             metadata.Add(nameof(gvfsAppDirectory), gvfsAppDirectory);
-            metadata.Add(nameof(appFilePath), appFilePath);
-            metadata.Add(nameof(installFilePath), installFilePath);
+            metadata.Add(nameof(nonInboxNativeLibInstallPath), nonInboxNativeLibInstallPath);
+            metadata.Add(nameof(packagedNativeLibPath), packagedNativeLibPath);
             metadata.Add(nameof(existsInAppDirectory), existsInAppDirectory);
             tracer.RelatedEvent(EventLevel.Informational, nameof(IsNativeLibInstalled), metadata);
             return existsInSystem32 || existsInAppDirectory;
@@ -291,25 +291,25 @@ namespace GVFS.Platform.Windows
             }
 
             string gvfsProcessLocation = ProcessHelper.GetCurrentProcessLocation();
-            string appDirectoryNativeLibraryPath;
-            string installedNativeLibraryPath;
-            GetNativeLibPaths(gvfsProcessLocation, out installedNativeLibraryPath, out appDirectoryNativeLibraryPath);
-            if (fileSystem.FileExists(appDirectoryNativeLibraryPath))
+            string nonInboxNativeLibInstallPath;
+            string packagedNativeLibPath;
+            GetNativeLibPaths(gvfsProcessLocation, out packagedNativeLibPath, out nonInboxNativeLibInstallPath);
+            if (fileSystem.FileExists(nonInboxNativeLibInstallPath))
             {
-                copyNativeDllError = $"{ProjFSNativeLibFileName} already exists at {appDirectoryNativeLibraryPath}";
+                copyNativeDllError = $"{ProjFSNativeLibFileName} already exists at {nonInboxNativeLibInstallPath}";
                 return false;
             }
 
-            if (!fileSystem.FileExists(installedNativeLibraryPath))
+            if (!fileSystem.FileExists(packagedNativeLibPath))
             {
-                copyNativeDllError = $"{installedNativeLibraryPath} not found, no {ProjFSNativeLibFileName} available to copy";
+                copyNativeDllError = $"{packagedNativeLibPath} not found, no {ProjFSNativeLibFileName} available to copy";
                 return false;
             }
 
-            string installedPrjfltDriverPath = Path.Combine(gvfsProcessLocation, "Filter", DriverFileName);
-            if (!fileSystem.FileExists(installedPrjfltDriverPath))
+            string packagedPrjfltDriverPath = Path.Combine(gvfsProcessLocation, "Filter", DriverFileName);
+            if (!fileSystem.FileExists(packagedPrjfltDriverPath))
             {
-                copyNativeDllError = $"{installedPrjfltDriverPath} not found, unable to validate that packaged driver matches installed driver";
+                copyNativeDllError = $"{packagedPrjfltDriverPath} not found, unable to validate that packaged driver matches installed driver";
                 return false;
             }
 
@@ -324,15 +324,15 @@ namespace GVFS.Platform.Windows
             FileVersionInfo system32DriverVersion;
             try
             {
-                packagedDriverVersion = fileSystem.GetVersionInfo(installedPrjfltDriverPath);
+                packagedDriverVersion = fileSystem.GetVersionInfo(packagedPrjfltDriverPath);
                 system32DriverVersion = fileSystem.GetVersionInfo(system32PrjfltDriverPath);
-                if (packagedDriverVersion.FileVersion != system32DriverVersion.FileVersion)
+                if (!fileSystem.FileVersionsMatch(packagedDriverVersion, system32DriverVersion))
                 {
                     copyNativeDllError = $"Packaged sys FileVersion '{packagedDriverVersion.FileVersion}' does not match System32 sys FileVersion '{system32DriverVersion.FileVersion}'";
                     return false;
                 }
 
-                if (packagedDriverVersion.ProductVersion != system32DriverVersion.ProductVersion)
+                if (!fileSystem.ProductVersionsMatch(packagedDriverVersion, system32DriverVersion))
                 {
                     copyNativeDllError = $"Packaged sys ProductVersion '{packagedDriverVersion.ProductVersion}' does not match System32 sys ProductVersion '{system32DriverVersion.ProductVersion}'";
                     return false;
@@ -355,7 +355,7 @@ namespace GVFS.Platform.Windows
             driverVersionMetadata.Add($"{nameof(system32DriverVersion)}.ProductVersion", system32DriverVersion.ProductVersion.ToString());
             tracer.RelatedInfo(driverVersionMetadata, $"{nameof(TryCopyNativeLibIfDriverVersionsMatch)}: Copying native library");
 
-            if (!TryCopyNativeLibToAppDirectory(tracer, fileSystem, gvfsProcessLocation))
+            if (!TryCopyNativeLibToNonInboxInstallLocation(tracer, fileSystem, gvfsProcessLocation))
             {
                 copyNativeDllError = "Failed to copy native library";
                 return false;
@@ -496,7 +496,7 @@ namespace GVFS.Platform.Windows
         private static bool TryInstallProjFSViaINF(ITracer tracer, PhysicalFileSystem fileSystem)
         {
             string gvfsAppDirectory = ProcessHelper.GetCurrentProcessLocation();
-            if (!TryCopyNativeLibToAppDirectory(tracer, fileSystem, gvfsAppDirectory))
+            if (!TryCopyNativeLibToNonInboxInstallLocation(tracer, fileSystem, gvfsAppDirectory))
             {
                 return false;
             }
@@ -518,61 +518,61 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        private static bool TryCopyNativeLibToAppDirectory(ITracer tracer, PhysicalFileSystem fileSystem, string gvfsAppDirectory)
+        private static bool TryCopyNativeLibToNonInboxInstallLocation(ITracer tracer, PhysicalFileSystem fileSystem, string gvfsAppDirectory)
         {
-            string installFilePath;
-            string appFilePath;
-            GetNativeLibPaths(gvfsAppDirectory, out installFilePath, out appFilePath);
+            string packagedNativeLibPath;
+            string nonInboxNativeLibInstallPath;
+            GetNativeLibPaths(gvfsAppDirectory, out packagedNativeLibPath, out nonInboxNativeLibInstallPath);
 
             EventMetadata pathMetadata = CreateEventMetadata();
             pathMetadata.Add(nameof(gvfsAppDirectory), gvfsAppDirectory);
-            pathMetadata.Add(nameof(installFilePath), installFilePath);
-            pathMetadata.Add(nameof(appFilePath), appFilePath);
+            pathMetadata.Add(nameof(packagedNativeLibPath), packagedNativeLibPath);
+            pathMetadata.Add(nameof(nonInboxNativeLibInstallPath), nonInboxNativeLibInstallPath);
 
-            if (fileSystem.FileExists(installFilePath))
+            if (fileSystem.FileExists(packagedNativeLibPath))
             {
-                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryCopyNativeLibToAppDirectory)}_CopyingNativeLib", pathMetadata);
+                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}_CopyingNativeLib", pathMetadata);
 
                 try
                 {
-                    fileSystem.CopyFile(installFilePath, appFilePath, overwrite: true);
+                    fileSystem.CopyFile(packagedNativeLibPath, nonInboxNativeLibInstallPath, overwrite: true);
 
                     try
                     {
-                        Common.NativeMethods.FlushFileBuffers(appFilePath);
+                        fileSystem.FlushFileBuffers(nonInboxNativeLibInstallPath);
                     }
                     catch (Win32Exception e)
                     {
                         EventMetadata metadata = CreateEventMetadata(e);
-                        metadata.Add(nameof(appFilePath), appFilePath);
-                        metadata.Add(nameof(installFilePath), installFilePath);
-                        tracer.RelatedWarning(metadata, $"{nameof(TryCopyNativeLibToAppDirectory)}: Win32Exception while trying to flush file buffers", Keywords.Telemetry);
+                        metadata.Add(nameof(nonInboxNativeLibInstallPath), nonInboxNativeLibInstallPath);
+                        metadata.Add(nameof(packagedNativeLibPath), packagedNativeLibPath);
+                        tracer.RelatedWarning(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: Win32Exception while trying to flush file buffers", Keywords.Telemetry);
                     }
                 }
                 catch (UnauthorizedAccessException e)
                 {
                     EventMetadata metadata = CreateEventMetadata(e);
-                    tracer.RelatedError(metadata, $"{nameof(TryCopyNativeLibToAppDirectory)}: UnauthorizedAccessException caught while trying to copy native lib");
+                    tracer.RelatedError(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: UnauthorizedAccessException caught while trying to copy native lib");
                     return false;
                 }
                 catch (DirectoryNotFoundException e)
                 {
                     EventMetadata metadata = CreateEventMetadata(e);
-                    tracer.RelatedError(metadata, $"{nameof(TryCopyNativeLibToAppDirectory)}: DirectoryNotFoundException caught while trying to copy native lib");
+                    tracer.RelatedError(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: DirectoryNotFoundException caught while trying to copy native lib");
                     return false;
                 }
                 catch (FileNotFoundException e)
                 {
                     EventMetadata metadata = CreateEventMetadata(e);
-                    tracer.RelatedError(metadata, $"{nameof(TryCopyNativeLibToAppDirectory)}: FileNotFoundException caught while trying to copy native lib");
+                    tracer.RelatedError(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: FileNotFoundException caught while trying to copy native lib");
                     return false;
                 }
                 catch (IOException e)
                 {
                     EventMetadata metadata = CreateEventMetadata(e);
-                    tracer.RelatedWarning(metadata, $"{nameof(TryCopyNativeLibToAppDirectory)}: IOException caught while trying to copy native lib");
+                    tracer.RelatedWarning(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: IOException caught while trying to copy native lib");
 
-                    if (fileSystem.FileExists(appFilePath))
+                    if (fileSystem.FileExists(nonInboxNativeLibInstallPath))
                     {
                         tracer.RelatedWarning(
                             CreateEventMetadata(),
@@ -581,24 +581,24 @@ namespace GVFS.Platform.Windows
                     }
                     else
                     {
-                        tracer.RelatedError($"{nameof(TryCopyNativeLibToAppDirectory)}: Failed to copy native lib to app directory");
+                        tracer.RelatedError($"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: Failed to copy native lib to app directory");
                         return false;
                     }
                 }
             }
             else
             {
-                tracer.RelatedError(pathMetadata, $"{nameof(TryCopyNativeLibToAppDirectory)}: Native lib does not exist in install directory");
+                tracer.RelatedError(pathMetadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: Native lib does not exist in install directory");
                 return false;
             }
 
             return true;
         }
 
-        private static void GetNativeLibPaths(string gvfsAppDirectory, out string installFilePath, out string appFilePath)
+        private static void GetNativeLibPaths(string gvfsAppDirectory, out string packagedNativeLibPath, out string nonInboxNativeLibInstallPath)
         {
-            installFilePath = Path.Combine(gvfsAppDirectory, "ProjFS", ProjFSNativeLibFileName);
-            appFilePath = Path.Combine(gvfsAppDirectory, ProjFSNativeLibFileName);
+            packagedNativeLibPath = Path.Combine(gvfsAppDirectory, "ProjFS", ProjFSNativeLibFileName);
+            nonInboxNativeLibInstallPath = Path.Combine(gvfsAppDirectory, ProjFSNativeLibFileName);
         }
 
         private static bool TryEnableProjFSOptionalFeature(ITracer tracer, PhysicalFileSystem fileSystem, out bool isProjFSFeatureAvailable)

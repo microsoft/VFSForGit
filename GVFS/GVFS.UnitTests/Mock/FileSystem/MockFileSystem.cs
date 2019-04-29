@@ -140,6 +140,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
             return file.GetContentStream();
         }
 
+        public override void FlushFileBuffers(string path)
+        {
+            throw new NotImplementedException();
+        }
+
         public override void WriteAllText(string path, string contents)
         {
             MockFile file = new MockFile(path, contents);
@@ -327,6 +332,16 @@ namespace GVFS.UnitTests.Mock.FileSystem
         }
 
         public override FileVersionInfo GetVersionInfo(string path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override bool FileVersionsMatch(FileVersionInfo versionInfo1, FileVersionInfo versionInfo2)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override bool ProductVersionsMatch(FileVersionInfo versionInfo1, FileVersionInfo versionInfo2)
         {
             throw new NotImplementedException();
         }
