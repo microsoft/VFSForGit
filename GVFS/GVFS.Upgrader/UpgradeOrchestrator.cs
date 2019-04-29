@@ -156,7 +156,8 @@ namespace GVFS.Upgrader
         {
             string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
                 this.logDirectory,
-                GVFSConstants.LogFileTypes.UpgradeProcess);
+                GVFSConstants.LogFileTypes.UpgradeProcess,
+                this.fileSystem);
 
             JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeProcess");
 
