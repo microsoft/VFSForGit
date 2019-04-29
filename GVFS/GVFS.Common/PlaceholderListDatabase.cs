@@ -351,7 +351,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public class PlaceholderData
+        public class PlaceholderData : IPlaceholderData
         {
             public PlaceholderData(string path, string fileShaOrFolderValue)
             {
