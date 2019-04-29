@@ -109,20 +109,20 @@ namespace GVFS.Platform.Windows
         public static bool IsServiceRunningAndInstalled(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
-            out bool isServiceInstalled,
-            out bool isDriverFileInstalled,
-            out bool isNativeLibInstalled)
+            out bool isPrjfltServiceInstalled,
+            out bool isPrjfltDriverInstalled,
+            out bool isNativeProjFSLibInstalled)
         {
             bool isRunning = false;
-            isServiceInstalled = false;
-            isDriverFileInstalled = fileSystem.FileExists(Path.Combine(Environment.SystemDirectory, "drivers", DriverFileName));
-            isNativeLibInstalled = IsNativeLibInstalled(tracer, fileSystem);
+            isPrjfltServiceInstalled = false;
+            isPrjfltDriverInstalled = fileSystem.FileExists(Path.Combine(Environment.SystemDirectory, "drivers", DriverFileName));
+            isNativeProjFSLibInstalled = IsNativeLibInstalled(tracer, fileSystem);
 
             try
             {
                 ServiceController controller = new ServiceController(DriverName);
                 isRunning = controller.Status.Equals(ServiceControllerStatus.Running);
-                isServiceInstalled = true;
+                isPrjfltServiceInstalled = true;
             }
             catch (InvalidOperationException e)
             {
@@ -324,8 +324,8 @@ namespace GVFS.Platform.Windows
             FileVersionInfo system32DriverVersion;
             try
             {
-                packagedDriverVersion = FileVersionInfo.GetVersionInfo(installedPrjfltDriverPath);
-                system32DriverVersion = FileVersionInfo.GetVersionInfo(system32PrjfltDriverPath);
+                packagedDriverVersion = fileSystem.GetVersionInfo(installedPrjfltDriverPath);
+                system32DriverVersion = fileSystem.GetVersionInfo(system32PrjfltDriverPath);
                 if (packagedDriverVersion.FileVersion != system32DriverVersion.FileVersion)
                 {
                     copyNativeDllError = $"Packaged sys FileVersion '{packagedDriverVersion.FileVersion}' does not match System32 sys FileVersion '{system32DriverVersion.FileVersion}'";

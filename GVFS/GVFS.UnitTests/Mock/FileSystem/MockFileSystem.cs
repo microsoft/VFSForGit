@@ -5,6 +5,7 @@ using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 
 namespace GVFS.UnitTests.Mock.FileSystem
@@ -323,6 +324,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
 
             return files.ToArray();
+        }
+
+        public override FileVersionInfo GetVersionInfo(string path)
+        {
+            throw new NotImplementedException();
         }
 
         private Stream CreateAndOpenFileStream(string path)

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Security;
 using System.Threading;
@@ -201,6 +202,11 @@ namespace GVFS.Common.FileSystem
         public virtual string[] GetFiles(string directoryPath, string mask)
         {
             return Directory.GetFiles(directoryPath, mask);
+        }
+
+        public virtual FileVersionInfo GetVersionInfo(string path)
+        {
+            return FileVersionInfo.GetVersionInfo(path);
         }
 
         public bool TryWriteTempFileAndRename(string destinationPath, string contents, out Exception handledException)
