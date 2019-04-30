@@ -314,7 +314,7 @@ namespace GVFS.DiskLayoutUpgrades
             majorVersion = 0;
             minorVersion = 0;
 
-            string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root);
+            string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
 
             if (!GVFSPlatform.Instance.DiskLayoutUpgrade.TryParseLegacyDiskLayoutVersion(dotGVFSPath, out majorVersion))
             {
@@ -340,7 +340,7 @@ namespace GVFS.DiskLayoutUpgrades
             {
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(
-                        Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.LogPath),
+                        Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.LogName),
                         GVFSConstants.LogFileTypes.MountUpgrade),
                     EventLevel.Informational,
                     Keywords.Any);
@@ -364,7 +364,7 @@ namespace GVFS.DiskLayoutUpgrades
             protected bool TryIncrementMajorVersion(ITracer tracer, string enlistmentRoot)
             {
                 string newMajorVersion = (this.SourceMajorVersion + 1).ToString();
-                string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root);
+                string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
                 string error;
                 if (!RepoMetadata.TryInitialize(tracer, dotGVFSPath, out error))
                 {
@@ -390,7 +390,7 @@ namespace GVFS.DiskLayoutUpgrades
             protected bool TryIncrementMinorVersion(ITracer tracer, string enlistmentRoot)
             {
                 string newMinorVersion = (this.SourceMinorVersion + 1).ToString();
-                string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root);
+                string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
                 string error;
                 if (!RepoMetadata.TryInitialize(tracer, dotGVFSPath, out error))
                 {

@@ -117,11 +117,6 @@ namespace GVFS.Platform.POSIX
         {
         }
 
-        public override string GetNamedPipeName(string enlistmentRoot)
-        {
-            return POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
-        }
-
         public override string GetGVFSServiceNamedPipeName(string serviceName)
         {
             // Pipes are stored as files on POSIX, use a rooted pipe name
@@ -137,11 +132,6 @@ namespace GVFS.Platform.POSIX
         public override bool IsElevated()
         {
             return POSIXPlatform.IsElevatedImplementation();
-        }
-
-        public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
-        {
-            return POSIXPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
         }
 
         public override bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError)

@@ -10,6 +10,8 @@ namespace GVFS.Platform.Windows
 {
     public partial class WindowsPlatform
     {
+        public const string DotGVFSRoot = ".gvfs";
+
         private const int StillActive = 259; /* from Win32 STILL_ACTIVE */
 
         private enum StdHandle
@@ -99,10 +101,10 @@ namespace GVFS.Platform.Windows
                 return false;
             }
 
-            enlistmentRoot = Paths.GetRoot(finalDirectory, GVFSConstants.DotGVFS.Root);
+            enlistmentRoot = Paths.GetRoot(finalDirectory, DotGVFSRoot);
             if (enlistmentRoot == null)
             {
-                errorMessage = $"Failed to find the root directory for {GVFSConstants.DotGVFS.Root} in {finalDirectory}";
+                errorMessage = $"Failed to find the root directory for {DotGVFSRoot} in {finalDirectory}";
                 return false;
             }
 

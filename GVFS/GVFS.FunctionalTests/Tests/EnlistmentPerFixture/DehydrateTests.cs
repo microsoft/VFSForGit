@@ -63,14 +63,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             backupFolder.ShouldBeADirectory(this.fileSystem);
             string[] backupFolderItems = this.fileSystem.EnumerateDirectory(backupFolder).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             backupFolderItems.Length.ShouldEqual(1);
-            this.DirectoryShouldContain(backupFolderItems[0], ".git", ".gvfs", "src");
+            this.DirectoryShouldContain(backupFolderItems[0], ".git", GVFSTestConfig.DotGVFSRoot, "src");
 
             // .git folder items
             string gitFolder = Path.Combine(backupFolderItems[0], ".git");
             this.DirectoryShouldContain(gitFolder, "index");
 
             // .gvfs folder items
-            string gvfsFolder = Path.Combine(backupFolderItems[0], ".gvfs");
+            string gvfsFolder = Path.Combine(backupFolderItems[0], GVFSTestConfig.DotGVFSRoot);
             this.DirectoryShouldContain(gvfsFolder, "databases", "GVFS_projection");
 
             string gvfsDatabasesFolder = Path.Combine(gvfsFolder, "databases");

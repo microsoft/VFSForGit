@@ -19,7 +19,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
             {
                 PhysicalFileSystem fileSystem = new PhysicalFileSystem();
 
-                string modifiedPathsDatabasePath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.ModifiedPaths);
+                string modifiedPathsDatabasePath = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.ModifiedPaths);
                 string error;
                 if (!ModifiedPathsDatabase.TryLoadOrCreate(tracer, modifiedPathsDatabasePath, fileSystem, out modifiedPaths, out error))
                 {

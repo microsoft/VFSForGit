@@ -416,6 +416,11 @@ namespace GVFS.Platform.Windows
                 get { return GVFSConstants.WorkingDirectoryRootName; }
             }
 
+            public override string DotGVFSRoot
+            {
+                get { return WindowsPlatform.DotGVFSRoot; }
+            }
+
             public override string GVFSBinDirectoryPath
             {
                 get

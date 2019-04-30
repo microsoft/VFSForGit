@@ -17,7 +17,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
         /// </summary>
         public override bool TryUpgrade(ITracer tracer, string enlistmentRoot)
         {
-            string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root);
+            string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             string error;
             if (!RepoMetadata.TryInitialize(tracer, dotGVFSPath, out error))
             {
@@ -44,7 +44,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
         private bool TryUpgradeGitObjectPath(ITracer tracer, string enlistmentRoot)
         {
             string gitObjectsRoot;
-            string legacyDotGVFSGitObjectCachePath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, "gitObjectCache");
+            string legacyDotGVFSGitObjectCachePath = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, "gitObjectCache");
             if (Directory.Exists(legacyDotGVFSGitObjectCachePath))
             {
                 gitObjectsRoot = legacyDotGVFSGitObjectCachePath;

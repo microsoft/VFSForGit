@@ -101,6 +101,8 @@ namespace GVFS.FunctionalTests
                 excludeCategories.Add(Categories.MacOnly);
             }
 
+            GVFSTestConfig.DotGVFSRoot = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? ".vfsforgit" : ".gvfs";
+
             GVFSTestConfig.RepoToClone =
                 runner.GetCustomArgWithParam("--repo-to-clone")
                 ?? Properties.Settings.Default.RepoToClone;

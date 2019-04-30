@@ -18,7 +18,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
 
         public override bool TryUpgrade(ITracer tracer, string enlistmentRoot)
         {
-            string dotGVFSRoot = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root);
+            string dotGVFSRoot = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             try
             {
                 string error;

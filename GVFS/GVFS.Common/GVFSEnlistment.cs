@@ -31,10 +31,10 @@ namespace GVFS.Common
                   authentication: authentication)
         {
             this.NamedPipeName = GVFSPlatform.Instance.GetNamedPipeName(this.EnlistmentRoot);
-            this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.Root);
+            this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             this.GitStatusCacheFolder = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.Name);
             this.GitStatusCachePath = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.CachePath);
-            this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
+            this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.LogName);
             this.LocalObjectsRoot = Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Root);
         }
 

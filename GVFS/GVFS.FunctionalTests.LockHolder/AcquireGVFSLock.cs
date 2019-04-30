@@ -1,7 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
-using GVFS.Platform.POSIX;
+using GVFS.Platform.Mac;
 using GVFS.Platform.Windows;
 using System;
 using System.Diagnostics;
@@ -45,7 +45,7 @@ namespace GVFS.FunctionalTests.LockHolder
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                return POSIXPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+                return MacPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
             }
 
             // Not able to use WindowsPlatform here - because of its dependency on WindowsIdentity (and also kernel32.dll).
@@ -57,10 +57,11 @@ namespace GVFS.FunctionalTests.LockHolder
                 return false;
             }
 
-            enlistmentRoot = Paths.GetRoot(finalDirectory, GVFSConstants.DotGVFS.Root);
+            const string dotGVFSRoot = ".gvfs";
+            enlistmentRoot = Paths.GetRoot(finalDirectory, dotGVFSRoot);
             if (enlistmentRoot == null)
             {
-                errorMessage = $"Failed to find the root directory for {GVFSConstants.DotGVFS.Root} in {finalDirectory}";
+                errorMessage = $"Failed to find the root directory for {dotGVFSRoot} in {finalDirectory}";
                 return false;
             }
 
@@ -71,7 +72,7 @@ namespace GVFS.FunctionalTests.LockHolder
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                return POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
+                return MacPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
             }
 
             // Not able to use WindowsPlatform here - because of its dependency on WindowsIdentity (and also kernel32.dll).

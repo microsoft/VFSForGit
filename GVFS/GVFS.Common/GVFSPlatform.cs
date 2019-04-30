@@ -94,6 +94,7 @@ namespace GVFS.Common
             public abstract string ExecutableExtension { get; }
             public abstract string InstallerExtension { get; }
             public abstract string WorkingDirectoryBackingRootPath { get; }
+            public abstract string DotGVFSRoot { get; }
 
             public abstract string GVFSBinDirectoryPath { get; }
 

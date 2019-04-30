@@ -276,7 +276,7 @@ of your enlistment's src folder.
         {
             string backupSrc = Path.Combine(backupRoot, "src");
             string backupGit = Path.Combine(backupRoot, ".git");
-            string backupGvfs = Path.Combine(backupRoot, ".gvfs");
+            string backupGvfs = Path.Combine(backupRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             string backupDatabases = Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.Name);
 
             string errorMessage = string.Empty;
