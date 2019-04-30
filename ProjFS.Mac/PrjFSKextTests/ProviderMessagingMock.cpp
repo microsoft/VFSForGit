@@ -1,6 +1,7 @@
 #include "../PrjFSKext/ProviderMessaging.hpp"
 #include "../PrjFSKext/Locks.hpp"
 #include "../PrjFSKext/VirtualizationRoots.hpp"
+#include "../PrjFSKext/kernel-header-wrappers/kauth.h"
 #include "KextLogMock.h"
 #include "KextMockUtilities.hpp"
 
@@ -82,14 +83,23 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     
     s_requestCount++;
     
+    bool result;
     if (s_requestCount == 2)
     {
-        return s_secondRequestResult;
+        result = s_secondRequestResult;
     }
     else
     {
-        return s_defaultRequestResult;
+        result = s_defaultRequestResult;
     }
+    
+    *kauthResult = KAUTH_RESULT_DEFER;
+    if (result == false)
+    {
+        *kauthResult = KAUTH_RESULT_DENY;
+    }
+    
+    return result;
 }
 
 void ProviderMessaging_AbortAllOutstandingEvents()
