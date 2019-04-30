@@ -32,11 +32,13 @@ namespace GVFS.UnitTests.Windows.Platform
         private readonly FileVersionInfo dummyVersionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
 
         private Mock<PhysicalFileSystem> mockFileSystem;
+        private MockTracer mockTracer;
 
         [SetUp]
         public void Setup()
         {
             this.mockFileSystem = new Mock<PhysicalFileSystem>(MockBehavior.Strict);
+            this.mockTracer = new MockTracer();
         }
 
         [TearDown]
@@ -50,7 +52,7 @@ namespace GVFS.UnitTests.Windows.Platform
         {
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.system32NativeLibPath)).Returns(true);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.nonInboxNativeLibInstallPath)).Returns(false);
-            ProjFSFilter.IsNativeLibInstalled(new MockTracer(), this.mockFileSystem.Object).ShouldBeTrue();
+            ProjFSFilter.IsNativeLibInstalled(this.mockTracer, this.mockFileSystem.Object).ShouldBeTrue();
         }
 
         [TestCase]
@@ -58,21 +60,21 @@ namespace GVFS.UnitTests.Windows.Platform
         {
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.system32NativeLibPath)).Returns(false);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.nonInboxNativeLibInstallPath)).Returns(true);
-            ProjFSFilter.IsNativeLibInstalled(new MockTracer(), this.mockFileSystem.Object).ShouldBeTrue();
+            ProjFSFilter.IsNativeLibInstalled(this.mockTracer, this.mockFileSystem.Object).ShouldBeTrue();
         }
 
         [TestCase]
         public void IsNativeLibInstalled_ReturnsFalseWhenNativeLibraryDoesNotExistInAnyInstallLocation()
         {
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(It.IsAny<string>())).Returns(false);
-            ProjFSFilter.IsNativeLibInstalled(new MockTracer(), this.mockFileSystem.Object).ShouldBeFalse();
+            ProjFSFilter.IsNativeLibInstalled(this.mockTracer, this.mockFileSystem.Object).ShouldBeFalse();
         }
 
         [TestCase]
         public void TryCopyNativeLibIfDriverVersionsMatch_ReturnsFalseWhenLibInSystem32()
         {
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.system32NativeLibPath)).Returns(true);
-            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(new MockTracer(), this.mockFileSystem.Object, out string _).ShouldBeFalse();
+            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(this.mockTracer, this.mockFileSystem.Object, out string _).ShouldBeFalse();
         }
 
         [TestCase]
@@ -80,7 +82,7 @@ namespace GVFS.UnitTests.Windows.Platform
         {
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.system32NativeLibPath)).Returns(false);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.nonInboxNativeLibInstallPath)).Returns(true);
-            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(new MockTracer(), this.mockFileSystem.Object, out string _).ShouldBeFalse();
+            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(this.mockTracer, this.mockFileSystem.Object, out string _).ShouldBeFalse();
         }
 
         [TestCase]
@@ -89,7 +91,7 @@ namespace GVFS.UnitTests.Windows.Platform
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.system32NativeLibPath)).Returns(false);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.nonInboxNativeLibInstallPath)).Returns(false);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.packagedNativeLibPath)).Returns(false);
-            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(new MockTracer(), this.mockFileSystem.Object, out string _).ShouldBeFalse();
+            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(this.mockTracer, this.mockFileSystem.Object, out string _).ShouldBeFalse();
         }
 
         [TestCase]
@@ -99,7 +101,7 @@ namespace GVFS.UnitTests.Windows.Platform
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.nonInboxNativeLibInstallPath)).Returns(false);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.packagedNativeLibPath)).Returns(true);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.packagedDriverPath)).Returns(false);
-            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(new MockTracer(), this.mockFileSystem.Object, out string _).ShouldBeFalse();
+            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(this.mockTracer, this.mockFileSystem.Object, out string _).ShouldBeFalse();
         }
 
         [TestCase]
@@ -110,7 +112,7 @@ namespace GVFS.UnitTests.Windows.Platform
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.packagedNativeLibPath)).Returns(true);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.packagedDriverPath)).Returns(true);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.system32DriverPath)).Returns(false);
-            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(new MockTracer(), this.mockFileSystem.Object, out string _).ShouldBeFalse();
+            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(this.mockTracer, this.mockFileSystem.Object, out string _).ShouldBeFalse();
         }
 
         [TestCase]
@@ -125,7 +127,7 @@ namespace GVFS.UnitTests.Windows.Platform
             this.mockFileSystem.Setup(fileSystem => fileSystem.GetVersionInfo(this.packagedDriverPath)).Returns(this.dummyVersionInfo);
             this.mockFileSystem.Setup(fileSystem => fileSystem.GetVersionInfo(this.system32DriverPath)).Returns(this.dummyVersionInfo);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileVersionsMatch(this.dummyVersionInfo, this.dummyVersionInfo)).Returns(false);
-            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(new MockTracer(), this.mockFileSystem.Object, out string _).ShouldBeFalse();
+            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(this.mockTracer, this.mockFileSystem.Object, out string _).ShouldBeFalse();
         }
 
         [TestCase]
@@ -141,7 +143,7 @@ namespace GVFS.UnitTests.Windows.Platform
             this.mockFileSystem.Setup(fileSystem => fileSystem.GetVersionInfo(this.system32DriverPath)).Returns(this.dummyVersionInfo);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileVersionsMatch(this.dummyVersionInfo, this.dummyVersionInfo)).Returns(true);
             this.mockFileSystem.Setup(fileSystem => fileSystem.ProductVersionsMatch(this.dummyVersionInfo, this.dummyVersionInfo)).Returns(false);
-            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(new MockTracer(), this.mockFileSystem.Object, out string _).ShouldBeFalse();
+            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(this.mockTracer, this.mockFileSystem.Object, out string _).ShouldBeFalse();
         }
 
         [TestCase]
@@ -160,7 +162,7 @@ namespace GVFS.UnitTests.Windows.Platform
             this.mockFileSystem.Setup(fileSystem => fileSystem.ProductVersionsMatch(this.dummyVersionInfo, this.dummyVersionInfo)).Returns(true);
 
             this.mockFileSystem.Setup(fileSystem => fileSystem.CopyFile(this.packagedNativeLibPath, this.nonInboxNativeLibInstallPath, true)).Throws(new IOException());
-            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(new MockTracer(), this.mockFileSystem.Object, out string _).ShouldBeFalse();
+            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(this.mockTracer, this.mockFileSystem.Object, out string _).ShouldBeFalse();
         }
 
         [TestCase]
@@ -179,7 +181,7 @@ namespace GVFS.UnitTests.Windows.Platform
 
             this.mockFileSystem.Setup(fileSystem => fileSystem.CopyFile(this.packagedNativeLibPath, this.nonInboxNativeLibInstallPath, true));
             this.mockFileSystem.Setup(fileSystem => fileSystem.FlushFileBuffers(this.nonInboxNativeLibInstallPath));
-            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(new MockTracer(), this.mockFileSystem.Object, out string _).ShouldBeTrue();
+            ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(this.mockTracer, this.mockFileSystem.Object, out string _).ShouldBeTrue();
         }
     }
 }
