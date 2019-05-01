@@ -57,7 +57,8 @@ namespace PrjFSLib.Mac
         bool isDirectory);
 
     public delegate void NotifyHardLinkCreatedEvent(
-        string relativeNewLinkPath);
+        string relativeNewLinkPath,
+        string relativeSourcePath);
 
     public delegate void NotifyFileModified(
         string relativePath);
