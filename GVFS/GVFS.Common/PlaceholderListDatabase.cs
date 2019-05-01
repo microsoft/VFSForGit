@@ -1,4 +1,5 @@
-﻿using GVFS.Common.FileSystem;
+﻿using GVFS.Common.Database;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
@@ -6,7 +7,7 @@ using System.IO;
 
 namespace GVFS.Common
 {
-    public class PlaceholderListDatabase : FileBasedCollection
+    public class PlaceholderListDatabase : FileBasedCollection, IPlaceholderDatabase
     {
         // Special folder values must:
         // - Be 40 characters long
@@ -49,7 +50,7 @@ namespace GVFS.Common
         /// The EstimatedCount is "estimated" because it's simply (# adds - # deletes).  There is nothing to prevent
         /// multiple adds or deletes of the same path from being double counted
         /// </summary>
-        public int EstimatedCount { get; private set; }
+        public int Count { get; private set; }
 
         public static bool TryCreate(ITracer tracer, string dataFilePath, PhysicalFileSystem fileSystem, out PlaceholderListDatabase output, out string error)
         {
@@ -59,7 +60,7 @@ namespace GVFS.Common
             if (!temp.TryLoadFromDisk<string, string>(
                 temp.TryParseAddLine,
                 temp.TryParseRemoveLine,
-                (key, value) => temp.EstimatedCount++,
+                (key, value) => temp.Count++,
                 out error))
             {
                 temp = null;
@@ -72,22 +73,27 @@ namespace GVFS.Common
             return true;
         }
 
-        public void AddAndFlushFile(string path, string sha)
+        public void AddFile(string path, string sha)
         {
             this.AddAndFlush(path, sha);
         }
 
-        public void AddAndFlushFolder(string path, bool isExpanded)
+        public void AddPartialFolder(string path)
         {
-            this.AddAndFlush(path, isExpanded ? ExpandedFolderValue : PartialFolderValue);
+            this.AddAndFlush(path, PartialFolderValue);
         }
 
-        public void AddAndFlushPossibleTombstoneFolder(string path)
+        public void AddExpandedFolder(string path)
+        {
+            this.AddAndFlush(path, ExpandedFolderValue);
+        }
+
+        public void AddPossibleTombstoneFolder(string path)
         {
             this.AddAndFlush(path, PossibleTombstoneFolderValue);
         }
 
-        public void RemoveAndFlush(string path)
+        public void Remove(string path)
         {
             try
             {
@@ -95,7 +101,7 @@ namespace GVFS.Common
                     path,
                     () =>
                     {
-                        this.EstimatedCount--;
+                        this.Count--;
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
                             this.placeholderChangesWhileRebuildingList.Add(new PlaceholderDataEntry(path));
@@ -124,7 +130,7 @@ namespace GVFS.Common
         {
             try
             {
-                List<IPlaceholderData> placeholders = new List<IPlaceholderData>(Math.Max(1, this.EstimatedCount));
+                List<IPlaceholderData> placeholders = new List<IPlaceholderData>(Math.Max(1, this.Count));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -165,12 +171,12 @@ namespace GVFS.Common
         ///     - If WriteAllEntriesAndFlush is *not* called entries that were added to the PlaceholderListDatabase after
         ///       calling GetAllEntriesAndPrepToWriteAllEntries will be lost
         /// </remarks>
-        public void GetAllEntriesAndPrepToWriteAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders)
+        public void GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders)
         {
             try
             {
-                List<IPlaceholderData> filePlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, this.EstimatedCount));
-                List<IPlaceholderData> folderPlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, (int)(this.EstimatedCount * .3)));
+                List<IPlaceholderData> filePlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, this.Count));
+                List<IPlaceholderData> folderPlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, (int)(this.Count * .3)));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -210,12 +216,12 @@ namespace GVFS.Common
             }
         }
 
-        public Dictionary<string, IPlaceholderData> GetAllFileEntries()
+        public HashSet<string> GetAllFilePaths()
         {
             try
             {
-                Dictionary<string, IPlaceholderData> filePlaceholdersFromDiskByPath =
-                    new Dictionary<string, IPlaceholderData>(Math.Max(1, this.EstimatedCount), StringComparer.Ordinal);
+                HashSet<string> filePlaceholdersFromDiskByPath =
+                    new HashSet<string>(StringComparer.Ordinal);
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -225,7 +231,7 @@ namespace GVFS.Common
                     {
                         if (!PlaceholderData.IsShaAFolder(value))
                         {
-                            filePlaceholdersFromDiskByPath[key] = new PlaceholderData(path: key, fileShaOrFolderValue: value);
+                            filePlaceholdersFromDiskByPath.Add(key);
                         }
                     },
                     out error))
@@ -257,12 +263,12 @@ namespace GVFS.Common
         {
             HashSet<string> keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            this.EstimatedCount = 0;
+            this.Count = 0;
             foreach (IPlaceholderData updated in updatedPlaceholders)
             {
                 if (keys.Add(updated.Path))
                 {
-                    this.EstimatedCount++;
+                    this.Count++;
                 }
 
                 yield return this.FormatAddLine(updated.Path + PathTerminator + updated.Sha);
@@ -276,7 +282,7 @@ namespace GVFS.Common
                     {
                         if (keys.Remove(entry.Path))
                         {
-                            this.EstimatedCount--;
+                            this.Count--;
                             yield return this.FormatRemoveLine(entry.Path);
                         }
                     }
@@ -284,7 +290,7 @@ namespace GVFS.Common
                     {
                         if (keys.Add(entry.Path))
                         {
-                            this.EstimatedCount++;
+                            this.Count++;
                         }
 
                         yield return this.FormatAddLine(entry.Path + PathTerminator + entry.Sha);
@@ -303,7 +309,7 @@ namespace GVFS.Common
                     path + PathTerminator + sha,
                     () =>
                     {
-                        this.EstimatedCount++;
+                        this.Count++;
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
                             this.placeholderChangesWhileRebuildingList.Add(new PlaceholderDataEntry(path, sha));

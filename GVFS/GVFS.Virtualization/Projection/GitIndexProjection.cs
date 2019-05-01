@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
@@ -127,7 +128,7 @@ namespace GVFS.Virtualization.Projection
         {
             get
             {
-                return this.placeholderList.EstimatedCount;
+                return this.placeholderList.Count;
             }
         }
 
@@ -320,22 +321,22 @@ namespace GVFS.Virtualization.Projection
 
         public void OnPlaceholderFolderCreated(string virtualPath)
         {
-            this.placeholderList.AddAndFlushFolder(virtualPath, isExpanded: false);
+            this.placeholderList.AddPartialFolder(virtualPath);
         }
 
         public void OnPossibleTombstoneFolderCreated(string virtualPath)
         {
-            this.placeholderList.AddAndFlushPossibleTombstoneFolder(virtualPath);
+            this.placeholderList.AddPossibleTombstoneFolder(virtualPath);
         }
 
         public virtual void OnPlaceholderFolderExpanded(string relativePath)
         {
-            this.placeholderList.AddAndFlushFolder(relativePath, isExpanded: true);
+            this.placeholderList.AddExpandedFolder(relativePath);
         }
 
         public virtual void OnPlaceholderFileCreated(string virtualPath, string sha)
         {
-            this.placeholderList.AddAndFlushFile(virtualPath, sha);
+            this.placeholderList.AddFile(virtualPath, sha);
         }
 
         public virtual bool TryGetProjectedItemsFromMemory(string folderPath, out List<ProjectedFileInfo> projectedItems)
@@ -563,7 +564,7 @@ namespace GVFS.Virtualization.Projection
 
         public void RemoveFromPlaceholderList(string fileOrFolderPath)
         {
-            this.placeholderList.RemoveAndFlush(fileOrFolderPath);
+            this.placeholderList.Remove(fileOrFolderPath);
         }
 
         public void Dispose()
@@ -1097,7 +1098,7 @@ namespace GVFS.Virtualization.Projection
             Stopwatch stopwatch = new Stopwatch();
             List<IPlaceholderData> placeholderFilesListCopy;
             List<IPlaceholderData> placeholderFoldersListCopy;
-            this.placeholderList.GetAllEntriesAndPrepToWriteAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
+            this.placeholderList.GetAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("File placeholder count", placeholderFilesListCopy.Count);

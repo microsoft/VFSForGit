@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace GVFS.Common
+﻿namespace GVFS.Common.Database
 {
     public interface IPlaceholderData
     {
