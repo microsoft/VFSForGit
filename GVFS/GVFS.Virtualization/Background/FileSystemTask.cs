@@ -50,9 +50,9 @@ namespace GVFS.Virtualization.Background
             return new FileSystemTask(OperationType.OnFileRenamed, newVirtualPath, oldVirtualPath);
         }
 
-        public static FileSystemTask OnFileHardLinkCreated(string newLinkRelativePath)
+        public static FileSystemTask OnFileHardLinkCreated(string newLinkRelativePath, string existingRelativePath)
         {
-            return new FileSystemTask(OperationType.OnFileHardLinkCreated, newLinkRelativePath, oldVirtualPath: null);
+            return new FileSystemTask(OperationType.OnFileHardLinkCreated, newLinkRelativePath, oldVirtualPath: existingRelativePath);
         }
 
         public static FileSystemTask OnFileSymLinkCreated(string newLinkRelativePath)
