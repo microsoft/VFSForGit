@@ -4,7 +4,7 @@ using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
-using GVFS.UnitTests.Windows.Mock.Upgrader;
+using GVFS.UnitTests.Mock.Upgrader;
 using GVFS.Upgrader;
 using Moq;
 using NUnit.Framework;

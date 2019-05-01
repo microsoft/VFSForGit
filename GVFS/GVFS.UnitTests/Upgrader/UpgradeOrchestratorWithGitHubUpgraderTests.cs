@@ -1,11 +1,11 @@
 ﻿using GVFS.Common;
 using GVFS.Tests.Should;
-using GVFS.UnitTests.Windows.Mock.Upgrader;
+using GVFS.UnitTests.Mock.Upgrader;
 using GVFS.Upgrader;
 using NUnit.Framework;
 using System.Collections.Generic;
 
-namespace GVFS.UnitTests.Windows.Upgrader
+namespace GVFS.UnitTests.Upgrader
 {
     [TestFixture]
     public class UpgradeOrchestratorWithGitHubUpgraderTests : UpgradeTests

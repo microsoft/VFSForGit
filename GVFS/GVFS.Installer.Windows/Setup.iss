@@ -16,7 +16,7 @@
 #define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook.Windows\bin\" + PlatformAndConfiguration
 #define VirtualFileSystemDir BuildOutputDir + "\GVFS.VirtualFileSystemHook.Windows\bin\" + PlatformAndConfiguration
 #define PostIndexChangedDir BuildOutputDir + "\GVFS.PostIndexChangedHook.Windows\bin\" + PlatformAndConfiguration
-#define GVFSUpgraderDir BuildOutputDir + "\GVFS.Upgrader\bin\" + PlatformAndConfiguration
+#define GVFSUpgraderDir BuildOutputDir + "\GVFS.Upgrader\bin\" + PlatformAndConfiguration + "\net461"
 
 #define MyAppName "GVFS"
 #define MyAppInstallerVersion GetFileVersion(GVFSDir + "\GVFS.exe")

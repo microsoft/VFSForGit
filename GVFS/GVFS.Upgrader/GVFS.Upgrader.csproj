@@ -1,137 +1,67 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cs.props" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\GVFS.Build\GVFS.cs.props" />
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{AECEC217-2499-403D-B0BB-2962B9BE5970}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>GVFS.Upgrader</RootNamespace>
     <AssemblyName>GVFS.Upgrader</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <DebugSymbols>true</DebugSymbols>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <DebugType>full</DebugType>
+
+    <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-    <Prefer32Bit>false</Prefer32Bit>
+    <RootNamespace>GVFS.Upgrader</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-    <Prefer32Bit>false</Prefer32Bit>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Version>$(GVFSVersion)</Version>
+  </PropertyGroup>
+
+  <!-- ItemGroup Conditions are not supported on VS for Mac and Choose/When must be
+       Used instead, see https://github.com/mono/monodevelop/issues/7417 -->
+  <Choose>
+    <When Condition="'$(OS)' == 'Windows_NT'">
+      <PropertyGroup>
+        <TargetFrameworks>net461;netcoreapp2.1</TargetFrameworks>
+      </PropertyGroup>
+      <ItemGroup>
+        <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
+        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
+          <Link>PlatformLoader.Windows.cs</Link>
+        </Compile>
+      </ItemGroup>
+    </When>
+    <Otherwise>
+      <PropertyGroup>
+        <TargetFrameworks>netcoreapp2.1</TargetFrameworks>
+        <RuntimeIdentifiers>osx-x64</RuntimeIdentifiers>
+      </PropertyGroup>
+      <ItemGroup>
+        <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
+        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
+          <Link>PlatformLoader.Mac.cs</Link>
+        </Compile>
+      </ItemGroup>
+    </Otherwise>
+  </Choose>
+
   <ItemGroup>
-    <Reference Include="CommandLine, Version=2.0.275.0, Culture=neutral, PublicKeyToken=de6f01bd326f8c32, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\CommandLineParser.2.1.1-beta\lib\net45\CommandLine.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\Newtonsoft.Json.11.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.Commands, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.Commands.4.9.2\lib\net46\NuGet.Commands.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.Common, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.Common.4.9.2\lib\net46\NuGet.Common.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.Configuration, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.Configuration.4.9.2\lib\net46\NuGet.Configuration.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.Credentials, Version=4.9.2.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.Credentials.4.9.2\lib\net46\NuGet.Credentials.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.DependencyResolver.Core, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.DependencyResolver.Core.4.9.2\lib\net46\NuGet.DependencyResolver.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.Frameworks, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.Frameworks.4.9.2\lib\net46\NuGet.Frameworks.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.LibraryModel, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.LibraryModel.4.9.2\lib\net46\NuGet.LibraryModel.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.Packaging, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.Packaging.4.9.2\lib\net46\NuGet.Packaging.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.Packaging.Core, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.Packaging.Core.4.9.2\lib\net46\NuGet.Packaging.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.ProjectModel, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.ProjectModel.4.9.2\lib\net46\NuGet.ProjectModel.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.Protocol, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.Protocol.4.9.2\lib\net46\NuGet.Protocol.dll</HintPath>
-    </Reference>
-    <Reference Include="NuGet.Versioning, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NuGet.Versioning.4.9.2\lib\net46\NuGet.Versioning.dll</HintPath>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.IdentityModel" />
-    <Reference Include="System.IO.Compression, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL" />
-    <Reference Include="System.Net.Http.WebRequest" />
-    <Reference Include="System.Runtime.Serialization" />
-    <Reference Include="System.Security" />
-    <Reference Include="System.ServiceModel" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Xml" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="CommandLineParser" Version="2.1.1-beta" />
   </ItemGroup>
+
   <ItemGroup>
-    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
-      <Link>PlatformLoader.Windows.cs</Link>
-    </Compile>
-    <Compile Include="UpgradeOrchestrator.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
+    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
+    <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
   </ItemGroup>
+
   <ItemGroup>
-    <None Include="App.config" />
-    <None Include="packages.config">
-      <SubType>Designer</SubType>
-    </None>
+    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
-  <ItemGroup>
-    <BootstrapperPackage Include=".NETFramework,Version=v4.6.1">
-      <Visible>False</Visible>
-      <ProductName>Microsoft .NET Framework 4.6.1 %28x86 and x64%29</ProductName>
-      <Install>true</Install>
-    </BootstrapperPackage>
-    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
-      <Visible>False</Visible>
-      <ProductName>.NET Framework 3.5 SP1</ProductName>
-      <Install>false</Install>
-    </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
-    <Analyzer Include="..\..\..\packages\StyleCop.Analyzers.1.0.2\analyzers\dotnet\cs\StyleCop.Analyzers.CodeFixes.dll" />
-    <Analyzer Include="..\..\..\packages\StyleCop.Analyzers.1.0.2\analyzers\dotnet\cs\StyleCop.Analyzers.dll" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj">
-      <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
-      <Name>GVFS.Common</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj">
-      <Project>{4ce404e7-d3fc-471c-993c-64615861ea63}</Project>
-      <Name>GVFS.Platform.Windows</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj">
-      <Project>{f468b05a-95e5-46bc-8c67-b80a78527b7d}</Project>
-      <Name>GVFS.Virtualization</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+
 </Project>

@@ -114,21 +114,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Windows\Mock\MockInstallerPreRunChecker.cs" />
     <Compile Include="Windows\Mock\MockProcessLauncher.cs" />
-    <Compile Include="Windows\Mock\MockGitHubUpgrader.cs" />
-    <Compile Include="Windows\Mock\MockTextWriter.cs" />
+    <Compile Include="Windows\Mock\MockVirtualizationInstance.cs" />
     <Compile Include="Windows\Mock\MockWriteBuffer.cs" />
     <Compile Include="Windows\Platform\ProjFSFilterTests.cs" />
-    <Compile Include="Windows\Upgrader\ProductUpgraderTests.cs" />
-    <Compile Include="Windows\Upgrader\UpgradeOrchestratorWithGitHubUpgraderTests.cs" />
-    <Compile Include="Windows\Upgrader\UpgradeOrchestratorTests.cs" />
-    <Compile Include="Windows\Upgrader\UpgradeTests.cs" />
     <Compile Include="Windows\Upgrader\UpgradeVerbTests.cs" />
     <Compile Include="Windows\Virtualization\ActiveEnumerationTests.cs" />
     <Compile Include="Windows\Virtualization\PatternMatcherTests.cs" />
     <Compile Include="Windows\Virtualization\WindowsFileSystemVirtualizerTests.cs" />
-    <Compile Include="Windows\Mock\MockVirtualizationInstance.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Windows\WindowsFileBasedLockTests.cs" />
   </ItemGroup>
