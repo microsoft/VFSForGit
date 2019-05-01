@@ -180,6 +180,7 @@ namespace PrjFSLib.Mac
         private Result OnNotifyOperation(
             ulong commandId,
             string relativePath,
+            string relativeFromPath,
             byte[] providerId,
             byte[] contentId,
             int triggeringProcessId,
@@ -205,7 +206,7 @@ namespace PrjFSLib.Mac
                     return Result.Success;
 
                 case NotificationType.HardLinkCreated:
-                    this.OnHardLinkCreated(relativePath);
+                    this.OnHardLinkCreated(relativePath, relativeFromPath);
                     return Result.Success;
 
                 case NotificationType.PreConvertToFull:
