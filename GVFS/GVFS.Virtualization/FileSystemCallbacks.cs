@@ -144,6 +144,13 @@ namespace GVFS.Virtualization
             get { return this.GitIndexProjection; }
         }
 
+        /// <summary>
+        /// Gets the count of tasks in the background operation queue
+        /// </summary>
+        /// <remarks>
+        /// This is an expensive call on .net core and you should avoid calling
+        /// in performance critical paths.
+        /// </remarks>
         public int BackgroundOperationCount
         {
             get { return this.backgroundFileSystemTaskRunner.Count; }
@@ -243,7 +250,7 @@ namespace GVFS.Virtualization
 
         public bool IsReadyForExternalAcquireLockRequests(NamedPipeMessages.LockData requester, out string denyMessage)
         {
-            if (this.BackgroundOperationCount != 0)
+            if (!this.backgroundFileSystemTaskRunner.IsEmpty)
             {
                 denyMessage = "Waiting for GVFS to release the lock";
                 return false;
@@ -353,7 +360,7 @@ namespace GVFS.Virtualization
 
             // If there are background tasks queued up, then it will be
             // refreshed after they have been processed.
-            if (this.backgroundFileSystemTaskRunner.Count == 0)
+            if (this.backgroundFileSystemTaskRunner.IsEmpty)
             {
                 this.gitStatusCache.RefreshAsynchronously();
             }

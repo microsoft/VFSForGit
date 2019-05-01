@@ -65,6 +65,18 @@ namespace GVFS.Virtualization.Background
             ShuttingDown
         }
 
+        public virtual bool IsEmpty
+        {
+            get { return this.backgroundTasks.IsEmpty; }
+        }
+
+        /// <summary>
+        /// Gets the count of tasks in the background queue
+        /// </summary>
+        /// <remarks>
+        /// This is an expensive call on .net core and you should avoid calling in performance critical paths.
+        /// Use the IsEmpty property when checking if the queue has any items instead of Count.
+        /// </remarks>
         public virtual int Count
         {
             get { return this.backgroundTasks.Count; }
@@ -81,7 +93,7 @@ namespace GVFS.Virtualization.Background
         public virtual void Start()
         {
             this.backgroundThread = Task.Factory.StartNew((Action)this.ProcessBackgroundTasks, TaskCreationOptions.LongRunning);
-            if (this.backgroundTasks.Count > 0)
+            if (!this.backgroundTasks.IsEmpty)
             {
                 this.wakeUpThread.Set();
             }
@@ -248,7 +260,7 @@ namespace GVFS.Virtualization.Background
                 if (acquireLockResult == AcquireGVFSLockResult.LockAcquired)
                 {
                     this.RunCallbackUntilSuccess(this.postCallback, "PostCallback");
-                    if (this.backgroundTasks.Count == 0)
+                    if (this.backgroundTasks.IsEmpty)
                     {
                         this.context.Repository.GVFSLock.ReleaseLockHeldByGVFS();
                     }

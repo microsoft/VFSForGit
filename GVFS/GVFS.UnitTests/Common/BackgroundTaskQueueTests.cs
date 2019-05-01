@@ -45,6 +45,7 @@ namespace GVFS.UnitTests.Common
         {
             MockFileSystem fs = new MockFileSystem();
             FileSystemTaskQueue dut = CreateFileBasedQueue(fs, Item1EntryText);
+            dut.IsEmpty.ShouldBeFalse();
 
             for (int i = 0; i < 5; ++i)
             {
@@ -61,8 +62,10 @@ namespace GVFS.UnitTests.Common
         {
             MockFileSystem fs = new MockFileSystem();
             FileSystemTaskQueue dut = CreateFileBasedQueue(fs, string.Empty);
+            dut.IsEmpty.ShouldBeTrue();
 
             dut.EnqueueAndFlush(Item1Payload);
+            dut.IsEmpty.ShouldBeFalse();
 
             fs.File.ReadAsString().ShouldEqual(Item1EntryText);
         }
@@ -72,8 +75,10 @@ namespace GVFS.UnitTests.Common
         {
             MockFileSystem fs = new MockFileSystem();
             FileSystemTaskQueue dut = CreateFileBasedQueue(fs, Item1EntryText);
+            dut.IsEmpty.ShouldBeFalse();
 
             dut.DequeueAndFlush(Item1Payload);
+            dut.IsEmpty.ShouldBeTrue();
 
             fs.File.Length.ShouldEqual(0);
         }
@@ -83,6 +88,7 @@ namespace GVFS.UnitTests.Common
         {
             MockFileSystem fs = new MockFileSystem();
             FileSystemTaskQueue dut = CreateFileBasedQueue(fs, CorruptEntryText);
+            dut.IsEmpty.ShouldBeFalse();
 
             fs.File.ReadAsString().ShouldEqual(Item1EntryText);
             dut.Count.ShouldEqual(1);
@@ -95,19 +101,24 @@ namespace GVFS.UnitTests.Common
 
             MockFileSystem fs = new MockFileSystem();
             FileSystemTaskQueue dut = CreateFileBasedQueue(fs, Item1EntryText);
+            dut.IsEmpty.ShouldBeFalse();
 
             // Add a second entry to keep FileBasedQueue from setting the stream length to 0
             dut.EnqueueAndFlush(Item2Payload);
+            dut.IsEmpty.ShouldBeFalse();
 
             fs.File.ReadAsString().ShouldEqual(Item1EntryText + Item2EntryText);
             fs.File.ReadAt(fs.File.Length - 2, 2).ShouldEqual("\r\n");
 
             dut.DequeueAndFlush(Item1Payload);
+            dut.IsEmpty.ShouldBeFalse();
             dut.Count.ShouldEqual(1);
 
             FileSystemTask item;
             dut.TryPeek(out item).ShouldEqual(true);
             item.ShouldEqual(Item2Payload);
+            dut.IsEmpty.ShouldBeFalse();
+            dut.Count.ShouldEqual(1);
 
             fs.File.Length.ShouldEqual(Encoding.UTF8.GetByteCount(Item1EntryText) + Item2EntryText.Length + DeleteRecord.Length);
             fs.File.ReadAt(Encoding.UTF8.GetByteCount(Item1EntryText) + Item2EntryText.Length, DeleteRecord.Length).ShouldEqual(DeleteRecord);
@@ -119,6 +130,7 @@ namespace GVFS.UnitTests.Common
         {
             MockFileSystem fs = new MockFileSystem();
             FileSystemTaskQueue dut = CreateFileBasedQueue(fs, Item1EntryText);
+            dut.IsEmpty.ShouldBeFalse();
 
             fs.File.TruncateWrites = true;
 
@@ -129,6 +141,7 @@ namespace GVFS.UnitTests.Common
 
             string error;
             FileSystemTaskQueue.TryCreate(null, MockEntryFileName, fs, out dut, out error).ShouldEqual(true);
+            dut.IsEmpty.ShouldBeFalse();
             using (dut)
             {
                 FileSystemTask output;
@@ -136,6 +149,8 @@ namespace GVFS.UnitTests.Common
                 output.ShouldEqual(Item1Payload);
                 dut.DequeueAndFlush(output);
             }
+
+            dut.IsEmpty.ShouldBeTrue();
         }
 
         private static FileSystemTaskQueue CreateFileBasedQueue(MockFileSystem fs, string initialContents)
