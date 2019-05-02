@@ -10,9 +10,8 @@ namespace GVFS.Common
 {
     public abstract class GVFSPlatform
     {
-        public GVFSPlatform(string executableExtension, string installerExtension, UnderConstructionFlags underConstruction)
+        public GVFSPlatform(UnderConstructionFlags underConstruction)
         {
-            this.Constants = new GVFSPlatformConstants(executableExtension, installerExtension);
             this.UnderConstruction = underConstruction;
         }
 
@@ -23,7 +22,7 @@ namespace GVFS.Common
         public abstract IDiskLayoutUpgradeData DiskLayoutUpgrade { get; }
         public abstract IPlatformFileSystem FileSystem { get; }
 
-        public GVFSPlatformConstants Constants { get; }
+        public abstract GVFSPlatformConstants Constants { get; }
         public UnderConstructionFlags UnderConstruction { get; }
         public abstract string Name { get; }
 
@@ -49,6 +48,7 @@ namespace GVFS.Common
         public abstract void InitializeEnlistmentACLs(string enlistmentPath);
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
+        public abstract string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer);
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
 
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
@@ -87,23 +87,17 @@ namespace GVFS.Common
             return true;
         }
 
-        public class GVFSPlatformConstants
+        public abstract class GVFSPlatformConstants
         {
             public static readonly char PathSeparator = Path.DirectorySeparatorChar;
+            public abstract string ExecutableExtension { get; }
+            public abstract string InstallerExtension { get; }
 
-            public GVFSPlatformConstants(string executableExtension, string installerExtension)
-            {
-                this.ExecutableExtension = executableExtension;
-                this.InstallerExtension = installerExtension;
-            }
+            public abstract string GVFSBinDirectoryPath { get; }
 
-            public string ExecutableExtension { get; }
-            public string InstallerExtension { get; }
+            public abstract string GVFSBinDirectoryName { get; }
 
-            public string GVFSExecutableName
-            {
-                get { return "GVFS" + this.ExecutableExtension; }
-            }
+            public abstract string GVFSExecutableName { get; }
 
             public string GVFSHooksExecutableName
             {

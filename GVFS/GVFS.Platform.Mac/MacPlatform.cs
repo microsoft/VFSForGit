@@ -2,19 +2,20 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Platform.POSIX;
+using System.IO;
 
 namespace GVFS.Platform.Mac
 {
     public partial class MacPlatform : POSIXPlatform
     {
-        public MacPlatform() : base(installerExtension: ".dmg")
+        public MacPlatform()
         {
         }
 
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new MacDiskLayoutUpgradeData();
         public override IKernelDriver KernelDriver { get; } = new ProjFSKext();
         public override string Name { get => "macOS"; }
-
+        public override GVFSPlatformConstants Constants { get; } = new MacPlatformConstants();
         public override string GetOSVersionInformation()
         {
             ProcessResult result = ProcessHelper.Run("sw_vers", args: string.Empty, redirectOutput: true);
@@ -37,6 +38,24 @@ namespace GVFS.Platform.Mac
             string lockPath)
         {
             return new MacFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public class MacPlatformConstants : POSIXPlatformConstants
+        {
+            public override string InstallerExtension
+            {
+                get { return ".dmg"; }
+            }
+
+            public override string GVFSBinDirectoryPath
+            {
+                get { return Path.Combine("/usr", "local", this.GVFSBinDirectoryName); }
+            }
+
+            public override string GVFSBinDirectoryName
+            {
+                get { return "vfsforgit"; }
+            }
         }
     }
 }

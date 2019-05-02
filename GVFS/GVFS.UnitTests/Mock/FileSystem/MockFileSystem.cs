@@ -112,6 +112,13 @@ namespace GVFS.UnitTests.Mock.FileSystem
             this.RootDirectory.RemoveFile(sourcePath);
         }
 
+        public override bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
+        {
+            normalizedPath = path;
+            errorMessage = null;
+            return true;
+        }
+
         public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool flushesToDisk)
         {
             MockFile file = this.RootDirectory.FindFile(path);

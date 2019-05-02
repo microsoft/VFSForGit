@@ -2,7 +2,6 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
-using GVFS.UnitTests.Mock.Common.Tracing;
 using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
 using System;
@@ -14,10 +13,11 @@ namespace GVFS.UnitTests.Mock.Common
 {
     public class MockPlatform : GVFSPlatform
     {
-        public MockPlatform()
-            : base(executableExtension: ".mockexe", installerExtension: ".mockexe", underConstruction: new UnderConstructionFlags())
+        public MockPlatform() : base(underConstruction: new UnderConstructionFlags())
         {
         }
+
+        public string MockCurrentUser { get; set; }
 
         public override IKernelDriver KernelDriver => throw new NotSupportedException();
 
@@ -26,7 +26,10 @@ namespace GVFS.UnitTests.Mock.Common
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade => throw new NotSupportedException();
 
         public override IPlatformFileSystem FileSystem { get; } = new MockPlatformFileSystem();
+
         public override string Name { get => "Mock"; }
+
+        public override GVFSPlatformConstants Constants { get; } = new MockPlatformConstants();
 
         public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
 
@@ -62,7 +65,12 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string GetCurrentUser()
         {
-            throw new NotSupportedException();
+            return this.MockCurrentUser;
+        }
+
+        public override string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer)
+        {
+            return sessionId.ToString();
         }
 
         public override string GetOSVersionInformation()
@@ -143,6 +151,34 @@ namespace GVFS.UnitTests.Mock.Common
             error = null;
             exitCode = 0;
             return true;
+        }
+
+        public class MockPlatformConstants : GVFSPlatformConstants
+        {
+            public override string ExecutableExtension
+            {
+                get { return ".mockexe"; }
+            }
+
+            public override string InstallerExtension
+            {
+                get { return ".mockexe"; }
+            }
+
+            public override string GVFSBinDirectoryPath
+            {
+                get { return Path.Combine("MockProgramFiles", this.GVFSBinDirectoryName); }
+            }
+
+            public override string GVFSBinDirectoryName
+            {
+                get { return "MockGVFS"; }
+            }
+
+            public override string GVFSExecutableName
+            {
+                get { return "MockGVFS" + this.ExecutableExtension; }
+            }
         }
     }
 }

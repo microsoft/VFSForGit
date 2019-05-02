@@ -25,11 +25,7 @@ namespace GVFS.Platform.Windows
         private const string BuildLabRegistryValue = "BuildLab";
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
-        public WindowsPlatform()
-            : base(
-                executableExtension: ".exe",
-                installerExtension: ".exe",
-                underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
+        public WindowsPlatform() : base(underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
         {
         }
 
@@ -38,6 +34,7 @@ namespace GVFS.Platform.Windows
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new WindowsDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new WindowsFileSystem();
         public override string Name { get => "Windows"; }
+        public override GVFSPlatformConstants Constants { get; } = new WindowsPlatformConstants();
 
         public static string GetStringFromRegistry(string key, string valueName)
         {
@@ -311,6 +308,14 @@ namespace GVFS.Platform.Windows
             return identity.User.Value;
         }
 
+        public override string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer)
+        {
+            using (CurrentUser currentUser = new CurrentUser(tracer, sessionId))
+            {
+                return currentUser.Identity.User.Value;
+            }
+        }
+
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);
 
         public override bool IsConsoleOutputRedirectedToFile()
@@ -387,6 +392,39 @@ namespace GVFS.Platform.Windows
 
             object value = localKeySub == null ? null : localKeySub.GetValue(valueName);
             return value;
+        }
+
+        public class WindowsPlatformConstants : GVFSPlatformConstants
+        {
+            public override string ExecutableExtension
+            {
+                get { return ".exe"; }
+            }
+
+            public override string InstallerExtension
+            {
+                get { return ".exe"; }
+            }
+
+            public override string GVFSBinDirectoryPath
+            {
+                get
+                {
+                    return Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                        this.GVFSBinDirectoryName);
+                }
+            }
+
+            public override string GVFSBinDirectoryName
+            {
+                get { return "GVFS"; }
+            }
+
+            public override string GVFSExecutableName
+            {
+                get { return "GVFS" + this.ExecutableExtension; }
+            }
         }
     }
 }

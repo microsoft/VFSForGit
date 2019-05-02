@@ -119,7 +119,6 @@
     <Compile Include="Windows\Mock\MockTextWriter.cs" />
     <Compile Include="Windows\Mock\MockWriteBuffer.cs" />
     <Compile Include="Windows\Platform\ProjFSFilterTests.cs" />
-    <Compile Include="Windows\Service\RepoRegistryTests.cs" />
     <Compile Include="Windows\Upgrader\ProductUpgraderTests.cs" />
     <Compile Include="Windows\Upgrader\UpgradeOrchestratorWithGitHubUpgraderTests.cs" />
     <Compile Include="Windows\Upgrader\UpgradeOrchestratorTests.cs" />
@@ -155,13 +154,17 @@
       <Project>{1dac3da6-3d21-4917-b9a8-d60c8712252a}</Project>
       <Name>GVFS.Platform.Mac</Name>
     </ProjectReference>
+    <ProjectReference Include="..\GVFS.Platform.POSIX\GVFS.Platform.POSIX.csproj">
+      <Project>{15fae44c-0d21-4312-9fd3-28f05a5ab7a6}</Project>
+      <Name>GVFS.Platform.POSIX</Name>
+    </ProjectReference>
     <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj">
       <Project>{4ce404e7-d3fc-471c-993c-64615861ea63}</Project>
       <Name>GVFS.Platform.Windows</Name>
     </ProjectReference>
-    <ProjectReference Include="..\GVFS.Service\GVFS.Service.Windows.csproj">
-      <Project>{b8c1dfba-cafd-4f7e-a1a3-e11907b5467b}</Project>
-      <Name>GVFS.Service</Name>
+    <ProjectReference Include="..\GVFS.Service\GVFS.Service.Mac.csproj">
+      <Project>{03769a07-f216-456b-886b-e07caf6c5e81}</Project>
+      <Name>GVFS.Service.Mac</Name>
     </ProjectReference>
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj">
       <Project>{72701bc3-5da9-4c7a-bf10-9e98c9fc8eac}</Project>
