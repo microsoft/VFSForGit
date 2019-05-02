@@ -118,18 +118,50 @@ namespace GVFS.Common.Maintenance
         /// Creates a pack file from loose objects
         /// </summary>
         /// <returns>The number of loose objects added to the pack file</returns>
-        public int CreateLooseObjectsPackFile()
+        public bool TryCreateLooseObjectsPackFile(out int objectsAddedToPack)
         {
-            int objectsAddedToPack = 0;
+            int localObjectCount = 0;
 
             GitProcess.Result result = this.RunGitCommand(
                 (process) => process.PackObjects(
                     "from-loose",
                     this.Context.Enlistment.GitObjectsRoot,
-                    (StreamWriter writer) => objectsAddedToPack = this.WriteLooseObjectIds(writer)),
+                    (StreamWriter writer) => localObjectCount = this.WriteLooseObjectIds(writer)),
                 nameof(GitProcess.PackObjects));
 
-            return objectsAddedToPack;
+            if (result.ExitCodeIsSuccess)
+            {
+                objectsAddedToPack = localObjectCount;
+                return true;
+            }
+            else
+            {
+                objectsAddedToPack = 0;
+                return false;
+            }
+        }
+
+        public int ClearCorruptLooseObjects()
+        {
+            int numBadObjects = 0;
+            foreach (string objectId in this.LooseObjectsBatch(this.MaxLooseObjectsInPack))
+            {
+                if (!this.Context.Repository.TryGetIsBlob(objectId, out bool isBlob) ||
+                    !isBlob)
+                {
+                    string objectFile = Path.Combine(
+                                                this.Context.Enlistment.GitObjectsRoot,
+                                                objectId.Substring(0, 2),
+                                                objectId.Substring(2, GVFSConstants.ShaStringLength - 2));
+
+                    if (this.Context.FileSystem.TryDeleteFile(objectFile))
+                    {
+                        numBadObjects++;
+                    }
+                }
+            }
+
+            return numBadObjects;
         }
 
         protected override void PerformMaintenance()
@@ -159,7 +191,7 @@ namespace GVFS.Common.Maintenance
                     GitProcess.Result result = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.PrunePacked));
                     int afterLooseObjectsCount = this.CountLooseObjects();
 
-                    int objectsAddedToPack = this.CreateLooseObjectsPackFile();
+                    bool createPack = this.TryCreateLooseObjectsPackFile(out int objectsAddedToPack);
 
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("GitObjectsRoot", this.Context.Enlistment.GitObjectsRoot);
@@ -167,6 +199,13 @@ namespace GVFS.Common.Maintenance
                     metadata.Add("EndingCount", afterLooseObjectsCount);
                     metadata.Add("RemovedCount", beforeLooseObjectsCount - afterLooseObjectsCount);
                     metadata.Add("LooseObjectsPutIntoPackFile", objectsAddedToPack);
+
+                    if (!createPack)
+                    {
+                        int removedObjects = this.ClearCorruptLooseObjects();
+                        metadata.Add("RemovedCorruptObjects", removedObjects);
+                    }
+
                     activity.RelatedEvent(EventLevel.Informational, $"{this.Area}_{nameof(this.PerformMaintenance)}", metadata, Keywords.Telemetry);
                     this.SaveLastRunTimeToFile();
                 }
