@@ -21,7 +21,7 @@ SET vswhere=%VFS_PACKAGESDIR%\vswhere.%vswherever%\tools\vswhere.exe
 
 :: Use vswhere to find the latest VS installation (including prerelease installations) with the msbuild component.
 :: See https://github.com/Microsoft/vswhere/wiki/Find-MSBuild
-for /f "usebackq tokens=*" %%i in (`%vswhere% -all -prerelease -latest -version "[15.0,16.0)" -products * -requires Microsoft.Component.MSBuild Microsoft.VisualStudio.Workload.ManagedDesktop Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Workload.NetCoreTools Microsoft.Component.NetFX.Core.Runtime Microsoft.VisualStudio.Component.Windows10SDK.10240 -property installationPath`) do (
+for /f "usebackq tokens=*" %%i in (`%vswhere% -all -prerelease -latest -products * -requires Microsoft.Component.MSBuild Microsoft.VisualStudio.Workload.ManagedDesktop Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Workload.NetCoreTools Microsoft.VisualStudio.Component.Windows10SDK.16299 -property installationPath`) do (
   set VsInstallDir=%%i
 )
 
@@ -31,7 +31,7 @@ IF NOT DEFINED VsInstallDir (
   exit /b 10
 )
 
-SET msbuild="%VsInstallDir%\MSBuild\15.0\Bin\amd64\msbuild.exe"
+SET msbuild="%VsInstallDir%\MSBuild\Current\Bin\amd64\msbuild.exe"
 IF NOT EXIST %msbuild% (
   echo ERROR: Could not find msbuild
   exit /b 1
