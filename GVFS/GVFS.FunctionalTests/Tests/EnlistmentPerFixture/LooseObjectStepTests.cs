@@ -25,7 +25,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private string GitObjectRoot => this.Enlistment.GetObjectRoot(this.fileSystem);
         private string PackRoot => this.Enlistment.GetPackRoot(this.fileSystem);
-        private string TempPackRoot=> Path.Combine(this.PackRoot, TempPackFolder);
+        private string TempPackRoot => Path.Combine(this.PackRoot, TempPackFolder);
 
         [TestCase]
         public void RemoveLooseObjectsInPackFiles()
@@ -62,13 +62,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // Expand one pack, and verify we have loose objects
             this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
-            int loooseObjectCount = this.GetLooseObjectFiles().Count();
-            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
+            int looseObjectCount = this.GetLooseObjectFiles().Count();
+            looseObjectCount.ShouldBeAtLeast(1);
 
             // This step should put the loose objects into a packfile
             this.Enlistment.LooseObjectStep();
 
-            this.GetLooseObjectFiles().Count.ShouldEqual(loooseObjectCount);
+            this.GetLooseObjectFiles().Count.ShouldEqual(looseObjectCount);
             this.CountPackFiles().ShouldEqual(1);
 
             // Running the step a second time should remove the loose obects and keep the pack file
@@ -89,6 +89,40 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GetLooseObjectFiles().Count.ShouldEqual(0);
             this.CountPackFiles().ShouldEqual(startingPackFileCount);
+        }
+
+        [TestCase]
+        public void CorruptLooseObjectIsDeleted()
+        {
+            // Delete/Move any starting loose objects and packfiles
+            this.DeleteFiles(this.GetLooseObjectFiles());
+            this.MovePackFilesToTemp();
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
+            this.CountPackFiles().ShouldEqual(0);
+
+            // Expand one pack, and verify we have loose objects
+            this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
+            int looseObjectCount = this.GetLooseObjectFiles().Count();
+            looseObjectCount.ShouldBeAtLeast(1);
+
+            // Create an invalid loose object
+            string fakeBlobFolder = Path.Combine(this.GitObjectRoot, "00");
+            string fakeBlob = Path.Combine(
+                        fakeBlobFolder,
+                        "01234567890123456789012345678901234567");
+            this.fileSystem.CreateDirectory(fakeBlobFolder);
+            this.fileSystem.CreateEmptyFile(fakeBlob);
+
+            // This step should fail to place the objects, but
+            // succeed in deleting the given file.
+            this.Enlistment.LooseObjectStep();
+
+            this.fileSystem.FileExists(fakeBlob).ShouldBeFalse(
+                   "Step failed to delete corrupt blob");
+            this.CountPackFiles().ShouldEqual(0);
+            this.GetLooseObjectFiles().Count.ShouldEqual(
+                looseObjectCount,
+                "unexpected number of loose objects after step");
         }
 
         private List<string> GetLooseObjectFiles()
