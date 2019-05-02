@@ -15,11 +15,8 @@
             // machines but not on the build agents
             public const string FailsOnBuildAgent = "FailsOnBuildAgent";
 
-            // Tests that require #356 (old paths to be delivered with rename notifications)
-            public const string NeedsRenameOldPath = "NeedsRenameOldPath";
-
-            // Git related tests that are not yet passing on Mac
-            public const string M3 = "M3_AllGitCommands";
+            // Tests that require #360 (detecting/handling new empty folders)
+            public const string NeedsNewFolderCreateNotification = "NeedsNewFolderCreateNotification";
 
             // Tests for GVFS features that are not required for correct git functionality
             public const string M4 = "M4_GVFSFeatures";

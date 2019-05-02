@@ -80,7 +80,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(4)]
-        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         public void RenameEmptyFolderTest()
         {
             string folderName = "folder3a";
@@ -101,7 +100,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
-        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         public void RenameFolderTest()
         {
             string folderName = "folder4a";
@@ -141,7 +139,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(6)]
-        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         public void CaseOnlyRenameOfNewFolderKeepsModifiedPathsEntries()
         {
             if (this.fileSystem is PowerShellRunner)
