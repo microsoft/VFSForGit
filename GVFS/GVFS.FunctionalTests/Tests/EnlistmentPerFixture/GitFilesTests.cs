@@ -356,6 +356,42 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             fileToSupersedePath.ShouldBeAFile(this.fileSystem).WithContents(newContent);
         }
 
+        [TestCase, Order(16)]
+        public void FileMovedFromOutsideRepoToInside()
+        {
+            string fileName = "TestAddFile.txt";
+            string fileOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileName);
+            this.fileSystem.WriteAllText(fileOutsideRepo, "Contents for the new file");
+            fileOutsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileMovedInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            this.fileSystem.MoveFile(fileOutsideRepo, fileMovedInsideRepo);
+            fileMovedInsideRepo.ShouldBeAFile(this.fileSystem);
+            fileOutsideRepo.ShouldNotExistOnDisk(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+        }
+
+        [TestCase, Order(17)]
+        public void FileMovedFromInsideRepoToOutside()
+        {
+            string fileName = "TestAddFile.txt";
+            string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            this.fileSystem.WriteAllText(fileInsideRepo, "Contents for the new file");
+            fileInsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileMovedOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileName);
+            this.fileSystem.MoveFile(fileInsideRepo, fileMovedOutsideRepo);
+            fileInsideRepo.ShouldNotExistOnDisk(this.fileSystem);
+            fileMovedOutsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
+        }
+
         [DllImport("GVFS.NativeTests.dll", CharSet = CharSet.Unicode)]
         private static extern bool SupersedeFile(string path, [MarshalAs(UnmanagedType.LPStr)]string newContent);
 
