@@ -55,13 +55,12 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     PerfTracer* perfTracer,
     vfs_context_t context,
     const vnode_t vnode,
+    const char* fromPath,
     kauth_action_t action,
     bool isDirectory,
-    const char* fromPath, // used only for hard-link & rename events, nullptr otherwise
 
     // Out params:
     VirtualizationRootHandle* vnodeRoot,
-    VirtualizationRootHandle* fromProvider, // when fromPath is non-null, the handle of the provider where the file was originally located is written to here
     FsidInode* vnodeFsidInode,
     int* pid);
 KEXT_STATIC void UseMainForkIfNamedStream(vnode_t& vnode, bool& putVnodeWhenDone);

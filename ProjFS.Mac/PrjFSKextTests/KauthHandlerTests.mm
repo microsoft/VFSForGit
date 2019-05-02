@@ -372,7 +372,7 @@ class org_vfsforgit_PrjFSProviderUserClient
 
     org_vfsforgit_PrjFSProviderUserClient userClient;
 
-    VirtualizationRootHandle rootHandle, testRootHandle, fromProviderHandle;
+    VirtualizationRootHandle rootHandle, testRootHandle;
     FsidInode vnodeFsidInode;
     int pid;
 
@@ -382,11 +382,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             repoRootVnode.get(),
+            nullptr, // from
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
-            fromDirectoryPath.c_str(),
             &testRootHandle,
-            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
 
@@ -406,11 +405,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             repoRootVnode.get(),
+            nullptr, // from
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
-            fromDirectoryPath.c_str(),
             &testRootHandle,
-            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
 
@@ -420,11 +418,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeNone.get(),
+            nullptr, // from
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
-            fromDirectoryPath.c_str(),
             &testRootHandle,
-            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     
@@ -434,11 +431,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeUnsupportedType.get(),
+            nullptr, // from
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
-            fromDirectoryPath.c_str(),
             &testRootHandle,
-            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
 
@@ -449,11 +445,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             repoRootVnode.get(),
+            nullptr, // from
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
-            fromDirectoryPath.c_str(),
             &testRootHandle,
-            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     s_virtualizationRoots[0].providerUserClient = &userClient;
@@ -468,11 +463,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             repoRootVnode.get(),
+            nullptr, // from
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
-            fromDirectoryPath.c_str(),
             &testRootHandle,
-            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     MockProcess_Reset();
@@ -486,11 +480,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeFile.get(),
+            nullptr, // from
             KAUTH_FILEOP_OPEN,
             false, // isDirectory,
-            nullptr, // fromPath not needed for OPEN
             &rootHandle,
-            nullptr, // fromProvider not needed for OPEN
             &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
@@ -504,11 +497,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeFile.get(),
+            nullptr, // from
             KAUTH_FILEOP_LINK,
             false, // isDirectory,
-            fromFilePath.c_str(),
             &rootHandle,
-            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
@@ -524,11 +516,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeFile.get(),
+            nullptr, // from
             KAUTH_FILEOP_RENAME,
             false, // isDirectory,
-            fromFilePath.c_str(),
             &rootHandle,
-            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
@@ -545,11 +536,10 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeDirectory.get(),
+            nullptr, // from
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
-            fromDirectoryPath.c_str(),
             &rootHandle,
-            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);

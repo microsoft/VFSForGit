@@ -1490,6 +1490,13 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
 {
     size_t rootLength = strlen(root);
     size_t pathLength = strlen(fullPath);
+    
+    // If "" is passed thru this is an empty 'from' or 'to' path
+    if (pathLength == 0)
+    {
+        return fullPath;
+    }
+    
     if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
     {
         // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
