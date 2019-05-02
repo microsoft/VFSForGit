@@ -51,15 +51,8 @@ namespace GVFS.Common.Maintenance
             return count;
         }
 
-        /// <summary>
-        /// Writes loose object Ids to streamWriter
-        /// </summary>
-        /// <param name="streamWriter">Writer to which SHAs are written</param>
-        /// <returns>The number of loose objects SHAs written to the stream</returns>
-        public int WriteLooseObjectIds(StreamWriter streamWriter)
+        public IEnumerable<string> LooseObjectsBatch(int count)
         {
-            int looseObjectsPutIntoPackFiles = 0;
-
             // Find loose Objects
             foreach (DirectoryItemInfo directoryItemInfo in this.Context.FileSystem.ItemsInDirectory(this.Context.Enlistment.GitObjectsRoot))
             {
@@ -79,20 +72,35 @@ namespace GVFS.Common.Maintenance
                                 continue;
                             }
 
-                            looseObjectsPutIntoPackFiles++;
-                            streamWriter.Write(objectId + "\n");
+                            count--;
+                            yield return objectId;
 
-                            // Stop when we hit the limit.  The next run will pack more files.
-                            if (looseObjectsPutIntoPackFiles >= this.MaxLooseObjectsInPack)
+                            if (count <= 0)
                             {
-                                return looseObjectsPutIntoPackFiles;
+                                yield break;
                             }
                         }
                     }
                 }
             }
+        }
 
-            return looseObjectsPutIntoPackFiles;
+        /// <summary>
+        /// Writes loose object Ids to streamWriter
+        /// </summary>
+        /// <param name="streamWriter">Writer to which SHAs are written</param>
+        /// <returns>The number of loose objects SHAs written to the stream</returns>
+        public int WriteLooseObjectIds(StreamWriter streamWriter)
+        {
+            int count = 0;
+
+            foreach (string objectId in this.LooseObjectsBatch(this.MaxLooseObjectsInPack))
+            {
+                streamWriter.Write(objectId + "\n");
+                count++;
+            }
+
+            return count;
         }
 
         public bool TryGetLooseObjectId(string directoryName, string filePath, out string objectId)
