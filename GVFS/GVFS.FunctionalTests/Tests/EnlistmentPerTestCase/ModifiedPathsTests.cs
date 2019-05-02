@@ -75,7 +75,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         }
 
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
-        [Cateogry(Categories.MacTODO.NeedsNewFolderCreateNotification)]
+        [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
         public void ModifiedPathsSavedAfterRemount(FileSystemRunner fileSystem)
         {
             string fileToAdd = this.Enlistment.GetVirtualPathTo(FileToAdd);
