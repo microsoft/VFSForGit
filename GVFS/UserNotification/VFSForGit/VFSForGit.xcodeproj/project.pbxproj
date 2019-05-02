@@ -1,0 +1,573 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 50;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		433FE819227B593500488730 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE818227B593500488730 /* AppDelegate.m */; };
+		433FE81B227B594300488730 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 433FE81A227B594300488730 /* Assets.xcassets */; };
+		433FE81E227B594300488730 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 433FE81C227B594300488730 /* MainMenu.xib */; };
+		433FE821227B594300488730 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE820227B594300488730 /* main.m */; };
+		433FE82C227B594300488730 /* VFSForGitTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE82B227B594300488730 /* VFSForGitTests.m */; };
+		433FE83E227B5A7300488730 /* NativeNotification.h in Headers */ = {isa = PBXBuildFile; fileRef = 433FE83D227B5A7300488730 /* NativeNotification.h */; };
+		433FE840227B5A7300488730 /* NativeNotification.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE83F227B5A7300488730 /* NativeNotification.m */; };
+		433FE846227B90CA00488730 /* NotificationRequestHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE845227B90CA00488730 /* NotificationRequestHandler.m */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		433FE828227B594300488730 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 433FE80C227B593500488730 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 433FE813227B593500488730;
+			remoteInfo = VFSForGit;
+		};
+		433FE847227B95A500488730 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 433FE80C227B593500488730 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 433FE83A227B5A7300488730;
+			remoteInfo = NativeNotification;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		433FE814227B593500488730 /* VFSForGit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VFSForGit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		433FE817227B593500488730 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		433FE818227B593500488730 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		433FE81A227B594300488730 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		433FE81D227B594300488730 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
+		433FE81F227B594300488730 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		433FE820227B594300488730 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		433FE822227B594300488730 /* VFSForGit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VFSForGit.entitlements; sourceTree = "<group>"; };
+		433FE827227B594300488730 /* VFSForGitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VFSForGitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		433FE82B227B594300488730 /* VFSForGitTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSForGitTests.m; sourceTree = "<group>"; };
+		433FE82D227B594300488730 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		433FE83B227B5A7300488730 /* libNativeNotification.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libNativeNotification.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+		433FE83D227B5A7300488730 /* NativeNotification.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NativeNotification.h; sourceTree = "<group>"; };
+		433FE83F227B5A7300488730 /* NativeNotification.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NativeNotification.m; sourceTree = "<group>"; };
+		433FE844227B90CA00488730 /* NotificationRequestHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NotificationRequestHandler.h; sourceTree = "<group>"; };
+		433FE845227B90CA00488730 /* NotificationRequestHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NotificationRequestHandler.m; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		433FE811227B593500488730 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		433FE824227B594300488730 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		433FE838227B5A7300488730 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		433FE80B227B593500488730 = {
+			isa = PBXGroup;
+			children = (
+				433FE816227B593500488730 /* StatusMenuItem */,
+				433FE82A227B594300488730 /* Tests */,
+				433FE83C227B5A7300488730 /* NativeNotificationLib */,
+				433FE815227B593500488730 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		433FE815227B593500488730 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				433FE814227B593500488730 /* VFSForGit.app */,
+				433FE827227B594300488730 /* VFSForGitTests.xctest */,
+				433FE83B227B5A7300488730 /* libNativeNotification.dylib */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		433FE816227B593500488730 /* StatusMenuItem */ = {
+			isa = PBXGroup;
+			children = (
+				433FE817227B593500488730 /* AppDelegate.h */,
+				433FE818227B593500488730 /* AppDelegate.m */,
+				433FE81A227B594300488730 /* Assets.xcassets */,
+				433FE81C227B594300488730 /* MainMenu.xib */,
+				433FE81F227B594300488730 /* Info.plist */,
+				433FE820227B594300488730 /* main.m */,
+				433FE822227B594300488730 /* VFSForGit.entitlements */,
+				433FE844227B90CA00488730 /* NotificationRequestHandler.h */,
+				433FE845227B90CA00488730 /* NotificationRequestHandler.m */,
+			);
+			path = StatusMenuItem;
+			sourceTree = "<group>";
+		};
+		433FE82A227B594300488730 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				433FE82B227B594300488730 /* VFSForGitTests.m */,
+				433FE82D227B594300488730 /* Info.plist */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		433FE83C227B5A7300488730 /* NativeNotificationLib */ = {
+			isa = PBXGroup;
+			children = (
+				433FE83D227B5A7300488730 /* NativeNotification.h */,
+				433FE83F227B5A7300488730 /* NativeNotification.m */,
+			);
+			path = NativeNotificationLib;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		433FE839227B5A7300488730 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				433FE83E227B5A7300488730 /* NativeNotification.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		433FE813227B593500488730 /* VFSForGit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 433FE830227B594300488730 /* Build configuration list for PBXNativeTarget "VFSForGit" */;
+			buildPhases = (
+				433FE810227B593500488730 /* Sources */,
+				433FE811227B593500488730 /* Frameworks */,
+				433FE812227B593500488730 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				433FE848227B95A500488730 /* PBXTargetDependency */,
+			);
+			name = VFSForGit;
+			productName = VFSForGit;
+			productReference = 433FE814227B593500488730 /* VFSForGit.app */;
+			productType = "com.apple.product-type.application";
+		};
+		433FE826227B594300488730 /* VFSForGitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 433FE833227B594300488730 /* Build configuration list for PBXNativeTarget "VFSForGitTests" */;
+			buildPhases = (
+				433FE823227B594300488730 /* Sources */,
+				433FE824227B594300488730 /* Frameworks */,
+				433FE825227B594300488730 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				433FE829227B594300488730 /* PBXTargetDependency */,
+			);
+			name = VFSForGitTests;
+			productName = VFSForGitTests;
+			productReference = 433FE827227B594300488730 /* VFSForGitTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		433FE83A227B5A7300488730 /* NativeNotification */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 433FE841227B5A7300488730 /* Build configuration list for PBXNativeTarget "NativeNotification" */;
+			buildPhases = (
+				433FE837227B5A7300488730 /* Sources */,
+				433FE838227B5A7300488730 /* Frameworks */,
+				433FE839227B5A7300488730 /* Headers */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NativeNotification;
+			productName = NativeNotification;
+			productReference = 433FE83B227B5A7300488730 /* libNativeNotification.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		433FE80C227B593500488730 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0930;
+				ORGANIZATIONNAME = Microsoft;
+				TargetAttributes = {
+					433FE813227B593500488730 = {
+						CreatedOnToolsVersion = 9.3;
+					};
+					433FE826227B594300488730 = {
+						CreatedOnToolsVersion = 9.3;
+						TestTargetID = 433FE813227B593500488730;
+					};
+					433FE83A227B5A7300488730 = {
+						CreatedOnToolsVersion = 9.3;
+					};
+				};
+			};
+			buildConfigurationList = 433FE80F227B593500488730 /* Build configuration list for PBXProject "VFSForGit" */;
+			compatibilityVersion = "Xcode 9.3";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 433FE80B227B593500488730;
+			productRefGroup = 433FE815227B593500488730 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				433FE813227B593500488730 /* VFSForGit */,
+				433FE826227B594300488730 /* VFSForGitTests */,
+				433FE83A227B5A7300488730 /* NativeNotification */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		433FE812227B593500488730 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				433FE81B227B594300488730 /* Assets.xcassets in Resources */,
+				433FE81E227B594300488730 /* MainMenu.xib in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		433FE825227B594300488730 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		433FE810227B593500488730 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				433FE846227B90CA00488730 /* NotificationRequestHandler.m in Sources */,
+				433FE821227B594300488730 /* main.m in Sources */,
+				433FE819227B593500488730 /* AppDelegate.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		433FE823227B594300488730 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				433FE82C227B594300488730 /* VFSForGitTests.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		433FE837227B5A7300488730 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				433FE840227B5A7300488730 /* NativeNotification.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		433FE829227B594300488730 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 433FE813227B593500488730 /* VFSForGit */;
+			targetProxy = 433FE828227B594300488730 /* PBXContainerItemProxy */;
+		};
+		433FE848227B95A500488730 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 433FE83A227B5A7300488730 /* NativeNotification */;
+			targetProxy = 433FE847227B95A500488730 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		433FE81C227B594300488730 /* MainMenu.xib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				433FE81D227B594300488730 /* Base */,
+			);
+			name = MainMenu.xib;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		433FE82E227B594300488730 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		433FE82F227B594300488730 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		433FE831227B594300488730 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = "$(SRCROOT)/StatusMenuItem/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				PRODUCT_BUNDLE_IDENTIFIER = com.microsoft.VFSForGit;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+			};
+			name = Debug;
+		};
+		433FE832227B594300488730 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = "$(SRCROOT)/StatusMenuItem/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				PRODUCT_BUNDLE_IDENTIFIER = com.microsoft.VFSForGit;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+			};
+			name = Release;
+		};
+		433FE834227B594300488730 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = VFSForGitTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.microsoft.VFSForGitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VFSForGit.app/Contents/MacOS/VFSForGit";
+			};
+			name = Debug;
+		};
+		433FE835227B594300488730 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = VFSForGitTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.microsoft.VFSForGitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VFSForGit.app/Contents/MacOS/VFSForGit";
+			};
+			name = Release;
+		};
+		433FE842227B5A7300488730 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				EXECUTABLE_PREFIX = lib;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		433FE843227B5A7300488730 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				EXECUTABLE_PREFIX = lib;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		433FE80F227B593500488730 /* Build configuration list for PBXProject "VFSForGit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				433FE82E227B594300488730 /* Debug */,
+				433FE82F227B594300488730 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		433FE830227B594300488730 /* Build configuration list for PBXNativeTarget "VFSForGit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				433FE831227B594300488730 /* Debug */,
+				433FE832227B594300488730 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		433FE833227B594300488730 /* Build configuration list for PBXNativeTarget "VFSForGitTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				433FE834227B594300488730 /* Debug */,
+				433FE835227B594300488730 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		433FE841227B5A7300488730 /* Build configuration list for PBXNativeTarget "NativeNotification" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				433FE842227B5A7300488730 /* Debug */,
+				433FE843227B5A7300488730 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 433FE80C227B593500488730 /* Project object */;
+}
