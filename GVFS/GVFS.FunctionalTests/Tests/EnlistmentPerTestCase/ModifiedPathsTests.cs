@@ -74,8 +74,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
         }
 
-        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        [Cateogry(Categories.MacTODO.NeedsNewFolderCreateNotification)]
         public void ModifiedPathsSavedAfterRemount(FileSystemRunner fileSystem)
         {
             string fileToAdd = this.Enlistment.GetVirtualPathTo(FileToAdd);
