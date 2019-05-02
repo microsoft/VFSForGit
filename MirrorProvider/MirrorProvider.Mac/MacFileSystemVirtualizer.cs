@@ -198,9 +198,9 @@ namespace MirrorProvider.Mac
             Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
         }
 
-        private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
+        private void OnFileRenamed(string relativeDestinationPath, string relativeSourcePath, bool isDirectory)
         {
-            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}) destination: {relativeDestinationPath}");
+            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}) destination: {relativeDestinationPath} source: {relativeSourcePath}");
         }
 
         private void OnHardLinkCreated(string relativeNewLinkPath)

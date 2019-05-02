@@ -217,7 +217,7 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
-            this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
+            this.virtualizationInstance.OnFileRenamed = this.NotifyFileRenamed;
             this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
             this.virtualizationInstance.OnFilePreConvertToFull = this.NotifyFilePreConvertToFull;
 
@@ -540,14 +540,14 @@ namespace GVFS.Platform.Mac
             }
         }
 
-        private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
+        private void NotifyFileRenamed(string relativeDestinationPath, string relativeSourcePath, bool isDirectory)
         {
             // ProjFS for Mac *could* be updated to provide us with relativeSourcePath as well,
             // but because VFSForGit doesn't need the source path on Mac for correct behavior
             // the relativeSourcePath is left out of the notification to keep the kext simple
             this.OnFileRenamed(
-                relativeSourcePath: string.Empty,
-                relativeDestinationPath: relativeDestinationPath,
+                relativeSourcePath: relativeSourcePath == null ? string.Empty : relativeSourcePath,
+                relativeDestinationPath: relativeDestinationPath == null ? string.Empty : relativeDestinationPath,
                 isDirectory: isDirectory);
         }
 

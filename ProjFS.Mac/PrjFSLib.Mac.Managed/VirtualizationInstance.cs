@@ -180,6 +180,7 @@ namespace PrjFSLib.Mac
         private Result OnNotifyOperation(
             ulong commandId,
             string relativePath,
+            string relativeFromPath,
             byte[] providerId,
             byte[] contentId,
             int triggeringProcessId,
@@ -201,7 +202,7 @@ namespace PrjFSLib.Mac
                     return Result.Success;
 
                 case NotificationType.FileRenamed:
-                    this.OnFileRenamed(relativePath, isDirectory);
+                    this.OnFileRenamed(relativePath, relativeFromPath, isDirectory);
                     return Result.Success;
 
                 case NotificationType.HardLinkCreated:

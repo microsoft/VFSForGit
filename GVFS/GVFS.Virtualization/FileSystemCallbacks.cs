@@ -578,7 +578,8 @@ namespace GVFS.Virtualization
                     result = FileSystemTaskResult.Success;
                     if (!string.IsNullOrEmpty(gitUpdate.OldVirtualPath) && !IsPathInsideDotGit(gitUpdate.OldVirtualPath))
                     {
-                        if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.OldVirtualPath))
+                        if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.OldVirtualPath) ||
+                            string.IsNullOrEmpty(gitUpdate.VirtualPath))
                         {
                             result = this.TryRemoveModifiedPath(gitUpdate.OldVirtualPath, isFolder: false);
                         }

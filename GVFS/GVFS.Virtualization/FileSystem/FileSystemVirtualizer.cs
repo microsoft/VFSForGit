@@ -244,6 +244,11 @@ namespace GVFS.Virtualization.FileSystem
                     this.OnDotGitFileOrFolderChanged(relativeDestinationPath);
                 }
 
+                if (srcPathInDotGit)
+                {
+                    this.OnDotGitFileOrFolderChanged(relativeSourcePath);
+                }
+
                 if (!(srcPathInDotGit && dstPathInDotGit))
                 {
                     if (isDirectory)
