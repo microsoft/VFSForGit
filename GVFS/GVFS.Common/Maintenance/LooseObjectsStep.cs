@@ -154,6 +154,14 @@ namespace GVFS.Common.Maintenance
             }
         }
 
+        public string GetLooseObjectFileName(string objectId)
+        {
+            return Path.Combine(
+                            this.Context.Enlistment.GitObjectsRoot,
+                            objectId.Substring(0, 2),
+                            objectId.Substring(2, GVFSConstants.ShaStringLength - 2));
+        }
+
         public int ClearCorruptLooseObjects(EventMetadata metadata)
         {
             int numBadObjects = 0;
@@ -177,10 +185,7 @@ namespace GVFS.Common.Maintenance
 
                 if (!isBlob)
                 {
-                    string objectFile = Path.Combine(
-                                                this.Context.Enlistment.GitObjectsRoot,
-                                                objectId.Substring(0, 2),
-                                                objectId.Substring(2, GVFSConstants.ShaStringLength - 2));
+                    string objectFile = this.GetLooseObjectFileName(objectId);
 
                     if (this.Context.FileSystem.TryDeleteFile(objectFile))
                     {
