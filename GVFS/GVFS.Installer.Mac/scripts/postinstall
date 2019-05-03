@@ -16,3 +16,12 @@ if [ -f "${servicePlist}" ]; then
         eval $loadCmd || exit 1
     done    
 fi
+
+userNotificationPlist="/Library/LaunchAgents/org.vfsforgit.usernotification.plist"
+if [ -f "${userNotificationPlist}" ]; then
+    for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
+        loadCmd="launchctl bootstrap gui/$uid ${userNotificationPlist}"
+        echo "Loading User Notification: '$loadCmd'..."
+        eval $loadCmd || exit 1
+    done    
+fi

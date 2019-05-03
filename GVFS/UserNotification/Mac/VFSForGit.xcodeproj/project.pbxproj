@@ -12,9 +12,13 @@
 		433FE81E227B594300488730 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 433FE81C227B594300488730 /* MainMenu.xib */; };
 		433FE821227B594300488730 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE820227B594300488730 /* main.m */; };
 		433FE82C227B594300488730 /* VFSForGitTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE82B227B594300488730 /* VFSForGitTests.m */; };
-		433FE83E227B5A7300488730 /* NativeNotification.h in Headers */ = {isa = PBXBuildFile; fileRef = 433FE83D227B5A7300488730 /* NativeNotification.h */; };
-		433FE840227B5A7300488730 /* NativeNotification.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE83F227B5A7300488730 /* NativeNotification.m */; };
-		433FE846227B90CA00488730 /* NotificationRequestHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE845227B90CA00488730 /* NotificationRequestHandler.m */; };
+		433FE846227B90CA00488730 /* UserNotification.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE845227B90CA00488730 /* UserNotification.m */; };
+		433FE84B227C89B000488730 /* MessageListener.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE84A227C89AF00488730 /* MessageListener.m */; };
+		433FE84E227CEF7300488730 /* MessageParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE84D227CEF7300488730 /* MessageParser.m */; };
+		433FE8562280C21000488730 /* StatusBarItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE8542280C21000488730 /* StatusBarItem.m */; };
+		433FE85A2280E10F00488730 /* GVFSTask.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE8592280E10F00488730 /* GVFSTask.m */; };
+		433FE8632281D06100488730 /* AboutWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE8602281D06000488730 /* AboutWindowController.m */; };
+		433FE8642281D06100488730 /* AboutWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 433FE8612281D06100488730 /* AboutWindowController.xib */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -24,13 +28,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = 433FE813227B593500488730;
 			remoteInfo = VFSForGit;
-		};
-		433FE847227B95A500488730 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 433FE80C227B593500488730 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 433FE83A227B5A7300488730;
-			remoteInfo = NativeNotification;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -46,11 +43,19 @@
 		433FE827227B594300488730 /* VFSForGitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VFSForGitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		433FE82B227B594300488730 /* VFSForGitTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSForGitTests.m; sourceTree = "<group>"; };
 		433FE82D227B594300488730 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		433FE83B227B5A7300488730 /* libNativeNotification.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libNativeNotification.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
-		433FE83D227B5A7300488730 /* NativeNotification.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NativeNotification.h; sourceTree = "<group>"; };
-		433FE83F227B5A7300488730 /* NativeNotification.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NativeNotification.m; sourceTree = "<group>"; };
-		433FE844227B90CA00488730 /* NotificationRequestHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NotificationRequestHandler.h; sourceTree = "<group>"; };
-		433FE845227B90CA00488730 /* NotificationRequestHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NotificationRequestHandler.m; sourceTree = "<group>"; };
+		433FE844227B90CA00488730 /* UserNotification.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UserNotification.h; sourceTree = "<group>"; };
+		433FE845227B90CA00488730 /* UserNotification.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UserNotification.m; sourceTree = "<group>"; };
+		433FE849227C89AF00488730 /* MessageListener.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MessageListener.h; sourceTree = "<group>"; };
+		433FE84A227C89AF00488730 /* MessageListener.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MessageListener.m; sourceTree = "<group>"; };
+		433FE84C227CEF7300488730 /* MessageParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MessageParser.h; sourceTree = "<group>"; };
+		433FE84D227CEF7300488730 /* MessageParser.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MessageParser.m; sourceTree = "<group>"; };
+		433FE8532280C21000488730 /* StatusBarItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StatusBarItem.h; sourceTree = "<group>"; };
+		433FE8542280C21000488730 /* StatusBarItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = StatusBarItem.m; sourceTree = "<group>"; };
+		433FE8582280E10F00488730 /* GVFSTask.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GVFSTask.h; sourceTree = "<group>"; };
+		433FE8592280E10F00488730 /* GVFSTask.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GVFSTask.m; sourceTree = "<group>"; };
+		433FE8602281D06000488730 /* AboutWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AboutWindowController.m; sourceTree = "<group>"; };
+		433FE8612281D06100488730 /* AboutWindowController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = AboutWindowController.xib; sourceTree = "<group>"; };
+		433FE8622281D06100488730 /* AboutWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AboutWindowController.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,22 +73,45 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		433FE838227B5A7300488730 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		430ED36D2281E6B200319408 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				433FE8532280C21000488730 /* StatusBarItem.h */,
+				433FE8542280C21000488730 /* StatusBarItem.m */,
+				433FE8622281D06100488730 /* AboutWindowController.h */,
+				433FE8602281D06000488730 /* AboutWindowController.m */,
+				433FE8612281D06100488730 /* AboutWindowController.xib */,
+				433FE817227B593500488730 /* AppDelegate.h */,
+				433FE818227B593500488730 /* AppDelegate.m */,
+				433FE844227B90CA00488730 /* UserNotification.h */,
+				433FE845227B90CA00488730 /* UserNotification.m */,
+				433FE81A227B594300488730 /* Assets.xcassets */,
+				433FE81C227B594300488730 /* MainMenu.xib */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		430ED36E2281E6D100319408 /* IPC */ = {
+			isa = PBXGroup;
+			children = (
+				433FE849227C89AF00488730 /* MessageListener.h */,
+				433FE84A227C89AF00488730 /* MessageListener.m */,
+				433FE84C227CEF7300488730 /* MessageParser.h */,
+				433FE84D227CEF7300488730 /* MessageParser.m */,
+				433FE8582280E10F00488730 /* GVFSTask.h */,
+				433FE8592280E10F00488730 /* GVFSTask.m */,
+			);
+			path = IPC;
+			sourceTree = "<group>";
+		};
 		433FE80B227B593500488730 = {
 			isa = PBXGroup;
 			children = (
 				433FE816227B593500488730 /* StatusMenuItem */,
 				433FE82A227B594300488730 /* Tests */,
-				433FE83C227B5A7300488730 /* NativeNotificationLib */,
 				433FE815227B593500488730 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -93,7 +121,6 @@
 			children = (
 				433FE814227B593500488730 /* VFSForGit.app */,
 				433FE827227B594300488730 /* VFSForGitTests.xctest */,
-				433FE83B227B5A7300488730 /* libNativeNotification.dylib */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -101,15 +128,11 @@
 		433FE816227B593500488730 /* StatusMenuItem */ = {
 			isa = PBXGroup;
 			children = (
-				433FE817227B593500488730 /* AppDelegate.h */,
-				433FE818227B593500488730 /* AppDelegate.m */,
-				433FE81A227B594300488730 /* Assets.xcassets */,
-				433FE81C227B594300488730 /* MainMenu.xib */,
+				430ED36E2281E6D100319408 /* IPC */,
+				430ED36D2281E6B200319408 /* UI */,
 				433FE81F227B594300488730 /* Info.plist */,
 				433FE820227B594300488730 /* main.m */,
 				433FE822227B594300488730 /* VFSForGit.entitlements */,
-				433FE844227B90CA00488730 /* NotificationRequestHandler.h */,
-				433FE845227B90CA00488730 /* NotificationRequestHandler.m */,
 			);
 			path = StatusMenuItem;
 			sourceTree = "<group>";
@@ -123,27 +146,7 @@
 			path = Tests;
 			sourceTree = "<group>";
 		};
-		433FE83C227B5A7300488730 /* NativeNotificationLib */ = {
-			isa = PBXGroup;
-			children = (
-				433FE83D227B5A7300488730 /* NativeNotification.h */,
-				433FE83F227B5A7300488730 /* NativeNotification.m */,
-			);
-			path = NativeNotificationLib;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
-
-/* Begin PBXHeadersBuildPhase section */
-		433FE839227B5A7300488730 /* Headers */ = {
-			isa = PBXHeadersBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				433FE83E227B5A7300488730 /* NativeNotification.h in Headers */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
 		433FE813227B593500488730 /* VFSForGit */ = {
@@ -157,7 +160,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				433FE848227B95A500488730 /* PBXTargetDependency */,
 			);
 			name = VFSForGit;
 			productName = VFSForGit;
@@ -182,23 +184,6 @@
 			productReference = 433FE827227B594300488730 /* VFSForGitTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		433FE83A227B5A7300488730 /* NativeNotification */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 433FE841227B5A7300488730 /* Build configuration list for PBXNativeTarget "NativeNotification" */;
-			buildPhases = (
-				433FE837227B5A7300488730 /* Sources */,
-				433FE838227B5A7300488730 /* Frameworks */,
-				433FE839227B5A7300488730 /* Headers */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = NativeNotification;
-			productName = NativeNotification;
-			productReference = 433FE83B227B5A7300488730 /* libNativeNotification.dylib */;
-			productType = "com.apple.product-type.library.dynamic";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -214,9 +199,6 @@
 					433FE826227B594300488730 = {
 						CreatedOnToolsVersion = 9.3;
 						TestTargetID = 433FE813227B593500488730;
-					};
-					433FE83A227B5A7300488730 = {
-						CreatedOnToolsVersion = 9.3;
 					};
 				};
 			};
@@ -235,7 +217,6 @@
 			targets = (
 				433FE813227B593500488730 /* VFSForGit */,
 				433FE826227B594300488730 /* VFSForGitTests */,
-				433FE83A227B5A7300488730 /* NativeNotification */,
 			);
 		};
 /* End PBXProject section */
@@ -245,6 +226,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				433FE8642281D06100488730 /* AboutWindowController.xib in Resources */,
 				433FE81B227B594300488730 /* Assets.xcassets in Resources */,
 				433FE81E227B594300488730 /* MainMenu.xib in Resources */,
 			);
@@ -264,9 +246,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				433FE846227B90CA00488730 /* NotificationRequestHandler.m in Sources */,
+				433FE85A2280E10F00488730 /* GVFSTask.m in Sources */,
+				433FE8632281D06100488730 /* AboutWindowController.m in Sources */,
+				433FE846227B90CA00488730 /* UserNotification.m in Sources */,
 				433FE821227B594300488730 /* main.m in Sources */,
 				433FE819227B593500488730 /* AppDelegate.m in Sources */,
+				433FE8562280C21000488730 /* StatusBarItem.m in Sources */,
+				433FE84B227C89B000488730 /* MessageListener.m in Sources */,
+				433FE84E227CEF7300488730 /* MessageParser.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -278,14 +265,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		433FE837227B5A7300488730 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				433FE840227B5A7300488730 /* NativeNotification.m in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -293,11 +272,6 @@
 			isa = PBXTargetDependency;
 			target = 433FE813227B593500488730 /* VFSForGit */;
 			targetProxy = 433FE828227B594300488730 /* PBXContainerItemProxy */;
-		};
-		433FE848227B95A500488730 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 433FE83A227B5A7300488730 /* NativeNotification */;
-			targetProxy = 433FE847227B95A500488730 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -317,6 +291,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = VFSForGit;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -375,6 +350,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = VFSForGit;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -425,7 +401,7 @@
 		433FE831227B594300488730 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = VFSForGit;
 				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				CODE_SIGN_STYLE = Automatic;
@@ -446,7 +422,7 @@
 		433FE832227B594300488730 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = VFSForGit;
 				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				CODE_SIGN_STYLE = Automatic;
@@ -502,32 +478,6 @@
 			};
 			name = Release;
 		};
-		433FE842227B5A7300488730 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = UBF8T346G9;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				EXECUTABLE_PREFIX = lib;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-			};
-			name = Debug;
-		};
-		433FE843227B5A7300488730 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = UBF8T346G9;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				EXECUTABLE_PREFIX = lib;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -554,15 +504,6 @@
 			buildConfigurations = (
 				433FE834227B594300488730 /* Debug */,
 				433FE835227B594300488730 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		433FE841227B5A7300488730 /* Build configuration list for PBXNativeTarget "NativeNotification" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				433FE842227B5A7300488730 /* Debug */,
-				433FE843227B5A7300488730 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

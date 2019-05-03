@@ -56,6 +56,9 @@ dotnet build $VFS_SRCDIR/GVFS.sln --runtime osx-x64 --framework netcoreapp2.1 --
 NATIVEDIR=$VFS_SRCDIR/GVFS/GVFS.Native.Mac
 xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.xcworkspace build -scheme GVFS.Native.Mac -derivedDataPath $VFS_OUTPUTDIR/GVFS.Native.Mac || exit 1
 
+USERNOTIFICATIONDIR=$VFS_SRCDIR/GVFS/UserNotification/Mac
+xcodebuild -configuration $CONFIGURATION -project $USERNOTIFICATIONDIR/VFSForGit.xcodeproj build -scheme VFSForGit -derivedDataPath $VFS_OUTPUTDIR/UserNotification || exit 1
+
 if [ ! -d $VFS_PUBLISHDIR ]; then
   mkdir $VFS_PUBLISHDIR || exit 1
 fi
@@ -64,6 +67,7 @@ echo 'Copying native binaries to Publish directory...'
 cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.ReadObjectHook $VFS_PUBLISHDIR || exit 1
 cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.VirtualFileSystemHook $VFS_PUBLISHDIR || exit 1
 cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.PostIndexChangedHook $VFS_PUBLISHDIR || exit 1
+cp -Rf $VFS_OUTPUTDIR/UserNotification/Build/Products/$CONFIGURATION/VFSForGit.app $VFS_PUBLISHDIR || exit 1
 
 # Publish after native build, so installer package can include the native binaries.
 dotnet publish $VFS_SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Mac /p:Platform=x64 -p:CopyPrjFS=true --runtime osx-x64 --framework netcoreapp2.1 --self-contained --output $VFS_PUBLISHDIR /maxcpucount:1 /warnasmessage:MSB4011 || exit 1

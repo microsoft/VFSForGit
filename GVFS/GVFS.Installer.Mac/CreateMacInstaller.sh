@@ -113,6 +113,9 @@ function CopyBinariesToInstall()
     copyServicePlist="cp -Rf \"${SOURCEDIRECTORY}/../GVFS.Service/Mac/org.vfsforgit.service.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
     eval $copyServicePlist || exit 1
     
+    copyUserNotificationPlist="cp -Rf \"${SOURCEDIRECTORY}/../UserNotification/Mac/org.vfsforgit.usernotification.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
+    eval $copyUserNotificationPlist || exit 1
+    
     currentDirectory=`pwd`
     cd "${STAGINGDIR}/usr/local/bin"
     linkCommand="ln -sf ../vfsforgit/gvfs gvfs"

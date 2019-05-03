@@ -19,6 +19,15 @@ if [ -f "${servicePlist}" ]; then
     done    
 fi
 
+usernotificationPlist="/Library/LaunchAgents/org.vfsforgit.usernotification.plist"
+if [ -f "${usernotificationPlist}" ]; then
+    for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
+        unloadCmd="launchctl bootout gui/$uid ${usernotificationPlist}"
+        echo "Unloading UserNotification: '$unloadCmd'..."
+        eval $unloadCmd || exit 1
+    done    
+fi
+
 KEXTBUNDLEID="org.vfsforgit.PrjFSKext"
 isKextLoadedCmd="/usr/sbin/kextstat -l -b $KEXTBUNDLEID | wc -l"
 isKextLoaded=$(eval $isKextLoadedCmd)
