@@ -9,7 +9,7 @@ using System.Threading;
 
 namespace GVFS.Common
 {
-    public abstract class FileBasedCollection : IDisposable
+    public abstract class FileBasedCollection : GenericFileBasedCollection<string, string>
     {
         private const string EtwArea = nameof(FileBasedCollection);
 
@@ -18,197 +18,23 @@ namespace GVFS.Common
 
         // Use the same newline separator regardless of platform
         private const string NewLine = "\r\n";
-        private const int IoFailureRetryDelayMS = 50;
-        private const int IoFailureLoggingThreshold = 500;
-
-        /// <summary>
-        /// If true, this FileBasedCollection appends directly to dataFileHandle stream
-        /// If false, this FileBasedCollection only using .tmp + rename to update data on disk
-        /// </summary>
-        private readonly bool collectionAppendsDirectlyToFile;
-
-        private readonly object fileLock = new object();
-
-        private readonly PhysicalFileSystem fileSystem;
-        private readonly string dataDirectoryPath;
-        private readonly string tempFilePath;
-
-        private Stream dataFileHandle;
 
         protected FileBasedCollection(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath, bool collectionAppendsDirectlyToFile)
+            : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile)
         {
-            this.Tracer = tracer;
-            this.fileSystem = fileSystem;
-            this.DataFilePath = dataFilePath;
-            this.tempFilePath = this.DataFilePath + ".tmp";
-            this.dataDirectoryPath = Path.GetDirectoryName(this.DataFilePath);
-            this.collectionAppendsDirectlyToFile = collectionAppendsDirectlyToFile;
         }
 
         protected delegate bool TryParseAdd<TKey, TValue>(string line, out TKey key, out TValue value, out string error);
         protected delegate bool TryParseRemove<TKey>(string line, out TKey key, out string error);
 
-        public string DataFilePath { get; }
-
-        protected ITracer Tracer { get; }
-
-        public void Dispose()
-        {
-            lock (this.fileLock)
-            {
-                this.CloseDataFile();
-            }
-        }
-
-        public void ForceFlush()
-        {
-            if (this.dataFileHandle != null)
-            {
-                FileStream fs = this.dataFileHandle as FileStream;
-                if (fs != null)
-                {
-                    fs.Flush(flushToDisk: true);
-                }
-            }
-        }
-
-        protected void WriteAndReplaceDataFile(Func<IEnumerable<string>> getDataLines)
-        {
-            lock (this.fileLock)
-            {
-                try
-                {
-                    this.CloseDataFile();
-
-                    bool tmpFileCreated = false;
-                    int tmpFileCreateAttempts = 0;
-
-                    bool tmpFileMoved = false;
-                    int tmpFileMoveAttempts = 0;
-
-                    Exception lastException = null;
-
-                    while (!tmpFileCreated || !tmpFileMoved)
-                    {
-                        if (!tmpFileCreated)
-                        {
-                            tmpFileCreated = this.TryWriteTempFile(getDataLines, out lastException);
-                            if (!tmpFileCreated)
-                            {
-                                if (this.Tracer != null && tmpFileCreateAttempts % IoFailureLoggingThreshold == 0)
-                                {
-                                    EventMetadata metadata = CreateEventMetadata(lastException);
-                                    metadata.Add("tmpFileCreateAttempts", tmpFileCreateAttempts);
-                                    this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to create tmp file ... retrying");
-                                }
-
-                                ++tmpFileCreateAttempts;
-                                Thread.Sleep(IoFailureRetryDelayMS);
-                            }
-                        }
-
-                        if (tmpFileCreated)
-                        {
-                            try
-                            {
-                                if (this.fileSystem.FileExists(this.tempFilePath))
-                                {
-                                    this.fileSystem.MoveAndOverwriteFile(this.tempFilePath, this.DataFilePath);
-                                    tmpFileMoved = true;
-                                }
-                                else
-                                {
-                                    if (this.Tracer != null)
-                                    {
-                                        EventMetadata metadata = CreateEventMetadata();
-                                        metadata.Add("tmpFileMoveAttempts", tmpFileMoveAttempts);
-                                        this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": tmp file is missing. Recreating tmp file.");
-                                    }
-
-                                    tmpFileCreated = false;
-                                }
-                            }
-                            catch (Win32Exception e)
-                            {
-                                if (this.Tracer != null && tmpFileMoveAttempts % IoFailureLoggingThreshold == 0)
-                                {
-                                    EventMetadata metadata = CreateEventMetadata(e);
-                                    metadata.Add("tmpFileMoveAttempts", tmpFileMoveAttempts);
-                                    this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to overwrite data file ... retrying");
-                                }
-
-                                ++tmpFileMoveAttempts;
-                                Thread.Sleep(IoFailureRetryDelayMS);
-                            }
-                        }
-                    }
-
-                    if (this.collectionAppendsDirectlyToFile)
-                    {
-                        this.OpenOrCreateDataFile(retryUntilSuccess: true);
-                    }
-                }
-                catch (Exception e)
-                {
-                    throw new FileBasedCollectionException(e);
-                }
-            }
-        }
-
-        protected string FormatAddLine(string line)
+        protected override string FormatAddEntry(string line)
         {
             return AddEntryPrefix + line;
         }
 
-        protected string FormatRemoveLine(string line)
+        protected override string FormatRemoveEntry(string line)
         {
             return RemoveEntryPrefix + line;
-        }
-
-        /// <param name="synchronizedAction">An optional callback to be run as soon as the fileLock is taken.</param>
-        protected void WriteAddEntry(string value, Action synchronizedAction = null)
-        {
-            lock (this.fileLock)
-            {
-                string line = this.FormatAddLine(value);
-                if (synchronizedAction != null)
-                {
-                    synchronizedAction();
-                }
-
-                this.WriteToDisk(line);
-            }
-        }
-
-        /// <param name="synchronizedAction">An optional callback to be run as soon as the fileLock is taken.</param>
-        protected void WriteRemoveEntry(string key, Action synchronizedAction = null)
-        {
-            lock (this.fileLock)
-            {
-                string line = this.FormatRemoveLine(key);
-                if (synchronizedAction != null)
-                {
-                    synchronizedAction();
-                }
-
-                this.WriteToDisk(line);
-            }
-        }
-
-        protected void DeleteDataFileIfCondition(Func<bool> condition)
-        {
-            if (!this.collectionAppendsDirectlyToFile)
-            {
-                throw new InvalidOperationException(nameof(this.DeleteDataFileIfCondition) + " requires that collectionAppendsDirectlyToFile be true");
-            }
-
-            lock (this.fileLock)
-            {
-                if (condition())
-                {
-                    this.dataFileHandle.SetLength(0);
-                }
-            }
         }
 
         /// <param name="synchronizedAction">An optional callback to be run as soon as the fileLock is taken</param>
@@ -305,106 +131,10 @@ namespace GVFS.Common
             }
         }
 
-        private static EventMetadata CreateEventMetadata(Exception e = null)
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", EtwArea);
-            if (e != null)
-            {
-                metadata.Add("Exception", e.ToString());
-            }
-
-            return metadata;
-        }
-
-        /// <summary>
-        /// Closes dataFileHandle. Requires fileLock.
-        /// </summary>
-        private void CloseDataFile()
-        {
-            if (this.dataFileHandle != null)
-            {
-                this.dataFileHandle.Dispose();
-                this.dataFileHandle = null;
-            }
-        }
-
-        /// <summary>
-        /// Opens dataFileHandle for ReadWrite. Requires fileLock.
-        /// </summary>
-        /// <param name="retryUntilSuccess">If true, OpenOrCreateDataFile will continue to retry until it succeeds</param>
-        /// <remarks>If retryUntilSuccess is true, OpenOrCreateDataFile will only attempt to retry when the error is non-fatal</remarks>
-        private void OpenOrCreateDataFile(bool retryUntilSuccess)
-        {
-            int attempts = 0;
-            Exception lastException = null;
-            while (true)
-            {
-                try
-                {
-                    if (this.dataFileHandle == null)
-                    {
-                        this.dataFileHandle = this.fileSystem.OpenFileStream(
-                            this.DataFilePath,
-                            FileMode.OpenOrCreate,
-                            this.collectionAppendsDirectlyToFile ? FileAccess.ReadWrite : FileAccess.Read,
-                            FileShare.Read,
-                            callFlushFileBuffers: false);
-                    }
-
-                    this.dataFileHandle.Seek(0, SeekOrigin.End);
-                    return;
-                }
-                catch (IOException e)
-                {
-                    lastException = e;
-                }
-                catch (UnauthorizedAccessException e)
-                {
-                    lastException = e;
-                }
-
-                if (retryUntilSuccess)
-                {
-                    if (this.Tracer != null && attempts % IoFailureLoggingThreshold == 0)
-                    {
-                        EventMetadata metadata = CreateEventMetadata(lastException);
-                        metadata.Add("attempts", attempts);
-                        this.Tracer.RelatedWarning(metadata, nameof(this.OpenOrCreateDataFile) + ": Failed to open data file stream ... retrying");
-                    }
-
-                    ++attempts;
-                    Thread.Sleep(IoFailureRetryDelayMS);
-                }
-                else
-                {
-                    throw lastException;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Writes data as UTF8 to dataFileHandle. fileLock will be acquired.
-        /// </summary>
-        private void WriteToDisk(string value)
-        {
-            if (!this.collectionAppendsDirectlyToFile)
-            {
-                throw new InvalidOperationException(nameof(this.WriteToDisk) + " requires that collectionAppendsDirectlyToFile be true");
-            }
-
-            byte[] bytes = Encoding.UTF8.GetBytes(value + NewLine);
-            lock (this.fileLock)
-            {
-                this.dataFileHandle.Write(bytes, 0, bytes.Length);
-                this.dataFileHandle.Flush();
-            }
-        }
-
         /// <summary>
         /// Reads entries from dataFileHandle, removing any data after the last NewLine ("\r\n"). Requires fileLock.
         /// </summary>
-        private void RemoveLastEntryIfInvalid()
+        protected override void RemoveLastEntryIfInvalid()
         {
             if (this.dataFileHandle.Length > 2)
             {
@@ -425,6 +155,12 @@ namespace GVFS.Common
                     this.dataFileHandle.SetLength(lastLineEnding);
                 }
             }
+        }
+
+        protected override void WriteEntry(Stream stream, string dataLine)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(dataLine + NewLine);
+            stream.Write(bytes, 0, bytes.Length);
         }
 
         /// <summary>

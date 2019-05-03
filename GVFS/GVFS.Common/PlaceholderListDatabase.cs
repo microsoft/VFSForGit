@@ -260,7 +260,7 @@ namespace GVFS.Common
                     this.EstimatedCount++;
                 }
 
-                yield return this.FormatAddLine(updated.Path + PathTerminator + updated.Sha);
+                yield return this.FormatAddEntry(updated.Path + PathTerminator + updated.Sha);
             }
 
             if (this.placeholderChangesWhileRebuildingList != null)
@@ -272,7 +272,7 @@ namespace GVFS.Common
                         if (keys.Remove(entry.Path))
                         {
                             this.EstimatedCount--;
-                            yield return this.FormatRemoveLine(entry.Path);
+                            yield return this.FormatRemoveEntry(entry.Path);
                         }
                     }
                     else
@@ -282,7 +282,7 @@ namespace GVFS.Common
                             this.EstimatedCount++;
                         }
 
-                        yield return this.FormatAddLine(entry.Path + PathTerminator + entry.Sha);
+                        yield return this.FormatAddEntry(entry.Path + PathTerminator + entry.Sha);
                     }
                 }
 

@@ -162,7 +162,7 @@ namespace GVFS.Common
         {
             foreach (KeyValuePair<TKey, TValue> kvp in this.data)
             {
-                yield return this.FormatAddLine(JsonConvert.SerializeObject(kvp).Trim());
+                yield return this.FormatAddEntry(JsonConvert.SerializeObject(kvp).Trim());
             }
         }
     }

@@ -10,32 +10,13 @@ using System.Threading;
 
 namespace GVFS.Common.FileBasedCollections
 {
-    public abstract class BinaryFileBasedCollection<TEntry> : IDisposable
+    public abstract class BinaryFileBasedCollection<TEntry> : GenericFileBasedCollection<TEntry, Tuple<byte, TEntry>>
     {
         public static readonly byte[] EntryTerminator = new byte[] { 0, 0, 0, 0 };
         protected const byte AddEntryPrefix = 1 << 0;
         protected const byte RemoveEntryPrefix = 1 << 1;
-        private const string EtwArea = nameof(FileBasedCollection);
-
-        // Use the same newline separator regardless of platform
-        private const int IoFailureRetryDelayMS = 50;
-        private const int IoFailureLoggingThreshold = 500;
-
-        /// <summary>
-        /// If true, this FileBasedCollection appends directly to dataFileHandle stream
-        /// If false, this FileBasedCollection only using .tmp + rename to update data on disk
-        /// </summary>
-        private readonly bool collectionAppendsDirectlyToFile;
-
-        private readonly object fileLock = new object();
-
-        private readonly PhysicalFileSystem fileSystem;
-        private readonly string dataDirectoryPath;
-        private readonly string tempFilePath;
 
         private readonly Action<BinaryWriter, TEntry> serializeEntry;
-
-        private Stream dataFileHandle;
 
         protected BinaryFileBasedCollection(
             ITracer tracer,
@@ -43,169 +24,13 @@ namespace GVFS.Common.FileBasedCollections
             string dataFilePath,
             bool collectionAppendsDirectlyToFile,
             Action<BinaryWriter, TEntry> serializeEntry)
+            : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile)
         {
-            this.Tracer = tracer;
-            this.fileSystem = fileSystem;
-            this.DataFilePath = dataFilePath;
-            this.tempFilePath = this.DataFilePath + ".tmp";
-            this.dataDirectoryPath = Path.GetDirectoryName(this.DataFilePath);
-            this.collectionAppendsDirectlyToFile = collectionAppendsDirectlyToFile;
             this.serializeEntry = serializeEntry;
         }
 
         protected delegate bool TryParseAdd<TKey, TValue>(BinaryReader reader, out TKey key, out TValue value, out string error);
         protected delegate bool TryParseRemove<TKey>(BinaryReader reader, out TKey key, out string error);
-
-        public string DataFilePath { get; }
-
-        protected ITracer Tracer { get; }
-
-        public void Dispose()
-        {
-            lock (this.fileLock)
-            {
-                this.CloseDataFile();
-            }
-        }
-
-        public void ForceFlush()
-        {
-            if (this.dataFileHandle != null)
-            {
-                FileStream fs = this.dataFileHandle as FileStream;
-                if (fs != null)
-                {
-                    fs.Flush(flushToDisk: true);
-                }
-            }
-        }
-
-        protected void WriteAndReplaceDataFile(Func<IEnumerable<Tuple<byte, TEntry>>> getDataElements)
-        {
-            lock (this.fileLock)
-            {
-                try
-                {
-                    this.CloseDataFile();
-
-                    bool tmpFileCreated = false;
-                    int tmpFileCreateAttempts = 0;
-
-                    bool tmpFileMoved = false;
-                    int tmpFileMoveAttempts = 0;
-
-                    Exception lastException = null;
-
-                    while (!tmpFileCreated || !tmpFileMoved)
-                    {
-                        if (!tmpFileCreated)
-                        {
-                            tmpFileCreated = this.TryWriteTempFile(getDataElements, out lastException);
-                            if (!tmpFileCreated)
-                            {
-                                if (this.Tracer != null && tmpFileCreateAttempts % IoFailureLoggingThreshold == 0)
-                                {
-                                    EventMetadata metadata = CreateEventMetadata(lastException);
-                                    metadata.Add("tmpFileCreateAttempts", tmpFileCreateAttempts);
-                                    this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to create tmp file ... retrying");
-                                }
-
-                                ++tmpFileCreateAttempts;
-                                Thread.Sleep(IoFailureRetryDelayMS);
-                            }
-                        }
-
-                        if (tmpFileCreated)
-                        {
-                            try
-                            {
-                                if (this.fileSystem.FileExists(this.tempFilePath))
-                                {
-                                    this.fileSystem.MoveAndOverwriteFile(this.tempFilePath, this.DataFilePath);
-                                    tmpFileMoved = true;
-                                }
-                                else
-                                {
-                                    if (this.Tracer != null)
-                                    {
-                                        EventMetadata metadata = CreateEventMetadata();
-                                        metadata.Add("tmpFileMoveAttempts", tmpFileMoveAttempts);
-                                        this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": tmp file is missing. Recreating tmp file.");
-                                    }
-
-                                    tmpFileCreated = false;
-                                }
-                            }
-                            catch (Win32Exception e)
-                            {
-                                if (this.Tracer != null && tmpFileMoveAttempts % IoFailureLoggingThreshold == 0)
-                                {
-                                    EventMetadata metadata = CreateEventMetadata(e);
-                                    metadata.Add("tmpFileMoveAttempts", tmpFileMoveAttempts);
-                                    this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to overwrite data file ... retrying");
-                                }
-
-                                ++tmpFileMoveAttempts;
-                                Thread.Sleep(IoFailureRetryDelayMS);
-                            }
-                        }
-                    }
-
-                    if (this.collectionAppendsDirectlyToFile)
-                    {
-                        this.OpenOrCreateDataFile(retryUntilSuccess: true);
-                    }
-                }
-                catch (Exception e)
-                {
-                    throw new FileBasedCollectionException(e);
-                }
-            }
-        }
-
-        /// <param name="synchronizedAction">An optional callback to be run as soon as the fileLock is taken.</param>
-        protected void WriteAddEntry(TEntry value, Action synchronizedAction = null)
-        {
-            lock (this.fileLock)
-            {
-                if (synchronizedAction != null)
-                {
-                    synchronizedAction();
-                }
-
-                this.WriteToDisk(AddEntryPrefix, value);
-            }
-        }
-
-        /// <param name="synchronizedAction">An optional callback to be run as soon as the fileLock is taken.</param>
-        protected void WriteRemoveEntry(TEntry key, Action synchronizedAction = null)
-        {
-            lock (this.fileLock)
-            {
-                if (synchronizedAction != null)
-                {
-                    synchronizedAction();
-                }
-
-                this.WriteToDisk(RemoveEntryPrefix, key);
-            }
-        }
-
-        protected void DeleteDataFileIfCondition(Func<bool> condition)
-        {
-            if (!this.collectionAppendsDirectlyToFile)
-            {
-                throw new InvalidOperationException(nameof(this.DeleteDataFileIfCondition) + " requires that collectionAppendsDirectlyToFile be true");
-            }
-
-            lock (this.fileLock)
-            {
-                if (condition())
-                {
-                    this.dataFileHandle.SetLength(0);
-                }
-            }
-        }
 
         /// <param name="synchronizedAction">An optional callback to be run as soon as the fileLock is taken</param>
         protected bool TryLoadFromDisk<TKey, TValue>(
@@ -309,109 +134,10 @@ namespace GVFS.Common.FileBasedCollections
             }
         }
 
-        private static EventMetadata CreateEventMetadata(Exception e = null)
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", EtwArea);
-            if (e != null)
-            {
-                metadata.Add("Exception", e.ToString());
-            }
-
-            return metadata;
-        }
-
-        /// <summary>
-        /// Closes dataFileHandle. Requires fileLock.
-        /// </summary>
-        private void CloseDataFile()
-        {
-            if (this.dataFileHandle != null)
-            {
-                this.dataFileHandle.Dispose();
-                this.dataFileHandle = null;
-            }
-        }
-
-        /// <summary>
-        /// Opens dataFileHandle for ReadWrite. Requires fileLock.
-        /// </summary>
-        /// <param name="retryUntilSuccess">If true, OpenOrCreateDataFile will continue to retry until it succeeds</param>
-        /// <remarks>If retryUntilSuccess is true, OpenOrCreateDataFile will only attempt to retry when the error is non-fatal</remarks>
-        private void OpenOrCreateDataFile(bool retryUntilSuccess)
-        {
-            int attempts = 0;
-            Exception lastException = null;
-            while (true)
-            {
-                try
-                {
-                    if (this.dataFileHandle == null)
-                    {
-                        this.dataFileHandle = this.fileSystem.OpenFileStream(
-                            this.DataFilePath,
-                            FileMode.OpenOrCreate,
-                            this.collectionAppendsDirectlyToFile ? FileAccess.ReadWrite : FileAccess.Read,
-                            FileShare.Read,
-                            callFlushFileBuffers: false);
-                    }
-
-                    this.dataFileHandle.Seek(0, SeekOrigin.End);
-                    return;
-                }
-                catch (IOException e)
-                {
-                    lastException = e;
-                }
-                catch (UnauthorizedAccessException e)
-                {
-                    lastException = e;
-                }
-
-                if (retryUntilSuccess)
-                {
-                    if (this.Tracer != null && attempts % IoFailureLoggingThreshold == 0)
-                    {
-                        EventMetadata metadata = CreateEventMetadata(lastException);
-                        metadata.Add("attempts", attempts);
-                        this.Tracer.RelatedWarning(metadata, nameof(this.OpenOrCreateDataFile) + ": Failed to open data file stream ... retrying");
-                    }
-
-                    ++attempts;
-                    Thread.Sleep(IoFailureRetryDelayMS);
-                }
-                else
-                {
-                    throw lastException;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Writes data as UTF8 to dataFileHandle. fileLock will be acquired.
-        /// </summary>
-        private void WriteToDisk(byte prefix, TEntry element)
-        {
-            if (!this.collectionAppendsDirectlyToFile)
-            {
-                throw new InvalidOperationException(nameof(this.WriteToDisk) + " requires that collectionAppendsDirectlyToFile be true");
-            }
-
-            lock (this.fileLock)
-            {
-                using (BinaryWriter w = new BinaryWriter(this.dataFileHandle, Encoding.UTF8, true))
-                {
-                    this.WriteEntry(w, prefix, element);
-                }
-
-                this.dataFileHandle.Flush();
-            }
-        }
-
         /// <summary>
         /// Reads entries from dataFileHandle, removing any data after the last NewLine ("\r\n"). Requires fileLock.
         /// </summary>
-        private void RemoveLastEntryIfInvalid()
+        protected override void RemoveLastEntryIfInvalid()
         {
             if (this.dataFileHandle.Length > EntryTerminator.Length)
             {
@@ -435,41 +161,21 @@ namespace GVFS.Common.FileBasedCollections
             }
         }
 
-        /// <summary>
-        /// Attempts to write all data lines to tmp file
-        /// </summary>
-        /// <param name="getDataLines">Method that returns the dataLines to write as an IEnumerable</param>
-        /// <param name="handledException">Output parameter that's set when TryWriteTempFile catches a non-fatal exception</param>
-        /// <returns>True if the write succeeded and false otherwise</returns>
-        /// <remarks>If a fatal exception is encountered while trying to write the temp file, this method will not catch it.</remarks>
-        private bool TryWriteTempFile(Func<IEnumerable<Tuple<byte, TEntry>>> getDataElemenets, out Exception handledException)
+        protected override Tuple<byte, TEntry> FormatAddEntry(TEntry entry)
         {
-            handledException = null;
+            return new Tuple<byte, TEntry>(AddEntryPrefix, entry);
+        }
 
-            try
-            {
-                using (Stream tempFile = this.fileSystem.OpenFileStream(this.tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, callFlushFileBuffers: true))
-                using (BinaryWriter writer = new BinaryWriter(tempFile))
-                {
-                    foreach ((byte prefix, TEntry element) in getDataElemenets())
-                    {
-                        this.WriteEntry(writer, prefix, element);
-                    }
+        protected override Tuple<byte, TEntry> FormatRemoveEntry(TEntry entry)
+        {
+            return new Tuple<byte, TEntry>(RemoveEntryPrefix, entry);
+        }
 
-                    tempFile.Flush();
-                }
-
-                return true;
-            }
-            catch (IOException e)
+        protected override void WriteEntry(Stream stream, Tuple<byte, TEntry> dataEntry)
+        {
+            using (BinaryWriter w = new BinaryWriter(stream, Encoding.UTF8, true))
             {
-                handledException = e;
-                return false;
-            }
-            catch (UnauthorizedAccessException e)
-            {
-                handledException = e;
-                return false;
+                this.WriteEntry(w, dataEntry.Item1, dataEntry.Item2);
             }
         }
 

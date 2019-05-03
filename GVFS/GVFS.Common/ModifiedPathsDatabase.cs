@@ -171,7 +171,7 @@ namespace GVFS.Common
         {
             foreach (string entry in this.modifiedPaths)
             {
-                yield return this.FormatAddLine(entry);
+                yield return this.FormatAddEntry(entry);
             }
         }
 
