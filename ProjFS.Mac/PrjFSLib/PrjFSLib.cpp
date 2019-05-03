@@ -147,8 +147,8 @@ static dispatch_queue_t s_messageQueueDispatchQueue;
 static dispatch_queue_t s_kernelRequestHandlingConcurrentQueue;
 
 // Map of FsidInode -> MutexAndUseCount for that FsidInode, plus mutex to protect the map itself.
-FileMutexMap s_fileLocks;
-mutex s_fileLocksMutex;
+static FileMutexMap s_fileLocks;
+static mutex s_fileLocksMutex;
 
 // The full API is defined in the header, but only the minimal set of functions needed
 // for the initial MirrorProvider implementation are listed here. Calling any other function
