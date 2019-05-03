@@ -165,21 +165,14 @@ namespace GVFS.Common.Maintenance
         public int ClearCorruptLooseObjects(EventMetadata metadata)
         {
             int numBadObjects = 0;
-            int numTryGetIsBlobFailures = 0;
+            int numTryGetIsValidFailures = 0;
             int numFailedDeletes = 0;
 
             foreach (string objectId in this.LooseObjectsBatch(this.MaxLooseObjectsInPack))
             {
-                // Check if the loose object is a valid blob. Several cases can make
-                // `isBlob` be false:
-                //
-                // 1. The object is corrupt. This is the case that is blocking the pack-objects call.
-                // 2. The object does not exist. This is unlikely, since we see the file in the object directory.
-                // 3. The object is not a blob. Deleting a commit or tree here is a low cost, since we
-                //    will probably get those objects in prefetch packs. Re-downloading will be a low cost.
-                if (!this.Context.Repository.TryGetIsBlob(objectId, out bool isBlob))
+                if (!this.Context.Repository.TryGetIsValidObject(objectId, out bool isBlob))
                 {
-                    numTryGetIsBlobFailures++;
+                    numTryGetIsValidFailures++;
                     continue;
                 }
 
@@ -198,9 +191,9 @@ namespace GVFS.Common.Maintenance
                 }
             }
 
-            if (numTryGetIsBlobFailures > 0)
+            if (numTryGetIsValidFailures > 0)
             {
-                metadata.Add("NumTryGetIsBlobFailures", numTryGetIsBlobFailures);
+                metadata.Add("NumTryGetIsValidFailures", numTryGetIsValidFailures);
             }
 
             metadata.Add("RemovedCorruptObjects", numBadObjects);

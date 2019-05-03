@@ -119,9 +119,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.fileSystem.FileExists(fakeBlob).ShouldBeFalse(
                    "Step failed to delete corrupt blob");
-
-            // We cannot verify the final loose object count here, because we
-            // have no control over which objects are blobs versus commits and trees.
+            this.CountPackFiles().ShouldEqual(0);
+            this.GetLooseObjectFiles().Count.ShouldEqual(
+                looseObjectCount,
+                "unexpected number of loose objects after step");
         }
 
         private List<string> GetLooseObjectFiles()

@@ -66,6 +66,18 @@ namespace GVFS.Common.Git
             }
         }
 
+        public bool IsValidObject(string sha)
+        {
+            IntPtr objHandle;
+            if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.SuccessCode)
+            {
+                return false;
+            }
+
+            Native.Object.Free(objHandle);
+            return true;
+        }
+
         public virtual string GetTreeSha(string commitish)
         {
             IntPtr objHandle;
