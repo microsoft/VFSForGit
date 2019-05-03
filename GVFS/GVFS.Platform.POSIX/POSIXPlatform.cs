@@ -192,11 +192,6 @@ namespace GVFS.Platform.POSIX
                 get { return string.Empty; }
             }
 
-            public override string InstallerExtension
-            {
-                get { return ".deb"; }
-            }
-
             public override string GVFSExecutableName
             {
                 get { return "gvfs"; }
