@@ -10,13 +10,14 @@ namespace GVFS.Platform.Linux
     public partial class LinuxPlatform : POSIXPlatform
     {
         public LinuxPlatform()
-            : base(
-                installerExtension: string.Empty)
         {
         }
 
-        public override IKernelDriver KernelDriver { get; } = new ProjFSLib();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new LinuxDiskLayoutUpgradeData();
+        public override IKernelDriver KernelDriver { get; } = new ProjFSLib();
+        public override string Name { get => "Linux"; }
+        public override GVFSPlatformConstants Constants { get; } = new LinuxPlatformConstants();
+
         public override IPlatformFileSystem FileSystem { get; } = new LinuxFileSystem();
 
         public override string GetOSVersionInformation()
@@ -41,6 +42,39 @@ namespace GVFS.Platform.Linux
             string lockPath)
         {
             return new LinuxFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public class LinuxPlatformConstants : POSIXPlatformConstants
+        {
+            public override string InstallerExtension
+            {
+                get { return ".deb"; }
+            }
+
+            public override string WorkingDirectoryBackingRootName
+            {
+                get { return Path.Combine(GVFSConstants.DotGVFS.Root, "lower"); }
+            }
+
+            public override string GVFSBinDirectoryPath
+            {
+                get
+                {
+                    ProcessResult result = ProcessHelper.Run("which", args: this.GVFSExecutableName, redirectOutput: true);
+                    if (result.ExitCode != 0)
+                    {
+                        // TODO(Linux): avoid constants for paths entirely
+                        return "/usr/local/vfsforgit";
+                    }
+
+                    return Path.GetDirectoryName(result.Output.Trim());
+                }
+            }
+
+            public override string GVFSBinDirectoryName
+            {
+                get { return Path.GetFileName(this.GVFSBinDirectoryPath); }
+            }
         }
     }
 }
