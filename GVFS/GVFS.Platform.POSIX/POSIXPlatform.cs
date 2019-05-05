@@ -183,7 +183,7 @@ namespace GVFS.Platform.POSIX
         }
 
         [DllImport("libc", EntryPoint = "getuid", SetLastError = true)]
-        private static extern int Getuid();
+        private static extern uint Getuid();
 
         public abstract class POSIXPlatformConstants : GVFSPlatformConstants
         {
