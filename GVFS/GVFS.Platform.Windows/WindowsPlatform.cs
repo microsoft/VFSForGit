@@ -406,7 +406,7 @@ namespace GVFS.Platform.Windows
                 get { return ".exe"; }
             }
 
-            public override string LocalStorageRoot
+            public override string WorkingDirectoryBackingRootName
             {
                 get { return GVFSConstants.WorkingDirectoryRootName; }
             }

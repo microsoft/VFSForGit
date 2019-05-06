@@ -23,7 +23,7 @@ namespace GVFS.Common
             : base(
                   enlistmentRoot,
                   Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName),
-                  Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.LocalStorageRoot),
+                  Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.WorkingDirectoryBackingRootName),
                   repoUrl,
                   gitBinPath,
                   gvfsHooksRoot,
@@ -35,7 +35,7 @@ namespace GVFS.Common
             this.GitStatusCacheFolder = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.Name);
             this.GitStatusCachePath = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.CachePath);
             this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
-            this.LocalObjectsRoot = Path.Combine(this.LocalStorageRoot, GVFSConstants.DotGit.Objects.Root);
+            this.LocalObjectsRoot = Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Root);
         }
 
         // Existing, configured enlistment

@@ -47,7 +47,7 @@ namespace GVFS.Platform.Mac
                 get { return ".dmg"; }
             }
 
-            public override string LocalStorageRoot
+            public override string WorkingDirectoryBackingRootName
             {
                 get { return GVFSConstants.WorkingDirectoryRootName; }
             }

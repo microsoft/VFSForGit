@@ -258,7 +258,7 @@ of your enlistment's src folder.
         {
             Exception exception;
             string error;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.LocalStorageRoot, out error, out exception))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryBackingRoot, out error, out exception))
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add(nameof(error), error);
