@@ -42,13 +42,24 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     vfs_context_t context;
     const char* repoPath;
     const char* filePath;
+    const char* nonRepoFilePath;
+    const char* fromPath;
+    const char* fromPathOutOfRepo;
+    const char* otherRepoPath;
+    const char* fromPathOtherRepo;
     const char* dirPath;
+    VirtualizationRootHandle repoHandle;
+    VirtualizationRootHandle otherRepoHandle;
     PrjFSProviderUserClient dummyClient;
     pid_t dummyClientPid;
+    PrjFSProviderUserClient otherDummyClient;
+    pid_t otherDummyClientPid;
     shared_ptr<mount> testMount;
     shared_ptr<vnode> repoRootVnode;
     shared_ptr<vnode> testFileVnode;
+    shared_ptr<vnode> nonRepoFileVnode;
     shared_ptr<vnode> testDirVnode;
+    shared_ptr<vnode> otherRepoRootVnode;
     VnodeCacheEntriesWrapper cacheWrapper;
 }
 
@@ -58,22 +69,34 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertEqual(initResult, KERN_SUCCESS);
     context = vfs_context_create(NULL);
     dummyClientPid = 100;
+    otherDummyClientPid = 200;
 
     cacheWrapper.AllocateCache();
 
     // Create Vnode Tree
     repoPath = "/Users/test/code/Repo";
     filePath = "/Users/test/code/Repo/file";
+    fromPath = "/Users/test/code/Repo/originalfile";
+    nonRepoFilePath = "/Users/test/code/NotInRepo/file";
+    fromPathOutOfRepo = "/Users/test/code/NotInRepo/fromfile";
+    otherRepoPath = "/Users/test/code/OtherRepo";
+    fromPathOtherRepo = "/Users/test/code/OtherRepo/fromfile";
     dirPath = "/Users/test/code/Repo/dir";
     testMount = mount::Create();
     repoRootVnode = testMount->CreateVnodeTree(repoPath, VDIR);
     testFileVnode = testMount->CreateVnodeTree(filePath);
     testDirVnode = testMount->CreateVnodeTree(dirPath, VDIR);
+    otherRepoRootVnode = testMount->CreateVnodeTree(otherRepoPath, VDIR);
+    nonRepoFileVnode = testMount->CreateVnodeTree(nonRepoFilePath);
 
     // Register provider for the repository path (Simulate a mount)
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&dummyClient, dummyClientPid, repoPath);
     XCTAssertEqual(result.error, 0);
-    vnode_put(s_virtualizationRoots[result.root].rootVNode);
+    self->repoHandle = result.root;
+    
+    result = VirtualizationRoot_RegisterProviderForPath(&otherDummyClient, otherDummyClientPid, otherRepoPath);
+    XCTAssertEqual(result.error, 0);
+    self->otherRepoHandle = result.root;
 
     MockProcess_AddContext(context, 501 /*pid*/);
     MockProcess_SetSelfPid(501);
@@ -82,10 +105,15 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 
 - (void) tearDown
 {
+    ActiveProvider_Disconnect(self->repoHandle, &dummyClient);
+    ActiveProvider_Disconnect(self->otherRepoHandle, &otherDummyClient);
+
     testMount.reset();
     repoRootVnode.reset();
     testFileVnode.reset();
     testDirVnode.reset();
+    otherRepoRootVnode.reset();
+    nonRepoFileVnode.reset();
     cacheWrapper.FreeCache();
     
     VirtualizationRoots_Cleanup();
@@ -716,5 +744,200 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
 }
 
+- (void)testFileopRename
+{
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_RENAME,
+        reinterpret_cast<uintptr_t>(fromPath),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    // from & target repos are the same, should message exactly once
+    XCTAssertEqual(1, MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse));
+    XCTAssertTrue(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->repoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+}
+
+- (void)testFileopRenameOutsideRepo
+{
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_RENAME,
+        reinterpret_cast<uintptr_t>(fromPathOutOfRepo),
+        reinterpret_cast<uintptr_t>(nonRepoFilePath),
+        0,
+        0);
+    
+    // neither from & target are in a root, should not message anyone
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+- (void)testFileopRenameIntoRepo
+{
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_RENAME,
+        reinterpret_cast<uintptr_t>(fromPathOutOfRepo),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    // fromPath is outside repo, filePath is inside, should message exactly once
+    XCTAssertEqual(1, MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse));
+    XCTAssertTrue(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->repoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+}
+
+- (void)testFileopRenameOtherRepo
+{
+    // Move file from one repo into another
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_RENAME,
+        reinterpret_cast<uintptr_t>(fromPathOtherRepo),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    // fromPath is for another repo than filePath, should message both providers
+    XCTAssertTrue(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->repoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+    XCTAssertTrue(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->otherRepoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+}
+
+- (void)testFileopRenameOtherRepoOffline
+{
+    // Move file from an offline repo into a live one
+    ActiveProvider_Disconnect(self->otherRepoHandle, &otherDummyClient);
+    
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_RENAME,
+        reinterpret_cast<uintptr_t>(fromPathOtherRepo),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    // fromPath is in an offline repo, which can't be messaged
+    XCTAssertTrue(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->repoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+    XCTAssertFalse(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->otherRepoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+    XCTAssertEqual(1, MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse));
+
+    VirtualizationRoot_RegisterProviderForPath(&otherDummyClient, otherDummyClientPid, otherRepoPath);
+}
+
+- (void)testFileopRenameOutOfRepo
+{
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_RENAME,
+        reinterpret_cast<uintptr_t>(fromPath),
+        reinterpret_cast<uintptr_t>(nonRepoFilePath),
+        0,
+        0);
+    
+    // filePath is outside repo, fromPath is inside, should message exactly once
+    XCTAssertEqual(1, MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse));
+    XCTAssertTrue(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->repoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+}
+
+- (void)testFileopRenameOtherRepoProviderPID
+{
+    MockProcess_Reset();
+    MockProcess_AddContext(context, self->dummyClientPid /*pid*/);
+    MockProcess_SetSelfPid(self->dummyClientPid);
+    MockProcess_AddProcess(self->dummyClientPid /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "GVFS.Mount" /*name*/);
+
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_RENAME,
+        reinterpret_cast<uintptr_t>(fromPathOtherRepo),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    // fromPath is for another repo than filePath, but this is the target provider's PID, so only message "from" provider
+    XCTAssertFalse(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->repoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+    XCTAssertTrue(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->otherRepoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+}
+
+- (void)testFileopRenameOtherRepoOtherProviderPID
+{
+    MockProcess_Reset();
+    MockProcess_AddContext(context, self->otherDummyClientPid /*pid*/);
+    MockProcess_SetSelfPid(self->otherDummyClientPid);
+    MockProcess_AddProcess(self->otherDummyClientPid /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "GVFS.Mount" /*name*/);
+
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_RENAME,
+        reinterpret_cast<uintptr_t>(fromPathOtherRepo),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    // fromPath is for another repo than filePath, but this is the "from" provider's PID, so only message target provider
+    XCTAssertTrue(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->repoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+    XCTAssertFalse(MockCalls::DidCallFunction(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        self->otherRepoHandle,
+        MessageType_KtoU_NotifyFileRenamed,
+        _));
+}
 
 @end
