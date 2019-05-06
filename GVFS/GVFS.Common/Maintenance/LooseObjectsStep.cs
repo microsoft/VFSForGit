@@ -58,7 +58,7 @@ namespace GVFS.Common.Maintenance
             return count;
         }
 
-        public IEnumerable<string> LooseObjectsBatch(int batchSize)
+        public IEnumerable<string> GetBatchOfLooseObjects(int batchSize)
         {
             // Find loose Objects
             foreach (DirectoryItemInfo directoryItemInfo in this.Context.FileSystem.ItemsInDirectory(this.Context.Enlistment.GitObjectsRoot))
@@ -101,7 +101,7 @@ namespace GVFS.Common.Maintenance
         {
             int count = 0;
 
-            foreach (string objectId in this.LooseObjectsBatch(this.MaxLooseObjectsInPack))
+            foreach (string objectId in this.GetBatchOfLooseObjects(this.MaxLooseObjectsInPack))
             {
                 streamWriter.Write(objectId + "\n");
                 count++;
@@ -162,27 +162,20 @@ namespace GVFS.Common.Maintenance
                             objectId.Substring(2, GVFSConstants.ShaStringLength - 2));
         }
 
-        public int ClearCorruptLooseObjects(EventMetadata metadata)
+        public void ClearCorruptLooseObjects(EventMetadata metadata)
         {
-            int numBadObjects = 0;
-            int numTryGetIsValidFailures = 0;
+            int numDeletedObjects = 0;
             int numFailedDeletes = 0;
 
-            foreach (string objectId in this.LooseObjectsBatch(this.MaxLooseObjectsInPack))
+            foreach (string objectId in this.GetBatchOfLooseObjects(this.MaxLooseObjectsInPack))
             {
-                if (!this.Context.Repository.TryGetIsValidObject(objectId, out bool isBlob))
-                {
-                    numTryGetIsValidFailures++;
-                    continue;
-                }
-
-                if (!isBlob)
+                if (!this.Context.Repository.ObjectExists(objectId))
                 {
                     string objectFile = this.GetLooseObjectFileName(objectId);
 
                     if (this.Context.FileSystem.TryDeleteFile(objectFile))
                     {
-                        numBadObjects++;
+                        numDeletedObjects++;
                     }
                     else
                     {
@@ -191,19 +184,8 @@ namespace GVFS.Common.Maintenance
                 }
             }
 
-            if (numTryGetIsValidFailures > 0)
-            {
-                metadata.Add("NumTryGetIsValidFailures", numTryGetIsValidFailures);
-            }
-
-            metadata.Add("RemovedCorruptObjects", numBadObjects);
-
-            if (numFailedDeletes > 0)
-            {
-                metadata.Add("NumFailedDeletes", numFailedDeletes);
-            }
-
-            return numBadObjects;
+            metadata.Add("RemovedCorruptObjects", numDeletedObjects);
+            metadata.Add("NumFailedDeletes", numFailedDeletes);
         }
 
         protected override void PerformMaintenance()
@@ -233,7 +215,7 @@ namespace GVFS.Common.Maintenance
                     GitProcess.Result gitResult = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.PrunePacked));
                     int afterLooseObjectsCount = this.CountLooseObjects();
 
-                    CreatePackResult result = this.TryCreateLooseObjectsPackFile(out int objectsAddedToPack);
+                    CreatePackResult createPackResult = this.TryCreateLooseObjectsPackFile(out int objectsAddedToPack);
 
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("GitObjectsRoot", this.Context.Enlistment.GitObjectsRoot);
@@ -241,11 +223,11 @@ namespace GVFS.Common.Maintenance
                     metadata.Add("EndingCount", afterLooseObjectsCount);
                     metadata.Add("RemovedCount", beforeLooseObjectsCount - afterLooseObjectsCount);
                     metadata.Add("LooseObjectsPutIntoPackFile", objectsAddedToPack);
-                    metadata.Add("CreatePackResult", result.ToString());
+                    metadata.Add("CreatePackResult", createPackResult.ToString());
 
-                    if (result == CreatePackResult.CorruptBlob)
+                    if (createPackResult == CreatePackResult.CorruptBlob)
                     {
-                        int removedObjects = this.ClearCorruptLooseObjects(metadata);
+                        this.ClearCorruptLooseObjects(metadata);
                     }
 
                     activity.RelatedEvent(EventLevel.Informational, $"{this.Area}_{nameof(this.PerformMaintenance)}", metadata, Keywords.Telemetry);

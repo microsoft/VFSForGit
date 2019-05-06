@@ -57,11 +57,6 @@ namespace GVFS.Common.Git
             return this.libgit2RepoInvoker.TryInvoke(repo => repo.IsBlob(sha), out isBlob);
         }
 
-        public bool TryGetIsValidObject(string sha, out bool isValid)
-        {
-            return this.libgit2RepoInvoker.TryInvoke(repo => repo.IsValidObject(sha), out isValid);
-        }
-
         public virtual bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
         {
             LooseBlobState state = this.GetLooseBlobState(blobSha, writeAction, out long size);

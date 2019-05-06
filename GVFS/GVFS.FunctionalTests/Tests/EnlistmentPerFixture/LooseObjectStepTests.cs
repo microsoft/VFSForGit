@@ -123,6 +123,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.GetLooseObjectFiles().Count.ShouldEqual(
                 looseObjectCount,
                 "unexpected number of loose objects after step");
+
+            this.DeleteFiles(this.GetLooseObjectFiles());
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
         }
 
         private List<string> GetLooseObjectFiles()
