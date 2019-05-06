@@ -49,6 +49,12 @@ If you'd like to build your own VFS for Git Windows installer:
 build will fail, and the second and subsequent builds will succeed. This is because the build requires a prebuild code generation step.
 For details, see the build script in the previous step.
 
+You can also use Visual Studio 2019. There are a couple of options for getting all the dependencies.
+* You can install Visual Studio 2017 side by side with Visual Studio 2019, and make sure that you have all the dependencies from Visual Studio 2017 installed
+* Alternatively, if you only want to have Visual Studio 2019 installed, install the following extra dependencies:
+  * MSVC v141 VS 2017 C++ build tools via the optional components in the Visual Studio 2019 installer. It is under the "Desktop Development with C++" heading.
+  * Windows 10 SDK (10.0.10240.0) via the archived SDK page: https://developer.microsoft.com/en-us/windows/downloads/sdk-archive
+
 The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer\bin\x64\[Debug|Release]\SetupGVFS.<version>.exe`
 
 ## Building VFS for Git on Mac
