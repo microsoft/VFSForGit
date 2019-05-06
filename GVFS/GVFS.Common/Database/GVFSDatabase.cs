@@ -30,6 +30,8 @@ namespace GVFS.Common.Database
             {
                 this.Initialize();
             }
+
+            this.CreateTables();
         }
 
         public SqliteConnection Connection { get; }
@@ -56,6 +58,14 @@ namespace GVFS.Common.Database
                     command.CommandText = $"PRAGMA user_version=1;";
                     command.ExecuteNonQuery();
                 }
+            }
+        }
+
+        private void CreateTables()
+        {
+            using (SqliteCommand command = this.Connection.CreateCommand())
+            {
+                Placeholders.CreateTable(command);
             }
         }
     }
