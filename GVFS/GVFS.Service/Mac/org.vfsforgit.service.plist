@@ -18,8 +18,7 @@
     <string>org.vfsforgit.service</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/share/dotnet/dotnet</string>
-        <string>/usr/local/vfsforgit/GVFS.Service.dll</string>
+        <string>/usr/local/vfsforgit/GVFS.Service</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/usr/local/vfsforgit</string>
