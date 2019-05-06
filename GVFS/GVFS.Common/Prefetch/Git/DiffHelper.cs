@@ -82,7 +82,7 @@ namespace GVFS.Common.Prefetch.Git
         {
             string targetTreeSha;
             string headTreeSha;
-            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.LocalStorageRoot))
             {
                 targetTreeSha = repo.GetTreeSha(targetCommitSha);
                 headTreeSha = repo.GetTreeSha("HEAD");
@@ -125,7 +125,7 @@ namespace GVFS.Common.Prefetch.Git
                     GitProcess.Result result = this.git.DiffTree(
                         sourceTreeSha,
                         targetTreeSha,
-                        line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.WorkingDirectoryRoot, line));
+                        line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.LocalStorageRoot, line));
 
                     if (result.ExitCodeIsFailure)
                     {
@@ -202,7 +202,7 @@ namespace GVFS.Common.Prefetch.Git
 
         private void EnqueueOperationsFromLsTreeLine(ITracer activity, string line)
         {
-            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(line, this.enlistment.WorkingDirectoryRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(line, this.enlistment.LocalStorageRoot);
             if (result == null)
             {
                 this.tracer.RelatedError("Unrecognized ls-tree line: {0}", line);

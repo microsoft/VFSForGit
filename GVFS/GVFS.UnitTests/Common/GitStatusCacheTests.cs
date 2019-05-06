@@ -47,7 +47,7 @@ namespace GVFS.UnitTests.Common
             MockGVFSEnlistment enlistment = new MockGVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", null, this.gitProcess);
             enlistment.InitializeCachePathsFromKey("fake:\\gvfsSharedCache", "fakeCacheKey");
 
-            this.gitParentPath = enlistment.WorkingDirectoryRoot;
+            this.gitParentPath = enlistment.LocalStorageRoot;
             this.gvfsMetadataPath = enlistment.DotGVFSRoot;
 
             this.enlistmentDirectory = new MockDirectory(

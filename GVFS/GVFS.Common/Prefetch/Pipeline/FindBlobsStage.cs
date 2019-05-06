@@ -55,7 +55,7 @@ namespace GVFS.Common.Prefetch.Pipeline
         protected override void DoWork()
         {
             string blobId;
-            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.LocalStorageRoot))
             {
                 while (this.requiredBlobs.TryTake(out blobId, Timeout.Infinite))
                 {

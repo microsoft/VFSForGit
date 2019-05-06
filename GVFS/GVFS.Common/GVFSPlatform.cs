@@ -92,6 +92,7 @@ namespace GVFS.Common
             public static readonly char PathSeparator = Path.DirectorySeparatorChar;
             public abstract string ExecutableExtension { get; }
             public abstract string InstallerExtension { get; }
+            public abstract string LocalStorageRoot { get; }
 
             public abstract string GVFSBinDirectoryPath { get; }
 
