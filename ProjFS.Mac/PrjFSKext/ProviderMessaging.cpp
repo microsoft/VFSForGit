@@ -1,10 +1,10 @@
 #include "ProviderMessaging.hpp"
 #include "Locks.hpp"
 #include "KextLog.hpp"
+#include "kernel-header-wrappers/stdatomic.h"
 
 #include <kern/assert.h>
 #include <sys/proc.h>
-#include <libkern/OSAtomic.h>
 #include <sys/kauth.h>
 
 // Structs
@@ -22,7 +22,7 @@ struct OutstandingMessage
 // State
 static LIST_HEAD(OutstandingMessage_Head, OutstandingMessage) s_outstandingMessages = LIST_HEAD_INITIALIZER(OutstandingMessage_Head);
 static Mutex s_outstandingMessagesMutex = {};
-static volatile int s_nextMessageId;
+static atomic_uint_least64_t s_nextMessageId;
 static volatile bool s_isShuttingDown;
 
 
@@ -138,7 +138,6 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     // To be useful, the message needs to either provide an FSID/inode pair or a path
     assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0));
     bool result = false;
-    const char* relativePath = nullptr;
     
     OutstandingMessage message =
     {
@@ -146,12 +145,7 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
         .rootHandle = root,
     };
     
-    if (nullptr != vnodePath)
-    {
-        relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
-    }
-    
-    int nextMessageId = OSIncrementAtomic(&s_nextMessageId);
+    uint64_t nextMessageId = atomic_fetch_add(&s_nextMessageId, UINT64_C(1));
     
     Message messageSpec = {};
     Message_Init(
@@ -162,7 +156,7 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
         vnodeFsidInode,
         pid,
         procname,
-        relativePath);
+        vnodePath);
 
     if (s_isShuttingDown)
     {

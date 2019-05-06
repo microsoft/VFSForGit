@@ -18,6 +18,8 @@ namespace GVFS.Common
         public const string WorkingDirectoryRootName = "src";
         public const string UnattendedEnvironmentVariable = "GVFS_UNATTENDED";
 
+        public const string DefaultGVFSCacheFolderName = ".gvfsCache";
+
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
         public static class GitConfig
@@ -42,6 +44,7 @@ namespace GVFS.Common
             public const string UpgradeRing = "upgrade.ring";
             public const string UpgradeFeedPackageName = "upgrade.feedpackagename";
             public const string UpgradeFeedUrl = "upgrade.feedurl";
+            public const string OrgInfoServerUrl = "upgrade.orgInfoServerUrl";
         }
 
         public static class GitStatusCache
@@ -52,6 +55,7 @@ namespace GVFS.Common
         public static class Service
         {
             public const string ServiceName = "GVFS.Service";
+            public const string LogDirectory = "Logs";
             public const string UIName = "GVFS.Service.UI";
         }
 

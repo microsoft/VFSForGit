@@ -3,7 +3,7 @@ using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using System;
 
-namespace GVFS.Service.Mac
+namespace GVFS.Service
 {
     public static class Program
     {

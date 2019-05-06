@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Virtualization.FileSystem;
@@ -37,7 +38,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.FileSystem
             throw new NotImplementedException();
         }
 
-        public override FileSystemResult UpdatePlaceholderIfNeeded(string relativePath, DateTime creationTime, DateTime lastAccessTime, DateTime lastWriteTime, DateTime changeTime, uint fileAttributes, long endOfFile, string shaContentId, UpdatePlaceholderType updateFlags, out UpdateFailureReason failureReason)
+        public override FileSystemResult UpdatePlaceholderIfNeeded(string relativePath, DateTime creationTime, DateTime lastAccessTime, DateTime lastWriteTime, DateTime changeTime, FileAttributes fileAttributes, long endOfFile, string shaContentId, UpdatePlaceholderType updateFlags, out UpdateFailureReason failureReason)
         {
             throw new NotImplementedException();
         }

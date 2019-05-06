@@ -16,7 +16,7 @@ namespace GVFS.FunctionalTests.Tests
 {
     [TestFixture]
     [Category(Categories.FastFetch)]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     public class FastFetchTests
     {
         private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
@@ -501,7 +501,7 @@ namespace GVFS.FunctionalTests.Tests
                 fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.dll");
             }
 
-            File.Exists(fastfetch).ShouldBeTrue();
+            File.Exists(fastfetch).ShouldBeTrue($"{fastfetch} did not exist.");
             Console.WriteLine($"Using {fastfetch}");
 
             ProcessStartInfo processInfo = new ProcessStartInfo("dotnet");

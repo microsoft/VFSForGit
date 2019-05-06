@@ -1,4 +1,5 @@
 #include "kext-perf-tracing.hpp"
+#include "../../PrjFSKext/public/ArrayUtils.hpp"
 #include "../../PrjFSKext/public/PrjFSCommon.h"
 #include "../../PrjFSKext/public/PrjFSPerfCounter.h"
 #include "../../PrjFSKext/public/PrjFSLogClientShared.h"
@@ -41,8 +42,10 @@ static constexpr const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_CheckFileSystemCrawler]          = " |  |--IsFileSystemCrawler",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_DeniedFileSystemCrawler]         = " |     |--Denied",
     [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot]                        = " |--TryGetVirtualizationRoot",
-    [PrjFSPerfCounter_VnodeOp_FindRoot]                                     = " |  |--FindForVnode",
-    [PrjFSPerfCounter_VnodeOp_FindRoot_Iteration]                           = " |  |  |--inner_loop_iterations",
+    [PrjFSPerfCounter_VnodeOp_Vnode_Cache_Hit]                              = " |  |--VnodeCacheHit",
+    [PrjFSPerfCounter_VnodeOp_Vnode_Cache_Miss]                             = " |  |--VnodeCacheMiss",
+    [PrjFSPerfCounter_VnodeOp_FindRoot]                                     = " |  |  |--FindForVnode",
+    [PrjFSPerfCounter_VnodeOp_FindRoot_Iteration]                           = " |  |  |  |--inner_loop_iterations",
     [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_TemporaryDirectory]     = " |  |--TemporaryDirectory",
     [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_NoRootFound]            = " |  |--NoRootFound",
     [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_ProviderOffline]        = " |  |--ProviderOffline",
@@ -56,8 +59,10 @@ static constexpr const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_FileOp]                                               = "HandleFileOpOperation",
     [PrjFSPerfCounter_FileOp_ShouldHandle]                                  = " |--ShouldHandleFileOpEvent",
     [PrjFSPerfCounter_FileOp_ShouldHandle_FindVirtualizationRoot]           = " |  |--FindVirtualizationRoot",
-    [PrjFSPerfCounter_FileOp_FindRoot]                                      = " |  |  |--FindForVnode",
-    [PrjFSPerfCounter_FileOp_FindRoot_Iteration]                            = " |  |  |  |--inner_loop_iterations",
+    [PrjFSPerfCounter_FileOp_Vnode_Cache_Hit]                               = " |  |  |--VnodeCacheHit",
+    [PrjFSPerfCounter_FileOp_Vnode_Cache_Miss]                              = " |  |  |--VnodeCacheMiss",
+    [PrjFSPerfCounter_FileOp_FindRoot]                                      = " |  |  |  |--FindForVnode",
+    [PrjFSPerfCounter_FileOp_FindRoot_Iteration]                            = " |  |  |  |  |--inner_loop_iterations",
     [PrjFSPerfCounter_FileOp_ShouldHandle_NoRootFound]                      = " |  |  |--NoRootFound",
     [PrjFSPerfCounter_FileOp_ShouldHandle_CheckProvider]                    = " |  |--CheckProvider",
     [PrjFSPerfCounter_FileOp_ShouldHandle_OfflineRoot]                      = " |  |  |--OfflineRoot",
@@ -66,17 +71,10 @@ static constexpr const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_FileOp_HardLinkCreated]                               = " |--RaiseHardLinkCreatedEvent",
     [PrjFSPerfCounter_FileOp_FileModified]                                  = " |--RaiseFileModifiedEvent",
     [PrjFSPerfCounter_FileOp_FileCreated]                                   = " |--RaiseFileCreatedEvent",
+    [PrjFSPerfCounter_CacheCapacity]                                        = "VnodeCacheCapacity",
+    [PrjFSPerfCounter_CacheInvalidateCount]                                 = "VnodeCacheInvalidationCount",
+    [PrjFSPerfCounter_CacheFullCount]                                       = "VnodeCacheFullCount",
 };
-
-template <typename T, size_t N>
-    constexpr bool AllArrayElementsInitialized(T (&array)[N], size_t fromIndex = 0)
-{
-    return
-        fromIndex >= N
-        ? true
-        : (array[fromIndex] != T()
-           && AllArrayElementsInitialized(array, fromIndex + 1));
-}
 
 static_assert(AllArrayElementsInitialized(PerfCounterNames), "There must be an initialization of PerfCounterNames elements corresponding to each PrjFSPerfCounter enum value");
 

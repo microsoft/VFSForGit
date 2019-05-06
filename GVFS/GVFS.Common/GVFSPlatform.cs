@@ -25,6 +25,7 @@ namespace GVFS.Common
 
         public GVFSPlatformConstants Constants { get; }
         public UnderConstructionFlags UnderConstruction { get; }
+        public abstract string Name { get; }
 
         public static void Register(GVFSPlatform platform)
         {
@@ -43,6 +44,8 @@ namespace GVFS.Common
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
 
         public abstract string GetOSVersionInformation();
+        public abstract string GetDataRootForGVFS();
+        public abstract string GetDataRootForGVFSComponent(string componentName);
         public abstract void InitializeEnlistmentACLs(string enlistmentPath);
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
@@ -60,6 +63,7 @@ namespace GVFS.Common
         public abstract bool TryKillProcessTree(int processId, out int exitCode, out string error);
 
         public abstract bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage);
+        public abstract bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError);
 
         public abstract bool IsGitStatusCacheSupported();
 
@@ -135,18 +139,15 @@ namespace GVFS.Common
         public class UnderConstructionFlags
         {
             public UnderConstructionFlags(
-                bool supportsGVFSService = true,
                 bool supportsGVFSUpgrade = true,
                 bool supportsGVFSConfig = true,
                 bool requiresDeprecatedGitHooksLoader = false)
             {
-                this.SupportsGVFSService = supportsGVFSService;
                 this.SupportsGVFSUpgrade = supportsGVFSUpgrade;
                 this.SupportsGVFSConfig = supportsGVFSConfig;
                 this.RequiresDeprecatedGitHooksLoader = requiresDeprecatedGitHooksLoader;
             }
 
-            public bool SupportsGVFSService { get; }
             public bool SupportsGVFSUpgrade { get; }
             public bool SupportsGVFSConfig { get; }
             public bool RequiresDeprecatedGitHooksLoader { get; }

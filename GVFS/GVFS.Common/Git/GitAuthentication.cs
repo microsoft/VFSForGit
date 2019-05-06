@@ -14,7 +14,7 @@ namespace GVFS.Common.Git
         private const double MaxBackoffSeconds = 30;
 
         private readonly object gitAuthLock = new object();
-        private readonly GitProcess git;
+        private readonly ICredentialStore credentialStore;
         private readonly string repoUrl;
 
         private int numberOfAttempts = 0;
@@ -27,7 +27,7 @@ namespace GVFS.Common.Git
 
         public GitAuthentication(GitProcess git, string repoUrl)
         {
-            this.git = git;
+            this.credentialStore = git;
             this.repoUrl = repoUrl;
 
             if (git.TryGetConfigUrlMatch("http", this.repoUrl, out Dictionary<string, GitConfigSetting> configSettings))
@@ -66,7 +66,12 @@ namespace GVFS.Common.Git
                         string password;
                         if (TryParseCredentialString(this.cachedCredentialString, out username, out password))
                         {
-                            this.git.ApproveCredentials(this.repoUrl, username, password);
+                            if (!this.credentialStore.TryStoreCredential(tracer, this.repoUrl, username, password, out string error))
+                            {
+                                // Storing credentials is best effort attempt - log failure, but do not fail
+                                tracer.RelatedWarning("Failed to store credential string: {0}", error);
+                            }
+
                             this.isCachedCredentialStringApproved = true;
                         }
                         else
@@ -96,7 +101,11 @@ namespace GVFS.Common.Git
                     string password;
                     if (TryParseCredentialString(this.cachedCredentialString, out username, out password))
                     {
-                        this.git.RejectCredentials(this.repoUrl, username, password);
+                        if (!this.credentialStore.TryDeleteCredential(tracer, this.repoUrl, username, password, out string error))
+                        {
+                            // Deleting credentials is best effort attempt - log failure, but do not fail
+                            tracer.RelatedWarning("Failed to delete credential string: {0}", error);
+                        }
                     }
                     else
                     {
@@ -107,7 +116,7 @@ namespace GVFS.Common.Git
                             ["RepoUrl"] = this.repoUrl,
                         });
                         tracer.RelatedWarning(metadata, "Failed to parse credential string for rejection. Rejecting any credential for this repo URL.");
-                        this.git.RejectCredentials(this.repoUrl);
+                        this.credentialStore.TryDeleteCredential(tracer, this.repoUrl, username: null, password: null, error: out string error);
                     }
 
                     this.cachedCredentialString = null;
@@ -295,7 +304,7 @@ namespace GVFS.Common.Git
         {
             string gitUsername;
             string gitPassword;
-            if (!this.git.TryGetCredentials(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage))
+            if (!this.credentialStore.TryGetCredential(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage))
             {
                 this.UpdateBackoff();
                 return false;

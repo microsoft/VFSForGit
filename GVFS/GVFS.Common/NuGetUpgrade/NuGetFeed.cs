@@ -63,7 +63,7 @@ namespace GVFS.Common.NuGetUpgrade
             this.sourceCacheContext = null;
         }
 
-        public void SetCredentials(string credential)
+        public virtual void SetCredentials(string credential)
         {
             this.personalAccessToken = credential;
 

@@ -79,14 +79,8 @@ static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t
     dispatch_source_set_event_handler(logState->dataQueue.dispatchSource, ^{
         DataQueue_ClearMachNotification(logState->dataQueue.notificationPort);
         
-        while(true)
+        while(IODataQueueEntry* entry = DataQueue_Peek(logState->dataQueue.queueMemory))
         {
-            IODataQueueEntry* entry = DataQueue_Peek(logState->dataQueue.queueMemory);
-            if(entry == nullptr)
-            {
-                break;
-            }
-            
             int messageSize = entry->size;
             if (messageSize >= sizeof(KextLog_MessageHeader) + 2)
             {

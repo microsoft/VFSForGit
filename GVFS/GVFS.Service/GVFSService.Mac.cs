@@ -1,11 +1,14 @@
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.Service.Handlers;
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 
-namespace GVFS.Service.Mac
+namespace GVFS.Service
 {
     public class GVFSService
     {
@@ -16,13 +19,30 @@ namespace GVFS.Service.Mac
         private Thread serviceThread;
         private ManualResetEvent serviceStopped;
         private string serviceName;
+        private RepoRegistry repoRegistry;
+        private RequestHandler requestHandler;
 
         public GVFSService(JsonTracer tracer)
         {
+            string logFilePath = Path.Combine(
+                    GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName),
+                    GVFSConstants.Service.LogDirectory);
+            Directory.CreateDirectory(logFilePath);
+
             this.tracer = tracer;
+            this.tracer.AddLogFileEventListener(
+                GVFSEnlistment.GetNewGVFSLogFileName(logFilePath, GVFSConstants.LogFileTypes.Service),
+                EventLevel.Verbose,
+                Keywords.Any);
+
             this.serviceName = GVFSConstants.Service.ServiceName;
             this.serviceStopped = new ManualResetEvent(false);
             this.serviceThread = new Thread(this.ServiceThreadMain);
+            this.repoRegistry = new RepoRegistry(
+                this.tracer,
+                new PhysicalFileSystem(),
+                GVFSPlatform.Instance.GetDataRootForGVFSComponent(this.serviceName));
+            this.requestHandler = new RequestHandler(this.tracer, EtwArea, this.repoRegistry);
         }
 
         public void RunWithArgs(string[] args)
@@ -35,8 +55,17 @@ namespace GVFS.Service.Mac
 
             try
             {
-                this.serviceThread.Start();
-                this.serviceThread.Join();
+                string pipeName = this.serviceName + ".Pipe";
+                this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
+
+                using (NamedPipeServer pipeServer = NamedPipeServer.StartNewServer(
+                    pipeName,
+                    this.tracer,
+                    this.requestHandler.HandleRequest))
+                {
+                    this.serviceThread.Start();
+                    this.serviceThread.Join();
+                }
             }
             catch (Exception e)
             {

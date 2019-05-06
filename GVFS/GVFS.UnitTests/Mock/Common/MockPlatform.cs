@@ -7,6 +7,7 @@ using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Pipes;
 
 namespace GVFS.UnitTests.Mock.Common
@@ -25,6 +26,7 @@ namespace GVFS.UnitTests.Mock.Common
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade => throw new NotSupportedException();
 
         public override IPlatformFileSystem FileSystem { get; } = new MockPlatformFileSystem();
+        public override string Name { get => "Mock"; }
 
         public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
 
@@ -68,6 +70,19 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
+        public override string GetDataRootForGVFS()
+        {
+            // TODO: Update this method to return non existant file path.
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "GVFS");
+        }
+
+        public override string GetDataRootForGVFSComponent(string componentName)
+        {
+            return Path.Combine(this.GetDataRootForGVFS(), componentName);
+        }
+
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
             return new Dictionary<string, string>();
@@ -101,6 +116,11 @@ namespace GVFS.UnitTests.Mock.Common
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             throw new NotSupportedException();
+        }
+
+        public override bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError)
+        {
+            throw new NotImplementedException();
         }
 
         public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)

@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.ServiceProcess;
 using System.Threading;
 
@@ -10,8 +11,29 @@ namespace GVFS.FunctionalTests.Tools
 {
     public static class GVFSServiceProcess
     {
-        public const string TestServiceName = "Test.GVFS.Service";
-        private const string ServiceNameArgument = "--servicename=" + TestServiceName;
+        private static readonly string ServiceNameArgument = "--servicename=" + TestServiceName;
+
+        public static string TestServiceName
+        {
+            get
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    // Service name is used in the lookup of GVFS.Service communication pipes
+                    // by clients for IPC. Custom pipe names can be specified as command line
+                    // args to the Service during its startup. On the Mac, GVFS.Service started
+                    // for testing is the same instance as the one that is installed by the
+                    // Mac installer. Also it is not as easy as in Windows to pass command line
+                    // args (that are specific to testing) to GVFS.Service (Service on Mac is a
+                    // Launch agent and needs its args to be specified in its launchd.plist
+                    // file). So on Mac - during tests GVFS.Service is started without any
+                    // customized pipe name for testing.
+                    return "GVFS.Service";
+                }
+
+                return "Test.GVFS.Service";
+            }
+        }
 
         public static void InstallService()
         {

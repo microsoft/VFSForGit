@@ -29,7 +29,7 @@ namespace GVFS.Common.Maintenance
                 this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.WriteMultiPackIndex));
 
                 GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyMultiPackIndex));
-                if (verifyResult.ExitCodeIsFailure)
+                if (!this.Stopping && verifyResult.ExitCodeIsFailure)
                 {
                     this.LogErrorAndRewriteMultiPackIndex(activity);
                 }
@@ -52,7 +52,7 @@ namespace GVFS.Common.Maintenance
                 /*
                 GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyCommitGraph(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyCommitGraph));
 
-                if (verifyResult.ExitCodeIsFailure)
+                if (!this.Stopping && verifyResult.ExitCodeIsFailure)
                 {
                     this.LogErrorAndRewriteCommitGraph(activity, this.packIndexes);
                 }

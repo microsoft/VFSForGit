@@ -97,7 +97,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Windows\Tests\DiskLayoutUpgradeTests.cs" />
     <Compile Include="Windows\Tests\JunctionAndSubstTests.cs" />
-    <Compile Include="Windows\Tests\WindowsUpdatePlaceholderTests.cs.cs" />
+    <Compile Include="Windows\Tests\WindowsTombstoneTests.cs" />
+    <Compile Include="Windows\Tests\WindowsUpdatePlaceholderTests.cs" />
     <Compile Include="Windows\Tests\WindowsFileSystemTests.cs" />
     <Compile Include="Windows\Tests\ServiceTests.cs" />
     <Compile Include="Windows\Tests\SharedCacheUpgradeTests.cs" />
@@ -183,10 +184,10 @@
       xcopy /Y $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\$(Platform)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Service.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-      xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       mkdir  $(TargetDir)\netcoreapp2.1
+      xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\netcoreapp2.1\* $(TargetDir)\netcoreapp2.1
       xcopy /Y $(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\netcoreapp2.1\* $(TargetDir)\netcoreapp2.1
 
       REM If there is an inbox version of the ProjFS dll, we must use that one to guarantee compat with the sys, so delete whatever is in our TargetDir

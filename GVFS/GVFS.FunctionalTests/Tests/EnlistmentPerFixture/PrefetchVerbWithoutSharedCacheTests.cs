@@ -12,7 +12,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     // TODO(Mac): Before these tests can be enabled PostFetchJobShouldComplete needs
     // to work on Mac (where post-fetch.lock is not removed from disk)
     [TestFixture]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     [Category(Categories.MacTODO.M4)]
     public class PrefetchVerbWithoutSharedCacheTests : TestsWithEnlistmentPerFixture
     {

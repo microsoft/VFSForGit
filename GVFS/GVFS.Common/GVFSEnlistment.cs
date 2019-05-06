@@ -1,3 +1,4 @@
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using Newtonsoft.Json;
@@ -106,11 +107,16 @@ namespace GVFS.Common
             throw new InvalidRepoException($"Directory '{directory}' does not exist");
         }
 
-        public static string GetNewGVFSLogFileName(string logsRoot, string logFileType)
+        public static string GetNewGVFSLogFileName(
+            string logsRoot,
+            string logFileType,
+            PhysicalFileSystem fileSystem = null)
         {
             return Enlistment.GetNewLogFileName(
                 logsRoot,
-                "gvfs_" + logFileType);
+                "gvfs_" + logFileType,
+                logId: null,
+                fileSystem: fileSystem);
         }
 
         public static bool WaitUntilMounted(string enlistmentRoot, bool unattended, out string errorMessage)

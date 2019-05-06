@@ -4,11 +4,6 @@ namespace GVFS.Hooks.HooksPlatform
 {
     public static class GVFSHooksPlatform
     {
-        public static string GetInstallerExtension()
-        {
-            return WindowsPlatform.InstallerExtension;
-        }
-
         public static bool IsElevated()
         {
             return WindowsPlatform.IsElevatedImplementation();
@@ -40,6 +35,11 @@ namespace GVFS.Hooks.HooksPlatform
         public static bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
         {
             return WindowsFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
+        }
+
+        public static string GetDataRootForGVFS()
+        {
+            return WindowsPlatform.GetDataRootForGVFSImplementation();
         }
     }
 }

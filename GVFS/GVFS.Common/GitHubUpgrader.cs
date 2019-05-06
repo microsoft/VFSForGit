@@ -55,14 +55,17 @@ namespace GVFS.Common
 
         public GitHubUpgraderConfig Config { get; private set; }
 
+        public override bool SupportsAnonymousVersionQuery { get => true; }
+
         public static GitHubUpgrader Create(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
+            LocalGVFSConfig gvfsConfig,
             bool dryRun,
             bool noVerify,
             out string error)
         {
-            return Create(tracer, fileSystem, dryRun, noVerify, new LocalGVFSConfig(), out error);
+            return Create(tracer, fileSystem, dryRun, noVerify, gvfsConfig, out error);
         }
 
         public static GitHubUpgrader Create(
@@ -413,7 +416,12 @@ namespace GVFS.Common
             {
                 if (!this.dryRun)
                 {
-                    string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path), this.UpgradeInstanceId);
+                    string logFilePath = GVFSEnlistment.GetNewLogFileName(
+                        ProductUpgraderInfo.GetLogDirectoryPath(),
+                        Path.GetFileNameWithoutExtension(path),
+                        this.UpgradeInstanceId,
+                        this.fileSystem);
+
                     string args = installerArgs + " /Log=" + logFilePath;
                     string certCN = null;
                     string issuerCN = null;

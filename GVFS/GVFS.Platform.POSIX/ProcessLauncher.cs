@@ -5,11 +5,11 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace GVFS.Platform.Mac
+namespace GVFS.Platform.POSIX
 {
     public static class ProcessLauncher
     {
-        private const int StdInFileNo  = 0; // STDIN_FILENO  -> standard input file descriptor
+        private const int StdInFileNo = 0; // STDIN_FILENO  -> standard input file descriptor
         private const int StdOutFileNo = 1; // STDOUT_FILENO -> standard output file descriptor
         private const int StdErrFileNo = 2; // STDERR_FILENO -> standard error file descriptor
 

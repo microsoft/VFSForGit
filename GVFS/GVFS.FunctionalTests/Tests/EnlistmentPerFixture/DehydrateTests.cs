@@ -10,7 +10,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     [Category(Categories.MacTODO.M4)]
     public class DehydrateTests : TestsWithEnlistmentPerFixture
     {
@@ -166,6 +166,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             ProcessResult result = this.RunDehydrateProcess(confirm, noStatus);
             result.ExitCode.ShouldEqual(0, $"mount exit code was {result.ExitCode}. Output: {result.Output}");
+
+            if (result.Output.Contains("Failed to move the src folder: Access to the path"))
+            {
+                string output = this.RunHandleProcess(Path.Combine(this.Enlistment.EnlistmentRoot, "src"));
+                TestContext.Out.WriteLine(output);
+            }
+
             result.Output.ShouldContain(expectedOutput);
         }
 
@@ -199,6 +206,25 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             processInfo.RedirectStandardOutput = true;
 
             return ProcessHelper.Run(processInfo);
+        }
+
+        private string RunHandleProcess(string path)
+        {
+            try
+            {
+                ProcessStartInfo processInfo = new ProcessStartInfo("handle.exe");
+                processInfo.Arguments = "-p " + path;
+                processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+                processInfo.WorkingDirectory = this.Enlistment.EnlistmentRoot;
+                processInfo.UseShellExecute = false;
+                processInfo.RedirectStandardOutput = true;
+
+                return "handle.exe output: " + ProcessHelper.Run(processInfo).Output;
+            }
+            catch (Exception ex)
+            {
+                return $"Exception running handle.exe - {ex.Message}";
+            }
         }
     }
 }

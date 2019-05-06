@@ -37,6 +37,7 @@ namespace GVFS.Platform.Windows
         public override IGitInstallation GitInstallation { get; } = new WindowsGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new WindowsDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new WindowsFileSystem();
+        public override string Name { get => "Windows"; }
 
         public static string GetStringFromRegistry(string key, string valueName)
         {
@@ -121,6 +122,16 @@ namespace GVFS.Platform.Windows
             }
 
             return sb.ToString();
+        }
+
+        public override string GetDataRootForGVFS()
+        {
+            return WindowsPlatform.GetDataRootForGVFSImplementation();
+        }
+
+        public override string GetDataRootForGVFSComponent(string componentName)
+        {
+            return WindowsPlatform.GetDataRootForGVFSComponentImplementation(componentName);
         }
 
         public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
@@ -309,7 +320,7 @@ namespace GVFS.Platform.Windows
 
         public override bool IsGitStatusCacheSupported()
         {
-            return File.Exists(Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
+            return File.Exists(Path.Combine(GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
         }
 
         public override FileBasedLock CreateFileBasedLock(
@@ -323,6 +334,42 @@ namespace GVFS.Platform.Windows
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+        }
+
+        public override bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError)
+        {
+            string pathRoot;
+
+            try
+            {
+                pathRoot = Path.GetPathRoot(enlistmentRoot);
+            }
+            catch (ArgumentException e)
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to determine the root of '{enlistmentRoot}'): {e.Message}";
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(pathRoot))
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to determine the root of '{enlistmentRoot}', path does not contain root directory information";
+                return false;
+            }
+
+            try
+            {
+                localCacheRoot = Path.Combine(pathRoot, GVFSConstants.DefaultGVFSCacheFolderName);
+                localCacheRootError = null;
+                return true;
+            }
+            catch (ArgumentException e)
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to build local cache path using root directory '{pathRoot}'): {e.Message}";
+                return false;
+            }
         }
 
         public override bool TryKillProcessTree(int processId, out int exitCode, out string error)

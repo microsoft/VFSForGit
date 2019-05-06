@@ -86,7 +86,7 @@ namespace GVFS.Platform.Mac
         private EventMetadata CreateEventMetadata(int errno = 0)
         {
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", "MacFileBasedLock");
+            metadata.Add("Area", nameof(MacFileBasedLock));
             metadata.Add(nameof(this.LockPath), this.LockPath);
             if (errno != 0)
             {

@@ -10,7 +10,7 @@ using System.Text;
 
 namespace GVFS.Common.Git
 {
-    public class GitProcess
+    public class GitProcess : ICredentialStore
     {
         private const int HResultEHANDLE = -2147024890; // 0x80070006 E_HANDLE
 
@@ -155,7 +155,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual void RejectCredentials(string repoUrl, string username = null, string password = null)
+        public virtual bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("url={0}\n", repoUrl);
@@ -173,13 +173,24 @@ namespace GVFS.Common.Git
 
             string stdinConfig = sb.ToString();
 
-            this.InvokeGitOutsideEnlistment(
+            Result result = this.InvokeGitOutsideEnlistment(
                 GenerateCredentialVerbCommand("reject"),
                 stdin => stdin.Write(stdinConfig),
                 null);
+
+            if (result.ExitCodeIsFailure)
+            {
+                tracer.RelatedWarning("Git could not reject credentials: {0}", result.Errors);
+
+                errorMessage = result.Errors;
+                return false;
+            }
+
+            errorMessage = null;
+            return true;
         }
 
-        public virtual void ApproveCredentials(string repoUrl, string username, string password)
+        public virtual bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("url={0}\n", repoUrl);
@@ -189,10 +200,21 @@ namespace GVFS.Common.Git
 
             string stdinConfig = sb.ToString();
 
-            this.InvokeGitOutsideEnlistment(
+            Result result = this.InvokeGitOutsideEnlistment(
                 GenerateCredentialVerbCommand("approve"),
                 stdin => stdin.Write(stdinConfig),
                 null);
+
+            if (result.ExitCodeIsFailure)
+            {
+                tracer.RelatedWarning("Git could not approve credentials: {0}", result.Errors);
+
+                errorMessage = result.Errors;
+                return false;
+            }
+
+            errorMessage = null;
+            return true;
         }
 
         /// <summary>
@@ -250,7 +272,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual bool TryGetCredentials(
+        public virtual bool TryGetCredential(
             ITracer tracer,
             string repoUrl,
             out string username,
@@ -261,7 +283,7 @@ namespace GVFS.Common.Git
             password = null;
             errorMessage = null;
 
-            using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
+            using (ITracer activity = tracer.StartActivity(nameof(this.TryGetCredential), EventLevel.Informational))
             {
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
                     GenerateCredentialVerbCommand("fill"),

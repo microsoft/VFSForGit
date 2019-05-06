@@ -90,6 +90,7 @@ namespace GVFS.UnitTests.Common
                 dut1.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
                 dut1.AddAndFlushFolder("expandedFolder", isExpanded: true);
                 dut1.AddAndFlushFile(InputThirdFilePath, InputThirdFileSHA);
+                dut1.AddAndFlushPossibleTombstoneFolder("tombstone");
                 dut1.RemoveAndFlush(InputThirdFilePath);
             }
 
@@ -100,12 +101,13 @@ namespace GVFS.UnitTests.Common
             List<PlaceholderListDatabase.PlaceholderData> folderData;
             dut2.GetAllEntriesAndPrepToWriteAllEntries(out fileData, out folderData);
             fileData.Count.ShouldEqual(2);
-            folderData.Count.ShouldEqual(2);
+            folderData.Count.ShouldEqual(3);
             folderData.ShouldContain(
                 new[]
                 {
                     new PlaceholderListDatabase.PlaceholderData("partialFolder", PlaceholderListDatabase.PartialFolderValue),
-                    new PlaceholderListDatabase.PlaceholderData("expandedFolder", PlaceholderListDatabase.ExpandedFolderValue)
+                    new PlaceholderListDatabase.PlaceholderData("expandedFolder", PlaceholderListDatabase.ExpandedFolderValue),
+                    new PlaceholderListDatabase.PlaceholderData("tombstone", PlaceholderListDatabase.PossibleTombstoneFolderValue),
                 },
                 (data1, data2) => data1.Path == data2.Path && data1.Sha == data2.Sha);
         }

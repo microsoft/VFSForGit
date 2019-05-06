@@ -5,15 +5,15 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace GVFS.Platform.Mac
+namespace GVFS.Platform.POSIX
 {
-    public partial class MacFileSystem : IPlatformFileSystem
+    public partial class POSIXFileSystem : IPlatformFileSystem
     {
         public bool SupportsFileMode { get; } = true;
 
         public void FlushFileBuffers(string path)
         {
-            // TODO(Mac): Use native API to flush file
+            // TODO(POSIX): Use native API to flush file
         }
 
         public void MoveAndOverwriteFile(string sourceFileName, string destinationFilename)
@@ -26,18 +26,18 @@ namespace GVFS.Platform.Mac
 
         public void CreateHardLink(string newFileName, string existingFileName)
         {
-            // TODO(Mac): Use native API to create a hardlink
+            // TODO(POSIX): Use native API to create a hardlink
             File.Copy(existingFileName, newFileName);
         }
 
         public void ChangeMode(string path, ushort mode)
         {
-           Chmod(path, mode);
+            Chmod(path, mode);
         }
 
         public bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
         {
-            return MacFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
+            return POSIXFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
         }
 
         public bool HydrateFile(string fileName, byte[] buffer)

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Security;
 using System.Threading;
@@ -119,6 +120,11 @@ namespace GVFS.Common.FileSystem
             return new FileStream(path, fileMode, fileAccess, shareMode, DefaultStreamBufferSize, options);
         }
 
+        public virtual void FlushFileBuffers(string path)
+        {
+            GVFSPlatform.Instance.FileSystem.FlushFileBuffers(path);
+        }
+
         public virtual void CreateDirectory(string path)
         {
             Directory.CreateDirectory(path);
@@ -201,6 +207,21 @@ namespace GVFS.Common.FileSystem
         public virtual string[] GetFiles(string directoryPath, string mask)
         {
             return Directory.GetFiles(directoryPath, mask);
+        }
+
+        public virtual FileVersionInfo GetVersionInfo(string path)
+        {
+            return FileVersionInfo.GetVersionInfo(path);
+        }
+
+        public virtual bool FileVersionsMatch(FileVersionInfo versionInfo1, FileVersionInfo versionInfo2)
+        {
+            return versionInfo1.FileVersion == versionInfo2.FileVersion;
+        }
+
+        public virtual bool ProductVersionsMatch(FileVersionInfo versionInfo1, FileVersionInfo versionInfo2)
+        {
+            return versionInfo1.ProductVersion == versionInfo2.ProductVersion;
         }
 
         public bool TryWriteTempFileAndRename(string destinationPath, string contents, out Exception handledException)

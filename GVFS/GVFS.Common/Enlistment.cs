@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using System;
 using System.IO;
 
@@ -65,11 +66,19 @@ namespace GVFS.Common
 
         public GitAuthentication Authentication { get; }
 
-        public static string GetNewLogFileName(string logsRoot, string prefix, string logId = null)
+        public static string GetNewLogFileName(
+            string logsRoot,
+            string prefix,
+            string logId = null,
+            PhysicalFileSystem fileSystem = null)
         {
-            if (!Directory.Exists(logsRoot))
+            fileSystem = fileSystem ?? new PhysicalFileSystem();
+
+            // TODO: Remove Directory.CreateDirectory() code from here
+            // Don't change the state from an accessor.
+            if (!fileSystem.DirectoryExists(logsRoot))
             {
-                Directory.CreateDirectory(logsRoot);
+                fileSystem.CreateDirectory(logsRoot);
             }
 
             logId = logId ?? DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -79,7 +88,7 @@ namespace GVFS.Common
                 logsRoot,
                 name + ".log");
 
-            if (File.Exists(fullPath))
+            if (fileSystem.FileExists(fullPath))
             {
                 fullPath = Path.Combine(
                     logsRoot,

@@ -1,8 +1,11 @@
 using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.NuGetUpgrade;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
 
 namespace GVFS.Common
 {
@@ -70,47 +73,94 @@ namespace GVFS.Common
         {
         }
 
+        public abstract bool SupportsAnonymousVersionQuery { get; }
+
         public string UpgradeInstanceId { get; set; } = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
         public static bool TryCreateUpgrader(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
+            LocalGVFSConfig gvfsConfig,
+            ICredentialStore credentialStore,
             bool dryRun,
             bool noVerify,
             out ProductUpgrader newUpgrader,
             out string error)
         {
-            // Prefer to use the NuGet upgrader if it is configured. If the NuGet upgrader is not configured,
-            // then try to use the GitHubUpgrader.
-            if (NuGetUpgrader.TryCreate(tracer, fileSystem, dryRun, noVerify, out NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
+            Dictionary<string, string> entries;
+            if (!gvfsConfig.TryGetAllConfig(out entries, out error))
             {
-                // We were successfully able to load a NuGetUpgrader - use that.
-                newUpgrader = nuGetUpgrader;
-                return true;
-            }
-            else
-            {
-                if (isConfigured)
-                {
-                    tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
-
-                    // We did not successfully load a NuGetUpgrader, but it is configured.
-                    newUpgrader = null;
-                    return false;
-                }
-
-                // We did not load a NuGetUpgrader, but it is not the configured upgrader.
-                // Try to load other upgraders as appropriate.
-            }
-
-            newUpgrader = GitHubUpgrader.Create(tracer, fileSystem, dryRun, noVerify, out error);
-            if (newUpgrader == null)
-            {
-                tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
+                newUpgrader = null;
                 return false;
             }
 
-            return true;
+            bool containsUpgradeFeedUrl = entries.ContainsKey(GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl);
+            bool containsUpgradePackageName = entries.ContainsKey(GVFSConstants.LocalGVFSConfig.UpgradeFeedPackageName);
+            bool containsOrgInfoServerUrl = entries.ContainsKey(GVFSConstants.LocalGVFSConfig.OrgInfoServerUrl);
+
+            if (containsUpgradeFeedUrl || containsUpgradePackageName)
+            {
+                // We are configured for NuGet - determine if we are using OrgNuGetUpgrader or not
+                if (containsOrgInfoServerUrl)
+                {
+                    if (OrgNuGetUpgrader.TryCreate(
+                        tracer,
+                        fileSystem,
+                        gvfsConfig,
+                        new HttpClient(),
+                        credentialStore,
+                        dryRun,
+                        noVerify,
+                        out OrgNuGetUpgrader orgNuGetUpgrader,
+                        out error))
+                    {
+                        // We were successfully able to load a NuGetUpgrader - use that.
+                        newUpgrader = orgNuGetUpgrader;
+                        return true;
+                    }
+                    else
+                    {
+                        tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create organization based upgrader. {error}");
+                        newUpgrader = null;
+                        return false;
+                    }
+                }
+                else
+                {
+                    if (NuGetUpgrader.TryCreate(
+                        tracer,
+                        fileSystem,
+                        gvfsConfig,
+                        credentialStore,
+                        dryRun,
+                        noVerify,
+                        out NuGetUpgrader nuGetUpgrader,
+                        out bool isConfigured,
+                        out error))
+                    {
+                        // We were successfully able to load a NuGetUpgrader - use that.
+                        newUpgrader = nuGetUpgrader;
+                        return true;
+                    }
+                    else
+                    {
+                        tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create NuGet based upgrader. {error}");
+                        newUpgrader = null;
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                newUpgrader = GitHubUpgrader.Create(tracer, fileSystem, gvfsConfig, dryRun, noVerify, out error);
+                if (newUpgrader == null)
+                {
+                    tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create GitHub based upgrader. {error}");
+                    return false;
+                }
+
+                return true;
+            }
         }
 
         public abstract bool UpgradeAllowed(out string message);
