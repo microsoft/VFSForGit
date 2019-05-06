@@ -30,7 +30,7 @@ namespace GVFS.Common.Maintenance
         {
             Succeess,
             UnknownFailure,
-            CorruptBlob
+            CorruptObject
         }
 
         public override string Area => nameof(LooseObjectsStep);
@@ -147,7 +147,7 @@ namespace GVFS.Common.Maintenance
 
                 if (result.Errors.Contains("is corrupt"))
                 {
-                    return CreatePackResult.CorruptBlob;
+                    return CreatePackResult.CorruptObject;
                 }
 
                 return CreatePackResult.UnknownFailure;
@@ -225,7 +225,7 @@ namespace GVFS.Common.Maintenance
                     metadata.Add("LooseObjectsPutIntoPackFile", objectsAddedToPack);
                     metadata.Add("CreatePackResult", createPackResult.ToString());
 
-                    if (createPackResult == CreatePackResult.CorruptBlob)
+                    if (createPackResult == CreatePackResult.CorruptObject)
                     {
                         this.ClearCorruptLooseObjects(metadata);
                     }

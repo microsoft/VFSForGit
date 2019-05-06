@@ -124,7 +124,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 looseObjectCount,
                 "unexpected number of loose objects after step");
 
-            this.DeleteFiles(this.GetLooseObjectFiles());
+            // This step should create a pack.
+            this.Enlistment.LooseObjectStep();
+
+            this.CountPackFiles().ShouldEqual(1);
+            this.GetLooseObjectFiles().Count.ShouldEqual(looseObjectCount);
+
+            // This step should delete the loose objects
+            this.Enlistment.LooseObjectStep();
+
+            this.CountPackFiles().ShouldEqual(1);
             this.GetLooseObjectFiles().Count.ShouldEqual(0);
         }
 
