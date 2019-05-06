@@ -622,10 +622,8 @@ KEXT_STATIC bool DirectoryContainsPath(const char* directoryPath, const char* pa
     {
         return true;
     }
-    else
-    {
-        return false;
-    }
+
+    return false;
 }
 
 VirtualizationRootHandle ActiveProvider_FindForPath(const char* _Nonnull path)
