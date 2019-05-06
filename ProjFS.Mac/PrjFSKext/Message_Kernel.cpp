@@ -1,6 +1,6 @@
+#include "Message_Kernel.hpp"
 #include <kern/debug.h>
 #include <kern/assert.h>
-#include "public/Message.h"
 
 void Message_Init(
     Message* spec,
@@ -29,30 +29,25 @@ void Message_Init(
     
     if (nullptr != path)
     {
-        header->pathSizeBytes = strlen(path) + 1;
+        header->pathSizesBytes[MessagePath_Target] = strlen(path) + 1;
     }
     else
     {
-        header->pathSizeBytes = 0;
+        header->pathSizesBytes[MessagePath_Target] = 0;
     }
 
     if (nullptr != fromPath)
     {
-        header->fromPathSizeBytes = strlen(fromPath) + 1;
+        header->pathSizesBytes[MessagePath_From] = strlen(fromPath) + 1;
     }
     else
     {
-        header->fromPathSizeBytes = 0;
+        header->pathSizesBytes[MessagePath_From] = 0;
     }
 
     spec->messageHeader = header;
-    spec->path = path;
-    spec->fromPath = fromPath;
-}
-
-uint32_t Message_EncodedSize(const Message& message)
-{
-    return sizeof(*message.messageHeader) + message.messageHeader->pathSizeBytes + message.messageHeader->fromPathSizeBytes;
+    spec->paths[MessagePath_Target] = path;
+    spec->paths[MessagePath_From] = fromPath;
 }
 
 uint32_t Message_Encode(void* buffer, const uint32_t bufferSize, const Message& message)
@@ -67,11 +62,11 @@ uint32_t Message_Encode(void* buffer, const uint32_t bufferSize, const Message& 
     
     for (unsigned i = 0; i < 2; ++i)
     {
-        uint16_t stringSize = message.messageHeader->stringSizesBytes[i];
+        uint16_t stringSize = message.messageHeader->pathSizesBytes[i];
         if (stringSize > 0)
         {
             assert(bufferSize >= stringSize);
-            memcpy(bufferPosition, message.strings[i], stringSize);
+            memcpy(bufferPosition, message.paths[i], stringSize);
             bufferPosition += stringSize;
             bufferBytesRemain -= stringSize;
         }

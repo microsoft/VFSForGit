@@ -32,6 +32,14 @@ typedef enum
     
 } MessageType;
 
+enum MessagePathField
+{
+    MessagePath_Target = 0,
+    MessagePath_From,
+    
+    MessagePath_Count,
+};
+
 struct MessageHeader
 {
     // The message id is used to correlate a response to its request
@@ -49,51 +57,17 @@ struct MessageHeader
 
     // Sizes of the flexible-length, nul-terminated paths following the message body.
     // Sizes include the nul characters but can be 0 to indicate total absence.
-    union
-    {
-        struct
-        {
-            // Current/destination path
-            uint16_t pathSizeBytes;
-            // Original location (rename, hard link)
-            uint16_t fromPathSizeBytes;
-        };
-        uint16_t     stringSizesBytes[2];
-    };
+    uint16_t            pathSizesBytes[MessagePath_Count];
 };
 
 // Description of a decomposed, in-memory message header plus variable length string field
 struct Message
 {
     const MessageHeader* messageHeader;
-    union
-    {
-        struct
-        {
-            const char* path;
-            const char* fromPath;
-        };
-        const char*     strings[2];
-    };
+    const char* paths[MessagePath_Count];
 };
 
-#if defined(KERNEL) || defined(KEXT_UNIT_TESTING)
 
-// TODO(Mac): Move to kernel-only header.
-void Message_Init(
-    Message* spec,
-    MessageHeader* header,
-    uint64_t messageId,
-    MessageType messageType,
-    const FsidInode& fsidInode,
-    int32_t pid,
-    const char* procname,
-    const char* path,
-    const char* fromPath);
-
-uint32_t Message_EncodedSize(const Message& message);
-uint32_t Message_Encode(void* buffer, uint32_t bufferSize, const Message& message);
-
-#endif
+uint32_t Message_EncodedSize(const MessageHeader* messageHeader);
 
 #endif /* Message_h */

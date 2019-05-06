@@ -632,7 +632,7 @@ PrjFS_Result PrjFS_WriteFileContents(
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
 {
     const MessageHeader* header = static_cast<const MessageHeader*>(messageMemory);
-    if (size != sizeof(*header) + header->pathSizeBytes + header->fromPathSizeBytes)
+    if (size != Message_EncodedSize(header))
     {
         fprintf(stderr, "ParseMessageMemory: invariant failed, bad message? message size = %u, expecting minimum of %zu\n",
             size, sizeof(*header));
@@ -643,11 +643,11 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
     
     const char* messagePosition = static_cast<const char*>(messageMemory) + sizeof(*header);
     uint32_t messageBytesRemain = size - sizeof(*header);
-    for (unsigned i = 0; i < extent<decltype(parsedMessage.strings)>::value; ++i)
+    for (unsigned i = 0; i < extent<decltype(parsedMessage.paths)>::value; ++i)
     {
-        if (header->stringSizesBytes[i] > 0)
+        if (header->pathSizesBytes[i] > 0)
         {
-            uint16_t stringSize = header->stringSizesBytes[i];
+            uint16_t stringSize = header->pathSizesBytes[i];
             assert(messageBytesRemain >= stringSize);
             const char* string = messagePosition;
             // Path string should fit exactly in reserved memory, with nul terminator in end position
@@ -655,7 +655,7 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
             messagePosition += stringSize;
             messageBytesRemain -= stringSize;
             
-            parsedMessage.strings[i] = string;
+            parsedMessage.paths[i] = string;
         }
     }
     
@@ -678,7 +678,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     // whereas messages originating in the kext's vnode handler will only fill
     // the fsid/inode, so we need to look up the path below.
     char pathBuffer[PrjFSMaxPath];
-    if (request.path == nullptr)
+    if (request.paths[MessagePath_Target] == nullptr)
     {
         fsid_t fsid = request.messageHeader->fsidInode.fsid;
         ssize_t pathSize = fsgetpath(pathBuffer, sizeof(pathBuffer), &fsid, request.messageHeader->fsidInode.inode);
@@ -716,7 +716,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                 << " -> '"
                 << pathBuffer
                 << "' -> relative path '"
-                << (request.path != nullptr ? request.path : "[NULL]")
+                << (relativePath != nullptr ? relativePath : "[NULL]")
                 << "'"
                 << endl;
 #endif
@@ -724,7 +724,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     }
     else
     {
-        absolutePath = request.path;
+        absolutePath = request.paths[MessagePath_Target];
         relativePath = GetRelativePath(absolutePath, s_virtualizationRootFullPath.c_str());
     }
     
@@ -768,9 +768,9 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         {
 #if DEBUG
             // TODO(Mac): Move the following line out of the DEBUG block once we actually need the information. Currently just causes warning-as-error in release build.
-            const char* relativeFromPath = GetRelativePath(request.fromPath, s_virtualizationRootFullPath.c_str());
+            const char* relativeFromPath = GetRelativePath(request.paths[MessagePath_From], s_virtualizationRootFullPath.c_str());
 
-            cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ") << request.fromPath << " -> " << absolutePath << " (absolute), ";
+            cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ") << request.paths[MessagePath_From] << " -> " << absolutePath << " (absolute), ";
             if (relativeFromPath != nullptr)
             {
                 cout << "from this root (relative path " << relativeFromPath << ") ";
