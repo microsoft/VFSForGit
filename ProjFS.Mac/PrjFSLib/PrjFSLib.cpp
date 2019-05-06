@@ -212,7 +212,24 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
         cerr << "Registering virtualization root failed: " << error << ", " << strerror(error) << endl;
         return PrjFS_Result_EInvalidOperation;
     }
+
+    // Poll the data queue once per second to check for a stalled queue.
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, s_messageQueueDispatchQueue);
+    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC, 0.25 * NSEC_PER_SEC);
+    static IODataQueueEntry* lastEntry = nullptr;
+    dispatch_source_set_event_handler(
+        timer,
+        ^{
+            IODataQueueEntry* entry = DataQueue_Peek(dataQueue.queueMemory);
+            if (entry != nullptr && entry == lastEntry)
+            {
+                s_callbacks.LogError("IOSharedDataQueue seems to have stalled, entries are not being dequeued.\n");
+            }
+            lastEntry = entry;
+        });
+    dispatch_resume(timer);
     
+
     s_kernelRequestHandlingConcurrentQueue = dispatch_queue_create("PrjFS Kernel Request Handling", DISPATCH_QUEUE_CONCURRENT);
     
     dispatch_source_set_event_handler(dataQueue.dispatchSource, ^{
