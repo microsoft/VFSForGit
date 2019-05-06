@@ -1,6 +1,7 @@
 #include "ProviderMessaging.hpp"
 #include "Locks.hpp"
 #include "KextLog.hpp"
+#include "Message_Kernel.hpp"
 #include "kernel-header-wrappers/stdatomic.h"
 
 #include <kern/assert.h>

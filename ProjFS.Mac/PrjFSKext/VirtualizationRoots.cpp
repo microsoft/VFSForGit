@@ -3,6 +3,7 @@
 
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSXattrs.h"
+#include "Message_Kernel.hpp"
 #include "VirtualizationRoots.hpp"
 #include "VirtualizationRootsPrivate.hpp"
 #include "Memory.hpp"
@@ -575,7 +576,7 @@ errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Mes
     
     if (nullptr != userClient)
     {
-        uint32_t messageSize = Message_EncodedSize(message);
+        uint32_t messageSize = Message_EncodedSize(message.messageHeader);
         uint8_t messageMemory[messageSize];
         uint32_t bytesUsed OS_UNUSED = Message_Encode(messageMemory, messageSize, message);
         assertf(bytesUsed == messageSize, "bytes used by Message_Encode (%u) should match Message_EncodedSize's prediction (%u)", bytesUsed, messageSize);
