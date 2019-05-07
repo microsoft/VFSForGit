@@ -22,7 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="2.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="2.2.4" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     <PackageReference Include="NUnitLite" Version="3.10.1" />
     <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
