@@ -30,7 +30,7 @@ namespace GVFS.Platform.Mac
 
         public bool IsGVFSUpgradeSupported()
         {
-            return false;
+            return true;
         }
 
         public bool IsSupported(string normalizedEnlistmentRootPath, out string warning, out string error)
