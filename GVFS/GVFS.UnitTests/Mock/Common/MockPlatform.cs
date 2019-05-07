@@ -165,7 +165,7 @@ namespace GVFS.UnitTests.Mock.Common
                 get { return ".mockexe"; }
             }
 
-            public override string LocalStorageRoot
+            public override string WorkingDirectoryBackingRootName
             {
                 get { return GVFSConstants.WorkingDirectoryRootName; }
             }

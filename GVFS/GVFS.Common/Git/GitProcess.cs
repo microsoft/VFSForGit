@@ -62,7 +62,7 @@ namespace GVFS.Common.Git
         }
 
         public GitProcess(Enlistment enlistment)
-            : this(enlistment.GitBinPath, enlistment.LocalStorageRoot, enlistment.GVFSHooksRoot)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, enlistment.GVFSHooksRoot)
         {
         }
 
@@ -85,7 +85,7 @@ namespace GVFS.Common.Git
 
         public static Result Init(Enlistment enlistment)
         {
-            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.LocalStorageRoot + "\"");
+            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryBackingRoot + "\"");
         }
 
         public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)
