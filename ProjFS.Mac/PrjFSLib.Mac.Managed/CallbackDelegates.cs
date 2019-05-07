@@ -24,6 +24,7 @@ namespace PrjFSLib.Mac
     public delegate Result NotifyOperationCallback(
         ulong commandId,
         string relativePath,
+        string relativeFromPath,
         [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.PrjFSLib.PlaceholderIdLength)]
         byte[] providerId,
         [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.PrjFSLib.PlaceholderIdLength)]
