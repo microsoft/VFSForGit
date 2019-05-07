@@ -13,10 +13,15 @@ namespace GVFS.Platform.POSIX
 {
     public abstract partial class POSIXPlatform : GVFSPlatform
     {
-        public POSIXPlatform() : base(
+        protected POSIXPlatform() : this(
             underConstruction: new UnderConstructionFlags(
                 supportsGVFSUpgrade: false,
                 supportsGVFSConfig: false))
+        {
+        }
+
+        protected POSIXPlatform(UnderConstructionFlags underConstruction)
+            : base(underConstruction)
         {
         }
 

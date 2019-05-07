@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.Platform.POSIX
 {
@@ -9,8 +10,8 @@ namespace GVFS.Platform.POSIX
     {
         public static bool IsElevatedImplementation()
         {
-            // TODO(POSIX): Implement proper check
-            return false;
+            int euid = GetEuid();
+            return euid == 0;
         }
 
         public static bool IsProcessActiveImplementation(int processId)
@@ -60,5 +61,8 @@ namespace GVFS.Platform.POSIX
 
             return true;
         }
+
+        [DllImport("libc", EntryPoint = "geteuid", SetLastError = true)]
+        private static extern int GetEuid();
     }
 }
