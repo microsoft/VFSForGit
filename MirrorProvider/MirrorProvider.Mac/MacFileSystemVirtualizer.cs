@@ -203,9 +203,9 @@ namespace MirrorProvider.Mac
             Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}) destination: {relativeDestinationPath}");
         }
 
-        private void OnHardLinkCreated(string relativeNewLinkPath)
+        private void OnHardLinkCreated(string relativeNewLinkPath, string existingRelativePath)
         {
-            Console.WriteLine($"OnHardLinkCreated: {relativeNewLinkPath}");
+            Console.WriteLine($"OnHardLinkCreated {relativeNewLinkPath} from {existingRelativePath}");
         }
 
         private Result OnFilePreConvertToFull(string relativePath)
