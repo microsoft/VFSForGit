@@ -392,7 +392,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         [TestCase, Order(13)]
         [Category(Categories.GitCommands)]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
         public void FolderContentsProjectedAfterFolderCreateAndCheckout()
         {
             string folderName = "GVFlt_MultiThreadTest";
