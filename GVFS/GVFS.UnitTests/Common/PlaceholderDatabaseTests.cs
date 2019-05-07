@@ -62,7 +62,7 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void GetAllEntriesAndPrepToWriteAllEntriesReturnsCorrectEntries()
+        public void GetAllEntriesReturnsCorrectEntries()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
@@ -76,12 +76,12 @@ namespace GVFS.UnitTests.Common
             string error;
             PlaceholderListDatabase dut2;
             PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
-            List<IPlaceholderData> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
+            List<IPlaceholderData> allData = dut2.GetAllEntries();
             allData.Count.ShouldEqual(2);
         }
 
         [TestCase]
-        public void GetAllEntriesAndPrepToWriteAllEntriesSplitsFilesAndFoldersCorrectly()
+        public void GetAllEntriesSplitsFilesAndFoldersCorrectly()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
@@ -139,7 +139,7 @@ namespace GVFS.UnitTests.Common
 
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedGitIgnoreEntry);
 
-            List<IPlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
+            List<IPlaceholderData> existingEntries = dut.GetAllEntries();
 
             dut.AddFile(InputGitAttributesPath, InputGitAttributesSHA);
 
@@ -157,7 +157,7 @@ namespace GVFS.UnitTests.Common
 
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedTwoEntries);
 
-            List<IPlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
+            List<IPlaceholderData> existingEntries = dut.GetAllEntries();
 
             dut.Remove(InputGitAttributesPath);
 

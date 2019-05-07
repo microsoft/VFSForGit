@@ -118,15 +118,15 @@ namespace GVFS.Common
         /// Gets all entries and prepares the PlaceholderListDatabase for a call to WriteAllEntriesAndFlush.
         /// </summary>
         /// <exception cref="InvalidOperationException">
-        /// GetAllEntriesAndPrepToWriteAllEntries was called (a second time) without first calling WriteAllEntriesAndFlush.
+        /// GetAllEntries was called (a second time) without first calling WriteAllEntriesAndFlush.
         /// </exception>
         /// <remarks>
         /// Usage notes:
-        ///     - All calls to GetAllEntriesAndPrepToWriteAllEntries must be paired with a subsequent call to WriteAllEntriesAndFlush
+        ///     - All calls to GetAllEntries must be paired with a subsequent call to WriteAllEntriesAndFlush
         ///     - If WriteAllEntriesAndFlush is *not* called entries that were added to the PlaceholderListDatabase after
-        ///       calling GetAllEntriesAndPrepToWriteAllEntries will be lost
+        ///       calling GetAllEntries will be lost
         /// </remarks>
-        public List<IPlaceholderData> GetAllEntriesAndPrepToWriteAllEntries()
+        public List<IPlaceholderData> GetAllEntries()
         {
             try
             {
@@ -142,7 +142,7 @@ namespace GVFS.Common
                     {
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
-                        throw new InvalidOperationException($"PlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {nameof(this.GetAllEntriesAndPrepToWriteAllEntries)} again.");
+                        throw new InvalidOperationException($"PlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {nameof(this.GetAllEntries)} again.");
                         }
 
                         this.placeholderChangesWhileRebuildingList = new List<PlaceholderDataEntry>();
@@ -198,7 +198,7 @@ namespace GVFS.Common
                     {
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
-                            throw new InvalidOperationException($"PlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {(nameof(this.GetAllEntriesAndPrepToWriteAllEntries))} again.");
+                            throw new InvalidOperationException($"PlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {(nameof(this.GetAllEntries))} again.");
                         }
 
                         this.placeholderChangesWhileRebuildingList = new List<PlaceholderDataEntry>();
