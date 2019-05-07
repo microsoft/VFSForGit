@@ -220,8 +220,7 @@ namespace GVFS.Common
         {
             try
             {
-                HashSet<string> filePlaceholdersFromDiskByPath =
-                    new HashSet<string>(StringComparer.Ordinal);
+                HashSet<string> filePlaceholderPaths = new HashSet<string>(StringComparer.Ordinal);
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -231,7 +230,7 @@ namespace GVFS.Common
                     {
                         if (!PlaceholderData.IsShaAFolder(value))
                         {
-                            filePlaceholdersFromDiskByPath.Add(key);
+                            filePlaceholderPaths.Add(key);
                         }
                     },
                     out error))
@@ -239,7 +238,7 @@ namespace GVFS.Common
                     throw new InvalidDataException(error);
                 }
 
-                return filePlaceholdersFromDiskByPath;
+                return filePlaceholderPaths;
             }
             catch (Exception e)
             {
