@@ -443,7 +443,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileNameLink);
         }
-    }
 
     [DllImport("GVFS.NativeTests.dll", CharSet = CharSet.Unicode)]
         private static extern bool SupersedeFile(string path, [MarshalAs(UnmanagedType.LPStr)]string newContent);
