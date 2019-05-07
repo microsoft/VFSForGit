@@ -12,8 +12,8 @@ namespace GVFS.Common.Tracing
     {
         private static object consoleLock = new object();
 
-        public PrettyConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
-            : base(maxVerbosity, keywordFilter)
+        public PrettyConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter, IEventListenerEventSink eventSink)
+            : base(maxVerbosity, keywordFilter, eventSink)
         {
         }
 

@@ -18,6 +18,8 @@ namespace GVFS.Common
         public const string WorkingDirectoryRootName = "src";
         public const string UnattendedEnvironmentVariable = "GVFS_UNATTENDED";
 
+        public const string DefaultGVFSCacheFolderName = ".gvfsCache";
+
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
         public static class GitConfig
@@ -42,6 +44,7 @@ namespace GVFS.Common
             public const string UpgradeRing = "upgrade.ring";
             public const string UpgradeFeedPackageName = "upgrade.feedpackagename";
             public const string UpgradeFeedUrl = "upgrade.feedurl";
+            public const string OrgInfoServerUrl = "upgrade.orgInfoServerUrl";
         }
 
         public static class GitStatusCache
@@ -52,6 +55,7 @@ namespace GVFS.Common
         public static class Service
         {
             public const string ServiceName = "GVFS.Service";
+            public const string LogDirectory = "Logs";
             public const string UIName = "GVFS.Service.UI";
         }
 
@@ -242,7 +246,7 @@ namespace GVFS.Common
             public const string NoRingConfigConsoleAlert = "Upgrade ring is not set. " + NoUpgradeCheckPerformed;
             public const string InvalidRingConsoleAlert = "Upgrade ring set to unknown value. " + NoUpgradeCheckPerformed;
             public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `gvfs config " + LocalGVFSConfig.UpgradeRing + " [\"Fast\"|\"Slow\"|\"None\"]` from a command prompt.";
-            public const string ReminderNotification = "A new version of GVFS is available. Run " + UpgradeVerbMessages.GVFSUpgrade + " to start the upgrade.";
+            public const string ReminderNotification = "A new version of GVFS is available. Run " + UpgradeVerbMessages.GVFSUpgradeConfirm + " from an elevated command prompt to upgrade.";
             public const string UnmountRepoWarning = "Upgrade will unmount and remount gvfs repos, ensure you are at a stopping point.";
             public const string UpgradeInstallAdvice = "When ready, run " + UpgradeVerbMessages.GVFSUpgradeConfirm + " from an elevated command prompt.";
         }

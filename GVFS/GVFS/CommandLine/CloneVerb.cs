@@ -70,7 +70,7 @@ namespace GVFS.CommandLine
         [Option(
             "local-cache-path",
             Required = false,
-            HelpText = "Use this option to override the path for the local GVFS cache. The default location is the .gvfsCache folder in the root of the volume.")]
+            HelpText = "Use this option to override the path for the local GVFS cache.")]
         public string LocalCacheRoot { get; set; }
 
         protected override string VerbName
@@ -152,7 +152,13 @@ namespace GVFS.CommandLine
                         string resolvedLocalCacheRoot;
                         if (string.IsNullOrWhiteSpace(this.LocalCacheRoot))
                         {
-                            resolvedLocalCacheRoot = LocalCacheResolver.GetDefaultLocalCacheRoot(enlistment);
+                            string localCacheRootError;
+                            if (!LocalCacheResolver.TryGetDefaultLocalCacheRoot(enlistment, out resolvedLocalCacheRoot, out localCacheRootError))
+                            {
+                                this.ReportErrorAndExit(
+                                    tracer,
+                                    $"Failed to determine the default location for the local GVFS cache: `{localCacheRootError}`");
+                            }
                         }
                         else
                         {
@@ -554,7 +560,7 @@ namespace GVFS.CommandLine
             }
 
             File.WriteAllText(
-                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head),
+                Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Head),
                 "ref: refs/heads/" + branch);
 
             if (!this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
@@ -640,7 +646,7 @@ namespace GVFS.CommandLine
             // Prepare the working directory folder for GVFS last to ensure that gvfs mount will fail if gvfs clone has failed
             Exception exception;
             string prepFileSystemError;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError, out exception))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryBackingRoot, out prepFileSystemError, out exception))
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add(nameof(prepFileSystemError), prepFileSystemError);
@@ -682,7 +688,7 @@ git %*
 
         private Result TryInitRepo(ITracer tracer, GitRefs refs, Enlistment enlistmentToInit)
         {
-            string repoPath = enlistmentToInit.WorkingDirectoryRoot;
+            string repoPath = enlistmentToInit.WorkingDirectoryBackingRoot;
             GitProcess.Result initResult = GitProcess.Init(enlistmentToInit);
             if (initResult.ExitCodeIsFailure)
             {

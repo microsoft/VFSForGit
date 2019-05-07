@@ -94,5 +94,40 @@ namespace GVFS.UnitTests.Common
                 listener.EventNamesRead.ShouldContain(x => x.Equals("Error"));
             }
         }
+
+        [TestCase]
+        public void StartEventDoesNotDispatchTelemetry()
+        {
+            using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "StartEventDoesNotDispatchTelemetry", disableTelemetry: true))
+            using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Telemetry))
+            {
+                tracer.AddEventListener(listener);
+
+                using (ITracer activity = tracer.StartActivity("TestActivity", EventLevel.Informational, Keywords.Telemetry, null))
+                {
+                    listener.EventNamesRead.ShouldBeEmpty();
+
+                    activity.Stop(null);
+                    listener.EventNamesRead.ShouldContain(x => x.Equals("TestActivity"));
+                }
+            }
+        }
+
+        [TestCase]
+        public void StopEventIsDispatchedOnDispose()
+        {
+            using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "StopEventIsDispatchedOnDispose", disableTelemetry: true))
+            using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Telemetry))
+            {
+                tracer.AddEventListener(listener);
+
+                using (ITracer activity = tracer.StartActivity("TestActivity", EventLevel.Informational, Keywords.Telemetry, null))
+                {
+                    listener.EventNamesRead.ShouldBeEmpty();
+                }
+
+                listener.EventNamesRead.ShouldContain(x => x.Equals("TestActivity"));
+            }
+        }
     }
 }

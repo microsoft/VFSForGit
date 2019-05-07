@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using System;
 using System.IO;
 
@@ -9,6 +10,7 @@ namespace GVFS.Common
         protected Enlistment(
             string enlistmentRoot,
             string workingDirectoryRoot,
+            string localStorageRoot,
             string repoUrl,
             string gitBinPath,
             string gvfsHooksRoot,
@@ -22,7 +24,8 @@ namespace GVFS.Common
 
             this.EnlistmentRoot = enlistmentRoot;
             this.WorkingDirectoryRoot = workingDirectoryRoot;
-            this.DotGitRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
+            this.WorkingDirectoryBackingRoot = localStorageRoot;
+            this.DotGitRoot = Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
             this.GitBinPath = gitBinPath;
             this.GVFSHooksRoot = gvfsHooksRoot;
             this.FlushFileBuffersForPacks = flushFileBuffersForPacks;
@@ -52,7 +55,15 @@ namespace GVFS.Common
         }
 
         public string EnlistmentRoot { get; }
+
+        // Path to the root of the working (i.e. "src") directory.
+        // On platforms where the contents of the working directory are stored
+        // at a different location (e.g. Linux), WorkingDirectoryBackingRoot is the path of that backing
+        // storage location.  On all other platforms WorkingDirectoryRoot and WorkingDirectoryBackingRoot
+        // are the same.
         public string WorkingDirectoryRoot { get; }
+        public string WorkingDirectoryBackingRoot { get; }
+
         public string DotGitRoot { get; private set; }
         public abstract string GitObjectsRoot { get; protected set; }
         public abstract string LocalObjectsRoot { get; protected set; }
@@ -65,11 +76,19 @@ namespace GVFS.Common
 
         public GitAuthentication Authentication { get; }
 
-        public static string GetNewLogFileName(string logsRoot, string prefix, string logId = null)
+        public static string GetNewLogFileName(
+            string logsRoot,
+            string prefix,
+            string logId = null,
+            PhysicalFileSystem fileSystem = null)
         {
-            if (!Directory.Exists(logsRoot))
+            fileSystem = fileSystem ?? new PhysicalFileSystem();
+
+            // TODO: Remove Directory.CreateDirectory() code from here
+            // Don't change the state from an accessor.
+            if (!fileSystem.DirectoryExists(logsRoot))
             {
-                Directory.CreateDirectory(logsRoot);
+                fileSystem.CreateDirectory(logsRoot);
             }
 
             logId = logId ?? DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -79,7 +98,7 @@ namespace GVFS.Common
                 logsRoot,
                 name + ".log");
 
-            if (File.Exists(fullPath))
+            if (fileSystem.FileExists(fullPath))
             {
                 fullPath = Path.Combine(
                     logsRoot,

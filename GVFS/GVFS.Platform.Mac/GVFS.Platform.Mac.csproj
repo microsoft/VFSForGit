@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\ProjFS.Mac\PrjFSLib.Mac.Managed\PrjFSLib.Mac.Managed.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
+    <ProjectReference Include="..\GVFS.Platform.POSIX\GVFS.Platform.POSIX.csproj" />
   </ItemGroup>
 
   <ItemGroup>

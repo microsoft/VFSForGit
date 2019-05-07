@@ -1,3 +1,4 @@
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using Newtonsoft.Json;
@@ -22,6 +23,7 @@ namespace GVFS.Common
             : base(
                   enlistmentRoot,
                   Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName),
+                  Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.WorkingDirectoryBackingRootName),
                   repoUrl,
                   gitBinPath,
                   gvfsHooksRoot,
@@ -33,7 +35,7 @@ namespace GVFS.Common
             this.GitStatusCacheFolder = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.Name);
             this.GitStatusCachePath = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.CachePath);
             this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
-            this.LocalObjectsRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Root);
+            this.LocalObjectsRoot = Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Root);
         }
 
         // Existing, configured enlistment
@@ -106,11 +108,16 @@ namespace GVFS.Common
             throw new InvalidRepoException($"Directory '{directory}' does not exist");
         }
 
-        public static string GetNewGVFSLogFileName(string logsRoot, string logFileType)
+        public static string GetNewGVFSLogFileName(
+            string logsRoot,
+            string logFileType,
+            PhysicalFileSystem fileSystem = null)
         {
             return Enlistment.GetNewLogFileName(
                 logsRoot,
-                "gvfs_" + logFileType);
+                "gvfs_" + logFileType,
+                logId: null,
+                fileSystem: fileSystem);
         }
 
         public static bool WaitUntilMounted(string enlistmentRoot, bool unattended, out string errorMessage)

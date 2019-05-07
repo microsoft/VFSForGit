@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
@@ -35,10 +36,10 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
 
                 using (placeholders)
                 {
-                    List<PlaceholderListDatabase.PlaceholderData> oldPlaceholderEntries = placeholders.GetAllEntriesAndPrepToWriteAllEntries();
-                    List<PlaceholderListDatabase.PlaceholderData> newPlaceholderEntries = new List<PlaceholderListDatabase.PlaceholderData>();
+                    List<IPlaceholderData> oldPlaceholderEntries = placeholders.GetAllEntries();
+                    List<IPlaceholderData> newPlaceholderEntries = new List<IPlaceholderData>();
 
-                    foreach (PlaceholderListDatabase.PlaceholderData entry in oldPlaceholderEntries)
+                    foreach (IPlaceholderData entry in oldPlaceholderEntries)
                     {
                         if (entry.Sha == GVFSConstants.AllZeroSha)
                         {

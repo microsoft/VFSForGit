@@ -1,7 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
-using GVFS.Platform.Mac;
+using GVFS.Platform.POSIX;
 using GVFS.Platform.Windows;
 using System;
 using System.Diagnostics;
@@ -45,7 +45,7 @@ namespace GVFS.FunctionalTests.LockHolder
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                return MacPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+                return POSIXPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
             }
 
             // Not able to use WindowsPlatform here - because of its dependency on WindowsIdentity (and also kernel32.dll).
@@ -71,7 +71,7 @@ namespace GVFS.FunctionalTests.LockHolder
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                return MacPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
+                return POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
             }
 
             // Not able to use WindowsPlatform here - because of its dependency on WindowsIdentity (and also kernel32.dll).
@@ -99,6 +99,7 @@ namespace GVFS.FunctionalTests.LockHolder
                     isConsoleOutputRedirectedToFile: false,
                     checkAvailabilityOnly: false,
                     gvfsEnlistmentRoot: null,
+                    gitCommandSessionId: string.Empty,
                     result: out result))
                 {
                     throw new Exception(result);
@@ -117,7 +118,7 @@ namespace GVFS.FunctionalTests.LockHolder
 
                 int pid = Process.GetCurrentProcess().Id;
 
-                NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid: pid, isElevated: false, checkAvailabilityOnly: false, parsedCommand: AcquireGVFSLockVerb.fullCommand);
+                NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid: pid, isElevated: false, checkAvailabilityOnly: false, parsedCommand: AcquireGVFSLockVerb.fullCommand, gitCommandSessionId: string.Empty);
                 NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.ReleaseLock.Request);
 
                 pipeClient.SendRequest(requestMessage);

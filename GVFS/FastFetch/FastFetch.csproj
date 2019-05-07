@@ -19,30 +19,32 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
-    <IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
-    <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
-  </PropertyGroup>
-  
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
   </ItemGroup>
   
-  <ItemGroup Condition="'$(IsOSX)' == 'true'">
-    <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
-    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
-      <Link>PlatformLoader.Mac.cs</Link>
-    </Compile>
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
-    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
-    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
-      <Link>PlatformLoader.Windows.cs</Link>
-    </Compile>
-  </ItemGroup>
-
+  <!-- ItemGroup Conditions are not supported on VS for Mac and Choose/When must be
+       Used instead, see https://github.com/mono/monodevelop/issues/7417 -->
+  <Choose>
+    <When Condition="'$(OS)' == 'Windows_NT'">
+      <ItemGroup>
+        <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
+        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
+          <Link>PlatformLoader.Windows.cs</Link>
+        </Compile>
+      </ItemGroup>
+    </When>
+    <Otherwise>
+      <ItemGroup>
+        <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
+        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
+          <Link>PlatformLoader.Mac.cs</Link>
+        </Compile>
+      </ItemGroup>
+    </Otherwise>
+  </Choose>
+  
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.1.1-beta" />
     <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="1.0.165" />

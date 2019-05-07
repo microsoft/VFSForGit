@@ -38,6 +38,7 @@ STAGINGDIR="${BUILDOUTPUTDIR}/Staging"
 PACKAGESTAGINGDIR="${BUILDOUTPUTDIR}/Packages"
 VFSFORGITDESTINATION="usr/local/vfsforgit"
 DAEMONPLISTDESTINATION="Library/LaunchDaemons"
+AGENTPLISTDESTINATION="Library/LaunchAgents"
 LIBRARYEXTENSIONSDESTINATION="Library/Extensions"
 INSTALLERPACKAGENAME="VFSForGit.$PACKAGEVERSION"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
@@ -75,6 +76,9 @@ function CreateInstallerRoot()
     
     mkdirBin="mkdir -p \"${STAGINGDIR}/$DAEMONPLISTDESTINATION\""
     eval $mkdirBin || exit 1
+    
+    mkdirBin="mkdir -p \"${STAGINGDIR}/$AGENTPLISTDESTINATION\""
+    eval $mkdirBin || exit 1
 }
 
 function CopyBinariesToInstall()
@@ -105,6 +109,9 @@ function CopyBinariesToInstall()
     
     copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION/org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist\" \"${STAGINGDIR}/${DAEMONPLISTDESTINATION}/.\""
     eval $copyPrjFS || exit 1
+    
+    copyServicePlist="cp -Rf \"${SOURCEDIRECTORY}/../GVFS.Service/Mac/org.vfsforgit.service.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
+    eval $copyServicePlist || exit 1
     
     currentDirectory=`pwd`
     cd "${STAGINGDIR}/usr/local/bin"

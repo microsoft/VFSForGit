@@ -5,6 +5,20 @@ if [ -f /Library/LaunchDaemons/org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist ]; t
     eval $unloadCmd || exit 1
 fi
 
+# Unload Service in all active User sessions
+# There will be one loginwindow instance for each logged in user, 
+# get its uid (this will correspond to the logged in user's id.) 
+# Then use launchctl bootstrap gui/uid to auto load the Service 
+# for each user.
+servicePlist="/Library/LaunchAgents/org.vfsforgit.service.plist"
+if [ -f "${servicePlist}" ]; then
+    for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
+        unloadCmd="launchctl bootout gui/$uid ${servicePlist}"
+        echo "Unloading Service: '$unloadCmd'..."
+        eval $unloadCmd || exit 1
+    done    
+fi
+
 KEXTBUNDLEID="org.vfsforgit.PrjFSKext"
 isKextLoadedCmd="/usr/sbin/kextstat -l -b $KEXTBUNDLEID | wc -l"
 isKextLoaded=$(eval $isKextLoadedCmd)

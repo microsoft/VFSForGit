@@ -4,12 +4,12 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
+using System.Threading.Tasks;
 
 namespace GVFS.Common
 {
@@ -55,14 +55,17 @@ namespace GVFS.Common
 
         public GitHubUpgraderConfig Config { get; private set; }
 
+        public override bool SupportsAnonymousVersionQuery { get => true; }
+
         public static GitHubUpgrader Create(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
+            LocalGVFSConfig gvfsConfig,
             bool dryRun,
             bool noVerify,
             out string error)
         {
-            return Create(tracer, fileSystem, dryRun, noVerify, new LocalGVFSConfig(), out error);
+            return Create(tracer, fileSystem, dryRun, noVerify, gvfsConfig, out error);
         }
 
         public static GitHubUpgrader Create(
@@ -305,6 +308,13 @@ namespace GVFS.Common
                 errorMessage = string.Format("Network error: could not connect to GitHub({0}). {1}", GitHubReleaseURL, exception.Message);
                 this.TraceException(exception, nameof(this.TryFetchReleases), $"Error fetching release info.");
             }
+            catch (TaskCanceledException exception)
+            {
+                // GetStreamAsync can also throw a TaskCanceledException to indicate a timeout
+                // https://github.com/dotnet/corefx/issues/20296
+                errorMessage = string.Format("Network error: could not connect to GitHub({0}). {1}", GitHubReleaseURL, exception.Message);
+                this.TraceException(exception, nameof(this.TryFetchReleases), $"Error fetching release info.");
+            }
             catch (SerializationException exception)
             {
                 errorMessage = string.Format("Parse error: could not parse releases info from GitHub({0}). {1}", GitHubReleaseURL, exception.Message);
@@ -406,7 +416,12 @@ namespace GVFS.Common
             {
                 if (!this.dryRun)
                 {
-                    string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path), this.UpgradeInstanceId);
+                    string logFilePath = GVFSEnlistment.GetNewLogFileName(
+                        ProductUpgraderInfo.GetLogDirectoryPath(),
+                        Path.GetFileNameWithoutExtension(path),
+                        this.UpgradeInstanceId,
+                        this.fileSystem);
+
                     string args = installerArgs + " /Log=" + logFilePath;
                     string certCN = null;
                     string issuerCN = null;

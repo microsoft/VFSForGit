@@ -17,9 +17,10 @@ namespace GVFS.Common
             bool isConsoleOutputRedirectedToFile,
             bool checkAvailabilityOnly,
             string gvfsEnlistmentRoot,
+            string gitCommandSessionId,
             out string result)
         {
-            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, checkAvailabilityOnly, fullCommand);
+            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, checkAvailabilityOnly, fullCommand, gitCommandSessionId);
 
             NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.AcquireLock.AcquireRequest);
             pipeClient.SendRequest(requestMessage);
@@ -30,8 +31,6 @@ namespace GVFS.Common
             switch (response.Result)
             {
                 case NamedPipeMessages.AcquireLock.AcceptResult:
-                    return CheckAcceptResponse(response, checkAvailabilityOnly, out result);
-
                 case NamedPipeMessages.AcquireLock.AvailableResult:
                     return CheckAcceptResponse(response, checkAvailabilityOnly, out result);
 
@@ -67,8 +66,6 @@ namespace GVFS.Common
                         switch (response.Result)
                         {
                             case NamedPipeMessages.AcquireLock.AcceptResult:
-                                return CheckAcceptResponse(response, checkAvailabilityOnly, out _);
-
                             case NamedPipeMessages.AcquireLock.AvailableResult:
                                 return CheckAcceptResponse(response, checkAvailabilityOnly, out _);
 
@@ -112,7 +109,7 @@ namespace GVFS.Common
             string waitingMessage = "",
             int spinnerDelay = 0)
         {
-            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, checkAvailabilityOnly: false, parsedCommand: fullCommand);
+            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, checkAvailabilityOnly: false, parsedCommand: fullCommand, gitCommandSessionId: string.Empty);
 
             NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.ReleaseLock.Request);
 

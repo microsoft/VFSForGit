@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace GVFS.Service
 {
-    public class RepoRegistry
+    public class RepoRegistry : IRepoRegistry
     {
         public const string RegistryName = "repo-registry";
         private const string EtwArea = nameof(RepoRegistry);
@@ -21,12 +21,18 @@ namespace GVFS.Service
         private ITracer tracer;
         private PhysicalFileSystem fileSystem;
         private object repoLock = new object();
+        private IRepoMounter repoMounter;
 
-        public RepoRegistry(ITracer tracer, PhysicalFileSystem fileSystem, string serviceDataLocation)
+        public RepoRegistry(
+            ITracer tracer,
+            PhysicalFileSystem fileSystem,
+            string serviceDataLocation,
+            IRepoMounter repoMounter)
         {
             this.tracer = tracer;
             this.fileSystem = fileSystem;
             this.registryParentFolderPath = serviceDataLocation;
+            this.repoMounter = repoMounter;
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Area", EtwArea);
@@ -162,31 +168,28 @@ namespace GVFS.Service
             return false;
         }
 
-        public void AutoMountRepos(int sessionId)
+        public void AutoMountRepos(string userId, int sessionId)
         {
             using (ITracer activity = this.tracer.StartActivity("AutoMount", EventLevel.Informational))
             {
-                using (GVFSMountProcess process = new GVFSMountProcess(activity, sessionId))
+                List<RepoRegistration> activeRepos = this.GetActiveReposForUser(userId);
+                if (activeRepos.Count == 0)
                 {
-                    List<RepoRegistration> activeRepos = this.GetActiveReposForUser(process.CurrentUser.Identity.User.Value);
-                    if (activeRepos.Count == 0)
+                    return;
+                }
+
+                this.SendNotification(sessionId, "GVFS AutoMount", "Attempting to mount {0} GVFS repo(s)", activeRepos.Count);
+
+                foreach (RepoRegistration repo in activeRepos)
+                {
+                    // TODO #1089: We need to respect the elevation level of the original mount
+                    if (this.repoMounter.MountRepository(repo.EnlistmentRoot, sessionId))
                     {
-                        return;
+                        this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo is now mounted: \n{0}", repo.EnlistmentRoot);
                     }
-
-                    this.SendNotification(sessionId, "GVFS AutoMount", "Attempting to mount {0} GVFS repo(s)", activeRepos.Count);
-
-                    foreach (RepoRegistration repo in activeRepos)
+                    else
                     {
-                        // TODO #1043088: We need to respect the elevation level of the original mount
-                        if (process.Mount(repo.EnlistmentRoot))
-                        {
-                            this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo is now mounted: \n{0}", repo.EnlistmentRoot);
-                        }
-                        else
-                        {
-                            this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo failed to mount: \n{0}", repo.EnlistmentRoot);
-                        }
+                        this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo failed to mount: \n{0}", repo.EnlistmentRoot);
                     }
                 }
             }
@@ -233,7 +236,7 @@ namespace GVFS.Service
 
                                 string errorMessage;
                                 string normalizedEnlistmentRootPath = registration.EnlistmentRoot;
-                                if (GVFSPlatform.Instance.FileSystem.TryGetNormalizedPath(registration.EnlistmentRoot, out normalizedEnlistmentRootPath, out errorMessage))
+                                if (this.fileSystem.TryGetNormalizedPath(registration.EnlistmentRoot, out normalizedEnlistmentRootPath, out errorMessage))
                                 {
                                     if (!normalizedEnlistmentRootPath.Equals(registration.EnlistmentRoot, StringComparison.OrdinalIgnoreCase))
                                     {

@@ -49,6 +49,12 @@ If you'd like to build your own VFS for Git Windows installer:
 build will fail, and the second and subsequent builds will succeed. This is because the build requires a prebuild code generation step.
 For details, see the build script in the previous step.
 
+You can also use Visual Studio 2019. There are a couple of options for getting all the dependencies.
+* You can install Visual Studio 2017 side by side with Visual Studio 2019, and make sure that you have all the dependencies from Visual Studio 2017 installed
+* Alternatively, if you only want to have Visual Studio 2019 installed, install the following extra dependencies:
+  * MSVC v141 VS 2017 C++ build tools via the optional components in the Visual Studio 2019 installer. It is under the "Desktop Development with C++" heading.
+  * Windows 10 SDK (10.0.10240.0) via the archived SDK page: https://developer.microsoft.com/en-us/windows/downloads/sdk-archive
+
 The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer\bin\x64\[Debug|Release]\SetupGVFS.<version>.exe`
 
 ## Building VFS for Git on Mac
@@ -61,7 +67,7 @@ Note that VFS for Git on Mac is under active development.
 
 * If you still do not have the `dotnet` cli `>= v2.1.300` installed [manually install it]. You can check what version you have with `dotnet --version`.(https://www.microsoft.com/net/download/dotnet-core/2.1)
 
-* If you're using `Xcode` for the first time, you may have to login to `Xcode` with your Apple ID to generate a codesigning certificate. You can do this by launching `Xcode.app`, opening the `PrjFS.xcworkspace` and trying to build. You can find the signing options in the General tab of the project's settings.
+* If you're using `Xcode` for the first time, you may have to login to `Xcode` with your Apple ID to generate a codesigning certificate. You can do this by launching `Xcode.app`, opening the `ProjFS.Mac/PrjFS.xcodeproj` and trying to build. You can find the signing options in the `General`->`Accounts` tab of the project's settings.
 
 * Create a `VFSForGit` directory and Clone VFSForGit into a directory called `src` inside it:
   ```
@@ -72,7 +78,7 @@ Note that VFS for Git on Mac is under active development.
   ```
 
 * Prep your machine to use VFS for Git. The following are all done by the script below.
-  * install Homebrew
+  * install [Homebrew](https://brew.sh/)
   * install and setup the Git Credential Manager (with `brew`)
   * install/update Java (with `brew`)
   * install a VFS for Git aware version of Git
@@ -81,7 +87,7 @@ Note that VFS for Git on Mac is under active development.
   Scripts/Mac/PrepFunctionalTests.sh
   ```
 
-* From the src directory run
+* From the `src` directory run
 
   ```
   Scripts/Mac/BuildGVFSForMac.sh [Debug|Release]
@@ -106,7 +112,7 @@ Note that VFS for Git on Mac is under active development.
   **This is dangerous and very bad for the security of your machine. Do not do this on any production machine! If you no longer need to develop VFS for Git on Mac we recommend re-enabling SIP ASAP.**
 
   To disable SIP boot into recovery mode (`[Win/⌘] + R` while booting your Mac).
-  Once booted into recovery mode open Utilities -> Terminal to launch a terminal. Enter:
+  Once booted into recovery mode open `Utilities` -> `Terminal` to launch a terminal. Enter:
 
   ```
   csrutil disable

@@ -3,13 +3,13 @@
 
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
 
-#define PrjFltDir PackagesDir + "\" + ProjFSPackage + "\filter" 
+#define PrjFltDir PackagesDir + "\" + ProjFSNativePackage + "\filter" 
 #define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.2.0-build\lib\x64"
 #define GVFSDir BuildOutputDir + "\GVFS.Windows\bin\" + PlatformAndConfiguration
 #define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration + "\netstandard2.0"
 #define HooksDir BuildOutputDir + "\GVFS.Hooks.Windows\bin\" + PlatformAndConfiguration
 #define HooksLoaderDir BuildOutputDir + "\GitHooksLoader\bin\" + PlatformAndConfiguration
-#define ServiceDir BuildOutputDir + "\GVFS.Service\bin\" + PlatformAndConfiguration
+#define ServiceDir BuildOutputDir + "\GVFS.Service.Windows\bin\" + PlatformAndConfiguration
 #define ServiceUIDir BuildOutputDir + "\GVFS.Service.UI\bin\" + PlatformAndConfiguration
 #define GVFSMountDir BuildOutputDir + "\GVFS.Mount.Windows\bin\" + PlatformAndConfiguration
 #define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook.Windows\bin\" + PlatformAndConfiguration

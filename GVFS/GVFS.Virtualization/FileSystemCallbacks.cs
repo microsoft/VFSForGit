@@ -130,10 +130,10 @@ namespace GVFS.Virtualization
             // This lets us from having to add null checks to callsites into GitStatusCache.
             this.gitStatusCache = gitStatusCache ?? new GitStatusCache(context, TimeSpan.Zero);
 
-            this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Logs.Head);
+            this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Logs.Head);
 
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("placeholders.Count", placeholders.EstimatedCount);
+            metadata.Add("placeholders.Count", placeholders.Count);
             metadata.Add("background.Count", this.backgroundFileSystemTaskRunner.Count);
             metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(FileSystemCallbacks)} created");
             this.context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(FileSystemCallbacks)}_Constructor", metadata);
@@ -144,6 +144,13 @@ namespace GVFS.Virtualization
             get { return this.GitIndexProjection; }
         }
 
+        /// <summary>
+        /// Gets the count of tasks in the background operation queue
+        /// </summary>
+        /// <remarks>
+        /// This is an expensive call on .net core and you should avoid calling
+        /// in performance critical paths.
+        /// </remarks>
         public int BackgroundOperationCount
         {
             get { return this.backgroundFileSystemTaskRunner.Count; }
@@ -243,7 +250,7 @@ namespace GVFS.Virtualization
 
         public bool IsReadyForExternalAcquireLockRequests(NamedPipeMessages.LockData requester, out string denyMessage)
         {
-            if (this.BackgroundOperationCount != 0)
+            if (!this.backgroundFileSystemTaskRunner.IsEmpty)
             {
                 denyMessage = "Waiting for GVFS to release the lock";
                 return false;
@@ -295,7 +302,7 @@ namespace GVFS.Virtualization
             }
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
-            metadata.Add("PlaceholderCount", this.GitIndexProjection.EstimatedPlaceholderCount);
+            metadata.Add("PlaceholderCount", this.GitIndexProjection.PlaceholderCount);
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {
                 eventLevel = EventLevel.Informational;
@@ -305,7 +312,7 @@ namespace GVFS.Virtualization
             metadata.Add(
                 "PhysicalDiskInfo",
                 GVFSPlatform.Instance.GetPhysicalDiskInfo(
-                    this.context.Enlistment.WorkingDirectoryRoot,
+                    this.context.Enlistment.WorkingDirectoryBackingRoot,
                     sizeStatsOnly: true));
 
             return metadata;
@@ -353,7 +360,7 @@ namespace GVFS.Virtualization
 
             // If there are background tasks queued up, then it will be
             // refreshed after they have been processed.
-            if (this.backgroundFileSystemTaskRunner.Count == 0)
+            if (this.backgroundFileSystemTaskRunner.IsEmpty)
             {
                 this.gitStatusCache.RefreshAsynchronously();
             }
@@ -439,6 +446,11 @@ namespace GVFS.Virtualization
         public void OnFolderDeleted(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderDeleted(relativePath));
+        }
+
+        public void OnPossibleTombstoneFolderCreated(string relativePath)
+        {
+            this.GitIndexProjection.OnPossibleTombstoneFolderCreated(relativePath);
         }
 
         public void OnFolderPreDelete(string relativePath)

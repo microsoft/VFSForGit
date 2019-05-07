@@ -1,6 +1,5 @@
 using GVFS.Common.Tracing;
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common
@@ -12,13 +11,13 @@ namespace GVFS.Common
         public const string DownloadDirectory = "Downloads";
         public const string HighestAvailableVersionFileName = "HighestAvailableVersion";
 
-        private const string RootDirectory = UpgradeDirectoryName;
-
-        public static bool IsLocalUpgradeAvailable(ITracer tracer)
+        public static bool IsLocalUpgradeAvailable(ITracer tracer, string gvfsDataRoot)
         {
             try
             {
-                return File.Exists(GetHighestAvailableVersionFilePath());
+                string upgradesDirectory = Path.Combine(gvfsDataRoot, UpgradeDirectoryName);
+
+                return File.Exists(GetHighestAvailableVersionFilePath(upgradesDirectory));
             }
             catch (Exception ex) when (
                 ex is IOException ||
@@ -36,14 +35,9 @@ namespace GVFS.Common
             return false;
         }
 
-        public static string GetHighestAvailableVersionFilePath()
+        private static string GetHighestAvailableVersionFilePath(string upgradesDirectory)
         {
-            return Path.Combine(GetUpgradesDirectoryPath(), HighestAvailableVersionFileName);
-        }
-
-        public static string GetUpgradesDirectoryPath()
-        {
-            return Paths.GetServiceDataRoot(RootDirectory);
+            return Path.Combine(upgradesDirectory, HighestAvailableVersionFileName);
         }
 
         private static EventMetadata CreateEventMetadata(Exception e)

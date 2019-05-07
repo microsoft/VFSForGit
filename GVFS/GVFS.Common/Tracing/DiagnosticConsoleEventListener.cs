@@ -8,8 +8,8 @@ namespace GVFS.Common.Tracing
     /// </summary>
     public class DiagnosticConsoleEventListener : EventListener
     {
-        public DiagnosticConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
-            : base(maxVerbosity, keywordFilter)
+        public DiagnosticConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter, IEventListenerEventSink eventSink)
+            : base(maxVerbosity, keywordFilter, eventSink)
         {
         }
 

@@ -9,7 +9,7 @@ using System.Threading;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     public class UnmountTests : TestsWithEnlistmentPerFixture
     {
         private FileSystemRunner fileSystem;

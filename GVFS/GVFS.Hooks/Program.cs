@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security;
 
 namespace GVFS.Hooks
 {
@@ -112,7 +113,8 @@ namespace GVFS.Hooks
             int reminderFrequency = 10;
             int randomValue = random.Next(0, 100);
 
-            if (randomValue <= reminderFrequency && ProductUpgraderInfo.IsLocalUpgradeAvailable(tracer: null))
+            if (randomValue <= reminderFrequency &&
+                ProductUpgraderInfo.IsLocalUpgradeAvailable(tracer: null, gvfsDataRoot: GVFSHooksPlatform.GetDataRootForGVFS()))
             {
                 Console.WriteLine(Environment.NewLine + GVFSConstants.UpgradeVerbMessages.ReminderNotification);
             }
@@ -234,6 +236,7 @@ namespace GVFS.Hooks
             string result;
             bool checkGvfsLockAvailabilityOnly = CheckGVFSLockAvailabilityOnly(args);
             string fullCommand = GenerateFullCommand(args);
+            string gitCommandSessionId = GetGitCommandSessionId();
 
             if (!GVFSLock.TryAcquireGVFSLockForProcess(
                     unattended,
@@ -244,6 +247,7 @@ namespace GVFS.Hooks
                     isConsoleOutputRedirectedToFile: GVFSHooksPlatform.IsConsoleOutputRedirectedToFile(),
                     checkAvailabilityOnly: checkGvfsLockAvailabilityOnly,
                     gvfsEnlistmentRoot: null,
+                    gitCommandSessionId: gitCommandSessionId,
                     result: out result))
             {
                 ExitWithError(result);
@@ -455,6 +459,18 @@ namespace GVFS.Hooks
             ProcessResult result = ProcessHelper.Run("git", "config --get alias." + command);
 
             return !string.IsNullOrEmpty(result.Output);
+        }
+
+        private static string GetGitCommandSessionId()
+        {
+            try
+            {
+                return Environment.GetEnvironmentVariable("GIT_TR2_PARENT_SID", EnvironmentVariableTarget.Process) ?? string.Empty;
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
         }
     }
 }

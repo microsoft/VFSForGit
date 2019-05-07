@@ -1,7 +1,7 @@
 #include "PerformanceTracing.hpp"
 #include "KextLog.hpp"
+#include "kernel-header-wrappers/stdatomic.h"
 #include <sys/types.h>
-#include <stdatomic.h>
 #include <IOKit/IOUserClient.h>
 
 #if PRJFS_PERFORMANCE_TRACING_ENABLE

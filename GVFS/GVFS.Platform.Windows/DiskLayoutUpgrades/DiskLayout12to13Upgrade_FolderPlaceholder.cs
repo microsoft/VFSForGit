@@ -1,8 +1,9 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
-using ProjFS;
+using Microsoft.Windows.ProjFS;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -43,12 +44,12 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     string workingDirectoryRoot = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName);
 
                     // Run through the folder placeholders adding to the placeholder list
-                    IEnumerable<PlaceholderListDatabase.PlaceholderData> folderPlaceholderPaths =
+                    IEnumerable<IPlaceholderData> folderPlaceholderPaths =
                         GetFolderPlaceholdersFromDisk(tracer, new PhysicalFileSystem(), workingDirectoryRoot)
                         .Select(x => x.Substring(workingDirectoryRoot.Length + 1))
                         .Select(x => new PlaceholderListDatabase.PlaceholderData(x, GVFSConstants.AllZeroSha));
 
-                    List<PlaceholderListDatabase.PlaceholderData> placeholderEntries = placeholders.GetAllEntriesAndPrepToWriteAllEntries();
+                    List<IPlaceholderData> placeholderEntries = placeholders.GetAllEntries();
                     placeholderEntries.AddRange(folderPlaceholderPaths);
 
                     placeholders.WriteAllEntriesAndFlush(placeholderEntries);
@@ -82,8 +83,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     if (!directory.EndsWith(Path.DirectorySeparatorChar + GVFSConstants.DotGit.Root))
                     {
                         OnDiskFileState fileState = OnDiskFileState.Full;
-                        HResult result = Utils.GetOnDiskFileState(directory, out fileState);
-                        if (result == HResult.Ok)
+                        if (Utils.TryGetOnDiskFileState(directory, out fileState))
                         {
                             if (IsPlaceholder(fileState))
                             {
@@ -99,12 +99,11 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                                 }
                             }
                         }
-                        else if (result != HResult.FileNotFound)
+                        else
                         {
-                            // FileNotFound is returned for tombstones when the filter is attached to the volume so we want to
-                            // just skip those folders.  Any other HResults may cause valid folder placeholders not to be written
-                            // to the placeholder database so we want to error out on those.
-                            throw new InvalidDataException($"Error getting on disk file state. HResult = {result} for {directory}");
+                            // May cause valid folder placeholders not to be written
+                            // to the placeholder database so we want to error out.
+                            throw new InvalidDataException($"Error getting on disk file state for {directory}");
                         }
                     }
                 }

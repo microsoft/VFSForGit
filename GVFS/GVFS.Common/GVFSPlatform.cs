@@ -10,9 +10,8 @@ namespace GVFS.Common
 {
     public abstract class GVFSPlatform
     {
-        public GVFSPlatform(string executableExtension, string installerExtension, UnderConstructionFlags underConstruction)
+        public GVFSPlatform(UnderConstructionFlags underConstruction)
         {
-            this.Constants = new GVFSPlatformConstants(executableExtension, installerExtension);
             this.UnderConstruction = underConstruction;
         }
 
@@ -23,8 +22,9 @@ namespace GVFS.Common
         public abstract IDiskLayoutUpgradeData DiskLayoutUpgrade { get; }
         public abstract IPlatformFileSystem FileSystem { get; }
 
-        public GVFSPlatformConstants Constants { get; }
+        public abstract GVFSPlatformConstants Constants { get; }
         public UnderConstructionFlags UnderConstruction { get; }
+        public abstract string Name { get; }
 
         public static void Register(GVFSPlatform platform)
         {
@@ -43,9 +43,12 @@ namespace GVFS.Common
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
 
         public abstract string GetOSVersionInformation();
+        public abstract string GetDataRootForGVFS();
+        public abstract string GetDataRootForGVFSComponent(string componentName);
         public abstract void InitializeEnlistmentACLs(string enlistmentPath);
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
+        public abstract string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer);
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
 
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
@@ -60,6 +63,7 @@ namespace GVFS.Common
         public abstract bool TryKillProcessTree(int processId, out int exitCode, out string error);
 
         public abstract bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage);
+        public abstract bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError);
 
         public abstract bool IsGitStatusCacheSupported();
 
@@ -83,23 +87,18 @@ namespace GVFS.Common
             return true;
         }
 
-        public class GVFSPlatformConstants
+        public abstract class GVFSPlatformConstants
         {
             public static readonly char PathSeparator = Path.DirectorySeparatorChar;
+            public abstract string ExecutableExtension { get; }
+            public abstract string InstallerExtension { get; }
+            public abstract string WorkingDirectoryBackingRootName { get; }
 
-            public GVFSPlatformConstants(string executableExtension, string installerExtension)
-            {
-                this.ExecutableExtension = executableExtension;
-                this.InstallerExtension = installerExtension;
-            }
+            public abstract string GVFSBinDirectoryPath { get; }
 
-            public string ExecutableExtension { get; }
-            public string InstallerExtension { get; }
+            public abstract string GVFSBinDirectoryName { get; }
 
-            public string GVFSExecutableName
-            {
-                get { return "GVFS" + this.ExecutableExtension; }
-            }
+            public abstract string GVFSExecutableName { get; }
 
             public string GVFSHooksExecutableName
             {
@@ -135,18 +134,15 @@ namespace GVFS.Common
         public class UnderConstructionFlags
         {
             public UnderConstructionFlags(
-                bool supportsGVFSService = true,
                 bool supportsGVFSUpgrade = true,
                 bool supportsGVFSConfig = true,
                 bool requiresDeprecatedGitHooksLoader = false)
             {
-                this.SupportsGVFSService = supportsGVFSService;
                 this.SupportsGVFSUpgrade = supportsGVFSUpgrade;
                 this.SupportsGVFSConfig = supportsGVFSConfig;
                 this.RequiresDeprecatedGitHooksLoader = requiresDeprecatedGitHooksLoader;
             }
 
-            public bool SupportsGVFSService { get; }
             public bool SupportsGVFSUpgrade { get; }
             public bool SupportsGVFSConfig { get; }
             public bool RequiresDeprecatedGitHooksLoader { get; }

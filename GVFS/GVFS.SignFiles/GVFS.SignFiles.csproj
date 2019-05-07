@@ -42,7 +42,7 @@
       $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\GVFS.Mount.exe;
       $(BuildOutputDir)\GVFS.Platform.Windows\bin\$(Platform)\$(Configuration)\GVFS.Platform.Windows.dll;
       $(BuildOutputDir)\GVFS.ReadObjectHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.exe;
-      $(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\GVFS.Service.exe;
+      $(BuildOutputDir)\GVFS.Service.Windows\bin\$(Platform)\$(Configuration)\GVFS.Service.exe;
       $(BuildOutputDir)\GVFS.Service.UI\bin\$(Platform)\$(Configuration)\GVFS.Service.UI.exe;
       $(BuildOutputDir)\GVFS.Virtualization\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Virtualization.dll;
       $(BuildOutputDir)\GVFS.VirtualFileSystemHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.VirtualFileSystemHook.exe;

@@ -8,7 +8,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
-    [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.ExtraCoverage)]
     public class PersistedWorkingDirectoryTests : TestsWithEnlistmentPerTestCase
     {
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]

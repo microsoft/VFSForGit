@@ -119,7 +119,7 @@ namespace GVFS.Common.Maintenance
             EventMetadata metadata = this.CreateEventMetadata();
             metadata.Add("gitCommand", gitCommand);
 
-            using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, Keywords.Telemetry, metadata))
+            using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, metadata))
             {
                 if (this.Stopping)
                 {
@@ -132,7 +132,12 @@ namespace GVFS.Common.Maintenance
 
                 GitProcess.Result result = work.Invoke(this.MaintenanceGitProcess);
 
-                if (!this.Stopping && result?.ExitCodeIsFailure == true)
+                if (this.Stopping)
+                {
+                    throw new StoppingException();
+                }
+
+                if (result?.ExitCodeIsFailure == true)
                 {
                     string errorMessage = result?.Errors == null ? string.Empty : result.Errors;
                     if (errorMessage.Length > 1000)

@@ -57,9 +57,7 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(errorMessage);
             }
 
-            if (!this.Unattended &&
-                !this.SkipUnregister &&
-                GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
+            if (!this.Unattended && !this.SkipUnregister)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.UnregisterRepo(root, out errorMessage); },
@@ -223,6 +221,7 @@ namespace GVFS.CommandLine
                             isConsoleOutputRedirectedToFile: GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
                             checkAvailabilityOnly: false,
                             gvfsEnlistmentRoot: enlistmentRoot,
+                            gitCommandSessionId: string.Empty,
                             result: out result))
                     {
                         this.ReportErrorAndExit("Unable to acquire the lock prior to unmount. " + result);

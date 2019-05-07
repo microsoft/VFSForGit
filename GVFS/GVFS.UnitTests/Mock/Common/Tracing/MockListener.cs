@@ -6,7 +6,7 @@ namespace GVFS.UnitTests.Mock.Common.Tracing
     public class MockListener : EventListener
     {
         public MockListener(EventLevel maxVerbosity, Keywords keywordFilter)
-            : base(maxVerbosity, keywordFilter)
+            : base(maxVerbosity, keywordFilter, null)
         {
         }
 

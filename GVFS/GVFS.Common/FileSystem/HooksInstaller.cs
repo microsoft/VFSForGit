@@ -57,7 +57,7 @@ namespace GVFS.Common.FileSystem
                 foreach (HookData hook in NativeHooks)
                 {
                     string installedHookPath = Path.Combine(ExecutingDirectory, hook.ExecutableName);
-                    string targetHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, hook.Path + GVFSPlatform.Instance.Constants.ExecutableExtension);
+                    string targetHookPath = Path.Combine(context.Enlistment.WorkingDirectoryBackingRoot, hook.Path + GVFSPlatform.Instance.Constants.ExecutableExtension);
                     if (!TryHooksInstallationAction(() => CopyHook(context, installedHookPath, targetHookPath), out error))
                     {
                         error = "Failed to copy " + installedHookPath + "\n" + error;
@@ -65,13 +65,13 @@ namespace GVFS.Common.FileSystem
                     }
                 }
 
-                string precommandHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.PreCommandPath);
+                string precommandHookPath = Path.Combine(context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.PreCommandPath);
                 if (!GVFSPlatform.Instance.TryInstallGitCommandHooks(context, ExecutingDirectory, GVFSConstants.DotGit.Hooks.PreCommandHookName, precommandHookPath, out error))
                 {
                     return false;
                 }
 
-                string postcommandHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.PostCommandPath);
+                string postcommandHookPath = Path.Combine(context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.PostCommandPath);
                 if (!GVFSPlatform.Instance.TryInstallGitCommandHooks(context, ExecutingDirectory, GVFSConstants.DotGit.Hooks.PostCommandHookName, postcommandHookPath, out error))
                 {
                     return false;
@@ -156,7 +156,7 @@ namespace GVFS.Common.FileSystem
             out string errorMessage)
         {
             bool copyHook = false;
-            string enlistmentHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, hook.Path + GVFSPlatform.Instance.Constants.ExecutableExtension);
+            string enlistmentHookPath = Path.Combine(context.Enlistment.WorkingDirectoryBackingRoot, hook.Path + GVFSPlatform.Instance.Constants.ExecutableExtension);
             string installedHookPath = Path.Combine(ExecutingDirectory, hook.ExecutableName);
 
             if (!context.FileSystem.FileExists(installedHookPath))

@@ -53,6 +53,7 @@
     <ProjectReference Include="..\..\ProjFS.Mac\PrjFSLib.Mac.Managed\PrjFSLib.Mac.Managed.csproj" />
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
     <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
+    <ProjectReference Include="..\GVFS.Service\GVFS.Service.Mac.csproj" />
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
   </ItemGroup>

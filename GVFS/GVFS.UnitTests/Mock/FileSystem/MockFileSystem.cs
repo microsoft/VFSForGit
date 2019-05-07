@@ -5,6 +5,7 @@ using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 
 namespace GVFS.UnitTests.Mock.FileSystem
@@ -111,6 +112,13 @@ namespace GVFS.UnitTests.Mock.FileSystem
             this.RootDirectory.RemoveFile(sourcePath);
         }
 
+        public override bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
+        {
+            normalizedPath = path;
+            errorMessage = null;
+            return true;
+        }
+
         public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool flushesToDisk)
         {
             MockFile file = this.RootDirectory.FindFile(path);
@@ -137,6 +145,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
 
             return file.GetContentStream();
+        }
+
+        public override void FlushFileBuffers(string path)
+        {
+            throw new NotImplementedException();
         }
 
         public override void WriteAllText(string path, string contents)
@@ -323,6 +336,21 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
 
             return files.ToArray();
+        }
+
+        public override FileVersionInfo GetVersionInfo(string path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override bool FileVersionsMatch(FileVersionInfo versionInfo1, FileVersionInfo versionInfo2)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override bool ProductVersionsMatch(FileVersionInfo versionInfo1, FileVersionInfo versionInfo2)
+        {
+            throw new NotImplementedException();
         }
 
         private Stream CreateAndOpenFileStream(string path)

@@ -64,26 +64,26 @@ namespace GVFS.CommandLine
                 {
                     this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig: null, serverGVFSConfig: null, cacheServer: null);
                     PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-                    GitRepo gitRepo = new GitRepo(
-                            tracer,
-                            enlistment,
-                            fileSystem);
-                    switch (this.MaintenanceJob)
+                    using (GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem))
+                    using (GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment))
                     {
-                        case "LooseObjects":
-                            (new LooseObjectsStep(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), forceRun: true)).Execute();
-                            return;
+                        switch (this.MaintenanceJob)
+                        {
+                            case "LooseObjects":
+                                (new LooseObjectsStep(context, forceRun: true)).Execute();
+                                return;
 
-                        case "PackfileMaintenance":
-                            (new PackfileMaintenanceStep(
-                                new GVFSContext(tracer, fileSystem, gitRepo, enlistment),
-                                forceRun: true,
-                                batchSize: this.PackfileMaintenanceBatchSize ?? PackfileMaintenanceStep.DefaultBatchSize)).Execute();
-                            return;
+                            case "PackfileMaintenance":
+                                (new PackfileMaintenanceStep(
+                                    context,
+                                    forceRun: true,
+                                    batchSize: this.PackfileMaintenanceBatchSize ?? PackfileMaintenanceStep.DefaultBatchSize)).Execute();
+                                return;
 
-                        default:
-                            this.ReportErrorAndExit($"Unknown maintenance job requested: {this.MaintenanceJob}");
-                            break;
+                            default:
+                                this.ReportErrorAndExit($"Unknown maintenance job requested: {this.MaintenanceJob}");
+                                break;
+                        }
                     }
                 }
 
@@ -258,7 +258,7 @@ of your enlistment's src folder.
         {
             Exception exception;
             string error;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out error, out exception))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryBackingRoot, out error, out exception))
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add(nameof(error), error);

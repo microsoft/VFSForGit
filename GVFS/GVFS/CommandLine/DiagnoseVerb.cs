@@ -120,15 +120,12 @@ namespace GVFS.CommandLine
                         // corrupt objects
                         this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
 
-                        if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
-                        {
-                            // service
-                            this.CopyAllFiles(
-                                Paths.GetServiceDataRoot(string.Empty),
-                                archiveFolderPath,
-                                this.ServiceName,
-                                copySubFolders: true);
-                        }
+                        // service
+                        this.CopyAllFiles(
+                            GVFSPlatform.Instance.GetDataRootForGVFS(),
+                            archiveFolderPath,
+                            this.ServiceName,
+                            copySubFolders: true);
 
                         if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
                         {
@@ -156,7 +153,7 @@ namespace GVFS.CommandLine
 
                         if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSConfig)
                         {
-                            this.CopyFile(Paths.GetServiceDataRoot(string.Empty), archiveFolderPath, LocalGVFSConfig.FileName);
+                            this.CopyFile(GVFSPlatform.Instance.GetDataRootForGVFS(), archiveFolderPath, LocalGVFSConfig.FileName);
                         }
 
                         return true;
@@ -302,7 +299,7 @@ namespace GVFS.CommandLine
         {
             try
             {
-                string localCacheArchivePath = Path.Combine(archiveFolderPath, LocalCacheResolver.DefaultGVFSCacheFolderName);
+                string localCacheArchivePath = Path.Combine(archiveFolderPath, GVFSConstants.DefaultGVFSCacheFolderName);
                 Directory.CreateDirectory(localCacheArchivePath);
 
                 if (!string.IsNullOrWhiteSpace(localCacheRoot))

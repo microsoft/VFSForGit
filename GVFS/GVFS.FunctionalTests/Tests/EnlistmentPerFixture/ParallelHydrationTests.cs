@@ -21,7 +21,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.FullSuiteOnly)]
+        [Category(Categories.ExtraCoverage)]
         public void HydrateRepoInParallel()
         {
             GitProcess.Invoke(this.Enlistment.RepoRoot, $"checkout -f {FileConstants.CommitId}");

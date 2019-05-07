@@ -21,7 +21,7 @@ namespace GVFS.Common.Maintenance
 
         protected override void PerformMaintenance()
         {
-            using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
+            using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational))
             {
                 string multiPackIndexLockPath = Path.Combine(this.Context.Enlistment.GitPackRoot, MultiPackIndexLock);
                 this.Context.FileSystem.TryDeleteFile(multiPackIndexLockPath);
@@ -29,7 +29,7 @@ namespace GVFS.Common.Maintenance
                 this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.WriteMultiPackIndex));
 
                 GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyMultiPackIndex));
-                if (verifyResult.ExitCodeIsFailure)
+                if (!this.Stopping && verifyResult.ExitCodeIsFailure)
                 {
                     this.LogErrorAndRewriteMultiPackIndex(activity);
                 }
@@ -41,7 +41,7 @@ namespace GVFS.Common.Maintenance
                 return;
             }
 
-            using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational, Keywords.Telemetry, metadata: null))
+            using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational))
             {
                 string commitGraphLockPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", CommitGraphLock);
                 this.Context.FileSystem.TryDeleteFile(commitGraphLockPath);
@@ -52,7 +52,7 @@ namespace GVFS.Common.Maintenance
                 /*
                 GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyCommitGraph(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyCommitGraph));
 
-                if (verifyResult.ExitCodeIsFailure)
+                if (!this.Stopping && verifyResult.ExitCodeIsFailure)
                 {
                     this.LogErrorAndRewriteCommitGraph(activity, this.packIndexes);
                 }

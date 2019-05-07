@@ -16,7 +16,7 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class GitStatusCacheTests
     {
-        private static NamedPipeMessages.LockData statusCommandLockData = new NamedPipeMessages.LockData(123, false, false, "git status");
+        private static NamedPipeMessages.LockData statusCommandLockData = new NamedPipeMessages.LockData(123, false, false, "git status", "123");
 
         private MockFileSystem fileSystem;
         private MockGitProcess gitProcess;
@@ -47,7 +47,7 @@ namespace GVFS.UnitTests.Common
             MockGVFSEnlistment enlistment = new MockGVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", null, this.gitProcess);
             enlistment.InitializeCachePathsFromKey("fake:\\gvfsSharedCache", "fakeCacheKey");
 
-            this.gitParentPath = enlistment.WorkingDirectoryRoot;
+            this.gitParentPath = enlistment.WorkingDirectoryBackingRoot;
             this.gvfsMetadataPath = enlistment.DotGVFSRoot;
 
             this.enlistmentDirectory = new MockDirectory(

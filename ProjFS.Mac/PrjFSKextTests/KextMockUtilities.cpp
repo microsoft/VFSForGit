@@ -1,6 +1,10 @@
 #include "KextMockUtilities.hpp"
 
 MockCalls MockCalls::singleton;
+namespace KextMock
+{
+    PlaceholderValue _;
+}
 
 void MockCalls::Clear()
 {

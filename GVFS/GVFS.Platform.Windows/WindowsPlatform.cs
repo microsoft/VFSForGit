@@ -25,11 +25,7 @@ namespace GVFS.Platform.Windows
         private const string BuildLabRegistryValue = "BuildLab";
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
-        public WindowsPlatform()
-            : base(
-                executableExtension: ".exe",
-                installerExtension: ".exe",
-                underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
+        public WindowsPlatform() : base(underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
         {
         }
 
@@ -37,6 +33,8 @@ namespace GVFS.Platform.Windows
         public override IGitInstallation GitInstallation { get; } = new WindowsGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new WindowsDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new WindowsFileSystem();
+        public override string Name { get => "Windows"; }
+        public override GVFSPlatformConstants Constants { get; } = new WindowsPlatformConstants();
 
         public static string GetStringFromRegistry(string key, string valueName)
         {
@@ -121,6 +119,16 @@ namespace GVFS.Platform.Windows
             }
 
             return sb.ToString();
+        }
+
+        public override string GetDataRootForGVFS()
+        {
+            return WindowsPlatform.GetDataRootForGVFSImplementation();
+        }
+
+        public override string GetDataRootForGVFSComponent(string componentName)
+        {
+            return WindowsPlatform.GetDataRootForGVFSComponentImplementation(componentName);
         }
 
         public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
@@ -300,6 +308,14 @@ namespace GVFS.Platform.Windows
             return identity.User.Value;
         }
 
+        public override string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer)
+        {
+            using (CurrentUser currentUser = new CurrentUser(tracer, sessionId))
+            {
+                return currentUser.Identity.User.Value;
+            }
+        }
+
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);
 
         public override bool IsConsoleOutputRedirectedToFile()
@@ -309,7 +325,7 @@ namespace GVFS.Platform.Windows
 
         public override bool IsGitStatusCacheSupported()
         {
-            return File.Exists(Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
+            return File.Exists(Path.Combine(GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
         }
 
         public override FileBasedLock CreateFileBasedLock(
@@ -323,6 +339,42 @@ namespace GVFS.Platform.Windows
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+        }
+
+        public override bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError)
+        {
+            string pathRoot;
+
+            try
+            {
+                pathRoot = Path.GetPathRoot(enlistmentRoot);
+            }
+            catch (ArgumentException e)
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to determine the root of '{enlistmentRoot}'): {e.Message}";
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(pathRoot))
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to determine the root of '{enlistmentRoot}', path does not contain root directory information";
+                return false;
+            }
+
+            try
+            {
+                localCacheRoot = Path.Combine(pathRoot, GVFSConstants.DefaultGVFSCacheFolderName);
+                localCacheRootError = null;
+                return true;
+            }
+            catch (ArgumentException e)
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to build local cache path using root directory '{pathRoot}'): {e.Message}";
+                return false;
+            }
         }
 
         public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
@@ -340,6 +392,44 @@ namespace GVFS.Platform.Windows
 
             object value = localKeySub == null ? null : localKeySub.GetValue(valueName);
             return value;
+        }
+
+        public class WindowsPlatformConstants : GVFSPlatformConstants
+        {
+            public override string ExecutableExtension
+            {
+                get { return ".exe"; }
+            }
+
+            public override string InstallerExtension
+            {
+                get { return ".exe"; }
+            }
+
+            public override string WorkingDirectoryBackingRootName
+            {
+                get { return GVFSConstants.WorkingDirectoryRootName; }
+            }
+
+            public override string GVFSBinDirectoryPath
+            {
+                get
+                {
+                    return Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                        this.GVFSBinDirectoryName);
+                }
+            }
+
+            public override string GVFSBinDirectoryName
+            {
+                get { return "GVFS"; }
+            }
+
+            public override string GVFSExecutableName
+            {
+                get { return "GVFS" + this.ExecutableExtension; }
+            }
         }
     }
 }

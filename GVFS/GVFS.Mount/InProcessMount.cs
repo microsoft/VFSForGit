@@ -164,13 +164,13 @@ namespace GVFS.Mount
 
         private void ValidateMountPoints()
         {
-            DirectoryInfo workingDirectoryRootInfo = new DirectoryInfo(this.enlistment.WorkingDirectoryRoot);
+            DirectoryInfo workingDirectoryRootInfo = new DirectoryInfo(this.enlistment.WorkingDirectoryBackingRoot);
             if (!workingDirectoryRootInfo.Exists)
             {
-                this.FailMountAndExit("Failed to initialize file system callbacks. Directory \"{0}\" must exist.", this.enlistment.WorkingDirectoryRoot);
+                this.FailMountAndExit("Failed to initialize file system callbacks. Directory \"{0}\" must exist.", this.enlistment.WorkingDirectoryBackingRoot);
             }
 
-            string dotGitPath = Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
+            string dotGitPath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
             DirectoryInfo dotGitPathInfo = new DirectoryInfo(dotGitPath);
             if (!dotGitPathInfo.Exists)
             {
@@ -314,6 +314,7 @@ namespace GVFS.Mount
                 else if (lockAcquired)
                 {
                     response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.AcceptResult);
+                    this.tracer.SetGitCommandSessionId(requester.GitCommandSessionId);
                 }
                 else if (existingExternalHolder == null)
                 {
@@ -340,6 +341,11 @@ namespace GVFS.Mount
             }
 
             NamedPipeMessages.ReleaseLock.Response response = this.fileSystemCallbacks.TryReleaseExternalLock(request.RequestData.PID);
+            if (response.Result == NamedPipeMessages.ReleaseLock.SuccessResult)
+            {
+                this.tracer.SetGitCommandSessionId(string.Empty);
+            }
+
             connection.TrySendResponse(response.CreateMessage());
         }
 

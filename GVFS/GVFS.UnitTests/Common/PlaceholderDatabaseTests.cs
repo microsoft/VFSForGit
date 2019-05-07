@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock;
 using GVFS.UnitTests.Mock.FileSystem;
@@ -43,7 +44,7 @@ namespace GVFS.UnitTests.Common
                 "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n" +
                 "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n" +
                 "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n");
-            dut.EstimatedCount.ShouldEqual(5);
+            dut.Count.ShouldEqual(5);
         }
 
         [TestCase]
@@ -51,61 +52,63 @@ namespace GVFS.UnitTests.Common
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
-            dut.AddAndFlushFile(InputGitIgnorePath, InputGitIgnoreSHA);
+            dut.AddFile(InputGitIgnorePath, InputGitIgnoreSHA);
 
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedGitIgnoreEntry);
 
-            dut.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
+            dut.AddFile(InputGitAttributesPath, InputGitAttributesSHA);
 
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedTwoEntries);
         }
 
         [TestCase]
-        public void GetAllEntriesAndPrepToWriteAllEntriesReturnsCorrectEntries()
+        public void GetAllEntriesReturnsCorrectEntries()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
             {
-                dut1.AddAndFlushFile(InputGitIgnorePath, InputGitIgnoreSHA);
-                dut1.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
-                dut1.AddAndFlushFile(InputThirdFilePath, InputThirdFileSHA);
-                dut1.RemoveAndFlush(InputThirdFilePath);
+                dut1.AddFile(InputGitIgnorePath, InputGitIgnoreSHA);
+                dut1.AddFile(InputGitAttributesPath, InputGitAttributesSHA);
+                dut1.AddFile(InputThirdFilePath, InputThirdFileSHA);
+                dut1.Remove(InputThirdFilePath);
             }
 
             string error;
             PlaceholderListDatabase dut2;
             PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
-            List<PlaceholderListDatabase.PlaceholderData> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
+            List<IPlaceholderData> allData = dut2.GetAllEntries();
             allData.Count.ShouldEqual(2);
         }
 
         [TestCase]
-        public void GetAllEntriesAndPrepToWriteAllEntriesSplitsFilesAndFoldersCorrectly()
+        public void GetAllEntriesSplitsFilesAndFoldersCorrectly()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
             {
-                dut1.AddAndFlushFile(InputGitIgnorePath, InputGitIgnoreSHA);
-                dut1.AddAndFlushFolder("partialFolder", isExpanded: false);
-                dut1.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
-                dut1.AddAndFlushFolder("expandedFolder", isExpanded: true);
-                dut1.AddAndFlushFile(InputThirdFilePath, InputThirdFileSHA);
-                dut1.RemoveAndFlush(InputThirdFilePath);
+                dut1.AddFile(InputGitIgnorePath, InputGitIgnoreSHA);
+                dut1.AddPartialFolder("partialFolder");
+                dut1.AddFile(InputGitAttributesPath, InputGitAttributesSHA);
+                dut1.AddExpandedFolder("expandedFolder");
+                dut1.AddFile(InputThirdFilePath, InputThirdFileSHA);
+                dut1.AddPossibleTombstoneFolder("tombstone");
+                dut1.Remove(InputThirdFilePath);
             }
 
             string error;
             PlaceholderListDatabase dut2;
             PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
-            List<PlaceholderListDatabase.PlaceholderData> fileData;
-            List<PlaceholderListDatabase.PlaceholderData> folderData;
-            dut2.GetAllEntriesAndPrepToWriteAllEntries(out fileData, out folderData);
+            List<IPlaceholderData> fileData;
+            List<IPlaceholderData> folderData;
+            dut2.GetAllEntries(out fileData, out folderData);
             fileData.Count.ShouldEqual(2);
-            folderData.Count.ShouldEqual(2);
+            folderData.Count.ShouldEqual(3);
             folderData.ShouldContain(
                 new[]
                 {
                     new PlaceholderListDatabase.PlaceholderData("partialFolder", PlaceholderListDatabase.PartialFolderValue),
-                    new PlaceholderListDatabase.PlaceholderData("expandedFolder", PlaceholderListDatabase.ExpandedFolderValue)
+                    new PlaceholderListDatabase.PlaceholderData("expandedFolder", PlaceholderListDatabase.ExpandedFolderValue),
+                    new PlaceholderListDatabase.PlaceholderData("tombstone", PlaceholderListDatabase.PossibleTombstoneFolderValue),
                 },
                 (data1, data2) => data1.Path == data2.Path && data1.Sha == data2.Sha);
         }
@@ -136,9 +139,9 @@ namespace GVFS.UnitTests.Common
 
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedGitIgnoreEntry);
 
-            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
+            List<IPlaceholderData> existingEntries = dut.GetAllEntries();
 
-            dut.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
+            dut.AddFile(InputGitAttributesPath, InputGitAttributesSHA);
 
             dut.WriteAllEntriesAndFlush(existingEntries);
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedTwoEntries);
@@ -154,9 +157,9 @@ namespace GVFS.UnitTests.Common
 
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedTwoEntries);
 
-            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
+            List<IPlaceholderData> existingEntries = dut.GetAllEntries();
 
-            dut.RemoveAndFlush(InputGitAttributesPath);
+            dut.Remove(InputGitAttributesPath);
 
             dut.WriteAllEntriesAndFlush(existingEntries);
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedTwoEntries + DeleteGitAttributesEntry);

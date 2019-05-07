@@ -170,6 +170,16 @@ namespace GVFS.UnitTests.Maintenance
                 out objectId).ShouldBeFalse();
         }
 
+        [TestCase]
+        public void LooseObjectFileName()
+        {
+            this.TestSetup(DateTime.UtcNow);
+            LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
+
+            step.GetLooseObjectFileName("0123456789012345678901234567890123456789")
+                .ShouldEqual(Path.Combine(this.context.Enlistment.GitObjectsRoot, "01", "23456789012345678901234567890123456789"));
+        }
+
         private void TestSetup(DateTime lastRun)
         {
             string lastRunTime = EpochConverter.ToUnixEpochSeconds(lastRun).ToString();

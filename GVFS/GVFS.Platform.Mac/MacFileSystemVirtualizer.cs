@@ -143,7 +143,7 @@ namespace GVFS.Platform.Mac
             DateTime lastAccessTime,
             DateTime lastWriteTime,
             DateTime changeTime,
-            uint fileAttributes,
+            FileAttributes fileAttributes,
             long endOfFile,
             string shaContentId,
             UpdatePlaceholderType updateFlags,

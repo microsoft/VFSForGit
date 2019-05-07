@@ -1,7 +1,6 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
-using GVFS.Platform.Windows;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -12,11 +11,11 @@ namespace GVFS.Service.Handlers
         private NamedPipeServer.Connection connection;
         private NamedPipeMessages.GetActiveRepoListRequest request;
         private ITracer tracer;
-        private RepoRegistry registry;
+        private IRepoRegistry registry;
 
         public GetActiveRepoListHandler(
             ITracer tracer,
-            RepoRegistry registry,
+            IRepoRegistry registry,
             NamedPipeServer.Connection connection,
             NamedPipeMessages.GetActiveRepoListRequest request)
         {
@@ -69,24 +68,36 @@ namespace GVFS.Service.Handlers
 
         private bool IsValidRepo(string repoRoot)
         {
-            WindowsGitInstallation windowsGitInstallation = new WindowsGitInstallation();
-            string gitBinPath = windowsGitInstallation.GetInstalledGitBinPath();
-            string hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-            GVFSEnlistment enlistment = null;
+            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+            string hooksPath = null;
 
-            try
+            string hooksVersion = null;
+            string error = null;
+            if (GVFSPlatform.Instance.TryGetGVFSHooksPathAndVersion(out hooksPath, out hooksVersion, out error))
             {
-                enlistment = GVFSEnlistment.CreateFromDirectory(repoRoot, gitBinPath, hooksPath, authentication: null);
+                try
+                {
+                    GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
+                        repoRoot,
+                        gitBinPath,
+                        hooksPath,
+                        authentication: null);
+                }
+                catch (InvalidRepoException e)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add(nameof(repoRoot), repoRoot);
+                    metadata.Add(nameof(gitBinPath), gitBinPath);
+                    metadata.Add(nameof(hooksPath), hooksPath);
+                    metadata.Add("Exception", e.ToString());
+                    this.tracer.RelatedInfo(metadata, $"{nameof(this.IsValidRepo)}: Found invalid repo");
+
+                    return false;
+                }
             }
-            catch (InvalidRepoException e)
+            else
             {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add(nameof(repoRoot), repoRoot);
-                metadata.Add(nameof(gitBinPath), gitBinPath);
-                metadata.Add(nameof(hooksPath), hooksPath);
-                metadata.Add("Exception", e.ToString());
-                this.tracer.RelatedInfo(metadata, $"{nameof(this.IsValidRepo)}: Found invalid repo");
-
+                this.tracer.RelatedError($"{nameof(this.IsValidRepo)}: {nameof(GVFSPlatform.Instance.TryGetGVFSHooksPathAndVersion)} failed. {error}");
                 return false;
             }
 

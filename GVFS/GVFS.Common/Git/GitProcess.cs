@@ -10,7 +10,7 @@ using System.Text;
 
 namespace GVFS.Common.Git
 {
-    public class GitProcess
+    public class GitProcess : ICredentialStore
     {
         private const int HResultEHANDLE = -2147024890; // 0x80070006 E_HANDLE
 
@@ -62,7 +62,7 @@ namespace GVFS.Common.Git
         }
 
         public GitProcess(Enlistment enlistment)
-            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryRoot, enlistment.GVFSHooksRoot)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, enlistment.GVFSHooksRoot)
         {
         }
 
@@ -85,7 +85,7 @@ namespace GVFS.Common.Git
 
         public static Result Init(Enlistment enlistment)
         {
-            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryRoot + "\"");
+            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryBackingRoot + "\"");
         }
 
         public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)
@@ -155,7 +155,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual void RejectCredentials(string repoUrl, string username = null, string password = null)
+        public virtual bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("url={0}\n", repoUrl);
@@ -164,27 +164,33 @@ namespace GVFS.Common.Git
             // Credential helpers that support it can use the provided username/password values to
             // perform a check that they're being asked to delete the same stored credential that
             // the caller is asking them to erase.
-            if (username != null)
-            {
-                sb.AppendFormat("username={0}\n", username);
-            }
-
-            if (password != null)
-            {
-                sb.AppendFormat("password={0}\n", password);
-            }
+            // Ideally, we would provide these values if available, however it does not work as expected
+            // with our main credential helper - Windows GCM. With GCM for Windows, the credential acquired
+            // with credential fill for dev.azure.com URLs are not erased when the user name / password are passed in.
+            // Until the default credential helper works with this pattern, reject credential with just the URL.
 
             sb.Append("\n");
 
             string stdinConfig = sb.ToString();
 
-            this.InvokeGitOutsideEnlistment(
-                "credential reject",
+            Result result = this.InvokeGitOutsideEnlistment(
+                GenerateCredentialVerbCommand("reject"),
                 stdin => stdin.Write(stdinConfig),
                 null);
+
+            if (result.ExitCodeIsFailure)
+            {
+                tracer.RelatedWarning("Git could not reject credentials: {0}", result.Errors);
+
+                errorMessage = result.Errors;
+                return false;
+            }
+
+            errorMessage = null;
+            return true;
         }
 
-        public virtual void ApproveCredentials(string repoUrl, string username, string password)
+        public virtual bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("url={0}\n", repoUrl);
@@ -194,10 +200,21 @@ namespace GVFS.Common.Git
 
             string stdinConfig = sb.ToString();
 
-            this.InvokeGitOutsideEnlistment(
-                "credential approve",
+            Result result = this.InvokeGitOutsideEnlistment(
+                GenerateCredentialVerbCommand("approve"),
                 stdin => stdin.Write(stdinConfig),
                 null);
+
+            if (result.ExitCodeIsFailure)
+            {
+                tracer.RelatedWarning("Git could not approve credentials: {0}", result.Errors);
+
+                errorMessage = result.Errors;
+                return false;
+            }
+
+            errorMessage = null;
+            return true;
         }
 
         /// <summary>
@@ -255,7 +272,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual bool TryGetCredentials(
+        public virtual bool TryGetCredential(
             ITracer tracer,
             string repoUrl,
             out string username,
@@ -266,10 +283,10 @@ namespace GVFS.Common.Git
             password = null;
             errorMessage = null;
 
-            using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
+            using (ITracer activity = tracer.StartActivity(nameof(this.TryGetCredential), EventLevel.Informational))
             {
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
-                    $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential fill",
+                    GenerateCredentialVerbCommand("fill"),
                     stdin => stdin.Write($"url={repoUrl}\n\n"),
                     parseStdOutLine: null);
 
@@ -758,6 +775,11 @@ namespace GVFS.Common.Git
             {
                 this.executingProcess = null;
             }
+        }
+
+        private static string GenerateCredentialVerbCommand(string verb)
+        {
+            return $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential {verb}";
         }
 
         private static string ParseValue(string contents, string prefix)
