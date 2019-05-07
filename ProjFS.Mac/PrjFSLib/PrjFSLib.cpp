@@ -392,6 +392,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     }
     
     // Expand the file to the desired size
+    // Comment this out
     if (ftruncate(fileno(file), fileSize))
     {
         result = PrjFS_Result_EIOError;
@@ -634,7 +635,7 @@ PrjFS_Result PrjFS_WriteFileContents(
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
 {
     const MessageHeader* header = static_cast<const MessageHeader*>(messageMemory);
-    if (header->pathSizeBytes + sizeof(*header) != size)
+    if (header->pathSizeBytes + header->fromPathSizeBytes + sizeof(*header) != size)
     {
         fprintf(stderr, "ParseMessageMemory: invariant failed, bad message? PathSizeBytes = %u, message size = %u, expecting %zu\n",
             header->pathSizeBytes, size, header->pathSizeBytes + sizeof(*header));
@@ -642,6 +643,7 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
     }
             
     const char* path = nullptr;
+    const char* fromPath = nullptr;
     if (header->pathSizeBytes > 0)
     {
         path = static_cast<const char*>(messageMemory) + sizeof(*header);
@@ -649,7 +651,16 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
         // Path string should fit exactly in reserved memory, with nul terminator in end position
         assert(strnlen(path, header->pathSizeBytes) == header->pathSizeBytes - 1);
     }
-    return Message { header, path };
+    if (header->fromPathSizeBytes > 0)
+    {
+        fromPath = static_cast<const char*>(messageMemory) + sizeof(*header) + header->pathSizeBytes;
+        
+        // Path string should fit exactly in reserved memory, with nul terminator in end position
+        assert(strnlen(fromPath, header->fromPathSizeBytes) == header->fromPathSizeBytes - 1);
+    }
+    
+    
+    return Message { header, path, fromPath };
 }
 
 static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
@@ -760,27 +771,22 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                 relativeFromPath = GetRelativePath(request.fromPath, s_virtualizationRootFullPath.c_str());
             }
             
-#if DEBUG
-            cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ") << request.fromPath << " -> " << absolutePath << " (absolute), ";
-            if (relativeFromPath != nullptr)
-            {
-                cout << "from this root (relative path " << relativeFromPath << ") ";
-            }
-            if (relativePath != nullptr)
-            {
-                cout << "into this root (relative path " << relativePath << ")";
-            }
+#ifdef DEBUG
+
+            cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ") << absoluteFromPath << " -> " << absolutePath << " (absolute), ";
+            cout << "from this root (relative from path " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ") ";
+            cout << "from this root (relative path " << (relativePath == nullptr ? "[NULL]" : relativePath) << ") ";
             cout << endl;
 #endif
             
-            if (relativePath != nullptr)
+            if (relativePath != nullptr || relativeFromPath != nullptr)
             {
                 result = HandleNewFileInRootNotification(
                     requestHeader,
                     relativePath,
                     absolutePath,
                     relativeFromPath,
-                    nullptr,  // Not a directory
+                    false,  // Not a directory
                     KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             }
             
@@ -1044,17 +1050,21 @@ static PrjFS_Result HandleNewFileInRootNotification(
     cout
         << "HandleNewFileInRootNotification: "
         << absolutePath
-        << " (root-relative: " << relativePath << ")"
+        << " (root-relative: " << (relativePath == nullptr ? "[NULL]" : relativePath) << ")"
+        << " (root-relative from: " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << " notificationType: " << NotificationTypeToString(notificationType)
         << " isDirectory: " << isDirectory << endl;
 #endif
 
-    // Whenever a new file shows up in the root, we need to check if its ancestor
-    // directories are flagged as in root.  If they are not, flag them as in root and
-    // notify the provider
-    FindNewFoldersInRootAndNotifyProvider(request, relativePath);
+    if (relativePath != nullptr)
+    {
+        // Whenever a new file shows up in the root, we need to check if its ancestor
+        // directories are flagged as in root.  If they are not, flag them as in root and
+        // notify the provider
+        FindNewFoldersInRootAndNotifyProvider(request, relativePath);
+    }
     
     PrjFS_Result result = HandleFileNotification(
         request,
@@ -1078,6 +1088,10 @@ static PrjFS_Result HandleFileNotification(
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
+    // Don't send null to providers
+    relativePath = relativePath != nullptr ? relativePath : "";
+    relativeFromPath = relativeFromPath != nullptr ? relativeFromPath : "";
+    
 #ifdef DEBUG
     cout
         << "PrjFSLib.HandleFileNotification: "

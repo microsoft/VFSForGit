@@ -575,12 +575,16 @@ errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Mes
     
     if (nullptr != userClient)
     {
-        uint32_t messageSize = sizeof(*message.messageHeader) + message.messageHeader->pathSizeBytes;
+        uint32_t messageSize = sizeof(*message.messageHeader) + message.messageHeader->pathSizeBytes + message.messageHeader->fromPathSizeBytes;
         uint8_t messageMemory[messageSize];
         memcpy(messageMemory, message.messageHeader, sizeof(*message.messageHeader));
         if (message.messageHeader->pathSizeBytes > 0)
         {
             memcpy(messageMemory + sizeof(*message.messageHeader), message.path, message.messageHeader->pathSizeBytes);
+        }
+        if (message.messageHeader->fromPathSizeBytes > 0)
+        {
+            memcpy(messageMemory + sizeof(*message.messageHeader) + message.messageHeader->pathSizeBytes, message.fromPath, message.messageHeader->fromPathSizeBytes);
         }
         
         ProviderUserClient_SendMessage(userClient, messageMemory, messageSize);
