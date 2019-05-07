@@ -120,14 +120,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     
     for (int i = 0; i < actionCount; i++)
     {
-        HandleVnodeOperation(
+        XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
             actions[i],
             reinterpret_cast<uintptr_t>(context),
             reinterpret_cast<uintptr_t>(testFileVnode.get()),
             0,
-            0);
+            0) == KAUTH_RESULT_DEFER);
         XCTAssertTrue(
             MockCalls::DidCallFunction(
                 ProviderMessaging_TrySendRequestAndWaitForResponse,
@@ -163,14 +163,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     
     for (int i = 0; i < actionCount; i++)
     {
-        HandleVnodeOperation(
+        XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
             actions[i],
             reinterpret_cast<uintptr_t>(context),
             reinterpret_cast<uintptr_t>(testFileVnode.get()),
             0,
-            0);
+            0) == KAUTH_RESULT_DEFER);
         XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
         MockCalls::Clear();
     }
@@ -195,14 +195,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     
     for (int i = 0; i < actionCount; i++)
     {
-        HandleVnodeOperation(
+        XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
             actions[i],
             reinterpret_cast<uintptr_t>(context),
             reinterpret_cast<uintptr_t>(testFileVnode.get()),
             0,
-            0);
+            0) == KAUTH_RESULT_DEFER);
         XCTAssertFalse(
             MockCalls::DidCallFunction(
                 ProviderMessaging_TrySendRequestAndWaitForResponse,
@@ -238,14 +238,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     
     for (int i = 0; i < actionCount; i++)
     {
-        HandleVnodeOperation(
+        XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
             actions[i],
             reinterpret_cast<uintptr_t>(context),
             reinterpret_cast<uintptr_t>(testFileVnode.get()),
             0,
-            0);
+            0) == KAUTH_RESULT_DEFER);
         XCTAssertFalse(
             MockCalls::DidCallFunction(
                 ProviderMessaging_TrySendRequestAndWaitForResponse,
@@ -277,14 +277,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     
     for (int i = 0; i < actionCount; i++)
     {
-        HandleVnodeOperation(
+        XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
             actions[i],
             reinterpret_cast<uintptr_t>(context),
             reinterpret_cast<uintptr_t>(testFileVnode.get()),
             0,
-            0);
+            0) == KAUTH_RESULT_DEFER);
         XCTAssertFalse(
             MockCalls::DidCallFunction(
                 ProviderMessaging_TrySendRequestAndWaitForResponse,
@@ -303,14 +303,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 
 - (void) testDeleteFile {
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
-    HandleVnodeOperation(
+    XCTAssertTrue(HandleVnodeOperation(
         nullptr,
         nullptr,
         KAUTH_VNODE_DELETE,
         reinterpret_cast<uintptr_t>(context),
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
         0,
-        0);
+        0) == KAUTH_RESULT_DEFER);
     XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
@@ -340,14 +340,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 
 - (void) testDeleteDir {
     testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
-    HandleVnodeOperation(
+    XCTAssertTrue(HandleVnodeOperation(
         nullptr,
         nullptr,
         KAUTH_VNODE_DELETE,
         reinterpret_cast<uintptr_t>(context),
         reinterpret_cast<uintptr_t>(testDirVnode.get()),
         0,
-        0);
+        0) == KAUTH_RESULT_DEFER);
     XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
@@ -389,14 +389,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     
     for (int i = 0; i < actionCount; i++)
     {
-        HandleVnodeOperation(
+        XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
             actions[i],
             reinterpret_cast<uintptr_t>(context),
             reinterpret_cast<uintptr_t>(testDirVnode.get()),
             0,
-            0);
+            0) == KAUTH_RESULT_DEFER);
         XCTAssertTrue(
             MockCalls::DidCallFunction(
                 ProviderMessaging_TrySendRequestAndWaitForResponse,
@@ -431,14 +431,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 
     for (int i = 0; i < actionCount; i++)
     {
-        HandleVnodeOperation(
+        XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
             actions[i],
             reinterpret_cast<uintptr_t>(context),
             reinterpret_cast<uintptr_t>(testDirVnode.get()),
             0,
-            0);
+            0) == KAUTH_RESULT_DEFER);
         XCTAssertFalse(
             MockCalls::DidCallFunction(
                 ProviderMessaging_TrySendRequestAndWaitForResponse,
@@ -469,14 +469,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     
     for (int i = 0; i < actionCount; i++)
     {
-        HandleVnodeOperation(
+        XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
             actions[i],
             reinterpret_cast<uintptr_t>(context),
             reinterpret_cast<uintptr_t>(testDirVnode.get()),
             0,
-            0);
+            0) == KAUTH_RESULT_DEFER);
         XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
     }
 }
@@ -485,14 +485,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     // If we have FileXattrData attribute we should trigger MessageType_KtoU_NotifyFilePreConvertToFull to remove it
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     SetPrjFSFileXattrData(testFileVnode);
-    HandleVnodeOperation(
+    XCTAssertTrue(HandleVnodeOperation(
         nullptr,
         nullptr,
         KAUTH_VNODE_WRITE_DATA,
         reinterpret_cast<uintptr_t>(context),
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
         0,
-        0);
+        0) == KAUTH_RESULT_DEFER);
         XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
@@ -524,14 +524,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
     // If we have FileXattrData attribute we should trigger MessageType_KtoU_NotifyFilePreConvertToFull to remove it
     SetPrjFSFileXattrData(testFileVnode);
-    HandleVnodeOperation(
+    XCTAssertTrue(HandleVnodeOperation(
         nullptr,
         nullptr,
         KAUTH_VNODE_WRITE_DATA,
         reinterpret_cast<uintptr_t>(context),
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
         0,
-        0);
+        0) == KAUTH_RESULT_DEFER);
     XCTAssertFalse(
        MockCalls::DidCallFunction(
             ProviderMessaging_TrySendRequestAndWaitForResponse,
@@ -561,14 +561,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 
 -(void) testWriteFileFull {
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
-    HandleVnodeOperation(
+    XCTAssertTrue(HandleVnodeOperation(
         nullptr,
         nullptr,
         KAUTH_VNODE_WRITE_DATA,
         reinterpret_cast<uintptr_t>(context),
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
         0,
-        0);
+        0) == KAUTH_RESULT_DEFER);
     XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
 }
 
@@ -587,14 +587,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     for (int i = 0; i < actionCount; i++)
     {
         // Verify for File node
-        HandleVnodeOperation(
+        XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
             actions[i],
             reinterpret_cast<uintptr_t>(context),
             reinterpret_cast<uintptr_t>(testFileVnode.get()),
             0,
-            0);
+            0) == KAUTH_RESULT_DEFER);
         XCTAssertFalse(
             MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
         MockCalls::Clear();
