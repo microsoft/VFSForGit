@@ -26,6 +26,13 @@ namespace GVFS.Common.Maintenance
             this.forceRun = forceRun;
         }
 
+        public enum CreatePackResult
+        {
+            Succeess,
+            UnknownFailure,
+            CorruptObject
+        }
+
         public override string Area => nameof(LooseObjectsStep);
 
         // 50,000 was found to be the optimal time taking ~5 minutes
@@ -51,15 +58,8 @@ namespace GVFS.Common.Maintenance
             return count;
         }
 
-        /// <summary>
-        /// Writes loose object Ids to streamWriter
-        /// </summary>
-        /// <param name="streamWriter">Writer to which SHAs are written</param>
-        /// <returns>The number of loose objects SHAs written to the stream</returns>
-        public int WriteLooseObjectIds(StreamWriter streamWriter)
+        public IEnumerable<string> GetBatchOfLooseObjects(int batchSize)
         {
-            int looseObjectsPutIntoPackFiles = 0;
-
             // Find loose Objects
             foreach (DirectoryItemInfo directoryItemInfo in this.Context.FileSystem.ItemsInDirectory(this.Context.Enlistment.GitObjectsRoot))
             {
@@ -79,20 +79,35 @@ namespace GVFS.Common.Maintenance
                                 continue;
                             }
 
-                            looseObjectsPutIntoPackFiles++;
-                            streamWriter.Write(objectId + "\n");
+                            batchSize--;
+                            yield return objectId;
 
-                            // Stop when we hit the limit.  The next run will pack more files.
-                            if (looseObjectsPutIntoPackFiles >= this.MaxLooseObjectsInPack)
+                            if (batchSize <= 0)
                             {
-                                return looseObjectsPutIntoPackFiles;
+                                yield break;
                             }
                         }
                     }
                 }
             }
+        }
 
-            return looseObjectsPutIntoPackFiles;
+        /// <summary>
+        /// Writes loose object Ids to streamWriter
+        /// </summary>
+        /// <param name="streamWriter">Writer to which SHAs are written</param>
+        /// <returns>The number of loose objects SHAs written to the stream</returns>
+        public int WriteLooseObjectIds(StreamWriter streamWriter)
+        {
+            int count = 0;
+
+            foreach (string objectId in this.GetBatchOfLooseObjects(this.MaxLooseObjectsInPack))
+            {
+                streamWriter.Write(objectId + "\n");
+                count++;
+            }
+
+            return count;
         }
 
         public bool TryGetLooseObjectId(string directoryName, string filePath, out string objectId)
@@ -110,18 +125,67 @@ namespace GVFS.Common.Maintenance
         /// Creates a pack file from loose objects
         /// </summary>
         /// <returns>The number of loose objects added to the pack file</returns>
-        public int CreateLooseObjectsPackFile()
+        public CreatePackResult TryCreateLooseObjectsPackFile(out int objectsAddedToPack)
         {
-            int objectsAddedToPack = 0;
+            int localObjectCount = 0;
 
             GitProcess.Result result = this.RunGitCommand(
                 (process) => process.PackObjects(
                     "from-loose",
                     this.Context.Enlistment.GitObjectsRoot,
-                    (StreamWriter writer) => objectsAddedToPack = this.WriteLooseObjectIds(writer)),
+                    (StreamWriter writer) => localObjectCount = this.WriteLooseObjectIds(writer)),
                 nameof(GitProcess.PackObjects));
 
-            return objectsAddedToPack;
+            if (result.ExitCodeIsSuccess)
+            {
+                objectsAddedToPack = localObjectCount;
+                return CreatePackResult.Succeess;
+            }
+            else
+            {
+                objectsAddedToPack = 0;
+
+                if (result.Errors.Contains("is corrupt"))
+                {
+                    return CreatePackResult.CorruptObject;
+                }
+
+                return CreatePackResult.UnknownFailure;
+            }
+        }
+
+        public string GetLooseObjectFileName(string objectId)
+        {
+            return Path.Combine(
+                            this.Context.Enlistment.GitObjectsRoot,
+                            objectId.Substring(0, 2),
+                            objectId.Substring(2, GVFSConstants.ShaStringLength - 2));
+        }
+
+        public void ClearCorruptLooseObjects(EventMetadata metadata)
+        {
+            int numDeletedObjects = 0;
+            int numFailedDeletes = 0;
+
+            foreach (string objectId in this.GetBatchOfLooseObjects(this.MaxLooseObjectsInPack))
+            {
+                if (!this.Context.Repository.ObjectExists(objectId))
+                {
+                    string objectFile = this.GetLooseObjectFileName(objectId);
+
+                    if (this.Context.FileSystem.TryDeleteFile(objectFile))
+                    {
+                        numDeletedObjects++;
+                    }
+                    else
+                    {
+                        numFailedDeletes++;
+                    }
+                }
+            }
+
+            metadata.Add("RemovedCorruptObjects", numDeletedObjects);
+            metadata.Add("NumFailedDeletes", numFailedDeletes);
         }
 
         protected override void PerformMaintenance()
@@ -148,10 +212,10 @@ namespace GVFS.Common.Maintenance
                     }
 
                     int beforeLooseObjectsCount = this.CountLooseObjects();
-                    GitProcess.Result result = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.PrunePacked));
+                    GitProcess.Result gitResult = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.PrunePacked));
                     int afterLooseObjectsCount = this.CountLooseObjects();
 
-                    int objectsAddedToPack = this.CreateLooseObjectsPackFile();
+                    CreatePackResult createPackResult = this.TryCreateLooseObjectsPackFile(out int objectsAddedToPack);
 
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("GitObjectsRoot", this.Context.Enlistment.GitObjectsRoot);
@@ -159,6 +223,13 @@ namespace GVFS.Common.Maintenance
                     metadata.Add("EndingCount", afterLooseObjectsCount);
                     metadata.Add("RemovedCount", beforeLooseObjectsCount - afterLooseObjectsCount);
                     metadata.Add("LooseObjectsPutIntoPackFile", objectsAddedToPack);
+                    metadata.Add("CreatePackResult", createPackResult.ToString());
+
+                    if (createPackResult == CreatePackResult.CorruptObject)
+                    {
+                        this.ClearCorruptLooseObjects(metadata);
+                    }
+
                     activity.RelatedEvent(EventLevel.Informational, $"{this.Area}_{nameof(this.PerformMaintenance)}", metadata, Keywords.Telemetry);
                     this.SaveLastRunTimeToFile();
                 }
