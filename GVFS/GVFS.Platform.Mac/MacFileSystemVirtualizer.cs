@@ -218,7 +218,7 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
             this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
-            this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
+            this.virtualizationInstance.OnHardLinkCreated = this.NotifyHardLinkCreated;
             this.virtualizationInstance.OnFilePreConvertToFull = this.NotifyFilePreConvertToFull;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
@@ -551,10 +551,10 @@ namespace GVFS.Platform.Mac
                 isDirectory: isDirectory);
         }
 
-        private void OnHardLinkCreated(string relativeNewLinkPath)
+        private void NotifyHardLinkCreated(string relativeNewLinkPath, string relativeFromPath)
         {
             this.OnHardLinkCreated(
-                relativeExistingFilePath: string.Empty,
+                relativeExistingFilePath: relativeFromPath,
                 relativeNewLinkPath: relativeNewLinkPath);
         }
 
