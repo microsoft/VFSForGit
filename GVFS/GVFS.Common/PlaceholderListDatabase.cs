@@ -47,7 +47,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// The EstimatedCount is "estimated" because it's simply (# adds - # deletes).  There is nothing to prevent
+        /// The Count is "estimated" because it's simply (# adds - # deletes).  There is nothing to prevent
         /// multiple adds or deletes of the same path from being double counted
         /// </summary>
         public int Count { get; private set; }

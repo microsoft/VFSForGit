@@ -124,7 +124,7 @@ namespace GVFS.Virtualization.Projection
             GitLink,
         }
 
-        public int EstimatedPlaceholderCount
+        public int PlaceholderCount
         {
             get
             {

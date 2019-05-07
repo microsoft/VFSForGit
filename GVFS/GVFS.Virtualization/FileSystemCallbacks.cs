@@ -295,7 +295,7 @@ namespace GVFS.Virtualization
             }
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
-            metadata.Add("PlaceholderCount", this.GitIndexProjection.EstimatedPlaceholderCount);
+            metadata.Add("PlaceholderCount", this.GitIndexProjection.PlaceholderCount);
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {
                 eventLevel = EventLevel.Informational;
