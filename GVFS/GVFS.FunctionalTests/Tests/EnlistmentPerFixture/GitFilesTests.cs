@@ -391,7 +391,61 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
         }
 
-        [DllImport("GVFS.NativeTests.dll", CharSet = CharSet.Unicode)]
+        [TestCase, Order(18)]
+        public void HardlinkFromOutsideRepoToInside()
+        {
+            string fileName = "OutsideRepoToInside.txt";
+            string fileOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileName);
+            this.fileSystem.WriteAllText(fileOutsideRepo, "Contents for the new file");
+            fileOutsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileHardlinkedInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            this.fileSystem.CreateHardLink(fileHardlinkedInsideRepo, fileOutsideRepo);
+            fileHardlinkedInsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+        }
+
+        [TestCase, Order(19)]
+        public void HardlinkFromInsideRepoToInside()
+        {
+            string fileName = "InsideRepoToOutside.txt";
+            string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            this.fileSystem.WriteAllText(fileInsideRepo, "Contents for the new file");
+            fileInsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileHardLinkedOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileName);
+            this.fileSystem.CreateHardLink(fileHardLinkedOutsideRepo, fileInsideRepo);
+            fileHardLinkedOutsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+        }
+
+        [TestCase, Order(20)]
+        public void HardlinkInsideRepo()
+        {
+            string fileName = "InsideRepo.txt";
+            string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            this.fileSystem.WriteAllText(fileInsideRepo, "Contents for the new file");
+            fileInsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileNameLink = "InsideRepoLink.txt";
+            string fileLinkInsideRepo = this.Enlistment.GetVirtualPathTo(fileNameLink);
+            this.fileSystem.CreateHardLink(fileLinkInsideRepo, fileInsideRepo);
+            fileLinkInsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileNameLink);
+        }
+    }
+
+    [DllImport("GVFS.NativeTests.dll", CharSet = CharSet.Unicode)]
         private static extern bool SupersedeFile(string path, [MarshalAs(UnmanagedType.LPStr)]string newContent);
 
         private void VerifyWorktreeBit(string path, char expectedStatus)
