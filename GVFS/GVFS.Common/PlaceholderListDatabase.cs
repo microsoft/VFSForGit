@@ -19,13 +19,13 @@ namespace GVFS.Common
         private const char PathTerminator = '\0';
 
         // This list holds placeholder entries that are created between calls to
-        // GetAllEntriesAndPrepToWriteAllEntries and WriteAllEntriesAndFlush.
+        // GetAllEntries and WriteAllEntriesAndFlush.
         //
         //    Example:
         //
         //       1) VFS4G parses the updated index (as part of a projection change)
         //       2) VFS4G starts the work to update placeholders
-        //       3) VFS4G calls GetAllEntriesAndPrepToWriteAllEntries
+        //       3) VFS4G calls GetAllEntries
         //       4) VFS4G starts updating placeholders
         //       5) Some application reads a pure-virtual file (creating a new placeholder) while VFS4G is updating existing placeholders.
         //          That new placeholder is added to placeholderChangesWhileRebuildingList.
@@ -35,7 +35,7 @@ namespace GVFS.Common
         //
         // This scenario is covered in the unit test PlaceholderDatabaseTests.HandlesRaceBetweenAddAndWriteAllEntries
         //
-        // Because of this list, callers must always call WriteAllEntries after calling GetAllEntriesAndPrepToWriteAllEntries.
+        // Because of this list, callers must always call WriteAllEntries after calling GetAllEntries.
         //
         // This list must always be accessed from inside one of FileBasedCollection's synchronizedAction callbacks because
         // there is race potential between creating the queue, adding to the queue, and writing to the data file.
@@ -163,13 +163,13 @@ namespace GVFS.Common
         /// Gets all entries and prepares the PlaceholderListDatabase for a call to WriteAllEntriesAndFlush.
         /// </summary>
         /// <exception cref="InvalidOperationException">
-        /// GetAllEntriesAndPrepToWriteAllEntries was called (a second time) without first calling WriteAllEntriesAndFlush.
+        /// GetAllEntries was called (a second time) without first calling WriteAllEntriesAndFlush.
         /// </exception>
         /// <remarks>
         /// Usage notes:
-        ///     - All calls to GetAllEntriesAndPrepToWriteAllEntries must be paired with a subsequent call to WriteAllEntriesAndFlush
+        ///     - All calls to GetAllEntries must be paired with a subsequent call to WriteAllEntriesAndFlush
         ///     - If WriteAllEntriesAndFlush is *not* called entries that were added to the PlaceholderListDatabase after
-        ///       calling GetAllEntriesAndPrepToWriteAllEntries will be lost
+        ///       calling GetAllEntries will be lost
         /// </remarks>
         public void GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders)
         {
