@@ -166,6 +166,7 @@ typedef PrjFS_Result (PrjFS_GetFileStreamCallback)(
 typedef PrjFS_Result (PrjFS_NotifyOperationCallback)(
     _In_    unsigned long                           commandId,
     _In_    const char*                             relativePath,
+    _In_    const char*                             relativeFromPath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
     _In_    int                                     triggeringProcessId,
