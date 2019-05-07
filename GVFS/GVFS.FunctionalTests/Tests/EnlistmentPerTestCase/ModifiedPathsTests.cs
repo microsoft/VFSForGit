@@ -164,6 +164,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                     "A .gitattributes",
                     "A LinkToReadme.md",
                     "A LinkToFileOutsideSrc.txt",
+                    "A Readme.md",
+                    "A GVFS/GVFS/Program.cs",
                 };
 
             // Create a link from src\LinkToReadme.md to src\Readme.md
