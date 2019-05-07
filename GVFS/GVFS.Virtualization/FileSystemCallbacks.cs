@@ -133,7 +133,7 @@ namespace GVFS.Virtualization
             this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Logs.Head);
 
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("placeholders.Count", placeholders.EstimatedCount);
+            metadata.Add("placeholders.Count", placeholders.Count);
             metadata.Add("background.Count", this.backgroundFileSystemTaskRunner.Count);
             metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(FileSystemCallbacks)} created");
             this.context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(FileSystemCallbacks)}_Constructor", metadata);
@@ -302,7 +302,7 @@ namespace GVFS.Virtualization
             }
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
-            metadata.Add("PlaceholderCount", this.GitIndexProjection.EstimatedPlaceholderCount);
+            metadata.Add("PlaceholderCount", this.GitIndexProjection.PlaceholderCount);
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {
                 eventLevel = EventLevel.Informational;
