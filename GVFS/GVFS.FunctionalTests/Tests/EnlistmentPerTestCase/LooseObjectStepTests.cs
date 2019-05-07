@@ -7,10 +7,10 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
+namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
-    public class LooseObjectStepTests : TestsWithEnlistmentPerFixture
+    public class LooseObjectStepTests : TestsWithEnlistmentPerTestCase
     {
         private const string TempPackFolder = "tempPacks";
         private FileSystemRunner fileSystem;
@@ -28,28 +28,28 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private string TempPackRoot => Path.Combine(this.PackRoot, TempPackFolder);
 
         [TestCase]
-        [Order(1)]
-        public void NoLooseObjectsDoesNothing()
+        public void RemoveLooseObjectsInPackFiles()
         {
-            this.DeleteFiles(this.GetLooseObjectFiles());
-            this.GetLooseObjectFiles().Count.ShouldEqual(0);
-            int startingPackFileCount = this.CountPackFiles();
+            this.ClearAllObjects();
 
+            // Copy and expand one pack
+            this.ExpandOneTempPack(copyPackBackToPackDirectory: true);
+            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
+            this.CountPackFiles().ShouldEqual(1);
+
+            // Cleanup should delete all loose objects, since they are in the packfile
             this.Enlistment.LooseObjectStep();
 
             this.GetLooseObjectFiles().Count.ShouldEqual(0);
-            this.CountPackFiles().ShouldEqual(startingPackFileCount);
+            this.CountPackFiles().ShouldEqual(1);
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
+            this.CountPackFiles().ShouldEqual(1);
         }
 
         [TestCase]
-        [Order(2)]
         public void PutLooseObjectsInPackFiles()
         {
-            // Delete/Move any starting loose objects and packfiles
-            this.DeleteFiles(this.GetLooseObjectFiles());
-            this.MovePackFilesToTemp();
-            this.GetLooseObjectFiles().Count.ShouldEqual(0);
-            this.CountPackFiles().ShouldEqual(0);
+            this.ClearAllObjects();
 
             // Expand one pack, and verify we have loose objects
             this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
@@ -70,39 +70,22 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Order(3)]
-        public void RemoveLooseObjectsInPackFiles()
+        public void NoLooseObjectsDoesNothing()
         {
-            // Delete/Move any starting loose objects and packfiles
             this.DeleteFiles(this.GetLooseObjectFiles());
-            this.MovePackFilesToTemp();
             this.GetLooseObjectFiles().Count.ShouldEqual(0);
-            this.CountPackFiles().ShouldEqual(0);
+            int startingPackFileCount = this.CountPackFiles();
 
-            // Copy and expand one pack
-            this.ExpandOneTempPack(copyPackBackToPackDirectory: true);
-            Assert.AreNotEqual(0, this.GetLooseObjectFiles().Count);
-            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
-            this.CountPackFiles().ShouldEqual(1);
-
-            // Cleanup should delete all loose objects, since they are in the packfile
             this.Enlistment.LooseObjectStep();
 
-            Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
-            Assert.AreEqual(1, this.CountPackFiles());
             this.GetLooseObjectFiles().Count.ShouldEqual(0);
-            this.CountPackFiles().ShouldEqual(1);
+            this.CountPackFiles().ShouldEqual(startingPackFileCount);
         }
 
         [TestCase]
-        [Order(4)]
         public void CorruptLooseObjectIsDeleted()
         {
-            // Delete/Move any starting loose objects and packfiles
-            this.DeleteFiles(this.GetLooseObjectFiles());
-            this.MovePackFilesToTemp();
-            this.GetLooseObjectFiles().Count.ShouldEqual(0, "incorrect number of loose objects after setup");
-            this.CountPackFiles().ShouldEqual(0, "incorrect number of packs after setup");
+            this.ClearAllObjects();
 
             // Expand one pack, and verify we have loose objects
             this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
@@ -138,6 +121,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.LooseObjectStep();
 
             this.GetLooseObjectFiles().Count.ShouldEqual(0, "Incorrect number of loose objects after third loose object step");
+        }
+
+        private void ClearAllObjects()
+        {
+            // Delete/Move any starting loose objects and packfiles
+            this.DeleteFiles(this.GetLooseObjectFiles());
+            this.MovePackFilesToTemp();
+            this.GetLooseObjectFiles().Count.ShouldEqual(0, "incorrect number of loose objects after setup");
+            this.CountPackFiles().ShouldEqual(0, "incorrect number of packs after setup");
         }
 
         private List<string> GetLooseObjectFiles()
@@ -176,21 +168,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 string path2 = Path.Combine(this.TempPackRoot, Path.GetFileName(file));
 
-                try
-                {
-                    File.Move(file, path2);
-                }
-                catch (IOException e)
-                {
-                    if (e.Message.IndexOf("already exists") >= 0)
-                    {
-                        File.Delete(file);
-                    }
-                    else
-                    {
-                        throw e;
-                    }
-                }
+                File.Move(file, path2);
             }
         }
 
