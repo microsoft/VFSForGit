@@ -269,7 +269,7 @@ namespace GVFS.Virtualization.FileSystem
         {
             try
             {
-                if (!string.IsNullOrEmpty(relativeNewLinkPath))
+                if (!string.IsNullOrEmpty(relativeNewLinkPath) || !string.IsNullOrEmpty(relativeExistingFilePath))
                 {
                     bool newLinkPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeNewLinkPath);
                     bool existingPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeExistingFilePath);
