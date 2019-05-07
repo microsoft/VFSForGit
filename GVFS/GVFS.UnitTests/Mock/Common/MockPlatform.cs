@@ -201,6 +201,11 @@ namespace GVFS.UnitTests.Mock.Common
             {
                 get { return "MockGVFS" + this.ExecutableExtension; }
             }
+
+            public override string ProgramLocaterCommand
+            {
+                get { return "MockWhere"; }
+            }
         }
     }
 }

@@ -199,6 +199,12 @@ namespace GVFS.Platform.POSIX
             {
                 get { return "gvfs"; }
             }
+
+            public override string ProgramLocaterCommand
+            {
+                get { return "which"; }
+            }
+
         }
     }
 }

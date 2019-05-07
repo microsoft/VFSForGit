@@ -153,7 +153,7 @@ namespace GVFS.Upgrader
 
         protected virtual bool TryRunGVFSWithArgs(string args, out string consoleError)
         {
-            string gvfsDirectory = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSExecutableName);
+            string gvfsDirectory = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSExecutableName);
             if (!string.IsNullOrEmpty(gvfsDirectory))
             {
                 string gvfsPath = Path.Combine(gvfsDirectory, GVFSPlatform.Instance.Constants.GVFSExecutableName);
