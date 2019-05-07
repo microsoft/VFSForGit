@@ -67,7 +67,7 @@ Note that VFS for Git on Mac is under active development.
 
 * If you still do not have the `dotnet` cli `>= v2.1.300` installed [manually install it]. You can check what version you have with `dotnet --version`.(https://www.microsoft.com/net/download/dotnet-core/2.1)
 
-* If you're using `Xcode` for the first time, you may have to login to `Xcode` with your Apple ID to generate a codesigning certificate. You can do this by launching `Xcode.app`, opening the `ProjFS.Mac/PrjFS.xcodeproj` and trying to build. You can find the signing options in the General->Accounts tab of the project's settings.
+* If you're using `Xcode` for the first time, you may have to login to `Xcode` with your Apple ID to generate a codesigning certificate. You can do this by launching `Xcode.app`, opening the `ProjFS.Mac/PrjFS.xcodeproj` and trying to build. You can find the signing options in the `General`->`Accounts` tab of the project's settings.
 
 * Create a `VFSForGit` directory and Clone VFSForGit into a directory called `src` inside it:
   ```
@@ -78,7 +78,7 @@ Note that VFS for Git on Mac is under active development.
   ```
 
 * Prep your machine to use VFS for Git. The following are all done by the script below.
-  * install Homebrew
+  * install [Homebrew](https://brew.sh/)
   * install and setup the Git Credential Manager (with `brew`)
   * install/update Java (with `brew`)
   * install a VFS for Git aware version of Git
@@ -87,7 +87,7 @@ Note that VFS for Git on Mac is under active development.
   Scripts/Mac/PrepFunctionalTests.sh
   ```
 
-* From the src directory run
+* From the `src` directory run
 
   ```
   Scripts/Mac/BuildGVFSForMac.sh [Debug|Release]
@@ -112,7 +112,7 @@ Note that VFS for Git on Mac is under active development.
   **This is dangerous and very bad for the security of your machine. Do not do this on any production machine! If you no longer need to develop VFS for Git on Mac we recommend re-enabling SIP ASAP.**
 
   To disable SIP boot into recovery mode (`[Win/⌘] + R` while booting your Mac).
-  Once booted into recovery mode open Utilities -> Terminal to launch a terminal. Enter:
+  Once booted into recovery mode open `Utilities` -> `Terminal` to launch a terminal. Enter:
 
   ```
   csrutil disable
