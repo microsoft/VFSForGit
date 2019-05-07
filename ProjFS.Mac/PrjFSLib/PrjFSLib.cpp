@@ -769,28 +769,22 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
-            const char* absoluteFromPath = request.paths[1];
+            const char* absoluteFromPath = request.paths[MessagePath_From];
             const char* relativeFromPath = nullptr;
             if (absoluteFromPath != nullptr)
             {
-                relativeFromPath = GetRelativePath(request.paths[MessagePath_From], s_virtualizationRootFullPath.c_str());
+                relativeFromPath = GetRelativePath(absoluteFromPath, s_virtualizationRootFullPath.c_str());
             }
             
 #if DEBUG
             cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ") << request.paths[MessagePath_From] << " -> " << absolutePath << " (absolute), ";
-            if (relativeFromPath != nullptr)
-            {
-                cout << "from this root (relative path " << relativeFromPath << ") ";
-            }
-            if (relativePath != nullptr)
-            {
-                cout << "into this root (relative path " << relativePath << ")";
-            }
+            cout << "from this root (relative from path " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ") ";
+            cout << "from this root (relative path " << (relativePath == nullptr ? "[NULL]" : relativePath) << ") ";
             cout << endl;
 #endif
             bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
             
-            if (relativePath != nullptr)
+            if (relativePath != nullptr || relativeFromPath != nullptr)
             {
                 result = HandleNewFileInRootNotification(
                     requestHeader,
@@ -1057,17 +1051,21 @@ static PrjFS_Result HandleNewFileInRootNotification(
     cout
         << "HandleNewFileInRootNotification: "
         << absolutePath
-        << " (root-relative: " << relativePath << ")"
+        << " (root-relative: " << (relativePath == nullptr ? "[NULL]" : relativePath) << ")"
+        << " (root-relative from: " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << " notificationType: " << NotificationTypeToString(notificationType)
         << " isDirectory: " << isDirectory << endl;
 #endif
 
-    // Whenever a new file shows up in the root, we need to check if its ancestor
-    // directories are flagged as in root.  If they are not, flag them as in root and
-    // notify the provider
-    FindNewFoldersInRootAndNotifyProvider(request, relativePath);
+    if (relativePath != nullptr)
+    {
+        // Whenever a new file shows up in the root, we need to check if its ancestor
+        // directories are flagged as in root.  If they are not, flag them as in root and
+        // notify the provider
+        FindNewFoldersInRootAndNotifyProvider(request, relativePath);
+    }
     
     PrjFS_Result result = HandleFileNotification(
         request,
@@ -1091,6 +1089,10 @@ static PrjFS_Result HandleFileNotification(
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
+    // Don't send null to providers
+    relativePath = relativePath != nullptr ? relativePath : "";
+    relativeFromPath = relativeFromPath != nullptr ? relativeFromPath : "";
+    
 #ifdef DEBUG
     cout
         << "PrjFSLib.HandleFileNotification: "
