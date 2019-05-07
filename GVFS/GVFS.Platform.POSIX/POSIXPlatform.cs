@@ -205,6 +205,10 @@ namespace GVFS.Platform.POSIX
                 get { return "which"; }
             }
 
+            public override HashSet<string> UpgradeBlockingProcesses
+            {
+                get { return new HashSet<string> { "GVFS.Mount", "git", "wish" }; }
+            }
         }
     }
 }

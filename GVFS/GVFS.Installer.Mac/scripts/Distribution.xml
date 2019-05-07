@@ -34,7 +34,7 @@
         
         function GetBlockingProcesses()
         {
-            var watchList = [ "gvfs", "GVFS.Mount", "git", "gitk", "Wish" ];
+            var watchList = [ "GVFS.Mount", "git", "gitk", "Wish" ];
             var blockingProcesses = new Array();
             for (var process of watchList)
             {
