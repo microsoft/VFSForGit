@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.Git;
 using GVFS.Virtualization;
 using GVFS.Virtualization.Background;
@@ -14,20 +15,12 @@ namespace GVFS.UnitTests.Mock.FileSystem
             GVFSContext context,
             GVFSGitObjects gitObjects,
             RepoMetadata repoMetadata,
-            FileSystemVirtualizer fileSystemVirtualizer)
-            : base(context, gitObjects, repoMetadata, fileSystemVirtualizer, null)
-        {
-        }
-
-        public MockFileSystemCallbacks(
-            GVFSContext context,
-            GVFSGitObjects gitObjects,
-            RepoMetadata repoMetadata,
             BlobSizes blobSizes,
             GitIndexProjection gitIndexProjection,
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
-            FileSystemVirtualizer fileSystemVirtualizer)
-            : base(context, gitObjects, repoMetadata, blobSizes, gitIndexProjection, backgroundFileSystemTaskRunner, fileSystemVirtualizer)
+            FileSystemVirtualizer fileSystemVirtualizer,
+            IPlaceholderDatabase placeholderDatabase)
+            : base(context, gitObjects, repoMetadata, blobSizes, gitIndexProjection, backgroundFileSystemTaskRunner, fileSystemVirtualizer, placeholderDatabase)
         {
         }
 

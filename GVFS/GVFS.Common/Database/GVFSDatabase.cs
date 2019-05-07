@@ -1,36 +1,26 @@
-﻿using GVFS.Common.FileSystem;
-using GVFS.Common.Tracing;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using System;
+using System.Data;
 using System.IO;
 
 namespace GVFS.Common.Database
 {
     public class GVFSDatabase : IDisposable
     {
-        private ITracer tracer;
         private string databasePath;
         private string sqliteConnectionString;
 
-        public GVFSDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string enlistmentRoot)
+        public GVFSDatabase(GVFSContext context)
         {
-            this.tracer = tracer;
-            this.databasePath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.GVFSDatabase);
-            this.sqliteConnectionString = $"data source={this.databasePath};Cache=Shared";
+            this.databasePath = Path.Combine(context.Enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.GVFSDatabase);
+            this.sqliteConnectionString = $"data source={this.databasePath};Cache=Shared;";
 
             string folderPath = Path.GetDirectoryName(this.databasePath);
-            fileSystem.CreateDirectory(folderPath);
-
-            bool databaseInitialized = fileSystem.FileExists(this.databasePath);
+            context.FileSystem.CreateDirectory(folderPath);
 
             this.Connection = new SqliteConnection(this.sqliteConnectionString);
             this.Connection.Open();
-
-            if (!databaseInitialized)
-            {
-                this.Initialize();
-            }
-
+            this.Initialize();
             this.CreateTables();
         }
 
@@ -49,7 +39,7 @@ namespace GVFS.Common.Database
                 command.ExecuteNonQuery();
                 command.CommandText = $"PRAGMA cache_size=-40000;";
                 command.ExecuteNonQuery();
-                command.CommandText = $"PRAGMA synchronous=FULL;";
+                command.CommandText = $"PRAGMA synchronous=NORMAL;";
                 command.ExecuteNonQuery();
                 command.CommandText = $"PRAGMA user_version;";
                 object userVersion = command.ExecuteScalar();

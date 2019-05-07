@@ -1,6 +1,7 @@
 ﻿using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
+using System.Data;
 
 namespace GVFS.Common.Database
 {
@@ -13,22 +14,19 @@ namespace GVFS.Common.Database
             this.connection = connection;
         }
 
-        public int Count
-        {
-            get
-            {
-                using (SqliteCommand command = this.connection.CreateCommand())
-                {
-                    command.CommandText = $"SELECT count(path) FROM Placeholders;";
-                    return Convert.ToInt32(command.ExecuteScalar());
-                }
-            }
-        }
-
         public static void CreateTable(SqliteCommand command)
         {
-            command.CommandText = @"CREATE TABLE IF NOT EXISTS [Placeholders] (path TEXT PRIMARY KEY, pathType TINYINT DEFAULT 0, sha char(40) ) WITHOUT ROWID;";
+            command.CommandText = @"CREATE TABLE IF NOT EXISTS [Placeholders] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;";
             command.ExecuteNonQuery();
+        }
+
+        public int Count()
+        {
+            using (SqliteCommand command = this.connection.CreateCommand())
+            {
+                command.CommandText = $"SELECT count(path) FROM Placeholders;";
+                return Convert.ToInt32(command.ExecuteScalar());
+            }
         }
 
         public void GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders)
@@ -86,8 +84,8 @@ namespace GVFS.Common.Database
         {
             using (SqliteCommand command = this.connection.CreateCommand())
             {
-                command.Parameters.AddWithValue("@path", path);
                 command.CommandText = $"SELECT 1 FROM Placeholders WHERE path = @path;";
+                command.Parameters.Add("@path", SqliteType.Text).Value = path;
                 object result = command.ExecuteScalar();
                 return result != DBNull.Value;
             }
@@ -135,26 +133,25 @@ namespace GVFS.Common.Database
 
         private static void Insert(SqliteCommand command, PlaceholderData placeholder)
         {
-            command.Parameters.AddWithValue("@path", placeholder.Path);
-            command.Parameters.AddWithValue("@pathType", placeholder.PathType);
-
+            command.CommandText = $"INSERT OR REPLACE INTO Placeholders (path, pathType, sha) VALUES (@path, @pathType, @sha);";
+            command.Parameters.Add("@path", SqliteType.Text).Value = placeholder.Path;
+            command.Parameters.Add("@pathType", SqliteType.Integer).Value = (byte)placeholder.PathType;
             if (placeholder.Sha == null)
             {
-                command.Parameters.AddWithValue("@sha", DBNull.Value);
+                command.Parameters.Add("@sha", SqliteType.Text).Value = DBNull.Value;
             }
             else
             {
-                command.Parameters.AddWithValue("@sha", placeholder.Sha);
+                command.Parameters.Add("@sha", SqliteType.Text).Value = placeholder.Sha;
             }
 
-            command.CommandText = $"INSERT OR REPLACE INTO Placeholders (path, pathType, sha) VALUES (@path, @pathType, @sha);";
             command.ExecuteNonQuery();
         }
 
         private static void Delete(SqliteCommand command, string path)
         {
-            command.Parameters.AddWithValue("@path", path);
             command.CommandText = $"DELETE FROM Placeholders WHERE path = @path;";
+            command.Parameters.Add("@path", SqliteType.Text).Value = path;
             command.ExecuteNonQuery();
         }
 

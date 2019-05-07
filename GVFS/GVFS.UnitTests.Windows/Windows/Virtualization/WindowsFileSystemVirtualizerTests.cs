@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
@@ -13,6 +14,7 @@ using GVFS.UnitTests.Windows.Mock;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
 using Microsoft.Windows.ProjFS;
+using Moq;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -165,6 +167,8 @@ namespace GVFS.UnitTests.Windows.Virtualization
         [TestCase]
         public void OnStartDirectoryEnumerationReturnsPendingWhenResultsNotInMemory()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -175,8 +179,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -194,11 +199,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void OnStartDirectoryEnumerationReturnsSuccessWhenResultsInMemory()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test" }))
@@ -209,8 +218,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -227,11 +237,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void GetPlaceholderInformationHandlerPathNotProjected()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -242,8 +256,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -257,11 +272,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void GetPlaceholderInformationHandlerPathProjected()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -272,8 +291,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -290,11 +310,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void GetPlaceholderInformationHandlerCancelledBeforeSchedulingAsync()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -305,8 +329,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -317,9 +342,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Task.Run(() =>
                     {
-                    // Wait for OnGetPlaceholderInformation to call IsPathProjected and then while it's blocked there
-                    // call OnCancelCommand
-                    gitIndexProjection.WaitForIsPathProjected();
+                        // Wait for OnGetPlaceholderInformation to call IsPathProjected and then while it's blocked there
+                        // call OnCancelCommand
+                        gitIndexProjection.WaitForIsPathProjected();
                         mockVirtualization.OnCancelCommand(1);
                         gitIndexProjection.UnblockIsPathProjected();
                     });
@@ -337,11 +362,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void GetPlaceholderInformationHandlerCancelledDuringAsyncCallback()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -352,8 +381,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -378,12 +408,16 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void GetPlaceholderInformationHandlerCancelledDuringNetworkRequest()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -394,8 +428,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -418,11 +453,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void OnGetFileStreamReturnsInternalErrorWhenOffsetNonZero()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -433,8 +472,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -462,11 +502,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void OnGetFileStreamReturnsInternalErrorWhenPlaceholderVersionDoesNotMatchExpected()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -477,8 +521,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -506,11 +551,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void MoveFileIntoDotGitDirectory()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -521,8 +570,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -580,11 +630,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void MoveFileFromDotGitToSrc()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -595,8 +649,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -621,11 +676,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void MoveFile()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -636,8 +695,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -676,11 +736,15 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void OnGetFileStreamReturnsPendingAndCompletesWithSuccessWhenNoFailures()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -691,8 +755,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -727,12 +792,16 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesTryCopyBlobContentStreamThrowingOperationCanceled()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -743,8 +812,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -780,12 +850,16 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesCancellationDuringWriteAction()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -796,8 +870,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -833,12 +908,16 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesWriteFailure()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -849,8 +928,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -887,12 +967,16 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesHResultHandleResult()
         {
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -903,8 +987,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 try
                 {
@@ -943,6 +1028,8 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.Stop();
                 }
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
     }
 }

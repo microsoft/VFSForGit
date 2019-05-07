@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Platform.Mac;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
@@ -11,6 +12,7 @@ using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
 using GVFS.Virtualization.Projection;
+using Moq;
 using NUnit.Framework;
 using PrjFSLib.Mac;
 using System;
@@ -86,6 +88,8 @@ namespace GVFS.UnitTests.Platform.Mac
         public void UpdatePlaceholderIfNeeded()
         {
             const string UpdatePlaceholderFileName = "testUpdatePlaceholder.txt";
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { UpdatePlaceholderFileName }))
@@ -97,7 +101,8 @@ namespace GVFS.UnitTests.Platform.Mac
                 new MockBlobSizes(),
                 gitIndexProjection,
                 backgroundTaskRunner,
-                virtualizer))
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
                     UpdatePlaceholderFileName,
@@ -165,12 +170,16 @@ namespace GVFS.UnitTests.Platform.Mac
                 failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void WritePlaceholderForSymLink()
         {
             const string WriteSymLinkFileName = "testWriteSymLink.txt";
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { WriteSymLinkFileName }))
@@ -182,7 +191,8 @@ namespace GVFS.UnitTests.Platform.Mac
                 new MockBlobSizes(),
                 gitIndexProjection,
                 backgroundTaskRunner,
-                virtualizer))
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
                     WriteSymLinkFileName,
@@ -207,12 +217,16 @@ namespace GVFS.UnitTests.Platform.Mac
 
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void UpdatePlaceholderToSymLink()
         {
             const string PlaceholderToLinkFileName = "testUpdatePlaceholderToLink.txt";
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { PlaceholderToLinkFileName }))
@@ -224,7 +238,8 @@ namespace GVFS.UnitTests.Platform.Mac
                 new MockBlobSizes(),
                 gitIndexProjection,
                 backgroundTaskRunner,
-                virtualizer))
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
                     PlaceholderToLinkFileName,
@@ -262,6 +277,8 @@ namespace GVFS.UnitTests.Platform.Mac
 
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
@@ -282,6 +299,8 @@ namespace GVFS.UnitTests.Platform.Mac
             const string TestFileName = "test.txt";
             const string TestFolderName = "testFolder";
             string testFilePath = Path.Combine(TestFolderName, TestFileName);
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
 
@@ -295,8 +314,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
                     testFilePath,
@@ -312,6 +332,8 @@ namespace GVFS.UnitTests.Platform.Mac
                     kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
@@ -320,6 +342,8 @@ namespace GVFS.UnitTests.Platform.Mac
             const string TestFileName = "test.txt";
             const string TestFolderName = "testFolder";
             string testFilePath = Path.Combine(TestFolderName, TestFileName);
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
 
@@ -333,8 +357,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
                     testFilePath,
@@ -351,6 +376,8 @@ namespace GVFS.UnitTests.Platform.Mac
                 gitIndexProjection.ExpandedFolders.ShouldMatchInOrder(TestFolderName);
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
@@ -363,6 +390,8 @@ namespace GVFS.UnitTests.Platform.Mac
             string testFile644Path = Path.Combine(TestFolderName, TestFile644Name);
             string testFile664Path = Path.Combine(TestFolderName, TestFile664Name);
             string testFile755Path = Path.Combine(TestFolderName, TestFile755Name);
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
 
@@ -376,8 +405,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
                     testFile644Path,
@@ -403,12 +433,16 @@ namespace GVFS.UnitTests.Platform.Mac
                     kvp => kvp.Key.Equals(testFile755Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode755);
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void OnGetFileStreamReturnsSuccessWhenFileStreamAvailable()
         {
             const string TestFileName = "test.txt";
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
@@ -419,8 +453,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -446,6 +481,8 @@ namespace GVFS.UnitTests.Platform.Mac
 
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
@@ -453,6 +490,8 @@ namespace GVFS.UnitTests.Platform.Mac
         public void OnGetFileStreamReturnsErrorWhenWriteFileContentsFails()
         {
             const string TestFileName = "test.txt";
+            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
@@ -463,8 +502,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 RepoMetadata.Instance,
                 new MockBlobSizes(),
                 gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: virtualizer))
+                backgroundTaskRunner,
+                virtualizer,
+                mockPlaceholderDb.Object))
             {
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -488,6 +528,8 @@ namespace GVFS.UnitTests.Platform.Mac
 
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         private static ushort ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType fileType, ushort fileMode)

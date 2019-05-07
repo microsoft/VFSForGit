@@ -41,16 +41,12 @@ namespace GVFS.Common
         // there is race potential between creating the queue, adding to the queue, and writing to the data file.
         private List<PlaceholderDataEntry> placeholderChangesWhileRebuildingList;
 
+        private int count;
+
         private PlaceholderListDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath)
             : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: true)
         {
         }
-
-        /// <summary>
-        /// The Count is "estimated" because it's simply (# adds - # deletes).  There is nothing to prevent
-        /// multiple adds or deletes of the same path from being double counted
-        /// </summary>
-        public int Count { get; private set; }
 
         public static bool TryCreate(ITracer tracer, string dataFilePath, PhysicalFileSystem fileSystem, out PlaceholderListDatabase output, out string error)
         {
@@ -60,7 +56,7 @@ namespace GVFS.Common
             if (!temp.TryLoadFromDisk<string, string>(
                 temp.TryParseAddLine,
                 temp.TryParseRemoveLine,
-                (key, value) => temp.Count++,
+                (key, value) => temp.count++,
                 out error))
             {
                 temp = null;
@@ -71,6 +67,15 @@ namespace GVFS.Common
             error = null;
             output = temp;
             return true;
+        }
+
+        /// <summary>
+        /// The Count is "estimated" because it's simply (# adds - # deletes).  There is nothing to prevent
+        /// multiple adds or deletes of the same path from being double counted
+        /// </summary>
+        public int Count()
+        {
+            return this.count;
         }
 
         public void AddFile(string path, string sha)
@@ -101,12 +106,42 @@ namespace GVFS.Common
                     path,
                     () =>
                     {
-                        this.Count--;
+                        this.count--;
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
                             this.placeholderChangesWhileRebuildingList.Add(new PlaceholderDataEntry(path));
                         }
                     });
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
+        public bool Contains(string path)
+        {
+            try
+            {
+                bool containsPath = false;
+
+                string error;
+                if (!this.TryLoadFromDisk<string, string>(
+                    this.TryParseAddLine,
+                    this.TryParseRemoveLine,
+                    (key, value) =>
+                    {
+                        if (path.Equals(key, StringComparison.Ordinal))
+                        {
+                            containsPath = true;
+                        }
+                    },
+                    out error))
+                {
+                    throw new InvalidDataException(error);
+                }
+
+                return containsPath;
             }
             catch (Exception e)
             {
@@ -130,7 +165,7 @@ namespace GVFS.Common
         {
             try
             {
-                List<IPlaceholderData> placeholders = new List<IPlaceholderData>(Math.Max(1, this.Count));
+                List<IPlaceholderData> placeholders = new List<IPlaceholderData>(Math.Max(1, this.count));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -175,8 +210,8 @@ namespace GVFS.Common
         {
             try
             {
-                List<IPlaceholderData> filePlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, this.Count));
-                List<IPlaceholderData> folderPlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, (int)(this.Count * .3)));
+                List<IPlaceholderData> filePlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, this.count));
+                List<IPlaceholderData> folderPlaceholdersFromDisk = new List<IPlaceholderData>(Math.Max(1, (int)(this.count * .3)));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -262,12 +297,12 @@ namespace GVFS.Common
         {
             HashSet<string> keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            this.Count = 0;
+            this.count = 0;
             foreach (IPlaceholderData updated in updatedPlaceholders)
             {
                 if (keys.Add(updated.Path))
                 {
-                    this.Count++;
+                    this.count++;
                 }
 
                 yield return this.FormatAddLine(updated.Path + PathTerminator + updated.Sha);
@@ -281,7 +316,7 @@ namespace GVFS.Common
                     {
                         if (keys.Remove(entry.Path))
                         {
-                            this.Count--;
+                            this.count--;
                             yield return this.FormatRemoveLine(entry.Path);
                         }
                     }
@@ -289,7 +324,7 @@ namespace GVFS.Common
                     {
                         if (keys.Add(entry.Path))
                         {
-                            this.Count++;
+                            this.count++;
                         }
 
                         yield return this.FormatAddLine(entry.Path + PathTerminator + entry.Sha);
@@ -308,7 +343,7 @@ namespace GVFS.Common
                     path + PathTerminator + sha,
                     () =>
                     {
-                        this.Count++;
+                        this.count++;
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
                             this.placeholderChangesWhileRebuildingList.Add(new PlaceholderDataEntry(path, sha));

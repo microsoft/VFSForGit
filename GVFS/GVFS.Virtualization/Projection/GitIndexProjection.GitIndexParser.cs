@@ -90,7 +90,7 @@ namespace GVFS.Virtualization.Projection
                     throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(this.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}");
                 }
 
-                HashSet<string> filePlaceholders = this.projection.placeholderList.GetAllFilePaths();
+                HashSet<string> filePlaceholders = this.projection.placeholderDatabase.GetAllFilePaths();
 
                 tracer.RelatedEvent(
                     EventLevel.Informational,
