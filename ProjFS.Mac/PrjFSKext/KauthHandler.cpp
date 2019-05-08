@@ -99,7 +99,6 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
 
     // Out params:
     VirtualizationRootHandle* root,
-    FsidInode* vnodeFsidInode,
     int* pid);
 
 // State
@@ -481,7 +480,6 @@ KEXT_STATIC int HandleFileOpOperation(
         bool isDirectory = (0 != vnode_isdir(currentVnode));
         
         VirtualizationRootHandle root = RootHandle_None;
-        FsidInode vnodeFsidInode = {};
         int pid;
         if (!ShouldHandleFileOpEvent(
                 &perfTracer,
@@ -490,12 +488,13 @@ KEXT_STATIC int HandleFileOpOperation(
                 action,
                 isDirectory,
                 &root,
-                &vnodeFsidInode,
                 &pid))
         {
             goto CleanupAndReturn;
         }
         
+        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(currentVnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
+
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
 
@@ -572,7 +571,6 @@ KEXT_STATIC int HandleFileOpOperation(
         }
         
         VirtualizationRootHandle root = RootHandle_None;
-        FsidInode vnodeFsidInode;
         int pid;
         if (!ShouldHandleFileOpEvent(
                                      &perfTracer,
@@ -581,12 +579,13 @@ KEXT_STATIC int HandleFileOpOperation(
                                      action,
                                      false /* isDirectory */,
                                      &root,
-                                     &vnodeFsidInode,
                                      &pid))
         {
             goto CleanupAndReturn;
         }
-        
+
+        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(currentVnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
+
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
         PerfSample fileCreatedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileCreated);
@@ -626,7 +625,6 @@ KEXT_STATIC int HandleFileOpOperation(
         }
             
         VirtualizationRootHandle root = RootHandle_None;
-        FsidInode vnodeFsidInode = {};
         int pid;
         if (!ShouldHandleFileOpEvent(
                 &perfTracer,
@@ -635,11 +633,12 @@ KEXT_STATIC int HandleFileOpOperation(
                 action,
                 false /* isDirectory */,
                 &root,
-                &vnodeFsidInode,
                 &pid))
         {
             goto CleanupAndReturn;
         }
+
+        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(currentVnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
 
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
@@ -991,7 +990,6 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
 
     // Out params:
     VirtualizationRootHandle* root,
-    FsidInode* vnodeFsidInode,
     int* pid)
 {
     PerfSample fileOpSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle);
@@ -1034,8 +1032,6 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
             return false;
         }
     }
-
-    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
 
     return true;
 }

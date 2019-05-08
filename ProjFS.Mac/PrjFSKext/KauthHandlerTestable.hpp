@@ -59,7 +59,6 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
 
     // Out params:
     VirtualizationRootHandle* root,
-    FsidInode* vnodeFsidInode,
     int* pid);
 KEXT_STATIC void UseMainForkIfNamedStream(vnode_t& vnode, bool& putVnodeWhenDone);
 KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser();
