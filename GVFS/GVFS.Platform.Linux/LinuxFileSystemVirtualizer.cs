@@ -211,9 +211,6 @@ namespace GVFS.Platform.Linux
         {
             error = string.Empty;
 
-            // TODO(Linux): set this path in common class
-            string storageRoot = Path.Combine(this.Context.Enlistment.DotGVFSRoot, "lower");
-
             // Callbacks
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
@@ -228,7 +225,7 @@ namespace GVFS.Platform.Linux
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
-                storageRoot,
+                this.Context.Enlistment.WorkingDirectoryBackingRoot,
                 this.Context.Enlistment.WorkingDirectoryRoot,
                 threadCount);
 
