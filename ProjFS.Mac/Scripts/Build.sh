@@ -50,7 +50,8 @@ while read line; do
      [[ $line == *"%"* ]] && 
 	 [[ $line != *"AllArrayElementsInitialized"* ]] &&              #Function is used for compile time checks only
 	 [[ $line != *"KauthHandler_Init"* ]] && 
-	 [[ $line != *"KauthHandler_Cleanup"* ]] && 
+	 [[ $line != *"KauthHandler_Cleanup"* ]] &&
+     [[ $line != *"HandleVnodeOperation"* ]] &&                      #SHOULD ADD COVERAGE
 	 [[ $line != *"HandleFileOpOperation"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"TryGetVirtualizationRoot"* ]] &&                  #SHOULD ADD COVERAGE
 	 [[ $line != *"WaitForListenerCompletion"* ]] && 

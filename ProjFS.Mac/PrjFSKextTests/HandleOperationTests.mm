@@ -750,6 +750,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
 }
 
+/*
 - (void) testDeleteWithNoVirtualizationRoot {
     VirtualizationRoots_Cleanup();
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
@@ -885,6 +886,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
 }
+*/
 
 - (void) testWriteWhenSecondRequestFails {
     ProviderMessageMock_SetSecondRequestResult(false);
