@@ -13,6 +13,7 @@ namespace PrjFSLib.Linux
 
         private ProjFS projfs;
         private int currentProcessId = Process.GetCurrentProcess().Id;
+        private string virtualizationRoot;
 
         // We must hold a reference to the delegates to prevent garbage collection
         private ProjFS.EventHandler preventGCOnProjEventDelegate;
@@ -65,6 +66,7 @@ namespace PrjFSLib.Linux
             }
 
             this.projfs = fs;
+            this.virtualizationRoot = virtualizationRootFullPath;
             return Result.Success;
         }
 
@@ -97,18 +99,58 @@ namespace PrjFSLib.Linux
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            /*
-            UpdateFailureCause deleteFailureCause = UpdateFailureCause.NoFailure;
-            Result result = ProjFS.DeleteFile(
-                relativePath,
-                updateFlags,
-                ref deleteFailureCause);
+            ProjectionState state;
+            Result result = this.projfs.GetProjState(relativePath, out state);
 
-            failureCause = deleteFailureCause;
-            return result;
-            */
             failureCause = UpdateFailureCause.NoFailure;
-            return Result.ENotYetImplemented;
+            if (result == Result.EPathNotFound)
+            {
+                return Result.Success;
+            }
+            else if (result == Result.EAccessDenied || (result == Result.Success && state == ProjectionState.Full))
+            {
+                /* TODO(Linux): Distinguish EPERM, which libprojfs
+                 * projfs_get_attrs() returns if the path is not a file or
+                 * directory, from other access errors.  We should only return
+                 * EVirtualizationInvalidOperation in the EPERM case, or when
+                 * the file or directory exists and is full (i.e., modified).
+                 */
+                failureCause = UpdateFailureCause.DirtyData;
+                return Result.EVirtualizationInvalidOperation;
+            }
+            else if (result != Result.Success)
+            {
+                return result;
+            }
+
+            string fullPath = Path.Combine(this.virtualizationRoot, relativePath);
+            try
+            {
+                if (Directory.Exists(fullPath))
+                {
+                    Directory.Delete(fullPath);
+                }
+                else
+                {
+                    File.Delete(fullPath);
+                }
+            }
+            catch (IOException ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
+            {
+                return Result.Success;
+            }
+            catch (IOException)
+            {
+                // TODO(Linux): return EDirectoryNotEmpty on ENOTEMPTY
+                return Result.EIOError;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // TODO(Linux): set UpdateFailureCause.ReadOnly on EACCES
+                return Result.EAccessDenied;
+            }
+
+            return Result.Success;
         }
 
         public virtual Result WritePlaceholderDirectory(
@@ -156,13 +198,13 @@ namespace PrjFSLib.Linux
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            /*
-            if (providerId.Length != ProjFS.PlaceholderIdLength ||
-                contentId.Length != ProjFS.PlaceholderIdLength)
+            if (providerId.Length != PlaceholderIdLength ||
+                contentId.Length != PlaceholderIdLength)
             {
                 throw new ArgumentException();
             }
 
+            /*
             UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
             Result result = ProjFS.UpdatePlaceholderFileIfNeeded(
                 relativePath,
