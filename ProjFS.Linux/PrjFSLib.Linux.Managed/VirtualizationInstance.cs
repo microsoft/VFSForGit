@@ -13,6 +13,7 @@ namespace PrjFSLib.Linux
 
         private ProjFS projfs;
         private int currentProcessId = Process.GetCurrentProcess().Id;
+        private string virtualizationRoot;
 
         // We must hold a reference to the delegates to prevent garbage collection
         private ProjFS.EventHandler preventGCOnProjEventDelegate;
@@ -67,6 +68,7 @@ namespace PrjFSLib.Linux
             }
 
             this.projfs = fs;
+            this.virtualizationRoot = virtualizationRootFullPath;
             return Result.Success;
         }
 
@@ -99,18 +101,63 @@ namespace PrjFSLib.Linux
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            /*
-            UpdateFailureCause deleteFailureCause = UpdateFailureCause.NoFailure;
-            Result result = ProjFS.DeleteFile(
-                relativePath,
-                updateFlags,
-                ref deleteFailureCause);
-
-            failureCause = deleteFailureCause;
-            return result;
-            */
             failureCause = UpdateFailureCause.NoFailure;
-            return Result.ENotYetImplemented;
+            if (relativePath == string.Empty)
+            {
+                // mount point directory can not be deleted, so ignore
+                return Result.Success;
+            }
+
+            string fullPath = Path.Combine(this.virtualizationRoot, relativePath);
+            try
+            {
+                if (Directory.Exists(fullPath))
+                {
+                    Directory.Delete(fullPath);
+                }
+                else
+                {
+                    // TODO(Linux): try to handle races with hydration?
+                    ProjectionState state;
+                    Result result = this.projfs.GetProjState(relativePath, out state);
+
+                    if (result == Result.EPathNotFound)
+                    {
+                        return Result.Success;
+                    }
+                    else if (result == Result.EAccessDenied || (result == Result.Success && state == ProjectionState.Full))
+                    {
+                        /* TODO(Linux): return EAccessDenied unless EPERM
+                         * (EPERM is returned when path is not a file or dir,
+                         *  which we want to treat as a full file)
+                         */
+                        failureCause = UpdateFailureCause.DirtyData;
+                        return Result.EVirtualizationInvalidOperation;
+                    }
+                    else if (result != Result.Success)
+                    {
+                        return result;
+                    }
+
+                    File.Delete(fullPath);
+                }
+            }
+            catch (IOException ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
+            {
+                return Result.Success;
+            }
+            catch (IOException)
+            {
+                // TODO(Linux): return EDirectoryNotEmpty on ENOTEMPTY
+                return Result.EIOError;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // TODO(Linux): set UpdateFailureCause.ReadOnly on EACCES
+                return Result.EAccessDenied;
+            }
+
+            return Result.Success;
         }
 
         public virtual Result WritePlaceholderDirectory(
@@ -158,13 +205,13 @@ namespace PrjFSLib.Linux
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            /*
-            if (providerId.Length != ProjFS.PlaceholderIdLength ||
-                contentId.Length != ProjFS.PlaceholderIdLength)
+            if (providerId.Length != PlaceholderIdLength ||
+                contentId.Length != PlaceholderIdLength)
             {
                 throw new ArgumentException();
             }
 
+            /*
             UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
             Result result = ProjFS.UpdatePlaceholderFileIfNeeded(
                 relativePath,
