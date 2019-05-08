@@ -902,6 +902,84 @@ KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser()
     return nonServiceUser;
 }
     
+static VirtualizationRootHandle FindRootForVnodeWithFileOpEvent(
+    PerfTracer* perfTracer,
+    vfs_context_t _Nonnull context,
+    const vnode_t vnode,
+    kauth_action_t action,
+    bool isDirectory)
+{
+    VirtualizationRootHandle root = RootHandle_None;
+    
+    if (isDirectory)
+    {
+        if (KAUTH_FILEOP_RENAME == action)
+        {
+            // Directory renames into (or out) of virtualization roots require invalidating all of the entries
+            // within the directory being renamed (because all of those entires now have a new virtualzation root).
+            // Rather than trying to find all vnodes in the cache that are children of the directory being renamed
+            // we simply invalidate the entire cache.
+            //
+            // Potential future optimizations include:
+            //   - Only invalidate the cache if the rename moves a directory in or out of a directory
+            //   - Keeping a per-root generation ID in the cache to allow invalidating a subset of the cache
+            VnodeCache_InvalidateCache(perfTracer);
+        }
+        
+        root = VnodeCache_FindRootForVnode(
+            perfTracer,
+            PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
+            PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
+            PrjFSPerfCounter_FileOp_FindRoot,
+            PrjFSPerfCounter_FileOp_FindRoot_Iteration,
+            vnode,
+            context);
+    }
+    else
+    {
+        // TODO(Mac): Once all hardlink paths are delivered to the appropriate root(s)
+        // check if the KAUTH_FILEOP_LINK case can be removed.  For now the check is required to make
+        // sure we're looking up the most up-to-date parent information for the vnode on the next
+        // access to the vnode cache
+        switch(action)
+        {
+            case KAUTH_FILEOP_LINK:
+                root = VnodeCache_InvalidateVnodeRootAndGetLatestRoot(
+                    perfTracer,
+                    PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
+                    PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
+                    PrjFSPerfCounter_FileOp_FindRoot,
+                    PrjFSPerfCounter_FileOp_FindRoot_Iteration,
+                    vnode,
+                    context);
+                break;
+
+            case KAUTH_FILEOP_RENAME:
+                root = VnodeCache_RefreshRootForVnode(
+                    perfTracer,
+                    PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
+                    PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
+                    PrjFSPerfCounter_FileOp_FindRoot,
+                    PrjFSPerfCounter_FileOp_FindRoot_Iteration,
+                    vnode,
+                    context);
+                break;
+
+            default:
+                root = VnodeCache_FindRootForVnode(
+                    perfTracer,
+                    PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
+                    PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
+                    PrjFSPerfCounter_FileOp_FindRoot,
+                    PrjFSPerfCounter_FileOp_FindRoot_Iteration,
+                    vnode,
+                    context);
+                break;
+        }
+    }
+    
+    return root;
+}
 
 KEXT_STATIC bool ShouldHandleFileOpEvent(
     // In params:
@@ -927,73 +1005,8 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     
     {
         PerfSample findRootSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_FindVirtualizationRoot);
-        
-        if (isDirectory)
-        {
-            if (KAUTH_FILEOP_RENAME == action)
-            {
-                // Directory renames into (or out) of virtualization roots require invalidating all of the entries
-                // within the directory being renamed (because all of those entires now have a new virtualzation root).
-                // Rather than trying to find all vnodes in the cache that are children of the directory being renamed
-                // we simply invalidate the entire cache.
-                //
-                // Potential future optimizations include:
-                //   - Only invalidate the cache if the rename moves a directory in or out of a directory
-                //   - Keeping a per-root generation ID in the cache to allow invalidating a subset of the cache
-                VnodeCache_InvalidateCache(perfTracer);
-            }
-            
-            *root = VnodeCache_FindRootForVnode(
-                perfTracer,
-                PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
-                PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
-                PrjFSPerfCounter_FileOp_FindRoot,
-                PrjFSPerfCounter_FileOp_FindRoot_Iteration,
-                vnode,
-                context);
-        }
-        else
-        {
-            // TODO(Mac): Once all hardlink paths are delivered to the appropriate root(s)
-            // check if the KAUTH_FILEOP_LINK case can be removed.  For now the check is required to make
-            // sure we're looking up the most up-to-date parent information for the vnode on the next
-            // access to the vnode cache
-            switch(action)
-            {
-                case KAUTH_FILEOP_LINK:
-                    *root = VnodeCache_InvalidateVnodeRootAndGetLatestRoot(
-                        perfTracer,
-                        PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
-                        PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
-                        PrjFSPerfCounter_FileOp_FindRoot,
-                        PrjFSPerfCounter_FileOp_FindRoot_Iteration,
-                        vnode,
-                        context);
-                    break;
 
-                case KAUTH_FILEOP_RENAME:
-                    *root = VnodeCache_RefreshRootForVnode(
-                        perfTracer,
-                        PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
-                        PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
-                        PrjFSPerfCounter_FileOp_FindRoot,
-                        PrjFSPerfCounter_FileOp_FindRoot_Iteration,
-                        vnode,
-                        context);
-                    break;
-
-                default:
-                    *root = VnodeCache_FindRootForVnode(
-                        perfTracer,
-                        PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
-                        PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
-                        PrjFSPerfCounter_FileOp_FindRoot,
-                        PrjFSPerfCounter_FileOp_FindRoot_Iteration,
-                        vnode,
-                        context);
-                    break;
-            }
-        }
+        *root = FindRootForVnodeWithFileOpEvent(perfTracer, context, vnode, action, isDirectory);
         
         if (!VirtualizationRoot_IsValidRootHandle(*root))
         {
