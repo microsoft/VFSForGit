@@ -17,7 +17,6 @@ namespace GVFS.Platform.Linux
         public override IKernelDriver KernelDriver { get; } = new ProjFSLib();
         public override string Name { get => "Linux"; }
         public override GVFSPlatformConstants Constants { get; } = new LinuxPlatformConstants();
-
         public override IPlatformFileSystem FileSystem { get; } = new LinuxFileSystem();
 
         public override string GetOSVersionInformation()

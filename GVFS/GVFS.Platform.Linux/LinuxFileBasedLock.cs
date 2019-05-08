@@ -86,7 +86,7 @@ namespace GVFS.Platform.Linux
         private EventMetadata CreateEventMetadata(int errno = 0)
         {
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", "LinuxFileBasedLock");
+            metadata.Add("Area", nameof(LinuxFileBasedLock));
             metadata.Add(nameof(this.LockPath), this.LockPath);
             if (errno != 0)
             {
