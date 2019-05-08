@@ -9,7 +9,8 @@ void Message_Init(
     const FsidInode& fsidInode,
     int32_t pid,
     const char* procname,
-    const char* path)
+    const char* path,
+    const char* fromPath)
 {
     header->messageId = messageId;
     header->messageType = messageType;
@@ -33,7 +34,17 @@ void Message_Init(
     {
         header->pathSizeBytes = 0;
     }
-    
+
+    if (nullptr != fromPath)
+    {
+        header->fromPathSizeBytes = strlen(fromPath) + 1;
+    }
+    else
+    {
+        header->fromPathSizeBytes = 0;
+    }
+
     spec->messageHeader = header;
     spec->path = path;
+    spec->fromPath = fromPath;
 }

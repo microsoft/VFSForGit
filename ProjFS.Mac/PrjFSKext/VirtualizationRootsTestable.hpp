@@ -11,4 +11,5 @@ extern uint16_t s_maxVirtualizationRoots;
 extern VirtualizationRoot* s_virtualizationRoots;
 
 KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
+KEXT_STATIC bool DirectoryContainsPath(const char* directoryPath, const char* path);
 
