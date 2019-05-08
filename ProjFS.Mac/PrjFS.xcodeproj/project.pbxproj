@@ -85,6 +85,7 @@
 		4A82C45C228086F800276002 /* MessageTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4A82C45B228086F800276002 /* MessageTests.mm */; };
 		4A8C13A521F23F0200002878 /* KauthHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89321E42AC40008103C /* KauthHandler.cpp */; };
 		4A8C13A621F2418400002878 /* libPrjFSKextTestable.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */; };
+		4AAE3FCA22832340002673FA /* HandleFileOpOperationTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4AAE3FC922832340002673FA /* HandleFileOpOperationTests.mm */; };
 		D9C087F222384670009C1110 /* MemoryTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = D9C087F122384670009C1110 /* MemoryTests.mm */; };
 		F554202D224BB6E5008BAE95 /* ProviderMessagingMock.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F554202C224BB6E5008BAE95 /* ProviderMessagingMock.cpp */; };
 		F5554F422239883B00B31D19 /* MockProc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5554F412239883B00B31D19 /* MockProc.cpp */; };
@@ -221,6 +222,7 @@
 		4A82C45B228086F800276002 /* MessageTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MessageTests.mm; sourceTree = "<group>"; };
 		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTests.exp; sourceTree = "<group>"; };
+		4AAE3FC922832340002673FA /* HandleFileOpOperationTests.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = HandleFileOpOperationTests.mm; sourceTree = "<group>"; };
 		D9C087F122384670009C1110 /* MemoryTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MemoryTests.mm; sourceTree = "<group>"; };
 		F5151F7F226F9083004B92C9 /* ProviderMessagingMock.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ProviderMessagingMock.hpp; sourceTree = "<group>"; };
 		F554202C224BB6E5008BAE95 /* ProviderMessagingMock.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProviderMessagingMock.cpp; sourceTree = "<group>"; };
@@ -404,6 +406,7 @@
 		F5E39C7821F1118D006D65C2 /* PrjFSKextTests */ = {
 			isa = PBXGroup;
 			children = (
+				4AAE3FC922832340002673FA /* HandleFileOpOperationTests.mm */,
 				F5EACDC12242AB2D00EEA70E /* HandleOperationTests.mm */,
 				F5E39C7B21F1118D006D65C2 /* Info.plist */,
 				F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */,
@@ -742,6 +745,7 @@
 				265504D0224ADE11005FAD74 /* MockPerfTracing.cpp in Sources */,
 				4A781DA52220946000DB7733 /* VirtualizationRootsTests.mm in Sources */,
 				4A781DAE2223374200DB7733 /* MockVnodeAndMount.cpp in Sources */,
+				4AAE3FCA22832340002673FA /* HandleFileOpOperationTests.mm in Sources */,
 				F5554F422239883B00B31D19 /* MockProc.cpp in Sources */,
 				4A781DB422233A4500DB7733 /* TestMemory.cpp in Sources */,
 				F5EACDC22242AB2D00EEA70E /* HandleOperationTests.mm in Sources */,
