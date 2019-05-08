@@ -59,6 +59,7 @@ KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 
 static void WaitForListenerCompletion();
 KEXT_STATIC bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
+static bool VnodeIsEligibleForEventHandling(vnode_t vnode);
 
 KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     // In params:
@@ -68,7 +69,6 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     kauth_action_t action,
 
     // Out params:
-    vtype* vnodeType,
     uint32_t* vnodeFileFlags,
     int* pid,
     char procname[MAXCOMLEN + 1],
@@ -242,7 +242,6 @@ KEXT_STATIC int HandleVnodeOperation(
     UseMainForkIfNamedStream(currentVnode, putVnodeWhenDone);
 
     VirtualizationRootHandle root = RootHandle_None;
-    vtype vnodeType;
     uint32_t currentVnodeFileFlags;
     FsidInode vnodeFsidInode;
     int pid = 0;
@@ -255,7 +254,6 @@ KEXT_STATIC int HandleVnodeOperation(
             context,
             currentVnode,
             action,
-            &vnodeType,
             &currentVnodeFileFlags,
             &pid,
             procname,
@@ -266,7 +264,7 @@ KEXT_STATIC int HandleVnodeOperation(
     }
     
     isDeleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
-    isDirectory = VDIR == vnodeType;
+    isDirectory = vnode_isdir(currentVnode);
     
     if (isDeleteAction)
     {
@@ -677,6 +675,22 @@ CleanupAndReturn:
     return KAUTH_RESULT_DEFER;
 }
 
+static bool VnodeIsEligibleForEventHandling(vnode_t vnode)
+{
+    if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
+    {
+        return false;
+    }
+
+    vtype vnodeType = vnode_vtype(vnode);
+    if (ShouldIgnoreVnodeType(vnodeType, vnode))
+    {
+        return false;
+    }
+    
+    return true;
+}
+
 KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     // In params:
     PerfTracer* perfTracer,
@@ -685,7 +699,6 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     kauth_action_t action,
 
     // Out params:
-    vtype* vnodeType,
     uint32_t* vnodeFileFlags,
     int* pid,
     char procname[MAXCOMLEN + 1],
@@ -714,22 +727,9 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     }
     
     {
-        PerfSample isAllowedSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_IsAllowedFileSystem);
-        if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
+        PerfSample considerVnodeSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_BasicVnodeChecks);
+        if (!VnodeIsEligibleForEventHandling(vnode))
         {
-            *kauthResult = KAUTH_RESULT_DEFER;
-            return false;
-        }
-    }
-
-    {
-        PerfSample shouldIgnoreSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_ShouldIgnoreVnodeType);
-        
-        *vnodeType = vnode_vtype(vnode);
-        if (ShouldIgnoreVnodeType(*vnodeType, vnode))
-        {
-            perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_ShouldHandle_IgnoredVnodeType);
-        
             *kauthResult = KAUTH_RESULT_DEFER;
             return false;
         }
@@ -919,14 +919,8 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     PerfSample fileOpSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle);
 
     *root = RootHandle_None;
-
-    if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
-    {
-        return false;
-    }
-
-    vtype vnodeType = vnode_vtype(vnode);
-    if (ShouldIgnoreVnodeType(vnodeType, vnode))
+    
+    if (!VnodeIsEligibleForEventHandling(vnode))
     {
         return false;
     }

@@ -44,7 +44,6 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     kauth_action_t action,
 
     // Out params:
-    vtype* vnodeType,
     uint32_t* vnodeFileFlags,
     int* pid,
     char procname[MAXCOMLEN + 1],

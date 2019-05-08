@@ -126,7 +126,6 @@ class org_vfsforgit_PrjFSProviderUserClient
     kauth_action_t action = KAUTH_VNODE_READ_DATA;
     
     // Out Parameters
-    vtype vnodeType;
     uint32_t vnodeFileFlags;
     int pid;
     char procname[MAXCOMLEN + 1] = "";
@@ -141,7 +140,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -157,7 +155,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             KAUTH_VNODE_ACCESS,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -172,7 +169,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             KAUTH_VNODE_ACCESS | KAUTH_VNODE_READ_DATA,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -189,7 +185,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnodeNone.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -206,7 +201,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnodeInvalidType.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -223,7 +217,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -242,7 +235,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -265,7 +257,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -284,7 +275,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
