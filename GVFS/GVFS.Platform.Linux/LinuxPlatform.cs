@@ -51,7 +51,7 @@ namespace GVFS.Platform.Linux
                 get { return ".deb"; }
             }
 
-            public override string WorkingDirectoryBackingRootName
+            public override string WorkingDirectoryBackingRootPath
             {
                 get { return Path.Combine(GVFSConstants.DotGVFS.Root, "lower"); }
             }

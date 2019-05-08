@@ -23,7 +23,7 @@ namespace GVFS.Common
             : base(
                   enlistmentRoot,
                   Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName),
-                  Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.WorkingDirectoryBackingRootName),
+                  Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.WorkingDirectoryBackingRootPath),
                   repoUrl,
                   gitBinPath,
                   gvfsHooksRoot,
