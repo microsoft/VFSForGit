@@ -35,6 +35,7 @@ class PrjFSProviderUserClient
     vfs_context_t context;
     const char* repoPath;
     const char* filePath;
+    const char* dirPath;
     const char* nonRepoFilePath;
     const char* fromPath;
     const char* fromPathOutOfRepo;
@@ -51,6 +52,7 @@ class PrjFSProviderUserClient
     shared_ptr<vnode> testFileVnode;
     shared_ptr<vnode> nonRepoFileVnode;
     shared_ptr<vnode> otherRepoRootVnode;
+    shared_ptr<vnode> testDirVnode;
     VnodeCacheEntriesWrapper cacheWrapper;
 }
 
@@ -67,6 +69,7 @@ class PrjFSProviderUserClient
     // Create Vnode Tree
     repoPath = "/Users/test/code/Repo";
     filePath = "/Users/test/code/Repo/file";
+    dirPath = "/Users/test/code/Repo/dir";
     fromPath = "/Users/test/code/Repo/originalfile";
     nonRepoFilePath = "/Users/test/code/NotInRepo/file";
     fromPathOutOfRepo = "/Users/test/code/NotInRepo/fromfile";
@@ -77,6 +80,7 @@ class PrjFSProviderUserClient
     testFileVnode = testMount->CreateVnodeTree(filePath);
     otherRepoRootVnode = testMount->CreateVnodeTree(otherRepoPath, VDIR);
     nonRepoFileVnode = testMount->CreateVnodeTree(nonRepoFilePath);
+    testDirVnode = testMount->CreateVnodeTree(dirPath, VDIR);
 
     // Register provider for the repository path (Simulate a mount)
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&dummyClient, dummyClientPid, repoPath);
@@ -121,6 +125,7 @@ class PrjFSProviderUserClient
     testFileVnode.reset();
     otherRepoRootVnode.reset();
     nonRepoFileVnode.reset();
+    testDirVnode.reset();
     cacheWrapper.FreeCache();
     
     VirtualizationRoots_Cleanup();
@@ -128,6 +133,105 @@ class PrjFSProviderUserClient
     MockVnodes_CheckAndClear();
     MockCalls::Clear();
     MockProcess_Reset();
+}
+
+- (void) testOpen {
+    // KAUTH_FILEOP_OPEN should trigger callbacks for files not flagged as in the virtualization root.
+    testFileVnode->attrValues.va_flags = 0;
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_OPEN,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    XCTAssertTrue(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            MessageType_KtoU_NotifyFileCreated,
+            testFileVnode.get(),
+            _,
+            _,
+            _,
+            _,
+            _,
+            _));
+}
+
+- (void) testOpenInVirtualizationRoot {
+    // KAUTH_FILEOP_OPEN should not trigger any callbacks for files that already flagged as in the virtualization root.
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_OPEN,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+- (void) testCloseWithModifed {
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_CLOSE,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(filePath),
+        KAUTH_FILEOP_CLOSE_MODIFIED,
+        0);
+    
+    XCTAssertTrue(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            MessageType_KtoU_NotifyFileModified,
+            testFileVnode.get(),
+            _,
+            filePath,
+            _,
+            _,
+            _,
+            _));
+}
+
+- (void) testCloseWithModifedOnDirectory {
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_CLOSE,
+        reinterpret_cast<uintptr_t>(testDirVnode.get()),
+        reinterpret_cast<uintptr_t>(dirPath),
+        KAUTH_FILEOP_CLOSE_MODIFIED,
+        0);
+    
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+
+- (void) testCloseWithoutModifed {
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_CLOSE,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
 }
 
 - (void)testFileopHardlink
