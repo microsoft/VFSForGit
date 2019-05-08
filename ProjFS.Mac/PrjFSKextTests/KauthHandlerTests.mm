@@ -381,6 +381,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             repoRootVnode.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
@@ -402,6 +403,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             repoRootVnode.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
@@ -414,6 +416,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeNone.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
@@ -426,6 +429,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeUnsupportedType.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
@@ -439,6 +443,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             repoRootVnode.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
@@ -456,6 +461,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             repoRootVnode.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
@@ -472,6 +478,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeFile.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_OPEN,
             false, // isDirectory,
             &rootHandle,
@@ -488,6 +495,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeFile.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_LINK,
             false, // isDirectory,
             &rootHandle,
@@ -506,6 +514,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeFile.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_RENAME,
             false, // isDirectory,
             &rootHandle,
@@ -525,6 +534,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &perfTracer,
             context,
             testVnodeDirectory.get(),
+            nullptr, // fromPath
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &rootHandle,

@@ -49,6 +49,9 @@ struct MessageHeader
 
     // Size of the flexible-length, nul-terminated path following the message body, including the nul character.
     uint16_t            pathSizeBytes;
+
+    // Size of the flexible-length, nul-terminated from path following the message body, including the nul character.
+    uint16_t            fromPathSizeBytes;
 };
 
 // Description of a decomposed, in-memory message header plus variable length string field
@@ -56,6 +59,7 @@ struct Message
 {
     const MessageHeader* messageHeader;
     const char*    path;
+    const char*    fromPath;
 };
 
 void Message_Init(
@@ -66,6 +70,7 @@ void Message_Init(
     const FsidInode& fsidInode,
     int32_t pid,
     const char* procname,
-    const char* path);
+    const char* path,
+    const char* fromPath);
 
 #endif /* Message_h */
