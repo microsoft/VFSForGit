@@ -128,12 +128,22 @@ namespace GVFS.Platform.Linux
 
             public override string GVFSBinDirectoryPath
             {
-                get { return Path.Combine("/usr", "local", this.GVFSBinDirectoryName); }
+                get
+                {
+                    ProcessResult result = ProcessHelper.Run("which", args: this.GVFSExecutableName, redirectOutput: true);
+                    if (result.ExitCode != 0)
+                    {
+                        // TODO(Linux): avoid constants for paths entirely
+                        return "/usr/local/vfsforgit";
+                    }
+
+                    return Path.GetDirectoryName(result.Output.Trim());
+                }
             }
 
             public override string GVFSBinDirectoryName
             {
-                get { return "vfsforgit"; }
+                get { return Path.GetFileName(this.GVFSBinDirectoryPath); }
             }
 
             public override string UpgradeInstallAdviceMessage
