@@ -33,7 +33,6 @@ namespace GVFS.Common
                 UpgraderToolConfigFile,
                 "GVFS.Common.dll",
                 "GVFS.Platform.Windows.dll",
-                "Microsoft.Diagnostics.Tracing.EventSource.dll",
                 "netstandard.dll",
                 "System.Net.Http.dll",
                 "Newtonsoft.Json.dll",
