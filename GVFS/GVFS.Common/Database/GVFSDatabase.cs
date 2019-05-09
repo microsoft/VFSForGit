@@ -1,39 +1,70 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using GVFS.Common.Tracing;
+using Microsoft.Data.Sqlite;
 using System;
-using System.Data;
+using System.Collections.Concurrent;
 using System.IO;
 
 namespace GVFS.Common.Database
 {
     public class GVFSDatabase : IDisposable
     {
+        private const int InitialPooledConnections = 3;
+
+        private bool disposed = false;
+        private ITracer tracer;
         private string databasePath;
         private string sqliteConnectionString;
+        private BlockingCollection<SqliteConnection> connectionPool;
 
         public GVFSDatabase(GVFSContext context)
         {
+            this.tracer = context.Tracer;
+            this.connectionPool = new BlockingCollection<SqliteConnection>();
             this.databasePath = Path.Combine(context.Enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.GVFSDatabase);
             this.sqliteConnectionString = $"data source={this.databasePath};Cache=Shared;";
 
             string folderPath = Path.GetDirectoryName(this.databasePath);
             context.FileSystem.CreateDirectory(folderPath);
 
-            this.Connection = new SqliteConnection(this.sqliteConnectionString);
-            this.Connection.Open();
+            for (int i = 0; i < InitialPooledConnections; i++)
+            {
+                this.connectionPool.Add(this.OpenNewConnection());
+            }
+
             this.Initialize();
             this.CreateTables();
         }
 
-        public SqliteConnection Connection { get; }
+        public interface IPooledConnection : IDisposable
+        {
+            SqliteConnection Connection { get; }
+        }
 
         public void Dispose()
         {
-            this.Connection?.Dispose();
+            this.disposed = true;
+            this.connectionPool.CompleteAdding();
+            while (!this.connectionPool.IsCompleted && this.connectionPool.TryTake(out SqliteConnection connection))
+            {
+                connection.Dispose();
+            }
+        }
+
+        public IPooledConnection GetPooledConnection()
+        {
+            SqliteConnection connection;
+            if (!this.connectionPool.TryTake(out connection, millisecondsTimeout: 500))
+            {
+                connection = this.OpenNewConnection();
+            }
+
+            return new GVFSConnection(this, connection);
         }
 
         private void Initialize()
         {
-            using (SqliteCommand command = this.Connection.CreateCommand())
+            using (IPooledConnection pooled = this.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 command.CommandText = $"PRAGMA journal_mode=WAL;";
                 command.ExecuteNonQuery();
@@ -53,9 +84,48 @@ namespace GVFS.Common.Database
 
         private void CreateTables()
         {
-            using (SqliteCommand command = this.Connection.CreateCommand())
+            using (IPooledConnection pooled = this.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 Placeholders.CreateTable(command);
+            }
+        }
+
+        private SqliteConnection OpenNewConnection()
+        {
+            SqliteConnection connection = new SqliteConnection(this.sqliteConnectionString);
+            connection.Open();
+            return connection;
+        }
+
+        private void ReturnToPool(SqliteConnection connection)
+        {
+            if (this.disposed)
+            {
+                connection?.Dispose();
+            }
+            else if (!this.connectionPool.TryAdd(connection))
+            {
+                connection?.Dispose();
+            }
+        }
+
+        private class GVFSConnection : IPooledConnection
+        {
+            private SqliteConnection connection;
+            private GVFSDatabase database;
+
+            public GVFSConnection(GVFSDatabase database, SqliteConnection connection)
+            {
+                this.database = database;
+                this.connection = connection;
+            }
+
+            public SqliteConnection Connection => this.connection;
+
+            public void Dispose()
+            {
+                this.database.ReturnToPool(this.connection);
             }
         }
     }

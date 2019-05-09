@@ -7,11 +7,11 @@ namespace GVFS.Common.Database
 {
     public class Placeholders : IPlaceholderDatabase
     {
-        private SqliteConnection connection;
+        private GVFSDatabase database;
 
-        public Placeholders(SqliteConnection connection)
+        public Placeholders(GVFSDatabase database)
         {
-            this.connection = connection;
+            this.database = database;
         }
 
         public static void CreateTable(SqliteCommand command)
@@ -22,7 +22,8 @@ namespace GVFS.Common.Database
 
         public int Count()
         {
-            using (SqliteCommand command = this.connection.CreateCommand())
+            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 command.CommandText = $"SELECT count(path) FROM Placeholders;";
                 return Convert.ToInt32(command.ExecuteScalar());
@@ -33,7 +34,8 @@ namespace GVFS.Common.Database
         {
             filePlaceholders = new List<IPlaceholderData>();
             folderPlaceholders = new List<IPlaceholderData>();
-            using (SqliteCommand command = this.connection.CreateCommand())
+            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 command.CommandText = $"SELECT path, pathType, sha FROM Placeholders;";
                 using (SqliteDataReader reader = command.ExecuteReader())
@@ -64,7 +66,8 @@ namespace GVFS.Common.Database
 
         public HashSet<string> GetAllFilePaths()
         {
-            using (SqliteCommand command = this.connection.CreateCommand())
+            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 HashSet<string> fileEntries = new HashSet<string>();
                 command.CommandText = $"SELECT path FROM Placeholders WHERE pathType = 0;";
@@ -82,7 +85,8 @@ namespace GVFS.Common.Database
 
         public bool Contains(string path)
         {
-            using (SqliteCommand command = this.connection.CreateCommand())
+            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 command.CommandText = $"SELECT 1 FROM Placeholders WHERE path = @path;";
                 command.Parameters.Add("@path", SqliteType.Text).Value = path;
@@ -93,7 +97,8 @@ namespace GVFS.Common.Database
 
         public void AddFile(string path, string sha)
         {
-            using (SqliteCommand command = this.connection.CreateCommand())
+            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.File, Sha = sha });
             }
@@ -101,7 +106,8 @@ namespace GVFS.Common.Database
 
         public void AddPartialFolder(string path)
         {
-            using (SqliteCommand command = this.connection.CreateCommand())
+            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PartialFolder });
             }
@@ -109,7 +115,8 @@ namespace GVFS.Common.Database
 
         public void AddExpandedFolder(string path)
         {
-            using (SqliteCommand command = this.connection.CreateCommand())
+            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.ExpandedFolder });
             }
@@ -117,7 +124,8 @@ namespace GVFS.Common.Database
 
         public void AddPossibleTombstoneFolder(string path)
         {
-            using (SqliteCommand command = this.connection.CreateCommand())
+            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PossibleTombstoneFolder });
             }
@@ -125,7 +133,8 @@ namespace GVFS.Common.Database
 
         public void Remove(string path)
         {
-            using (SqliteCommand command = this.connection.CreateCommand())
+            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
+            using (SqliteCommand command = pooled.Connection.CreateCommand())
             {
                 Delete(command, path);
             }
