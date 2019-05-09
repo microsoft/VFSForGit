@@ -394,7 +394,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(18)]
         public void HardlinkFromOutsideRepoToInside()
         {
-            string fileName = "OutsideRepoToInside.txt";
+            string fileName = "OutsideRepoFileForHardlink.txt";
             string fileOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileName);
             this.fileSystem.WriteAllText(fileOutsideRepo, "Contents for the new file");
             fileOutsideRepo.ShouldBeAFile(this.fileSystem);
@@ -411,31 +411,33 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(19)]
         public void HardlinkFromInsideRepoToInside()
         {
-            string fileName = "InsideRepoToOutside.txt";
+            string fileName = "InsideRepoToInsideRepoFileForHardlink.txt";
             string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
             this.fileSystem.WriteAllText(fileInsideRepo, "Contents for the new file");
             fileInsideRepo.ShouldBeAFile(this.fileSystem);
             this.Enlistment.WaitForBackgroundOperations();
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
 
-            string fileHardLinkedOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileName);
+            string hardLinkFileName = "HardLinkInsideRepoToInsideRepo.txt";
+            string fileHardLinkedOutsideRepo = this.Enlistment.GetVirtualPathTo(hardLinkFileName);
             this.fileSystem.CreateHardLink(fileHardLinkedOutsideRepo, fileInsideRepo);
             fileHardLinkedOutsideRepo.ShouldBeAFile(this.fileSystem);
             this.Enlistment.WaitForBackgroundOperations();
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, hardLinkFileName);
         }
 
         [TestCase, Order(20)]
         public void HardlinkInsideRepo()
         {
-            string fileName = "InsideRepo.txt";
+            string fileName = "InsideRepoFileForHardlink.txt";
             string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
             this.fileSystem.WriteAllText(fileInsideRepo, "Contents for the new file");
             fileInsideRepo.ShouldBeAFile(this.fileSystem);
             this.Enlistment.WaitForBackgroundOperations();
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
 
-            string fileNameLink = "InsideRepoLink.txt";
+            string fileNameLink = "HardLinkInsideRepoLink.txt";
             string fileLinkInsideRepo = this.Enlistment.GetVirtualPathTo(fileNameLink);
             this.fileSystem.CreateHardLink(fileLinkInsideRepo, fileInsideRepo);
             fileLinkInsideRepo.ShouldBeAFile(this.fileSystem);
