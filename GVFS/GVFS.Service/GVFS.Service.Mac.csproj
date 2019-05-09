@@ -9,6 +9,7 @@
     <Platforms>x64</Platforms>
     <RunTimeIdentifiers>osx-x64</RunTimeIdentifiers>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
   </PropertyGroup>
   
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
