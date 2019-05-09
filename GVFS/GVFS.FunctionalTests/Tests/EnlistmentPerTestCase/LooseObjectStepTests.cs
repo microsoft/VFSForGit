@@ -7,10 +7,10 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
+namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
-    public class LooseObjectStepTests : TestsWithEnlistmentPerFixture
+    public class LooseObjectStepTests : TestsWithEnlistmentPerTestCase
     {
         private const string TempPackFolder = "tempPacks";
         private FileSystemRunner fileSystem;
@@ -25,28 +25,23 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private string GitObjectRoot => this.Enlistment.GetObjectRoot(this.fileSystem);
         private string PackRoot => this.Enlistment.GetPackRoot(this.fileSystem);
-        private string TempPackRoot=> Path.Combine(this.PackRoot, TempPackFolder);
+        private string TempPackRoot => Path.Combine(this.PackRoot, TempPackFolder);
 
         [TestCase]
         public void RemoveLooseObjectsInPackFiles()
         {
-            // Delete/Move any starting loose objects and packfiles
-            this.DeleteFiles(this.GetLooseObjectFiles());
-            this.MovePackFilesToTemp();
-            this.GetLooseObjectFiles().Count.ShouldEqual(0);
-            this.CountPackFiles().ShouldEqual(0);
+            this.ClearAllObjects();
 
             // Copy and expand one pack
             this.ExpandOneTempPack(copyPackBackToPackDirectory: true);
-            Assert.AreNotEqual(0, this.GetLooseObjectFiles().Count);
             this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
             this.CountPackFiles().ShouldEqual(1);
 
             // Cleanup should delete all loose objects, since they are in the packfile
             this.Enlistment.LooseObjectStep();
 
-            Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
-            Assert.AreEqual(1, this.CountPackFiles());
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
+            this.CountPackFiles().ShouldEqual(1);
             this.GetLooseObjectFiles().Count.ShouldEqual(0);
             this.CountPackFiles().ShouldEqual(1);
         }
@@ -54,21 +49,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void PutLooseObjectsInPackFiles()
         {
-            // Delete/Move any starting loose objects and packfiles
-            this.DeleteFiles(this.GetLooseObjectFiles());
-            this.MovePackFilesToTemp();
-            this.GetLooseObjectFiles().Count.ShouldEqual(0);
-            this.CountPackFiles().ShouldEqual(0);
+            this.ClearAllObjects();
 
             // Expand one pack, and verify we have loose objects
             this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
-            int loooseObjectCount = this.GetLooseObjectFiles().Count();
-            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
+            int looseObjectCount = this.GetLooseObjectFiles().Count();
+            looseObjectCount.ShouldBeAtLeast(1);
 
             // This step should put the loose objects into a packfile
             this.Enlistment.LooseObjectStep();
 
-            this.GetLooseObjectFiles().Count.ShouldEqual(loooseObjectCount);
+            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(looseObjectCount);
             this.CountPackFiles().ShouldEqual(1);
 
             // Running the step a second time should remove the loose obects and keep the pack file
@@ -89,6 +80,56 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GetLooseObjectFiles().Count.ShouldEqual(0);
             this.CountPackFiles().ShouldEqual(startingPackFileCount);
+        }
+
+        [TestCase]
+        public void CorruptLooseObjectIsDeleted()
+        {
+            this.ClearAllObjects();
+
+            // Expand one pack, and verify we have loose objects
+            this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
+            int looseObjectCount = this.GetLooseObjectFiles().Count();
+            looseObjectCount.ShouldBeAtLeast(1, "Too few loose objects");
+
+            // Create an invalid loose object
+            string fakeBlobFolder = Path.Combine(this.GitObjectRoot, "00");
+            string fakeBlob = Path.Combine(
+                        fakeBlobFolder,
+                        "01234567890123456789012345678901234567");
+            this.fileSystem.CreateDirectory(fakeBlobFolder);
+            this.fileSystem.CreateEmptyFile(fakeBlob);
+
+            // This step should fail to place the objects, but
+            // succeed in deleting the given file.
+            this.Enlistment.LooseObjectStep();
+
+            this.fileSystem.FileExists(fakeBlob).ShouldBeFalse(
+                   "Step failed to delete corrupt blob");
+            this.CountPackFiles().ShouldEqual(0, "Incorrect number of packs after first loose object step");
+            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(
+                looseObjectCount,
+                "unexpected number of loose objects after step");
+
+            // This step should create a pack.
+            this.Enlistment.LooseObjectStep();
+
+            this.CountPackFiles().ShouldEqual(1, "Incorrect number of packs after second loose object step");
+            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(looseObjectCount);
+
+            // This step should delete the loose objects
+            this.Enlistment.LooseObjectStep();
+
+            this.GetLooseObjectFiles().Count.ShouldEqual(0, "Incorrect number of loose objects after third loose object step");
+        }
+
+        private void ClearAllObjects()
+        {
+            // Delete/Move any starting loose objects and packfiles
+            this.DeleteFiles(this.GetLooseObjectFiles());
+            this.MovePackFilesToTemp();
+            this.GetLooseObjectFiles().Count.ShouldEqual(0, "incorrect number of loose objects after setup");
+            this.CountPackFiles().ShouldEqual(0, "incorrect number of packs after setup");
         }
 
         private List<string> GetLooseObjectFiles()
@@ -126,6 +167,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             foreach (string file in files)
             {
                 string path2 = Path.Combine(this.TempPackRoot, Path.GetFileName(file));
+
                 File.Move(file, path2);
             }
         }
