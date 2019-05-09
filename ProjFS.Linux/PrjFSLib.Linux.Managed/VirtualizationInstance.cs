@@ -211,22 +211,15 @@ namespace PrjFSLib.Linux
                 throw new ArgumentException();
             }
 
-            /*
-            UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
-            Result result = ProjFS.UpdatePlaceholderFileIfNeeded(
-                relativePath,
-                providerId,
-                contentId,
-                fileSize,
-                fileMode,
-                updateFlags,
-                ref updateFailureCause);
+            Result result = this.DeleteFile(relativePath, updateFlags, out failureCause);
+            if (result != Result.Success)
+            {
+                return result;
+            }
 
-            failureCause = updateFailureCause;
-            return result;
-            */
+            // TODO(Linux): try to handle races with hydration?
             failureCause = UpdateFailureCause.NoFailure;
-            return Result.ENotYetImplemented;
+            return this.WritePlaceholderFile(relativePath, providerId, contentId, fileSize, fileMode);
         }
 
         public virtual Result ReplacePlaceholderFileWithSymLink(
@@ -235,19 +228,15 @@ namespace PrjFSLib.Linux
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            /*
-            UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
-            Result result = ProjFS.ReplacePlaceholderFileWithSymLink(
-                relativePath,
-                symLinkTarget,
-                updateFlags,
-                ref updateFailureCause);
+            Result result = this.DeleteFile(relativePath, updateFlags, out failureCause);
+            if (result != Result.Success)
+            {
+                return result;
+            }
 
-            failureCause = updateFailureCause;
-            return result;
-            */
+            // TODO(Linux): try to handle races with hydration?
             failureCause = UpdateFailureCause.NoFailure;
-            return Result.ENotYetImplemented;
+            return this.WriteSymLink(relativePath, symLinkTarget);
         }
 
         public virtual Result CompleteCommand(
