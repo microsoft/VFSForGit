@@ -7,6 +7,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -87,6 +88,36 @@ namespace GVFS.FunctionalTests.Tools
                     {
                         reader.Read().ShouldBeTrue();
                         reader.GetInt64(0).ShouldEqual(blobSize);
+                    }
+                }
+            }
+        }
+
+        public static string GetAllSQLitePlaceholdersAsString(string placeholdersDbPath)
+        {
+            string connectionString = $"data source={placeholdersDbPath}";
+            using (SqliteConnection readConnection = new SqliteConnection(connectionString))
+            {
+                readConnection.Open();
+                using (SqliteCommand selectCommand = readConnection.CreateCommand())
+                {
+                    selectCommand.CommandText = "SELECT path, pathType, sha FROM Placeholders";
+                    using (SqliteDataReader reader = selectCommand.ExecuteReader())
+                    {
+                        StringBuilder sb = new StringBuilder();
+                        while (reader.Read())
+                        {
+                            sb.AppendFormat("{0}|", reader.GetString(0));
+                            sb.AppendFormat("{0}|", reader.GetByte(1));
+                            if (!reader.IsDBNull(2))
+                            {
+                                sb.AppendFormat("{0}", reader.GetString(2));
+                            }
+
+                            sb.AppendLine();
+                        }
+
+                        return sb.ToString();
                     }
                 }
             }
