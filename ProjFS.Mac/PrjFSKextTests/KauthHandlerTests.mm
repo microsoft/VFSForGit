@@ -126,7 +126,6 @@ class org_vfsforgit_PrjFSProviderUserClient
     kauth_action_t action = KAUTH_VNODE_READ_DATA;
     
     // Out Parameters
-    vtype vnodeType;
     uint32_t vnodeFileFlags;
     int pid;
     char procname[MAXCOMLEN + 1] = "";
@@ -141,7 +140,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -157,7 +155,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             KAUTH_VNODE_ACCESS,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -172,7 +169,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             KAUTH_VNODE_ACCESS | KAUTH_VNODE_READ_DATA,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -189,7 +185,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnodeNone.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -206,7 +201,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnodeInvalidType.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -223,7 +217,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -242,7 +235,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -265,7 +257,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -284,7 +275,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             context,
             testVnode.get(),
             action,
-            &vnodeType,
             &vnodeFileFlags,
             &pid,
             procname,
@@ -371,7 +361,6 @@ class org_vfsforgit_PrjFSProviderUserClient
     org_vfsforgit_PrjFSProviderUserClient userClient;
 
     VirtualizationRootHandle rootHandle;
-    FsidInode vnodeFsidInode;
     int pid;
     VirtualizationRootHandle testRootHandle;
 
@@ -384,7 +373,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
-            &vnodeFsidInode,
             &pid));
 
     testRootHandle = InsertVirtualizationRoot_Locked(
@@ -405,7 +393,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
-            &vnodeFsidInode,
             &pid));
 
     // Invalid File System should fail
@@ -417,7 +404,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
-            &vnodeFsidInode,
             &pid));
     
     // Invalid Vnode Type should fail
@@ -429,7 +415,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
-            &vnodeFsidInode,
             &pid));
 
     // Fail when the provider is not online
@@ -442,7 +427,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
-            &vnodeFsidInode,
             &pid));
     s_virtualizationRoots[0].providerUserClient = &userClient;
 
@@ -459,7 +443,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
-            &vnodeFsidInode,
             &pid));
     MockProcess_Reset();
     MockProcess_AddContext(context, 501 /*pid*/);
@@ -475,7 +458,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_OPEN,
             false, // isDirectory,
             &rootHandle,
-            &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
     // Finding the root should have added testVnodeFile to the cache
@@ -491,7 +473,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_LINK,
             false, // isDirectory,
             &rootHandle,
-            &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
     // KAUTH_FILEOP_LINK should invalidate the cache entry for testVnodeFile
@@ -509,7 +490,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_RENAME,
             false, // isDirectory,
             &rootHandle,
-            &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
     // The cache should have been refreshed for KAUTH_FILEOP_RENAME
@@ -528,7 +508,6 @@ class org_vfsforgit_PrjFSProviderUserClient
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &rootHandle,
-            &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
 

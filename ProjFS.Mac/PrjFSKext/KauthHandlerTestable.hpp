@@ -44,7 +44,6 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     kauth_action_t action,
 
     // Out params:
-    vtype* vnodeType,
     uint32_t* vnodeFileFlags,
     int* pid,
     char procname[MAXCOMLEN + 1],
@@ -60,7 +59,6 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
 
     // Out params:
     VirtualizationRootHandle* root,
-    FsidInode* vnodeFsidInode,
     int* pid);
 KEXT_STATIC void UseMainForkIfNamedStream(vnode_t& vnode, bool& putVnodeWhenDone);
 KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser();
