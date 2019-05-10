@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Concurrent;
@@ -16,15 +17,15 @@ namespace GVFS.Common.Database
         private string sqliteConnectionString;
         private BlockingCollection<SqliteConnection> connectionPool;
 
-        public GVFSDatabase(GVFSContext context)
+        public GVFSDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string enlistmentRoot)
         {
-            this.tracer = context.Tracer;
+            this.tracer = tracer;
             this.connectionPool = new BlockingCollection<SqliteConnection>();
-            this.databasePath = Path.Combine(context.Enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.GVFSDatabase);
+            this.databasePath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.GVFSDatabase);
             this.sqliteConnectionString = $"data source={this.databasePath};Cache=Shared;";
 
             string folderPath = Path.GetDirectoryName(this.databasePath);
-            context.FileSystem.CreateDirectory(folderPath);
+            fileSystem.CreateDirectory(folderPath);
 
             for (int i = 0; i < InitialPooledConnections; i++)
             {

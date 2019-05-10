@@ -95,6 +95,29 @@ namespace GVFS.Common.Database
             }
         }
 
+        public void AddPlaceholderData(IPlaceholderData data)
+        {
+            if (data.IsFolder)
+            {
+                if (data.IsExpandedFolder)
+                {
+                    this.AddExpandedFolder(data.Path);
+                }
+                else if (data.IsPossibleTombstoneFolder)
+                {
+                    this.AddPossibleTombstoneFolder(data.Path);
+                }
+                else
+                {
+                    this.AddPartialFolder(data.Path);
+                }
+            }
+            else
+            {
+                this.AddFile(data.Path, data.Sha);
+            }
+        }
+
         public void AddFile(string path, string sha)
         {
             using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())

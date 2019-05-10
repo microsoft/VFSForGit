@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.DiskLayoutUpgrades;
+using GVFS.Platform.Mac.DiskLayoutUpgrades;
 
 namespace GVFS.Platform.Mac
 {
@@ -9,12 +10,15 @@ namespace GVFS.Platform.Mac
         {
             get
             {
-                return new DiskLayoutUpgrade[0];
+                return new DiskLayoutUpgrade[]
+                {
+                    new DiskLayout18to19Upgrade_SqlitePlacholders(),
+                };
             }
         }
 
         public DiskLayoutVersion Version => new DiskLayoutVersion(
-            currentMajorVersion: 18,
+            currentMajorVersion: 19,
             currentMinorVersion: 0,
             minimumSupportedMajorVersion: 18);
 
