@@ -436,13 +436,20 @@ namespace GVFS.Platform.Mac
             this.Context.Tracer.RelatedError($"{nameof(MacFileSystemVirtualizer)}::{nameof(this.OnLogError)}: {errorMessage}");
         }
 
-        private void OnFileModified(string relativePath)
+        private void OnFileModified(string relativePath, bool isPlaceholderFile)
         {
             try
             {
                 if (Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath))
                 {
                     this.OnDotGitFileOrFolderChanged(relativePath);
+                }
+                else if (isPlaceholderFile == true)
+                {
+                    // The '>>' bash command does not send a KAUTH_VNODE_WRITE data event
+                    // To handle this, PrjFSLib checks if a file is a placeholder in the Modifed event and converts the file to
+                    // full after delivering this callback
+                    this.NotifyFilePreConvertToFull(relativePath);
                 }
             }
             catch (Exception e)
