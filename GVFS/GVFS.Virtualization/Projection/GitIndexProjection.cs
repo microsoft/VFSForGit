@@ -1377,7 +1377,6 @@ namespace GVFS.Virtualization.Projection
                 if (newChild)
                 {
                     FileSystemResult result;
-                    string fileShaOrFolderValue;
                     if (childEntry.IsFolder)
                     {
                         result = this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
@@ -1389,11 +1388,11 @@ namespace GVFS.Virtualization.Projection
                     else
                     {
                         FileData childFileData = childEntry as FileData;
-                        fileShaOrFolderValue = childFileData.Sha.ToString();
-                        result = this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, fileShaOrFolderValue);
+                        string fileSha = childFileData.Sha.ToString();
+                        result = this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, fileSha);
                         if (result.Result == FSResult.Ok)
                         {
-                            this.placeholderDatabase.AddFile(childRelativePath, childFileData.Sha.ToString());
+                            this.placeholderDatabase.AddFile(childRelativePath, fileSha);
                         }
                     }
 
