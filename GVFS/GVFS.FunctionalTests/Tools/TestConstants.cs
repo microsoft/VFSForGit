@@ -36,6 +36,7 @@ namespace GVFS.FunctionalTests.Tools
             public const string Root = "databases";
             public static readonly string ModifiedPaths = Path.Combine(Root, "ModifiedPaths.dat");
             public static readonly string PlaceholderList = Path.Combine(Root, "PlaceholderList.dat");
+            public static readonly string GVFSDatabase = Path.Combine(Root, "gvfs.sqlite");
         }
     }
 }
