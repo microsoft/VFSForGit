@@ -14,7 +14,7 @@ namespace GVFS.FunctionalTests.Tools
     public static class GVFSHelpers
     {
         public const string ModifiedPathsNewLine = "\r\n";
-        public const string PlaceholderFieldDelimiter = "|";
+        public const string PlaceholderFieldDelimiter = "\0";
 
         public static readonly string BackgroundOpsFile = Path.Combine("databases", "BackgroundGitOperations.dat");
         public static readonly string PlaceholderListFile = Path.Combine("databases", "PlaceholderList.dat");
