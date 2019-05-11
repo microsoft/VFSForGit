@@ -110,6 +110,7 @@ namespace GVFS.Platform.Mac
 
         private static class NativeFileReader
         {
+            // #define O_RDONLY 0x0000     /* open for reading only */
             private const int ReadOnly = 0x0000;
 
             internal static bool TryReadFirstByteOfFile(string fileName, byte[] buffer)
