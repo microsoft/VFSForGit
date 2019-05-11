@@ -16,6 +16,8 @@ namespace GVFS.Platform.Mac
         public override IKernelDriver KernelDriver { get; } = new ProjFSKext();
         public override string Name { get => "macOS"; }
         public override GVFSPlatformConstants Constants { get; } = new MacPlatformConstants();
+        public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
+
         public override string GetOSVersionInformation()
         {
             ProcessResult result = ProcessHelper.Run("sw_vers", args: string.Empty, redirectOutput: true);
