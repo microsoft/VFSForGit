@@ -188,7 +188,7 @@ namespace PrjFSLib.Linux.Interop
         private static extern int _GetProjAttrs(
             IntPtr fs,
             string relativePath,
-            Attr[] attrs,
+            [In, Out] Attr[] attrs,
             uint nattrs);
 
         [StructLayout(LayoutKind.Sequential)]
