@@ -29,27 +29,6 @@ namespace GVFS.Common
 
         private const string ToolsDirectory = "Tools";
         private static readonly string UpgraderToolName = GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName;
-        private static readonly string UpgraderToolConfigFile = UpgraderToolName + ".config";
-        private static readonly string[] UpgraderToolAndLibs =
-            {
-                UpgraderToolName,
-                UpgraderToolConfigFile,
-                "GVFS.Common.dll",
-                "GVFS.Platform.Windows.dll",
-                "netstandard.dll",
-                "System.Net.Http.dll",
-                "Newtonsoft.Json.dll",
-                "CommandLine.dll",
-                "NuGet.Commands.dll",
-                "NuGet.Common.dll",
-                "NuGet.Configuration.dll",
-                "NuGet.Frameworks.dll",
-                "NuGet.Packaging.Core.dll",
-                "NuGet.Packaging.dll",
-                "NuGet.Protocol.dll",
-                "NuGet.Versioning.dll",
-                "System.IO.Compression.dll"
-            };
 
         public ProductUpgrader(
             string currentVersion,
@@ -196,29 +175,21 @@ namespace GVFS.Common
 
             string currentPath = ProcessHelper.GetCurrentProcessLocation();
             error = null;
-            foreach (string name in UpgraderToolAndLibs)
+            try
             {
-                string toolPath = Path.Combine(currentPath, name);
-                string destinationPath = Path.Combine(toolsDirectoryPath, name);
-                try
-                {
-                    this.fileSystem.CopyFile(toolPath, destinationPath, overwrite: true);
-                }
-                catch (UnauthorizedAccessException e)
-                {
-                    error = string.Join(
-                        Environment.NewLine,
-                        "File copy error - " + e.Message,
-                        $"Make sure you have write permissions to directory {toolsDirectoryPath} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
-                    this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
-                    break;
-                }
-                catch (IOException e)
-                {
-                    error = "File copy error - " + e.Message;
-                    this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
-                    break;
-                }
+                this.fileSystem.CopyDirectoryRecursive(currentPath, toolsDirectoryPath);
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                error = string.Join(
+                    Environment.NewLine,
+                    "File copy error - " + e.Message,
+                    $"Make sure you have write permissions to directory {toolsDirectoryPath} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
+            }
+            catch (IOException e)
+            {
+                error = "File copy error - " + e.Message;
+                this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {currentPath} to {toolsDirectoryPath}.");
             }
 
             if (string.IsNullOrEmpty(error))
