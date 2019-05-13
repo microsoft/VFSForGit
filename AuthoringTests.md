@@ -38,7 +38,7 @@ The functional tests are built on NUnit 3, which is available as a set of NuGet 
    
    **Option 2:** Run `Scripts\RunFunctionalTests.bat` from CMD launched as Administrator.
 
-#### Extra and Full Suite
+#### Selecting Which Tests are Run
 
 By default, the functional tests run a subset of tests as a quick smoke test for developers.  There are three mutually exclusive arguments that can be passed to the functional tests to change this behavior:
 
@@ -46,7 +46,7 @@ By default, the functional tests run a subset of tests as a quick smoke test for
 - `--extra-only`: Run only those tests marked as "ExtraCoverage" (i.e. the tests that are not run by default)
 - `--windows-only`: Run only the tests marked as being Windows specific
 
-**NOTE** `Scripts\RunFunctionalTests.bat` already uses some of these arguments.  If you run the scripts using `RunFunctionalTests.bat` consider modifying the script to use these arguments rather than passing them as arguments to the script.
+**NOTE** `Scripts\RunFunctionalTests.bat` already uses some of these arguments.  If you run the tests using `RunFunctionalTests.bat` consider locally modifying the script rather than passing these flags as arguments to the script.
 
 ### Mac
 
@@ -113,7 +113,7 @@ as the base class, because NUnit treats namespaces like test suites, and we have
 
 3. `TestsWithEnlistmentPerTestCase`
 
-   Derive from this class if you need a brand-new enlistment per test case.  This is the most reliable, but also most expensive option.
+   Derive from this class if you need a new enlistment created for each test case.  This is the most reliable, but also most expensive option.
 
 ## Updating the Remote Test Branch
 
