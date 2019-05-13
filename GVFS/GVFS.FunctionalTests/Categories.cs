@@ -13,6 +13,7 @@
         public const string RepositoryMountsSameFileSystem = "RepositoryMountsSameFileSystem";
 
         public const string WindowsOnly = "WindowsOnly";
+        public const string LinuxOnly = "LinuxOnly";
         public const string MacOnly = "MacOnly";
         public const string POSIXOnly = "POSIXOnly";
 
