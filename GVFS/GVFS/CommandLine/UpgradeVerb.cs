@@ -257,7 +257,20 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            this.ReportInfoToConsole($"{Environment.NewLine}Installer launched in a new window. Do not run any git or gvfs commands until the installer has completed.");
+            if (GVFSPlatform.Instance.Constants.SupportsInlineUpgrade)
+            {
+                while (!this.processLauncher.HasExited)
+                {
+                    System.Threading.Thread.Sleep(1000);
+                }
+
+                this.ReportInfoToConsole($"{Environment.NewLine}Upgrade completed.");
+            }
+            else
+            {
+                this.ReportInfoToConsole($"{Environment.NewLine}Installer launched in a new window. Do not run any git or gvfs commands until the installer has completed.");
+            }
+
             consoleError = null;
             return true;
         }
@@ -389,7 +402,7 @@ namespace GVFS.CommandLine
             {
                 this.Process.StartInfo = new ProcessStartInfo(path)
                 {
-                    UseShellExecute = true,
+                    UseShellExecute = false,
                     WorkingDirectory = Environment.SystemDirectory,
                     WindowStyle = ProcessWindowStyle.Normal,
                     Arguments = args
