@@ -46,7 +46,12 @@ namespace GVFS.Common.Maintenance
                 string commitGraphLockPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", CommitGraphLock);
                 this.Context.FileSystem.TryDeleteFile(commitGraphLockPath);
 
-                this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, this.packIndexes), nameof(GitProcess.WriteCommitGraph));
+                GitProcess.Result writeResult = this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, this.packIndexes), nameof(GitProcess.WriteCommitGraph));
+
+                if (writeResult.ExitCodeIsFailure)
+                {
+                    this.LogErrorAndRewriteCommitGraph(activity, this.packIndexes);
+                }
 
                 // Turning off Verify for commit graph due to performance issues.
                 /*
