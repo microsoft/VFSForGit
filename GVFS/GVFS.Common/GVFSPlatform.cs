@@ -140,6 +140,12 @@ namespace GVFS.Common
             public static readonly char PathSeparator = Path.DirectorySeparatorChar;
             public abstract string ExecutableExtension { get; }
             public abstract string InstallerExtension { get; }
+
+            /// <summary>
+            /// Indicates whether the platform supports running the upgrade application while
+            /// the upgrade verb is running.
+            /// </summary>
+            public abstract bool SupportsUpgradeWhileRunning { get; }
             public abstract string WorkingDirectoryBackingRootPath { get; }
             public abstract string DotGVFSRoot { get; }
 
