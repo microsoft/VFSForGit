@@ -16,7 +16,11 @@ namespace GVFS.Platform.Mac
     {
         private const string UpgradeProtectedDataDirectory = "/usr/local/vfsforgit_upgrader";
 
-        public MacPlatform()
+        public MacPlatform() : base(
+             underConstruction: new UnderConstructionFlags(
+                supportsGVFSUpgrade: true,
+                supportsGVFSConfig: true,
+                supportsNuGetEncryption: false))
         {
         }
 
