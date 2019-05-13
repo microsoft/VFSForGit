@@ -96,7 +96,7 @@ namespace GVFS.Service.Handlers
                     NamedPipeMessages.EnableAndAttachProjFSRequest.Response response = new NamedPipeMessages.EnableAndAttachProjFSRequest.Response();
                     response.State = NamedPipeMessages.CompletionState.Success;
 
-                    this.TrySendResponse(tracer, response.ToString(), connection);
+                    this.TrySendResponse(tracer, response.ToMessage().ToString(), connection);
                     break;
 
                 default:

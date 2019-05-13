@@ -1,7 +1,9 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.NamedPipes;
 using GVFS.Platform.Mac;
 using GVFS.Service;
+using GVFS.Service.Handlers;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using Moq;
@@ -47,6 +49,26 @@ namespace GVFS.UnitTests.Service.Mac
             service.Run();
 
             repoRegistry.VerifyAll();
+        }
+
+        [TestCase]
+        public void ServiceHandlesEnablePrjfsRequest()
+        {
+            string expectedServiceResponse = "TRequestResponse|{\"State\":1,\"ErrorMessage\":null}";
+            Mock<NamedPipeServer.Connection> connectionMock = new Mock<NamedPipeServer.Connection>(
+                MockBehavior.Strict,
+                null, // serverStream
+                this.tracer, // tracer
+                null); // isStopping
+            connectionMock.Setup(mp => mp.TrySendResponse(expectedServiceResponse)).Returns(true);
+
+            NamedPipeMessages.EnableAndAttachProjFSRequest request = new NamedPipeMessages.EnableAndAttachProjFSRequest();
+            request.EnlistmentRoot = string.Empty;
+
+            RequestHandler serviceRequestHandler = new RequestHandler(this.tracer, etwArea: string.Empty, repoRegistry: null);
+            serviceRequestHandler.HandleRequest(this.tracer, request.ToMessage().ToString(), connectionMock.Object);
+
+            connectionMock.VerifyAll();
         }
 
         [TestCase]
