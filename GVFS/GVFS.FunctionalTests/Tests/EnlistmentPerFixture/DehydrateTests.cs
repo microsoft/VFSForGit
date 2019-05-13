@@ -11,7 +11,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.ExtraCoverage)]
-    [Category(Categories.MacTODO.M4)]
     public class DehydrateTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
@@ -32,6 +31,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsDehydrate)]  // Dehydrate is not successful
         public void DehydrateShouldSucceedInCommonCase()
         {
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: false);
@@ -46,6 +46,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsDehydrate)]  // Call CmdRunner which is windows specific
         public void DehydrateShouldSucceedEvenIfObjectCacheIsDeleted()
         {
             this.Enlistment.UnmountGVFS();
@@ -54,6 +55,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsDehydrate)]  // .git / .gvfs are copied to backup folder on Mac
         public void DehydrateShouldBackupFiles()
         {
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: false);
@@ -128,6 +130,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsDehydrate)]  // Error messages on mac are different, DehydrateShouldFail fails on message checking
         public void DehydrateShouldFailOnWrongDiskLayoutVersion()
         {
             this.Enlistment.UnmountGVFS();
