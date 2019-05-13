@@ -27,6 +27,8 @@ namespace GVFS.Common
         public UnderConstructionFlags UnderConstruction { get; }
         public abstract string Name { get; }
 
+        public abstract string GVFSConfigPath { get; }
+
         public static void Register(GVFSPlatform platform)
         {
             if (GVFSPlatform.Instance != null)

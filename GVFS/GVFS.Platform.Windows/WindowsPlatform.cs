@@ -36,6 +36,17 @@ namespace GVFS.Platform.Windows
         public override string Name { get => "Windows"; }
         public override GVFSPlatformConstants Constants { get; } = new WindowsPlatformConstants();
 
+        public override string GVFSConfigPath
+        {
+            get
+            {
+                string servicePath = GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName);
+                string gvfsDirectory = Path.GetDirectoryName(servicePath);
+
+                return Path.Combine(gvfsDirectory, LocalGVFSConfig.FileName);
+            }
+        }
+
         public static string GetStringFromRegistry(string key, string valueName)
         {
             object value = GetValueFromRegistry(RegistryHive.LocalMachine, key, valueName);
