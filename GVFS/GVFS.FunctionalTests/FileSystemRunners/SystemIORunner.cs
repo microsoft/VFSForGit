@@ -104,7 +104,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
             else
             {
-                MacCreateHardLink(existingFilePath, newLinkFilePath).ShouldEqual(0, $"Failed to create hard link: {Marshal.GetLastWin32Error()}");
+                POSIXCreateHardLink(existingFilePath, newLinkFilePath).ShouldEqual(0, $"Failed to create hard link: {Marshal.GetLastWin32Error()}");
             }
         }
 
@@ -221,9 +221,13 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             {
                 throw new NotSupportedException();
             }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                LinuxChmod(path, (uint)mode).ShouldEqual(0, $"Failed to chmod: {Marshal.GetLastWin32Error()}");
+            }
             else
             {
-                Chmod(path, mode).ShouldEqual(0, $"Failed to chmod: {Marshal.GetLastWin32Error()}");
+                MacChmod(path, mode).ShouldEqual(0, $"Failed to chmod: {Marshal.GetLastWin32Error()}");
             }
         }
 
@@ -236,10 +240,13 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
 
         [DllImport("libc", EntryPoint = "link", SetLastError = true)]
-        private static extern int MacCreateHardLink(string oldPath, string newPath);
+        private static extern int POSIXCreateHardLink(string oldPath, string newPath);
 
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
-        private static extern int Chmod(string pathname, ushort mode);
+        private static extern int LinuxChmod(string pathname, uint mode);
+
+        [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
+        private static extern int MacChmod(string pathname, ushort mode);
 
         [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
         private static extern int Rename(string oldPath, string newPath);
