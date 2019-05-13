@@ -29,6 +29,8 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string Name { get => "Mock"; }
 
+        public override string GVFSConfigPath { get => Path.Combine("mock:", LocalGVFSConfig.FileName); }
+
         public override GVFSPlatformConstants Constants { get; } = new MockPlatformConstants();
 
         public override ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; } = new MockProductUpgraderInfo();

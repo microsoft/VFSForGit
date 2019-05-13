@@ -38,6 +38,17 @@ namespace GVFS.Platform.Windows
 
         public override ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; } = new WindowsProductUpgraderInfo();
 
+        public override string GVFSConfigPath
+        {
+            get
+            {
+                string servicePath = GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName);
+                string gvfsDirectory = Path.GetDirectoryName(servicePath);
+
+                return Path.Combine(gvfsDirectory, LocalGVFSConfig.FileName);
+            }
+        }
+
         public static string GetStringFromRegistry(string key, string valueName)
         {
             object value = GetValueFromRegistry(RegistryHive.LocalMachine, key, valueName);

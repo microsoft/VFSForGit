@@ -28,6 +28,7 @@ namespace GVFS.Common
         public abstract string Name { get; }
 
         public abstract ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; }
+        public abstract string GVFSConfigPath { get; }
 
         public static void Register(GVFSPlatform platform)
         {

@@ -25,6 +25,14 @@ namespace GVFS.Platform.Mac
         public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
         public override ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; } = new MacProductUpgraderInfo();
 
+        public override string GVFSConfigPath
+        {
+            get
+            {
+                return Path.Combine(this.Constants.GVFSBinDirectoryPath, LocalGVFSConfig.FileName);
+            }
+        }
+
         public override string GetOSVersionInformation()
         {
             ProcessResult result = ProcessHelper.Run("sw_vers", args: string.Empty, redirectOutput: true);
