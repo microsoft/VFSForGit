@@ -13,7 +13,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     // to work on Mac (where post-fetch.lock is not removed from disk)
     [TestFixture]
     [Category(Categories.ExtraCoverage)]
-    [Category(Categories.MacTODO.M4)]
+    [Category(Categories.MacTODO.TestNeedsToLockFile)]
     public class PrefetchVerbWithoutSharedCacheTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchPackPrefix = "prefetch";

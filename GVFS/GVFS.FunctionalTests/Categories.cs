@@ -18,8 +18,23 @@
             // Tests that require #360 (detecting/handling new empty folders)
             public const string NeedsNewFolderCreateNotification = "NeedsNewFolderCreateNotification";
 
-            // Tests for GVFS features that are not required for correct git functionality
-            public const string M4 = "M4_GVFSFeatures";
+            // Tests that require the Status Cache to be built
+            public const string NeedsStatusCache = "NeedsStatusCache";
+
+            // Tests that require Config to be built
+            public const string NeedsGVFSConfig = "NeedsConfig";
+
+            // Tests that require VFS Service
+            public const string NeedsServiceVerb = "NeedsServiceVerb";
+
+            // Requires both functional and test fixes
+            public const string NeedsDehydrate = "NeedsDehydrate";
+
+            // Tests requires code updates so that we lock the file instead of looking for a .lock file
+            public const string TestNeedsToLockFile = "TestNeedsToLockFile";
+
+            // Corrupt Objects are not redownloaded
+            public const string NeedsCorruptObjectFix = "NeedsCorruptObjectFix";
 
             // Tests that have been flaky on build servers and need additional logging and\or
             // investigation
