@@ -189,10 +189,6 @@
       mkdir  $(TargetDir)\netcoreapp2.1
       xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\netcoreapp2.1\* $(TargetDir)\netcoreapp2.1
       xcopy /Y $(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\netcoreapp2.1\* $(TargetDir)\netcoreapp2.1
-
-      REM If there is an inbox version of the ProjFS dll, we must use that one to guarantee compat with the sys, so delete whatever is in our TargetDir
-      if exist c:\Windows\System32\ProjectedFSLib.dll del $(TargetDir)\ProjectedFSLib.dll
-
 </PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>

@@ -48,9 +48,6 @@
 
   <Target Name="CopyWindowsTestDependencies" AfterTargets="PostBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
     <Copy SourceFiles="@(WindowsBuildOutputs)" DestinationFolder="$(TargetDir)\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" />
-
-    <!-- If there is an inbox version of the ProjFS dll, we must use that one to guarantee compat with the sys, so delete whatever is in our TargetDir -->
-    <Delete Files="$(TargetDir)\ProjectedFSLib.dll" Condition="Exists('c:\Windows\System32\ProjectedFSLib.dll')" />
   </Target>
   
 </Project>

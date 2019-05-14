@@ -3,7 +3,6 @@
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\ProjFS.props" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cs.props" />
-  <Import Project="..\ProjectedFSLib.NativeBinaries.props" Condition="Exists('..\ProjectedFSLib.NativeBinaries.props')" />
   <PropertyGroup>
     <ProjectGuid>{4CE404E7-D3FC-471C-993C-64615861EA63}</ProjectGuid>
     <OutputType>Library</OutputType>
@@ -122,7 +121,6 @@
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('..\ProjectedFSLib.NativeBinaries.props')" Text="$([System.String]::Format('$(ErrorText)', '..\ProjectedFSLib.NativeBinaries.props'))" />
   </Target>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
