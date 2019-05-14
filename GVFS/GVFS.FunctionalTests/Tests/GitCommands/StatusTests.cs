@@ -133,6 +133,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("status");
         }
 
+        [TestCase]
+        public void AppendFile()
+        {
+            this.AppendAllText(@"Readme.md", "More Data");
+
+            this.ValidateGitCommand("status");
+        }
+
         private void RepositoryIgnoreTestSetup()
         {
             this.WaitForUpToDateStatusCache();
