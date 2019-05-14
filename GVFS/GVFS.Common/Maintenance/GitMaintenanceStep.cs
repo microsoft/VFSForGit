@@ -237,6 +237,7 @@ namespace GVFS.Common.Maintenance
                 }
 
                 this.MaintenanceGitProcess = this.Context.Enlistment.CreateGitProcess();
+                this.MaintenanceGitProcess.ForBackground = true;
             }
 
             try

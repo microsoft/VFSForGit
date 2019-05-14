@@ -83,6 +83,8 @@ namespace GVFS.Common.Git
             }
         }
 
+        public bool ForBackground { get; set; }
+
         public static Result Init(Enlistment enlistment)
         {
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryBackingRoot + "\"");
@@ -688,6 +690,7 @@ namespace GVFS.Common.Git
 
             Process executingProcess = new Process();
             executingProcess.StartInfo = processInfo;
+
             return executingProcess;
         }
 
@@ -748,6 +751,11 @@ namespace GVFS.Common.Git
                             }
 
                             this.executingProcess.Start();
+
+                            if (this.ForBackground)
+                            {
+                                this.executingProcess.PriorityClass = ProcessPriorityClass.BelowNormal;
+                            }
                         }
 
                         writeStdIn?.Invoke(this.executingProcess.StandardInput);
