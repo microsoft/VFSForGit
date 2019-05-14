@@ -1,7 +1,7 @@
 #import <Cocoa/Cocoa.h>
-#import "UserNotification.h"
+#import "VFSUserNotification.h"
 
-@interface UserNotification ()
+@interface VFSUserNotification ()
 
 @property (copy) NSString *title;
 @property (copy) NSString *message;
@@ -12,20 +12,25 @@
 // notifications.
 // TODO : Hook this up with message listener
 // to display notifications.
-@implementation UserNotification
 
-- (id) initWithInfo:(NSDictionary *) info
+@implementation VFSUserNotification
+
+- (instancetype)initWithInfo:(NSDictionary<NSString *, NSString*> *)info
 {
-    if (self = [super init])
+    if (info == nil)
     {
-        self.title = [info objectForKey:@"Title"];
-        self.message = [info objectForKey:@"Message"];
+        self = nil;
+    }
+    else if (self = [super init])
+    {
+        _title = [[info objectForKey:@"Title"] copy];
+        _message = [[info objectForKey:@"Message"] copy];
     }
     
     return self;
 }
 
-- (void) display
+- (void)display
 {
     NSUserNotification *notification = [[NSUserNotification alloc] init];
     notification.title = self.title;
@@ -33,7 +38,7 @@
     notification.soundName = NSUserNotificationDefaultSoundName;
     
     [[NSUserNotificationCenter defaultUserNotificationCenter]
-        deliverNotification:notification];
+     deliverNotification:notification];
 }
 
 @end
