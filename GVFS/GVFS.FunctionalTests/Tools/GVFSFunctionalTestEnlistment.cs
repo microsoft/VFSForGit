@@ -84,21 +84,22 @@ namespace GVFS.FunctionalTests.Tools
             get; private set;
         }
 
-        public static GVFSFunctionalTestEnlistment CloneAndMountWithPerRepoCache(string pathToGvfs, bool skipPrefetch)
+        public static GVFSFunctionalTestEnlistment CloneAndMountWithPerRepoCache(string pathToGvfs, bool skipPrefetch, bool unattended = false)
         {
             string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
             string localCache = GVFSFunctionalTestEnlistment.GetRepoSpecificLocalCacheRoot(enlistmentRoot);
-            return CloneAndMount(pathToGvfs, enlistmentRoot, null, localCache, skipPrefetch);
+            return CloneAndMount(pathToGvfs, enlistmentRoot, null, localCache, skipPrefetch, unattended);
         }
 
         public static GVFSFunctionalTestEnlistment CloneAndMount(
             string pathToGvfs,
             string commitish = null,
             string localCacheRoot = null,
-            bool skipPrefetch = false)
+            bool skipPrefetch = false,
+            bool unattended = false)
         {
             string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
-            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCacheRoot, skipPrefetch);
+            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCacheRoot, skipPrefetch, unattended);
         }
 
         public static GVFSFunctionalTestEnlistment CloneAndMountEnlistmentWithSpacesInPath(string pathToGvfs, string commitish = null)
@@ -168,9 +169,9 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public void CloneAndMount(bool skipPrefetch)
+        public void CloneAndMount(bool skipPrefetch, bool unattended = false)
         {
-            this.gvfsProcess.Clone(this.RepoUrl, this.Commitish, skipPrefetch);
+            this.gvfsProcess.Clone(this.RepoUrl, this.Commitish, skipPrefetch, unattended: unattended);
 
             GitProcess.Invoke(this.RepoRoot, "checkout " + this.Commitish);
             GitProcess.Invoke(this.RepoRoot, "branch --unset-upstream");
@@ -289,7 +290,13 @@ namespace GVFS.FunctionalTests.Tools
                 objectHash.Substring(2));
         }
 
-        private static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string enlistmentRoot, string commitish, string localCacheRoot, bool skipPrefetch = false)
+        private static GVFSFunctionalTestEnlistment CloneAndMount(
+            string pathToGvfs,
+            string enlistmentRoot,
+            string commitish,
+            string localCacheRoot,
+            bool skipPrefetch = false,
+            bool unattended = false)
         {
             GVFSFunctionalTestEnlistment enlistment = new GVFSFunctionalTestEnlistment(
                 pathToGvfs,

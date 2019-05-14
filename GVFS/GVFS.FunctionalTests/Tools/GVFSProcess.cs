@@ -16,7 +16,7 @@ namespace GVFS.FunctionalTests.Tools
             this.localCacheRoot = localCacheRoot;
         }
 
-        public void Clone(string repositorySource, string branchToCheckout, bool skipPrefetch)
+        public void Clone(string repositorySource, string branchToCheckout, bool skipPrefetch, bool unattended = false)
         {
             string args = string.Format(
                 "clone \"{0}\" \"{1}\" --branch \"{2}\" --local-cache-path \"{3}\" {4}",
@@ -25,7 +25,7 @@ namespace GVFS.FunctionalTests.Tools
                 branchToCheckout,
                 this.localCacheRoot,
                 skipPrefetch ? "--no-prefetch" : string.Empty);
-            this.CallGVFS(args, failOnError: true);
+            this.CallGVFS(args, failOnError: true, unattended: unattended);
         }
 
         public void Mount()
@@ -123,7 +123,13 @@ namespace GVFS.FunctionalTests.Tools
             this.CallGVFS($"config --delete {key}", failOnError: true);
         }
 
-        private string CallGVFS(string args, bool failOnError = false, string trace = null, string standardInput = null, string internalParameter = null)
+        private string CallGVFS(
+            string args,
+            bool failOnError = false,
+            string trace = null,
+            string standardInput = null,
+            string internalParameter = null,
+            bool unattended = false)
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
@@ -146,6 +152,11 @@ namespace GVFS.FunctionalTests.Tools
             if (trace != null)
             {
                 processInfo.EnvironmentVariables["GIT_TRACE"] = trace;
+            }
+
+            if (unattended)
+            {
+                processInfo.EnvironmentVariables["GVFS_UNATTENDED"] = "1";
             }
 
             using (Process process = Process.Start(processInfo))

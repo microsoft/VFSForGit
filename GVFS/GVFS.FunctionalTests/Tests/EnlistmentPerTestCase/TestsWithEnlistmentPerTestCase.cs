@@ -7,10 +7,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
     public abstract class TestsWithEnlistmentPerTestCase
     {
         private readonly bool forcePerRepoObjectCache;
+        private readonly bool unattended;
 
-        public TestsWithEnlistmentPerTestCase(bool forcePerRepoObjectCache = false)
+        public TestsWithEnlistmentPerTestCase(bool forcePerRepoObjectCache = false, bool unattended = false)
         {
             this.forcePerRepoObjectCache = forcePerRepoObjectCache;
+            this.unattended = unattended;
         }
 
         public GVFSFunctionalTestEnlistment Enlistment
@@ -23,11 +25,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             if (this.forcePerRepoObjectCache)
             {
-                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMountWithPerRepoCache(GVFSTestConfig.PathToGVFS, skipPrefetch: false);
+                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMountWithPerRepoCache(GVFSTestConfig.PathToGVFS, skipPrefetch: false, unattended: this.unattended);
             }
             else
             {
-                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS);
+                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS, unattended: this.unattended);
             }
         }
 

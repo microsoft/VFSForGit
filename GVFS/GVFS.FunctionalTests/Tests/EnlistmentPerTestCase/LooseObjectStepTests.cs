@@ -18,7 +18,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         // Set forcePerRepoObjectCache to true to avoid any of the tests inadvertently corrupting
         // the cache
         public LooseObjectStepTests()
-            : base(forcePerRepoObjectCache: true)
+            : base(forcePerRepoObjectCache: true, unattended: true)
         {
             this.fileSystem = new SystemIORunner();
         }
