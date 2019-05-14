@@ -232,7 +232,7 @@ namespace GVFS.Common.NamedPipes
                 }
             }
 
-            public bool TrySendResponse(string message)
+            public virtual bool TrySendResponse(string message)
             {
                 try
                 {
