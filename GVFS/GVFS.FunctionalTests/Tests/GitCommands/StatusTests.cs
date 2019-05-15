@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
@@ -136,7 +137,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void AppendFile()
         {
-            this.AppendAllText("More Data", @"Readme.md");
+            BashRunner bash = new BashRunner();
+            string filePath = @"Readme.md";
+            string content = "Apended Data";
+            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
+            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
+            bash.AppendAllText(virtualFile, content);
+            bash.AppendAllText(controlFile, content);
 
             this.ValidateGitCommand("status");
         }
