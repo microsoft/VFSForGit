@@ -59,7 +59,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             // This step should put the loose objects into a packfile
             this.Enlistment.LooseObjectStep();
 
-            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(looseObjectCount);
+            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
             this.CountPackFiles().ShouldEqual(1);
 
             // Running the step a second time should remove the loose obects and keep the pack file
@@ -115,7 +115,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.Enlistment.LooseObjectStep();
 
             this.CountPackFiles().ShouldEqual(1, "Incorrect number of packs after second loose object step");
-            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(looseObjectCount);
+            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
 
             // This step should delete the loose objects
             this.Enlistment.LooseObjectStep();
