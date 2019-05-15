@@ -9,7 +9,8 @@ namespace GVFS.Common.Database
 {
     public class GVFSDatabase : IDisposable
     {
-        private const int InitialPooledConnections = 3;
+        private const int InitialPooledConnections = 5;
+        private const int MillisecondsWaitingToGetConnection = 50;
 
         private bool disposed = false;
         private ITracer tracer;
@@ -54,7 +55,7 @@ namespace GVFS.Common.Database
         public IPooledConnection GetPooledConnection()
         {
             SqliteConnection connection;
-            if (!this.connectionPool.TryTake(out connection, millisecondsTimeout: 500))
+            if (!this.connectionPool.TryTake(out connection, millisecondsTimeout: MillisecondsWaitingToGetConnection))
             {
                 connection = this.OpenNewConnection();
             }
