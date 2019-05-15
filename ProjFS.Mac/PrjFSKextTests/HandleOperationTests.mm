@@ -99,7 +99,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     SetPrjFSFileXattrData(testFileVnode);
     
-    const int actionCount = 8;
+    const int actionCount = 9;
     kauth_action_t actions[actionCount] =
     {
         KAUTH_VNODE_READ_ATTRIBUTES,
@@ -110,6 +110,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
         KAUTH_VNODE_WRITE_DATA,
         KAUTH_VNODE_EXECUTE,
         KAUTH_VNODE_DELETE,
+        KAUTH_VNODE_APPEND_DATA,
     };
     
     for (int i = 0; i < actionCount; i++)
@@ -142,7 +143,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     SetPrjFSFileXattrData(testFileVnode);
     
-    const int actionCount = 8;
+    const int actionCount = 9;
     kauth_action_t actions[actionCount] =
     {
         KAUTH_VNODE_READ_ATTRIBUTES | KAUTH_VNODE_ACCESS,
@@ -153,6 +154,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
         KAUTH_VNODE_WRITE_DATA | KAUTH_VNODE_ACCESS,
         KAUTH_VNODE_EXECUTE | KAUTH_VNODE_ACCESS,
         KAUTH_VNODE_DELETE | KAUTH_VNODE_ACCESS,
+        KAUTH_VNODE_APPEND_DATA | KAUTH_VNODE_ACCESS,
     };
     
     for (int i = 0; i < actionCount; i++)
@@ -174,7 +176,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 - (void) testNonEmptyFileDoesNotHydrate {
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
     
-    const int actionCount = 8;
+    const int actionCount = 9;
     kauth_action_t actions[actionCount] =
     {
         KAUTH_VNODE_READ_ATTRIBUTES,
@@ -185,6 +187,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
         KAUTH_VNODE_WRITE_DATA,
         KAUTH_VNODE_EXECUTE,
         KAUTH_VNODE_DELETE,
+        KAUTH_VNODE_APPEND_DATA,
     };
     
     for (int i = 0; i < actionCount; i++)
@@ -217,7 +220,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
     SetPrjFSFileXattrData(testFileVnode);
     
-    const int actionCount = 8;
+    const int actionCount = 9;
     kauth_action_t actions[actionCount] =
     {
         KAUTH_VNODE_READ_ATTRIBUTES,
@@ -228,6 +231,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
         KAUTH_VNODE_WRITE_DATA,
         KAUTH_VNODE_EXECUTE,
         KAUTH_VNODE_DELETE,
+        KAUTH_VNODE_APPEND_DATA,
     };
     
     for (int i = 0; i < actionCount; i++)
@@ -259,10 +263,9 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 - (void) testEventsThatShouldNotHydrate {
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     
-    const int actionCount = 5;
+    const int actionCount = 4;
     kauth_action_t actions[actionCount] =
     {
-        KAUTH_VNODE_ADD_SUBDIRECTORY,
         KAUTH_VNODE_DELETE_CHILD,
         KAUTH_VNODE_READ_SECURITY,
         KAUTH_VNODE_WRITE_SECURITY,
@@ -567,12 +570,10 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testEventsAreIgnored {
-    testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot | FileFlags_IsEmpty;
-    const int actionCount = 5;
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot | FileFlags_IsEmpty;
+    const int actionCount = 3;
     kauth_action_t actions[actionCount] =
     {
-        KAUTH_VNODE_APPEND_DATA,
-        KAUTH_VNODE_ADD_SUBDIRECTORY,
         KAUTH_VNODE_WRITE_SECURITY,
         KAUTH_VNODE_TAKE_OWNERSHIP,
         KAUTH_VNODE_ACCESS
