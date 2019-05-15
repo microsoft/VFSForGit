@@ -366,7 +366,8 @@ KEXT_STATIC int HandleVnodeOperation(
                 KAUTH_VNODE_READ_DATA |
                 KAUTH_VNODE_WRITE_DATA |
                 KAUTH_VNODE_EXECUTE |
-                KAUTH_VNODE_DELETE)) // Hydrate on delete to ensure files are hydrated before rename operations
+                KAUTH_VNODE_DELETE | // Hydrate on delete to ensure files are hydrated before rename operations
+                KAUTH_VNODE_APPEND_DATA))
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
@@ -393,7 +394,7 @@ KEXT_STATIC int HandleVnodeOperation(
                 }
             }
             
-            if (ActionBitIsSet(action, KAUTH_VNODE_WRITE_DATA))
+            if (ActionBitIsSet(action, KAUTH_VNODE_WRITE_DATA | KAUTH_VNODE_APPEND_DATA))
             {
                 if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
                 {
