@@ -31,6 +31,7 @@ namespace PrjFSLib.Mac
         int triggeringProcessId,
         string triggeringProcessName,
         bool isDirectory,
+        bool isPlaceholderFile,
         NotificationType notificationType);
 
     public delegate void LogErrorCallback(
@@ -60,7 +61,8 @@ namespace PrjFSLib.Mac
         string relativeNewLinkPath);
 
     public delegate void NotifyFileModified(
-        string relativePath);
+        string relativePath,
+        bool isPlaceholderFile);
 
     public delegate void NotifyFileDeleted(
         string relativePath,
