@@ -15,7 +15,6 @@ namespace GVFS.PlatformLoader
         public static void Initialize()
         {
             GVFSPlatform.Register(new WindowsPlatform());
-            return;
         }
-     }
+    }
 }
