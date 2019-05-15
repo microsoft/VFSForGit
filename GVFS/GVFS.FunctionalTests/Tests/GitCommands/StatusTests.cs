@@ -136,7 +136,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void AppendFile()
         {
-            this.AppendAllText(@"Readme.md", "More Data");
+            this.AppendAllText("More Data", @"Readme.md");
 
             this.ValidateGitCommand("status");
         }
