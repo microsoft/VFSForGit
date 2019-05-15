@@ -164,11 +164,12 @@ namespace PrjFSLib.Linux.Interop
                     }
                 };
 
-                Result result = _GetProjAttrs(
+                int res = _GetProjAttrs(
                     this.handle,
                     relativePath,
                     attrs,
-                    (uint)attrs.Length).ToResult();
+                    (uint)attrs.Length);
+                Result result = res.ToResult();
 
                 if (result == Result.Success)
                 {
@@ -189,6 +190,12 @@ namespace PrjFSLib.Linux.Interop
                         state = ProjectionState.Invalid;
                         result = Result.Invalid;
                     }
+                }
+                else if (res == Errno.Constants.EPERM)
+                {
+                    // EPERM returned when inode is neither file nor directory
+                    state = ProjectionState.Unknown;
+                    result = Result.Invalid;
                 }
                 else
                 {
