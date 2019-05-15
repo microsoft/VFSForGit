@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
@@ -55,6 +56,26 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ReadFileAndWriteWithoutClose(srcPath, "More Stuff");
             this.ValidGitStatusWithRetry(srcPath);
         }
+
+         [TestCase]
+         public void AppendFileUsingBash()
+         {
+            // Bash will perform the append using '>>' which will cause KAUTH_VNODE_APPEND_DATA to be sent without hydration
+            // Other Runners may cause hydration before append
+            BashRunner bash = new BashRunner();
+            string filePath = @"Readme.md";
+            string content = "Apended Data";
+            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
+            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
+            bash.AppendAllText(virtualFile, content);
+            bash.AppendAllText(controlFile, content);
+
+            this.ValidateGitCommand("status");
+
+            // We check the contents after status, to ensure this check didn't cause the hydration
+            virtualFile.ShouldContain(content);
+            controlFile.ShouldContain(content);
+         }
 
         [TestCase]
         [Category(Categories.MacTODO.M4)]
