@@ -102,62 +102,47 @@ namespace PrjFSLib.Linux
             out UpdateFailureCause failureCause)
         {
             failureCause = UpdateFailureCause.NoFailure;
-            if (relativePath == string.Empty)
+            if (string.IsNullOrEmpty(relativePath))
             {
-                // mount point directory can not be deleted, so ignore
-                return Result.Success;
+                /* Our mount point directory can not be deleted; we would
+                 * receive an EBUSY error.  Therefore we just return
+                 * EDirectoryNotEmpty because that error is silently handled
+                 * by our caller in GitIndexProjection, and this is the
+                 * expected behavior (corresponding to the Mac implementation).
+                 */
+                return Result.EDirectoryNotEmpty;
             }
 
             string fullPath = Path.Combine(this.virtualizationRoot, relativePath);
-            try
+            bool isDirectory = Directory.Exists(fullPath);
+            Result result = Result.Success;
+            if (!isDirectory)
             {
-                if (Directory.Exists(fullPath))
-                {
-                    Directory.Delete(fullPath);
-                }
-                else
-                {
-                    // TODO(Linux): try to handle races with hydration?
-                    ProjectionState state;
-                    Result result = this.projfs.GetProjState(relativePath, out state);
+                // TODO(Linux): try to handle races with hydration?
+                ProjectionState state;
+                result = this.projfs.GetProjState(relativePath, out state);
 
-                    if (result == Result.EPathNotFound)
-                    {
-                        return Result.Success;
-                    }
-                    else if (result == Result.EAccessDenied || (result == Result.Success && state == ProjectionState.Full))
-                    {
-                        /* TODO(Linux): return EAccessDenied unless EPERM
-                         * (EPERM is returned when path is not a file or dir,
-                         *  which we want to treat as a full file)
-                         */
-                        failureCause = UpdateFailureCause.DirtyData;
-                        return Result.EVirtualizationInvalidOperation;
-                    }
-                    else if (result != Result.Success)
-                    {
-                        return result;
-                    }
-
-                    File.Delete(fullPath);
+                // treat unknown state (i.e., a special file) as a full file
+                if ((result == Result.Success && state == ProjectionState.Full) ||
+                    (result == Result.Invalid && state == ProjectionState.Unknown))
+                {
+                    failureCause = UpdateFailureCause.DirtyData;
+                    return Result.EVirtualizationInvalidOperation;
                 }
             }
-            catch (IOException ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
+
+            if (result == Result.Success)
+            {
+                // TODO(Linux): set UpdateFailureCause.ReadOnly on EACCES?
+                result = NativeMethods.Remove(fullPath, isDirectory);
+            }
+
+            if (result == Result.EPathNotFound)
             {
                 return Result.Success;
             }
-            catch (IOException)
-            {
-                // TODO(Linux): return EDirectoryNotEmpty on ENOTEMPTY
-                return Result.EIOError;
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // TODO(Linux): set UpdateFailureCause.ReadOnly on EACCES
-                return Result.EAccessDenied;
-            }
 
-            return Result.Success;
+            return result;
         }
 
         public virtual Result WritePlaceholderDirectory(
@@ -471,6 +456,26 @@ namespace PrjFSLib.Linux
             }
 
             return Result.ENotYetImplemented;
+        }
+
+        private static class NativeMethods
+        {
+            public static Result Remove(string path, bool isDirectory)
+            {
+                int res = isDirectory ? Rmdir(path) : Unlink(path);
+                if (res == -1)
+                {
+                    return Marshal.GetLastWin32Error().ToResult();
+                }
+
+                return Result.Success;
+            }
+
+            [DllImport("libc", EntryPoint = "rmdir", SetLastError = true)]
+            private static extern int Rmdir(string path);
+
+            [DllImport("libc", EntryPoint = "unlink", SetLastError = true)]
+            private static extern int Unlink(string path);
         }
 
         private static unsafe class NativeFileWriter
