@@ -91,7 +91,7 @@ namespace GVFS.Common.Database
                 command.CommandText = $"SELECT 1 FROM Placeholders WHERE path = @path;";
                 command.Parameters.Add("@path", SqliteType.Text).Value = path;
                 object result = command.ExecuteScalar();
-                return result != DBNull.Value;
+                return result != null && result != DBNull.Value;
             }
         }
 
