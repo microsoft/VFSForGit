@@ -4,6 +4,7 @@
   <Import Project="..\..\..\packages\NUnit.3.10.1\build\NUnit.props" Condition="Exists('..\..\..\packages\NUnit.3.10.1\build\NUnit.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\ProjFS.props" />
+  <Import Project="..\ProjectedFSLib.NativeBinaries.props" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cs.props" />
   <PropertyGroup>
     <ProjectGuid>{8E0D0989-21F6-4DD8-946C-39F992523CC6}</ProjectGuid>
