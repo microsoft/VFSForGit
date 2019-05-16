@@ -3,6 +3,7 @@ using GVFS.Common.Tracing;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common.Database
@@ -23,7 +24,7 @@ namespace GVFS.Common.Database
             this.tracer = tracer;
             this.connectionPool = new BlockingCollection<SqliteConnection>();
             this.databasePath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.GVFSDatabase);
-            this.sqliteConnectionString = $"data source={this.databasePath};Cache=Shared;";
+            this.sqliteConnectionString = SqliteDatabase.CreateConnectionString(this.databasePath);
 
             string folderPath = Path.GetDirectoryName(this.databasePath);
             fileSystem.CreateDirectory(folderPath);
