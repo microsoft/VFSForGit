@@ -1,4 +1,6 @@
-﻿using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Should;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
@@ -54,6 +56,27 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string srcPath = @"Readme.md";
             this.ReadFileAndWriteWithoutClose(srcPath, "More Stuff");
             this.ValidGitStatusWithRetry(srcPath);
+        }
+
+         [TestCase]
+         public void AppendFileUsingBash()
+         {
+            // Bash will perform the append using '>>' which will cause KAUTH_VNODE_APPEND_DATA to be sent without hydration
+            // Other Runners may cause hydration before append
+            BashRunner bash = new BashRunner();
+            string filePath = Path.Combine("Test_EPF_UpdatePlaceholderTests", "LockToPreventUpdate", "test.txt");
+            string content = "Apended Data";
+            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
+            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
+            bash.AppendAllText(virtualFile, content);
+            bash.AppendAllText(controlFile, content);
+
+            this.ValidateGitCommand("status");
+
+            // We check the contents after status, to ensure this check didn't cause the hydration
+            string appendedContent = string.Concat("Commit2LockToPreventUpdate \r\n", content);
+            virtualFile.ShouldBeAFile(this.FileSystem).WithContents(appendedContent);
+            controlFile.ShouldBeAFile(this.FileSystem).WithContents(appendedContent);
         }
 
         [TestCase]
@@ -130,14 +153,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("update-ref HEAD HEAD~1");
 
             this.WaitForStatusCacheToBeGenerated();
-            this.ValidateGitCommand("status");
-        }
-
-        [TestCase]
-        public void AppendFile()
-        {
-            this.AppendAllText(@"Readme.md", "More Data");
-
             this.ValidateGitCommand("status");
         }
 

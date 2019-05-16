@@ -172,7 +172,6 @@ typedef PrjFS_Result (PrjFS_NotifyOperationCallback)(
     _In_    const char*                             triggeringProcessName,
                                                      
     _In_    bool                                    isDirectory,
-    _In_    bool                                    isPlaceholderFile,
     _In_    PrjFS_NotificationType                  notificationType,
     _In_    const char*                             destinationRelativePath);
 

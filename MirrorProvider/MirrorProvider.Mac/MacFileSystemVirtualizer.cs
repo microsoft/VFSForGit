@@ -182,9 +182,9 @@ namespace MirrorProvider.Mac
             Console.WriteLine($"OnLogError: {errorMessage}");
         }
 
-        private void OnFileModified(string relativePath, bool isPlaceholderFile)
+        private void OnFileModified(string relativePath)
         {
-            Console.WriteLine($"OnFileModified: {relativePath} isPlaceholderFile: {isPlaceholderFile}");
+            Console.WriteLine($"OnFileModified: {relativePath}");
         }
 
         private Result OnPreDelete(string relativePath, bool isDirectory)
