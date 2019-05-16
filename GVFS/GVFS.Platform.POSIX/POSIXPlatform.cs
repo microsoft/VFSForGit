@@ -122,6 +122,13 @@ namespace GVFS.Platform.POSIX
             return POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
         }
 
+        public override string GetGVFSServiceNamedPipeName(string serviceName)
+        {
+            // Pipes are stored as files on POSIX, use a rooted pipe name
+            // in the same location as the service to keep full control of the location of the file
+            return this.GetDataRootForGVFSComponent(serviceName) + ".pipe";
+        }
+
         public override bool IsConsoleOutputRedirectedToFile()
         {
             return POSIXPlatform.IsConsoleOutputRedirectedToFileImplementation();

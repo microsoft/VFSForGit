@@ -199,6 +199,11 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
         }
 
+        public override string GetGVFSServiceNamedPipeName(string serviceName)
+        {
+            return serviceName + ".pipe";
+        }
+
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
             try

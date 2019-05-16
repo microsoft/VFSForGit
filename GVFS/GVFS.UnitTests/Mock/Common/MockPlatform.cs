@@ -58,6 +58,11 @@ namespace GVFS.UnitTests.Mock.Common
             return "GVFS_Mock_PipeName";
         }
 
+        public override string GetGVFSServiceNamedPipeName(string serviceName)
+        {
+            return Path.Combine("GVFS_Mock_ServicePipeName", serviceName);
+        }
+
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
         {
             throw new NotSupportedException();

@@ -86,7 +86,7 @@ namespace GVFS.CommandLine
         {
             get
             {
-                return this.ServiceName + ".Pipe";
+                return GVFSPlatform.Instance.GetGVFSServiceNamedPipeName(this.ServiceName);
             }
         }
 

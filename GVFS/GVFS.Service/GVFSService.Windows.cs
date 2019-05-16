@@ -52,7 +52,7 @@ namespace GVFS.Service
                 this.repoRegistry.Upgrade();
                 this.requestHandler = new WindowsRequestHandler(this.tracer, EtwArea, this.repoRegistry);
 
-                string pipeName = this.serviceName + ".Pipe";
+                string pipeName = GVFSPlatform.Instance.GetGVFSServiceNamedPipeName(this.serviceName);
                 this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
 
                 using (NamedPipeServer pipeServer = NamedPipeServer.StartNewServer(

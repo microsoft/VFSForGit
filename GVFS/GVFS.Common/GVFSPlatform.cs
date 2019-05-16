@@ -40,6 +40,7 @@ namespace GVFS.Common
         public abstract bool IsProcessActive(int processId);
         public abstract void IsServiceInstalledAndRunning(string name, out bool installed, out bool running);
         public abstract string GetNamedPipeName(string enlistmentRoot);
+        public abstract string GetGVFSServiceNamedPipeName(string serviceName);
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
 
         public abstract string GetOSVersionInformation();
