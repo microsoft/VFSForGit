@@ -345,13 +345,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(9)]
-        public void AppendToHydratedFileAfterRemount()
+        public void WriteToHydratedFileAfterRemount()
         {
-            string fileToAppendEntry = "Test_EPF_WorkingDirectoryTests/WriteToHydratedFileAfterRemount.cpp";
-            string virtualFilePath = this.Enlistment.GetVirtualPathTo(fileToAppendEntry);
+            string virtualFilePath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "WriteToHydratedFileAfterRemount.cpp");
             string fileContents = virtualFilePath.ShouldBeAFile(this.fileSystem).WithContents();
-            this.Enlistment.WaitForBackgroundOperations();
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileToAppendEntry);
 
             // Remount
             this.Enlistment.UnmountGVFS();
@@ -359,8 +356,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             string appendedText = "Text to append";
             this.fileSystem.AppendAllText(virtualFilePath, appendedText);
-            this.Enlistment.WaitForBackgroundOperations();
-            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToAppendEntry);
             virtualFilePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents + appendedText);
         }
 
