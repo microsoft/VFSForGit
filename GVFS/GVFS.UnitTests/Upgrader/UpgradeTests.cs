@@ -3,12 +3,12 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
-using GVFS.UnitTests.Windows.Mock.Upgrader;
+using GVFS.UnitTests.Mock.Upgrader;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 
-namespace GVFS.UnitTests.Windows.Upgrader
+namespace GVFS.UnitTests.Upgrader
 {
     public abstract class UpgradeTests
     {

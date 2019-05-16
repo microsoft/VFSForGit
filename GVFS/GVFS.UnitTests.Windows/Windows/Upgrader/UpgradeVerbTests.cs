@@ -2,8 +2,8 @@
 using GVFS.Common;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
-using GVFS.UnitTests.Mock.FileSystem;
-using GVFS.UnitTests.Windows.Mock.Upgrader;
+using GVFS.UnitTests.Mock.Upgrader;
+using GVFS.UnitTests.Upgrader;
 using NUnit.Framework;
 using System.Collections.Generic;
 

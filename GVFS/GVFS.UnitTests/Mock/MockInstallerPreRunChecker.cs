@@ -3,7 +3,7 @@ using GVFS.Upgrader;
 using System;
 using System.Collections.Generic;
 
-namespace GVFS.UnitTests.Windows.Mock.Upgrader
+namespace GVFS.UnitTests.Mock.Upgrader
 {
     public class MockInstallerPrerunChecker : InstallerPreRunChecker
     {

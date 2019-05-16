@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace GVFS.UnitTests.Windows.Mock.Upgrader
+namespace GVFS.UnitTests.Mock.Upgrader
 {
     public class MockGitHubUpgrader : GitHubUpgrader
     {

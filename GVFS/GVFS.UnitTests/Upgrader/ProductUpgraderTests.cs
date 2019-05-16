@@ -3,7 +3,7 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 
-namespace GVFS.UnitTests.Windows.Upgrader
+namespace GVFS.UnitTests.Upgrader
 {
     [TestFixture]
     public class ProductUpgraderTests : UpgradeTests
