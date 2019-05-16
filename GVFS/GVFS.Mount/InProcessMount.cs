@@ -552,7 +552,7 @@ namespace GVFS.Mount
                 this.tracer.RelatedInfo("Git status cache is not enabled");
             }
 
-            this.gvfsDatabase = this.CreateOrReportAndExit(() => new GVFSDatabase(this.context.Tracer, this.context.FileSystem, this.context.Enlistment.EnlistmentRoot), "Failed to create database connection");
+            this.gvfsDatabase = this.CreateOrReportAndExit(() => new GVFSDatabase(this.context.Tracer, this.context.FileSystem, this.context.Enlistment.EnlistmentRoot, new SqliteDatabase()), "Failed to create database connection");
             this.fileSystemCallbacks = this.CreateOrReportAndExit(
                 () =>
                 {

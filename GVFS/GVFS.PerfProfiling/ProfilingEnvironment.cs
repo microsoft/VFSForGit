@@ -78,7 +78,7 @@ namespace GVFS.PerfProfiling
                 cacheServer,
                 new RetryConfig());
 
-            this.gvfsDatabase = new GVFSDatabase(this.Context.Tracer, this.Context.FileSystem, this.Context.Enlistment.EnlistmentRoot);
+            this.gvfsDatabase = new GVFSDatabase(this.Context.Tracer, this.Context.FileSystem, this.Context.Enlistment.EnlistmentRoot, new SqliteDatabase());
             GVFSGitObjects gitObjects = new GVFSGitObjects(this.Context, objectRequestor);
             return new FileSystemCallbacks(
                 this.Context,

@@ -30,7 +30,7 @@ namespace GVFS.Common.DiskLayoutUpgrades
                 }
 
                 using (placeholderList)
-                using (GVFSDatabase database = new GVFSDatabase(tracer, fileSystem, enlistmentRoot))
+                using (GVFSDatabase database = new GVFSDatabase(tracer, fileSystem, enlistmentRoot, new SqliteDatabase()))
                 {
                     Placeholders placeholders = new Placeholders(database);
                     List<IPlaceholderData> oldPlaceholderEntries = placeholderList.GetAllEntries();

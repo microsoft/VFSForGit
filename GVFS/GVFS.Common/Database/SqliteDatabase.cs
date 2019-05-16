@@ -2,12 +2,11 @@
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
+using System.Data;
 
 namespace GVFS.Common.Database
 {
-    public static class SqliteDatabase
+    public class SqliteDatabase : IDbConnectionCreator
     {
         public static bool HasIssue(string databasePath, PhysicalFileSystem filesystem, out string issue)
         {
@@ -60,6 +59,13 @@ namespace GVFS.Common.Database
             // Share-Cache mode allows multiple connections from the same process to share the same data cache
             // http://www.sqlite.org/sharedcache.html
             return $"data source={databasePath};Cache=Shared";
+        }
+
+        public IDbConnection OpenNewConnection(string databasePath)
+        {
+            SqliteConnection connection = new SqliteConnection(CreateConnectionString(databasePath));
+            connection.Open();
+            return connection;
         }
     }
 }
