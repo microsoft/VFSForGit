@@ -417,6 +417,18 @@ namespace GVFS.Hooks
                 case "version":
                 case "web--browse":
                     return false;
+
+                /*
+                 * There are several git commands that are "unsupoorted" in virtualized (VFS4G)
+                 * enlistments that are blocked by git. Usually, these are blocked before they acquire
+                 * a GVFSLock, but the submodule command is different, and is blocked after acquiring the
+                 * GVFS lock. This can cause issues if another action is attempting to create placeholders.
+                 * As we know the submodule command is a no-op, allow it to proceed without acquiring the
+                 * GVFSLock. I have filed issue #1164 to track having git block all unsupported commands
+                 * before calling the pre-command hook.
+                 */
+                case "submodule":
+                    return false;
             }
 
             if (gitCommand == "reset" && args.Contains("--soft"))
