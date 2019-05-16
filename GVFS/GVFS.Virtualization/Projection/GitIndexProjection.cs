@@ -1111,7 +1111,10 @@ namespace GVFS.Virtualization.Projection
                 numThreads = Math.Min(numThreads, placeholderFilesListCopy.Count / minItemsPerThread);
                 numThreads = Math.Max(numThreads, 1);
 
+                // folderPlaceholdersToKeep always contains the empty path so as to avoid unnecessary attempts
+                // to remove the repository's root folder.
                 ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>();
+                folderPlaceholdersToKeep.Add(string.Empty);
 
                 // updatedPlaceholderDictionary and updatedPlaceholderBag are mutually exclusive.
                 //  - On platforms that expand on enumeration: updatedPlaceholderDictionary is used (required for ReExpandFolder)
