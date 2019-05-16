@@ -185,7 +185,6 @@ namespace PrjFSLib.Mac
             int triggeringProcessId,
             string triggeringProcessName,
             bool isDirectory,
-            bool isPlaceholderFile,
             NotificationType notificationType)
         {
             switch (notificationType)
@@ -194,7 +193,7 @@ namespace PrjFSLib.Mac
                     return this.OnPreDelete(relativePath, isDirectory);
 
                 case NotificationType.FileModified:
-                    this.OnFileModified(relativePath, isPlaceholderFile);
+                    this.OnFileModified(relativePath);
                     return Result.Success;
 
                 case NotificationType.NewFileCreated:
