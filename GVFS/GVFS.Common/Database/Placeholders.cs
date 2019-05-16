@@ -83,18 +83,6 @@ namespace GVFS.Common.Database
             }
         }
 
-        public bool Contains(string path)
-        {
-            using (GVFSDatabase.IPooledConnection pooled = this.database.GetPooledConnection())
-            using (SqliteCommand command = pooled.Connection.CreateCommand())
-            {
-                command.CommandText = $"SELECT 1 FROM Placeholders WHERE path = @path;";
-                command.Parameters.Add("@path", SqliteType.Text).Value = path;
-                object result = command.ExecuteScalar();
-                return result != null && result != DBNull.Value;
-            }
-        }
-
         public void AddPlaceholderData(IPlaceholderData data)
         {
             if (data.IsFolder)

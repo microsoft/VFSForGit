@@ -119,36 +119,6 @@ namespace GVFS.Common
             }
         }
 
-        public bool Contains(string path)
-        {
-            try
-            {
-                bool containsPath = false;
-
-                string error;
-                if (!this.TryLoadFromDisk<string, string>(
-                    this.TryParseAddLine,
-                    this.TryParseRemoveLine,
-                    (key, value) =>
-                    {
-                        if (path.Equals(key, StringComparison.Ordinal))
-                        {
-                            containsPath = true;
-                        }
-                    },
-                    out error))
-                {
-                    throw new InvalidDataException(error);
-                }
-
-                return containsPath;
-            }
-            catch (Exception e)
-            {
-                throw new FileBasedCollectionException(e);
-            }
-        }
-
         /// <summary>
         /// Gets all entries and prepares the PlaceholderListDatabase for a call to WriteAllEntriesAndFlush.
         /// </summary>
