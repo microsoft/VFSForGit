@@ -9,9 +9,11 @@ namespace PrjFSLib.Linux.Interop
 
         private const string ProviderIdAttrName = "vfsforgit.providerid";
         private const string ContentIdAttrName = "vfsforgit.contentid";
+        private const string StateAttrName = "empty";
 
         private readonly IntPtr providerIdAttrNamePtr = Marshal.StringToHGlobalAnsi(ProviderIdAttrName);
         private readonly IntPtr contentIdAttrNamePtr = Marshal.StringToHGlobalAnsi(ContentIdAttrName);
+        private readonly IntPtr stateAttrNamePtr = Marshal.StringToHGlobalAnsi(StateAttrName);
 
         private readonly IntPtr handle;
 
@@ -145,6 +147,65 @@ namespace PrjFSLib.Linux.Interop
             }
         }
 
+        public Result GetProjState(
+            string relativePath,
+            out ProjectionState state)
+        {
+            unsafe
+            {
+                byte stateAttr;
+                Attr[] attrs = new[]
+                {
+                    new Attr
+                    {
+                        Name = (byte*)this.stateAttrNamePtr,
+                        Value = &stateAttr,
+                        Size = 1
+                    }
+                };
+
+                int res = _GetProjAttrs(
+                    this.handle,
+                    relativePath,
+                    attrs,
+                    (uint)attrs.Length);
+                Result result = res.ToResult();
+
+                if (result == Result.Success)
+                {
+                    if (attrs[0].Size == -1)
+                    {
+                        state = ProjectionState.Full;
+                    }
+                    else if (stateAttr == 'n')
+                    {
+                        state = ProjectionState.Hydrated;
+                    }
+                    else if (stateAttr == 'y')
+                    {
+                        state = ProjectionState.Empty;
+                    }
+                    else
+                    {
+                        state = ProjectionState.Invalid;
+                        result = Result.Invalid;
+                    }
+                }
+                else if (res == Errno.Constants.EPERM)
+                {
+                    // EPERM returned when inode is neither file nor directory
+                    state = ProjectionState.Unknown;
+                    result = Result.Invalid;
+                }
+                else
+                {
+                    state = ProjectionState.Invalid;
+                }
+
+                return result;
+            }
+        }
+
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_new")]
         private static extern IntPtr _New(
             string lowerdir,
@@ -188,7 +249,7 @@ namespace PrjFSLib.Linux.Interop
         private static extern int _GetProjAttrs(
             IntPtr fs,
             string relativePath,
-            Attr[] attrs,
+            [In, Out] Attr[] attrs,
             uint nattrs);
 
         [StructLayout(LayoutKind.Sequential)]
