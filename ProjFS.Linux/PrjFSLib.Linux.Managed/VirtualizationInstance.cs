@@ -261,13 +261,12 @@ namespace PrjFSLib.Linux
             {
                 return Result.EFileNotFound;
             }
-            catch (IOException ex)
+            catch (IOException ex) when (ex.HResult == Errno.Constants.ENOTEMPTY)
             {
-                if (ex.HResult == Errno.Constants.ENOTEMPTY)
-                {
-                    return Result.EDirectoryNotEmpty;
-                }
-
+                return Result.EDirectoryNotEmpty;
+            }
+            catch (IOException)
+            {
                 return Result.EIOError;
             }
             catch (UnauthorizedAccessException)
