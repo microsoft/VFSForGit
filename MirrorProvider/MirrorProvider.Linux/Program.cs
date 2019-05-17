@@ -1,4 +1,4 @@
-﻿namespace MirrorProvider.Linux
+namespace MirrorProvider.Linux
 {
     class Program
     {
