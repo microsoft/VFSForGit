@@ -122,7 +122,7 @@ namespace PrjFSLib.Linux
                 ProjectionState state;
                 result = this.projfs.GetProjState(relativePath, out state);
 
-                // treat unknown state (i.e., a special file) as a full file
+                // also treat unknown state as full/dirty (e.g., for sockets)
                 if ((result == Result.Success && state == ProjectionState.Full) ||
                     (result == Result.Invalid && state == ProjectionState.Unknown))
                 {
@@ -133,11 +133,14 @@ namespace PrjFSLib.Linux
 
             if (result == Result.Success)
             {
-                // TODO(Linux): set UpdateFailureCause.ReadOnly on EACCES?
-                result = NativeMethods.Remove(fullPath, isDirectory);
+                result = RemoveFileOrDirectory(fullPath, isDirectory);
             }
 
-            if (result == Result.EPathNotFound)
+            if (result == Result.EAccessDenied)
+            {
+                failureCause = UpdateFailureCause.ReadOnly;
+            }
+            else if (result == Result.EFileNotFound || result == Result.EPathNotFound)
             {
                 return Result.Success;
             }
@@ -235,6 +238,50 @@ namespace PrjFSLib.Linux
             string relativeDirectoryPath)
         {
             throw new NotImplementedException();
+        }
+
+        private static Result RemoveFileOrDirectory(
+            string fullPath,
+            bool isDirectory)
+        {
+            try
+            {
+                if (isDirectory)
+                {
+                    Directory.Delete(fullPath);
+                }
+                else
+                {
+                    File.Delete(fullPath);
+                }
+            }
+            catch (IOException ex) when (ex is DirectoryNotFoundException)
+            {
+                return Result.EPathNotFound;
+            }
+            catch (IOException ex) when (ex is FileNotFoundException)
+            {
+                return Result.EFileNotFound;
+            }
+            catch (IOException ex)
+            {
+                if (ex.HResult == Errno.Constants.ENOTEMPTY)
+                {
+                    return Result.EDirectoryNotEmpty;
+                }
+
+                return Result.EIOError;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Result.EAccessDenied;
+            }
+            catch
+            {
+                return Result.Invalid;
+            }
+
+            return Result.Success;
         }
 
         private static string GetProcCmdline(int pid)
@@ -456,26 +503,6 @@ namespace PrjFSLib.Linux
             }
 
             return Result.ENotYetImplemented;
-        }
-
-        private static class NativeMethods
-        {
-            public static Result Remove(string path, bool isDirectory)
-            {
-                int res = isDirectory ? Rmdir(path) : Unlink(path);
-                if (res == -1)
-                {
-                    return Marshal.GetLastWin32Error().ToResult();
-                }
-
-                return Result.Success;
-            }
-
-            [DllImport("libc", EntryPoint = "rmdir", SetLastError = true)]
-            private static extern int Rmdir(string path);
-
-            [DllImport("libc", EntryPoint = "unlink", SetLastError = true)]
-            private static extern int Unlink(string path);
         }
 
         private static unsafe class NativeFileWriter
