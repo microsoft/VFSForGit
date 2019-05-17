@@ -13,6 +13,7 @@ namespace PrjFSLib.Linux
 
         private ProjFS projfs;
         private int currentProcessId = Process.GetCurrentProcess().Id;
+        private string virtualizationRoot;
 
         // We must hold a reference to the delegates to prevent garbage collection
         private ProjFS.EventHandler preventGCOnProjEventDelegate;
@@ -65,6 +66,7 @@ namespace PrjFSLib.Linux
             }
 
             this.projfs = fs;
+            this.virtualizationRoot = virtualizationRootFullPath;
             return Result.Success;
         }
 
@@ -97,18 +99,51 @@ namespace PrjFSLib.Linux
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            /*
-            UpdateFailureCause deleteFailureCause = UpdateFailureCause.NoFailure;
-            Result result = ProjFS.DeleteFile(
-                relativePath,
-                updateFlags,
-                ref deleteFailureCause);
-
-            failureCause = deleteFailureCause;
-            return result;
-            */
             failureCause = UpdateFailureCause.NoFailure;
-            return Result.ENotYetImplemented;
+            if (string.IsNullOrEmpty(relativePath))
+            {
+                /* Our mount point directory can not be deleted; we would
+                 * receive an EBUSY error.  Therefore we just return
+                 * EDirectoryNotEmpty because that error is silently handled
+                 * by our caller in GitIndexProjection, and this is the
+                 * expected behavior (corresponding to the Mac implementation).
+                 */
+                return Result.EDirectoryNotEmpty;
+            }
+
+            string fullPath = Path.Combine(this.virtualizationRoot, relativePath);
+            bool isDirectory = Directory.Exists(fullPath);
+            Result result = Result.Success;
+            if (!isDirectory)
+            {
+                // TODO(Linux): try to handle races with hydration?
+                ProjectionState state;
+                result = this.projfs.GetProjState(relativePath, out state);
+
+                // also treat unknown state as full/dirty (e.g., for sockets)
+                if ((result == Result.Success && state == ProjectionState.Full) ||
+                    (result == Result.Invalid && state == ProjectionState.Unknown))
+                {
+                    failureCause = UpdateFailureCause.DirtyData;
+                    return Result.EVirtualizationInvalidOperation;
+                }
+            }
+
+            if (result == Result.Success)
+            {
+                result = RemoveFileOrDirectory(fullPath, isDirectory);
+            }
+
+            if (result == Result.EAccessDenied)
+            {
+                failureCause = UpdateFailureCause.ReadOnly;
+            }
+            else if (result == Result.EFileNotFound || result == Result.EPathNotFound)
+            {
+                return Result.Success;
+            }
+
+            return result;
         }
 
         public virtual Result WritePlaceholderDirectory(
@@ -156,28 +191,21 @@ namespace PrjFSLib.Linux
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            /*
-            if (providerId.Length != ProjFS.PlaceholderIdLength ||
-                contentId.Length != ProjFS.PlaceholderIdLength)
+            if (providerId.Length != PlaceholderIdLength ||
+                contentId.Length != PlaceholderIdLength)
             {
                 throw new ArgumentException();
             }
 
-            UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
-            Result result = ProjFS.UpdatePlaceholderFileIfNeeded(
-                relativePath,
-                providerId,
-                contentId,
-                fileSize,
-                fileMode,
-                updateFlags,
-                ref updateFailureCause);
+            Result result = this.DeleteFile(relativePath, updateFlags, out failureCause);
+            if (result != Result.Success)
+            {
+                return result;
+            }
 
-            failureCause = updateFailureCause;
-            return result;
-            */
+            // TODO(Linux): try to handle races with hydration?
             failureCause = UpdateFailureCause.NoFailure;
-            return Result.ENotYetImplemented;
+            return this.WritePlaceholderFile(relativePath, providerId, contentId, fileSize, fileMode);
         }
 
         public virtual Result ReplacePlaceholderFileWithSymLink(
@@ -186,19 +214,15 @@ namespace PrjFSLib.Linux
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            /*
-            UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
-            Result result = ProjFS.ReplacePlaceholderFileWithSymLink(
-                relativePath,
-                symLinkTarget,
-                updateFlags,
-                ref updateFailureCause);
+            Result result = this.DeleteFile(relativePath, updateFlags, out failureCause);
+            if (result != Result.Success)
+            {
+                return result;
+            }
 
-            failureCause = updateFailureCause;
-            return result;
-            */
+            // TODO(Linux): try to handle races with hydration?
             failureCause = UpdateFailureCause.NoFailure;
-            return Result.ENotYetImplemented;
+            return this.WriteSymLink(relativePath, symLinkTarget);
         }
 
         public virtual Result CompleteCommand(
@@ -212,6 +236,49 @@ namespace PrjFSLib.Linux
             string relativeDirectoryPath)
         {
             throw new NotImplementedException();
+        }
+
+        private static Result RemoveFileOrDirectory(
+            string fullPath,
+            bool isDirectory)
+        {
+            try
+            {
+                if (isDirectory)
+                {
+                    Directory.Delete(fullPath);
+                }
+                else
+                {
+                    File.Delete(fullPath);
+                }
+            }
+            catch (IOException ex) when (ex is DirectoryNotFoundException)
+            {
+                return Result.EPathNotFound;
+            }
+            catch (IOException ex) when (ex is FileNotFoundException)
+            {
+                return Result.EFileNotFound;
+            }
+            catch (IOException ex) when (ex.HResult == Errno.Constants.ENOTEMPTY)
+            {
+                return Result.EDirectoryNotEmpty;
+            }
+            catch (IOException)
+            {
+                return Result.EIOError;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Result.EAccessDenied;
+            }
+            catch
+            {
+                return Result.Invalid;
+            }
+
+            return Result.Success;
         }
 
         private static string GetProcCmdline(int pid)
