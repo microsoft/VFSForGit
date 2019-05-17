@@ -19,7 +19,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.FlakyTest)]
         public void MoveFileIntoDotGitDirectory()
         {
             string srcPath = @"Readme.md";
@@ -80,7 +79,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
+        [Category(Categories.MacTODO.NeedsStatusCache)]
         public void ModifyingAndDeletingRepositoryExcludeFileInvalidatesCache()
         {
             string repositoryExcludeFile = Path.Combine(".git", "info", "exclude");
@@ -106,7 +105,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
+        [Category(Categories.MacTODO.NeedsStatusCache)]
         public void NewRepositoryExcludeFileInvalidatesCache()
         {
             string repositoryExcludeFileRelativePath = Path.Combine(".git", "info", "exclude");
@@ -127,7 +126,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
+        [Category(Categories.MacTODO.NeedsStatusCache)]
         public void ModifyingHeadSymbolicRefInvalidatesCache()
         {
             this.ValidateGitCommand("status");
@@ -143,7 +142,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
+        [Category(Categories.MacTODO.NeedsStatusCache)]
         public void ModifyingHeadRefInvalidatesCache()
         {
             this.ValidateGitCommand("status");
