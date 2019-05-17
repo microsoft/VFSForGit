@@ -40,6 +40,7 @@ VFSFORGITDESTINATION="usr/local/vfsforgit"
 DAEMONPLISTDESTINATION="Library/LaunchDaemons"
 AGENTPLISTDESTINATION="Library/LaunchAgents"
 LIBRARYEXTENSIONSDESTINATION="Library/Extensions"
+LIBRARYAPPSUPPORTDESTINATION="Library/Application Support/VFS For Git"
 INSTALLERPACKAGENAME="VFSForGit.$PACKAGEVERSION"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
 UNINSTALLERPATH="${SOURCEDIRECTORY}/uninstall_vfsforgit.sh"
@@ -72,6 +73,9 @@ function CreateInstallerRoot()
     eval $mkdirBin || exit 1
     
     mkdirBin="mkdir -p \"${STAGINGDIR}/$LIBRARYEXTENSIONSDESTINATION\""
+    eval $mkdirBin || exit 1
+    
+    mkdirBin="mkdir -p \"${STAGINGDIR}/$LIBRARYAPPSUPPORTDESTINATION\""
     eval $mkdirBin || exit 1
     
     mkdirBin="mkdir -p \"${STAGINGDIR}/$DAEMONPLISTDESTINATION\""
@@ -109,6 +113,9 @@ function CopyBinariesToInstall()
     
     copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION/org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist\" \"${STAGINGDIR}/${DAEMONPLISTDESTINATION}/.\""
     eval $copyPrjFS || exit 1
+    
+    copyNotificationApp="cp -Rf \"${VFS_OUTPUTDIR}/GVFS.Notifications/VFSForGit.Mac/Build/Products/$CONFIGURATION/VFS For Git.app\" \"${STAGINGDIR}/${LIBRARYAPPSUPPORTDESTINATION}/.\""
+    eval $copyNotificationApp || exit 1
     
     copyServicePlist="cp -Rf \"${SOURCEDIRECTORY}/../GVFS.Service/Mac/org.vfsforgit.service.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
     eval $copyServicePlist || exit 1
