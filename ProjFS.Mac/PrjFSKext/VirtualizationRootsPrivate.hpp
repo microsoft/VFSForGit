@@ -15,6 +15,6 @@ struct VirtualizationRoot
     fsid_t                      rootFsid;
     uint64_t                    rootInode;
     
-    // TODO(Mac): this should eventually be entirely diagnostic and not used for decisions
+    // Only contains a valid path for online roots (active provider)
     char                        path[PrjFSMaxPath];
 };

@@ -39,6 +39,8 @@ enum PrjFSPerfCounter : int32_t
                     PrjFSPerfCounter_FileOp_FindRoot,
                         PrjFSPerfCounter_FileOp_FindRoot_Iteration,
                 PrjFSPerfCounter_FileOp_ShouldHandle_NoRootFound,
+            PrjFSPerfCounter_FileOp_ShouldHandle_FindProviderPathBased,
+                PrjFSPerfCounter_FileOp_ShouldHandle_NoProviderFound,
             PrjFSPerfCounter_FileOp_ShouldHandle_CheckProvider,
                 PrjFSPerfCounter_FileOp_ShouldHandle_OfflineRoot,
                 PrjFSPerfCounter_FileOp_ShouldHandle_OriginatedByProvider,

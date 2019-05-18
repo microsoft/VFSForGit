@@ -18,6 +18,7 @@
 #include "KextLog.hpp"
 #include "ProviderMessaging.hpp"
 #include "VnodeCache.hpp"
+#include "Memory.hpp"
 
 #ifdef KEXT_UNIT_TESTING
 #include "KauthHandlerTestable.hpp"
@@ -47,8 +48,6 @@ KEXT_STATIC int HandleFileOpOperation(
     uintptr_t       arg1,
     uintptr_t       arg2,
     uintptr_t       arg3);
-
-static int GetPid(vfs_context_t _Nonnull context);
 
 static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, uint32_t* flags);
 KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
@@ -94,6 +93,7 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
+    const char* path,
     kauth_action_t action,
     bool isDirectory,
 
@@ -284,6 +284,7 @@ KEXT_STATIC int HandleVnodeOperation(
                 currentVnode,
                 vnodeFsidInode,
                 nullptr, // path not needed, use fsid/inode
+                nullptr, // source path N/A
                 pid,
                 procname,
                 &kauthResult,
@@ -321,6 +322,7 @@ KEXT_STATIC int HandleVnodeOperation(
                         currentVnode,
                         vnodeFsidInode,
                         nullptr, // path not needed, use fsid/inode
+                        nullptr, // source path N/A
                         pid,
                         procname,
                         &kauthResult,
@@ -345,6 +347,7 @@ KEXT_STATIC int HandleVnodeOperation(
                         currentVnode,
                         vnodeFsidInode,
                         nullptr, // path not needed, use fsid/inode
+                        nullptr, // source path N/A
                         pid,
                         procname,
                         &kauthResult,
@@ -385,6 +388,7 @@ KEXT_STATIC int HandleVnodeOperation(
                         currentVnode,
                         vnodeFsidInode,
                         nullptr, // path not needed, use fsid/inode
+                        nullptr, // source path N/A
                         pid,
                         procname,
                         &kauthResult,
@@ -412,15 +416,16 @@ KEXT_STATIC int HandleVnodeOperation(
                 PerfSample preConvertToFullSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreConvertToFull);
                 
                 if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
-                                                      root,
-                                                      MessageType_KtoU_NotifyFilePreConvertToFull,
-                                                      currentVnode,
-                                                      vnodeFsidInode,
-                                                      nullptr, // path not needed, use fsid/inode,
-                                                      pid,
-                                                      procname,
-                                                      &kauthResult,
-                                                      kauthError))
+                        root,
+                        MessageType_KtoU_NotifyFilePreConvertToFull,
+                        currentVnode,
+                        vnodeFsidInode,
+                        nullptr, // path not needed, use fsid/inode,
+                        nullptr, // source path N/A
+                        pid,
+                        procname,
+                        &kauthResult,
+                        kauthError))
                 {
                     goto CleanupAndReturn;
                 }
@@ -458,8 +463,7 @@ KEXT_STATIC int HandleFileOpOperation(
     vnode_t currentVnode = NULLVP;
     bool    putCurrentVnode = false;
 
-    if (KAUTH_FILEOP_RENAME == action ||
-        KAUTH_FILEOP_LINK == action)
+    if (KAUTH_FILEOP_RENAME == action)
     {
         // arg0 is the (const char *) fromPath (or the file being linked to)
         const char* newPath = reinterpret_cast<const char*>(arg1);
@@ -469,7 +473,7 @@ KEXT_STATIC int HandleFileOpOperation(
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
         {
-            KextLog_Error("HandleFileOpOperation: vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
+            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_RENAME): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
             goto CleanupAndReturn;
         }
         
@@ -486,6 +490,7 @@ KEXT_STATIC int HandleFileOpOperation(
                 &perfTracer,
                 context,
                 currentVnode,
+                nullptr, // use vnode for lookup, not path
                 action,
                 isDirectory,
                 &root,
@@ -499,7 +504,6 @@ KEXT_STATIC int HandleFileOpOperation(
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
 
-        if (KAUTH_FILEOP_RENAME == action)
         {
             PerfSample renameSample(&perfTracer, PrjFSPerfCounter_FileOp_Renamed);
             
@@ -516,6 +520,7 @@ KEXT_STATIC int HandleFileOpOperation(
                     currentVnode,
                     vnodeFsidInode,
                     newPath,
+                    nullptr, // fromPath
                     pid,
                     procname,
                     &kauthResult,
@@ -524,24 +529,111 @@ KEXT_STATIC int HandleFileOpOperation(
                 goto CleanupAndReturn;
             }
         }
-        else
-        {
-            PerfSample hardLinkSample(&perfTracer, PrjFSPerfCounter_FileOp_HardLinkCreated);
+    }
+    else if (KAUTH_FILEOP_LINK == action)
+    {
+        const char* fromPath = reinterpret_cast<const char*>(arg0);
+        const char* newPath = reinterpret_cast<const char*>(arg1);
         
-            int kauthResult;
-            int kauthError;
-            if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
-                    root,
-                    MessageType_KtoU_NotifyFileHardLinkCreated,
-                    currentVnode,
-                    vnodeFsidInode,
-                    newPath,
-                    pid,
-                    procname,
-                    &kauthResult,
-                    &kauthError))
+        // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
+        // it's possible that we'll miss notifications
+        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
+        if (0 != toErr)
+        {
+            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_LINK): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
+            goto CleanupAndReturn;
+        }
+        
+        // Don't expect named stream here as they can't be directly hardlinked or renamed, only the main fork can
+        assert(!vnode_isnamedstream(currentVnode));
+        
+        putCurrentVnode = true;
+        
+        bool isDirectory = (0 != vnode_isdir(currentVnode));
+        if (isDirectory)
+        {
+            // TODO(Mac): Handle hard-linked directories?
+            KextLog_Info("HandleFileOpOperation: KAUTH_FILEOP_LINK event for hardlinked directory currently not handled. ('%s' -> '%s')", fromPath, newPath);
+            goto CleanupAndReturn;
+        }
+        
+        VirtualizationRootHandle targetRoot, fromRoot;
+        pid_t pid;
+        bool messageTargetProvider =
+            ShouldHandleFileOpEvent(
+                &perfTracer,
+                context,
+                currentVnode,
+                nullptr, // don't pass path for target provider
+                action,
+                isDirectory,
+                &targetRoot,
+                &pid);
+        bool messageFromProvider =
+            ShouldHandleFileOpEvent(
+                &perfTracer,
+                context,
+                currentVnode,
+                fromPath,
+                action,
+                isDirectory,
+                &fromRoot,
+                &pid);
+        
+        if (!messageTargetProvider && !messageFromProvider)
+        {
+            goto CleanupAndReturn;
+        }
+        
+        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(currentVnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
+
+        char procname[MAXCOMLEN + 1];
+        proc_name(pid, procname, MAXCOMLEN + 1);
+
+        {
+            PerfSample sample(&perfTracer, PrjFSPerfCounter_FileOp_HardLinkCreated);
+
+            if (messageTargetProvider)
             {
-                goto CleanupAndReturn;
+                int kauthResult;
+                int kauthError = 0;
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
+                        targetRoot,
+                        MessageType_KtoU_NotifyFileHardLinkCreated,
+                        currentVnode,
+                        vnodeFsidInode,
+                        newPath,
+                        (messageFromProvider && targetRoot == fromRoot) ? fromPath : nullptr, // Only send "from" path if in the same root.
+                        pid,
+                        procname,
+                        &kauthResult,
+                        &kauthError))
+                {
+                    KextLog_Error("HandleFileOpOperation: Request NotifyFileHardLinkCreated to destination provider %d failed, kauthResult = %u, kauthError = %u",
+                        targetRoot, kauthResult, kauthError);
+                }
+            }
+            
+            if (messageFromProvider && (!messageTargetProvider || targetRoot != fromRoot)) // Don't send the same message to the same provider twice
+            {
+                int kauthResult;
+                int kauthError = 0;
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
+                        fromRoot,
+                        MessageType_KtoU_NotifyFileHardLinkCreated,
+                        // vnode & target path are not in "fromRoot", so don't send them
+                        nullptr, // vnode
+                        FsidInode{},
+                        nullptr, // target path
+                        fromPath,
+                        pid,
+                        procname,
+                        &kauthResult,
+                        &kauthError))
+                {
+                    KextLog_Error("HandleFileOpOperation: Request NotifyFileHardLinkCreated to source provider %d failed, kauthResult = %u, kauthError = %u",
+                        fromRoot, kauthResult, kauthError);
+                }
             }
         }
     }
@@ -574,13 +666,14 @@ KEXT_STATIC int HandleFileOpOperation(
         VirtualizationRootHandle root = RootHandle_None;
         int pid;
         if (!ShouldHandleFileOpEvent(
-                                     &perfTracer,
-                                     context,
-                                     currentVnode,
-                                     action,
-                                     false /* isDirectory */,
-                                     &root,
-                                     &pid))
+                &perfTracer,
+                context,
+                currentVnode,
+                nullptr, // use vnode for lookup, not path
+                action,
+                false /* isDirectory */,
+                &root,
+                &pid))
         {
             goto CleanupAndReturn;
         }
@@ -593,15 +686,16 @@ KEXT_STATIC int HandleFileOpOperation(
         int kauthResult;
         int kauthError;
         if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
-                                              root,
-                                              MessageType_KtoU_NotifyFileCreated,
-                                              currentVnode,
-                                              vnodeFsidInode,
-                                              path,
-                                              pid,
-                                              procname,
-                                              &kauthResult,
-                                              &kauthError))
+                root,
+                MessageType_KtoU_NotifyFileCreated,
+                currentVnode,
+                vnodeFsidInode,
+                path,
+                nullptr, // fromPath
+                pid,
+                procname,
+                &kauthResult,
+                &kauthError))
         {
             goto CleanupAndReturn;
         }
@@ -631,6 +725,7 @@ KEXT_STATIC int HandleFileOpOperation(
                 &perfTracer,
                 context,
                 currentVnode,
+                nullptr, // use vnode for lookup, not path
                 action,
                 false /* isDirectory */,
                 &root,
@@ -652,6 +747,7 @@ KEXT_STATIC int HandleFileOpOperation(
                 currentVnode,
                 vnodeFsidInode,
                 path,
+                nullptr, // fromPath
                 pid,
                 procname,
                 &kauthResult,
@@ -756,7 +852,7 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
         }
     }
 
-    *pid = GetPid(context);
+    *pid = vfs_context_pid(context);
     proc_name(*pid, procname, MAXCOMLEN + 1);
     
     if (FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsEmpty))
@@ -986,6 +1082,7 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
+    const char* _Nullable path, // if non-null, path is used for finding provider, not vnode
     kauth_action_t action,
     bool isDirectory,
 
@@ -1002,6 +1099,18 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
         return false;
     }
     
+    if (path != nullptr)
+    {
+        PerfSample findRootSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_FindProviderPathBased);
+
+        *root = ActiveProvider_FindForPath(path);
+        if (!VirtualizationRoot_IsValidRootHandle(*root))
+        {
+            perfTracer->IncrementCount(PrjFSPerfCounter_FileOp_ShouldHandle_NoProviderFound);
+            return false;
+        }
+    }
+    else
     {
         PerfSample findRootSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_FindVirtualizationRoot);
 
@@ -1026,7 +1135,7 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
         }
     
         // If the calling process is the provider, we must exit right away to avoid deadlocks
-        *pid = GetPid(context);
+        *pid = vfs_context_pid(context);
         if (*pid == provider.pid)
         {
             perfTracer->IncrementCount(PrjFSPerfCounter_FileOp_ShouldHandle_OriginatedByProvider);
@@ -1053,11 +1162,6 @@ static void WaitForListenerCompletion()
     } while (atomic_load(&s_numActiveKauthEvents) > 0);
 }
 
-static int GetPid(vfs_context_t _Nonnull context)
-{
-    proc_t callingProcess = vfs_context_proc(context);
-    return proc_pid(callingProcess);
-}
 
 static errno_t GetVNodeAttributes(vnode_t vn, vfs_context_t _Nonnull context, struct vnode_attr* attrs)
 {
