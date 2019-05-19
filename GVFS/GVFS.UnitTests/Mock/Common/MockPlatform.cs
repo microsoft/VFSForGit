@@ -177,7 +177,7 @@ namespace GVFS.UnitTests.Mock.Common
 
             public override string DotGVFSRoot
             {
-                get { return ".vfsforgit"; }
+                get { return ".mockvfsforgit"; }
             }
 
             public override string GVFSBinDirectoryPath
