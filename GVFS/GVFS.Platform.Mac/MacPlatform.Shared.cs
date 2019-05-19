@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using GVFS.Platform.POSIX;
 
 namespace GVFS.Platform.Mac
 {
@@ -23,12 +24,12 @@ namespace GVFS.Platform.Mac
 
         public static bool TryGetGVFSEnlistmentRootImplementation(string directory, out string enlistmentRoot, out string errorMessage)
         {
-            return POSIX.POSIXPlatform.TryGetGVFSEnlistmentRootImplementation(directory, DotGVFSRoot, out enlistmentRoot, out errorMessage);
+            return POSIXPlatform.TryGetGVFSEnlistmentRootImplementation(directory, DotGVFSRoot, out enlistmentRoot, out errorMessage);
         }
 
         public static string GetNamedPipeNameImplementation(string enlistmentRoot)
         {
-            return POSIX.POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot, DotGVFSRoot);
+            return POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot, DotGVFSRoot);
         }
     }
 }

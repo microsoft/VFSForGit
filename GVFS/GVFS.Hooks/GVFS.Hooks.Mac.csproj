@@ -109,7 +109,4 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Mac\" />
-  </ItemGroup>
 </Project>
