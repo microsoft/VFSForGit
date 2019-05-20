@@ -314,11 +314,5 @@ namespace MirrorProvider.Linux
             [DllImport("libc", EntryPoint = "__lxstat64", SetLastError = true)]
             private static extern int __LXStat64(int vers, string pathname, [Out] out StatBuffer buf);
         }
-
-        [DllImport("libc", EntryPoint = "readlink", SetLastError = true)]
-        private static extern long ReadLink(
-            string path,
-            byte[] buf,
-            ulong bufsize);
     }
 }
