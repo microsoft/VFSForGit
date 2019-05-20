@@ -97,7 +97,8 @@ namespace GVFS.UnitTests.Common
                 name: $"Installer{entrySuffix}",
                 version: $"1.{entrySuffix}.1.2",
                 args: $"/nodowngrade{entrySuffix}",
-                installerRelativePath: $"installers/installer1{entrySuffix}");
+                installerRelativePath: $"installers/installer1{entrySuffix}",
+                command: string.Empty);
         }
 
         private void VerifyInstallManifestsAreEqual(InstallManifest expected, InstallManifest actual)

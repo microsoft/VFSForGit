@@ -154,10 +154,12 @@ namespace GVFS.Common.NuGetUpgrade
         /// <param name="src">The unprocessed string to use as arguments to an install command</param>
         /// <param name="installationId">A unique installer ID to replace the installer_id token with.</param>
         /// <returns>The argument string with tokens replaced.</returns>
-        public static string ReplaceArgTokens(string src, string installationId, string logsDirectory)
+        public static string ReplaceArgTokens(string src, string installationId, string logsDirectory, string installerBaseDirectory)
         {
-            string dst = src.Replace(NuGetUpgrader.replacementToken(InstallActionInfo.ManifestEntryLogDirectoryToken), logsDirectory)
-                .Replace(NuGetUpgrader.replacementToken(InstallActionInfo.ManifestEntryInstallationIdToken), installationId);
+            string dst = src
+                .Replace(NuGetUpgrader.replacementToken(InstallActionInfo.ManifestEntryLogDirectoryToken), logsDirectory)
+                .Replace(NuGetUpgrader.replacementToken(InstallActionInfo.ManifestEntryInstallationIdToken), installationId)
+                .Replace(NuGetUpgrader.replacementToken(InstallActionInfo.ManifestEntryInstallerBaseDirectoryToken), installerBaseDirectory);
             return dst;
         }
 
@@ -326,7 +328,7 @@ namespace GVFS.Common.NuGetUpgrade
                 InstallActionInfo currentInstallAction = null;
                 try
                 {
-                    string platformKey = InstallManifest.WindowsPlatformKey;
+                    string platformKey = GVFSPlatform.Instance.Name;
 
                     if (!this.TryRecursivelyDeleteInstallerDirectory(out error))
                     {
@@ -359,18 +361,19 @@ namespace GVFS.Common.NuGetUpgrade
                     foreach (InstallActionInfo entry in platformInstallManifest.InstallActions)
                     {
                         currentInstallAction = entry;
-                        string installerPath = Path.Combine(this.ExtractedInstallerPath, ContentDirectoryName, entry.InstallerRelativePath);
+                        string installerBasePath = Path.Combine(this.ExtractedInstallerPath, ContentDirectoryName);
 
                         string args = entry.Args ?? string.Empty;
 
                         // Replace tokens on args
-                        string processedArgs = NuGetUpgrader.ReplaceArgTokens(args, this.UpgradeInstanceId, ProductUpgraderInfo.GetLogDirectoryPath());
+                        string processedArgs = NuGetUpgrader.ReplaceArgTokens(args, this.UpgradeInstanceId, ProductUpgraderInfo.GetLogDirectoryPath(), $"\"{installerBasePath}\"");
 
                         activity.RelatedInfo(
-                            "Running install action: Name: {0}, Version: {1}, InstallerPath: {2} RawArgs: {3}, ProcessedArgs: {4}",
+                            "Running install action: Name: {0}, Version: {1}, InstallerPath: {2}, Command: {3}, RawArgs: {4}, ProcessedArgs: {5}",
                             entry.Name,
                             entry.Version,
-                            installerPath,
+                            entry.InstallerRelativePath ?? string.Empty,
+                            entry.Command ?? string.Empty,
                             args,
                             processedArgs);
 
@@ -383,7 +386,15 @@ namespace GVFS.Common.NuGetUpgrade
                             {
                                 if (!this.dryRun)
                                 {
-                                    this.RunInstaller(installerPath, processedArgs, out installerExitCode, out localError);
+                                    if (!string.IsNullOrEmpty(entry.Command))
+                                    {
+                                        this.RunInstaller(entry.Command, processedArgs, out installerExitCode, out localError);
+                                    }
+                                    else
+                                    {
+                                        string installerPath = Path.Combine(installerBasePath, entry.InstallerRelativePath);
+                                        this.RunInstaller(installerPath, processedArgs, out installerExitCode, out localError);
+                                    }
                                 }
                                 else
                                 {
