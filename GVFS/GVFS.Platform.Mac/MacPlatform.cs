@@ -2,8 +2,10 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Platform.POSIX;
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Xml;
 using System.Xml.Linq;
 using System.Xml.XPath;
@@ -87,6 +89,22 @@ namespace GVFS.Platform.Mac
             ITracer tracer)
         {
             return new MacProductUpgraderPlatformStrategy(fileSystem, tracer);
+        }
+
+        public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
+        {
+            string currentUser = this.GetCurrentUser();
+            MacDaemonController macDaemonController = new MacDaemonController(new ProcessRunnerImpl());
+            List<MacDaemonController.DaemonInfo> daemons;
+            if (!macDaemonController.TryGetDaemons(currentUser, out daemons, out string error))
+            {
+                installed = false;
+                running = false;
+            }
+
+            MacDaemonController.DaemonInfo gvfsService = daemons.FirstOrDefault(sc => string.Equals(sc.Name, "org.vfsforgit.service"));
+            installed = gvfsService != null;
+            running = installed && gvfsService.IsRunning;
         }
 
         public class MacPlatformConstants : POSIXPlatformConstants
