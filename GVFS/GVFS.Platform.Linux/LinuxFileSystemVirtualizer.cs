@@ -276,8 +276,6 @@ namespace GVFS.Platform.Linux
                 return false;
             }
 
-            // TODO(Linux): wait for device ID from stat() to change
-
             this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryStart)}_StartedVirtualization", metadata: null);
             return true;
         }

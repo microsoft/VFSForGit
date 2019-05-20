@@ -111,7 +111,7 @@ namespace MirrorProvider.Linux
                     else
                     {
                         string childRelativePath = Path.Combine(relativePath, child.Name);
-                        int statResult = NativeMethods.LStat(this.GetFullPathInMirror(childRelativePath), out NativeMethods.StatBuffer statBuffer);
+                        int statResult = PrjFSLib.Linux.LinuxNative.LStat(this.GetFullPathInMirror(childRelativePath), out PrjFSLib.Linux.LinuxNative.StatBuffer statBuffer);
                         if (statResult == -1)
                         {
                             Console.WriteLine($"NativeMethods.LStat failed: {Marshal.GetLastWin32Error()}");
@@ -268,51 +268,6 @@ namespace MirrorProvider.Linux
             bytes[0] = version;
 
             return bytes;
-        }
-
-        private static class NativeMethods
-        {
-            // #define _STAT_VER   1
-            private static readonly int STAT_VER = 1;
-
-            [StructLayout(LayoutKind.Sequential)]
-            public struct TimeSpec
-            {
-                public long Sec;
-                public long Nsec;
-            }
-
-            // TODO(Linux): assumes stat64 field layout of x86-64 architecture
-            [StructLayout(LayoutKind.Sequential)]
-            public struct StatBuffer
-            {
-                public ulong Dev;           /* ID of device containing file */
-                public ulong Ino;           /* File serial number */
-                public ulong NLink;         /* Number of hard links */
-                public uint Mode;           /* Mode of file (see below) */
-                public uint UID;            /* User ID of the file */
-                public uint GID;            /* Group ID of the file */
-                public uint Padding;        /* RESERVED: DO NOT USE! */
-                public ulong RDev;          /* Device ID if special file */
-                public long Size;           /* file size, in bytes */
-                public long BlkSize;        /* optimal blocksize for I/O */
-                public long Blocks;         /* blocks allocated for file */
-                public TimeSpec ATimespec;  /* time of last access */
-                public TimeSpec MTimespec;  /* time of last data modification */
-                public TimeSpec CTimespec;  /* time of last status change */
-
-                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
-                public long[] Reserved;     /* RESERVED: DO NOT USE! */
-            }
-
-            public static int LStat(string pathname, [Out] out StatBuffer buf)
-            {
-                return __LXStat64(STAT_VER, pathname, out buf);
-            }
-
-            // TODO(Linux): assumes recent GNU libc or ABI-compatible libc
-            [DllImport("libc", EntryPoint = "__lxstat64", SetLastError = true)]
-            private static extern int __LXStat64(int vers, string pathname, [Out] out StatBuffer buf);
         }
     }
 }
