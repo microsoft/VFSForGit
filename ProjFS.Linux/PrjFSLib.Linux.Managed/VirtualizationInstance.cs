@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using PrjFSLib.Linux.Interop;
 using static PrjFSLib.Linux.Interop.Errno;
 
@@ -10,6 +11,9 @@ namespace PrjFSLib.Linux
     public class VirtualizationInstance
     {
         public const int PlaceholderIdLength = 128;
+
+        private static readonly TimeSpan MountWaitTick = TimeSpan.FromSeconds(0.2);
+        private static readonly TimeSpan MountWaitTotal = TimeSpan.FromSeconds(30);
 
         private ProjFS projfs;
         private int currentProcessId = Process.GetCurrentProcess().Id;
@@ -44,6 +48,14 @@ namespace PrjFSLib.Linux
                 throw new InvalidOperationException();
             }
 
+            int statResult = LinuxNative.Stat(virtualizationRootFullPath, out LinuxNative.StatBuffer stat);
+            if (statResult != 0)
+            {
+                return Result.Invalid;
+            }
+
+            ulong priorDev = stat.Dev;
+
             ProjFS.Handlers handlers = new ProjFS.Handlers
             {
                 HandleProjEvent = this.preventGCOnProjEventDelegate = new ProjFS.EventHandler(this.HandleProjEvent),
@@ -67,8 +79,28 @@ namespace PrjFSLib.Linux
                 return Result.Invalid;
             }
 
+            Stopwatch watch = Stopwatch.StartNew();
+
+            while (true)
+            {
+                statResult = LinuxNative.Stat(virtualizationRootFullPath, out stat);
+                if (priorDev != stat.Dev)
+                {
+                    break;
+                }
+
+                Thread.Sleep(MountWaitTick);
+
+                if (watch.Elapsed > MountWaitTotal)
+                {
+                    fs.Stop();
+                    return Result.Invalid;
+                }
+            }
+
             this.projfs = fs;
             this.virtualizationRoot = virtualizationRootFullPath;
+
             return Result.Success;
         }
 
