@@ -77,17 +77,17 @@ namespace GVFS.Common.Database
             using (IPooledConnection pooled = connectionPool.GetConnection())
             using (IDbCommand command = pooled.Connection.CreateCommand())
             {
-                command.CommandText = $"PRAGMA journal_mode=WAL;";
+                command.CommandText = "PRAGMA journal_mode=WAL;";
                 command.ExecuteNonQuery();
-                command.CommandText = $"PRAGMA cache_size=-40000;";
+                command.CommandText = "PRAGMA cache_size=-40000;";
                 command.ExecuteNonQuery();
-                command.CommandText = $"PRAGMA synchronous=NORMAL;";
+                command.CommandText = "PRAGMA synchronous=NORMAL;";
                 command.ExecuteNonQuery();
-                command.CommandText = $"PRAGMA user_version;";
+                command.CommandText = "PRAGMA user_version;";
                 object userVersion = command.ExecuteScalar();
                 if (userVersion == null || Convert.ToInt64(userVersion) < 1)
                 {
-                    command.CommandText = $"PRAGMA user_version=1;";
+                    command.CommandText = "PRAGMA user_version=1;";
                     command.ExecuteNonQuery();
                 }
             }
