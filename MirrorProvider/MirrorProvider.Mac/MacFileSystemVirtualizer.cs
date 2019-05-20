@@ -1,5 +1,4 @@
-﻿using MirrorProvider.POSIX;
-using PrjFSLib.Mac;
+﻿using PrjFSLib.Mac;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -231,10 +230,10 @@ namespace MirrorProvider.Mac
         private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)
         {
             string fullPathInMirror = this.GetFullPathInMirror(relativePath);
-            symLinkTarget = POSIXNative.ReadLink(fullPathInMirror);
+            symLinkTarget = MacNative.ReadLink(fullPathInMirror, out int error);
             if (symLinkTarget == null)
             {
-                Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
+                Console.WriteLine($"GetSymLinkTarget failed: {error}");
                 return false;
             }
 

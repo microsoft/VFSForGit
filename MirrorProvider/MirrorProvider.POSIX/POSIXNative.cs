@@ -5,18 +5,23 @@ namespace MirrorProvider.POSIX
 {
     public static class POSIXNative
     {
-        public static string ReadLink(string path)
+        public static string ReadLink(string path, int enametoolong, out int error)
         {
-            const ulong BufSize = 4096;
+            const long BufSize = 4096;
             byte[] targetBuffer = new byte[BufSize];
             long bytesRead = __ReadLink(path, targetBuffer, BufSize);
-            if (bytesRead < 0)
+            if (bytesRead < 0) {
+                error = Marshal.GetLastWin32Error();
+                return null;
+            }
+            if (bytesRead == BufSize)
             {
+                error = enametoolong;
                 return null;
             }
 
-            targetBuffer[bytesRead] = 0;
-            return Encoding.UTF8.GetString(targetBuffer);
+            error = 0;
+            return Encoding.UTF8.GetString(targetBuffer, 0, (int)bytesRead);
         }
 
         [DllImport("libc", EntryPoint = "readlink", SetLastError = true)]
