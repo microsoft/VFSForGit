@@ -1060,7 +1060,7 @@ static PrjFS_Result HandleFileNotification(
         notificationType,
         nullptr /* destinationRelativePath */);
     
-    if (result == 0 && placeholderFile && PrjFS_NotificationType_PreConvertToFull == notificationType)
+    if (result == PrjFS_Result_Success && placeholderFile && PrjFS_NotificationType_PreConvertToFull == notificationType)
     {
         errno_t result = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
         if (0 != result)
