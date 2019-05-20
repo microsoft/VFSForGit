@@ -1,8 +1,8 @@
+using MirrorProvider.POSIX;
 using PrjFSLib.Linux;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace MirrorProvider.Linux
 {
@@ -242,20 +242,13 @@ namespace MirrorProvider.Linux
 
         private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)
         {
-            symLinkTarget = null;
             string fullPathInMirror = this.GetFullPathInMirror(relativePath);
-
-            const ulong BufSize = 4096;
-            byte[] targetBuffer = new byte[BufSize];
-            long bytesRead = ReadLink(fullPathInMirror, targetBuffer, BufSize);
-            if (bytesRead < 0)
+            symLinkTarget = POSIXNative.ReadLink(fullPathInMirror);
+            if (symLinkTarget == null)
             {
                 Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
                 return false;
             }
-
-            targetBuffer[bytesRead] = 0;
-            symLinkTarget = Encoding.UTF8.GetString(targetBuffer);
 
             if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, PathComparison))
             {

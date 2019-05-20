@@ -1,4 +1,5 @@
-﻿using PrjFSLib.Mac;
+﻿using MirrorProvider.POSIX;
+using PrjFSLib.Mac;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -229,20 +230,13 @@ namespace MirrorProvider.Mac
 
         private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)
         {
-            symLinkTarget = null;
             string fullPathInMirror = this.GetFullPathInMirror(relativePath);
-
-            const ulong BufSize = 4096;
-            byte[] targetBuffer = new byte[BufSize];
-            long bytesRead = ReadLink(fullPathInMirror, targetBuffer, BufSize);
-            if (bytesRead < 0)
+            symLinkTarget = POSIXNative.ReadLink(fullPathInMirror);
+            if (symLinkTarget == null)
             {
                 Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
                 return false;
             }
-
-            targetBuffer[bytesRead] = 0;
-            symLinkTarget = Encoding.UTF8.GetString(targetBuffer);
 
             if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, PathComparison))
             {
@@ -263,11 +257,5 @@ namespace MirrorProvider.Mac
 
             return bytes;
         }
-
-        [DllImport("libc", EntryPoint = "readlink", SetLastError = true)]
-        private static extern long ReadLink(
-            string path,
-            byte[] buf,
-            ulong bufsize);
     }
 }

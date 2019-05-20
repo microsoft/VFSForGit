@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netcoreapp2.1;netstandard2.0</TargetFrameworks>
+    <Platforms>x64</Platforms>
+    <Configurations>Debug;Release</Configurations>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <BuildOutputDir>..\..\..\BuildOutput</BuildOutputDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IntermediateOutputPath>$(BuildOutputDir)\MirrorProvider.POSIX\obj\$(Configuration)\$(Platform)</IntermediateOutputPath>
+    <OutputPath>$(BuildOutputDir)\MirrorProvider.POSIX\bin\$(Configuration)\$(Platform)</OutputPath>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DebugType></DebugType>
+    <Optimize>true</Optimize>
+    <DefineConstants>TRACE;RELEASE</DefineConstants>
+  </PropertyGroup>
+</Project>

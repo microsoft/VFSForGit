@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ProjFS.Mac\PrjFSLib.Mac.Managed\PrjFSLib.Mac.Managed.csproj" />
+    <ProjectReference Include="..\MirrorProvider.POSIX\MirrorProvider.POSIX.csproj" />
     <ProjectReference Include="..\MirrorProvider\MirrorProvider.csproj" />
   </ItemGroup>
 
