@@ -83,6 +83,8 @@ namespace GVFS.Common.Git
             }
         }
 
+        public bool LowerPriority { get; set; }
+
         public static Result Init(Enlistment enlistment)
         {
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryRoot + "\"");
@@ -622,7 +624,7 @@ namespace GVFS.Common.Git
 
         public Result MultiPackIndexRepack(string gitObjectDirectory, string batchSize)
         {
-            return this.InvokeGitAgainstDotGitFolder($"-c pack.depth=0 -c pack.window=0 multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize}");
+            return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize}");
         }
 
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory)
@@ -688,6 +690,7 @@ namespace GVFS.Common.Git
 
             Process executingProcess = new Process();
             executingProcess.StartInfo = processInfo;
+
             return executingProcess;
         }
 
@@ -748,6 +751,11 @@ namespace GVFS.Common.Git
                             }
 
                             this.executingProcess.Start();
+
+                            if (this.LowerPriority)
+                            {
+                                this.executingProcess.PriorityClass = ProcessPriorityClass.BelowNormal;
+                            }
                         }
 
                         writeStdIn?.Invoke(this.executingProcess.StandardInput);
