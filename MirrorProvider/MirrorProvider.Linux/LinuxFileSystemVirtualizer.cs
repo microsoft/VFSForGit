@@ -243,10 +243,10 @@ namespace MirrorProvider.Linux
         private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)
         {
             string fullPathInMirror = this.GetFullPathInMirror(relativePath);
-            symLinkTarget = POSIXNative.ReadLink(fullPathInMirror);
+            symLinkTarget = LinuxNative.ReadLink(fullPathInMirror, out int error);
             if (symLinkTarget == null)
             {
-                Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
+                Console.WriteLine($"GetSymLinkTarget failed: {error}");
                 return false;
             }
 
