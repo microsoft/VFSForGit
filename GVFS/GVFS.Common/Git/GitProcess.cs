@@ -83,7 +83,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool ForBackground { get; set; }
+        public bool LowerPriority { get; set; }
 
         public static Result Init(Enlistment enlistment)
         {
@@ -752,7 +752,7 @@ namespace GVFS.Common.Git
 
                             this.executingProcess.Start();
 
-                            if (this.ForBackground)
+                            if (this.LowerPriority)
                             {
                                 this.executingProcess.PriorityClass = ProcessPriorityClass.BelowNormal;
                             }
