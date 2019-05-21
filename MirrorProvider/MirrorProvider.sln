@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorProvider.Mac", "Mirro
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorProvider", "MirrorProvider\MirrorProvider.csproj", "{128451A2-7598-4142-BA2A-9B963D91CCBC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorProvider.POSIX", "MirrorProvider.POSIX\MirrorProvider.POSIX.csproj", "{17B5B14E-A785-41B9-9258-D37F4433C8F4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug.Linux|x64 = Debug.Linux|x64
@@ -76,6 +78,16 @@ Global
 		{128451A2-7598-4142-BA2A-9B963D91CCBC}.Release.Mac|x64.Build.0 = Release|x64
 		{128451A2-7598-4142-BA2A-9B963D91CCBC}.Release.Windows|x64.ActiveCfg = Release|x64
 		{128451A2-7598-4142-BA2A-9B963D91CCBC}.Release.Windows|x64.Build.0 = Release|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Debug.Linux|x64.ActiveCfg = Debug|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Debug.Linux|x64.Build.0 = Debug|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Debug.Mac|x64.ActiveCfg = Debug|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Debug.Mac|x64.Build.0 = Debug|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Debug.Windows|x64.ActiveCfg = Debug|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Release.Linux|x64.ActiveCfg = Release|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Release.Linux|x64.Build.0 = Release|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Release.Mac|x64.ActiveCfg = Release|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Release.Mac|x64.Build.0 = Release|x64
+		{17B5B14E-A785-41B9-9258-D37F4433C8F4}.Release.Windows|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
