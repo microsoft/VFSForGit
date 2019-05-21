@@ -1,8 +1,8 @@
+using MirrorProvider.POSIX;
 using PrjFSLib.Linux;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace MirrorProvider.Linux
 {
@@ -227,20 +227,13 @@ namespace MirrorProvider.Linux
 
         private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)
         {
-            symLinkTarget = null;
             string fullPathInMirror = this.GetFullPathInMirror(relativePath);
-
-            const ulong BufSize = 4096;
-            byte[] targetBuffer = new byte[BufSize];
-            long bytesRead = ReadLink(fullPathInMirror, targetBuffer, BufSize);
-            if (bytesRead < 0)
+            symLinkTarget = LinuxNative.ReadLink(fullPathInMirror, out int error);
+            if (symLinkTarget == null)
             {
-                Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
+                Console.WriteLine($"GetSymLinkTarget failed: {error}");
                 return false;
             }
-
-            targetBuffer[bytesRead] = 0;
-            symLinkTarget = Encoding.UTF8.GetString(targetBuffer);
 
             if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, StringComparison.OrdinalIgnoreCase))
             {
@@ -306,11 +299,5 @@ namespace MirrorProvider.Linux
             [DllImport("libc", EntryPoint = "__lxstat64", SetLastError = true)]
             private static extern int __LXStat64(int vers, string pathname, [Out] out StatBuffer buf);
         }
-
-        [DllImport("libc", EntryPoint = "readlink", SetLastError = true)]
-        private static extern long ReadLink(
-            string path,
-            byte[] buf,
-            ulong bufsize);
     }
 }
