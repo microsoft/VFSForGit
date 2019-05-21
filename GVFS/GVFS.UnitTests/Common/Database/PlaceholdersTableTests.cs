@@ -320,7 +320,14 @@ namespace GVFS.UnitTests.Common.Database
                     Mock<IDbDataParameter> mockShaParameter = new Mock<IDbDataParameter>(MockBehavior.Strict);
                     mockShaParameter.SetupSet(x => x.ParameterName = "@sha");
                     mockShaParameter.SetupSet(x => x.DbType = DbType.String);
-                    mockShaParameter.SetupSet(x => x.Value = sha);
+                    if (sha == null)
+                    {
+                        mockShaParameter.SetupSet(x => x.Value = DBNull.Value);
+                    }
+                    else
+                    {
+                        mockShaParameter.SetupSet(x => x.Value = sha);
+                    }
 
                     Mock<IDataParameterCollection> mockParameters = new Mock<IDataParameterCollection>(MockBehavior.Strict);
                     mockParameters.Setup(x => x.Add(mockPathParameter.Object)).Returns(0);
