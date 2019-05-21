@@ -10,7 +10,8 @@ namespace MirrorProvider.POSIX
             const long BufSize = 4096;
             byte[] targetBuffer = new byte[BufSize];
             long bytesRead = __ReadLink(path, targetBuffer, BufSize);
-            if (bytesRead < 0) {
+            if (bytesRead < 0)
+            {
                 error = Marshal.GetLastWin32Error();
                 return null;
             }
