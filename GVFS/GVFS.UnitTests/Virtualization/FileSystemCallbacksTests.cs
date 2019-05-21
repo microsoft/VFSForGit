@@ -54,7 +54,7 @@ namespace GVFS.UnitTests.Virtualization
         [TestCase]
         public void BackgroundOperationCountMatchesBackgroundFileSystemTaskRunner()
         {
-            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
@@ -81,7 +81,7 @@ namespace GVFS.UnitTests.Virtualization
         [TestCase]
         public void GetMetadataForHeartBeatDoesNotChangeEventLevelWhenNoPlaceholderHaveBeenCreated()
         {
-            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.Count()).Returns(0);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
@@ -110,7 +110,7 @@ namespace GVFS.UnitTests.Virtualization
         [TestCase]
         public void GetMetadataForHeartBeatDoesSetsEventLevelWToInformationalWhenPlaceholdersHaveBeenCreated()
         {
-            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             int placeholderCount = 0;
             mockPlaceholderDb.Setup(x => x.Count()).Returns(() => placeholderCount);
             mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "1111122222333334444455555666667777788888")).Callback(() => ++placeholderCount);
@@ -167,7 +167,7 @@ namespace GVFS.UnitTests.Virtualization
         [TestCase]
         public void IsReadyForExternalAcquireLockRequests()
         {
-            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockFileSystemVirtualizer fileSystemVirtualizer = new MockFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects))
@@ -240,7 +240,7 @@ namespace GVFS.UnitTests.Virtualization
         [TestCase]
         public void FileAndFolderCallbacksScheduleBackgroundTasks()
         {
-            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
@@ -322,7 +322,7 @@ namespace GVFS.UnitTests.Virtualization
         [TestCase]
         public void TestFileSystemOperationsInvalidateStatusCache()
         {
-            Mock<IPlaceholderDatabase> mockPlaceholderDb = new Mock<IPlaceholderDatabase>(MockBehavior.Strict);
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockFileSystemVirtualizer fileSystemVirtualizer = new MockFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects))

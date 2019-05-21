@@ -56,7 +56,7 @@ namespace GVFS.Virtualization.Projection
         private Dictionary<string, FileTypeAndMode> nonDefaultFileTypesAndModes = new Dictionary<string, FileTypeAndMode>(StringComparer.OrdinalIgnoreCase);
 
         private BlobSizes blobSizes;
-        private IPlaceholderDatabase placeholderDatabase;
+        private IPlaceholderCollection placeholderDatabase;
         private GVFSGitObjects gitObjects;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private ReaderWriterLockSlim projectionReadWriteLock;
@@ -91,7 +91,7 @@ namespace GVFS.Virtualization.Projection
             BlobSizes blobSizes,
             RepoMetadata repoMetadata,
             FileSystemVirtualizer fileSystemVirtualizer,
-            IPlaceholderDatabase placeholderDatabase,
+            IPlaceholderCollection placeholderDatabase,
             ModifiedPathsDatabase modifiedPaths)
         {
             this.context = context;

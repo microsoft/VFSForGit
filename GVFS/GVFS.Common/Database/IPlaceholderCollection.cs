@@ -5,7 +5,7 @@ namespace GVFS.Common.Database
     /// <summary>
     /// Interface for interacting with placeholders
     /// </summary>
-    public interface IPlaceholderDatabase
+    public interface IPlaceholderCollection
     {
         int Count();
         void GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);

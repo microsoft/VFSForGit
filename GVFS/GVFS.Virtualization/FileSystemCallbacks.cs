@@ -32,7 +32,7 @@ namespace GVFS.Virtualization
         private readonly string logsHeadPath;
 
         private GVFSContext context;
-        private IPlaceholderDatabase placeholderDatabase;
+        private IPlaceholderCollection placeholderDatabase;
         private ModifiedPathsDatabase modifiedPaths;
         private ConcurrentHashSet<string> newlyCreatedFileAndFolderPaths;
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> placeHolderCreationCount;
@@ -51,7 +51,7 @@ namespace GVFS.Virtualization
             GitIndexProjection gitIndexProjection,
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
-            IPlaceholderDatabase placeholderDatabase,
+            IPlaceholderCollection placeholderDatabase,
             GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;

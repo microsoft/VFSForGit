@@ -7,7 +7,7 @@ namespace GVFS.Common.Database
     /// <summary>
     /// This class is for interacting with the placeholders table in the SQLite database
     /// </summary>
-    public class Placeholders : IPlaceholderDatabase
+    public class Placeholders : IPlaceholderCollection
     {
         private IGVFSConnectionPool connectionPool;
 

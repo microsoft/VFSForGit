@@ -7,7 +7,7 @@ using System.IO;
 
 namespace GVFS.Common
 {
-    public class PlaceholderListDatabase : FileBasedCollection, IPlaceholderDatabase
+    public class PlaceholderListDatabase : FileBasedCollection, IPlaceholderCollection
     {
         // Special folder values must:
         // - Be 40 characters long
