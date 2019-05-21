@@ -61,10 +61,23 @@ namespace PrjFSLib.Linux
                 HandlePermEvent = this.preventGCOnPermEventDelegate = new ProjFS.EventHandler(this.HandlePermEvent)
             };
 
+            // determine whether storageRootFullPath contains only .git and .gitattributes
+
+            string[] args;
+            if (IsUninitializedMount(storageRootFullPath))
+            {
+                args = new string[] { "-o", "initial" };
+            }
+            else
+            {
+                args = new string[] { };
+            }
+
             ProjFS fs = ProjFS.New(
                 storageRootFullPath,
                 virtualizationRootFullPath,
-                handlers);
+                handlers,
+                args);
 
             if (fs == null)
             {
@@ -268,6 +281,31 @@ namespace PrjFSLib.Linux
             string relativeDirectoryPath)
         {
             throw new NotImplementedException();
+        }
+
+        private static bool IsUninitializedMount(string dir)
+        {
+            bool foundDotGit = false,
+                 foundDotGitattributes = false;
+
+            foreach (string path in Directory.EnumerateFileSystemEntries(dir))
+            {
+                string file = Path.GetFileName(path);
+                if (file == ".git")
+                {
+                    foundDotGit = true;
+                }
+                else if (file == ".gitattributes")
+                {
+                    foundDotGitattributes = true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            return foundDotGit && foundDotGitattributes;
         }
 
         private static Result RemoveFileOrDirectory(
