@@ -564,7 +564,7 @@ namespace GVFS.Mount
                         gitIndexProjection: null,
                         backgroundFileSystemTaskRunner: null,
                         fileSystemVirtualizer: virtualizer,
-                        placeholderDatabase: new Placeholders(this.gvfsDatabase),
+                        placeholderDatabase: new PlaceholdersTable(this.gvfsDatabase),
                         gitStatusCache: gitStatusCache);
                 }, "Failed to create src folder callback listener");
             this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
