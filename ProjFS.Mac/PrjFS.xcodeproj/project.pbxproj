@@ -283,6 +283,8 @@
 		4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist; sourceTree = "<group>"; };
 		4A08257121E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSKextLogDaemon.cpp; sourceTree = "<group>"; };
 		4A08257221E77BDD00E21AFD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4A2A699B2295AA7800ACAAAF /* ArrayUtilities.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ArrayUtilities.hpp; sourceTree = "<group>"; };
+		4A2A699D2296BACE00ACAAAF /* KauthHandlerPrivate.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KauthHandlerPrivate.hpp; sourceTree = "<group>"; };
 		4A2A699F2297339A00ACAAAF /* KextAssertIntegration.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KextAssertIntegration.m; sourceTree = "<group>"; };
 		4A2A69A12297375A00ACAAAF /* KextAssertIntegration.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KextAssertIntegration.h; sourceTree = "<group>"; };
 		4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProviderMessaging.cpp; sourceTree = "<group>"; };
@@ -439,9 +441,11 @@
 		4391F88D21E42AA70008103C /* PrjFSKext */ = {
 			isa = PBXGroup;
 			children = (
+				4A2A699B2295AA7800ACAAAF /* ArrayUtilities.hpp */,
 				4391F88F21E42AC40008103C /* Info.plist */,
 				4391F89321E42AC40008103C /* KauthHandler.cpp */,
 				4391F8A421E42AC50008103C /* KauthHandler.hpp */,
+				4A2A699D2296BACE00ACAAAF /* KauthHandlerPrivate.hpp */,
 				F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */,
 				4391F89021E42AC40008103C /* kernel-header-wrappers */,
 				4391F89121E42AC40008103C /* KextLog.cpp */,

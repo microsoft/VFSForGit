@@ -2,6 +2,10 @@
 #include <map>
 #include <string>
 
+struct thread
+{
+};
+
 using std::make_pair;
 using std::map;
 using std::string;
@@ -10,12 +14,15 @@ static map<uintptr_t /*credential ID*/, int /*UID*/> s_credentialMap;
 static map<vfs_context_t /*context*/, int /*pid*/> s_contextMap;
 static map<int /*process Id*/, proc> s_processMap;
 static int s_selfPid;
+static uint16_t s_currentThreadIndex = 0;
+static thread s_threadPool[MockProcess_ThreadPoolSize] = {};
 
 void MockProcess_Reset()
 {
     s_processMap.clear();
     s_credentialMap.clear();
     s_contextMap.clear();
+    MockProcess_SetCurrentThreadIndex(0);
 }
 
 void MockProcess_SetSelfPid(int selfPid)
@@ -156,4 +163,15 @@ void MockProcess_AddProcess(int pid, uintptr_t credentialId, int ppid, string na
 {
     proc process = proc {pid, credentialId, ppid, name};
     s_processMap.insert(make_pair(pid, process));
+}
+
+kernel_thread_t current_thread()
+{
+    return &s_threadPool[s_currentThreadIndex];
+}
+
+void MockProcess_SetCurrentThreadIndex(uint16_t threadIndex)
+{
+    assert(threadIndex < MockProcess_ThreadPoolSize);
+    s_currentThreadIndex = threadIndex;
 }
