@@ -2,6 +2,9 @@
 
 namespace GVFS.Common.Database
 {
+    /// <summary>
+    /// Interface for interacting with placeholders
+    /// </summary>
     public interface IPlaceholderDatabase
     {
         int Count();

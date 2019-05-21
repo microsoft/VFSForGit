@@ -8,6 +8,10 @@ using System.IO;
 
 namespace GVFS.Common.Database
 {
+    /// <summary>
+    /// Handles setting up the database for storing data used by GVFS and
+    /// managing the connections to the database
+    /// </summary>
     public class GVFSDatabase : IGVFSConnectionPool, IDisposable
     {
         private const int InitialPooledConnections = 5;
