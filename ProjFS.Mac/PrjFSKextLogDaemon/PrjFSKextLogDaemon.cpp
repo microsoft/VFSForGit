@@ -25,10 +25,14 @@ static IONotificationPortRef s_notificationPort;
 
 static int s_messageListenerSocket = INVALID_SOCKET_FD;
 static const string MessageListenerSocketPath = "/usr/local/GitService/pipe/vfs-c780ac06-135a-4e9e-ab6c-d41e2d265baa";
-static const string InfoMessageEventName = "info";
-static const string ErrorMessageEventName = "error";
-static const string HealthMessageEventName = "health";
 static const string MessageKey = "message";
+enum class MessageType
+{
+    Info,
+    Error,
+    Health
+};
+
 static mutex s_messageListenerMutex;
 
 static void StartLoggingKextMessages(io_connect_t connection, io_service_t service);
@@ -40,12 +44,13 @@ static bool TryFetchAndLogKextHealthData(io_connect_t connection);
 
 // LogXXX functions will log to the OS as well as the message listener
 static void LogDaemonError(const string& message);
-static void LogKextMessage(os_log_type_t messageLogType, const char* message, int messageLength);
+static void LogKextMessage(os_log_type_t messageLogType, uint32_t messageFlags, const char* message, int messageLength);
 static void LogKextHealthData(const PrjFSVnodeCacheHealth& healthData);
 
 static void CreatePipeToMessageListener();
 static void ClosePipeToMessageListener_Locked();
-static void WriteJsonToMessageListener(const string& eventName, const JsonWriter& jsonMessage);
+static string MessageTypeToString(MessageType messageType);
+static void WriteJsonToMessageListener(MessageType messageType, const JsonWriter& jsonMessage);
 
 int main(int argc, const char* argv[])
 {
@@ -62,7 +67,7 @@ int main(int argc, const char* argv[])
     CreatePipeToMessageListener();
     JsonWriter messageWriter;
     messageWriter.Add(MessageKey, "PrjFSKextLogDaemon starting up");
-    WriteJsonToMessageListener(InfoMessageEventName, messageWriter);
+    WriteJsonToMessageListener(MessageType::Info, messageWriter);
 
     s_notificationPort = IONotificationPortCreate(kIOMasterPortDefault);
     IONotificationPortSetDispatchQueue(s_notificationPort, dispatch_get_main_queue());
@@ -86,7 +91,7 @@ int main(int argc, const char* argv[])
                     
                     JsonWriter messageWriter;
                     messageWriter.Add(MessageKey, "Failed to connect to newly matched PrjFS kernel service at '" + string(servicePath) + "'; version mismatch.");
-                    WriteJsonToMessageListener(ErrorMessageEventName, messageWriter);
+                    WriteJsonToMessageListener(MessageType::Error, messageWriter);
     
                     if (kextVersionObj != nullptr)
                     {
@@ -172,7 +177,11 @@ static void StartLoggingKextMessages(io_connect_t connection, io_service_t prjfs
                 memcpy(&message, entry->data, sizeof(KextLog_MessageHeader));
                 int logStringLength = messageSize - sizeof(KextLog_MessageHeader) - 1;
                 os_log_type_t messageLogType = KextLogLevelAsOSLogType(message.level);
-                LogKextMessage(messageLogType, reinterpret_cast<char*>(entry->data + sizeof(KextLog_MessageHeader)), logStringLength);
+                LogKextMessage(
+                    messageLogType,
+                    message.flags,
+                    reinterpret_cast<char*>(entry->data + sizeof(KextLog_MessageHeader)),
+                    logStringLength);
             }
             else
             {
@@ -280,24 +289,35 @@ static void LogDaemonError(const string& message)
 
     JsonWriter messageWriter;
     messageWriter.Add(MessageKey, message);
-    WriteJsonToMessageListener(ErrorMessageEventName, messageWriter);
+    WriteJsonToMessageListener(MessageType::Error, messageWriter);
 }
 
-static void LogKextMessage(os_log_type_t messageLogType, const char* message, int messageLength)
+static void LogKextMessage(os_log_type_t messageLogType, uint32_t messageFlags, const char* message, int messageLength)
 {
-    os_log_with_type(s_kextLogger, messageLogType, "%{public}.*s", messageLength, message);
-    switch (messageLogType)
+    if (messageFlags & LogMessageFlag_LogMessagesDropped)
     {
-        case OS_LOG_TYPE_ERROR:
-        {
-            JsonWriter messageWriter;
-            messageWriter.Add(MessageKey, string(message, messageLength));
-            WriteJsonToMessageListener(ErrorMessageEventName, messageWriter);
-            break;
-        }
-
-        default:
-            break;
+        // One or more earlier messages have been dropped
+        os_log_error(s_kextLogger, "One or more kext log messages have been dropped");
+        
+        JsonWriter messageWriter;
+        messageWriter.Add(MessageKey, "One or more kext log messages have been dropped");
+        WriteJsonToMessageListener(MessageType::Error, messageWriter);
+    }
+    
+    os_log_with_type(
+        s_kextLogger,
+        messageLogType,
+        "%{public}s%{public}.*s",
+        (messageFlags & LogMessageFlag_LogMessageTruncated) ? "TRUNCATED: " : "",
+        messageLength,
+        message);
+    
+    if (OS_LOG_TYPE_ERROR == messageLogType)
+    {
+        JsonWriter messageWriter;
+        messageWriter.Add(MessageKey, string(message, messageLength));
+        messageWriter.Add("truncated", (messageFlags & LogMessageFlag_LogMessageTruncated) == LogMessageFlag_LogMessageTruncated);
+        WriteJsonToMessageListener(MessageType::Error, messageWriter);
     }
 }
 
@@ -327,7 +347,7 @@ static void LogKextHealthData(const PrjFSVnodeCacheHealth& healthData)
     healthDataWriter.Add("FindRootMisses", healthData.totalFindRootForVnodeMisses);
     healthDataWriter.Add("RefreshRoot", healthData.totalRefreshRootForVnode);
     healthDataWriter.Add("InvalidateRoot", healthData.totalInvalidateVnodeRoot);
-    WriteJsonToMessageListener(HealthMessageEventName, healthDataWriter);
+    WriteJsonToMessageListener(MessageType::Health, healthDataWriter);
 }
 
 static void CreatePipeToMessageListener()
@@ -358,7 +378,11 @@ static void CreatePipeToMessageListener()
     size_t pathLength = MessageListenerSocketPath.length();
     if (pathLength + 1 >= sizeof(socket_address.sun_path))
     {
-        os_log(s_daemonLogger, "CreatePipeToMessageListener: Failed to copy socket path, insufficient buffer. Buffer size: %lu", sizeof(socket_address.sun_path));
+        os_log(
+            s_daemonLogger,
+            "CreatePipeToMessageListener: Failed to copy socket path (%{public}s), insufficient buffer. Buffer size: %zu",
+            MessageListenerSocketPath.c_str(),
+            sizeof(socket_address.sun_path));
         goto ClosePipeAndCleanup;
     }
     
@@ -366,12 +390,19 @@ static void CreatePipeToMessageListener()
     
     if(0 == connect(s_messageListenerSocket, (struct sockaddr *) &socket_address, sizeof(struct sockaddr_un)))
     {
-        os_log(s_daemonLogger, "CreatePipeToMessageListener: Connected to message listener");
+        os_log(
+            s_daemonLogger,
+            "CreatePipeToMessageListener: Connected to message listener at %{public}s",
+            MessageListenerSocketPath.c_str());
         return;
     }
     
     error = errno;
-    os_log(s_daemonLogger, "CreatePipeToMessageListener: Failed to connect socket, error: %d", error);
+    os_log(
+        s_daemonLogger,
+        "CreatePipeToMessageListener: Failed to connect socket at %{public}s, error: %d",
+        MessageListenerSocketPath.c_str(),
+        error);
     
 ClosePipeAndCleanup:
     ClosePipeToMessageListener_Locked();
@@ -386,7 +417,23 @@ static void ClosePipeToMessageListener_Locked()
     }
 }
 
-static void WriteJsonToMessageListener(const string& eventName, const JsonWriter& jsonMessage)
+static string MessageTypeToString(MessageType messageType)
+{
+    switch (messageType) {
+        case MessageType::Info:
+            return "info";
+            
+        case MessageType::Error:
+            return "error";
+            
+        case MessageType::Health:
+            return "health";
+    }
+    
+    return "invalid";
+}
+
+static void WriteJsonToMessageListener(MessageType messageType, const JsonWriter& jsonMessage)
 {
     lock_guard<mutex> lock(s_messageListenerMutex);
     
@@ -398,25 +445,40 @@ static void WriteJsonToMessageListener(const string& eventName, const JsonWriter
     JsonWriter fullMessageWriter;
     fullMessageWriter.Add("version", PrjFSKextVersion);
     fullMessageWriter.Add("providerName", "Microsoft.Git.GVFS");
-    fullMessageWriter.Add("eventName", "kext." + eventName);
+    
+    
+    fullMessageWriter.Add("eventName", "kext." + MessageTypeToString(messageType));
     fullMessageWriter.Add("payload", jsonMessage);
     
     string fullMessage = fullMessageWriter.ToString() + "\n";
-    size_t bytesWritten;
-    do
+    size_t bytesRemaining = fullMessage.length();
+    while (bytesRemaining > 0)
     {
-        bytesWritten = write(s_messageListenerSocket, fullMessage.c_str(), fullMessage.length());
-    } while (bytesWritten == -1 && errno == EINTR);
+        size_t offset = fullMessage.length() - bytesRemaining;
+        ssize_t bytesWritten = write(s_messageListenerSocket, fullMessage.c_str() + offset, bytesRemaining);
+       
+        if (-1 == bytesWritten)
+        {
+            if (EINTR != errno)
+            {
+                break;
+            }
+        }
+        else
+        {
+            bytesRemaining -= bytesWritten;
+        }
+    }
     
     int error = errno;
-    if (bytesWritten != fullMessage.length())
+    if (bytesRemaining != 0)
     {
         os_log(
             s_daemonLogger,
-            "WriteJsonToMessageListener: Failed to write message '%{public}s' to listener. Error: %d, Bytes written: %lu",
+            "WriteJsonToMessageListener: Failed to write message '%{public}s' to listener. Error: %d, Bytes remaining: %zu",
             fullMessage.c_str(),
             error,
-            bytesWritten);
+            bytesRemaining);
 
         // If anything goes wrong close the socket.  The next time the timer fires we'll re-connect
         ClosePipeToMessageListener_Locked();

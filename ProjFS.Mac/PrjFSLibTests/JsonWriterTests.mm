@@ -1,11 +1,14 @@
 #include "../PrjFSLib/Json/JsonWriter.hpp"
+#include <limits>
 #include <utility>
 #include <vector>
 #import <XCTest/XCTest.h>
 
 using std::make_pair;
+using std::numeric_limits;
 using std::pair;
 using std::string;
+using std::to_string;
 using std::vector;
 
 @interface JsonWriterTests : XCTestCase
@@ -59,6 +62,17 @@ using std::vector;
     string expectedResult = "{\"testKey\":32}";
     JsonWriter writer;
     writer.Add("testKey", static_cast<uint32_t>(32));
+    string jsonResult = writer.ToString();
+    XCTAssertTrue(
+        jsonResult == expectedResult,
+        "%s",
+        ("Expected result: " + expectedResult + " Result: " + jsonResult).c_str());
+}
+
+- (void) testAddNegativeUInt32 {
+    string expectedResult = "{\"testKey\":" + to_string(numeric_limits<uint32_t>::max()) + "}";
+    JsonWriter writer;
+    writer.Add("testKey", static_cast<uint32_t>(-1));
     string jsonResult = writer.ToString();
     XCTAssertTrue(
         jsonResult == expectedResult,
@@ -212,6 +226,25 @@ using std::vector;
         nestedPayloadWriter.Add("nestedKey", "nestedString");
         JsonWriter payloadWriter;
         payloadWriter.Add("nestedPayload", nestedPayloadWriter);
+        writer.Add("jsonPayload", payloadWriter);
+        writer.Add("lastKey", 64);
+        string jsonResult = writer.ToString();
+        XCTAssertTrue(
+            jsonResult == expectedResult,
+            "%s",
+            ("Expected result: " + expectedResult + " Result: " + jsonResult).c_str());
+    }
+    
+    {
+        string expectedResult =
+        "{"
+            "\"testKey\":\"testdata\","
+            "\"jsonPayload\":{},"
+            "\"lastKey\":64"
+        "}";
+        JsonWriter writer;
+        writer.Add("testKey", "testdata");
+        JsonWriter payloadWriter;
         writer.Add("jsonPayload", payloadWriter);
         writer.Add("lastKey", 64);
         string jsonResult = writer.ToString();

@@ -36,7 +36,7 @@ PATH_STRING GetGVFSPipeName(const char *appName)
     if (enlistmentRootLength + 2 > sizeof(enlistmentRoot))
     {
         die(ReturnCode::PipeConnectError,
-            "Could not copy finalRootPath: %ls, insufficient buffer. enlistmentRootLength: %d, sizeof(enlistmentRoot): %d\n",
+            "Could not copy finalRootPath: %ls, insufficient buffer. enlistmentRootLength: %zu, sizeof(enlistmentRoot): %zu\n",
             finalRootPath.c_str(),
             enlistmentRootLength,
             sizeof(enlistmentRoot));
@@ -121,7 +121,7 @@ PIPE_HANDLE CreatePipeToGVFS(const PATH_STRING& pipeName)
     if (pathLength + 1 > sizeof(socket_address.sun_path))
     {
         die(ReturnCode::PipeConnectError,
-            "Could not copy pipeName: %s, insufficient buffer. pathLength: %lu, sizeof(socket_address.sun_path): %lu\n",
+            "Could not copy pipeName: %s, insufficient buffer. pathLength: %zu, sizeof(socket_address.sun_path): %zu\n",
             pipeName.c_str(),
             pathLength,
             sizeof(socket_address.sun_path));
@@ -145,10 +145,27 @@ void DisableCRLFTranslationOnStdPipes()
 
 bool WriteToPipe(PIPE_HANDLE pipe, const char* message, size_t messageLength, /* out */ size_t* bytesWritten, /* out */ int* error)
 {
-    do
+
+    size_t bytesRemaining = messageLength;
+    while (bytesRemaining > 0)
     {
-        *bytesWritten = write(pipe, message, messageLength);
-    } while (*bytesWritten == -1 && errno == EINTR);
+        size_t offset = messageLength - bytesRemaining;
+        ssize_t bytesSent = write(pipe, message + offset, bytesRemaining);
+       
+        if (-1 == bytesSent)
+        {
+            if (EINTR != errno)
+            {
+                break;
+            }
+        }
+        else
+        {
+            bytesRemaining -= bytesSent;
+        }
+    }
+
+    *bytesWritten = messageLength - bytesRemaining;
 
     bool success = *bytesWritten == messageLength;
     *error = success ? 0 : errno;

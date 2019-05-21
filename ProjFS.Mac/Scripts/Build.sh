@@ -56,6 +56,7 @@ xcrun xccov view "$COVERAGE_FILE" | tee $PROJFS/CoverageResult.txt
 while read line; do
   if [[ $line != *"100.00%"* ]] && 
      [[ $line == *"%"* ]] && 
+	 # PrjFSKext exclusions
 	 [[ $line != *"AllArrayElementsInitialized"* ]] &&              #Function is used for compile time checks only
 	 [[ $line != *"KauthHandler_Init"* ]] && 
 	 [[ $line != *"KauthHandler_Cleanup"* ]] && 
@@ -89,6 +90,7 @@ while read line; do
 	 [[ $line != *"RetainIOCount"* ]] && 
 	 [[ $line != *"ProviderMessaging_"* ]] && 
 	 [[ $line != *"RWLock_DropExclusiveToShared"* ]] && 
+	 # PrjFSLib exclusions
 	 [[ $line != *"PrjFS_"* ]] &&                                     #SHOULD ADD COVERAGE
 	 [[ $line != *"FsidInodeCompare"* ]] &&                           #SHOULD ADD COVERAGE
 	 [[ $line != *"ParseMessageMemory"* ]] &&                         #SHOULD ADD COVERAGE
@@ -121,6 +123,7 @@ while read line; do
 	 [[ $line != *"GetDarwinVersion"* ]] &&                           #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
 	 [[ $line != *"InitDataQueueFunctions"* ]] &&                     #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
 	 [[ $line != *".dylib"* ]] && 
+	 # Global exclusions
 	 [[ $line != *".xctest"* ]] && 
 	 [[ $line != *".cpp"* ]] && 
 	 [[ $line != *".a"* ]] && 
