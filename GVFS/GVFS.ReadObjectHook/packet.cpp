@@ -94,12 +94,12 @@ static size_t packet_bin_read(void *buf, size_t count, FILE *stream)
 	len -= 4;
 	if (len >= count)
 	{
-		die(-1, "protocol error: bad line length %d", len);
+		die(-1, "protocol error: bad line length %zu", len);
 	}
 	ret = fread(buf, 1, len, stream);
 	if (ret != len)
 	{
-		die(-1, "invalid packet (%d bytes expected; %d bytes read)", len, ret);
+		die(-1, "invalid packet (%zu bytes expected; %zu bytes read)", len, ret);
 	}
 
 	return len;

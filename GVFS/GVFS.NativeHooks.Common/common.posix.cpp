@@ -36,7 +36,7 @@ PATH_STRING GetGVFSPipeName(const char *appName)
     if (enlistmentRootLength + 2 > sizeof(enlistmentRoot))
     {
         die(ReturnCode::PipeConnectError,
-            "Could not copy finalRootPath: %ls, insufficient buffer. enlistmentRootLength: %zu, sizeof(enlistmentRoot): %zu\n",
+            "Could not copy finalRootPath: %s, insufficient buffer. enlistmentRootLength: %zu, sizeof(enlistmentRoot): %zu\n",
             finalRootPath.c_str(),
             enlistmentRootLength,
             sizeof(enlistmentRoot));
