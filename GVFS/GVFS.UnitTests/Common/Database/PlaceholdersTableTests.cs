@@ -10,7 +10,7 @@ using System.Linq;
 namespace GVFS.UnitTests.Common.Database
 {
     [TestFixture]
-    public class PlaceholdersTests
+    public class PlaceholdersTableTests
     {
         private const string DefaultPath = "test";
         private const byte PathTypeFile = 0;
