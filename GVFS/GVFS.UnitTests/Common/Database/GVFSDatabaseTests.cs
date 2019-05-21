@@ -8,6 +8,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 
 namespace GVFS.UnitTests.Common.Database
 {
@@ -89,7 +90,8 @@ namespace GVFS.UnitTests.Common.Database
 
             Mock<IDbConnectionCreator> mockConnectionCreator = new Mock<IDbConnectionCreator>(MockBehavior.Strict);
             bool firstConnection = true;
-            mockConnectionCreator.Setup(x => x.OpenNewConnection(@"mock:root\.gvfs\databases\gvfs.sqlite")).Returns(() =>
+            string databasePath = Path.Combine("mock:root", ".gvfs", "databases", "gvfs.sqlite");
+            mockConnectionCreator.Setup(x => x.OpenNewConnection(databasePath)).Returns(() =>
             {
                 if (firstConnection)
                 {
