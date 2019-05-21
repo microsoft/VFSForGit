@@ -9,7 +9,7 @@ typedef int PIPE_HANDLE;
 #elif _WIN32
 typedef std::wstring PATH_STRING;
 typedef HANDLE PIPE_HANDLE;
-#define PRINTF_FORMAT(X, Y)
+#define PRINTF_FMT(X, Y)
 #else
 #error Unsupported platform
 #endif
