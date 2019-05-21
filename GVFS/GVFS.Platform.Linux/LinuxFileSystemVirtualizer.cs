@@ -265,7 +265,8 @@ namespace GVFS.Platform.Linux
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 this.Context.Enlistment.WorkingDirectoryBackingRoot,
                 this.Context.Enlistment.WorkingDirectoryRoot,
-                threadCount);
+                threadCount,
+                this.IsUninitializedMount(this.Context.Enlistment.WorkingDirectoryBackingRoot));
 
             // TODO(Linux): note that most start errors are not reported
             // because they can only be retrieved from projfs_stop() at present
@@ -295,6 +296,31 @@ namespace GVFS.Platform.Linux
             byte[] bytes = new byte[VirtualizationInstance.PlaceholderIdLength];
             Buffer.BlockCopy(version, 0, bytes, 0, version.Length);
             return bytes;
+        }
+
+        private bool IsUninitializedMount(string dir)
+        {
+            bool foundDotGit = false,
+                 foundDotGitattributes = false;
+
+            foreach (string path in this.virtualizationInstance.EnumerateFileSystemEntries(dir))
+            {
+                string file = Path.GetFileName(path);
+                if (file == ".git")
+                {
+                    foundDotGit = true;
+                }
+                else if (file == ".gitattributes")
+                {
+                    foundDotGitattributes = true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            return foundDotGit && foundDotGitattributes;
         }
 
         /// <summary>

@@ -27,14 +27,17 @@ namespace PrjFSLib.Linux.Interop
         public static ProjFS New(
             string lowerdir,
             string mountdir,
-            Handlers handlers)
+            Handlers handlers,
+            string[] argv)
         {
             IntPtr handle = _New(
                 lowerdir,
                 mountdir,
                 ref handlers,
                 (uint)Marshal.SizeOf<Handlers>(),
-                IntPtr.Zero);
+                IntPtr.Zero,
+                argv.Length,
+                argv);
             if (handle == IntPtr.Zero)
             {
                 return null;
@@ -212,7 +215,9 @@ namespace PrjFSLib.Linux.Interop
             string mountdir,
             ref Handlers handlers,
             uint handlers_size,
-            IntPtr user_data);
+            IntPtr user_data,
+            int argc,
+            string[] argv);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_start")]
         private static extern int _Start(
