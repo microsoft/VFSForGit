@@ -3,6 +3,7 @@ using GVFS.Tests.Should;
 using PrjFSLib.Linux;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace GVFS.UnitTests.Mock.Linux
@@ -39,7 +40,8 @@ namespace GVFS.UnitTests.Mock.Linux
         public override Result StartVirtualizationInstance(
             string storageRootFullPath,
             string virtualizationRootFullPath,
-            uint poolThreadCount)
+            uint poolThreadCount,
+            bool initializeStorageRoot)
         {
             poolThreadCount.ShouldBeAtLeast(1U, "poolThreadCount must be greater than 0");
             return Result.Success;
@@ -47,6 +49,11 @@ namespace GVFS.UnitTests.Mock.Linux
 
         public override void StopVirtualizationInstance()
         {
+        }
+
+        public override IEnumerable<string> EnumerateFileSystemEntries(string path)
+        {
+            yield break;
         }
 
         public override Result WriteFileContents(
