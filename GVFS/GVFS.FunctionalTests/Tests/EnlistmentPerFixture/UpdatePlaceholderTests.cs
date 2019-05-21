@@ -135,7 +135,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string testFile = Path.Combine(this.Enlistment.RepoRoot, "FullFilesDontAffectThePlaceholderDatabase");
 
-            string placeholderDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "gvfs.sqlite");
+            string placeholderDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "VFSForGit.sqlite");
             string placeholdersBefore = GVFSHelpers.GetAllSQLitePlaceholdersAsString(placeholderDatabase);
 
             this.fileSystem.CreateEmptyFile(testFile);

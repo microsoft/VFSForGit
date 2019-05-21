@@ -24,7 +24,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             this.Enlistment.UnmountGVFS();
 
-            this.fileSystem.DeleteFile(Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.GVFSDatabase));
+            this.fileSystem.DeleteFile(Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit));
             this.WriteOldPlaceholderListDatabase();
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "18", "0");
@@ -33,7 +33,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.Enlistment.UnmountGVFS();
 
             // Validate the placeholders are in the SQLite placeholder database now
-            string placeholderDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.GVFSDatabase);
+            string placeholderDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit);
             placeholderDatabasePath.ShouldBeAFile(this.fileSystem);
             string[] lines = GVFSHelpers.GetAllSQLitePlaceholdersAsString(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             lines.Length.ShouldEqual(10);

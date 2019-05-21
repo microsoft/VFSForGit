@@ -63,7 +63,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
             this.fileSystem.DeleteFile(flatBackgroundPath);
 
             // Delete the existing placeholder data
-            string placeholdersPath = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.GVFSDatabase);
+            string placeholdersPath = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit);
             placeholdersPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.DeleteFile(placeholdersPath);
 
@@ -148,7 +148,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
 
             this.Enlistment.UnmountGVFS();
 
-            this.fileSystem.DeleteFile(Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.GVFSDatabase));
+            this.fileSystem.DeleteFile(Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit));
             this.WriteOldPlaceholderListDatabase();
 
             // Get the existing folder placeholder data
@@ -166,7 +166,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
             this.Enlistment.UnmountGVFS();
 
             // Validate the folder placeholders are in the placeholder database now
-            this.GetPlaceholderDatabaseLinesAfterUpgradeFrom12_1(Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.GVFSDatabase));
+            this.GetPlaceholderDatabaseLinesAfterUpgradeFrom12_1(Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit));
 
             this.ValidatePersistedVersionMatchesCurrentVersion();
         }
@@ -196,7 +196,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
             this.Enlistment.UnmountGVFS();
 
             // Validate the folder placeholders in the database have PartialFolderPlaceholderDatabaseValue values
-            this.GetPlaceholderDatabaseLinesAfterUpgradeFrom16(Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.GVFSDatabase));
+            this.GetPlaceholderDatabaseLinesAfterUpgradeFrom16(Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit));
 
             this.ValidatePersistedVersionMatchesCurrentVersion();
         }

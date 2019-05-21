@@ -27,7 +27,7 @@ namespace GVFS.Common.Database
         {
             this.tracer = tracer;
             this.connectionPool = new BlockingCollection<IDbConnection>();
-            this.databasePath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.GVFSDatabase);
+            this.databasePath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.VFSForGit);
             this.connectionCreator = connectionCreator;
 
             string folderPath = Path.GetDirectoryName(this.databasePath);

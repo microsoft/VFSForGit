@@ -41,7 +41,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // Add tombstone folder entry to the placeholder database so the checkout will remove the tombstone
             // and start projecting the folder again
-            string placeholderDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.GVFSDatabase);
+            string placeholderDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit);
             GVFSHelpers.AddPlaceholderFolder(placeholderDatabasePath, folderToDelete, TombstoneFolderPlaceholderType);
 
             this.Enlistment.MountGVFS();

@@ -90,7 +90,7 @@ namespace GVFS.UnitTests.Common.Database
 
             Mock<IDbConnectionCreator> mockConnectionCreator = new Mock<IDbConnectionCreator>(MockBehavior.Strict);
             bool firstConnection = true;
-            string databasePath = Path.Combine("mock:root", ".gvfs", "databases", "gvfs.sqlite");
+            string databasePath = Path.Combine("mock:root", ".gvfs", "databases", "VFSForGit.sqlite");
             mockConnectionCreator.Setup(x => x.OpenNewConnection(databasePath)).Returns(() =>
             {
                 if (firstConnection)

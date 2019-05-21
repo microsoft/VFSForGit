@@ -74,7 +74,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.DirectoryShouldContain(gvfsFolder, "databases", "GVFS_projection");
 
             string gvfsDatabasesFolder = Path.Combine(gvfsFolder, "databases");
-            this.DirectoryShouldContain(gvfsDatabasesFolder, "BackgroundGitOperations.dat", "gvfs.sqlite", "ModifiedPaths.dat");
+            this.DirectoryShouldContain(gvfsDatabasesFolder, "BackgroundGitOperations.dat", "VFSForGit.sqlite", "ModifiedPaths.dat");
         }
 
         [TestCase]
