@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -41,7 +42,8 @@ namespace PrjFSLib.Linux
         public virtual Result StartVirtualizationInstance(
             string storageRootFullPath,
             string virtualizationRootFullPath,
-            uint poolThreadCount)
+            uint poolThreadCount,
+            bool initializeStorageRoot)
         {
             if (this.projfs != null)
             {
@@ -63,10 +65,13 @@ namespace PrjFSLib.Linux
                 HandlePermEvent = this.preventGCOnPermEventDelegate = new ProjFS.EventHandler(this.HandlePermEvent)
             };
 
+            string[] args = initializeStorageRoot ? new string[] { "-o", "initial" } : new string[] { };
+
             ProjFS fs = ProjFS.New(
                 storageRootFullPath,
                 virtualizationRootFullPath,
-                handlers);
+                handlers,
+                args);
 
             if (fs == null)
             {
@@ -113,6 +118,11 @@ namespace PrjFSLib.Linux
 
             this.projfs.Stop();
             this.projfs = null;
+        }
+
+        public virtual IEnumerable<string> EnumerateFileSystemEntries(string path)
+        {
+            return Directory.EnumerateFileSystemEntries(path);
         }
 
         public virtual Result WriteFileContents(
