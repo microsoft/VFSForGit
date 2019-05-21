@@ -2,6 +2,7 @@ using MirrorProvider.POSIX;
 using PrjFSLib.Linux;
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace MirrorProvider.Linux
@@ -35,7 +36,8 @@ namespace MirrorProvider.Linux
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 storageRoot,
                 enlistment.SrcRoot,
-                poolThreadCount: (uint)Environment.ProcessorCount * 2);
+                poolThreadCount: (uint)Environment.ProcessorCount * 2,
+                initializeStorageRoot: IsUninitializedMount(storageRoot));
 
             if (result == Result.Success)
             {
@@ -51,6 +53,11 @@ namespace MirrorProvider.Linux
         public override void Stop()
         {
             this.virtualizationInstance.StopVirtualizationInstance();
+        }
+
+        private bool IsUninitializedMount(string dir)
+        {
+            return !this.virtualizationInstance.EnumerateFileSystemEntries(dir).Any();
         }
 
         private Result OnEnumerateDirectory(
