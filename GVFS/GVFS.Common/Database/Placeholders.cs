@@ -155,14 +155,7 @@ namespace GVFS.Common.Database
             command.CommandText = "INSERT OR REPLACE INTO Placeholders (path, pathType, sha) VALUES (@path, @pathType, @sha);";
             command.AddParameter("@path", DbType.String, placeholder.Path);
             command.AddParameter("@pathType", DbType.Int32, (int)placeholder.PathType);
-            if (placeholder.Sha == null)
-            {
-                command.AddParameter("@sha", DbType.String, DBNull.Value);
-            }
-            else
-            {
-                command.AddParameter("@sha", DbType.String, placeholder.Sha);
-            }
+            command.AddParameter("@sha", DbType.String, placeholder.Sha);
 
             command.ExecuteNonQuery();
         }

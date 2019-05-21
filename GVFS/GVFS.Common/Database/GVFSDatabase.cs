@@ -19,7 +19,7 @@ namespace GVFS.Common.Database
         private IDbConnectionCreator connectionCreator;
         private BlockingCollection<IDbConnection> connectionPool;
 
-        public GVFSDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string enlistmentRoot, IDbConnectionCreator connectionCreator)
+        public GVFSDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string enlistmentRoot, IDbConnectionCreator connectionCreator, int initialPooledConnections = InitialPooledConnections)
         {
             this.tracer = tracer;
             this.connectionPool = new BlockingCollection<IDbConnection>();
@@ -29,17 +29,21 @@ namespace GVFS.Common.Database
             string folderPath = Path.GetDirectoryName(this.databasePath);
             fileSystem.CreateDirectory(folderPath);
 
-            for (int i = 0; i < InitialPooledConnections; i++)
+            for (int i = 0; i < initialPooledConnections; i++)
             {
                 this.connectionPool.Add(this.connectionCreator.OpenNewConnection(this.databasePath));
             }
 
             this.Initialize();
-            this.CreateTables();
         }
 
         public void Dispose()
         {
+            if (this.disposed)
+            {
+                return;
+            }
+
             this.disposed = true;
             this.connectionPool.CompleteAdding();
             while (!this.connectionPool.IsCompleted && this.connectionPool.TryTake(out IDbConnection connection))
@@ -50,6 +54,11 @@ namespace GVFS.Common.Database
 
         IPooledConnection IGVFSConnectionPool.GetConnection()
         {
+            if (this.disposed)
+            {
+                throw new ObjectDisposedException(nameof(GVFSDatabase));
+            }
+
             IDbConnection connection;
             if (!this.connectionPool.TryTake(out connection, millisecondsTimeout: MillisecondsWaitingToGetConnection))
             {
@@ -59,15 +68,27 @@ namespace GVFS.Common.Database
             return new GVFSConnection(this, connection);
         }
 
-        void IGVFSConnectionPool.ReturnToPool(IDbConnection connection)
+        private void ReturnToPool(IDbConnection connection)
         {
-            if (this.disposed)
+            if (this.connectionPool.IsAddingCompleted)
             {
-                connection?.Dispose();
+                connection.Dispose();
+                return;
             }
-            else if (!this.connectionPool.TryAdd(connection))
+
+            bool itemWasAdded = false;
+            try
             {
-                connection?.Dispose();
+                itemWasAdded = this.connectionPool.TryAdd(connection);
+            }
+            catch (InvalidOperationException)
+            {
+                itemWasAdded = false;
+            }
+
+            if (!itemWasAdded)
+            {
+                connection.Dispose();
             }
         }
 
@@ -90,15 +111,7 @@ namespace GVFS.Common.Database
                     command.CommandText = "PRAGMA user_version=1;";
                     command.ExecuteNonQuery();
                 }
-            }
-        }
 
-        private void CreateTables()
-        {
-            IGVFSConnectionPool connectionPool = this;
-            using (IPooledConnection pooled = connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
-            {
                 Placeholders.CreateTable(command);
             }
         }
@@ -106,9 +119,9 @@ namespace GVFS.Common.Database
         private class GVFSConnection : IPooledConnection
         {
             private IDbConnection connection;
-            private IGVFSConnectionPool database;
+            private GVFSDatabase database;
 
-            public GVFSConnection(IGVFSConnectionPool database, IDbConnection connection)
+            public GVFSConnection(GVFSDatabase database, IDbConnection connection)
             {
                 this.database = database;
                 this.connection = connection;
