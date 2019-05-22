@@ -48,7 +48,8 @@ namespace GVFS.Service
                     this.tracer,
                     new PhysicalFileSystem(),
                     this.serviceDataLocation,
-                    new GVFSMountProcess(this.tracer));
+                    new GVFSMountProcess(this.tracer),
+                    new NotificationHandler(this.tracer));
                 this.repoRegistry.Upgrade();
                 this.requestHandler = new WindowsRequestHandler(this.tracer, EtwArea, this.repoRegistry);
 

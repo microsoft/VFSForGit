@@ -28,16 +28,19 @@ loadCmd="sudo launchctl load -w /Library/LaunchDaemons/org.vfsforgit.prjfs.PrjFS
 echo "Loading PrjFSKextLogDaemon: '$loadCmd'..."
 eval $loadCmd || exit 1
 
-# Load Service in all active User sessions
+# Load Launch Agents in all active User sessions
 # There will be one loginwindow instance for each logged in user, 
 # get its uid (this will correspond to the logged in user's id.) 
 # Then use launchctl bootstrap gui/uid to auto load the Service 
 # for each user.
-servicePlist="/Library/LaunchAgents/org.vfsforgit.service.plist"
-if [ -f "${servicePlist}" ]; then
-    for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
-        loadCmd="launchctl bootstrap gui/$uid ${servicePlist}"
+declare -a launchAgents=(
+    "/Library/LaunchAgents/org.vfsforgit.usernotification.plist"
+    "/Library/LaunchAgents/org.vfsforgit.service.plist"
+)
+for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
+    for nextLaunchAgent in "${launchAgents[@]}"; do
+        loadCmd="launchctl bootstrap gui/$uid ${nextLaunchAgent}"
         echo "Loading Service: '$loadCmd'..."
         eval $loadCmd || exit 1
-    done    
-fi
+    done
+done 
