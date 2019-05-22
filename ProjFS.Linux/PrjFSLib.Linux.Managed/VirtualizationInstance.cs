@@ -293,7 +293,7 @@ namespace PrjFSLib.Linux
                     return parts.Length > 0 ? parts[0] : string.Empty;
                 }
             }
-            catch (IOException ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
+            catch
             {
                 // process with given pid may have exited; nothing to be done
                 return string.Empty;
