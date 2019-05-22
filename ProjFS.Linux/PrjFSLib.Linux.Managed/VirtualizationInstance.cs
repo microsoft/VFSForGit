@@ -363,7 +363,7 @@ namespace PrjFSLib.Linux
             // ignore events triggered by own process to prevent deadlocks
             if (this.IsProviderEvent(ev))
             {
-                return 0;
+                return perm ? (int)ProjFS.Constants.PROJFS_ALLOW : 0;
             }
 
             bool isLink = (ev.Mask & ProjFS.Constants.PROJFS_ONLINK) != 0;
