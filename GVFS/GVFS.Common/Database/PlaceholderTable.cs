@@ -22,7 +22,7 @@ namespace GVFS.Common.Database
             command.ExecuteNonQuery();
         }
 
-        public int Count()
+        public int GetCount()
         {
             using (IDbConnection connection = this.connectionPool.GetConnection())
             using (IDbCommand command = connection.CreateCommand())

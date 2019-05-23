@@ -168,7 +168,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void OnStartDirectoryEnumerationReturnsPendingWhenResultsNotInMemory()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -207,7 +207,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void OnStartDirectoryEnumerationReturnsSuccessWhenResultsInMemory()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test" }))
@@ -245,7 +245,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void GetPlaceholderInformationHandlerPathNotProjected()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -280,7 +280,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void GetPlaceholderInformationHandlerPathProjected()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -318,7 +318,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void GetPlaceholderInformationHandlerCancelledBeforeSchedulingAsync()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -370,7 +370,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void GetPlaceholderInformationHandlerCancelledDuringAsyncCallback()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -417,7 +417,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void GetPlaceholderInformationHandlerCancelledDuringNetworkRequest()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -461,7 +461,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void OnGetFileStreamReturnsInternalErrorWhenOffsetNonZero()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -510,7 +510,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void OnGetFileStreamReturnsInternalErrorWhenPlaceholderVersionDoesNotMatchExpected()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -559,7 +559,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void MoveFileIntoDotGitDirectory()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -638,7 +638,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void MoveFileFromDotGitToSrc()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -684,7 +684,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void MoveFile()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -744,7 +744,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void OnGetFileStreamReturnsPendingAndCompletesWithSuccessWhenNoFailures()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -801,7 +801,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void OnGetFileStreamHandlesTryCopyBlobContentStreamThrowingOperationCanceled()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -859,7 +859,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void OnGetFileStreamHandlesCancellationDuringWriteAction()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -917,7 +917,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void OnGetFileStreamHandlesWriteFailure()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -976,7 +976,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         public void OnGetFileStreamHandlesHResultHandleResult()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))

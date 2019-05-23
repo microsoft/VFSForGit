@@ -73,7 +73,7 @@ namespace GVFS.Common
         /// The Count is "estimated" because it's simply (# adds - # deletes).  There is nothing to prevent
         /// multiple adds or deletes of the same path from being double counted
         /// </summary>
-        public int Count()
+        public int GetCount()
         {
             return this.count;
         }

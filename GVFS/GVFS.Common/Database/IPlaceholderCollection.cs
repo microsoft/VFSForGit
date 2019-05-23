@@ -7,7 +7,7 @@ namespace GVFS.Common.Database
     /// </summary>
     public interface IPlaceholderCollection
     {
-        int Count();
+        int GetCount();
         void GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
         HashSet<string> GetAllFilePaths();
 

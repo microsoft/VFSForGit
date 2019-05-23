@@ -44,7 +44,7 @@ namespace GVFS.UnitTests.Common
                 "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n" +
                 "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n" +
                 "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n");
-            dut.Count().ShouldEqual(5);
+            dut.GetCount().ShouldEqual(5);
         }
 
         [TestCase]

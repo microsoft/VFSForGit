@@ -89,7 +89,7 @@ namespace GVFS.UnitTests.Platform.Mac
         {
             const string UpdatePlaceholderFileName = "testUpdatePlaceholder.txt";
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { UpdatePlaceholderFileName }))
@@ -179,7 +179,7 @@ namespace GVFS.UnitTests.Platform.Mac
         {
             const string WriteSymLinkFileName = "testWriteSymLink.txt";
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { WriteSymLinkFileName }))
@@ -226,7 +226,7 @@ namespace GVFS.UnitTests.Platform.Mac
         {
             const string PlaceholderToLinkFileName = "testUpdatePlaceholderToLink.txt";
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { PlaceholderToLinkFileName }))
@@ -300,7 +300,7 @@ namespace GVFS.UnitTests.Platform.Mac
             const string TestFolderName = "testFolder";
             string testFilePath = Path.Combine(TestFolderName, TestFileName);
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
 
@@ -343,7 +343,7 @@ namespace GVFS.UnitTests.Platform.Mac
             const string TestFolderName = "testFolder";
             string testFilePath = Path.Combine(TestFolderName, TestFileName);
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
 
@@ -391,7 +391,7 @@ namespace GVFS.UnitTests.Platform.Mac
             string testFile664Path = Path.Combine(TestFolderName, TestFile664Name);
             string testFile755Path = Path.Combine(TestFolderName, TestFile755Name);
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
 
@@ -442,7 +442,7 @@ namespace GVFS.UnitTests.Platform.Mac
         {
             const string TestFileName = "test.txt";
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
@@ -491,7 +491,7 @@ namespace GVFS.UnitTests.Platform.Mac
         {
             const string TestFileName = "test.txt";
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.Count()).Returns(1);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))

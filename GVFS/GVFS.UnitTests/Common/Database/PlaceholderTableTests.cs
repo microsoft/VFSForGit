@@ -45,7 +45,7 @@ namespace GVFS.UnitTests.Common.Database
                 {
                     mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Placeholder;");
                     mockCommand.Setup(x => x.ExecuteScalar()).Returns(0);
-                    placeholders.Count().ShouldEqual(0);
+                    placeholders.GetCount().ShouldEqual(0);
                 });
         }
 
