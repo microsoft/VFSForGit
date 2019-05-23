@@ -28,7 +28,7 @@ namespace GVFS.Common.Database
 
                         using (SqliteCommand pragmaCommand = integrityConnection.CreateCommand())
                         {
-                            pragmaCommand.CommandText = $"PRAGMA integrity_check;";
+                            pragmaCommand.CommandText = "PRAGMA integrity_check;";
                             using (SqliteDataReader reader = pragmaCommand.ExecuteReader())
                             {
                                 while (reader.Read())
