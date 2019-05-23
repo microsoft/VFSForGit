@@ -399,41 +399,22 @@ namespace PrjFSLib.Linux
             }
 
             bool isDirectory = (ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0;
-            string triggeringProcessName = GetProcCmdline(ev.Pid);
-            byte[] providerId = new byte[PlaceholderIdLength];
-            byte[] contentId = new byte[PlaceholderIdLength];
-            string relativePath = PtrToStringUTF8(ev.Path);
-            Result result = Result.Success;
+            string relativePath;
 
-            if (!isDirectory)
+            if (nt == NotificationType.FileRenamed ||
+                nt == NotificationType.HardLinkCreated)
             {
-                string currentRelativePath = relativePath;
-
-                // TODO(Linux): can other intermediate file ops race us here?
-                if (nt == NotificationType.FileRenamed || nt == NotificationType.HardLinkCreated)
-                {
-                    currentRelativePath = PtrToStringUTF8(ev.TargetPath);
-                    relativePath = currentRelativePath;
-                }
-
-                result = this.projfs.GetProjAttrs(
-                    currentRelativePath,
-                    providerId,
-                    contentId);
+                relativePath = PtrToStringUTF8(ev.TargetPath);
+            }
+            else
+            {
+                relativePath = PtrToStringUTF8(ev.Path);
             }
 
-            if (result == Result.Success)
-            {
-                result = this.OnNotifyOperation(
-                    commandId: 0,
-                    relativePath: relativePath,
-                    providerId: providerId,
-                    contentId: contentId,
-                    triggeringProcessId: ev.Pid,
-                    triggeringProcessName: triggeringProcessName,
-                    isDirectory: isDirectory,
-                    notificationType: nt);
-            }
+            Result result = this.OnNotifyOperation(
+                relativePath: relativePath,
+                isDirectory: isDirectory,
+                notificationType: nt);
 
             int ret = -result.ToErrno();
 
@@ -463,12 +444,7 @@ namespace PrjFSLib.Linux
         }
 
         private Result OnNotifyOperation(
-            ulong commandId,
             string relativePath,
-            byte[] providerId,
-            byte[] contentId,
-            int triggeringProcessId,
-            string triggeringProcessName,
             bool isDirectory,
             NotificationType notificationType)
         {
