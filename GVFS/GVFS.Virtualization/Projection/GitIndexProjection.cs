@@ -1123,7 +1123,8 @@ namespace GVFS.Virtualization.Projection
                     HashSet<string> existingPlaceholders = null;
                     if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
                     {
-                        IEnumerable<string> allPlaceholders = placeholderFoldersListCopy.Select(x => x.Path)
+                        IEnumerable<string> allPlaceholders = placeholderFoldersListCopy
+                            .Select(x => x.Path)
                             .Union(this.placeholderDatabase.GetAllFilePaths());
                         existingPlaceholders = new HashSet<string>(allPlaceholders, StringComparer.OrdinalIgnoreCase);
                     }

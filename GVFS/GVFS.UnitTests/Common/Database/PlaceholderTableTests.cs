@@ -89,7 +89,7 @@ namespace GVFS.UnitTests.Common.Database
                    HashSet<string> filePaths = placeholders.GetAllFilePaths();
                    filePaths.ShouldNotBeNull();
                    filePaths.Count.ShouldEqual(1);
-                   filePaths.ShouldContain(x => x == DefaultPath);
+                   filePaths.Contains(DefaultPath).ShouldBeTrue();
                });
         }
 
