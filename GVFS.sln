@@ -427,9 +427,13 @@ Global
 		{4CC2A90D-D240-4382-B4BF-5E175515E492}.Release.Mac|x64.Build.0 = Release|x64
 		{4CC2A90D-D240-4382-B4BF-5E175515E492}.Release.Windows|x64.ActiveCfg = Release|x64
 		{4CC2A90D-D240-4382-B4BF-5E175515E492}.Release.Windows|x64.Build.0 = Release|x64
+		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Debug.Linux|x64.ActiveCfg = Debug|x64
+		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Debug.Linux|x64.Build.0 = Debug|x64
 		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Debug.Mac|x64.ActiveCfg = Debug|x64
 		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Debug.Windows|x64.ActiveCfg = Debug|x64
 		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Debug.Windows|x64.Build.0 = Debug|x64
+		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Release.Linux|x64.ActiveCfg = Release|x64
+		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Release.Linux|x64.Build.0 = Release|x64
 		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Release.Mac|x64.ActiveCfg = Release|x64
 		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Release.Windows|x64.ActiveCfg = Release|x64
 		{AECEC217-2499-403D-B0BB-2962B9BE5970}.Release.Windows|x64.Build.0 = Release|x64
