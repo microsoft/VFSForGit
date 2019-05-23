@@ -347,20 +347,12 @@ class org_vfsforgit_PrjFSProviderUserClient
     vnode_put(testVnode);
 }
 
-- (void)testShouldHandleFileOpEvent {
+- (void)testShouldHandleFileOpEvent_RootHandle {
     PerfTracer perfTracer;
     shared_ptr<mount> testMount = mount::Create();
     std::string repoPath = "/Users/test/code/Repo";
     shared_ptr<vnode> repoRootVnode = testMount->CreateVnodeTree(repoPath, VDIR);
-    shared_ptr<vnode> testVnodeFile = testMount->CreateVnodeTree(repoPath + "/file.txt");
-    shared_ptr<vnode> testVnodeDirectory = testMount->CreateVnodeTree(repoPath + "/directory", VDIR);
-    shared_ptr<mount> testMountNone = mount::Create("none", fsid_t{}, 0);
-    shared_ptr<vnode> testVnodeNone = vnode::Create(testMountNone, "/none");
-    shared_ptr<vnode> testVnodeUnsupportedType = vnode::Create(testMount, "/foo", VNON);
 
-    org_vfsforgit_PrjFSProviderUserClient userClient;
-
-    VirtualizationRootHandle rootHandle;
     int pid;
     VirtualizationRootHandle testRootHandle;
 
@@ -376,6 +368,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &testRootHandle,
             &pid));
 
+    org_vfsforgit_PrjFSProviderUserClient userClient;
     testRootHandle = InsertVirtualizationRoot_Locked(
         &userClient,
         0,
@@ -396,19 +389,46 @@ class org_vfsforgit_PrjFSProviderUserClient
             true, // isDirectory,
             &testRootHandle,
             &pid));
+}
 
+- (void)testShouldHandleFileOpEvent_UnsupportedFileSystem {
+    PerfTracer perfTracer;
+    shared_ptr<mount> testMount = mount::Create("none", fsid_t{}, 0);
+    shared_ptr<vnode> testVnode = vnode::Create(testMount, "/none");
+    
+    int pid;
+    VirtualizationRootHandle testRootHandle;
     // Invalid File System should fail
     XCTAssertFalse(
         ShouldHandleFileOpEvent(
             &perfTracer,
             context,
-            testVnodeNone.get(),
+            testVnode.get(),
             nullptr, // path
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
             &pid));
-    
+}
+
+- (void)testShouldHandleFileOpEvent_UnsupportedVnodeType {
+    PerfTracer perfTracer;
+    shared_ptr<mount> testMount = mount::Create();
+    std::string repoPath = "/Users/test/code/Repo";
+    shared_ptr<vnode> repoRootVnode = testMount->CreateVnodeTree(repoPath, VDIR);
+    shared_ptr<vnode> testVnodeUnsupportedType = vnode::Create(testMount, "/foo", VNON);
+
+    org_vfsforgit_PrjFSProviderUserClient userClient;
+    VirtualizationRootHandle testRootHandle = InsertVirtualizationRoot_Locked(
+        &userClient,
+        0,
+        repoRootVnode.get(),
+        repoRootVnode->GetVid(),
+        FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() },
+        repoPath.c_str());
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
+
+    int pid;
     // Invalid Vnode Type should fail
     XCTAssertFalse(
         ShouldHandleFileOpEvent(
@@ -420,40 +440,94 @@ class org_vfsforgit_PrjFSProviderUserClient
             true, // isDirectory,
             &testRootHandle,
             &pid));
+}
 
+- (void)testShouldHandleFileOpEvent_ProviderOffline {
+    PerfTracer perfTracer;
+    shared_ptr<mount> testMount = mount::Create();
+    std::string repoPath = "/Users/test/code/Repo";
+    shared_ptr<vnode> repoRootVnode = testMount->CreateVnodeTree(repoPath, VDIR);
+    shared_ptr<vnode> testVnodeFile = testMount->CreateVnodeTree(repoPath + "/file.txt");
+
+    org_vfsforgit_PrjFSProviderUserClient userClient;
+    VirtualizationRootHandle testRootHandle = InsertVirtualizationRoot_Locked(
+        &userClient,
+        0,
+        repoRootVnode.get(),
+        repoRootVnode->GetVid(),
+        FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() },
+        repoPath.c_str());
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
+
+    int pid;
     // Fail when the provider is not online
     s_virtualizationRoots[0].providerUserClient = nullptr;
     XCTAssertFalse(
         ShouldHandleFileOpEvent(
             &perfTracer,
             context,
-            repoRootVnode.get(),
+            testVnodeFile.get(),
             nullptr, // path
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
             &pid));
-    s_virtualizationRoots[0].providerUserClient = &userClient;
+}
+
+- (void)testShouldHandleFileOpEvent_ProviderInitiatedIO {
+    PerfTracer perfTracer;
+    shared_ptr<mount> testMount = mount::Create();
+    std::string repoPath = "/Users/test/code/Repo";
+    shared_ptr<vnode> repoRootVnode = testMount->CreateVnodeTree(repoPath, VDIR);
+    shared_ptr<vnode> testVnodeFile = testMount->CreateVnodeTree(repoPath + "/file.txt");
+
+    org_vfsforgit_PrjFSProviderUserClient userClient;
+    VirtualizationRootHandle testRootHandle = InsertVirtualizationRoot_Locked(
+        &userClient,
+        0,
+        repoRootVnode.get(),
+        repoRootVnode->GetVid(),
+        FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() },
+        repoPath.c_str());
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
 
     // Fail when pid matches provider pid
     MockProcess_Reset();
     MockProcess_AddContext(context, 0 /*pid*/);
     MockProcess_SetSelfPid(0);
     MockProcess_AddProcess(0 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
+    int pid;
     XCTAssertFalse(
         ShouldHandleFileOpEvent(
             &perfTracer,
             context,
-            repoRootVnode.get(),
+            testVnodeFile.get(),
             nullptr, // path
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
             &testRootHandle,
             &pid));
-    MockProcess_Reset();
-    MockProcess_AddContext(context, 501 /*pid*/);
-    MockProcess_SetSelfPid(501);
-    MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
+}
+
+- (void)testShouldHandleFileOpEvent_VnodeCacheUpdated {
+    PerfTracer perfTracer;
+    shared_ptr<mount> testMount = mount::Create();
+    std::string repoPath = "/Users/test/code/Repo";
+    shared_ptr<vnode> repoRootVnode = testMount->CreateVnodeTree(repoPath, VDIR);
+    shared_ptr<vnode> testVnodeFile = testMount->CreateVnodeTree(repoPath + "/file.txt");
+    shared_ptr<vnode> testVnodeDirectory = testMount->CreateVnodeTree(repoPath + "/directory", VDIR);
+
+    VirtualizationRootHandle rootHandle;
+    int pid;
+    org_vfsforgit_PrjFSProviderUserClient userClient;
+    VirtualizationRootHandle testRootHandle = InsertVirtualizationRoot_Locked(
+        &userClient,
+        0,
+        repoRootVnode.get(),
+        repoRootVnode->GetVid(),
+        FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() },
+        repoPath.c_str());
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
 
     // KAUTH_FILEOP_OPEN
     XCTAssertTrue(
@@ -468,6 +542,7 @@ class org_vfsforgit_PrjFSProviderUserClient
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
     // Finding the root should have added testVnodeFile to the cache
+    // IMPORTANT: This check assumes that the vnode cache is empty before the above call to ShouldHandleFileOpEvent
     XCTAssertTrue(testVnodeFile.get() == self->cacheWrapper[ComputeVnodeHashIndex(testVnodeFile.get())].vnode);
     XCTAssertTrue(rootHandle == self->cacheWrapper[ComputeVnodeHashIndex(testVnodeFile.get())].virtualizationRoot);
     
