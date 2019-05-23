@@ -413,11 +413,7 @@ namespace PrjFSLib.Linux
                 if (nt == NotificationType.FileRenamed || nt == NotificationType.HardLinkCreated)
                 {
                     currentRelativePath = PtrToStringUTF8(ev.TargetPath);
-
-                    if (nt == NotificationType.HardLinkCreated)
-                    {
-                        relativePath = currentRelativePath;
-                    }
+                    relativePath = currentRelativePath;
                 }
 
                 result = this.projfs.GetProjAttrs(
