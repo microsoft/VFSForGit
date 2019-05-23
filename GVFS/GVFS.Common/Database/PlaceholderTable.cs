@@ -72,7 +72,7 @@ namespace GVFS.Common.Database
             using (IDbCommand command = connection.CreateCommand())
             {
                 HashSet<string> fileEntries = new HashSet<string>();
-                command.CommandText = "SELECT path FROM Placeholder WHERE pathType = 0;";
+                command.CommandText = $"SELECT path FROM Placeholder WHERE pathType = {(int)PlaceholderData.PlaceholderType.File};";
                 using (IDataReader reader = command.ExecuteReader())
                 {
                     while (reader.Read())

@@ -9,12 +9,9 @@ namespace GVFS.RepairJobs
 {
     public class PlaceholderDatabaseRepairJob : RepairJob
     {
-        private readonly string databasePath;
-
         public PlaceholderDatabaseRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
-            this.databasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.VFSForGit);
         }
 
         public override string Name
@@ -25,8 +22,8 @@ namespace GVFS.RepairJobs
         public override IssueType HasIssue(List<string> messages)
         {
             string error;
-            string blobsizesDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.VFSForGit);
-            if (SqliteDatabase.HasIssue(blobsizesDatabasePath, new PhysicalFileSystem(), out error))
+            string databasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.VFSForGit);
+            if (SqliteDatabase.HasIssue(databasePath, new PhysicalFileSystem(), out error))
             {
                 messages.Add($"Could not load {this.Name}: {error}");
                 return IssueType.CantFix;
