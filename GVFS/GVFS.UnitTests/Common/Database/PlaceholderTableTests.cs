@@ -33,19 +33,25 @@ namespace GVFS.UnitTests.Common.Database
             Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
             mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
             mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
-            PlaceholderTable.CreateTable(mockCommand.Object);
+            mockCommand.Setup(x => x.Dispose());
+
+            Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
+            mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
+
+            PlaceholderTable.CreateTable(mockConnection.Object);
             mockCommand.VerifyAll();
+            mockConnection.VerifyAll();
         }
 
         [TestCase]
-        public void CountTest()
+        public void GetCountTest()
         {
             this.TestPlaceholders(
                 (placeholders, mockCommand) =>
                 {
                     mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Placeholder;");
-                    mockCommand.Setup(x => x.ExecuteScalar()).Returns(0);
-                    placeholders.GetCount().ShouldEqual(0);
+                    mockCommand.Setup(x => x.ExecuteScalar()).Returns(123);
+                    placeholders.GetCount().ShouldEqual(123);
                 });
         }
 
@@ -363,6 +369,7 @@ namespace GVFS.UnitTests.Common.Database
 
                     mockCommand.Setup(x => x.ExecuteReader()).Returns(mockReader.Object);
                     testCode(placeholders, mockCommand, mockReader);
+                    mockReader.Verify(x => x.Dispose(), Times.Once);
                     mockReader.VerifyAll();
                 });
         }
@@ -382,7 +389,9 @@ namespace GVFS.UnitTests.Common.Database
             PlaceholderTable placeholders = new PlaceholderTable(mockConnectionPool.Object);
             testCode(placeholders, mockCommand);
 
+            mockCommand.Verify(x => x.Dispose(), Times.Once);
             mockCommand.VerifyAll();
+            mockConnection.Verify(x => x.Dispose(), Times.Once);
             mockConnection.VerifyAll();
             mockConnectionPool.VerifyAll();
         }

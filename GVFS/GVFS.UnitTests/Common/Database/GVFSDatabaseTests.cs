@@ -62,14 +62,20 @@ namespace GVFS.UnitTests.Common.Database
             mockCommand.SetupSet(x => x.CommandText = "PRAGMA cache_size=-40000;");
             mockCommand.SetupSet(x => x.CommandText = "PRAGMA synchronous=NORMAL;");
             mockCommand.SetupSet(x => x.CommandText = "PRAGMA user_version;");
-            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
             mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
             mockCommand.Setup(x => x.ExecuteScalar()).Returns(1);
             mockCommand.Setup(x => x.Dispose());
 
+            Mock<IDbCommand> mockCommand2 = new Mock<IDbCommand>(MockBehavior.Strict);
+            mockCommand2.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
+            mockCommand2.Setup(x => x.ExecuteNonQuery()).Returns(1);
+            mockCommand2.Setup(x => x.Dispose());
+
             List<Mock<IDbConnection>> mockConnections = new List<Mock<IDbConnection>>();
             Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
-            mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
+            mockConnection.SetupSequence(x => x.CreateCommand())
+                          .Returns(mockCommand.Object)
+                          .Returns(mockCommand2.Object);
             mockConnection.Setup(x => x.Dispose());
             mockConnections.Add(mockConnection);
 
@@ -98,9 +104,11 @@ namespace GVFS.UnitTests.Common.Database
             }
 
             mockCommand.Verify(x => x.Dispose(), Times.Once);
+            mockCommand2.Verify(x => x.Dispose(), Times.Once);
             mockConnections.ForEach(connection => connection.Verify(x => x.Dispose(), Times.Once));
 
             mockCommand.VerifyAll();
+            mockCommand2.VerifyAll();
             mockConnections.ForEach(connection => connection.VerifyAll());
             mockConnectionFactory.VerifyAll();
         }

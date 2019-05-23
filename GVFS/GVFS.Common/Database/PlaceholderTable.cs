@@ -16,10 +16,13 @@ namespace GVFS.Common.Database
             this.connectionPool = connectionPool;
         }
 
-        public static void CreateTable(IDbCommand command)
+        public static void CreateTable(IDbConnection connection)
         {
-            command.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;";
-            command.ExecuteNonQuery();
+            using (IDbCommand command = connection.CreateCommand())
+            {
+                command.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;";
+                command.ExecuteNonQuery();
+            }
         }
 
         public int GetCount()

@@ -113,7 +113,7 @@ namespace GVFS.Common.Database
                     command.ExecuteNonQuery();
                 }
 
-                PlaceholderTable.CreateTable(command);
+                PlaceholderTable.CreateTable(connection);
             }
         }
 
