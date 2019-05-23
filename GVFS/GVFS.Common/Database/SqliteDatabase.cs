@@ -9,7 +9,7 @@ namespace GVFS.Common.Database
     /// <summary>
     /// Handles creating connections to SQLite database and checking for issues with the database
     /// </summary>
-    public class SqliteDatabase : IDbConnectionCreator
+    public class SqliteDatabase : IDbConnectionFactory
     {
         public static bool HasIssue(string databasePath, PhysicalFileSystem filesystem, out string issue)
         {

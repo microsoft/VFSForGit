@@ -5,7 +5,7 @@ namespace GVFS.Common.Database
     /// <summary>
     /// Interface used to open a new connection to a database
     /// </summary>
-    public interface IDbConnectionCreator
+    public interface IDbConnectionFactory
     {
         IDbConnection OpenNewConnection(string databasePath);
     }

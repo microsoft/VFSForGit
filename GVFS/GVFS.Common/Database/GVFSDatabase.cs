@@ -20,10 +20,10 @@ namespace GVFS.Common.Database
         private bool disposed = false;
         private ITracer tracer;
         private string databasePath;
-        private IDbConnectionCreator connectionCreator;
+        private IDbConnectionFactory connectionCreator;
         private BlockingCollection<IDbConnection> connectionPool;
 
-        public GVFSDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string enlistmentRoot, IDbConnectionCreator connectionCreator, int initialPooledConnections = InitialPooledConnections)
+        public GVFSDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string enlistmentRoot, IDbConnectionFactory connectionCreator, int initialPooledConnections = InitialPooledConnections)
         {
             this.tracer = tracer;
             this.connectionPool = new BlockingCollection<IDbConnection>();
