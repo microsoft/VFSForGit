@@ -603,7 +603,7 @@ KEXT_STATIC int HandleFileOpOperation(
                         currentVnode,
                         vnodeFsidInode,
                         newPath,
-                        (messageFromProvider && targetRoot == fromRoot) ? fromPath : nullptr, // Only send "from" path if in the same root.
+                        (messageFromProvider && targetRoot == fromRoot) ? fromPath : "", // Send "", to specify there is a fromPath but it is not relavent
                         pid,
                         procname,
                         &kauthResult,
@@ -624,7 +624,7 @@ KEXT_STATIC int HandleFileOpOperation(
                         // vnode & target path are not in "fromRoot", so don't send them
                         nullptr, // vnode
                         FsidInode{},
-                        nullptr, // target path
+                        "", // Send target path as "" to signal the path is outside the Virtualization Root 
                         fromPath,
                         pid,
                         procname,

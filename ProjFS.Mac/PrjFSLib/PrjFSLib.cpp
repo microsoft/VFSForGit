@@ -681,13 +681,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     // whereas messages originating in the kext's vnode handler will only fill
     // the fsid/inode, so we need to look up the path below.
     char pathBuffer[PrjFSMaxPath];
-    if (request.paths[MessagePath_Target] == nullptr &&
-        request.paths[MessagePath_From] != nullptr)
-    {
-       // MessagePath_Target may be null, when MessagePath_From is populated
-       // In these instances don't try to popute absolute/relative path
-    }
-    else if (request.paths[MessagePath_Target] == nullptr)
+    if (request.paths[MessagePath_Target] == nullptr)
     {
         fsid_t fsid = request.messageHeader->fsidInode.fsid;
         ssize_t pathSize = fsgetpath(pathBuffer, sizeof(pathBuffer), &fsid, request.messageHeader->fsidInode.inode);
@@ -724,8 +718,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                 << dec << request.messageHeader->fsidInode.inode
                 << " -> '"
                 << pathBuffer
-                << "' -> relative path '"
-                << (relativePath != nullptr ? relativePath : "[NULL]")
+                << "' -> relative path '" << relativePath
                 << "'"
                 << endl;
 #endif
@@ -775,34 +768,33 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
             const char* absoluteFromPath = request.paths[MessagePath_From];
-            const char* relativeFromPath = nullptr;
-            if (absoluteFromPath != nullptr)
-            {
-                relativeFromPath = GetRelativePath(absoluteFromPath, s_virtualizationRootFullPath.c_str());
-            }
+            const char* relativeFromPath = GetRelativePath(absoluteFromPath, s_virtualizationRootFullPath.c_str());
             
 #ifdef DEBUG
             cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ");
-            if (relativeFromPath != nullptr)
-            {
-                cout << "from this root (relative path " << relativeFromPath << ") ";
-            }
-            if (relativePath != nullptr)
-            {
-                cout << "into this root (relative path " << relativePath << ")";
-            }
+            cout << "from this root (relative path " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ") ";
+            cout << "into this root (relative path " << relativePath << ")";
             cout << endl;
 #endif
-            bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
             
-            if (relativePath != nullptr || relativeFromPath != nullptr)
+            if (strcmp(relativePath, "") == 0)
+            {
+                result = HandleFileNotification(
+                    requestHeader,
+                    relativePath,
+                    absolutePath,
+                    relativeFromPath,
+                    false,
+                    KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
+            }
+            else
             {
                 result = HandleNewFileInRootNotification(
                     requestHeader,
                     relativePath,
                     absolutePath,
                     relativeFromPath,
-                    isDirectory,
+                    false,
                     KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             }
             
@@ -1063,9 +1055,8 @@ static PrjFS_Result HandleNewFileInRootNotification(
 {
 #ifdef DEBUG
     cout
-        << "HandleNewFileInRootNotification: "
-        << (absolutePath == nullptr ? "[NULL]" : absolutePath)
-        << " (root-relative: " << (relativePath == nullptr ? "[NULL]" : relativePath) << ")"
+        << "HandleNewFileInRootNotification: " << absolutePath
+        << " (root-relative: " << relativePath << ")"
         << " (root-relative from: " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
@@ -1073,13 +1064,10 @@ static PrjFS_Result HandleNewFileInRootNotification(
         << " isDirectory: " << isDirectory << endl;
 #endif
 
-    if (relativePath != nullptr)
-    {
-        // Whenever a new file shows up in the root, we need to check if its ancestor
-        // directories are flagged as in root.  If they are not, flag them as in root and
-        // notify the provider
-        FindNewFoldersInRootAndNotifyProvider(request, relativePath);
-    }
+    // Whenever a new file shows up in the root, we need to check if its ancestor
+    // directories are flagged as in root.  If they are not, flag them as in root and
+    // notify the provider
+    FindNewFoldersInRootAndNotifyProvider(request, relativePath);
     
     PrjFS_Result result = HandleFileNotification(
         request,
@@ -1103,16 +1091,11 @@ static PrjFS_Result HandleFileNotification(
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
-    // Don't send null to providers
-    relativePath = relativePath != nullptr ? relativePath : "";
-    relativeFromPath = relativeFromPath != nullptr ? relativeFromPath : "";
-    
 #ifdef DEBUG
     cout
-        << "PrjFSLib.HandleFileNotification: "
-        << (absolutePath == nullptr ? "[NULL]" : absolutePath)
+        << "PrjFSLib.HandleFileNotification: " << absolutePath
         << " (root-relative: " << relativePath << ")"
-        << " (root-relative from: " << relativeFromPath << ")"
+        << " (root-relative from: " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << " notificationType: " << NotificationTypeToString(notificationType)
@@ -1499,6 +1482,12 @@ static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator)
 
 static const char* GetRelativePath(const char* fullPath, const char* root)
 {
+    // Hardlinks will send an empty path when files are linked outside the virtualization root
+    if (strcmp(fullPath, "") == 0)
+    {
+        return "";
+    }
+    
     size_t rootLength = strlen(root);
     size_t pathLength = strlen(fullPath);
     if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
