@@ -24,7 +24,7 @@ static os_log_t s_daemonLogger, s_kextLogger;
 static IONotificationPortRef s_notificationPort;
 
 static int s_messageListenerSocket = INVALID_SOCKET_FD;
-static const string MessageListenerSocketPath = "/usr/local/GitService/pipe/vfs-c780ac06-135a-4e9e-ab6c-d41e2d265baa";
+static const char MessageListenerSocketPath[] = "/usr/local/GitService/pipe/vfs-c780ac06-135a-4e9e-ab6c-d41e2d265baa";
 static const string MessageKey = "message";
 enum class MessageType
 {
@@ -374,25 +374,18 @@ static void CreatePipeToMessageListener()
     memset(&socket_address, 0, sizeof(struct sockaddr_un));
     
     socket_address.sun_family = AF_UNIX;
-    size_t pathLength = MessageListenerSocketPath.length();
-    if (pathLength + 1 >= sizeof(socket_address.sun_path))
-    {
-        os_log(
-            s_daemonLogger,
-            "CreatePipeToMessageListener: Failed to copy socket path (%{public}s), insufficient buffer. Buffer size: %zu",
-            MessageListenerSocketPath.c_str(),
-            sizeof(socket_address.sun_path));
-        goto ClosePipeAndCleanup;
-    }
     
-    strlcpy(socket_address.sun_path, MessageListenerSocketPath.c_str(), sizeof(socket_address.sun_path));
+    static_assert(
+        sizeof(MessageListenerSocketPath) <= sizeof(socket_address.sun_path),
+        "socket_address.sun_path is not large enough for MessageListenerSocketPath");
+    strlcpy(socket_address.sun_path, MessageListenerSocketPath, sizeof(socket_address.sun_path));
     
     if(0 == connect(s_messageListenerSocket, (struct sockaddr *) &socket_address, sizeof(struct sockaddr_un)))
     {
         os_log(
             s_daemonLogger,
             "CreatePipeToMessageListener: Connected to message listener at %{public}s",
-            MessageListenerSocketPath.c_str());
+            MessageListenerSocketPath);
         return;
     }
     
@@ -400,10 +393,9 @@ static void CreatePipeToMessageListener()
     os_log(
         s_daemonLogger,
         "CreatePipeToMessageListener: Failed to connect socket at %{public}s, error: %d",
-        MessageListenerSocketPath.c_str(),
+        MessageListenerSocketPath,
         error);
     
-ClosePipeAndCleanup:
     ClosePipeToMessageListener_Locked();
 }
 

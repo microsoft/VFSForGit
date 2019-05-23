@@ -14,6 +14,10 @@ typedef HANDLE PIPE_HANDLE;
 #error Unsupported platform
 #endif
 
+#if __cplusplus <  201103L
+  #error The hooks require at least C++11 support
+#endif
+
 enum ReturnCode
 {
 	Success = 0,
