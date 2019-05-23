@@ -10,7 +10,7 @@ using System.Linq;
 namespace GVFS.UnitTests.Common.Database
 {
     [TestFixture]
-    public class PlaceholdersTableTests
+    public class PlaceholderTableTests
     {
         private const string DefaultPath = "test";
         private const byte PathTypeFile = 0;
@@ -23,7 +23,7 @@ namespace GVFS.UnitTests.Common.Database
         public void ConstructorTest()
         {
             Mock<IGVFSConnectionPool> mockConnectionPool = new Mock<IGVFSConnectionPool>(MockBehavior.Strict);
-            PlaceholdersTable placeholders = new PlaceholdersTable(mockConnectionPool.Object);
+            PlaceholderTable placeholders = new PlaceholderTable(mockConnectionPool.Object);
             mockConnectionPool.VerifyAll();
         }
 
@@ -31,9 +31,9 @@ namespace GVFS.UnitTests.Common.Database
         public void CreateTableTest()
         {
             Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
-            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholders] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
+            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
             mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
-            PlaceholdersTable.CreateTable(mockCommand.Object);
+            PlaceholderTable.CreateTable(mockCommand.Object);
             mockCommand.VerifyAll();
         }
 
@@ -43,7 +43,7 @@ namespace GVFS.UnitTests.Common.Database
             this.TestPlaceholders(
                 (placeholders, mockCommand) =>
                 {
-                    mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Placeholders;");
+                    mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Placeholder;");
                     mockCommand.Setup(x => x.ExecuteScalar()).Returns(0);
                     placeholders.Count().ShouldEqual(0);
                 });
@@ -56,7 +56,7 @@ namespace GVFS.UnitTests.Common.Database
                (placeholders, mockCommand, mockReader) =>
                {
                    mockReader.Setup(x => x.Read()).Returns(false);
-                   mockCommand.SetupSet(x => x.CommandText = "SELECT path FROM Placeholders WHERE pathType = 0;");
+                   mockCommand.SetupSet(x => x.CommandText = "SELECT path FROM Placeholder WHERE pathType = 0;");
 
                    HashSet<string> filePaths = placeholders.GetAllFilePaths();
                    filePaths.ShouldNotBeNull();
@@ -78,7 +78,7 @@ namespace GVFS.UnitTests.Common.Database
                    });
 
                    mockReader.Setup(x => x.GetString(0)).Returns(DefaultPath);
-                   mockCommand.SetupSet(x => x.CommandText = "SELECT path FROM Placeholders WHERE pathType = 0;");
+                   mockCommand.SetupSet(x => x.CommandText = "SELECT path FROM Placeholder WHERE pathType = 0;");
 
                    HashSet<string> filePaths = placeholders.GetAllFilePaths();
                    filePaths.ShouldNotBeNull();
@@ -90,12 +90,12 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void GetAllEntriesReturnsNothing()
         {
-            List<PlaceholdersTable.PlaceholderData> expectedPlacholders = new List<PlaceholdersTable.PlaceholderData>();
+            List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
             this.TestPlaceholdersWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    this.SetupMockReader(mockReader, expectedPlacholders);
-                   mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholders;");
+                   mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder;");
 
                    placeholders.GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
                    filePlaceholders.ShouldNotBeNull();
@@ -109,13 +109,13 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void GetAllEntriesReturnsOneFile()
         {
-            List<PlaceholdersTable.PlaceholderData> expectedPlacholders = new List<PlaceholdersTable.PlaceholderData>();
-            expectedPlacholders.Add(new PlaceholdersTable.PlaceholderData() { Path = DefaultPath, PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.File, Sha = DefaultSha });
+            List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
+            expectedPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = DefaultPath, PathType = PlaceholderTable.PlaceholderData.PlaceholderType.File, Sha = DefaultSha });
             this.TestPlaceholdersWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    this.SetupMockReader(mockReader, expectedPlacholders);
-                   mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholders;");
+                   mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder;");
 
                    placeholders.GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
                    filePlaceholders.ShouldNotBeNull();
@@ -129,13 +129,13 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void GetAllEntriesReturnsOneFolder()
         {
-            List<PlaceholdersTable.PlaceholderData> expectedPlacholders = new List<PlaceholdersTable.PlaceholderData>();
-            expectedPlacholders.Add(new PlaceholdersTable.PlaceholderData() { Path = DefaultPath, PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.PartialFolder, Sha = null });
+            List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
+            expectedPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = DefaultPath, PathType = PlaceholderTable.PlaceholderData.PlaceholderType.PartialFolder, Sha = null });
             this.TestPlaceholdersWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    this.SetupMockReader(mockReader, expectedPlacholders);
-                   mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholders;");
+                   mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder;");
 
                    placeholders.GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
                    filePlaceholders.ShouldNotBeNull();
@@ -149,17 +149,17 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void GetAllEntriesReturnsMultiple()
         {
-            List<PlaceholdersTable.PlaceholderData> expectedFilePlacholders = new List<PlaceholdersTable.PlaceholderData>();
-            expectedFilePlacholders.Add(new PlaceholdersTable.PlaceholderData() { Path = DefaultPath, PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.File, Sha = DefaultSha });
-            List<PlaceholdersTable.PlaceholderData> expectedFolderPlacholders = new List<PlaceholdersTable.PlaceholderData>();
-            expectedFolderPlacholders.Add(new PlaceholdersTable.PlaceholderData() { Path = "test1", PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.PartialFolder, Sha = null });
-            expectedFolderPlacholders.Add(new PlaceholdersTable.PlaceholderData() { Path = "test2", PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.ExpandedFolder, Sha = null });
-            expectedFolderPlacholders.Add(new PlaceholdersTable.PlaceholderData() { Path = "test3", PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.PossibleTombstoneFolder, Sha = null });
+            List<PlaceholderTable.PlaceholderData> expectedFilePlacholders = new List<PlaceholderTable.PlaceholderData>();
+            expectedFilePlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = DefaultPath, PathType = PlaceholderTable.PlaceholderData.PlaceholderType.File, Sha = DefaultSha });
+            List<PlaceholderTable.PlaceholderData> expectedFolderPlacholders = new List<PlaceholderTable.PlaceholderData>();
+            expectedFolderPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = "test1", PathType = PlaceholderTable.PlaceholderData.PlaceholderType.PartialFolder, Sha = null });
+            expectedFolderPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = "test2", PathType = PlaceholderTable.PlaceholderData.PlaceholderType.ExpandedFolder, Sha = null });
+            expectedFolderPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = "test3", PathType = PlaceholderTable.PlaceholderData.PlaceholderType.PossibleTombstoneFolder, Sha = null });
             this.TestPlaceholdersWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    this.SetupMockReader(mockReader, expectedFilePlacholders.Union(expectedFolderPlacholders).ToList());
-                   mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholders;");
+                   mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder;");
 
                    placeholders.GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
                    filePlaceholders.ShouldNotBeNull();
@@ -173,10 +173,10 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void AddPlaceholderDataWithFile()
         {
-            PlaceholdersTable.PlaceholderData placeholderData = new PlaceholdersTable.PlaceholderData()
+            PlaceholderTable.PlaceholderData placeholderData = new PlaceholderTable.PlaceholderData()
             {
                 Path = DefaultPath,
-                PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.File,
+                PathType = PlaceholderTable.PlaceholderData.PlaceholderType.File,
                 Sha = DefaultSha
             };
 
@@ -190,10 +190,10 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void AddPlaceholderDataWithPartialFolder()
         {
-            PlaceholdersTable.PlaceholderData placeholderData = new PlaceholdersTable.PlaceholderData()
+            PlaceholderTable.PlaceholderData placeholderData = new PlaceholderTable.PlaceholderData()
             {
                 Path = DefaultPath,
-                PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.PartialFolder,
+                PathType = PlaceholderTable.PlaceholderData.PlaceholderType.PartialFolder,
                 Sha = null
             };
 
@@ -207,10 +207,10 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void AddPlaceholderDataWithExpandedFolder()
         {
-            PlaceholdersTable.PlaceholderData placeholderData = new PlaceholdersTable.PlaceholderData()
+            PlaceholderTable.PlaceholderData placeholderData = new PlaceholderTable.PlaceholderData()
             {
                 Path = DefaultPath,
-                PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.ExpandedFolder,
+                PathType = PlaceholderTable.PlaceholderData.PlaceholderType.ExpandedFolder,
                 Sha = null
             };
 
@@ -224,10 +224,10 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void AddPlaceholderDataWithPossibleTombstoneFolder()
         {
-            PlaceholdersTable.PlaceholderData placeholderData = new PlaceholdersTable.PlaceholderData()
+            PlaceholderTable.PlaceholderData placeholderData = new PlaceholderTable.PlaceholderData()
             {
                 Path = DefaultPath,
-                PathType = PlaceholdersTable.PlaceholderData.PlaceholderType.PossibleTombstoneFolder,
+                PathType = PlaceholderTable.PlaceholderData.PlaceholderType.PossibleTombstoneFolder,
                 Sha = null
             };
 
@@ -292,7 +292,7 @@ namespace GVFS.UnitTests.Common.Database
                     Mock<IDataParameterCollection> mockParameters = new Mock<IDataParameterCollection>(MockBehavior.Strict);
                     mockParameters.Setup(x => x.Add(mockParameter.Object)).Returns(0);
 
-                    mockCommand.SetupSet(x => x.CommandText = "DELETE FROM Placeholders WHERE path = @path;");
+                    mockCommand.SetupSet(x => x.CommandText = "DELETE FROM Placeholder WHERE path = @path;");
                     mockCommand.Setup(x => x.CreateParameter()).Returns(mockParameter.Object);
                     mockCommand.SetupGet(x => x.Parameters).Returns(mockParameters.Object);
                     mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
@@ -304,7 +304,7 @@ namespace GVFS.UnitTests.Common.Database
                 });
         }
 
-        private void TestPlaceholdersInsert(Action<PlaceholdersTable> testCode, string path, int pathType, string sha)
+        private void TestPlaceholdersInsert(Action<PlaceholderTable> testCode, string path, int pathType, string sha)
         {
             this.TestPlaceholders(
                 (placeholders, mockCommand) =>
@@ -341,7 +341,7 @@ namespace GVFS.UnitTests.Common.Database
                         .Returns(mockShaParameter.Object);
                     mockCommand.SetupGet(x => x.Parameters).Returns(mockParameters.Object);
 
-                    mockCommand.SetupSet(x => x.CommandText = "INSERT OR REPLACE INTO Placeholders (path, pathType, sha) VALUES (@path, @pathType, @sha);");
+                    mockCommand.SetupSet(x => x.CommandText = "INSERT OR REPLACE INTO Placeholder (path, pathType, sha) VALUES (@path, @pathType, @sha);");
                     mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
 
                     testCode(placeholders);
@@ -353,7 +353,7 @@ namespace GVFS.UnitTests.Common.Database
                 });
         }
 
-        private void TestPlaceholdersWithReader(Action<PlaceholdersTable, Mock<IDbCommand>, Mock<IDataReader>> testCode)
+        private void TestPlaceholdersWithReader(Action<PlaceholderTable, Mock<IDbCommand>, Mock<IDataReader>> testCode)
         {
             this.TestPlaceholders(
                 (placeholders, mockCommand) =>
@@ -367,7 +367,7 @@ namespace GVFS.UnitTests.Common.Database
                 });
         }
 
-        private void TestPlaceholders(Action<PlaceholdersTable, Mock<IDbCommand>> testCode)
+        private void TestPlaceholders(Action<PlaceholderTable, Mock<IDbCommand>> testCode)
         {
             Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
             mockCommand.Setup(x => x.Dispose());
@@ -379,7 +379,7 @@ namespace GVFS.UnitTests.Common.Database
             Mock<IGVFSConnectionPool> mockConnectionPool = new Mock<IGVFSConnectionPool>(MockBehavior.Strict);
             mockConnectionPool.Setup(x => x.GetConnection()).Returns(mockConnection.Object);
 
-            PlaceholdersTable placeholders = new PlaceholdersTable(mockConnectionPool.Object);
+            PlaceholderTable placeholders = new PlaceholderTable(mockConnectionPool.Object);
             testCode(placeholders, mockCommand);
 
             mockCommand.VerifyAll();
@@ -387,7 +387,7 @@ namespace GVFS.UnitTests.Common.Database
             mockConnectionPool.VerifyAll();
         }
 
-        private void SetupMockReader(Mock<IDataReader> mockReader, List<PlaceholdersTable.PlaceholderData> data)
+        private void SetupMockReader(Mock<IDataReader> mockReader, List<PlaceholderTable.PlaceholderData> data)
         {
             int readCalls = -1;
             mockReader.Setup(x => x.Read()).Returns(() =>

@@ -88,7 +88,7 @@ namespace GVFS.PerfProfiling
                 gitIndexProjection: null,
                 backgroundFileSystemTaskRunner: null,
                 fileSystemVirtualizer: null,
-                placeholderDatabase: new PlaceholdersTable(this.gvfsDatabase),
+                placeholderDatabase: new PlaceholderTable(this.gvfsDatabase),
                 gitStatusCache : null);
         }
     }

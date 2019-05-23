@@ -62,7 +62,7 @@ namespace GVFS.UnitTests.Common.Database
             mockCommand.SetupSet(x => x.CommandText = "PRAGMA cache_size=-40000;");
             mockCommand.SetupSet(x => x.CommandText = "PRAGMA synchronous=NORMAL;");
             mockCommand.SetupSet(x => x.CommandText = "PRAGMA user_version;");
-            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholders] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
+            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
             mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
             mockCommand.Setup(x => x.ExecuteScalar()).Returns(1);
             mockCommand.Setup(x => x.Dispose());

@@ -116,7 +116,7 @@ namespace GVFS.Common.Database
                     command.ExecuteNonQuery();
                 }
 
-                PlaceholdersTable.CreateTable(command);
+                PlaceholderTable.CreateTable(command);
             }
         }
 

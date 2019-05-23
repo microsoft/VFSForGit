@@ -5,20 +5,20 @@ using System.Data;
 namespace GVFS.Common.Database
 {
     /// <summary>
-    /// This class is for interacting with the placeholders table in the SQLite database
+    /// This class is for interacting with the Placeholder table in the SQLite database
     /// </summary>
-    public class PlaceholdersTable : IPlaceholderCollection
+    public class PlaceholderTable : IPlaceholderCollection
     {
         private IGVFSConnectionPool connectionPool;
 
-        public PlaceholdersTable(IGVFSConnectionPool connectionPool)
+        public PlaceholderTable(IGVFSConnectionPool connectionPool)
         {
             this.connectionPool = connectionPool;
         }
 
         public static void CreateTable(IDbCommand command)
         {
-            command.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholders] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;";
+            command.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;";
             command.ExecuteNonQuery();
         }
 
@@ -27,7 +27,7 @@ namespace GVFS.Common.Database
             using (IDbConnection connection = this.connectionPool.GetConnection())
             using (IDbCommand command = connection.CreateCommand())
             {
-                command.CommandText = "SELECT count(path) FROM Placeholders;";
+                command.CommandText = "SELECT count(path) FROM Placeholder;";
                 return Convert.ToInt32(command.ExecuteScalar());
             }
         }
@@ -39,7 +39,7 @@ namespace GVFS.Common.Database
             using (IDbConnection connection = this.connectionPool.GetConnection())
             using (IDbCommand command = connection.CreateCommand())
             {
-                command.CommandText = "SELECT path, pathType, sha FROM Placeholders;";
+                command.CommandText = "SELECT path, pathType, sha FROM Placeholder;";
                 using (IDataReader reader = command.ExecuteReader())
                 {
                     while (reader.Read())
@@ -72,7 +72,7 @@ namespace GVFS.Common.Database
             using (IDbCommand command = connection.CreateCommand())
             {
                 HashSet<string> fileEntries = new HashSet<string>();
-                command.CommandText = "SELECT path FROM Placeholders WHERE pathType = 0;";
+                command.CommandText = "SELECT path FROM Placeholder WHERE pathType = 0;";
                 using (IDataReader reader = command.ExecuteReader())
                 {
                     while (reader.Read())
@@ -155,7 +155,7 @@ namespace GVFS.Common.Database
 
         private static void Insert(IDbCommand command, PlaceholderData placeholder)
         {
-            command.CommandText = "INSERT OR REPLACE INTO Placeholders (path, pathType, sha) VALUES (@path, @pathType, @sha);";
+            command.CommandText = "INSERT OR REPLACE INTO Placeholder (path, pathType, sha) VALUES (@path, @pathType, @sha);";
             command.AddParameter("@path", DbType.String, placeholder.Path);
             command.AddParameter("@pathType", DbType.Int32, (int)placeholder.PathType);
 
@@ -173,7 +173,7 @@ namespace GVFS.Common.Database
 
         private static void Delete(IDbCommand command, string path)
         {
-            command.CommandText = "DELETE FROM Placeholders WHERE path = @path;";
+            command.CommandText = "DELETE FROM Placeholder WHERE path = @path;";
             command.AddParameter("@path", DbType.String, path);
             command.ExecuteNonQuery();
         }
