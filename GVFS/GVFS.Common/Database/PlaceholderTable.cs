@@ -119,29 +119,17 @@ namespace GVFS.Common.Database
 
         public void AddPartialFolder(string path)
         {
-            using (IDbConnection connection = this.connectionPool.GetConnection())
-            using (IDbCommand command = connection.CreateCommand())
-            {
-                Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PartialFolder });
-            }
+            this.AddFolder(path, PlaceholderData.PlaceholderType.PartialFolder);
         }
 
         public void AddExpandedFolder(string path)
         {
-            using (IDbConnection connection = this.connectionPool.GetConnection())
-            using (IDbCommand command = connection.CreateCommand())
-            {
-                Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.ExpandedFolder });
-            }
+            this.AddFolder(path, PlaceholderData.PlaceholderType.ExpandedFolder);
         }
 
         public void AddPossibleTombstoneFolder(string path)
         {
-            using (IDbConnection connection = this.connectionPool.GetConnection())
-            using (IDbCommand command = connection.CreateCommand())
-            {
-                Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PossibleTombstoneFolder });
-            }
+            this.AddFolder(path, PlaceholderData.PlaceholderType.PossibleTombstoneFolder);
         }
 
         public void Remove(string path)
@@ -176,6 +164,15 @@ namespace GVFS.Common.Database
             command.CommandText = "DELETE FROM Placeholder WHERE path = @path;";
             command.AddParameter("@path", DbType.String, path);
             command.ExecuteNonQuery();
+        }
+
+        private void AddFolder(string path, PlaceholderData.PlaceholderType placeholderType)
+        {
+            using (IDbConnection connection = this.connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
+            {
+                Insert(command, new PlaceholderData() { Path = path, PathType = placeholderType });
+            }
         }
 
         public class PlaceholderData : IPlaceholderData
