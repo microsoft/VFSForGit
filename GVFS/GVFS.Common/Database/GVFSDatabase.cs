@@ -1,6 +1,5 @@
 ﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Concurrent;
 using System.Data;
