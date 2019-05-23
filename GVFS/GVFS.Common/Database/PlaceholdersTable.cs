@@ -24,8 +24,8 @@ namespace GVFS.Common.Database
 
         public int Count()
         {
-            using (IPooledConnection pooled = this.connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
+            using (IDbConnection connection = this.connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
             {
                 command.CommandText = "SELECT count(path) FROM Placeholders;";
                 return Convert.ToInt32(command.ExecuteScalar());
@@ -36,8 +36,8 @@ namespace GVFS.Common.Database
         {
             filePlaceholders = new List<IPlaceholderData>();
             folderPlaceholders = new List<IPlaceholderData>();
-            using (IPooledConnection pooled = this.connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
+            using (IDbConnection connection = this.connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
             {
                 command.CommandText = "SELECT path, pathType, sha FROM Placeholders;";
                 using (IDataReader reader = command.ExecuteReader())
@@ -68,8 +68,8 @@ namespace GVFS.Common.Database
 
         public HashSet<string> GetAllFilePaths()
         {
-            using (IPooledConnection pooled = this.connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
+            using (IDbConnection connection = this.connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
             {
                 HashSet<string> fileEntries = new HashSet<string>();
                 command.CommandText = "SELECT path FROM Placeholders WHERE pathType = 0;";
@@ -110,8 +110,8 @@ namespace GVFS.Common.Database
 
         public void AddFile(string path, string sha)
         {
-            using (IPooledConnection pooled = this.connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
+            using (IDbConnection connection = this.connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
             {
                 Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.File, Sha = sha });
             }
@@ -119,8 +119,8 @@ namespace GVFS.Common.Database
 
         public void AddPartialFolder(string path)
         {
-            using (IPooledConnection pooled = this.connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
+            using (IDbConnection connection = this.connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
             {
                 Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PartialFolder });
             }
@@ -128,8 +128,8 @@ namespace GVFS.Common.Database
 
         public void AddExpandedFolder(string path)
         {
-            using (IPooledConnection pooled = this.connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
+            using (IDbConnection connection = this.connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
             {
                 Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.ExpandedFolder });
             }
@@ -137,8 +137,8 @@ namespace GVFS.Common.Database
 
         public void AddPossibleTombstoneFolder(string path)
         {
-            using (IPooledConnection pooled = this.connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
+            using (IDbConnection connection = this.connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
             {
                 Insert(command, new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PossibleTombstoneFolder });
             }
@@ -146,8 +146,8 @@ namespace GVFS.Common.Database
 
         public void Remove(string path)
         {
-            using (IPooledConnection pooled = this.connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
+            using (IDbConnection connection = this.connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
             {
                 Delete(command, path);
             }

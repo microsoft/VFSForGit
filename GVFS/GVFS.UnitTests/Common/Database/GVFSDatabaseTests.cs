@@ -45,26 +45,11 @@ namespace GVFS.UnitTests.Common.Database
             this.TestGVFSDatabase(database =>
             {
                 IGVFSConnectionPool connectionPool = database;
-                using (IPooledConnection pooledConnection1 = connectionPool.GetConnection())
-                using (IPooledConnection pooledConnection2 = connectionPool.GetConnection())
+                using (IDbConnection pooledConnection1 = connectionPool.GetConnection())
+                using (IDbConnection pooledConnection2 = connectionPool.GetConnection())
                 {
-                    pooledConnection1.Connection.Equals(pooledConnection2.Connection).ShouldBeFalse();
+                    pooledConnection1.Equals(pooledConnection2).ShouldBeFalse();
                 }
-            });
-        }
-
-        [TestCase]
-        public void DisposedConnectionReturnsToPoolTest()
-        {
-            this.TestGVFSDatabase(database =>
-            {
-                IGVFSConnectionPool connectionPool = database;
-                IPooledConnection pooledConnection = connectionPool.GetConnection();
-                IDbConnection connection = pooledConnection.Connection;
-                pooledConnection.Dispose();
-                pooledConnection = connectionPool.GetConnection();
-                connection.Equals(pooledConnection.Connection).ShouldBeTrue();
-                pooledConnection.Dispose();
             });
         }
 

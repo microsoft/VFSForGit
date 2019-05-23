@@ -56,7 +56,7 @@ namespace GVFS.Common.Database
             }
         }
 
-        IPooledConnection IGVFSConnectionPool.GetConnection()
+        IDbConnection IGVFSConnectionPool.GetConnection()
         {
             if (this.disposed)
             {
@@ -99,8 +99,8 @@ namespace GVFS.Common.Database
         private void Initialize()
         {
             IGVFSConnectionPool connectionPool = this;
-            using (IPooledConnection pooled = connectionPool.GetConnection())
-            using (IDbCommand command = pooled.Connection.CreateCommand())
+            using (IDbConnection connection = connectionPool.GetConnection())
+            using (IDbCommand command = connection.CreateCommand())
             {
                 command.CommandText = "PRAGMA journal_mode=WAL;";
                 command.ExecuteNonQuery();
@@ -120,7 +120,10 @@ namespace GVFS.Common.Database
             }
         }
 
-        private class GVFSConnection : IPooledConnection
+        /// <summary>
+        /// This class is used to wrap a IDbConnection and return it to the connection pool when disposed
+        /// </summary>
+        private class GVFSConnection : IDbConnection
         {
             private IDbConnection connection;
             private GVFSDatabase database;
@@ -131,11 +134,47 @@ namespace GVFS.Common.Database
                 this.connection = connection;
             }
 
-            IDbConnection IPooledConnection.Connection => this.connection;
+            public string ConnectionString { get => this.connection.ConnectionString; set => this.connection.ConnectionString = value; }
+
+            public int ConnectionTimeout => this.connection.ConnectionTimeout;
+
+            public string Database => this.connection.Database;
+
+            public ConnectionState State => this.connection.State;
+
+            public IDbTransaction BeginTransaction()
+            {
+                return this.connection.BeginTransaction();
+            }
+
+            public IDbTransaction BeginTransaction(IsolationLevel il)
+            {
+                return this.connection.BeginTransaction(il);
+            }
+
+            public void ChangeDatabase(string databaseName)
+            {
+                this.connection.ChangeDatabase(databaseName);
+            }
+
+            public void Close()
+            {
+                this.connection.Close();
+            }
+
+            public IDbCommand CreateCommand()
+            {
+                return this.connection.CreateCommand();
+            }
 
             public void Dispose()
             {
                 this.database.ReturnToPool(this.connection);
+            }
+
+            public void Open()
+            {
+                this.connection.Open();
             }
         }
     }

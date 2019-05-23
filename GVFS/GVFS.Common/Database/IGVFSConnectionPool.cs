@@ -7,6 +7,6 @@ namespace GVFS.Common.Database
     /// </summary>
     public interface IGVFSConnectionPool
     {
-        IPooledConnection GetConnection();
+        IDbConnection GetConnection();
     }
 }

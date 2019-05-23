@@ -374,20 +374,16 @@ namespace GVFS.UnitTests.Common.Database
 
             Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
             mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
-
-            Mock<IPooledConnection> mockPooledConnection = new Mock<IPooledConnection>(MockBehavior.Strict);
-            mockPooledConnection.SetupGet(x => x.Connection).Returns(mockConnection.Object);
-            mockPooledConnection.Setup(x => x.Dispose());
+            mockConnection.Setup(x => x.Dispose());
 
             Mock<IGVFSConnectionPool> mockConnectionPool = new Mock<IGVFSConnectionPool>(MockBehavior.Strict);
-            mockConnectionPool.Setup(x => x.GetConnection()).Returns(mockPooledConnection.Object);
+            mockConnectionPool.Setup(x => x.GetConnection()).Returns(mockConnection.Object);
 
             PlaceholdersTable placeholders = new PlaceholdersTable(mockConnectionPool.Object);
             testCode(placeholders, mockCommand);
 
             mockCommand.VerifyAll();
             mockConnection.VerifyAll();
-            mockPooledConnection.VerifyAll();
             mockConnectionPool.VerifyAll();
         }
 
