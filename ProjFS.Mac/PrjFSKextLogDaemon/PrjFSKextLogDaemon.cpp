@@ -30,7 +30,7 @@ enum class MessageType
 {
     Info,
     Error,
-    Health
+    VnodeCacheHealth
 };
 
 static mutex s_messageListenerMutex;
@@ -337,7 +337,6 @@ static void LogKextHealthData(const PrjFSVnodeCacheHealth& healthData)
         healthData.totalInvalidateVnodeRoot);
     
     JsonWriter healthDataWriter;
-    healthDataWriter.Add(MessageKey, "Vnode cache health");
     healthDataWriter.Add("CacheCapacity", healthData.cacheCapacity);
     healthDataWriter.Add("CacheEntries", healthData.cacheEntries);
     healthDataWriter.Add("InvalidationCount", healthData.invalidateEntireCacheCount);
@@ -347,7 +346,7 @@ static void LogKextHealthData(const PrjFSVnodeCacheHealth& healthData)
     healthDataWriter.Add("FindRootMisses", healthData.totalFindRootForVnodeMisses);
     healthDataWriter.Add("RefreshRoot", healthData.totalRefreshRootForVnode);
     healthDataWriter.Add("InvalidateRoot", healthData.totalInvalidateVnodeRoot);
-    WriteJsonToMessageListener(MessageType::Health, healthDataWriter);
+    WriteJsonToMessageListener(MessageType::VnodeCacheHealth, healthDataWriter);
 }
 
 static void CreatePipeToMessageListener()
@@ -426,8 +425,8 @@ static string MessageTypeToString(MessageType messageType)
         case MessageType::Error:
             return "error";
             
-        case MessageType::Health:
-            return "health";
+        case MessageType::VnodeCacheHealth:
+            return "health.vnodeCache";
     }
     
     return "invalid";
