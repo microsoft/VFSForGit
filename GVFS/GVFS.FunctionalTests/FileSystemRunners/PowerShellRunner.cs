@@ -200,6 +200,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.DeleteDirectory(path).ShouldContain(fileUsedByAnotherProcessMessage);
         }
 
+        public override long FileSize(string path)
+        {
+            return long.Parse(this.RunProcess(string.Format("-Command \"&{{ (Get-Item {0}).length}}\"", path)));
+        }
+
         public override void ChangeMode(string path, ushort mode)
         {
             throw new System.NotSupportedException();

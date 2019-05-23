@@ -574,6 +574,14 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             filePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents);
         }
 
+        [TestCase, Order(20)]
+        public void VerifyFileSize()
+        {
+            string filePath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "ProjectedFileHasExpectedContents.cpp");
+            long fileSize = this.fileSystem.FileSize(filePath);
+            fileSize.ShouldEqual(536);
+        }
+
         private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)
         {
             IEnumerable<FileSystemInfo> folderEntries;

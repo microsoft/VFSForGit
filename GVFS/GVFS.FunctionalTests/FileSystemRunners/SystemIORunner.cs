@@ -220,6 +220,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
         }
 
+        public override long FileSize(string path)
+        {
+            return new FileInfo(path).Length;
+        }
+
         [DllImport("kernel32", SetLastError = true)]
         private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
 
