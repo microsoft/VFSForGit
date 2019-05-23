@@ -73,20 +73,23 @@ namespace PrjFSLib.Linux
                 args = new string[] { };
             }
 
-            ProjFS fs = ProjFS.New(
+            this.projfs = ProjFS.New(
                 storageRootFullPath,
                 virtualizationRootFullPath,
                 handlers,
                 args);
 
-            if (fs == null)
+            this.virtualizationRoot = virtualizationRootFullPath;
+
+            if (this.projfs == null)
             {
                 return Result.Invalid;
             }
 
-            if (fs.Start() != 0)
+            if (this.projfs.Start() != 0)
             {
-                fs.Stop();
+                this.projfs.Stop();
+                this.projfs = null;
                 return Result.Invalid;
             }
 
@@ -104,13 +107,11 @@ namespace PrjFSLib.Linux
 
                 if (watch.Elapsed > MountWaitTotal)
                 {
-                    fs.Stop();
+                    this.projfs.Stop();
+                    this.projfs = null;
                     return Result.Invalid;
                 }
             }
-
-            this.projfs = fs;
-            this.virtualizationRoot = virtualizationRootFullPath;
 
             return Result.Success;
         }
