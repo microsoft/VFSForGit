@@ -17,24 +17,22 @@ namespace GVFS.Common.Database
         private const int MillisecondsWaitingToGetConnection = 50;
 
         private bool disposed = false;
-        private ITracer tracer;
         private string databasePath;
-        private IDbConnectionFactory connectionCreator;
+        private IDbConnectionFactory connectionFactory;
         private BlockingCollection<IDbConnection> connectionPool;
 
-        public GVFSDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string enlistmentRoot, IDbConnectionFactory connectionCreator, int initialPooledConnections = InitialPooledConnections)
+        public GVFSDatabase(PhysicalFileSystem fileSystem, string enlistmentRoot, IDbConnectionFactory connectionFactory, int initialPooledConnections = InitialPooledConnections)
         {
-            this.tracer = tracer;
             this.connectionPool = new BlockingCollection<IDbConnection>();
             this.databasePath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.VFSForGit);
-            this.connectionCreator = connectionCreator;
+            this.connectionFactory = connectionFactory;
 
             string folderPath = Path.GetDirectoryName(this.databasePath);
             fileSystem.CreateDirectory(folderPath);
 
             for (int i = 0; i < initialPooledConnections; i++)
             {
-                this.connectionPool.Add(this.connectionCreator.OpenNewConnection(this.databasePath));
+                this.connectionPool.Add(this.connectionFactory.OpenNewConnection(this.databasePath));
             }
 
             this.Initialize();
@@ -65,7 +63,7 @@ namespace GVFS.Common.Database
             IDbConnection connection;
             if (!this.connectionPool.TryTake(out connection, millisecondsTimeout: MillisecondsWaitingToGetConnection))
             {
-                connection = this.connectionCreator.OpenNewConnection(this.databasePath);
+                connection = this.connectionFactory.OpenNewConnection(this.databasePath);
             }
 
             return new GVFSConnection(this, connection);

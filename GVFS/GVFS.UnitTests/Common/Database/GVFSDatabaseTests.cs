@@ -73,10 +73,10 @@ namespace GVFS.UnitTests.Common.Database
             mockConnection.Setup(x => x.Dispose());
             mockConnections.Add(mockConnection);
 
-            Mock<IDbConnectionFactory> mockConnectionCreator = new Mock<IDbConnectionFactory>(MockBehavior.Strict);
+            Mock<IDbConnectionFactory> mockConnectionFactory = new Mock<IDbConnectionFactory>(MockBehavior.Strict);
             bool firstConnection = true;
             string databasePath = Path.Combine("mock:root", ".gvfs", "databases", "VFSForGit.sqlite");
-            mockConnectionCreator.Setup(x => x.OpenNewConnection(databasePath)).Returns(() =>
+            mockConnectionFactory.Setup(x => x.OpenNewConnection(databasePath)).Returns(() =>
             {
                 if (firstConnection)
                 {
@@ -92,7 +92,7 @@ namespace GVFS.UnitTests.Common.Database
                 }
             });
 
-            using (GVFSDatabase database = new GVFSDatabase(new MockTracer(), fileSystem, "mock:root", mockConnectionCreator.Object, initialPooledConnections: 1))
+            using (GVFSDatabase database = new GVFSDatabase(fileSystem, "mock:root", mockConnectionFactory.Object, initialPooledConnections: 1))
             {
                 testCode?.Invoke(database);
             }
@@ -102,7 +102,7 @@ namespace GVFS.UnitTests.Common.Database
 
             mockCommand.VerifyAll();
             mockConnections.ForEach(connection => connection.VerifyAll());
-            mockConnectionCreator.VerifyAll();
+            mockConnectionFactory.VerifyAll();
         }
     }
 }
