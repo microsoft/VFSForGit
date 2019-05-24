@@ -1171,6 +1171,7 @@ namespace GVFS.Virtualization.Projection
                         }
                         else
                         {
+                            existingPlaceholders?.Remove(folderPlaceholder.Path);
                             this.placeholderDatabase.Remove(folderPlaceholder.Path);
                         }
                     }
@@ -1351,6 +1352,7 @@ namespace GVFS.Virtualization.Projection
             if (!this.TryGetOrAddFolderDataFromCache(relativeFolderPath, out folderData))
             {
                 // Folder is no longer in the projection
+                existingPlaceholders.Remove(relativeFolderPath);
                 this.placeholderDatabase.Remove(relativeFolderPath);
                 return;
             }
