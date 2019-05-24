@@ -30,8 +30,10 @@ namespace GVFS.FunctionalTests
 
             if (runner.HasCustomArg("--replace-inbox-projfs"))
             {
-            ////    Console.WriteLine("Tests will replace inbox ProjFS");
-            ////    GVFSTestConfig.ReplaceInboxProjFS = true;
+                Console.WriteLine("Pausing to allow for manual adjustments of the GVFS installation");
+                System.Threading.Thread.Sleep(1000 * 60 * 5);
+                Console.WriteLine("Resuming tests");
+                ////    GVFSTestConfig.ReplaceInboxProjFS = true;
             }
 
             GVFSTestConfig.LocalCacheRoot = runner.GetCustomArgWithParam("--shared-gvfs-cache-root");
