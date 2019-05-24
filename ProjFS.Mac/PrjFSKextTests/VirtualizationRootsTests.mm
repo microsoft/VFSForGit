@@ -10,7 +10,7 @@
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
 
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 #include <vector>
 #include <string>
 #include <tuple>
@@ -40,7 +40,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     vnode->xattrs.insert(make_pair(PrjFSVirtualizationRootXAttrName, rootXattrData));
 }
 
-@interface VirtualizationRootsTests : XCTestCase
+@interface VirtualizationRootsTests : PFSKextTestCase
 
 @end
 
@@ -55,6 +55,8 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
 
 - (void)setUp
 {
+    [super setUp];
+
     srand(0);
     self->dummyClientPid = 100;
     
@@ -79,6 +81,8 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
 
     MockVnodes_CheckAndClear();
     MockCalls::Clear();
+
+    [super tearDown];
 }
 
 

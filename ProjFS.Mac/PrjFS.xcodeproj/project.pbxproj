@@ -84,6 +84,7 @@
 		4A08257721E77C4B00E21AFD /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DC21E430EB0008103C /* IOKit.framework */; };
 		4A08257821E77C5400E21AFD /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8E421E435230008103C /* PrjFSUser.cpp */; };
 		4A08257921E77C7000E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */; };
+		4A2A69A02297339A00ACAAAF /* KextAssertIntegration.m in Sources */ = {isa = PBXBuildFile; fileRef = 4A2A699F2297339A00ACAAAF /* KextAssertIntegration.m */; };
 		4A558DBA22357AB000AFDE07 /* ProviderMessaging.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */; };
 		4A558DBC22357AB000AFDE07 /* ProviderMessaging.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */; };
 		4A558DBD22357AB000AFDE07 /* ProviderMessaging.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */; };
@@ -280,6 +281,8 @@
 		4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist; sourceTree = "<group>"; };
 		4A08257121E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSKextLogDaemon.cpp; sourceTree = "<group>"; };
 		4A08257221E77BDD00E21AFD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4A2A699F2297339A00ACAAAF /* KextAssertIntegration.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KextAssertIntegration.m; sourceTree = "<group>"; };
+		4A2A69A12297375A00ACAAAF /* KextAssertIntegration.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KextAssertIntegration.h; sourceTree = "<group>"; };
 		4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProviderMessaging.cpp; sourceTree = "<group>"; };
 		4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ProviderMessaging.hpp; sourceTree = "<group>"; };
 		4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = VirtualizationRootsTests.mm; sourceTree = "<group>"; };
@@ -516,6 +519,8 @@
 				F5E39C7B21F1118D006D65C2 /* Info.plist */,
 				F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */,
 				4A781DAF2223391A00DB7733 /* KextLogMock.cpp */,
+				4A2A69A12297375A00ACAAAF /* KextAssertIntegration.h */,
+				4A2A699F2297339A00ACAAAF /* KextAssertIntegration.m */,
 				F557623E22009F0E005DE35E /* KextLogMock.h */,
 				4A781DAA222330F700DB7733 /* KextMockUtilities.cpp */,
 				4A781DA92223305C00DB7733 /* KextMockUtilities.hpp */,
@@ -913,6 +918,7 @@
 				4A82C45C228086F800276002 /* MessageTests.mm in Sources */,
 				265504D0224ADE11005FAD74 /* MockPerfTracing.cpp in Sources */,
 				4A781DA52220946000DB7733 /* VirtualizationRootsTests.mm in Sources */,
+				4A2A69A02297339A00ACAAAF /* KextAssertIntegration.m in Sources */,
 				4A781DAE2223374200DB7733 /* MockVnodeAndMount.cpp in Sources */,
 				4AAE3FCA22832340002673FA /* HandleFileOpOperationTests.mm in Sources */,
 				F5554F422239883B00B31D19 /* MockProc.cpp in Sources */,
@@ -1493,6 +1499,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					TESTABLE_KEXT_TARGET,
 					KEXT_UNIT_TESTING,
+					"MACH_ASSERT=1",
 					"$(inherited)",
 				);
 				LINK_WITH_STANDARD_LIBRARIES = NO;
@@ -1515,6 +1522,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					TESTABLE_KEXT_TARGET,
 					KEXT_UNIT_TESTING,
+					"MACH_ASSERT=1",
 					"$(inherited)",
 				);
 				LINK_WITH_STANDARD_LIBRARIES = NO;
@@ -1537,6 +1545,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					TESTABLE_KEXT_TARGET,
 					KEXT_UNIT_TESTING,
+					"MACH_ASSERT=1",
 					"$(inherited)",
 				);
 				LINK_WITH_STANDARD_LIBRARIES = NO;

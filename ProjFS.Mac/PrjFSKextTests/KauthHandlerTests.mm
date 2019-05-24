@@ -2,7 +2,7 @@
 #include "../PrjFSKext/KauthHandlerTestable.hpp"
 #include "../PrjFSKext/PerformanceTracing.hpp"
 #include "../PrjFSKext/VirtualizationRootsTestable.hpp"
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 #import <sys/stat.h>
 #include "KextLogMock.h"
 #include "KextMockUtilities.hpp"
@@ -17,7 +17,7 @@ class org_vfsforgit_PrjFSProviderUserClient
 {
 };
 
-@interface KauthHandlerTests : XCTestCase
+@interface KauthHandlerTests : PFSKextTestCase
 @end
 
 @implementation KauthHandlerTests
@@ -27,6 +27,7 @@ class org_vfsforgit_PrjFSProviderUserClient
 }
 
 - (void) setUp {
+    [super setUp];
     kern_return_t initResult = VirtualizationRoots_Init();
     XCTAssertEqual(initResult, KERN_SUCCESS);
     self->cacheWrapper.AllocateCache();
@@ -41,6 +42,7 @@ class org_vfsforgit_PrjFSProviderUserClient
     self->cacheWrapper.FreeCache();
     MockVnodes_CheckAndClear();
     VirtualizationRoots_Cleanup();
+    [super tearDown];
 }
 
 - (void)testActionBitIsSet {

@@ -1,7 +1,7 @@
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 #include "../PrjFSKext/Memory.hpp"
 
-@interface MemoryTests : XCTestCase
+@interface MemoryTests : PFSKextTestCase
 
 @end
 
