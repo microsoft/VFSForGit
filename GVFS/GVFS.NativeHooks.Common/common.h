@@ -5,11 +5,17 @@
 #ifdef __APPLE__
 typedef std::string PATH_STRING;
 typedef int PIPE_HANDLE;
+#define PRINTF_FMT(X, Y) __attribute__((__format__ (printf, X, Y)))
 #elif _WIN32
 typedef std::wstring PATH_STRING;
 typedef HANDLE PIPE_HANDLE;
+#define PRINTF_FMT(X, Y)
 #else
 #error Unsupported platform
+#endif
+
+#if __cplusplus <  201103L
+  #error The hooks require at least C++11 support
 #endif
 
 enum ReturnCode
@@ -29,6 +35,7 @@ enum ReturnCode
 	LastError = PathNameError,	
 };
 
+void die(int err, const char *fmt, ...) PRINTF_FMT(2,3);
 inline void die(int err, const char *fmt, ...)
 {
 	va_list params;

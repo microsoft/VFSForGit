@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXAggregateTarget section */
+		26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 26A7DE95229363EA004F6252 /* Build configuration list for PBXAggregateTarget "GeneratePrjFSVersion" */;
+			buildPhases = (
+				26A7DE96229363F2004F6252 /* ShellScript */,
+			);
+			dependencies = (
+			);
+			name = GeneratePrjFSVersion;
+			productName = GeneratePrjFSVersion;
+		};
 		4391F90021E436210008103C /* Build All */ = {
 			isa = PBXAggregateTarget;
 			buildConfigurationList = 4391F90121E436210008103C /* Build configuration list for PBXAggregateTarget "Build All" */;
@@ -29,6 +40,10 @@
 		264758CC21FA709B0095B9F8 /* VnodeCacheTestable.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 264758CB21FA709B0095B9F8 /* VnodeCacheTestable.hpp */; };
 		264758CE21FA71140095B9F8 /* VnodeCacheTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 264758CD21FA71140095B9F8 /* VnodeCacheTests.mm */; };
 		264758CF21FA71E10095B9F8 /* VnodeCache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 264758C721EFBA8B0095B9F8 /* VnodeCache.cpp */; };
+		264E723322930DA90059E150 /* JsonWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26786AE6228B816E00F53311 /* JsonWriter.cpp */; };
+		264E723422930E1E0059E150 /* JsonWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26786AE6228B816E00F53311 /* JsonWriter.cpp */; };
+		264E723E22930E660059E150 /* libPrjFSLib.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8D521E430CF0008103C /* libPrjFSLib.dylib */; };
+		264E7245229318170059E150 /* JsonWriterTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 264E723122930AA30059E150 /* JsonWriterTests.mm */; };
 		265504D0224ADE11005FAD74 /* MockPerfTracing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */; };
 		43057C5E21E439C700487681 /* prjfs-log.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 43057C5B21E439C700487681 /* prjfs-log.cpp */; };
 		43057C5F21E439C700487681 /* kext-perf-tracing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 43057C5C21E439C700487681 /* kext-perf-tracing.cpp */; };
@@ -95,6 +110,62 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		264E723F22930E660059E150 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4391F8D421E430CF0008103C;
+			remoteInfo = PrjFSLib;
+		};
+		26A7DE972293643F004F6252 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 26A7DE91229363EA004F6252;
+			remoteInfo = GeneratePrjFSVersion;
+		};
+		26A7DE992293644B004F6252 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 26A7DE91229363EA004F6252;
+			remoteInfo = GeneratePrjFSVersion;
+		};
+		26A7DE9B22936451004F6252 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 26A7DE91229363EA004F6252;
+			remoteInfo = GeneratePrjFSVersion;
+		};
+		26A7DE9D22936459004F6252 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 26A7DE91229363EA004F6252;
+			remoteInfo = GeneratePrjFSVersion;
+		};
+		26A7DEA122936473004F6252 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 26A7DE91229363EA004F6252;
+			remoteInfo = GeneratePrjFSVersion;
+		};
+		26A7DEA322936496004F6252 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 26A7DE91229363EA004F6252;
+			remoteInfo = GeneratePrjFSVersion;
+		};
+		26A7DEA52293649E004F6252 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 26A7DE91229363EA004F6252;
+			remoteInfo = GeneratePrjFSVersion;
+		};
 		4391F90421E4362B0008103C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 4391F87621E4278C0008103C /* Project object */;
@@ -161,7 +232,12 @@
 		264758C821EFBA8B0095B9F8 /* VnodeCache.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = VnodeCache.hpp; sourceTree = "<group>"; };
 		264758CB21FA709B0095B9F8 /* VnodeCacheTestable.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = VnodeCacheTestable.hpp; sourceTree = "<group>"; };
 		264758CD21FA71140095B9F8 /* VnodeCacheTests.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = VnodeCacheTests.mm; sourceTree = "<group>"; };
+		264E723122930AA30059E150 /* JsonWriterTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = JsonWriterTests.mm; sourceTree = "<group>"; };
+		264E723922930E660059E150 /* PrjFSLibTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PrjFSLibTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		264E723D22930E660059E150 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MockPerfTracing.cpp; sourceTree = "<group>"; };
+		26786AE5228B815E00F53311 /* JsonWriter.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = JsonWriter.hpp; sourceTree = "<group>"; };
+		26786AE6228B816E00F53311 /* JsonWriter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = JsonWriter.cpp; sourceTree = "<group>"; };
 		43057C5B21E439C700487681 /* prjfs-log.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "prjfs-log.cpp"; sourceTree = "<group>"; };
 		43057C5C21E439C700487681 /* kext-perf-tracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "kext-perf-tracing.cpp"; sourceTree = "<group>"; };
 		43057C5D21E439C700487681 /* kext-perf-tracing.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = "kext-perf-tracing.hpp"; sourceTree = "<group>"; };
@@ -237,6 +313,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		264E723622930E660059E150 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				264E723E22930E660059E150 /* libPrjFSLib.dylib in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4391F87C21E4278C0008103C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -289,6 +373,24 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		264E723222930D8D0059E150 /* Json */ = {
+			isa = PBXGroup;
+			children = (
+				26786AE5228B815E00F53311 /* JsonWriter.hpp */,
+				26786AE6228B816E00F53311 /* JsonWriter.cpp */,
+			);
+			path = Json;
+			sourceTree = "<group>";
+		};
+		264E723A22930E660059E150 /* PrjFSLibTests */ = {
+			isa = PBXGroup;
+			children = (
+				264E723122930AA30059E150 /* JsonWriterTests.mm */,
+				264E723D22930E660059E150 /* Info.plist */,
+			);
+			path = PrjFSLibTests;
+			sourceTree = "<group>";
+		};
 		43057C5A21E439B200487681 /* prjfs-log */ = {
 			isa = PBXGroup;
 			children = (
@@ -306,6 +408,7 @@
 				4391F88D21E42AA70008103C /* PrjFSKext */,
 				4A08256921E77B7F00E21AFD /* PrjFSKextLogDaemon */,
 				F5E39C7821F1118D006D65C2 /* PrjFSKextTests */,
+				264E723A22930E660059E150 /* PrjFSLibTests */,
 				4391F88021E4278C0008103C /* Products */,
 				4391F8D921E430E10008103C /* Frameworks */,
 			);
@@ -323,6 +426,7 @@
 				4A08256821E77B7F00E21AFD /* PrjFSKextLogDaemon */,
 				F5E39C7721F1118D006D65C2 /* PrjFSKextTests.xctest */,
 				4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */,
+				264E723922930E660059E150 /* PrjFSLibTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -375,6 +479,7 @@
 		4391F8C221E4306D0008103C /* PrjFSLib */ = {
 			isa = PBXGroup;
 			children = (
+				264E723222930D8D0059E150 /* Json */,
 				43057C5A21E439B200487681 /* prjfs-log */,
 				4391F8E521E435230008103C /* PrjFSLib.cpp */,
 				4391F8E321E435230008103C /* PrjFSLib.h */,
@@ -478,6 +583,25 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		264E723822930E660059E150 /* PrjFSLibTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 264E724122930E660059E150 /* Build configuration list for PBXNativeTarget "PrjFSLibTests" */;
+			buildPhases = (
+				264E723522930E660059E150 /* Sources */,
+				264E723622930E660059E150 /* Frameworks */,
+				264E723722930E660059E150 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				26A7DEA62293649E004F6252 /* PBXTargetDependency */,
+				264E724022930E660059E150 /* PBXTargetDependency */,
+			);
+			name = PrjFSLibTests;
+			productName = PrjFSLibTests;
+			productReference = 264E723922930E660059E150 /* PrjFSLibTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		4391F87E21E4278C0008103C /* PrjFSKext */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4391F88721E4278C0008103C /* Build configuration list for PBXNativeTarget "PrjFSKext" */;
@@ -491,6 +615,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				26A7DE982293643F004F6252 /* PBXTargetDependency */,
 			);
 			name = PrjFSKext;
 			productName = PrjFS;
@@ -508,6 +633,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				26A7DE9A2293644B004F6252 /* PBXTargetDependency */,
 			);
 			name = PrjFSLib;
 			productName = PrjFSLib;
@@ -525,6 +651,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				26A7DE9C22936451004F6252 /* PBXTargetDependency */,
 			);
 			name = "prjfs-log";
 			productName = "prjfs-log";
@@ -542,6 +669,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				26A7DE9E22936459004F6252 /* PBXTargetDependency */,
 			);
 			name = PrjFSKextLogDaemon;
 			productName = PrjFSKextLogDaemon;
@@ -559,6 +687,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				26A7DEA222936473004F6252 /* PBXTargetDependency */,
 			);
 			name = PrjFSKextTestable;
 			productName = PrjFSKextTestable;
@@ -576,6 +705,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				26A7DEA422936496004F6252 /* PBXTargetDependency */,
 				4A8C13A821F241ED00002878 /* PBXTargetDependency */,
 			);
 			name = PrjFSKextTests;
@@ -592,6 +722,12 @@
 				LastUpgradeCheck = 1010;
 				ORGANIZATIONNAME = "Microsoft Corporation";
 				TargetAttributes = {
+					264E723822930E660059E150 = {
+						CreatedOnToolsVersion = 9.4.1;
+					};
+					26A7DE91229363EA004F6252 = {
+						CreatedOnToolsVersion = 9.4.1;
+					};
 					4391F87E21E4278C0008103C = {
 						CreatedOnToolsVersion = 10.1;
 					};
@@ -634,11 +770,20 @@
 				4391F90021E436210008103C /* Build All */,
 				F5E39C7621F1118D006D65C2 /* PrjFSKextTests */,
 				4A8C139F21F23EE800002878 /* PrjFSKextTestable */,
+				264E723822930E660059E150 /* PrjFSLibTests */,
+				26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		264E723722930E660059E150 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4391F87D21E4278C0008103C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -656,6 +801,20 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		26A7DE96229363F2004F6252 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${BUILD_ROOT}/../../PrjFSVersion.h",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ ! -f \"${BUILD_ROOT}/../../PrjFSVersion.h\" ]; then\n    \"${PROJECT_DIR}/Scripts/GeneratePrjFSVersionHeader.sh\"\nfi";
+		};
 		43057C6021E43CC100487681 /* Run Script - Check kext linkage */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -674,6 +833,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		264E723522930E660059E150 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				264E7245229318170059E150 /* JsonWriterTests.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4391F87B21E4278C0008103C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -703,6 +870,7 @@
 				4391F8EB21E435230008103C /* PrjFSUser.cpp in Sources */,
 				4391F8EC21E435230008103C /* PrjFSLib.cpp in Sources */,
 				4A82C45822807C6F00276002 /* Message_Shared.cpp in Sources */,
+				264E723322930DA90059E150 /* JsonWriter.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -722,6 +890,7 @@
 			files = (
 				4A08257821E77C5400E21AFD /* PrjFSUser.cpp in Sources */,
 				4A08257321E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp in Sources */,
+				264E723422930E1E0059E150 /* JsonWriter.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -761,6 +930,46 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		264E724022930E660059E150 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4391F8D421E430CF0008103C /* PrjFSLib */;
+			targetProxy = 264E723F22930E660059E150 /* PBXContainerItemProxy */;
+		};
+		26A7DE982293643F004F6252 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			targetProxy = 26A7DE972293643F004F6252 /* PBXContainerItemProxy */;
+		};
+		26A7DE9A2293644B004F6252 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			targetProxy = 26A7DE992293644B004F6252 /* PBXContainerItemProxy */;
+		};
+		26A7DE9C22936451004F6252 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			targetProxy = 26A7DE9B22936451004F6252 /* PBXContainerItemProxy */;
+		};
+		26A7DE9E22936459004F6252 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			targetProxy = 26A7DE9D22936459004F6252 /* PBXContainerItemProxy */;
+		};
+		26A7DEA222936473004F6252 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			targetProxy = 26A7DEA122936473004F6252 /* PBXContainerItemProxy */;
+		};
+		26A7DEA422936496004F6252 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			targetProxy = 26A7DEA322936496004F6252 /* PBXContainerItemProxy */;
+		};
+		26A7DEA62293649E004F6252 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			targetProxy = 26A7DEA52293649E004F6252 /* PBXContainerItemProxy */;
+		};
 		4391F90521E4362B0008103C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 4391F87E21E4278C0008103C /* PrjFSKext */;
@@ -789,6 +998,88 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		264E724222930E660059E150 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_CODE_COVERAGE = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = PrjFSLibTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MTL_ENABLE_DEBUG_INFO = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSLibTests.PrjFSLibTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		264E724322930E660059E150 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_CODE_COVERAGE = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = PrjFSLibTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSLibTests.PrjFSLibTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		264E724422930E660059E150 /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_CODE_COVERAGE = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = PrjFSLibTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSLibTests.PrjFSLibTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Profiling(Release)";
+		};
+		26A7DE92229363EA004F6252 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		26A7DE93229363EA004F6252 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		26A7DE94229363EA004F6252 /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Profiling(Release)";
+		};
 		43057C5221E437F300487681 /* Profiling(Release) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -841,7 +1132,10 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SYMROOT = "$(SRCROOT)/../../BuildOutput/ProjFS.Mac/Native";
-				USER_HEADER_SEARCH_PATHS = "$(SRCROOT)/../";
+				USER_HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../",
+					"$(BUILD_ROOT)/../../",
+				);
 				WARNING_CFLAGS = (
 					"-Werror=undefined-internal",
 					"-Werror",
@@ -880,6 +1174,7 @@
 		43057C5421E437F300487681 /* Profiling(Release) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_CODE_COVERAGE = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UBF8T346G9;
 				DYLIB_COMPATIBILITY_VERSION = 1;
@@ -966,7 +1261,10 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SYMROOT = "$(SRCROOT)/../../BuildOutput/ProjFS.Mac/Native";
-				USER_HEADER_SEARCH_PATHS = "$(SRCROOT)/../";
+				USER_HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../",
+					"$(BUILD_ROOT)/../../",
+				);
 				WARNING_CFLAGS = (
 					"-Werror=undefined-internal",
 					"-Werror",
@@ -1027,7 +1325,10 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SYMROOT = "$(SRCROOT)/../../BuildOutput/ProjFS.Mac/Native";
-				USER_HEADER_SEARCH_PATHS = "$(SRCROOT)/../";
+				USER_HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../",
+					"$(BUILD_ROOT)/../../",
+				);
 				WARNING_CFLAGS = (
 					"-Werror=undefined-internal",
 					"-Werror",
@@ -1090,6 +1391,7 @@
 		4391F8D721E430CF0008103C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_CODE_COVERAGE = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UBF8T346G9;
 				DYLIB_COMPATIBILITY_VERSION = 1;
@@ -1103,6 +1405,7 @@
 		4391F8D821E430CF0008103C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_CODE_COVERAGE = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UBF8T346G9;
 				DYLIB_COMPATIBILITY_VERSION = 1;
@@ -1321,6 +1624,26 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		264E724122930E660059E150 /* Build configuration list for PBXNativeTarget "PrjFSLibTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				264E724222930E660059E150 /* Debug */,
+				264E724322930E660059E150 /* Release */,
+				264E724422930E660059E150 /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		26A7DE95229363EA004F6252 /* Build configuration list for PBXAggregateTarget "GeneratePrjFSVersion" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				26A7DE92229363EA004F6252 /* Debug */,
+				26A7DE93229363EA004F6252 /* Release */,
+				26A7DE94229363EA004F6252 /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		4391F87921E4278C0008103C /* Build configuration list for PBXProject "PrjFS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
