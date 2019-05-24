@@ -95,7 +95,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             return RunSqliteCommand(placeholdersDbPath, command =>
                 {
-                    command.CommandText = "SELECT path, pathType, sha FROM Placeholders";
+                    command.CommandText = "SELECT path, pathType, sha FROM Placeholder";
                     using (SqliteDataReader reader = command.ExecuteReader())
                     {
                         StringBuilder sb = new StringBuilder();
@@ -123,7 +123,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             RunSqliteCommand(placeholdersDbPath, command =>
             {
-                command.CommandText = "INSERT OR REPLACE INTO Placeholders (path, pathType, sha) VALUES (@path, @pathType, NULL)";
+                command.CommandText = "INSERT OR REPLACE INTO Placeholder (path, pathType, sha) VALUES (@path, @pathType, NULL)";
                 command.Parameters.AddWithValue("@path", path);
                 command.Parameters.AddWithValue("@pathType", pathType);
                 return command.ExecuteNonQuery();

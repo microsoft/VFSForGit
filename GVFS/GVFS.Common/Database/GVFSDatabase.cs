@@ -30,12 +30,19 @@ namespace GVFS.Common.Database
             string folderPath = Path.GetDirectoryName(this.databasePath);
             fileSystem.CreateDirectory(folderPath);
 
-            for (int i = 0; i < initialPooledConnections; i++)
+            try
             {
-                this.connectionPool.Add(this.connectionFactory.OpenNewConnection(this.databasePath));
-            }
+                for (int i = 0; i < initialPooledConnections; i++)
+                {
+                    this.connectionPool.Add(this.connectionFactory.OpenNewConnection(this.databasePath));
+                }
 
-            this.Initialize();
+                this.Initialize();
+            }
+            catch (Exception ex)
+            {
+                throw new GVFSDatabaseException($"{nameof(GVFSDatabase)} constructor threw exception setting up connection pool and initializing", ex);
+            }
         }
 
         public void Dispose()
@@ -51,6 +58,9 @@ namespace GVFS.Common.Database
             {
                 connection.Dispose();
             }
+
+            this.connectionPool.Dispose();
+            this.connectionPool = null;
         }
 
         IDbConnection IGVFSConnectionPool.GetConnection()

@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.Database;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using Moq;
 using NUnit.Framework;
 using System;
@@ -12,6 +13,7 @@ namespace GVFS.UnitTests.Common.Database
     [TestFixture]
     public class PlaceholderTableTests
     {
+        private const string DefaultExceptionMessage = "Somethind bad.";
         private const string DefaultPath = "test";
         private const byte PathTypeFile = 0;
         private const byte PathTypePartialFolder = 1;
@@ -44,6 +46,24 @@ namespace GVFS.UnitTests.Common.Database
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void CreateTableThrowsExceptionNotWrappedInGVFSDatabaseException()
+        {
+            Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
+            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
+            mockCommand.Setup(x => x.ExecuteNonQuery()).Throws(new Exception(DefaultExceptionMessage));
+            mockCommand.Setup(x => x.Dispose());
+
+            Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
+            mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
+
+            Exception ex = Assert.Throws<Exception>(() => PlaceholderTable.CreateTable(mockConnection.Object));
+            ex.Message.ShouldEqual(DefaultExceptionMessage);
+            mockCommand.VerifyAll();
+            mockConnection.VerifyAll();
+        }
+
+        [TestCase]
         public void GetCountTest()
         {
             this.TestPlaceholders(
@@ -52,6 +72,21 @@ namespace GVFS.UnitTests.Common.Database
                     mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Placeholder;");
                     mockCommand.Setup(x => x.ExecuteScalar()).Returns(123);
                     placeholders.GetCount().ShouldEqual(123);
+                });
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void GetCountThrowsGVFSDatabaseException()
+        {
+            this.TestPlaceholders(
+                (placeholders, mockCommand) =>
+                {
+                    mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Placeholder;");
+                    mockCommand.Setup(x => x.ExecuteScalar()).Throws(new Exception(DefaultExceptionMessage));
+                    GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.GetCount());
+                    ex.Message.ShouldEqual("PlaceholderTable.GetCount Exception");
+                    ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
                 });
         }
 
@@ -67,6 +102,22 @@ namespace GVFS.UnitTests.Common.Database
                    HashSet<string> filePaths = placeholders.GetAllFilePaths();
                    filePaths.ShouldNotBeNull();
                    filePaths.Count.ShouldEqual(0);
+               });
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void GetAllFilePathsThrowsGVFSDatabaseException()
+        {
+            this.TestPlaceholdersWithReader(
+               (placeholders, mockCommand, mockReader) =>
+               {
+                   mockReader.Setup(x => x.Read()).Throws(new Exception(DefaultExceptionMessage));
+                   mockCommand.SetupSet(x => x.CommandText = "SELECT path FROM Placeholder WHERE pathType = 0;");
+
+                   GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.GetAllFilePaths());
+                   ex.Message.ShouldEqual("PlaceholderTable.GetAllFilePaths Exception");
+                   ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
                });
         }
 
@@ -90,6 +141,23 @@ namespace GVFS.UnitTests.Common.Database
                    filePaths.ShouldNotBeNull();
                    filePaths.Count.ShouldEqual(1);
                    filePaths.Contains(DefaultPath).ShouldBeTrue();
+               });
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void GetAllEntriesThrowsGVFSDatabaseException()
+        {
+            List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
+            this.TestPlaceholdersWithReader(
+               (placeholders, mockCommand, mockReader) =>
+               {
+                   mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder;");
+                   mockReader.Setup(x => x.Read()).Throws(new Exception(DefaultExceptionMessage));
+
+                   GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders));
+                   ex.Message.ShouldEqual("PlaceholderTable.GetAllEntries Exception");
+                   ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
                });
         }
 
@@ -177,6 +245,27 @@ namespace GVFS.UnitTests.Common.Database
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void AddPlaceholderDataThrowsGVFSDatabaseException()
+        {
+            PlaceholderTable.PlaceholderData placeholderData = new PlaceholderTable.PlaceholderData()
+            {
+                Path = DefaultPath,
+                PathType = PlaceholderTable.PlaceholderData.PlaceholderType.File,
+                Sha = DefaultSha
+            };
+
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
+                placeholders => placeholders.AddPlaceholderData(placeholderData),
+                DefaultPath,
+                PathTypeFile,
+                DefaultSha,
+                throwException: true));
+            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.File}, {DefaultSha}) Exception");
+            ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
+        }
+
+        [TestCase]
         public void AddPlaceholderDataWithFile()
         {
             PlaceholderTable.PlaceholderData placeholderData = new PlaceholderTable.PlaceholderData()
@@ -255,6 +344,20 @@ namespace GVFS.UnitTests.Common.Database
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void AddFileThrowsGVFSDatabaseException()
+        {
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
+                placeholders => placeholders.AddFile(DefaultPath, DefaultSha),
+                DefaultPath,
+                PathTypeFile,
+                DefaultSha,
+                throwException: true));
+            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.File}, {DefaultSha}) Exception");
+            ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
+        }
+
+        [TestCase]
         public void AddPartialFolder()
         {
             this.TestPlaceholdersInsert(
@@ -262,6 +365,20 @@ namespace GVFS.UnitTests.Common.Database
                 DefaultPath,
                 PathTypePartialFolder,
                 sha: null);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void AddPartialFolderThrowsGVFSDatabaseException()
+        {
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
+                placeholders => placeholders.AddPartialFolder(DefaultPath),
+                DefaultPath,
+                PathTypePartialFolder,
+                sha: null,
+                throwException: true));
+            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.PartialFolder}, ) Exception");
+            ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
         [TestCase]
@@ -275,6 +392,20 @@ namespace GVFS.UnitTests.Common.Database
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void AddExpandedFolderThrowsGVFSDatabaseException()
+        {
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
+                placeholders => placeholders.AddExpandedFolder(DefaultPath),
+                DefaultPath,
+                PathTypeExpandedFolder,
+                sha: null,
+                throwException: true));
+            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.ExpandedFolder}, ) Exception");
+            ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
+        }
+
+        [TestCase]
         public void AddPossibleTombstoneFolder()
         {
             this.TestPlaceholdersInsert(
@@ -282,6 +413,20 @@ namespace GVFS.UnitTests.Common.Database
                 DefaultPath,
                 PathTypePossibleTombstoneFolder,
                 sha: null);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void AddPossibleTombstoneFolderThrowsGVFSDatabaseException()
+        {
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
+                placeholders => placeholders.AddPossibleTombstoneFolder(DefaultPath),
+                DefaultPath,
+                PathTypePossibleTombstoneFolder,
+                sha: null,
+                throwException: true));
+            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.PossibleTombstoneFolder}, ) Exception");
+            ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
         [TestCase]
@@ -310,7 +455,22 @@ namespace GVFS.UnitTests.Common.Database
                 });
         }
 
-        private void TestPlaceholdersInsert(Action<PlaceholderTable> testCode, string path, int pathType, string sha)
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void RemoveThrowsGVFSDatabaseException()
+        {
+            this.TestPlaceholders(
+                (placeholders, mockCommand) =>
+                {
+                    mockCommand.SetupSet(x => x.CommandText = "DELETE FROM Placeholder WHERE path = @path;").Throws(new Exception(DefaultExceptionMessage));
+
+                    GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.Remove(DefaultPath));
+                    ex.Message.ShouldEqual($"PlaceholderTable.Remove({DefaultPath}) Exception");
+                    ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
+                });
+        }
+
+        private void TestPlaceholdersInsert(Action<PlaceholderTable> testCode, string path, int pathType, string sha, bool throwException = false)
         {
             this.TestPlaceholders(
                 (placeholders, mockCommand) =>
@@ -348,7 +508,14 @@ namespace GVFS.UnitTests.Common.Database
                     mockCommand.SetupGet(x => x.Parameters).Returns(mockParameters.Object);
 
                     mockCommand.SetupSet(x => x.CommandText = "INSERT OR REPLACE INTO Placeholder (path, pathType, sha) VALUES (@path, @pathType, @sha);");
-                    mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
+                    if (throwException)
+                    {
+                        mockCommand.Setup(x => x.ExecuteNonQuery()).Throws(new Exception(DefaultExceptionMessage));
+                    }
+                    else
+                    {
+                        mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
+                    }
 
                     testCode(placeholders);
 

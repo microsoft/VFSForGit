@@ -1,7 +1,6 @@
 ﻿using GVFS.Common.Database;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
-using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using Moq;
 using NUnit.Framework;
@@ -19,6 +18,14 @@ namespace GVFS.UnitTests.Common.Database
         public void ConstructorTest()
         {
             this.TestGVFSDatabase(null);
+        }
+
+        [TestCase]
+        public void ConstructorThrowsGVFSDatabaseException()
+        {
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestGVFSDatabase(null, throwException: true));
+            ex.Message.ShouldEqual("GVFSDatabase constructor threw exception setting up connection pool and initializing");
+            ex.InnerException.Message.ShouldEqual("Error");
         }
 
         [TestCase]
@@ -53,7 +60,7 @@ namespace GVFS.UnitTests.Common.Database
             });
         }
 
-        private void TestGVFSDatabase(Action<GVFSDatabase> testCode)
+        private void TestGVFSDatabase(Action<GVFSDatabase> testCode, bool throwException = false)
         {
             MockFileSystem fileSystem = new MockFileSystem(new MockDirectory("GVFSDatabaseTests", null, null));
 
@@ -68,7 +75,15 @@ namespace GVFS.UnitTests.Common.Database
 
             Mock<IDbCommand> mockCommand2 = new Mock<IDbCommand>(MockBehavior.Strict);
             mockCommand2.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
-            mockCommand2.Setup(x => x.ExecuteNonQuery()).Returns(1);
+            if (throwException)
+            {
+                mockCommand2.Setup(x => x.ExecuteNonQuery()).Throws(new Exception("Error"));
+            }
+            else
+            {
+                mockCommand2.Setup(x => x.ExecuteNonQuery()).Returns(1);
+            }
+
             mockCommand2.Setup(x => x.Dispose());
 
             List<Mock<IDbConnection>> mockConnections = new List<Mock<IDbConnection>>();
