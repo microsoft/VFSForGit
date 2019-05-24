@@ -598,6 +598,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
     // In production FindVnodeRootFromDiskAndUpdateCache would panic when it sees an
     // invalid UpdateCacheBehavior, but in user-mode the assertf if a no-op
     VirtualizationRootHandle rootHandle;
+    [self setExpectedFailedKextAssertionCount:1];
     FindVnodeRootFromDiskAndUpdateCache(
         &self->dummyPerfTracer,
         PrjFSPerfCounter_VnodeOp_Vnode_Cache_Hit,
