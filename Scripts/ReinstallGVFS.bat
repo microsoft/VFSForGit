@@ -21,5 +21,7 @@ call %VFS_SCRIPTSDIR%\StopService.bat prjflt
 if not exist c:\Windows\System32\drivers\gvflt.sys goto :removePrjFlt
 del c:\Windows\System32\drivers\gvflt.sys
 
+:removePrjFlt
+
 :runInstallers
 call %VFS_OUTPUTDIR%\GVFS.Build\InstallProduct.bat
