@@ -100,7 +100,6 @@ class PrjFSProviderUserClient
     ProvidermessageMock_ResetResultCount();
     ProviderMessageMock_SetDefaultRequestResult(true);
     ProviderMessageMock_SetSecondRequestResult(true);
-    ProviderMessageMock_SetCleanupRootsAfterRequest(false);
 }
 
 - (void) tearDownProviders

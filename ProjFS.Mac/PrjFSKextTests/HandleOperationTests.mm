@@ -85,7 +85,6 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     ProvidermessageMock_ResetResultCount();
     ProviderMessageMock_SetDefaultRequestResult(true);
     ProviderMessageMock_SetSecondRequestResult(true);
-    ProviderMessageMock_SetCleanupRootsAfterRequest(false);
 }
 
 - (void) tearDown
@@ -659,7 +658,11 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testDeleteDirectoryWithDisappearingVirtualizationRoot {
-    ProviderMessageMock_SetCleanupRootsAfterRequest(true);
+    ProviderMessageMock_SetRequestSideEffect(
+        [&]()
+        {
+            ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+        });
     testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(HandleVnodeOperation(
         nullptr,
@@ -750,7 +753,11 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testWriteWithDisappearingVirtualizationRoot {
-    ProviderMessageMock_SetCleanupRootsAfterRequest(true);
+    ProviderMessageMock_SetRequestSideEffect(
+        [&]()
+        {
+            ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+        });
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(HandleVnodeOperation(
         nullptr,
