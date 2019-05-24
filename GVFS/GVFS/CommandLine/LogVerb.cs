@@ -48,7 +48,8 @@ namespace GVFS.CommandLine
 
             string gvfsLogsRoot = Path.Combine(
                 enlistmentRoot,
-                GVFSConstants.DotGVFS.LogPath);
+                GVFSPlatform.Instance.Constants.DotGVFSRoot,
+                GVFSConstants.DotGVFS.LogName);
 
             if (this.LogType == null)
             {

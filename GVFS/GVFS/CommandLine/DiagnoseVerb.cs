@@ -89,7 +89,7 @@ namespace GVFS.CommandLine
                     () =>
                     {
                         // .gvfs
-                        this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFS.Root, copySubFolders: false);
+                        this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSPlatform.Instance.Constants.DotGVFSRoot, copySubFolders: false);
 
                         // driver
                         if (this.FlushKernelDriverLogs())
@@ -112,13 +112,13 @@ namespace GVFS.CommandLine
                         this.LogLooseObjectCount(enlistment.WorkingDirectoryRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGit.Objects.Root), GVFSConstants.DotGit.Objects.Root, "objects-local.txt");
 
                         // databases
-                        this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.Databases.Name, copySubFolders: false);
+                        this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSPlatform.Instance.Constants.DotGVFSRoot), GVFSConstants.DotGVFS.Databases.Name, copySubFolders: false);
 
                         // local cache
                         this.CopyLocalCacheData(archiveFolderPath, localCacheRoot, gitObjectsRoot);
 
                         // corrupt objects
-                        this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
+                        this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSPlatform.Instance.Constants.DotGVFSRoot), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
 
                         // service
                         this.CopyAllFiles(
@@ -165,7 +165,7 @@ namespace GVFS.CommandLine
                     "Mounting",
                     suppressGvfsLogMessage: true);
 
-                this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), "logs", copySubFolders: false);
+                this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSPlatform.Instance.Constants.DotGVFSRoot), "logs", copySubFolders: false);
             }
 
             string zipFilePath = archiveFolderPath + ".zip";
@@ -274,7 +274,7 @@ namespace GVFS.CommandLine
                 using (ITracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "DiagnoseVerb"))
                 {
                     string error;
-                    if (RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.Root), out error))
+                    if (RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot), out error))
                     {
                         RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error);
                         RepoMetadata.Instance.TryGetGitObjectsRoot(out gitObjectsRoot, out error);

@@ -175,6 +175,11 @@ namespace GVFS.UnitTests.Mock.Common
                 get { return GVFSConstants.WorkingDirectoryRootName; }
             }
 
+            public override string DotGVFSRoot
+            {
+                get { return ".mockvfsforgit"; }
+            }
+
             public override string GVFSBinDirectoryPath
             {
                 get { return Path.Combine("MockProgramFiles", this.GVFSBinDirectoryName); }

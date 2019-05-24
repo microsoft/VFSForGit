@@ -8,5 +8,15 @@ namespace GVFS.Hooks.HooksPlatform
         {
             return MacPlatform.GetDataRootForGVFSImplementation();
         }
+
+        public static bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
+        {
+            return MacPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+        }
+
+        public static string GetNamedPipeName(string enlistmentRoot)
+        {
+            return MacPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
+        }
     }
 }

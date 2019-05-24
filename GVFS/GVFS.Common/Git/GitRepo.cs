@@ -195,7 +195,7 @@ namespace GVFS.Common.Git
             {
                 if (corruptLooseObject)
                 {
-                    string corruptBlobsFolderPath = Path.Combine(this.enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.CorruptObjectsPath);
+                    string corruptBlobsFolderPath = Path.Combine(this.enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.CorruptObjectsName);
                     string corruptBlobPath = Path.Combine(corruptBlobsFolderPath, Path.GetRandomFileName());
 
                     EventMetadata metadata = new EventMetadata();

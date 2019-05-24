@@ -23,7 +23,7 @@ namespace GVFS.UnitTests.Git
         private const string ValidTestObjectFileContents = "421dc4df5e1de427e363b8acd9ddb2d41385dbdf";
         private const string TestEnlistmentRoot = "mock:\\src";
         private const string TestLocalCacheRoot = "mock:\\.gvfs";
-        private const string TestObjecRoot = "mock:\\.gvfs\\gitObjectCache";
+        private const string TestObjectRoot = "mock:\\.gvfs\\gitObjectCache";
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
@@ -139,7 +139,7 @@ namespace GVFS.UnitTests.Git
         {
             MockTracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new GVFSEnlistment(TestEnlistmentRoot, "https://fakeRepoUrl", "fakeGitBinPath", gvfsHooksRoot: null, authentication: null);
-            enlistment.InitializeCachePathsFromKey(TestLocalCacheRoot, TestObjecRoot);
+            enlistment.InitializeCachePathsFromKey(TestLocalCacheRoot, TestObjectRoot);
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem, () => new MockLibGit2Repo(tracer));
 
             GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);

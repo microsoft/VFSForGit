@@ -25,7 +25,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSProcess gvfsProcess = new GVFSProcess(
                 GVFSTestConfig.PathToGVFS,
                 this.Enlistment.EnlistmentRoot,
-                Path.Combine(this.Enlistment.EnlistmentRoot, ".gvfs"));
+                Path.Combine(this.Enlistment.EnlistmentRoot, GVFSTestConfig.DotGVFSRoot));
 
             if (!gvfsProcess.IsEnlistmentMounted())
             {

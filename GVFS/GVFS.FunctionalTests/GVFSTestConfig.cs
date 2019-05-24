@@ -28,5 +28,7 @@ namespace GVFS.FunctionalTests
                     Path.Combine(Properties.Settings.Default.CurrentDirectory, Properties.Settings.Default.PathToGVFS);
             }
         }
+
+        public static string DotGVFSRoot { get; set; }
     }
 }

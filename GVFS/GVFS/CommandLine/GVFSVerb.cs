@@ -106,7 +106,7 @@ namespace GVFS.CommandLine
             {
                 gitStatusCachePath = Path.Combine(
                     enlistment.EnlistmentRoot,
-                    GVFSConstants.DotGVFS.Root,
+                    GVFSPlatform.Instance.Constants.DotGVFSRoot,
                     GVFSConstants.DotGVFS.GitStatusCache.CachePath);
 
                 gitStatusCachePath = Paths.ConvertPathToGitFormat(gitStatusCachePath);
@@ -860,7 +860,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 CacheServerInfo cacheServer)
             {
                 string error;
-                if (!RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.Root), out error))
+                if (!RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot), out error))
                 {
                     this.ReportErrorAndExit(tracer, "Failed to initialize repo metadata: " + error);
                 }

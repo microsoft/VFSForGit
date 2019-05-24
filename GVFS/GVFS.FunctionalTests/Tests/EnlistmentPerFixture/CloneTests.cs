@@ -66,7 +66,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             ProcessResult result = ProcessHelper.Run(processInfo);
             result.ExitCode.ShouldEqual(0, result.Errors);
 
-            string dotGVFSRoot = Path.Combine(newEnlistmentRoot, ".gvfs");
+            string dotGVFSRoot = Path.Combine(newEnlistmentRoot, GVFSTestConfig.DotGVFSRoot);
             dotGVFSRoot.ShouldBeADirectory(fileSystem);
             string localCacheRoot = GVFSHelpers.GetPersistedLocalCacheRoot(dotGVFSRoot);
             string gitObjectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(dotGVFSRoot);
