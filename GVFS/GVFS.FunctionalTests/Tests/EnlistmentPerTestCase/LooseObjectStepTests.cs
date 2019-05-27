@@ -125,6 +125,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
         private void ClearAllObjects()
         {
+            this.Enlistment.UnmountGVFS();
+
             // Delete/Move any starting loose objects and packfiles
             this.DeleteFiles(this.GetLooseObjectFiles());
             this.MovePackFilesToTemp();
