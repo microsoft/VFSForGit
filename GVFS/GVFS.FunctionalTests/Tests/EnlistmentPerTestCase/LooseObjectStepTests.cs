@@ -53,9 +53,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             // Expand one pack, and verify we have loose objects
             this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
-            this.GetLooseObjectFiles()
-                .Count()
-                .ShouldBeAtLeast(1);
+            int looseObjectCount = this.GetLooseObjectFiles().Count();
+            looseObjectCount.ShouldBeAtLeast(1);
 
             // This step should put the loose objects into a packfile
             this.Enlistment.LooseObjectStep();
@@ -90,9 +89,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             // Expand one pack, and verify we have loose objects
             this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
-            this.GetLooseObjectFiles()
-                .Count()
-                .ShouldBeAtLeast(1, "Too few loose objects");
+            int looseObjectCount = this.GetLooseObjectFiles().Count();
+            looseObjectCount.ShouldBeAtLeast(1, "Too few loose objects");
 
             // Create an invalid loose object
             string fakeBlobFolder = Path.Combine(this.GitObjectRoot, "00");
@@ -110,7 +108,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                    "Step failed to delete corrupt blob");
             this.CountPackFiles().ShouldEqual(0, "Incorrect number of packs after first loose object step");
             this.GetLooseObjectFiles().Count.ShouldBeAtLeast(
-                1,
+                looseObjectCount,
                 "unexpected number of loose objects after step");
 
             // This step should create a pack.
