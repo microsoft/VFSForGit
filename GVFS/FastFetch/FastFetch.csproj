@@ -38,6 +38,8 @@
         <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
           <Link>PlatformLoader.Windows.cs</Link>
         </Compile>
+        <Compile Remove="NativeMethods.Linux.cs" />
+        <Compile Remove="NativeMethods.Mac.cs" />
       </ItemGroup>
     </When>
     <When Condition="'$(IsLinux)' == 'true'">
@@ -46,6 +48,8 @@
         <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Linux.cs">
           <Link>PlatformLoader.Linux.cs</Link>
         </Compile>
+        <Compile Remove="NativeMethods.Mac.cs" />
+        <Compile Remove="NativeMethods.Windows.cs" />
       </ItemGroup>
     </When>
     <When Condition="'$(IsOSX)' == 'true'">
@@ -54,6 +58,8 @@
         <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
           <Link>PlatformLoader.Mac.cs</Link>
         </Compile>
+        <Compile Remove="NativeMethods.Linux.cs" />
+        <Compile Remove="NativeMethods.Windows.cs" />
       </ItemGroup>
     </When>
   </Choose>
