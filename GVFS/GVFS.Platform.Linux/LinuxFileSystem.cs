@@ -7,6 +7,16 @@ namespace GVFS.Platform.Linux
 {
     public class LinuxFileSystem : POSIXFileSystem
     {
+        public static LinuxNative.StatBuffer StatFile(string fileName)
+        {
+            if (LinuxNative.Stat(fileName, out LinuxNative.StatBuffer statBuffer) != 0)
+            {
+                NativeMethods.ThrowLastWin32Exception($"Failed to stat {fileName}");
+            }
+
+            return statBuffer;
+        }
+
         public override void ChangeMode(string path, ushort mode)
         {
             Chmod(path, mode);
@@ -19,28 +29,18 @@ namespace GVFS.Platform.Linux
 
         public override bool IsExecutable(string fileName)
         {
-            LinuxNative.StatBuffer statBuffer = this.StatFile(fileName);
+            LinuxNative.StatBuffer statBuffer = StatFile(fileName);
             return LinuxNative.IsExecutable(statBuffer.Mode);
         }
 
         public override bool IsSocket(string fileName)
         {
-            LinuxNative.StatBuffer statBuffer = this.StatFile(fileName);
+            LinuxNative.StatBuffer statBuffer = StatFile(fileName);
             return LinuxNative.IsSock(statBuffer.Mode);
         }
 
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
         private static extern int Chmod(string pathname, uint mode);
-
-        private LinuxNative.StatBuffer StatFile(string fileName)
-        {
-            if (LinuxNative.Stat(fileName, out LinuxNative.StatBuffer statBuffer) != 0)
-            {
-                NativeMethods.ThrowLastWin32Exception($"Failed to stat {fileName}");
-            }
-
-            return statBuffer;
-        }
 
         private static class NativeFileReader
         {

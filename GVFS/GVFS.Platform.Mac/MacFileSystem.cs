@@ -8,6 +8,16 @@ namespace GVFS.Platform.Mac
 {
     public class MacFileSystem : POSIXFileSystem
     {
+        public static NativeStat.StatBuffer StatFile(string fileName)
+        {
+            if (NativeStat.Stat(fileName, out NativeStat.StatBuffer statBuffer) != 0)
+            {
+                NativeMethods.ThrowLastWin32Exception($"Failed to stat {fileName}");
+            }
+
+            return statBuffer;
+        }
+
         public override void ChangeMode(string path, ushort mode)
         {
             Chmod(path, mode);
@@ -20,13 +30,13 @@ namespace GVFS.Platform.Mac
 
         public override bool IsExecutable(string fileName)
         {
-            NativeStat.StatBuffer statBuffer = this.StatFile(fileName);
+            NativeStat.StatBuffer statBuffer = StatFile(fileName);
             return NativeStat.IsExecutable(statBuffer.Mode);
         }
 
         public override bool IsSocket(string fileName)
         {
-            NativeStat.StatBuffer statBuffer = this.StatFile(fileName);
+            NativeStat.StatBuffer statBuffer = StatFile(fileName);
             return NativeStat.IsSock(statBuffer.Mode);
         }
 
@@ -60,17 +70,7 @@ namespace GVFS.Platform.Mac
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
         private static extern int Chmod(string pathname, ushort mode);
 
-        private NativeStat.StatBuffer StatFile(string fileName)
-        {
-            if (NativeStat.Stat(fileName, out NativeStat.StatBuffer statBuffer) != 0)
-            {
-                NativeMethods.ThrowLastWin32Exception($"Failed to stat {fileName}");
-            }
-
-            return statBuffer;
-        }
-
-        private static class NativeStat
+        public static class NativeStat
         {
             // #define  S_IFMT      0170000     /* [XSI] type of file mask */
             private static readonly ushort IFMT = Convert.ToUInt16("170000", 8);
