@@ -10,7 +10,7 @@ namespace GVFS.Platform.POSIX
     {
         public static bool IsElevatedImplementation()
         {
-            int euid = GetEuid();
+            uint euid = GetEuid();
             return euid == 0;
         }
 
@@ -63,6 +63,6 @@ namespace GVFS.Platform.POSIX
         }
 
         [DllImport("libc", EntryPoint = "geteuid", SetLastError = true)]
-        private static extern int GetEuid();
+        private static extern uint GetEuid();
     }
 }
