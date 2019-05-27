@@ -21,13 +21,6 @@ namespace GVFS.Platform.POSIX
             O_RDONLY = 0x0000,
             O_WRONLY = 0x0001,
             O_RDWR = 0x0002,
-
-            // Flags (combinable)
-            O_CLOEXEC = 0x0010,
-            O_CREAT = 0x0020,
-            O_EXCL = 0x0040,
-            O_TRUNC = 0x0080,
-            O_SYNC = 0x0100,
         }
 
         // https://github.com/dotnet/corefx/blob/4e27e0ad415dda38c2c2add84f0315a6f56406b3/src/System.Diagnostics.Process/src/System/Diagnostics/Process.Unix.cs#L428
