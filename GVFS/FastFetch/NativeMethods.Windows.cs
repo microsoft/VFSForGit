@@ -8,11 +8,11 @@ using System.Runtime.InteropServices;
 
 namespace FastFetch
 {
-    public class NativeWindowsMethods
+    internal static class NativeMethods
     {
         private const int AccessDeniedWin32Error = 5;
 
-        public static unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination)
+        public static unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode)
         {
             try
             {
