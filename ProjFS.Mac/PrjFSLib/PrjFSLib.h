@@ -91,6 +91,9 @@ extern "C" PrjFS_Result PrjFS_WriteSymLink(
     _In_    const char*                             relativePath,
     _In_    const char*                             symLinkTarget);
 
+extern "C" PrjFS_Result PrjFS_RegisterForOfflineIO();
+extern "C" PrjFS_Result PrjFS_UnregisterForOfflineIO();
+
 typedef enum
 {
     PrjFS_UpdateType_Invalid                        = 0x00000000,

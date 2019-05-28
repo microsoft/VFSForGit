@@ -13,5 +13,6 @@ namespace GVFS.Common.FileSystem
         bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception);
         bool IsReady(JsonTracer tracer, string enlistmentRoot, TextWriter output, out string error);
         bool IsGVFSUpgradeSupported();
+        bool RegisterForOfflineIO();
     }
 }

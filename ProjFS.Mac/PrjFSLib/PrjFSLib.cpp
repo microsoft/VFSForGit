@@ -147,6 +147,8 @@ static string s_virtualizationRootFullPath;
 static PrjFS_Callbacks s_callbacks;
 static dispatch_queue_t s_messageQueueDispatchQueue;
 static dispatch_queue_t s_kernelRequestHandlingConcurrentQueue;
+static io_connect_t s_kernelServiceOfflineWriterConnection = IO_OBJECT_NULL;
+
 
 // Map of FsidInode -> MutexAndUseCount for that FsidInode, plus mutex to protect the map itself.
 static FileMutexMap s_fileLocks;
@@ -157,6 +159,26 @@ static mutex s_fileLocksMutex;
 // will lead to a linker error for now.
 
 // Public functions
+
+PrjFS_Result PrjFS_RegisterForOfflineIO()
+{
+    s_kernelServiceOfflineWriterConnection = PrjFSService_ConnectToDriver(UserClientType_OfflineIO);
+    if (s_kernelServiceOfflineWriterConnection == IO_OBJECT_NULL)
+    {
+        return PrjFS_Result_EDriverNotLoaded;
+    }
+
+    return PrjFS_Result_Success;
+}
+
+PrjFS_Result PrjFS_UnregisterForOfflineIO()
+{
+    assert(s_kernelServiceOfflineWriterConnection != IO_OBJECT_NULL);
+
+    IOServiceClose(s_kernelServiceOfflineWriterConnection);
+    s_kernelServiceOfflineWriterConnection = IO_OBJECT_NULL;
+    return PrjFS_Result_Success;
+}
 
 PrjFS_Result PrjFS_StartVirtualizationInstance(
     _In_    const char*                             virtualizationRootFullPath,
