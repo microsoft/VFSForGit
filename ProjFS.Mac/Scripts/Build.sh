@@ -82,7 +82,8 @@ while read line; do
 	 [[ $line != *"ActiveProvider_"* ]] && 
 	 [[ $line != *"GetRelativePath"* ]] && 
 	 [[ $line != *"VirtualizationRoot_GetRootRelativePath"* ]] && 
-	 [[ $line != *"MockCalls"* ]] && 
+	 [[ $line != *"VirtualizationRoots_AddOfflineIOProcess"* ]] &&   # The only branch not covered is one for dealing with a race. We can't yet provoke this in tests.
+	 [[ $line != *"MockCalls"* ]] &&
 	 [[ $line != *"VnodeCacheEntriesWrapper"* ]] &&
 	 [[ $line != *"PerfTracing_"* ]] && 
 	 [[ $line != *"proc_"* ]] && 

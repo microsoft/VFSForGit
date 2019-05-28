@@ -89,6 +89,8 @@
 		4A558DBA22357AB000AFDE07 /* ProviderMessaging.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */; };
 		4A558DBC22357AB000AFDE07 /* ProviderMessaging.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */; };
 		4A558DBD22357AB000AFDE07 /* ProviderMessaging.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */; };
+		4A5EC302229D5F12005E8D8F /* PrjFSOfflineIOUserClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A5EC300229D5F12005E8D8F /* PrjFSOfflineIOUserClient.cpp */; };
+		4A5EC303229D5F12005E8D8F /* PrjFSOfflineIOUserClient.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A5EC301229D5F12005E8D8F /* PrjFSOfflineIOUserClient.hpp */; };
 		4A781DA52220946000DB7733 /* VirtualizationRootsTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */; };
 		4A781DA72220971E00DB7733 /* VirtualizationRoots.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8A721E42AC50008103C /* VirtualizationRoots.cpp */; };
 		4A781DAB222330F700DB7733 /* KextMockUtilities.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A781DAA222330F700DB7733 /* KextMockUtilities.cpp */; };
@@ -290,6 +292,8 @@
 		4A2A69A12297375A00ACAAAF /* KextAssertIntegration.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KextAssertIntegration.h; sourceTree = "<group>"; };
 		4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProviderMessaging.cpp; sourceTree = "<group>"; };
 		4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ProviderMessaging.hpp; sourceTree = "<group>"; };
+		4A5EC300229D5F12005E8D8F /* PrjFSOfflineIOUserClient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSOfflineIOUserClient.cpp; sourceTree = "<group>"; };
+		4A5EC301229D5F12005E8D8F /* PrjFSOfflineIOUserClient.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PrjFSOfflineIOUserClient.hpp; sourceTree = "<group>"; };
 		4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = VirtualizationRootsTests.mm; sourceTree = "<group>"; };
 		4A781DA6222094C300DB7733 /* VirtualizationRootsPrivate.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VirtualizationRootsPrivate.hpp; sourceTree = "<group>"; };
 		4A781DA82222C6EA00DB7733 /* PrjFSProviderUserClient.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PrjFSProviderUserClient.hpp; sourceTree = "<group>"; };
@@ -465,6 +469,8 @@
 				4391F89C21E42AC40008103C /* PrjFSKext.cpp */,
 				4391F8A021E42AC50008103C /* PrjFSLogUserClient.cpp */,
 				4391F89E21E42AC50008103C /* PrjFSLogUserClient.hpp */,
+				4A5EC300229D5F12005E8D8F /* PrjFSOfflineIOUserClient.cpp */,
+				4A5EC301229D5F12005E8D8F /* PrjFSOfflineIOUserClient.hpp */,
 				4391F89521E42AC40008103C /* PrjFSProviderUserClient.cpp */,
 				4391F89F21E42AC50008103C /* PrjFSProviderUserClientPrivate.hpp */,
 				4A781DA82222C6EA00DB7733 /* PrjFSProviderUserClient.hpp */,
@@ -561,6 +567,7 @@
 			files = (
 				4391F8A821E42AC50008103C /* Locks.hpp in Headers */,
 				4391F8B821E42AC50008103C /* PrjFSLogUserClient.hpp in Headers */,
+				4A5EC303229D5F12005E8D8F /* PrjFSOfflineIOUserClient.hpp in Headers */,
 				4391F8B221E42AC50008103C /* Memory.hpp in Headers */,
 				4391F8AE21E42AC50008103C /* VirtualizationRoots.hpp in Headers */,
 				4391F8BE21E42AC50008103C /* KauthHandler.hpp in Headers */,
@@ -868,6 +875,7 @@
 				4391F8C121E42AC50008103C /* VirtualizationRoots.cpp in Sources */,
 				4391F8C021E42AC50008103C /* Locks.cpp in Sources */,
 				4391F8AD21E42AC50008103C /* KauthHandler.cpp in Sources */,
+				4A5EC302229D5F12005E8D8F /* PrjFSOfflineIOUserClient.cpp in Sources */,
 				4391F8AF21E42AC50008103C /* PrjFSProviderUserClient.cpp in Sources */,
 				4391F8BA21E42AC50008103C /* PrjFSLogUserClient.cpp in Sources */,
 				4A558DBA22357AB000AFDE07 /* ProviderMessaging.cpp in Sources */,

@@ -503,5 +503,66 @@ int strprefix(const char* string1, const char* string2)
     XCTAssertFalse(PathInsideDirectory("/some/directory/with/sub/directories", "/some/directory"));
 }
 
+- (void) testOfflineIOProcessArrayOperations
+{
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(10));
+    // Processes can technically register more than once
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(10));
+    // Adding so many items should resize the array a few times
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(11));
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(12));
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(13));
+    
+    for (pid_t testPid = 1; testPid < 20; ++testPid)
+    {
+        bool allowed = VirtualizationRoots_ProcessMayAccessOfflineRoots(testPid);
+        if (testPid < 10 || testPid > 13)
+        {
+            XCTAssertFalse(allowed);
+        }
+        else
+        {
+            XCTAssertTrue(allowed);
+        }
+    }
+    
+    // remove from the middle of the array
+    VirtualizationRoots_RemoveOfflineIOProcess(11);
+
+    for (pid_t testPid = 1; testPid < 20; ++testPid)
+    {
+        bool allowed = VirtualizationRoots_ProcessMayAccessOfflineRoots(testPid);
+        if (testPid < 10 || testPid > 13 || testPid == 11)
+        {
+            XCTAssertFalse(allowed);
+        }
+        else
+        {
+            XCTAssertTrue(allowed);
+        }
+    }
+
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(14));
+
+    for (pid_t testPid = 1; testPid < 20; ++testPid)
+    {
+        bool allowed = VirtualizationRoots_ProcessMayAccessOfflineRoots(testPid);
+        if (testPid < 10 || testPid > 14 || testPid == 11)
+        {
+            XCTAssertFalse(allowed);
+        }
+        else
+        {
+            XCTAssertTrue(allowed);
+        }
+    }
+
+    // These must balance out
+    VirtualizationRoots_RemoveOfflineIOProcess(10);
+    VirtualizationRoots_RemoveOfflineIOProcess(10);
+    VirtualizationRoots_RemoveOfflineIOProcess(14);
+    VirtualizationRoots_RemoveOfflineIOProcess(12);
+    VirtualizationRoots_RemoveOfflineIOProcess(13);
+}
 
 @end

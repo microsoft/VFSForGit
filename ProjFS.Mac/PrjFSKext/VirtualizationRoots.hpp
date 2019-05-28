@@ -52,3 +52,6 @@ errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Me
 bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t _Nonnull vnode);
 bool VirtualizationRoot_IsValidRootHandle(VirtualizationRootHandle rootHandle);
 ActiveProviderProperties VirtualizationRoot_GetActiveProvider(VirtualizationRootHandle rootHandle);
+bool VirtualizationRoots_ProcessMayAccessOfflineRoots(pid_t pid);
+bool VirtualizationRoots_AddOfflineIOProcess(pid_t pid);
+void VirtualizationRoots_RemoveOfflineIOProcess(pid_t pid);

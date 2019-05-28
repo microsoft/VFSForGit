@@ -22,3 +22,8 @@ template <typename T> void Array_DefaultInit(T* array, size_t count)
     }
 }
 
+template <typename T, typename MIN_T, typename MAX_T>
+    auto clamp(const T& value, const MIN_T& min, const MAX_T& max)
+{
+    return value < min ? min : (value > max ? max : value);
+}

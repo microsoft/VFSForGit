@@ -32,6 +32,7 @@ enum PrjFSServiceUserClientType
     
     UserClientType_Provider,
     UserClientType_Log,
+    UserClientType_OfflineIO,
 };
 
 // When building the kext in user space for unit testing, we want some functions

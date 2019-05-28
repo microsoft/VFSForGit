@@ -28,12 +28,6 @@
 #include "KauthHandlerTestable.hpp"
 #endif
 
-template <typename T, typename MIN_T, typename MAX_T>
-    auto clamp(const T& value, const MIN_T& min, const MAX_T& max)
-{
-    return value < min ? min : (value > max ? max : value);
-}
-
 enum ProviderCallbackPolicy
 {
     CallbackPolicy_AllowAny,
@@ -1132,6 +1126,10 @@ static bool TryGetVirtualizationRoot(
         perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_ProviderOffline);
         
         *kauthResult = KAUTH_RESULT_DEFER;
+        if (!VirtualizationRoots_ProcessMayAccessOfflineRoots(pidMakingRequest))
+        {
+        }
+        
         return false;
     }
     

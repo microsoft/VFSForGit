@@ -15,6 +15,7 @@
 #include "kernel-header-wrappers/stdatomic.h"
 #include "VnodeUtilities.hpp"
 #include "PerformanceTracing.hpp"
+#include "ArrayUtilities.hpp"
 
 #ifdef KEXT_UNIT_TESTING
 #include "VirtualizationRootsTestable.hpp"
@@ -25,6 +26,12 @@ static RWLock s_virtualizationRootsLock = {};
 // Current length of the s_virtualizationRoots array
 KEXT_STATIC uint16_t s_maxVirtualizationRoots = 0;
 KEXT_STATIC VirtualizationRoot* s_virtualizationRoots = nullptr;
+
+// Also protected by the lock
+static uint32_t s_maxOfflineIOPIDs = 0;
+static uint32_t s_offlineIOPIDCount = 0;
+static pid_t*   s_offlineIOPIDs = nullptr;
+static const uint32_t OfflineIOPIDsLimit = UINT32_MAX / sizeof(s_offlineIOPIDs[0]);
 
 // Looks up the vnode/vid and fsid/inode pairs among the known roots
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId);
@@ -113,6 +120,15 @@ kern_return_t VirtualizationRoots_Cleanup()
         Memory_FreeArray(s_virtualizationRoots, s_maxVirtualizationRoots);
         s_virtualizationRoots = nullptr;
         s_maxVirtualizationRoots = 0;
+    }
+
+    if (s_offlineIOPIDs != nullptr)
+    {
+        assert(s_offlineIOPIDCount == 0);
+        
+        Memory_FreeArray(s_offlineIOPIDs, s_maxOfflineIOPIDs);
+        s_offlineIOPIDs = nullptr;
+        s_maxOfflineIOPIDs = 0;
     }
 
     if (RWLock_IsValid(s_virtualizationRootsLock))
@@ -652,4 +668,112 @@ VirtualizationRootHandle ActiveProvider_FindForPath(const char* _Nonnull path)
     RWLock_ReleaseShared(s_virtualizationRootsLock);
     
     return matchingHandle;
+}
+
+bool VirtualizationRoots_ProcessMayAccessOfflineRoots(pid_t pid)
+{
+    bool result = false;
+    
+    RWLock_AcquireShared(s_virtualizationRootsLock);
+    {
+        for (uint32_t i = 0; i < s_offlineIOPIDCount; ++i)
+        {
+            if (s_offlineIOPIDs[i] == pid)
+            {
+                result = true;
+                break;
+            }
+        }
+    }
+    RWLock_ReleaseShared(s_virtualizationRootsLock);
+
+    return result;
+}
+
+bool VirtualizationRoots_AddOfflineIOProcess(pid_t pid)
+{
+    bool success = false;
+    
+    // Note: lock may temporarily be dropped within
+    RWLock_AcquireExclusive(s_virtualizationRootsLock);
+    {
+        while (s_offlineIOPIDCount >= s_maxOfflineIOPIDs && s_maxOfflineIOPIDs < OfflineIOPIDsLimit)
+        {
+            // Array must be resized
+            uint32_t resizeArrayLength;
+            bool overflow = __builtin_umul_overflow(s_maxOfflineIOPIDs, 2u, &resizeArrayLength);
+            assertf(!overflow, "Array growth should never overflow as array length limit (%u) is well below UINT32_MAX byte limit; s_maxOfflineIOPIDs = %u", OfflineIOPIDsLimit, s_maxOfflineIOPIDs);
+            resizeArrayLength = clamp(resizeArrayLength, 1u, OfflineIOPIDsLimit);
+            
+            // Allocations should be made outside of lock
+            RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+            
+            pid_t* resizedArrayMemory = Memory_AllocArray<pid_t>(resizeArrayLength);
+            
+            RWLock_AcquireExclusive(s_virtualizationRootsLock);
+            
+            if (resizedArrayMemory == nullptr)
+            {
+                // Alloc failed; allow the operation to fail if no space has appeared in the array while we were unlocked.
+                break;
+            }
+            else if (resizeArrayLength > s_maxOfflineIOPIDs)
+            {
+                // Apply allocated memory and finish the resize operation
+                if (s_maxOfflineIOPIDs > 0)
+                {
+                    assert(s_offlineIOPIDs != nullptr);
+                    Array_CopyElements(resizedArrayMemory, s_offlineIOPIDs, s_offlineIOPIDCount);
+                    Memory_FreeArray(s_offlineIOPIDs, s_maxOfflineIOPIDs);
+                }
+            
+                s_offlineIOPIDs = resizedArrayMemory;
+                s_maxOfflineIOPIDs = resizeArrayLength;
+            }
+            else
+            {
+                // Array was resized by another thread
+                Memory_FreeArray(resizedArrayMemory, resizeArrayLength);
+            }
+        }
+        
+        if (s_offlineIOPIDCount < s_maxOfflineIOPIDs)
+        {
+            s_offlineIOPIDs[s_offlineIOPIDCount] = pid;
+            ++s_offlineIOPIDCount;
+            success = true;
+        }
+    }
+    RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+    
+    return success;
+}
+
+void VirtualizationRoots_RemoveOfflineIOProcess(pid_t pid)
+{
+    bool removed = false;
+    
+    RWLock_AcquireExclusive(s_virtualizationRootsLock);
+    {
+        assert(s_offlineIOPIDCount > 0);
+
+        for (uint32_t i = 0; i < s_offlineIOPIDCount; ++i)
+        {
+            if (s_offlineIOPIDs[i] == pid)
+            {
+                --s_offlineIOPIDCount;
+                if (i != s_offlineIOPIDCount)
+                {
+                    // move last element to fill vacated slot
+                    s_offlineIOPIDs[i] = s_offlineIOPIDs[s_offlineIOPIDCount];
+                }
+                
+                removed = true;
+                break;
+            }
+        }
+    }
+    RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+    
+    assert(removed);
 }

@@ -22,10 +22,13 @@ using std::make_tuple;
 using std::shared_ptr;
 using std::vector;
 using std::string;
+using std::extent;
 using KextMock::_;
 
 // Darwin version of running kernel
 int version_major = PrjFSDarwinMajorVersion::MacOS10_14_Mojave;
+
+static const pid_t RunningMockProcessPID = 501;
 
 class PrjFSProviderUserClient
 {
@@ -99,9 +102,9 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     XCTAssertEqual(result.error, 0);
     self->dummyRepoHandle = result.root;
 
-    MockProcess_AddContext(context, 501 /*pid*/);
-    MockProcess_SetSelfPid(501);
-    MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
+    MockProcess_AddContext(context, RunningMockProcessPID /*pid*/);
+    MockProcess_SetSelfPid(RunningMockProcessPID);
+    MockProcess_AddProcess(RunningMockProcessPID, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
     
     ProvidermessageMock_ResetResultCount();
     ProviderMessageMock_SetDefaultRequestResult(true);
@@ -1194,6 +1197,60 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
             0,
             0));
     XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+- (void) testOfflineRootAllowsRegisteredProcessAccessToEmptyFile
+{
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(testFileVnode);
+
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(RunningMockProcessPID));
+
+    kauth_action_t actions[] =
+    {
+        KAUTH_VNODE_READ_ATTRIBUTES,
+        KAUTH_VNODE_WRITE_ATTRIBUTES,
+        KAUTH_VNODE_READ_EXTATTRIBUTES,
+        KAUTH_VNODE_WRITE_EXTATTRIBUTES,
+        KAUTH_VNODE_READ_DATA,
+        KAUTH_VNODE_WRITE_DATA,
+        KAUTH_VNODE_EXECUTE,
+        KAUTH_VNODE_DELETE,
+        KAUTH_VNODE_APPEND_DATA,
+    };
+    const size_t actionCount = extent<decltype(actions)>::value;
+    
+    for (size_t i = 0; i < actionCount; i++)
+    {
+        XCTAssertEqual(
+            KAUTH_RESULT_DEFER,
+            HandleVnodeOperation(
+                nullptr,
+                nullptr,
+                actions[i],
+                reinterpret_cast<uintptr_t>(context),
+                reinterpret_cast<uintptr_t>(testFileVnode.get()),
+                0,
+                0));
+        XCTAssertFalse(
+            MockCalls::DidCallFunction(
+                ProviderMessaging_TrySendRequestAndWaitForResponse,
+                _,
+                MessageType_KtoU_HydrateFile,
+                testFileVnode.get(),
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                nullptr));
+        MockCalls::Clear();
+    }
+
+    VirtualizationRoots_RemoveOfflineIOProcess(RunningMockProcessPID);
 }
 
 @end
