@@ -1,4 +1,29 @@
 #!/bin/bash
+
+# Load PrjFSKext if it is not loaded already
+# PrjFSKext is an IOKit kext and should get automatically loaded 
+# by macOS after install. But the system does not seem to auto-load it
+# consistently after every install. The code below checks if it has
+# been auto-loaded. If not, it will attempt to load it.
+# The BundleID of the Kext(ProjFS.Mac/PrjFS.xcodeproj) is defined in
+# ProjFS.Mac/PrjFS.xcodeproj project.
+KEXTBUNDLEID="org.vfsforgit.PrjFSKext"
+KEXTPATH="/Library/Extensions/PrjFSKext.kext"
+kextstatCmd="/usr/sbin/kextstat -l -b $KEXTBUNDLEID"
+kextstatOutput=$(eval $kextstatCmd)
+if [[ -z "${kextstatOutput// }" ]]; then
+# load the kext using kextload command. Installer is run as the
+# admin user, so we already have required privileges. In case load
+# still fails, then exit 1. This will cause the installer to display
+# an installation failed error message.
+    loadCmd="/sbin/kextload \"$KEXTPATH\""
+    echo $loadCmd
+    eval $loadCmd || exit 1
+else
+    echo "$kextstatCmd returned non-zero output. This might possibly indicate an error."
+    echo "$kextstatOutput"
+fi
+
 loadCmd="sudo launchctl load -w /Library/LaunchDaemons/org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist"
 echo "Loading PrjFSKextLogDaemon: '$loadCmd'..."
 eval $loadCmd || exit 1
