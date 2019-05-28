@@ -110,7 +110,7 @@ template <typename... args>
 
 #define KextLog_VnodeOp(vnode, vnodeType, procname, action, message) \
     do { \
-        if (VDIR == vnodeType) \
+        if (VDIR == (vnodeType)) \
         { \
             KextLog_File( \
                 vnode, \
