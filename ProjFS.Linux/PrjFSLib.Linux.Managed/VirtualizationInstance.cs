@@ -103,20 +103,20 @@ namespace PrjFSLib.Linux
                 }
             }
 
-            this.projfs = fs;
             this.virtualizationRoot = virtualizationRootFullPath;
+            this.projfs = fs;
 
             return Result.Success;
         }
 
         public virtual void StopVirtualizationInstance()
         {
-            if (this.projfs == null)
+            if (!this.ObtainProjFS(out ProjFS fs))
             {
                 return;
             }
 
-            this.projfs.Stop();
+            fs.Stop();
             this.projfs = null;
         }
 
@@ -144,6 +144,12 @@ namespace PrjFSLib.Linux
             out UpdateFailureCause failureCause)
         {
             failureCause = UpdateFailureCause.NoFailure;
+
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return Result.EDriverNotLoaded;
+            }
+
             if (string.IsNullOrEmpty(relativePath))
             {
                 /* Our mount point directory can not be deleted; we would
@@ -162,7 +168,7 @@ namespace PrjFSLib.Linux
             {
                 // TODO(Linux): try to handle races with hydration?
                 ProjectionState state;
-                result = this.projfs.GetProjState(relativePath, out state);
+                result = fs.GetProjState(relativePath, out state);
 
                 // also treat unknown state as full/dirty (e.g., for sockets)
                 if ((result == Result.Success && state == ProjectionState.Full) ||
@@ -193,7 +199,12 @@ namespace PrjFSLib.Linux
         public virtual Result WritePlaceholderDirectory(
             string relativePath)
         {
-            return this.projfs.CreateProjDir(relativePath, Convert.ToUInt32("777", 8));
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return Result.EDriverNotLoaded;
+            }
+
+            return fs.CreateProjDir(relativePath, Convert.ToUInt32("777", 8));
         }
 
         public virtual Result WritePlaceholderFile(
@@ -209,7 +220,12 @@ namespace PrjFSLib.Linux
                 throw new ArgumentException();
             }
 
-            return this.projfs.CreateProjFile(
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return Result.EDriverNotLoaded;
+            }
+
+            return fs.CreateProjFile(
                 relativePath,
                 fileSize,
                 fileMode,
@@ -221,7 +237,12 @@ namespace PrjFSLib.Linux
             string relativePath,
             string symLinkTarget)
         {
-            return this.projfs.CreateProjSymlink(
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return Result.EDriverNotLoaded;
+            }
+
+            return fs.CreateProjSymlink(
                 relativePath,
                 symLinkTarget);
         }
@@ -348,6 +369,12 @@ namespace PrjFSLib.Linux
             return Marshal.PtrToStringAnsi(ptr);
         }
 
+        private bool ObtainProjFS(out ProjFS fs)
+        {
+            fs = this.projfs;
+            return fs != null;
+        }
+
         private bool IsProviderEvent(ProjFS.Event ev)
         {
             return (ev.Pid == this.currentProcessId);
@@ -355,6 +382,11 @@ namespace PrjFSLib.Linux
 
         private int HandleProjEvent(ref ProjFS.Event ev)
         {
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return -Errno.Constants.ENODEV;
+            }
+
             // ignore events triggered by own process to prevent deadlocks
             if (this.IsProviderEvent(ev))
             {
@@ -379,7 +411,7 @@ namespace PrjFSLib.Linux
                 byte[] providerId = new byte[PlaceholderIdLength];
                 byte[] contentId = new byte[PlaceholderIdLength];
 
-                result = this.projfs.GetProjAttrs(
+                result = fs.GetProjAttrs(
                     relativePath,
                     providerId,
                     contentId);
@@ -402,6 +434,11 @@ namespace PrjFSLib.Linux
 
         private int HandleNonProjEvent(ref ProjFS.Event ev, bool perm)
         {
+            if (this.projfs == null)
+            {
+                return -Errno.Constants.ENODEV;
+            }
+
             // ignore events triggered by own process to prevent deadlocks
             if (this.IsProviderEvent(ev))
             {
