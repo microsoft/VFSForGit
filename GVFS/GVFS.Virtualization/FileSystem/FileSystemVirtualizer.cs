@@ -270,12 +270,14 @@ namespace GVFS.Virtualization.FileSystem
             try
             {
                 bool newLinkPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeNewLinkPath);
+                bool relativePathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeExistingFilePath);
 
                 if (newLinkPathInDotGit)
                 {
                     this.OnDotGitFileOrFolderChanged(relativeNewLinkPath);
                 }
-                else
+
+                if (!(string.IsNullOrEmpty(relativeNewLinkPath) && relativePathInDotGit))
                 {
                      this.FileSystemCallbacks.OnFileHardLinkCreated(relativeNewLinkPath, relativeExistingFilePath);
                 }

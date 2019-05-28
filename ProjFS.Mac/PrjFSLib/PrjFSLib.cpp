@@ -710,6 +710,10 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         {
             absolutePath = pathBuffer;
             relativePath = GetRelativePath(pathBuffer, s_virtualizationRootFullPath.c_str());
+            if (relativePath == nullptr)
+            {
+                goto CleanupAndReturn;
+            }
 #if DEBUG
             cout
                 << "PrjFSLib.HandleKernelRequest: fsgetpath for fsid 0x"
@@ -728,6 +732,10 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     {
         absolutePath = request.paths[MessagePath_Target];
         relativePath = GetRelativePath(absolutePath, s_virtualizationRootFullPath.c_str());
+        if (relativePath == nullptr)
+        {
+            goto CleanupAndReturn;
+        }
     }
     
     switch (requestHeader->messageType)
@@ -769,10 +777,14 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         {
             const char* absoluteFromPath = request.paths[MessagePath_From];
             const char* relativeFromPath = GetRelativePath(absoluteFromPath, s_virtualizationRootFullPath.c_str());
+            if (relativeFromPath == nullptr)
+            {
+                goto CleanupAndReturn;
+            }
             
 #ifdef DEBUG
-            cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ");
-            cout << "from this root (relative path " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ") ";
+            cout << "PrjFSLib.HandleKernelRequest: " << "hard-linked ";
+            cout << "from this root (relative path " << relativeFromPath << ") ";
             cout << "into this root (relative path " << relativePath << ")";
             cout << endl;
 #endif
@@ -784,7 +796,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                     relativePath,
                     absolutePath,
                     relativeFromPath,
-                    false,
+                    false, // isDirectory; TODO: may yet be a directory
                     KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             }
             else
@@ -794,7 +806,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                     relativePath,
                     absolutePath,
                     relativeFromPath,
-                    false,
+                    false, // isDirectory; TODO: may yet be a directory
                     KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             }
             
@@ -1493,7 +1505,7 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
     {
         // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
-        fprintf(stderr, "GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
+        LogError("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
         return nullptr;
     }
     
@@ -1505,7 +1517,7 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
     {
         // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
-        fprintf(stderr, "GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
+        LogError("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
         return nullptr;
     }
     

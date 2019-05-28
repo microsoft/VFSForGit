@@ -603,7 +603,7 @@ KEXT_STATIC int HandleFileOpOperation(
                         currentVnode,
                         vnodeFsidInode,
                         newPath,
-                        (messageFromProvider && targetRoot == fromRoot) ? fromPath : "", // Send "", to specify there is a fromPath but it is not relavent
+                        (messageFromProvider && targetRoot == fromRoot) ? fromPath : "", // Send "", to specify that the fromPath is not in the same root
                         pid,
                         procname,
                         &kauthResult,

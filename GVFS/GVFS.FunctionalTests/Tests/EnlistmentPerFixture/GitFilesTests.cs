@@ -407,18 +407,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.WaitForBackgroundOperations();
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileNameLink);
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
-            fileNameLink.ShouldBeAFile(this.fileSystem);
+            fileLinkInsideRepo.ShouldBeAFile(this.fileSystem);
         }
 
         [TestCase, Order(19)]
         public void HardlinkFromInsideRepoToOutside()
         {
-            string fileName = "InsideRepoToOutside_FileForHardlink.txt";
+            string fileName = "Readme.md";
             string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
-            this.fileSystem.WriteAllText(fileInsideRepo, "Contents for the new file");
-            fileInsideRepo.ShouldBeAFile(this.fileSystem);
-            this.Enlistment.WaitForBackgroundOperations();
-            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
 
             string fileNameLink = "InsideRepoToOutside_RepoLink.txt";
             string fileLinkOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileNameLink);

@@ -206,7 +206,7 @@ namespace PrjFSLib.Mac
                     return Result.Success;
 
                 case NotificationType.HardLinkCreated:
-                    this.OnHardLinkCreated(relativePath, relativeFromPath);
+                    this.OnHardLinkCreated(relativeFromPath, relativePath);
                     return Result.Success;
 
                 case NotificationType.PreConvertToFull:
