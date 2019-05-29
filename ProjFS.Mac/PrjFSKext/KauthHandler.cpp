@@ -572,6 +572,12 @@ KEXT_STATIC int HandleVnodeOperation(
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
+                bool isWriteOperation = ActionBitIsSet(
+                    action,
+                    KAUTH_VNODE_WRITE_ATTRIBUTES |
+                    KAUTH_VNODE_WRITE_EXTATTRIBUTES |
+                    KAUTH_VNODE_WRITE_DATA |
+                    KAUTH_VNODE_APPEND_DATA);
                 if (!TryGetVirtualizationRoot(
                         &perfTracer,
                         context,
@@ -579,8 +585,8 @@ KEXT_STATIC int HandleVnodeOperation(
                         pid,
                         // Prevent system services from hydrating files as this tends to cause deadlocks with the kauth listeners for Antivirus software
                         CallbackPolicy_UserInitiatedOnly,
-                        // TODO(Mac): Access to empty files in an offline root should be denied except for deletions (#182)
-                        false, // denyIfOffline
+                        // Prevent write access to empty files in offline roots. For now allow reads, and always allow the user to delete files.
+                        isWriteOperation,
                         &root,
                         &vnodeFsidInode,
                         &kauthResult,
