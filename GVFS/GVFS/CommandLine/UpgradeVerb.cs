@@ -244,6 +244,7 @@ namespace GVFS.CommandLine
         {
             string upgraderPath = null;
             string errorMessage = null;
+            bool supportsInlineUpgrade = GVFSPlatform.Instance.Constants.SupportsInlineUpgrade;
 
             this.ReportInfoToConsole("Launching upgrade tool...");
 
@@ -252,12 +253,12 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            if (!this.TryLaunchUpgradeTool(upgraderPath, out errorMessage))
+            if (!this.TryLaunchUpgradeTool(upgraderPath, supportsInlineUpgrade, out errorMessage))
             {
                 return false;
             }
 
-            if (GVFSPlatform.Instance.Constants.SupportsInlineUpgrade)
+            if (supportsInlineUpgrade)
             {
                 while (!this.processLauncher.HasExited)
                 {
@@ -292,13 +293,13 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryLaunchUpgradeTool(string path, out string consoleError)
+        private bool TryLaunchUpgradeTool(string path, bool runUpgradeInline, out string consoleError)
         {
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryLaunchUpgradeTool), EventLevel.Informational))
             {
                 Exception exception;
                 string args = string.Empty + (this.DryRun ? $" {DryRunOption}" : string.Empty) + (this.NoVerify ? $" {NoVerifyOption}" : string.Empty);
-                if (!this.processLauncher.TryStart(path, args, out exception))
+                if (!this.processLauncher.TryStart(path, args, !runUpgradeInline, out exception))
                 {
                     if (exception != null)
                     {
@@ -398,11 +399,11 @@ namespace GVFS.CommandLine
                 get { return this.Process.ExitCode; }
             }
 
-            public virtual bool TryStart(string path, string args, out Exception exception)
+            public virtual bool TryStart(string path, string args, bool useShellExecute, out Exception exception)
             {
                 this.Process.StartInfo = new ProcessStartInfo(path)
                 {
-                    UseShellExecute = false,
+                    UseShellExecute = useShellExecute,
                     WorkingDirectory = Environment.SystemDirectory,
                     WindowStyle = ProcessWindowStyle.Normal,
                     Arguments = args
