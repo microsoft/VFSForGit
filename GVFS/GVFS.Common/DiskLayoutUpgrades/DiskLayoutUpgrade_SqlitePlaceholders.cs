@@ -17,8 +17,8 @@ namespace GVFS.Common.DiskLayoutUpgrades
             {
                 PhysicalFileSystem fileSystem = new PhysicalFileSystem();
                 string error;
-                PlaceholderListDatabase placeholderList;
-                if (!PlaceholderListDatabase.TryCreate(
+                LegacyPlaceholderListDatabase placeholderList;
+                if (!LegacyPlaceholderListDatabase.TryCreate(
                     tracer,
                     Path.Combine(dotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList),
                     fileSystem,

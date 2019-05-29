@@ -7,7 +7,7 @@ using System.IO;
 
 namespace GVFS.Common
 {
-    public class PlaceholderListDatabase : FileBasedCollection, IPlaceholderCollection
+    public class LegacyPlaceholderListDatabase : FileBasedCollection, IPlaceholderCollection
     {
         // Special folder values must:
         // - Be 40 characters long
@@ -43,14 +43,14 @@ namespace GVFS.Common
 
         private int count;
 
-        private PlaceholderListDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath)
+        private LegacyPlaceholderListDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath)
             : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: true)
         {
         }
 
-        public static bool TryCreate(ITracer tracer, string dataFilePath, PhysicalFileSystem fileSystem, out PlaceholderListDatabase output, out string error)
+        public static bool TryCreate(ITracer tracer, string dataFilePath, PhysicalFileSystem fileSystem, out LegacyPlaceholderListDatabase output, out string error)
         {
-            PlaceholderListDatabase temp = new PlaceholderListDatabase(tracer, fileSystem, dataFilePath);
+            LegacyPlaceholderListDatabase temp = new LegacyPlaceholderListDatabase(tracer, fileSystem, dataFilePath);
 
             // We don't want to cache placeholders so this just serves to validate early and populate count.
             if (!temp.TryLoadFromDisk<string, string>(
