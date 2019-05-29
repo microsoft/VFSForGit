@@ -9,19 +9,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     public abstract class DiskLayoutUpgradeTests : TestsWithEnlistmentPerTestCase
     {
-        protected const string PlaceholderListDatabaseDelimiter = "\0";
-
-        protected static readonly string PlaceholderListDatabaseContent = $@"A .gitignore{PlaceholderListDatabaseDelimiter}E9630E4CF715315FC90D4AEC98E16A7398F8BF64
-A Readme.md{PlaceholderListDatabaseDelimiter}583F1A56DB7CC884D54534C5D9C56B93A1E00A2B
-A Scripts{PlaceholderListDatabaseDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A Scripts\RunUnitTests.bat{PlaceholderListDatabaseDelimiter}0112E0DD6FC64BF57C4735F4D7D6E018C0F34B6D
-A GVFS{PlaceholderListDatabaseDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Common{PlaceholderListDatabaseDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Common\Git{PlaceholderListDatabaseDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Common\Git\GitRefs.cs{PlaceholderListDatabaseDelimiter}37595A9C6C7E00A8AFDE306765896770F2508927
-A GVFS\GVFS.Tests{PlaceholderListDatabaseDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Tests\Properties{PlaceholderListDatabaseDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Tests\Properties\AssemblyInfo.cs{PlaceholderListDatabaseDelimiter}5911485CFE87E880F64B300BA5A289498622DBC1
+        protected static readonly string PlaceholderListDatabaseContent = $@"A .gitignore{GVFSHelpers.PlaceholderFieldDelimiter}E9630E4CF715315FC90D4AEC98E16A7398F8BF64
+A Readme.md{GVFSHelpers.PlaceholderFieldDelimiter}583F1A56DB7CC884D54534C5D9C56B93A1E00A2B
+A Scripts{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A Scripts\RunUnitTests.bat{GVFSHelpers.PlaceholderFieldDelimiter}0112E0DD6FC64BF57C4735F4D7D6E018C0F34B6D
+A GVFS{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A GVFS\GVFS.Common{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A GVFS\GVFS.Common\Git{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A GVFS\GVFS.Common\Git\GitRefs.cs{GVFSHelpers.PlaceholderFieldDelimiter}37595A9C6C7E00A8AFDE306765896770F2508927
+A GVFS\GVFS.Tests{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A GVFS\GVFS.Tests\Properties{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A GVFS\GVFS.Tests\Properties\AssemblyInfo.cs{GVFSHelpers.PlaceholderFieldDelimiter}5911485CFE87E880F64B300BA5A289498622DBC1
 D GVFS\GVFS.Tests\Properties\AssemblyInfo.cs
 ";
 
