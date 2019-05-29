@@ -71,6 +71,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteFile(idxPath);
             idxPath.ShouldNotExistOnDisk(this.fileSystem);
 
+            // Remove midx that contains references to the pack
+            string midxPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack", "multi-pack-index");
+            File.SetAttributes(midxPath, FileAttributes.Normal);
+            this.fileSystem.DeleteFile(midxPath);
+            midxPath.ShouldNotExistOnDisk(this.fileSystem);
+
             // Prefetch should rebuild the missing idx
             this.Enlistment.Prefetch("--commits");
             this.PostFetchJobShouldComplete();
