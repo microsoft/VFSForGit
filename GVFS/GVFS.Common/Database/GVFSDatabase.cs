@@ -135,7 +135,11 @@ namespace GVFS.Common.Database
                 this.connection = connection;
             }
 
-            public string ConnectionString { get => this.connection.ConnectionString; set => this.connection.ConnectionString = value; }
+            public string ConnectionString
+            {
+                get => this.connection.ConnectionString;
+                set => this.connection.ConnectionString = value;
+            }
 
             public int ConnectionTimeout => this.connection.ConnectionTimeout;
 
