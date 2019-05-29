@@ -54,7 +54,7 @@ namespace GVFS.Common.Database
 
             this.disposed = true;
             this.connectionPool.CompleteAdding();
-            while (!this.connectionPool.IsCompleted && this.connectionPool.TryTake(out IDbConnection connection))
+            while (this.connectionPool.TryTake(out IDbConnection connection))
             {
                 connection.Dispose();
             }
@@ -81,23 +81,17 @@ namespace GVFS.Common.Database
 
         private void ReturnToPool(IDbConnection connection)
         {
-            if (this.connectionPool.IsAddingCompleted)
+            if (this.disposed)
             {
                 connection.Dispose();
                 return;
             }
 
-            bool itemWasAdded = false;
             try
             {
-                itemWasAdded = this.connectionPool.TryAdd(connection);
+                this.connectionPool.TryAdd(connection);
             }
-            catch (InvalidOperationException)
-            {
-                itemWasAdded = false;
-            }
-
-            if (!itemWasAdded)
+            catch (Exception ex) when (ex is InvalidOperationException || ex is ObjectDisposedException)
             {
                 connection.Dispose();
             }
