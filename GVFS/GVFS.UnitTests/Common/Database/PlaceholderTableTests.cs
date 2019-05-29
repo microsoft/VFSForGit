@@ -19,7 +19,7 @@ namespace GVFS.UnitTests.Common.Database
         private const byte PathTypePartialFolder = 1;
         private const byte PathTypeExpandedFolder = 2;
         private const byte PathTypePossibleTombstoneFolder = 3;
-        private const string DefaultSha = "SHA1";
+        private const string DefaultSha = "1234567890123456789012345678901234567890";
 
         [TestCase]
         public void ConstructorTest()
@@ -246,6 +246,26 @@ namespace GVFS.UnitTests.Common.Database
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
+        public void AddFilePlaceholderDataWithNullShaThrowsException()
+        {
+            PlaceholderTable.PlaceholderData placeholderData = new PlaceholderTable.PlaceholderData()
+            {
+                Path = DefaultPath,
+                PathType = PlaceholderTable.PlaceholderData.PlaceholderType.File,
+                Sha = null
+            };
+
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
+                placeholders => placeholders.AddPlaceholderData(placeholderData),
+                DefaultPath,
+                PathTypeFile,
+                sha: null,
+                throwException: true));
+            ex.Message.ShouldEqual($"Invalid SHA 'null' for file {DefaultPath}");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void AddPlaceholderDataThrowsGVFSDatabaseException()
         {
             PlaceholderTable.PlaceholderData placeholderData = new PlaceholderTable.PlaceholderData()
@@ -341,6 +361,47 @@ namespace GVFS.UnitTests.Common.Database
                 DefaultPath,
                 PathTypeFile,
                 DefaultSha);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void AddFileWithNullShaThrowsException()
+        {
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
+                placeholders => placeholders.AddFile(DefaultPath, sha: null),
+                DefaultPath,
+                PathTypeFile,
+                sha: null,
+                throwException: true));
+            ex.Message.ShouldEqual($"Invalid SHA 'null' for file {DefaultPath}");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void AddFileWithEmptyShaThrowsException()
+        {
+            string emptySha = string.Empty;
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
+                placeholders => placeholders.AddFile(DefaultPath, emptySha),
+                DefaultPath,
+                PathTypeFile,
+                emptySha,
+                throwException: true));
+            ex.Message.ShouldEqual($"Invalid SHA '' for file {DefaultPath}");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void AddFileWithInvalidLengthShaThrowsException()
+        {
+            string badSha = "BAD SHA";
+            GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
+                placeholders => placeholders.AddFile(DefaultPath, badSha),
+                DefaultPath,
+                PathTypeFile,
+                badSha,
+                throwException: true));
+            ex.Message.ShouldEqual($"Invalid SHA '{badSha}' for file {DefaultPath}");
         }
 
         [TestCase]

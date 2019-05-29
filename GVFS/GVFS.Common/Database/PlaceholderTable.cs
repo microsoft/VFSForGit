@@ -134,6 +134,11 @@ namespace GVFS.Common.Database
 
         public void AddFile(string path, string sha)
         {
+            if (sha == null || sha.Length != 40)
+            {
+                throw new GVFSDatabaseException($"Invalid SHA '{sha ?? "null"}' for file {path}", innerException: null);
+            }
+
             this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.File, Sha = sha });
         }
 
@@ -201,7 +206,7 @@ namespace GVFS.Common.Database
 
         public class PlaceholderData : IPlaceholderData
         {
-            public enum PlaceholderType : byte
+            public enum PlaceholderType
             {
                 File = 0,
                 PartialFolder = 1,
