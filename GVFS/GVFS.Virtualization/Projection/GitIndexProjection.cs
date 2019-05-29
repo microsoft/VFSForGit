@@ -1120,9 +1120,16 @@ namespace GVFS.Virtualization.Projection
                 using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
                 {
                     // A hash of the placeholders is only required if the platform expands directories
+                    // This is using a in memory HashSet for speed in processing
+                    // ~1 million placeholders was taking over 10 seconds to check for existence where the
+                    // HashSet was only taking a a few milliseconds
                     HashSet<string> existingPlaceholders = null;
                     if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
                     {
+                        // Since only the file placeholders have been processed we can still use the folder placeholder list
+                        // that was returned by GetAllEntries but we need to get the file paths that are now in the database.
+                        // This is to avoid the extra time and processing to get all the placeholders when there are many
+                        // folder placeholders and only a few file placeholders.
                         IEnumerable<string> allPlaceholders = placeholderFoldersListCopy
                             .Select(x => x.Path)
                             .Union(this.placeholderDatabase.GetAllFilePaths());
