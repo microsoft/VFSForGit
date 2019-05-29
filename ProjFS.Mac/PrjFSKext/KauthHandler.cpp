@@ -669,8 +669,8 @@ KEXT_STATIC int HandleVnodeOperation(
                 if (providerStatus == Provider_IsOffline)
                 {
                     assert(!shouldMessageProvider);
-                    // TODO(Mac): Write access to placeholder files in offline roots should be denied (#182)
-                    //kauthResult = KAUTH_RESULT_DENY;
+                    // Deny write access to placeholders in an offline root
+                    kauthResult = KAUTH_RESULT_DENY;
                     goto CleanupAndReturn;
                 }
                 

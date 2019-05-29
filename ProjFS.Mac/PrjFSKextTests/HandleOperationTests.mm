@@ -891,7 +891,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
     
     XCTAssertEqual(
-        KAUTH_RESULT_DEFER, // TODO(Mac): Write to placeholder files should be prevented in offline roots (#182)
+        KAUTH_RESULT_DENY,
         HandleVnodeOperation(
             nullptr,
             nullptr,
@@ -1189,20 +1189,32 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
 }
 
 - (void) testWriteWithDisappearingVirtualizationRoot {
+    // Tests provider disappearing between hydration and attempting to convert to full.
+    
+    // Start with empty file…
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(self->testFileVnode);
+    
+    // First message to provider marks the file as hydrated and also disconnects the providers
     ProviderMessageMock_SetRequestSideEffect(
         [&]()
         {
             ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+            // mark as hydrated
+            testFileVnode->attrValues.va_flags &= ~FileFlags_IsEmpty;
         });
-    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
-    XCTAssertTrue(HandleVnodeOperation(
-        nullptr,
-        nullptr,
-        KAUTH_VNODE_WRITE_DATA,
-        reinterpret_cast<uintptr_t>(context),
-        reinterpret_cast<uintptr_t>(testFileVnode.get()),
-        0,
-        0) == KAUTH_RESULT_DEFER);
+    
+    // File should become hydrated but write access should be denied due to failure to convert to full.
+    XCTAssertEqual(
+        KAUTH_RESULT_DENY,
+        HandleVnodeOperation(
+            nullptr,
+            nullptr,
+            KAUTH_VNODE_WRITE_DATA,
+            reinterpret_cast<uintptr_t>(context),
+            reinterpret_cast<uintptr_t>(testFileVnode.get()),
+            0,
+            0));
 
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
 }
