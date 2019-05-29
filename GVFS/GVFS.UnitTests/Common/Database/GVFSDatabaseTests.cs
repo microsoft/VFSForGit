@@ -74,7 +74,7 @@ namespace GVFS.UnitTests.Common.Database
             mockCommand.Setup(x => x.Dispose());
 
             Mock<IDbCommand> mockCommand2 = new Mock<IDbCommand>(MockBehavior.Strict);
-            mockCommand2.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
+            mockCommand2.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY COLLATE NOCASE, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
             if (throwException)
             {
                 mockCommand2.Setup(x => x.ExecuteNonQuery()).Throws(new Exception("Error"));

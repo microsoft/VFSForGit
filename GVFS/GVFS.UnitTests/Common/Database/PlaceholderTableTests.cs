@@ -33,7 +33,7 @@ namespace GVFS.UnitTests.Common.Database
         public void CreateTableTest()
         {
             Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
-            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
+            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY COLLATE NOCASE, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
             mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
             mockCommand.Setup(x => x.Dispose());
 
@@ -50,7 +50,7 @@ namespace GVFS.UnitTests.Common.Database
         public void CreateTableThrowsExceptionNotWrappedInGVFSDatabaseException()
         {
             Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
-            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
+            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY COLLATE NOCASE, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
             mockCommand.Setup(x => x.ExecuteNonQuery()).Throws(new Exception(DefaultExceptionMessage));
             mockCommand.Setup(x => x.Dispose());
 

@@ -1099,7 +1099,7 @@ namespace GVFS.Virtualization.Projection
 
                 // folderPlaceholdersToKeep always contains the empty path so as to avoid unnecessary attempts
                 // to remove the repository's root folder.
-                ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>();
+                ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
                 folderPlaceholdersToKeep.Add(string.Empty);
 
                 stopwatch.Restart();
