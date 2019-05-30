@@ -21,19 +21,29 @@ namespace GVFS.Common
             return ProcessHelper.GetCurrentProcessVersion();
         }
 
-        public static string GetUpgradesDirectoryPath()
+        public static string GetUpgradeApplicationDirectory()
         {
-            return GVFSPlatform.Instance.GetDataRootForGVFSComponent(UpgradeDirectoryName);
+            return GVFSPlatform.Instance.ProductUpgraderInfoImpl.GetUpgradeApplicationDirectory();
+        }
+
+        public static string GetUpgradeProtectedDataDirectory()
+        {
+            return GVFSPlatform.Instance.ProductUpgraderInfoImpl.GetUpgradeProtectedDirectory();
+        }
+
+        public static string GetUpgradeBasicDataDirectory()
+        {
+            return GVFSPlatform.Instance.ProductUpgraderInfoImpl.GetUpgradeNonProtectedDirectory();
         }
 
         public static string GetLogDirectoryPath()
         {
-            return Path.Combine(GetUpgradesDirectoryPath(), LogDirectory);
+            return Path.Combine(GetUpgradeBasicDataDirectory(), LogDirectory);
         }
 
         public static string GetAssetDownloadsPath()
         {
-            return Path.Combine(GetUpgradesDirectoryPath(), DownloadDirectory);
+            return GVFSPlatform.Instance.ProductUpgraderInfoImpl.GetAssetDownloadsPath();
         }
 
         public void DeleteAllInstallerDownloads()
@@ -53,7 +63,7 @@ namespace GVFS.Common
 
         public void RecordHighestAvailableVersion(Version highestAvailableVersion)
         {
-            string highestAvailableVersionFile = GetHighestAvailableVersionFilePath(GetUpgradesDirectoryPath());
+            string highestAvailableVersionFile = GetHighestAvailableVersionFilePath(GetUpgradeBasicDataDirectory());
 
             if (highestAvailableVersion == null)
             {

@@ -49,7 +49,7 @@ namespace GVFS.Common
         {
             this.Config = upgraderConfig;
 
-            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
+            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradeBasicDataDirectory();
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
         }
 

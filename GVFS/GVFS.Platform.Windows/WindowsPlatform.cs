@@ -36,6 +36,8 @@ namespace GVFS.Platform.Windows
         public override string Name { get => "Windows"; }
         public override GVFSPlatformConstants Constants { get; } = new WindowsPlatformConstants();
 
+        public override ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; } = new WindowsProductUpgraderInfo();
+
         public static string GetStringFromRegistry(string key, string valueName)
         {
             object value = GetValueFromRegistry(RegistryHive.LocalMachine, key, valueName);

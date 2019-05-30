@@ -170,8 +170,7 @@ namespace GVFS.Common
 
         public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
-            string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
+            string toolsDirectoryPath = ProductUpgraderInfo.GetUpgradeApplicationDirectory();
 
             if (!this.productUpgraderPlatformStrategy.TryPrepareApplicationDirectory(out error))
             {

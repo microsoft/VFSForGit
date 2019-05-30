@@ -23,6 +23,7 @@ namespace GVFS.Platform.Mac
         public override string Name { get => "macOS"; }
         public override GVFSPlatformConstants Constants { get; } = new MacPlatformConstants();
         public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
+        public override ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; } = new MacProductUpgraderInfo();
 
         public override string GetOSVersionInformation()
         {

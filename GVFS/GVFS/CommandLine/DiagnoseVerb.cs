@@ -131,21 +131,21 @@ namespace GVFS.CommandLine
                         {
                             // upgrader
                             this.CopyAllFiles(
-                                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                                ProductUpgraderInfo.GetUpgradeBasicDataDirectory(),
                                 archiveFolderPath,
                                 DeprecatedUpgradeLogsDirectory,
                                 copySubFolders: true,
                                 targetFolderName: Path.Combine(ProductUpgraderInfo.UpgradeDirectoryName, DeprecatedUpgradeLogsDirectory));
 
                             this.CopyAllFiles(
-                                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                                ProductUpgraderInfo.GetUpgradeBasicDataDirectory(),
                                 archiveFolderPath,
                                 ProductUpgraderInfo.LogDirectory,
                                 copySubFolders: true,
                                 targetFolderName: Path.Combine(ProductUpgraderInfo.UpgradeDirectoryName, ProductUpgraderInfo.LogDirectory));
 
                             this.LogDirectoryEnumeration(
-                                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                                ProductUpgraderInfo.GetUpgradeProtectedDataDirectory(),
                                 Path.Combine(archiveFolderPath, ProductUpgraderInfo.UpgradeDirectoryName),
                                 ProductUpgraderInfo.DownloadDirectory,
                                 "downloaded-assets.txt");

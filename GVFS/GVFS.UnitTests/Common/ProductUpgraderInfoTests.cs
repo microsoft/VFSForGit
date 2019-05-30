@@ -18,7 +18,9 @@ namespace GVFS.UnitTests.Common
     {
         private Mock<PhysicalFileSystem> mockFileSystem;
         private ProductUpgraderInfo productUpgraderInfo;
+
         private string upgradeDirectory;
+
         private string expectedNewVersionExistsFileName = "HighestAvailableVersion";
         private string expectedNewVersionExistsFilePath;
         private MockTracer tracer;
@@ -26,7 +28,7 @@ namespace GVFS.UnitTests.Common
         [SetUp]
         public void SetUp()
         {
-            this.upgradeDirectory = GVFSPlatform.Instance.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
+            this.upgradeDirectory = ProductUpgraderInfo.GetUpgradeBasicDataDirectory();
             this.expectedNewVersionExistsFilePath = Path.Combine(this.upgradeDirectory, this.expectedNewVersionExistsFileName);
             this.mockFileSystem = new Mock<PhysicalFileSystem>();
 

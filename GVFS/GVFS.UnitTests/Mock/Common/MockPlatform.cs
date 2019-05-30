@@ -31,6 +31,8 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override GVFSPlatformConstants Constants { get; } = new MockPlatformConstants();
 
+        public override ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; } = new MockProductUpgraderInfo();
+
         public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
