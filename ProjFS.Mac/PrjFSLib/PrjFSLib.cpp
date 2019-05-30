@@ -1099,7 +1099,10 @@ static PrjFS_Result HandleFileNotification(
         notificationType,
         nullptr /* destinationRelativePath */);
     
-    if (result == PrjFS_Result_Success && placeholderFile && PrjFS_NotificationType_PreConvertToFull == notificationType)
+    // We have to convert to full for PreDelete until we have WILL_RENAME support.  The PreDelete could be for a rename.
+    if (result == PrjFS_Result_Success &&
+        placeholderFile &&
+        (PrjFS_NotificationType_PreConvertToFull == notificationType || PrjFS_NotificationType_PreDelete == notificationType))
     {
         errno_t result = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
         if (0 != result)
