@@ -27,21 +27,40 @@ namespace GVFS.Common
 
         protected bool noVerify;
         protected bool dryRun;
+        protected ProductUpgraderPlatformStrategy productUpgraderPlatformStrategy;
 
         private static readonly string UpgraderToolName = GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName;
 
-        public ProductUpgrader(
+        protected ProductUpgrader(
             string currentVersion,
             ITracer tracer,
             bool dryRun,
             bool noVerify,
             PhysicalFileSystem fileSystem)
+            : this(
+                  currentVersion,
+                  tracer,
+                  dryRun,
+                  noVerify,
+                  fileSystem,
+                  GVFSPlatform.Instance.CreateProductUpgraderPlatformInteractions(fileSystem, tracer))
+        {
+        }
+
+        protected ProductUpgrader(
+            string currentVersion,
+            ITracer tracer,
+            bool dryRun,
+            bool noVerify,
+            PhysicalFileSystem fileSystem,
+            ProductUpgraderPlatformStrategy productUpgraderPlatformStrategy)
         {
             this.installedVersion = new Version(currentVersion);
             this.dryRun = dryRun;
             this.noVerify = noVerify;
             this.tracer = tracer;
             this.fileSystem = fileSystem;
+            this.productUpgraderPlatformStrategy = productUpgraderPlatformStrategy;
         }
 
         /// <summary>
@@ -154,20 +173,7 @@ namespace GVFS.Common
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
 
-            Exception deleteDirectoryException;
-            if (this.fileSystem.DirectoryExists(toolsDirectoryPath) &&
-                !this.fileSystem.TryDeleteDirectory(toolsDirectoryPath, out deleteDirectoryException))
-            {
-                upgraderToolPath = null;
-                error = $"Failed to delete {toolsDirectoryPath} - {deleteDirectoryException.Message}";
-                this.TraceException(deleteDirectoryException, nameof(this.TrySetupToolsDirectory), $"Error deleting {toolsDirectoryPath}.");
-                return false;
-            }
-
-            if (!this.fileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissions(
-                    this.tracer,
-                    toolsDirectoryPath,
-                    out error))
+            if (!this.productUpgraderPlatformStrategy.TryPrepareApplicationDirectory(out error))
             {
                 upgraderToolPath = null;
                 return false;
@@ -227,10 +233,7 @@ namespace GVFS.Common
 
         protected virtual bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
         {
-            return this.fileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissions(
-                tracer,
-                ProductUpgraderInfo.GetAssetDownloadsPath(),
-                out error);
+            return this.productUpgraderPlatformStrategy.TryPrepareDownloadDirectory(out error);
         }
 
         protected virtual void RunInstaller(string path, string args, out int exitCode, out string error)

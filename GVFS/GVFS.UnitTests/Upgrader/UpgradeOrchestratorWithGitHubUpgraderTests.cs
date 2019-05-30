@@ -17,7 +17,7 @@ namespace GVFS.UnitTests.Upgrader
         {
             base.Setup();
 
-            this.orchestrator = new UpgradeOrchestrator(
+            this.orchestrator = new WindowsUpgradeOrchestrator(
                 this.Upgrader,
                 this.Tracer,
                 this.FileSystem,
