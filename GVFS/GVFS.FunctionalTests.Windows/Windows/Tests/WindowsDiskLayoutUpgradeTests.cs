@@ -334,6 +334,31 @@ namespace GVFS.FunctionalTests.Windows.Tests
             this.ValidatePersistedVersionMatchesCurrentVersion();
         }
 
+        private void PlaceholderDatabaseShouldIncludeCommonLinesForUpgradeTestIO(string[] placeholderLines)
+        {
+            placeholderLines.ShouldContain(x => x.Contains("A Readme.md"));
+            placeholderLines.ShouldContain(x => x.Contains("A Scripts\\RunUnitTests.bat"));
+            placeholderLines.ShouldContain(x => x.Contains("A GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
+            placeholderLines.ShouldContain(x => x.Contains("A .gitignore"));
+            placeholderLines.ShouldContain(x => x == "A Scripts\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            placeholderLines.ShouldContain(x => x == "A GVFS\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            placeholderLines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            placeholderLines.ShouldContain(x => x == "A GVFS\\GVFS.Common\\Git\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            placeholderLines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+        }
+
+        private string[] GetPlaceholderDatabaseLinesBeforeUpgrade(string placeholderDatabasePath)
+        {
+            placeholderDatabasePath.ShouldBeAFile(this.fileSystem);
+            string[] lines = this.fileSystem.ReadAllText(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            lines.Length.ShouldEqual(12);
+            this.PlaceholderDatabaseShouldIncludeCommonLinesForUpgradeTestIO(lines);
+            lines.ShouldContain(x => x.Contains("A GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs"));
+            lines.ShouldContain(x => x == "D GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs");
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\\Properties\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            return lines;
+        }
+
         private string[] GetPlaceholderDatabaseLinesAfterUpgradeFrom12_1(string placeholderDatabasePath)
         {
             placeholderDatabasePath.ShouldBeAFile(this.fileSystem);

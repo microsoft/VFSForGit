@@ -25,6 +25,9 @@ D GVFS{Path.DirectorySeparatorChar}GVFS.Tests{Path.DirectorySeparatorChar}Proper
 
         protected FileSystemRunner fileSystem = new SystemIORunner();
 
+        private const string PlaceholderTableFilePathType = "0";
+        private const string PlaceholderTablePartialFolderPathType = "1";
+
         public abstract int GetCurrentDiskLayoutMajorVersion();
         public abstract int GetCurrentDiskLayoutMinorVersion();
 
@@ -78,39 +81,14 @@ D GVFS{Path.DirectorySeparatorChar}GVFS.Tests{Path.DirectorySeparatorChar}Proper
             ProcessHelper.Run("CMD.exe", "/C mklink /D " + link + " " + target);
         }
 
-        protected void PlaceholderDatabaseShouldIncludeCommonLinesForUpgradeTestIO(string[] placeholderLines)
-        {
-            placeholderLines.ShouldContain(x => x.Contains("A Readme.md"));
-            placeholderLines.ShouldContain(x => x.Contains("A Scripts\\RunUnitTests.bat"));
-            placeholderLines.ShouldContain(x => x.Contains("A GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
-            placeholderLines.ShouldContain(x => x.Contains("A .gitignore"));
-            placeholderLines.ShouldContain(x => x == "A Scripts\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
-            placeholderLines.ShouldContain(x => x == "A GVFS\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
-            placeholderLines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
-            placeholderLines.ShouldContain(x => x == "A GVFS\\GVFS.Common\\Git\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
-            placeholderLines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
-        }
-
-        protected string[] GetPlaceholderDatabaseLinesBeforeUpgrade(string placeholderDatabasePath)
-        {
-            placeholderDatabasePath.ShouldBeAFile(this.fileSystem);
-            string[] lines = this.fileSystem.ReadAllText(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            lines.Length.ShouldEqual(12);
-            this.PlaceholderDatabaseShouldIncludeCommonLinesForUpgradeTestIO(lines);
-            lines.ShouldContain(x => x.Contains("A GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs"));
-            lines.ShouldContain(x => x == "D GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs");
-            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\\Properties\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
-            return lines;
-        }
-
         protected string FilePlaceholderString(params string[] pathParts)
         {
-            return $"{Path.Combine(pathParts)}{GVFSHelpers.PlaceholderFieldDelimiter}0{GVFSHelpers.PlaceholderFieldDelimiter}";
+            return $"{Path.Combine(pathParts)}{GVFSHelpers.PlaceholderFieldDelimiter}{PlaceholderTableFilePathType}{GVFSHelpers.PlaceholderFieldDelimiter}";
         }
 
         protected string PartialFolderPlaceholderString(params string[] pathParts)
         {
-            return $"{Path.Combine(pathParts)}{GVFSHelpers.PlaceholderFieldDelimiter}1{GVFSHelpers.PlaceholderFieldDelimiter}";
+            return $"{Path.Combine(pathParts)}{GVFSHelpers.PlaceholderFieldDelimiter}{PlaceholderTablePartialFolderPathType}{GVFSHelpers.PlaceholderFieldDelimiter}";
         }
 
         protected void ValidatePersistedVersionMatchesCurrentVersion()
