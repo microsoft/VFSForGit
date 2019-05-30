@@ -56,7 +56,7 @@ namespace GVFS.Virtualization.Projection
         private Dictionary<string, FileTypeAndMode> nonDefaultFileTypesAndModes = new Dictionary<string, FileTypeAndMode>(StringComparer.OrdinalIgnoreCase);
 
         private BlobSizes blobSizes;
-        private PlaceholderListDatabase placeholderList;
+        private IPlaceholderCollection placeholderDatabase;
         private GVFSGitObjects gitObjects;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private ReaderWriterLockSlim projectionReadWriteLock;
@@ -91,7 +91,7 @@ namespace GVFS.Virtualization.Projection
             BlobSizes blobSizes,
             RepoMetadata repoMetadata,
             FileSystemVirtualizer fileSystemVirtualizer,
-            PlaceholderListDatabase placeholderList,
+            IPlaceholderCollection placeholderDatabase,
             ModifiedPathsDatabase modifiedPaths)
         {
             this.context = context;
@@ -106,7 +106,7 @@ namespace GVFS.Virtualization.Projection
             this.wakeUpIndexParsingThread = new AutoResetEvent(initialState: false);
             this.projectionIndexBackupPath = Path.Combine(this.context.Enlistment.DotGVFSRoot, ProjectionIndexBackupName);
             this.indexPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index);
-            this.placeholderList = placeholderList;
+            this.placeholderDatabase = placeholderDatabase;
             this.modifiedPaths = modifiedPaths;
         }
 
@@ -122,14 +122,6 @@ namespace GVFS.Virtualization.Projection
             Regular,
             SymLink,
             GitLink,
-        }
-
-        public int PlaceholderCount
-        {
-            get
-            {
-                return this.placeholderList.Count;
-            }
         }
 
         public static void ReadIndex(ITracer tracer, string indexPath)
@@ -321,22 +313,22 @@ namespace GVFS.Virtualization.Projection
 
         public void OnPlaceholderFolderCreated(string virtualPath)
         {
-            this.placeholderList.AddPartialFolder(virtualPath);
+            this.placeholderDatabase.AddPartialFolder(virtualPath);
         }
 
         public void OnPossibleTombstoneFolderCreated(string virtualPath)
         {
-            this.placeholderList.AddPossibleTombstoneFolder(virtualPath);
+            this.placeholderDatabase.AddPossibleTombstoneFolder(virtualPath);
         }
 
         public virtual void OnPlaceholderFolderExpanded(string relativePath)
         {
-            this.placeholderList.AddExpandedFolder(relativePath);
+            this.placeholderDatabase.AddExpandedFolder(relativePath);
         }
 
         public virtual void OnPlaceholderFileCreated(string virtualPath, string sha)
         {
-            this.placeholderList.AddFile(virtualPath, sha);
+            this.placeholderDatabase.AddFile(virtualPath, sha);
         }
 
         public virtual bool TryGetProjectedItemsFromMemory(string folderPath, out List<ProjectedFileInfo> projectedItems)
@@ -564,7 +556,7 @@ namespace GVFS.Virtualization.Projection
 
         public void RemoveFromPlaceholderList(string fileOrFolderPath)
         {
-            this.placeholderList.Remove(fileOrFolderPath);
+            this.placeholderDatabase.Remove(fileOrFolderPath);
         }
 
         public void Dispose()
@@ -599,12 +591,6 @@ namespace GVFS.Virtualization.Projection
                 {
                     this.indexParsingThread.Dispose();
                     this.indexParsingThread = null;
-                }
-
-                if (this.placeholderList != null)
-                {
-                    this.placeholderList.Dispose();
-                    this.placeholderList = null;
                 }
             }
         }
@@ -1098,7 +1084,7 @@ namespace GVFS.Virtualization.Projection
             Stopwatch stopwatch = new Stopwatch();
             List<IPlaceholderData> placeholderFilesListCopy;
             List<IPlaceholderData> placeholderFoldersListCopy;
-            this.placeholderList.GetAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
+            this.placeholderDatabase.GetAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("File placeholder count", placeholderFilesListCopy.Count);
@@ -1113,30 +1099,8 @@ namespace GVFS.Virtualization.Projection
 
                 // folderPlaceholdersToKeep always contains the empty path so as to avoid unnecessary attempts
                 // to remove the repository's root folder.
-                ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>();
+                ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
                 folderPlaceholdersToKeep.Add(string.Empty);
-
-                // updatedPlaceholderDictionary and updatedPlaceholderBag are mutually exclusive.
-                //  - On platforms that expand on enumeration: updatedPlaceholderDictionary is used (required for ReExpandFolder)
-                //  - On platforms that do not expand on enumeration: updatedPlaceholderBag is used (for speed)
-                ConcurrentDictionary<string, IPlaceholderData> updatedPlaceholderDictionary;
-                ConcurrentBag<IPlaceholderData> updatedPlaceholderBag;
-                Action<IPlaceholderData> addPlaceholderToUpdatedPlaceholders;
-                if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
-                {
-                    updatedPlaceholderDictionary = new ConcurrentDictionary<string, IPlaceholderData>(
-                        concurrencyLevel: numThreads,
-                        capacity: placeholderFilesListCopy.Count + placeholderFoldersListCopy.Count,
-                        comparer: StringComparer.Ordinal);
-                    updatedPlaceholderBag = null;
-                    addPlaceholderToUpdatedPlaceholders = (data) => updatedPlaceholderDictionary.TryAdd(data.Path, data);
-                }
-                else
-                {
-                    updatedPlaceholderDictionary = null;
-                    updatedPlaceholderBag = new ConcurrentBag<IPlaceholderData>();
-                    addPlaceholderToUpdatedPlaceholders = (data) => updatedPlaceholderBag.Add(data);
-                }
 
                 stopwatch.Restart();
                 this.ProcessListOnThreads(
@@ -1145,7 +1109,7 @@ namespace GVFS.Virtualization.Projection
                     (placeholderBatch, start, end, blobSizesConnection, availableSizes) =>
                         this.BatchPopulateMissingSizesFromRemote(blobSizesConnection, placeholderBatch, start, end, availableSizes),
                     (placeholder, blobSizesConnection, availableSizes) =>
-                        this.UpdateOrDeleteFilePlaceholder(blobSizesConnection, placeholder, addPlaceholderToUpdatedPlaceholders, folderPlaceholdersToKeep, availableSizes));
+                        this.UpdateOrDeleteFilePlaceholder(blobSizesConnection, placeholder, folderPlaceholdersToKeep, availableSizes));
                 stopwatch.Stop();
                 long millisecondsUpdatingFilePlaceholders = stopwatch.ElapsedMilliseconds;
 
@@ -1155,11 +1119,22 @@ namespace GVFS.Virtualization.Projection
                 int deleteFolderPlaceholderAttempted = 0;
                 using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
                 {
-                    // A hash of the folder placeholders is only required if the platform expands directories
-                    HashSet<string> folderPlaceholders =
-                        GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories ?
-                        new HashSet<string>(placeholderFoldersListCopy.Select(x => x.Path), StringComparer.OrdinalIgnoreCase) :
-                        null;
+                    // A hash of the placeholders is only required if the platform expands directories
+                    // This is using a in memory HashSet for speed in processing
+                    // ~1 million placeholders was taking over 10 seconds to check for existence where the
+                    // HashSet was only taking a a few milliseconds
+                    HashSet<string> existingPlaceholders = null;
+                    if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
+                    {
+                        // Since only the file placeholders have been processed we can still use the folder placeholder list
+                        // that was returned by GetAllEntries but we need to get the file paths that are now in the database.
+                        // This is to avoid the extra time and processing to get all the placeholders when there are many
+                        // folder placeholders and only a few file placeholders.
+                        IEnumerable<string> allPlaceholders = placeholderFoldersListCopy
+                            .Select(x => x.Path)
+                            .Union(this.placeholderDatabase.GetAllFilePaths());
+                        existingPlaceholders = new HashSet<string>(allPlaceholders, StringComparer.OrdinalIgnoreCase);
+                    }
 
                     // Order the folders in decscending order so that we walk the tree from bottom up.
                     // Traversing the folders in this order:
@@ -1194,20 +1169,17 @@ namespace GVFS.Virtualization.Projection
 
                         if (keepFolder)
                         {
-                            addPlaceholderToUpdatedPlaceholders(folderPlaceholder);
-
                             // Remove folder placeholders before re-expansion to ensure that projection changes that convert a folder to a file work
                             // properly
                             if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories && folderPlaceholder.IsExpandedFolder)
                             {
-                                if (updatedPlaceholderDictionary == null)
-                                {
-                                    throw new InvalidOperationException(
-                                        $"{nameof(updatedPlaceholderDictionary)} must be used when enumeration expands directories");
-                                }
-
-                                this.ReExpandFolder(blobSizesConnection, folderPlaceholder.Path, updatedPlaceholderDictionary, folderPlaceholders);
+                                this.ReExpandFolder(blobSizesConnection, folderPlaceholder.Path, existingPlaceholders);
                             }
+                        }
+                        else
+                        {
+                            existingPlaceholders?.Remove(folderPlaceholder.Path);
+                            this.placeholderDatabase.Remove(folderPlaceholder.Path);
                         }
                     }
                 }
@@ -1216,26 +1188,6 @@ namespace GVFS.Virtualization.Projection
                 long millisecondsUpdatingFolderPlaceholders = stopwatch.ElapsedMilliseconds;
 
                 stopwatch.Restart();
-                if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
-                {
-                    if (updatedPlaceholderBag != null)
-                    {
-                        throw new InvalidOperationException(
-                            $"{nameof(updatedPlaceholderBag)} should only be used when enumeration does not expand directories");
-                    }
-
-                    this.placeholderList.WriteAllEntriesAndFlush(updatedPlaceholderDictionary.Values);
-                }
-                else
-                {
-                    if (updatedPlaceholderDictionary != null)
-                    {
-                        throw new InvalidOperationException(
-                            $"{nameof(updatedPlaceholderDictionary)} should only be used when enumeration expands directories");
-                    }
-
-                    this.placeholderList.WriteAllEntriesAndFlush(updatedPlaceholderBag);
-                }
 
                 this.repoMetadata.SetPlaceholdersNeedUpdate(false);
 
@@ -1401,13 +1353,14 @@ namespace GVFS.Virtualization.Projection
         private void ReExpandFolder(
             BlobSizes.BlobSizesConnection blobSizesConnection,
             string relativeFolderPath,
-            ConcurrentDictionary<string, IPlaceholderData> updatedPlaceholderList,
-            HashSet<string> existingFolderPlaceholders)
+            HashSet<string> existingPlaceholders)
         {
             FolderData folderData;
             if (!this.TryGetOrAddFolderDataFromCache(relativeFolderPath, out folderData))
             {
                 // Folder is no longer in the projection
+                existingPlaceholders.Remove(relativeFolderPath);
+                this.placeholderDatabase.Remove(relativeFolderPath);
                 return;
             }
 
@@ -1432,37 +1385,39 @@ namespace GVFS.Virtualization.Projection
                     childRelativePath = relativeFolderPath + Path.DirectorySeparatorChar + childEntry.Name.GetString();
                 }
 
-                bool newChild = childEntry.IsFolder ? !existingFolderPlaceholders.Contains(childRelativePath) : !updatedPlaceholderList.ContainsKey(childRelativePath);
-
-                if (newChild)
+                if (!existingPlaceholders.Contains(childRelativePath))
                 {
                     FileSystemResult result;
-                    string fileShaOrFolderValue;
                     if (childEntry.IsFolder)
                     {
-                        fileShaOrFolderValue = PlaceholderListDatabase.PartialFolderValue;
                         result = this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
+                        if (result.Result == FSResult.Ok)
+                        {
+                            this.placeholderDatabase.AddPartialFolder(childRelativePath);
+                        }
                     }
                     else
                     {
                         FileData childFileData = childEntry as FileData;
-                        fileShaOrFolderValue = childFileData.Sha.ToString();
-                        result = this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, fileShaOrFolderValue);
+                        string fileSha = childFileData.Sha.ToString();
+                        result = this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, fileSha);
+                        if (result.Result == FSResult.Ok)
+                        {
+                            this.placeholderDatabase.AddFile(childRelativePath, fileSha);
+                        }
                     }
 
                     switch (result.Result)
                     {
                         case FSResult.Ok:
-                            updatedPlaceholderList.TryAdd(
-                                childRelativePath,
-                                new PlaceholderListDatabase.PlaceholderData(childRelativePath, fileShaOrFolderValue));
                             break;
 
                         case FSResult.FileOrPathNotFound:
                             // Git command must have removed the folder being re-expanded (relativeFolderPath)
                             // Remove the folder from existingFolderPlaceholders so that its parent will create
                             // it again (when it's re-expanded)
-                            existingFolderPlaceholders.Remove(relativeFolderPath);
+                            existingPlaceholders.Remove(relativeFolderPath);
+                            this.placeholderDatabase.Remove(relativeFolderPath);
                             return;
 
                         default:
@@ -1507,7 +1462,6 @@ namespace GVFS.Virtualization.Projection
         private void UpdateOrDeleteFilePlaceholder(
             BlobSizes.BlobSizesConnection blobSizesConnection,
             IPlaceholderData placeholder,
-            Action<IPlaceholderData> addPlaceholderToUpdatedPlaceholders,
             ConcurrentHashSet<string> folderPlaceholdersToKeep,
             Dictionary<string, long> availableSizes)
         {
@@ -1524,7 +1478,6 @@ namespace GVFS.Virtualization.Projection
                     placeholder,
                     string.Empty,
                     result,
-                    addPlaceholderToUpdatedPlaceholders,
                     failureReason,
                     parentKey,
                     folderPlaceholdersToKeep,
@@ -1567,7 +1520,6 @@ namespace GVFS.Virtualization.Projection
                         placeholder,
                         projectedSha,
                         result,
-                        addPlaceholderToUpdatedPlaceholders,
                         failureReason,
                         parentKey,
                         folderPlaceholdersToKeep,
@@ -1575,7 +1527,6 @@ namespace GVFS.Virtualization.Projection
                 }
                 else
                 {
-                    addPlaceholderToUpdatedPlaceholders(placeholder);
                     this.AddParentFoldersToListToKeep(parentKey, folderPlaceholdersToKeep);
                 }
             }
@@ -1585,7 +1536,6 @@ namespace GVFS.Virtualization.Projection
             IPlaceholderData placeholder,
             string projectedSha,
             FileSystemResult result,
-            Action<IPlaceholderData> addPlaceholderToUpdatedPlaceholders,
             UpdateFailureReason failureReason,
             string parentKey,
             ConcurrentHashSet<string> folderPlaceholdersToKeep,
@@ -1597,8 +1547,9 @@ namespace GVFS.Virtualization.Projection
                 case FSResult.Ok:
                     if (!deleteOperation)
                     {
-                        addPlaceholderToUpdatedPlaceholders(new PlaceholderListDatabase.PlaceholderData(placeholder.Path, projectedSha));
+                        this.placeholderDatabase.AddFile(placeholder.Path, projectedSha);
                         this.AddParentFoldersToListToKeep(parentKey, folderPlaceholdersToKeep);
+                        return;
                     }
 
                     break;
@@ -1679,6 +1630,8 @@ namespace GVFS.Virtualization.Projection
 
                     break;
             }
+
+            this.placeholderDatabase.Remove(placeholder.Path);
         }
 
         private void AddParentFoldersToListToKeep(string parentKey, ConcurrentHashSet<string> folderPlaceholdersToKeep)

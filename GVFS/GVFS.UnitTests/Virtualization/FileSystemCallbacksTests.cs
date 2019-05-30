@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
@@ -10,6 +11,7 @@ using GVFS.UnitTests.Mock.Virtualization.Projection;
 using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization;
 using GVFS.Virtualization.Background;
+using Moq;
 using NUnit.Framework;
 using System;
 using System.IO;
@@ -52,6 +54,8 @@ namespace GVFS.UnitTests.Virtualization
         [TestCase]
         public void BackgroundOperationCountMatchesBackgroundFileSystemTaskRunner()
         {
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -60,7 +64,8 @@ namespace GVFS.UnitTests.Virtualization
                 new MockBlobSizes(),
                 gitIndexProjection: null,
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: null))
+                fileSystemVirtualizer: null,
+                placeholderDatabase: mockPlaceholderDb.Object))
             {
                 fileSystemCallbacks.BackgroundOperationCount.ShouldEqual(backgroundTaskRunner.Count);
 
@@ -69,11 +74,15 @@ namespace GVFS.UnitTests.Virtualization
                 backgroundTaskRunner.Count.ShouldEqual(2);
                 fileSystemCallbacks.BackgroundOperationCount.ShouldEqual(backgroundTaskRunner.Count);
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void GetMetadataForHeartBeatDoesNotChangeEventLevelWhenNoPlaceholderHaveBeenCreated()
         {
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(0);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -82,7 +91,8 @@ namespace GVFS.UnitTests.Virtualization
                 new MockBlobSizes(),
                 gitIndexProjection: null,
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: null))
+                fileSystemVirtualizer: null,
+                placeholderDatabase: mockPlaceholderDb.Object))
             {
                 EventLevel eventLevel = EventLevel.Verbose;
                 EventMetadata metadata = fileSystemCallbacks.GetMetadataForHeartBeat(ref eventLevel);
@@ -93,11 +103,19 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("PlaceholderCount", 0);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void GetMetadataForHeartBeatDoesSetsEventLevelWToInformationalWhenPlaceholdersHaveBeenCreated()
         {
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            int placeholderCount = 0;
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(() => placeholderCount);
+            mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "1111122222333334444455555666667777788888")).Callback(() => ++placeholderCount);
+            mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "2222233333444445555566666777778888899999")).Callback(() => ++placeholderCount);
+            mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "3333344444555556666677777888889999900000")).Callback(() => ++placeholderCount);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -106,7 +124,8 @@ namespace GVFS.UnitTests.Virtualization
                 new MockBlobSizes(),
                 gitIndexProjection: null,
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: null))
+                fileSystemVirtualizer: null,
+                placeholderDatabase: mockPlaceholderDb.Object))
             {
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "1111122222333334444455555666667777788888", "GVFS.UnitTests.exe");
 
@@ -141,11 +160,15 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void IsReadyForExternalAcquireLockRequests()
         {
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockFileSystemVirtualizer fileSystemVirtualizer = new MockFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects))
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -156,7 +179,8 @@ namespace GVFS.UnitTests.Virtualization
                 new MockBlobSizes(),
                 gitIndexProjection: gitIndexProjection,
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: fileSystemVirtualizer))
+                fileSystemVirtualizer: fileSystemVirtualizer,
+                placeholderDatabase: mockPlaceholderDb.Object))
             {
                 string denyMessage;
                 fileSystemCallbacks.IsReadyForExternalAcquireLockRequests(
@@ -209,11 +233,15 @@ namespace GVFS.UnitTests.Virtualization
 
                 fileSystemCallbacks.Stop();
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void FileAndFolderCallbacksScheduleBackgroundTasks()
         {
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -222,7 +250,8 @@ namespace GVFS.UnitTests.Virtualization
                 new MockBlobSizes(),
                 gitIndexProjection: null,
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: null))
+                fileSystemVirtualizer: null,
+                placeholderDatabase: mockPlaceholderDb.Object))
             {
                 this.CallbackSchedulesBackgroundTask(
                     backgroundTaskRunner,
@@ -286,11 +315,15 @@ namespace GVFS.UnitTests.Virtualization
                     "OnFolderRenamed2.txt",
                     FileSystemTask.OperationType.OnFolderRenamed);
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         [TestCase]
         public void TestFileSystemOperationsInvalidateStatusCache()
         {
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockFileSystemVirtualizer fileSystemVirtualizer = new MockFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects))
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -303,6 +336,7 @@ namespace GVFS.UnitTests.Virtualization
                 gitIndexProjection: gitIndexProjection,
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: fileSystemVirtualizer,
+                placeholderDatabase: mockPlaceholderDb.Object,
                 gitStatusCache: gitStatusCache))
             {
                 this.ValidateActionInvalidatesStatusCache(backgroundTaskRunner, gitStatusCache, fileSystemCallbacks.OnFileConvertedToFull, "OnFileConvertedToFull.txt", FileSystemTask.OperationType.OnFileConvertedToFull);
@@ -314,6 +348,8 @@ namespace GVFS.UnitTests.Virtualization
                 this.ValidateActionInvalidatesStatusCache(backgroundTaskRunner, gitStatusCache, fileSystemCallbacks.OnFolderDeleted, "OnFileSuperseded.txt", FileSystemTask.OperationType.OnFolderDeleted);
                 this.ValidateActionInvalidatesStatusCache(backgroundTaskRunner, gitStatusCache, fileSystemCallbacks.OnFileConvertedToFull, "OnFileConvertedToFull.txt", FileSystemTask.OperationType.OnFileConvertedToFull);
             }
+
+            mockPlaceholderDb.VerifyAll();
         }
 
         private void ValidateActionInvalidatesStatusCache(

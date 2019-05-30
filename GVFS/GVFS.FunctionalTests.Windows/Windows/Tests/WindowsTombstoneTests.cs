@@ -15,6 +15,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class WindowsTombstoneTests : TestsWithEnlistmentPerFixture
     {
         private const string Delimiter = "\r\n";
+        private const int TombstoneFolderPlaceholderType = 3;
         private FileSystemRunner fileSystem;
 
         public WindowsTombstoneTests()
@@ -38,14 +39,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             modifiedPathsContent = string.Join(Delimiter, modifiedPathsContent.Split(new[] { Delimiter }, StringSplitOptions.RemoveEmptyEntries).Where(x => !x.StartsWith($"A {folderToDelete}/")));
             this.fileSystem.WriteAllText(modifiedPathsFile, modifiedPathsContent + Delimiter);
 
-            // Add tombstone folder entry to the placeholder file so the checkout will remove the tombstone
+            // Add tombstone folder entry to the placeholder database so the checkout will remove the tombstone
             // and start projecting the folder again
-            string placeholderListFile = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.PlaceholderList);
-            string placeholderListContent = this.fileSystem.ReadAllText(placeholderListFile);
-            placeholderListContent = string.Join(Delimiter, placeholderListContent.Split(new[] { Delimiter }, StringSplitOptions.RemoveEmptyEntries).Where(x => !x.StartsWith($"A {folderToDelete}")));
-            this.fileSystem.WriteAllText(placeholderListFile, placeholderListContent + Delimiter);
-            string tombstoneEntry = $"A {folderToDelete}\0               POSSIBLE TOMBSTONE FOLDER{Delimiter}";
-            this.fileSystem.AppendAllText(placeholderListFile, tombstoneEntry);
+            string placeholderDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit);
+            GVFSHelpers.AddPlaceholderFolder(placeholderDatabasePath, folderToDelete, TombstoneFolderPlaceholderType);
 
             this.Enlistment.MountGVFS();
             directoryToDelete.ShouldNotExistOnDisk(this.fileSystem);
@@ -55,8 +52,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             directoryToDelete.ShouldBeADirectory(this.fileSystem);
 
             this.Enlistment.UnmountGVFS();
-            placeholderListContent = this.fileSystem.ReadAllText(placeholderListFile);
-            placeholderListContent.ShouldNotContain(ignoreCase: false, unexpectedSubstrings: tombstoneEntry);
+
+            string placholders = GVFSHelpers.GetAllSQLitePlaceholdersAsString(placeholderDatabasePath);
+            placholders.ShouldNotContain(ignoreCase: false, unexpectedSubstrings: $"{folderToDelete}{GVFSHelpers.PlaceholderFieldDelimiter}{TombstoneFolderPlaceholderType}{GVFSHelpers.PlaceholderFieldDelimiter}");
         }
     }
 }

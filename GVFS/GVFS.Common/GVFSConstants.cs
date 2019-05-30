@@ -112,6 +112,7 @@ namespace GVFS.Common
                 public static readonly string PlaceholderList = Path.Combine(Name, "PlaceholderList.dat");
                 public static readonly string ModifiedPaths = Path.Combine(Name, "ModifiedPaths.dat");
                 public static readonly string RepoMetadata = Path.Combine(Name, "RepoMetadata.dat");
+                public static readonly string VFSForGit = Path.Combine(Name, "VFSForGit.sqlite");
             }
 
             public static class GitStatusCache

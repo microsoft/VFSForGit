@@ -2,10 +2,12 @@
 
 namespace GVFS.Common.Database
 {
-    public interface IPlaceholderDatabase
+    /// <summary>
+    /// Interface for interacting with placeholders
+    /// </summary>
+    public interface IPlaceholderCollection
     {
-        int Count { get; }
-
+        int GetCount();
         void GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
         HashSet<string> GetAllFilePaths();
 

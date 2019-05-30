@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
@@ -31,6 +32,7 @@ namespace GVFS.Virtualization
         private readonly string logsHeadPath;
 
         private GVFSContext context;
+        private IPlaceholderCollection placeholderDatabase;
         private ModifiedPathsDatabase modifiedPaths;
         private ConcurrentHashSet<string> newlyCreatedFileAndFolderPaths;
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> placeHolderCreationCount;
@@ -41,19 +43,6 @@ namespace GVFS.Virtualization
         private GitStatusCache gitStatusCache;
         private bool enableGitStatusCache;
 
-        public FileSystemCallbacks(GVFSContext context, GVFSGitObjects gitObjects, RepoMetadata repoMetadata, FileSystemVirtualizer fileSystemVirtualizer, GitStatusCache gitStatusCache)
-            : this(
-                  context,
-                  gitObjects,
-                  repoMetadata,
-                  new BlobSizes(context.Enlistment.BlobSizesRoot, context.FileSystem, context.Tracer),
-                  gitIndexProjection: null,
-                  backgroundFileSystemTaskRunner: null,
-                  fileSystemVirtualizer: fileSystemVirtualizer,
-                  gitStatusCache: gitStatusCache)
-        {
-        }
-
         public FileSystemCallbacks(
             GVFSContext context,
             GVFSGitObjects gitObjects,
@@ -62,6 +51,7 @@ namespace GVFS.Virtualization
             GitIndexProjection gitIndexProjection,
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
+            IPlaceholderCollection placeholderDatabase,
             GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;
@@ -83,27 +73,17 @@ namespace GVFS.Virtualization
                 throw new InvalidRepoException(error);
             }
 
-            this.BlobSizes = blobSizes;
+            this.BlobSizes = blobSizes ?? new BlobSizes(context.Enlistment.BlobSizesRoot, context.FileSystem, context.Tracer);
             this.BlobSizes.Initialize();
 
-            PlaceholderListDatabase placeholders;
-            if (!PlaceholderListDatabase.TryCreate(
-                this.context.Tracer,
-                Path.Combine(this.context.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList),
-                this.context.FileSystem,
-                out placeholders,
-                out error))
-            {
-                throw new InvalidRepoException(error);
-            }
-
+            this.placeholderDatabase = placeholderDatabase;
             this.GitIndexProjection = gitIndexProjection ?? new GitIndexProjection(
                 context,
                 gitObjects,
                 this.BlobSizes,
                 repoMetadata,
                 fileSystemVirtualizer,
-                placeholders,
+                this.placeholderDatabase,
                 this.modifiedPaths);
 
             if (backgroundFileSystemTaskRunner != null)
@@ -133,7 +113,7 @@ namespace GVFS.Virtualization
             this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Logs.Head);
 
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("placeholders.Count", placeholders.Count);
+            metadata.Add("placeholders.Count", this.placeholderDatabase.GetCount());
             metadata.Add("background.Count", this.backgroundFileSystemTaskRunner.Count);
             metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(FileSystemCallbacks)} created");
             this.context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(FileSystemCallbacks)}_Constructor", metadata);
@@ -302,7 +282,7 @@ namespace GVFS.Virtualization
             }
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
-            metadata.Add("PlaceholderCount", this.GitIndexProjection.PlaceholderCount);
+            metadata.Add("PlaceholderCount", this.placeholderDatabase.GetCount());
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {
                 eventLevel = EventLevel.Informational;

@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
@@ -27,6 +28,7 @@ namespace GVFS.Mount
         private readonly bool showDebugWindow;
 
         private FileSystemCallbacks fileSystemCallbacks;
+        private GVFSDatabase gvfsDatabase;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
         private GitMaintenanceScheduler maintenanceScheduler;
@@ -550,7 +552,21 @@ namespace GVFS.Mount
                 this.tracer.RelatedInfo("Git status cache is not enabled");
             }
 
-            this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer, gitStatusCache), "Failed to create src folder callback listener");
+            this.gvfsDatabase = this.CreateOrReportAndExit(() => new GVFSDatabase(this.context.FileSystem, this.context.Enlistment.EnlistmentRoot, new SqliteDatabase()), "Failed to create database connection");
+            this.fileSystemCallbacks = this.CreateOrReportAndExit(
+                () =>
+                {
+                    return new FileSystemCallbacks(
+                        this.context,
+                        this.gitObjects,
+                        RepoMetadata.Instance,
+                        blobSizes: null,
+                        gitIndexProjection: null,
+                        backgroundFileSystemTaskRunner: null,
+                        fileSystemVirtualizer: virtualizer,
+                        placeholderDatabase: new PlaceholderTable(this.gvfsDatabase),
+                        gitStatusCache: gitStatusCache);
+                }, "Failed to create src folder callback listener");
             this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
 
             int majorVersion;
@@ -604,6 +620,9 @@ namespace GVFS.Mount
                 this.fileSystemCallbacks.Dispose();
                 this.fileSystemCallbacks = null;
             }
+
+            this.gvfsDatabase?.Dispose();
+            this.gvfsDatabase = null;
         }
     }
 }

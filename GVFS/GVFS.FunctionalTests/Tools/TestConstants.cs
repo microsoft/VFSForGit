@@ -34,8 +34,9 @@ namespace GVFS.FunctionalTests.Tools
         public static class Databases
         {
             public const string Root = "databases";
+            public static readonly string BackgroundOpsFile = Path.Combine(Root, "BackgroundGitOperations.dat");
             public static readonly string ModifiedPaths = Path.Combine(Root, "ModifiedPaths.dat");
-            public static readonly string PlaceholderList = Path.Combine(Root, "PlaceholderList.dat");
+            public static readonly string VFSForGit = Path.Combine(Root, "VFSForGit.sqlite");
         }
     }
 }

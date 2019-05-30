@@ -9,7 +9,7 @@ using System.Collections.Generic;
 namespace GVFS.UnitTests.Common
 {
     [TestFixture]
-    public class PlaceholderDatabaseTests
+    public class LegacyPlaceholderDatabaseTests
     {
         private const string MockEntryFileName = "mock:\\entries.dat";
 
@@ -32,7 +32,7 @@ namespace GVFS.UnitTests.Common
         public void ParsesExistingDataCorrectly()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(
+            LegacyPlaceholderListDatabase dut = CreatePlaceholderListDatabase(
                 fs,
                 "A .gitignore\0AE930E4CF715315FC90D4AEC98E16A7398F8BF64\r\n" +
                 "A Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt\0B6948308A8633CC1ED94285A1F6BF33E35B7C321\r\n" +
@@ -44,14 +44,14 @@ namespace GVFS.UnitTests.Common
                 "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n" +
                 "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n" +
                 "D Test_EPF_UpdatePlaceholderTests\\LockToPreventUpdate\\test.txt\r\n");
-            dut.Count.ShouldEqual(5);
+            dut.GetCount().ShouldEqual(5);
         }
 
         [TestCase]
         public void WritesPlaceholderAddToFile()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
+            LegacyPlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
             dut.AddFile(InputGitIgnorePath, InputGitIgnoreSHA);
 
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedGitIgnoreEntry);
@@ -65,7 +65,7 @@ namespace GVFS.UnitTests.Common
         public void GetAllEntriesReturnsCorrectEntries()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
-            using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
+            using (LegacyPlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
             {
                 dut1.AddFile(InputGitIgnorePath, InputGitIgnoreSHA);
                 dut1.AddFile(InputGitAttributesPath, InputGitAttributesSHA);
@@ -74,8 +74,8 @@ namespace GVFS.UnitTests.Common
             }
 
             string error;
-            PlaceholderListDatabase dut2;
-            PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
+            LegacyPlaceholderListDatabase dut2;
+            LegacyPlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
             List<IPlaceholderData> allData = dut2.GetAllEntries();
             allData.Count.ShouldEqual(2);
         }
@@ -84,7 +84,7 @@ namespace GVFS.UnitTests.Common
         public void GetAllEntriesSplitsFilesAndFoldersCorrectly()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
-            using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
+            using (LegacyPlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
             {
                 dut1.AddFile(InputGitIgnorePath, InputGitIgnoreSHA);
                 dut1.AddPartialFolder("partialFolder");
@@ -96,8 +96,8 @@ namespace GVFS.UnitTests.Common
             }
 
             string error;
-            PlaceholderListDatabase dut2;
-            PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
+            LegacyPlaceholderListDatabase dut2;
+            LegacyPlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
             List<IPlaceholderData> fileData;
             List<IPlaceholderData> folderData;
             dut2.GetAllEntries(out fileData, out folderData);
@@ -106,9 +106,9 @@ namespace GVFS.UnitTests.Common
             folderData.ShouldContain(
                 new[]
                 {
-                    new PlaceholderListDatabase.PlaceholderData("partialFolder", PlaceholderListDatabase.PartialFolderValue),
-                    new PlaceholderListDatabase.PlaceholderData("expandedFolder", PlaceholderListDatabase.ExpandedFolderValue),
-                    new PlaceholderListDatabase.PlaceholderData("tombstone", PlaceholderListDatabase.PossibleTombstoneFolderValue),
+                    new LegacyPlaceholderListDatabase.PlaceholderData("partialFolder", LegacyPlaceholderListDatabase.PartialFolderValue),
+                    new LegacyPlaceholderListDatabase.PlaceholderData("expandedFolder", LegacyPlaceholderListDatabase.ExpandedFolderValue),
+                    new LegacyPlaceholderListDatabase.PlaceholderData("tombstone", LegacyPlaceholderListDatabase.PossibleTombstoneFolderValue),
                 },
                 (data1, data2) => data1.Path == data2.Path && data1.Sha == data2.Sha);
         }
@@ -119,12 +119,12 @@ namespace GVFS.UnitTests.Common
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             fs.ExpectedFiles.Add(MockEntryFileName + ".tmp", new ReusableMemoryStream(string.Empty));
 
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
+            LegacyPlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
 
-            List<PlaceholderListDatabase.PlaceholderData> allData = new List<PlaceholderListDatabase.PlaceholderData>()
+            List<LegacyPlaceholderListDatabase.PlaceholderData> allData = new List<LegacyPlaceholderListDatabase.PlaceholderData>()
             {
-                new PlaceholderListDatabase.PlaceholderData(InputGitIgnorePath, InputGitIgnoreSHA),
-                new PlaceholderListDatabase.PlaceholderData(InputGitAttributesPath, InputGitAttributesSHA)
+                new LegacyPlaceholderListDatabase.PlaceholderData(InputGitIgnorePath, InputGitIgnoreSHA),
+                new LegacyPlaceholderListDatabase.PlaceholderData(InputGitAttributesPath, InputGitAttributesSHA)
             };
 
             dut.WriteAllEntriesAndFlush(allData);
@@ -137,7 +137,7 @@ namespace GVFS.UnitTests.Common
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             fs.ExpectedFiles.Add(MockEntryFileName + ".tmp", new ReusableMemoryStream(string.Empty));
 
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedGitIgnoreEntry);
+            LegacyPlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedGitIgnoreEntry);
 
             List<IPlaceholderData> existingEntries = dut.GetAllEntries();
 
@@ -155,7 +155,7 @@ namespace GVFS.UnitTests.Common
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             fs.ExpectedFiles.Add(MockEntryFileName + ".tmp", new ReusableMemoryStream(string.Empty));
 
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedTwoEntries);
+            LegacyPlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedTwoEntries);
 
             List<IPlaceholderData> existingEntries = dut.GetAllEntries();
 
@@ -165,13 +165,13 @@ namespace GVFS.UnitTests.Common
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedTwoEntries + DeleteGitAttributesEntry);
         }
 
-        private static PlaceholderListDatabase CreatePlaceholderListDatabase(ConfigurableFileSystem fs, string initialContents)
+        private static LegacyPlaceholderListDatabase CreatePlaceholderListDatabase(ConfigurableFileSystem fs, string initialContents)
         {
             fs.ExpectedFiles.Add(MockEntryFileName, new ReusableMemoryStream(initialContents));
 
             string error;
-            PlaceholderListDatabase dut;
-            PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut, out error).ShouldEqual(true, error);
+            LegacyPlaceholderListDatabase dut;
+            LegacyPlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut, out error).ShouldEqual(true, error);
             dut.ShouldNotBeNull();
             return dut;
         }

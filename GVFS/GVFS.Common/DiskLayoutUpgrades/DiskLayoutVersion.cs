@@ -1,12 +1,4 @@
-﻿using GVFS.Common;
-using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
-using GVFS.Common.Tracing;
-using System;
-using System.Collections.Generic;
-using System.IO;
-
-namespace GVFS.Common
+﻿namespace GVFS.Common
 {
     public class DiskLayoutVersion
     {
