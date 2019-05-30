@@ -21,6 +21,7 @@ namespace GVFS.UnitTests.Common.Database
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void ConstructorThrowsGVFSDatabaseException()
         {
             GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestGVFSDatabase(null, throwException: true));
