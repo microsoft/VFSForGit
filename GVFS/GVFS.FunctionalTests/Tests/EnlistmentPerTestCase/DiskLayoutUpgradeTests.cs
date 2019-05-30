@@ -12,15 +12,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         protected static readonly string PlaceholderListDatabaseContent = $@"A .gitignore{GVFSHelpers.PlaceholderFieldDelimiter}E9630E4CF715315FC90D4AEC98E16A7398F8BF64
 A Readme.md{GVFSHelpers.PlaceholderFieldDelimiter}583F1A56DB7CC884D54534C5D9C56B93A1E00A2B
 A Scripts{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A Scripts\RunUnitTests.bat{GVFSHelpers.PlaceholderFieldDelimiter}0112E0DD6FC64BF57C4735F4D7D6E018C0F34B6D
+A Scripts{Path.DirectorySeparatorChar}RunUnitTests.bat{GVFSHelpers.PlaceholderFieldDelimiter}0112E0DD6FC64BF57C4735F4D7D6E018C0F34B6D
 A GVFS{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Common{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Common\Git{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Common\Git\GitRefs.cs{GVFSHelpers.PlaceholderFieldDelimiter}37595A9C6C7E00A8AFDE306765896770F2508927
-A GVFS\GVFS.Tests{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Tests\Properties{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
-A GVFS\GVFS.Tests\Properties\AssemblyInfo.cs{GVFSHelpers.PlaceholderFieldDelimiter}5911485CFE87E880F64B300BA5A289498622DBC1
-D GVFS\GVFS.Tests\Properties\AssemblyInfo.cs
+A GVFS{Path.DirectorySeparatorChar}GVFS.Common{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A GVFS{Path.DirectorySeparatorChar}GVFS.Common{Path.DirectorySeparatorChar}Git{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A GVFS{Path.DirectorySeparatorChar}GVFS.Common{Path.DirectorySeparatorChar}Git{Path.DirectorySeparatorChar}GitRefs.cs{GVFSHelpers.PlaceholderFieldDelimiter}37595A9C6C7E00A8AFDE306765896770F2508927
+A GVFS{Path.DirectorySeparatorChar}GVFS.Tests{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A GVFS{Path.DirectorySeparatorChar}GVFS.Tests{Path.DirectorySeparatorChar}Properties{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}
+A GVFS{Path.DirectorySeparatorChar}GVFS.Tests{Path.DirectorySeparatorChar}Properties{Path.DirectorySeparatorChar}AssemblyInfo.cs{GVFSHelpers.PlaceholderFieldDelimiter}5911485CFE87E880F64B300BA5A289498622DBC1
+D GVFS{Path.DirectorySeparatorChar}GVFS.Tests{Path.DirectorySeparatorChar}Properties{Path.DirectorySeparatorChar}AssemblyInfo.cs
 ";
 
         protected FileSystemRunner fileSystem = new SystemIORunner();
@@ -31,14 +31,14 @@ D GVFS\GVFS.Tests\Properties\AssemblyInfo.cs
         protected void PlaceholderDatabaseShouldIncludeCommonLines(string[] placeholderLines)
         {
             placeholderLines.ShouldContain(x => x.Contains(this.FilePlaceholderString("Readme.md")));
-            placeholderLines.ShouldContain(x => x.Contains(this.FilePlaceholderString("Scripts\\RunUnitTests.bat")));
-            placeholderLines.ShouldContain(x => x.Contains(this.FilePlaceholderString("GVFS\\GVFS.Common\\Git\\GitRefs.cs")));
+            placeholderLines.ShouldContain(x => x.Contains(this.FilePlaceholderString("Scripts", "RunUnitTests.bat")));
+            placeholderLines.ShouldContain(x => x.Contains(this.FilePlaceholderString("GVFS", "GVFS.Common", "Git", "GitRefs.cs")));
             placeholderLines.ShouldContain(x => x.Contains(this.FilePlaceholderString(".gitignore")));
             placeholderLines.ShouldContain(x => x == this.PartialFolderPlaceholderString("Scripts"));
             placeholderLines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS"));
-            placeholderLines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS\\GVFS.Common"));
-            placeholderLines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS\\GVFS.Common\\Git"));
-            placeholderLines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS\\GVFS.Tests"));
+            placeholderLines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS", "GVFS.Common"));
+            placeholderLines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS", "GVFS.Common", "Git"));
+            placeholderLines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS", "GVFS.Tests"));
         }
 
         protected void WriteOldPlaceholderListDatabase()
@@ -50,15 +50,15 @@ D GVFS\GVFS.Tests\Properties\AssemblyInfo.cs
         {
             // Create some placeholder data
             this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "Readme.md"));
-            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "Scripts\\RunUnitTests.bat"));
-            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
+            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunUnitTests.bat"));
+            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Common", "Git", "GitRefs.cs"));
 
             // Create a full folder
-            this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\FullFolder"));
-            this.fileSystem.WriteAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\FullFolder\\test.txt"), "Test contents");
+            this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS", "FullFolder"));
+            this.fileSystem.WriteAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS", "FullFolder", "test.txt"), "Test contents");
 
             // Create a tombstone
-            this.fileSystem.DeleteDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\GVFS.Tests\\Properties"));
+            this.fileSystem.DeleteDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Tests", "Properties"));
 
             string junctionTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirJunction");
             string symLinkTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirSymLink");
@@ -103,14 +103,14 @@ D GVFS\GVFS.Tests\Properties\AssemblyInfo.cs
             return lines;
         }
 
-        protected string FilePlaceholderString(string path)
+        protected string FilePlaceholderString(params string[] pathParts)
         {
-            return $"{path}{GVFSHelpers.PlaceholderFieldDelimiter}0{GVFSHelpers.PlaceholderFieldDelimiter}";
+            return $"{Path.Combine(pathParts)}{GVFSHelpers.PlaceholderFieldDelimiter}0{GVFSHelpers.PlaceholderFieldDelimiter}";
         }
 
-        protected string PartialFolderPlaceholderString(string path)
+        protected string PartialFolderPlaceholderString(params string[] pathParts)
         {
-            return $"{path}{GVFSHelpers.PlaceholderFieldDelimiter}1{GVFSHelpers.PlaceholderFieldDelimiter}";
+            return $"{Path.Combine(pathParts)}{GVFSHelpers.PlaceholderFieldDelimiter}1{GVFSHelpers.PlaceholderFieldDelimiter}";
         }
 
         protected void ValidatePersistedVersionMatchesCurrentVersion()

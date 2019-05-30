@@ -349,7 +349,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
             string[] lines = GVFSHelpers.GetAllSQLitePlaceholdersAsString(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             lines.Length.ShouldEqual(10);
             this.PlaceholderDatabaseShouldIncludeCommonLines(lines);
-            lines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS\\GVFS.Tests\\Properties"));
+            lines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS", "GVFS.Tests", "Properties"));
             return lines;
         }
 
@@ -377,12 +377,12 @@ namespace GVFS.FunctionalTests.Windows.Tests
                 .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
 
             // We're starting with fresh enlisments, and so the legacy cache location: <root>\.gvfs\gitObjectCache should not be on disk
-            Path.Combine(this.Enlistment.DotGVFSRoot, @".gvfs\gitObjectCache").ShouldNotExistOnDisk(this.fileSystem);
+            Path.Combine(this.Enlistment.DotGVFSRoot, ".gvfs", "gitObjectCache").ShouldNotExistOnDisk(this.fileSystem);
 
             // The upgrader should set GitObjectsRoot to src\.git\objects (because the legacy cache location is not on disk)
             GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot)
                 .ShouldNotBeNull("GitObjectsRoot should not be null")
-                .ShouldEqual(Path.Combine(this.Enlistment.RepoRoot, @".git\objects"));
+                .ShouldEqual(Path.Combine(this.Enlistment.RepoRoot, ".git", "objects"));
         }
     }
 }

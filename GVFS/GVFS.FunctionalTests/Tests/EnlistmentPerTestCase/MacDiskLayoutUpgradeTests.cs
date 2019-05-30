@@ -1,5 +1,4 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
-using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -38,7 +37,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string[] lines = GVFSHelpers.GetAllSQLitePlaceholdersAsString(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             lines.Length.ShouldEqual(10);
             this.PlaceholderDatabaseShouldIncludeCommonLines(lines);
-            lines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS\\GVFS.Tests\\Properties"));
+            lines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS", "GVFS.Tests", "Properties"));
 
             this.ValidatePersistedVersionMatchesCurrentVersion();
         }
