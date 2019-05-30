@@ -337,6 +337,21 @@ namespace GVFS.Platform.Windows
             }
         }
 
+        public override string GetUpgradeLogDirectoryParentDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return GetUpgradeProtectedDataDirectoryImplementation();
+        }
+
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);
 
         public override bool IsConsoleOutputRedirectedToFile()

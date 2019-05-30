@@ -268,7 +268,7 @@ namespace GVFS.CommandLine
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCopyUpgradeTool), EventLevel.Informational))
             {
-                if (!this.upgrader.TrySetupToolsDirectory(out upgraderExePath, out consoleError))
+                if (!this.upgrader.TrySetupUpgradeApplicationDirectory(out upgraderExePath, out consoleError))
                 {
                     return false;
                 }

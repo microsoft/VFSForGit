@@ -20,7 +20,6 @@ namespace GVFS.Common
 
     public abstract class ProductUpgrader : IDisposable
     {
-        public const string ToolsDirectory = "Tools";
         protected readonly Version installedVersion;
         protected readonly ITracer tracer;
         protected readonly PhysicalFileSystem fileSystem;
@@ -28,8 +27,6 @@ namespace GVFS.Common
         protected bool noVerify;
         protected bool dryRun;
         protected ProductUpgraderPlatformStrategy productUpgraderPlatformStrategy;
-
-        private static readonly string UpgraderToolName = GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName;
 
         protected ProductUpgrader(
             string currentVersion,
@@ -168,14 +165,13 @@ namespace GVFS.Common
 
         public abstract bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error);
 
-        public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
+        public virtual bool TrySetupUpgradeApplicationDirectory(out string upgradeApplicationPath, out string error)
         {
-            string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
+            string upgradeApplicationDirectory = ProductUpgraderInfo.GetUpgradeApplicationDirectory();
 
             if (!this.productUpgraderPlatformStrategy.TryPrepareApplicationDirectory(out error))
             {
-                upgraderToolPath = null;
+                upgradeApplicationPath = null;
                 return false;
             }
 
@@ -183,31 +179,33 @@ namespace GVFS.Common
             error = null;
             try
             {
-                this.fileSystem.CopyDirectoryRecursive(currentPath, toolsDirectoryPath);
+                this.fileSystem.CopyDirectoryRecursive(currentPath, upgradeApplicationDirectory);
             }
             catch (UnauthorizedAccessException e)
             {
                 error = string.Join(
                     Environment.NewLine,
                     "File copy error - " + e.Message,
-                    $"Make sure you have write permissions to directory {toolsDirectoryPath} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
+                    $"Make sure you have write permissions to directory {upgradeApplicationDirectory} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
             }
             catch (IOException e)
             {
                 error = "File copy error - " + e.Message;
-                this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {currentPath} to {toolsDirectoryPath}.");
+                this.TraceException(e, nameof(this.TrySetupUpgradeApplicationDirectory), $"Error copying {currentPath} to {upgradeApplicationDirectory}.");
             }
 
             if (string.IsNullOrEmpty(error))
             {
                 // There was no error - set upgradeToolPath and return success.
-                upgraderToolPath = Path.Combine(toolsDirectoryPath, UpgraderToolName);
+                upgradeApplicationPath = Path.Combine(
+                    upgradeApplicationDirectory,
+                    GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName);
                 return true;
             }
             else
             {
                 // Encountered error - do not set upgrade tool path and return failure.
-                upgraderToolPath = null;
+                upgradeApplicationPath = null;
                 return false;
             }
         }

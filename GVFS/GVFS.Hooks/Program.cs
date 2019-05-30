@@ -114,7 +114,7 @@ namespace GVFS.Hooks
             int randomValue = random.Next(0, 100);
 
             if (randomValue <= reminderFrequency &&
-                ProductUpgraderInfo.IsLocalUpgradeAvailable(tracer: null, gvfsDataRoot: GVFSHooksPlatform.GetDataRootForGVFS()))
+                ProductUpgraderInfo.IsLocalUpgradeAvailable(tracer: null, highestAvailableVersionDirectory: GVFSHooksPlatform.GetUpgradeHighestAvailableVersionDirectory()))
             {
                 Console.WriteLine(Environment.NewLine + GVFSConstants.UpgradeVerbMessages.ReminderNotification);
             }

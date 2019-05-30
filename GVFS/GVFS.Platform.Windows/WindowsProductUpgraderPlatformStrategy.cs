@@ -40,22 +40,21 @@ namespace GVFS.Platform.Windows
 
         public override bool TryPrepareApplicationDirectory(out string error)
         {
-            string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ProductUpgrader.ToolsDirectory);
+            string upgradeApplicationDirectory = ProductUpgraderInfo.GetUpgradeApplicationDirectory();
 
             Exception deleteDirectoryException;
-            if (this.FileSystem.DirectoryExists(toolsDirectoryPath) &&
-                !this.FileSystem.TryDeleteDirectory(toolsDirectoryPath, out deleteDirectoryException))
+            if (this.FileSystem.DirectoryExists(upgradeApplicationDirectory) &&
+                !this.FileSystem.TryDeleteDirectory(upgradeApplicationDirectory, out deleteDirectoryException))
             {
-                error = $"Failed to delete {toolsDirectoryPath} - {deleteDirectoryException.Message}";
+                error = $"Failed to delete {upgradeApplicationDirectory} - {deleteDirectoryException.Message}";
 
-                this.TraceException(deleteDirectoryException, nameof(this.TryPrepareApplicationDirectory), $"Error deleting {toolsDirectoryPath}.");
+                this.TraceException(deleteDirectoryException, nameof(this.TryPrepareApplicationDirectory), $"Error deleting {upgradeApplicationDirectory}.");
                 return false;
             }
 
             if (!this.FileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissions(
                     this.Tracer,
-                    toolsDirectoryPath,
+                    upgradeApplicationDirectory,
                     out error))
             {
                 return false;

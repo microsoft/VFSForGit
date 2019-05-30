@@ -22,10 +22,10 @@ namespace GVFS.UnitTests.Windows.Common.Upgrader
         }
 
         [TestCase]
-        public void TrySetupToolsDirectoryFailsIfCreateToolsDirectoryFails()
+        public void TrySetupUpgradeApplicationDirectoryFailsIfCreateToolsDirectoryFails()
         {
             this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = false;
-            this.upgrader.TrySetupToolsDirectory(out string _, out string _).ShouldBeFalse();
+            this.upgrader.TrySetupUpgradeApplicationDirectory(out string _, out string _).ShouldBeFalse();
             this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = true;
         }
 

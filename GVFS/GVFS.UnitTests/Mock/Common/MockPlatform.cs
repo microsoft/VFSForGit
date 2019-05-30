@@ -103,6 +103,21 @@ namespace GVFS.UnitTests.Mock.Common
             return new Dictionary<string, string>();
         }
 
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return this.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
+        }
+
+        public override string GetUpgradeLogDirectoryParentDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
         public override void InitializeEnlistmentACLs(string enlistmentPath)
         {
             throw new NotSupportedException();

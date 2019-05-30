@@ -313,7 +313,7 @@ namespace GVFS.Service
             // Create GVFS.Service and GVFS.Upgrade related directories (if they don't already exist)
             Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
             Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
-            Directory.CreateDirectory(ProductUpgraderInfo.GetUpgradesDirectoryPath(), serviceDataRootSecurity);
+            Directory.CreateDirectory(ProductUpgraderInfo.GetUpgradeProtectedDataDirectory(), serviceDataRootSecurity);
 
             // Ensure the ACLs are set correctly on any files or directories that were already created (e.g. after upgrading VFS4G)
             Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
