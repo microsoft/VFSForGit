@@ -73,6 +73,10 @@ namespace GVFS.Common
             ITracer tracer,
             string lockPath);
 
+        public abstract ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer);
+
         public bool TryGetNormalizedPathRoot(string path, out string pathRoot, out string errorMessage)
         {
             pathRoot = null;

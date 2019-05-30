@@ -20,6 +20,7 @@ namespace GVFS.Common
 
     public abstract class ProductUpgrader : IDisposable
     {
+        public const string ToolsDirectory = "Tools";
         protected readonly Version installedVersion;
         protected readonly ITracer tracer;
         protected readonly PhysicalFileSystem fileSystem;
@@ -27,7 +28,6 @@ namespace GVFS.Common
         protected bool noVerify;
         protected bool dryRun;
 
-        private const string ToolsDirectory = "Tools";
         private static readonly string UpgraderToolName = GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName;
 
         public ProductUpgrader(

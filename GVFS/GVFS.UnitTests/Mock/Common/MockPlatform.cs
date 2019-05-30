@@ -151,6 +151,13 @@ namespace GVFS.UnitTests.Mock.Common
             return new MockFileBasedLock(fileSystem, tracer, lockPath);
         }
 
+        public override ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer)
+        {
+            return new MockProductUpgraderPlatformStrategy(fileSystem, tracer);
+        }
+
         public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
         {
             error = null;
