@@ -1,6 +1,6 @@
 # VFS For Git: Analytics Tooling Design Document
 
-This document details the design of and plan for the **VFS4G analytics tool**. The tool aims to help users identify reasons why their enlistment may be slowing down and the `gvfs` commands running slowly. By collecting and reporting statistics, the power to uncover and hopefully fix problems as they arrive moves to the user, empowering them to use the software to its fullest potential.
+This document details the design of and plan for the **VFS4G analytics tool**. The tool aims to help users identify reasons why their enlistment may be slowing down and the `git` commands running slowly on a VFS4G mounted repository. By collecting and reporting statistics, the power to uncover and hopefully fix problems as they arrive moves to the user, empowering them to use the software to its fullest potential.
 
 ## Problem
 
@@ -8,32 +8,92 @@ Over the lifetime of an enlistment, sometimes a user's working directory fills u
 
 ## Provided Statistics
 
-### Safe to access
-
-- **Modified paths** - The number of files which have been edited and have been handed over to git
-- **Git index** - The differences between modified paths and the index tracked by git
-- **Placeholders** - A total number of the placeholders being tracked in VFS4G and a list of the placeholders in the system (Note that this contains some upper level directories and thus not all of their children are included in the count without enumeration)
+- **Modified paths** - The number of files which have been edited and have been handed over to git. This list may contain just directories but not a reference to all of their children who will accordingly also all have modified paths. The command `git ls-tree -r HEAD` can be used to access the file system without risking unintentionally hydrating files
+- **Git index** - The differences between modified paths and the index tracked by git. This might be useful in determining what differences the local repository has to predict the complexity and potential slowdowns of an upcoming commit.
+- **Placeholders** - A total number of the placeholders being tracked in VFS4G and a list of the placeholders in the system. The list VFS4G maintains should always track every placeholder object on disk
 - **Troublesome programs** - Similar to what is already being logged in the heartbeat, look at which services or programs are responsible for hydrating large amounts of files in the enlistment
-
-### Potentially detrimental to access on a mounted enlistment
-
-- **Placeholder details** - Crawling the file system to enumerate directories of placeholders may unintentionally further hydrate files (IE downloading file sizes), but doing so would allow for greater details such as the percent hydration of folders, the total number of hydrated files, the type of files which are most hydrated, etc.
-- **File system** - Provide enumerated details for files in the placeholder list or the modified path list
+- **Command run-times** - A history of the time it takes for git commands to run. This can include averages, trends, and eventually graphs (implemented by the client in the visualization component)
 
 ## Background Information
 
-- **Modified paths** is the list of files which VFS4G has completely pulled from the remote and whose contents are on disk in their entirety. These files are handed to git via a hook when any git command requiring the list of changed files is called
-- **Placeholders** are files which have been opened by the local system with a read tag but without a write tag. They are objects tracked by VFS4G since git should not have to internally scan them since it is guaranteed that they have not been modified and accordingly do not have to be rehashed for differences. Their contents are on disk, but control over them has not been entirely ceded over to the system. They decrease performance because VFS4G has to track all of them individually, and this can cause certain `gvfs` commands to be slow
-- The **Git index** is gits internal list of files which have been modified (tracked or untracked) which is what is used for commit commands to keep score of everything going on inside of the enlistment. It is useful to this project by means of comparing it to the list of **hydrated files** to deduce if those files should truly be hydrated or if it may have occurred incidentally.
+- **Modified paths** is the list of files which have been modified and thus correctly reflect everything on the disk. The paths here point to directories and files which have either been modified, created, or deleted. These files are handed to git when a git command reads its index in order to populate its list of files being tracked
+- **Placeholders** are files which have been opened by the local system with a read tag but without a write tag. They are objects tracked by VFS4G since git should not have to internally scan them since it is guaranteed that they have not been modified and accordingly do not have to be rehashed for differences. Their contents are on disk, but control over them has not been entirely ceded over to git. They decrease performance because VFS4G has to track all of them individually, and this can cause `git` commands that need to update the projection to run slowly
+- The **Git index** is git's internal list of files which it is tracking for creating  the next `commit`. It is useful to this project by means of comparing it to the list of **placeholders** to deduce if those files should truly be hydrated or if it may have occurred incidentally.
 - The **file system** must be carefully considered in the case of working with a mounted repository. VFS4G intercepts file I/O calls at the kernel level to inject its own behavior (the projected file system and if needed a network call to pull down the file which the system asked for in the correct format). Because of this, enumerating directories can cause additional data to be pulled down from the remote by hydrating extra files or further hydrating those that already exist on disk. Accordingly, care must be taken when interacting with the file system lest the tool designed to help users increase enlistment heath end up causing more problems.
 
 ## Components
 
 - **API** - The server component of the client-server relationship. Responsible for the logic and computation of statistical data, as well as the assembly and sending of a **json statistics object** over the named pipe to the client. It sits within the `InProgressMount` process and interacts with the VFS4G internals
-- **Verb** - The `gvfs statistics` verb will be the component that handles the client side interaction with the API. When run, it will collect and store the statistics from the enlistment to either be displayed immediately or collected for trend purposes to then provide understanding in the future. This is also the point where data can be sent to telemetry for our internal analysis
-- **CLI Tool** - This tool will be built into the above verb and used to visualize and understand the data. It will simply output the analytics data to the command line and will also be used during the design period to test the API and verb
+- **Verb** - The `gvfs statistics` verb will be the component that handles the client side interaction with the API. When run, it will collect and store the statistics from the enlistment to either be displayed immediately or collected for trend purposes to then provide understanding in the future. This is also the point where data can be sent to telemetry for our internal analysis. The verb will also output the data to the console with a tool to help visualize and understand the data. It will output the analytics data to the command line and will also be used during the design period to test the API and verb
 - **Utility tools for dehydration** - *Stretch goal* | After the analytics are collected, these components will provide utilities to help the user get their enlistment back to a healthier state. The ideal goal is to have VFS4G suggest uses to the user (EG: `This directory was hydrated by Sublime text editor. You can dehydrate it by running "gvfs dehydrate --confirm -d /path/to/repo"`)
 - **Additional visualization tools** - *Stretch goal* | With a comprehensive API in place, the possibility opens up for different visualization tools to be created that consume the json data and display it to the user in different ways, potentially even eventually interfacing with the utility tools for an interactive GUI
+
+## Example of CLI Tool Usage
+
+```terminal
+$ gvfs statistics
+
+Repository statistics
+Total paths tracked by git:        3,123,456 |  100%
+Total number of placeholders:        123,456 |    4%
+Total number of modififed paths:       1,234 |   <1%
+
+Total hydration percentage:                       4%
+Most hydrated directories:
+  98% | src/main    | Primarily hydrated by "Sublime Text Editor"
+  79% | src/util    | Primarily hydrated by "Visual Studio 2019"
+  58% | assets/img  | Primarily hydrated by "cmd.exe"
+
+Repository status:  Healthy
+Recommended action: None
+
+To view git command performance run with "--perf"
+
+$ gvfs statistics --perf
+
+Average command run time
+"git add":        40ms
+"git commit":    180ms
+"git checkout": 1534ms
+"git stash":     690ms
+"git push":     1203ms
+"git merge":    1660ms
+"git status":    364ms
+"git log":       187ms
+
+$ (user interacts with the enlistment)
+
+$ gvfs statistics
+
+Repository statistics
+Total paths tracked by git:        3,123,456 |  100%
+Total number of placeholders:      3,523,456 |  111%
+Total number of modififed paths:     500,000 |   24%
+
+Total hydration percentage:                     135%
+Most hydrated directories:
+  142% | src/main    | Primarily hydrated by "Sublime Text Editor"
+  139% | src/util    | Primarily hydrated by "Visual Studio 2019"
+  135% | assets/img  | Primarily hydrated by "Photoshop"
+
+Repository status:  Over-hydrated
+Recommended action: run "gvfs dehydrate --confirm --no-status"
+Take action? (y/n): y
+
+Starting dehydration. All of your existing files will be backed up in C:\_git\os\dehydrate_backup\20190530_151645
+WARNING: If you abort the dehydrate after this point, the repo may become corrupt
+
+Unmounting...Succeeded
+Authenticating...Succeeded
+Backing up your files...Succeeded
+Downloading git objects...Succeeded
+Recreating git index...Succeeded
+Mounting...Succeeded
+
+Total paths tracked by git:        3,123,456 |  100%
+Total number of placeholders:              0 |    0%
+Total number of modififed paths:           0 |    0%
+```
 
 ## Development Phases
 
