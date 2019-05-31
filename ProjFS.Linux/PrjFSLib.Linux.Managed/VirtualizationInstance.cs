@@ -301,6 +301,16 @@ namespace PrjFSLib.Linux
             throw new NotImplementedException();
         }
 
+        private static string ConvertDotPath(string path)
+        {
+            if (path == ".")
+            {
+                path = string.Empty;
+            }
+
+            return path;
+        }
+
         private static Result RemoveFileOrDirectory(
             string fullPath,
             bool isDirectory)
@@ -400,7 +410,7 @@ namespace PrjFSLib.Linux
             {
                 result = this.OnEnumerateDirectory(
                     commandId: 0,
-                    relativePath: relativePath,
+                    relativePath: ConvertDotPath(relativePath),
                     triggeringProcessId: ev.Pid,
                     triggeringProcessName: triggeringProcessName);
             }
