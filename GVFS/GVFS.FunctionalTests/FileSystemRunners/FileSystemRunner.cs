@@ -16,14 +16,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
                 new object[] { new BashRunner() },
             };
 
-        public static object[] AllLinuxRunners { get; } =
-            new[]
-            {
-                new object[] { new SystemIORunner() },
-                new object[] { new BashRunner() },
-            };
-
-        public static object[] AllMacRunners { get; } =
+        public static object[] AllPOSIXRunners { get; } =
             new[]
             {
                 new object[] { new SystemIORunner() },
