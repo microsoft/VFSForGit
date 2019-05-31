@@ -1,4 +1,4 @@
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 #include "MockVnodeAndMount.hpp"
 #include "KextLogMock.h"
 #include "KextMockUtilities.hpp"
@@ -11,7 +11,7 @@
 using KextMock::_;
 using std::shared_ptr;
 
-@interface VnodeCacheTests : XCTestCase
+@interface VnodeCacheTests : PFSKextTestCase
 @end
 
 @implementation VnodeCacheTests
@@ -32,6 +32,8 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 
 - (void)setUp
 {
+    [super setUp];
+
     kern_return_t initResult = VirtualizationRoots_Init();
     XCTAssertEqual(initResult, KERN_SUCCESS);
     
@@ -57,6 +59,8 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
     self->testMount.reset();
     MockCalls::Clear();
     VirtualizationRoots_Cleanup();
+
+    [super tearDown];
 }
 
 - (void)testInitCacheStats {
@@ -594,6 +598,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
     // In production FindVnodeRootFromDiskAndUpdateCache would panic when it sees an
     // invalid UpdateCacheBehavior, but in user-mode the assertf if a no-op
     VirtualizationRootHandle rootHandle;
+    [self setExpectedFailedKextAssertionCount:1];
     FindVnodeRootFromDiskAndUpdateCache(
         &self->dummyPerfTracer,
         PrjFSPerfCounter_VnodeOp_Vnode_Cache_Hit,

@@ -90,6 +90,11 @@ while read line; do
 	 [[ $line != *"RetainIOCount"* ]] && 
 	 [[ $line != *"ProviderMessaging_"* ]] && 
 	 [[ $line != *"RWLock_DropExclusiveToShared"* ]] && 
+      # Not going down the "unexpected" code path in isKextAssertionFailureExpected, Assert & panic is good!
+	 [[ $line != *"PFSKextTestCase isKextAssertionFailureExpected"* ]] &&
+	 [[ $line != *"Assert"* ]] &&
+	 [[ $line != *"panic"* ]] &&
+
 	 # PrjFSLib exclusions
 	 [[ $line != *"PrjFS_"* ]] &&                                     #SHOULD ADD COVERAGE
 	 [[ $line != *"FsidInodeCompare"* ]] &&                           #SHOULD ADD COVERAGE
@@ -127,6 +132,7 @@ while read line; do
 	 [[ $line != *".xctest"* ]] && 
 	 [[ $line != *".cpp"* ]] && 
 	 [[ $line != *".a"* ]] && 
+	 [[ $line != *".m"* ]] &&
 	 [[ $line != *".hpp"* ]]; then
        echo "Error: not at 100% Code Coverage $line"
        exit 1

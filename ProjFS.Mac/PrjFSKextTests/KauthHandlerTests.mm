@@ -2,7 +2,7 @@
 #include "../PrjFSKext/KauthHandlerTestable.hpp"
 #include "../PrjFSKext/PerformanceTracing.hpp"
 #include "../PrjFSKext/VirtualizationRootsTestable.hpp"
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 #import <sys/stat.h>
 #include "KextLogMock.h"
 #include "KextMockUtilities.hpp"
@@ -17,7 +17,7 @@ class org_vfsforgit_PrjFSProviderUserClient
 {
 };
 
-@interface KauthHandlerTests : XCTestCase
+@interface KauthHandlerTests : PFSKextTestCase
 @end
 
 @implementation KauthHandlerTests
@@ -27,6 +27,7 @@ class org_vfsforgit_PrjFSProviderUserClient
 }
 
 - (void) setUp {
+    [super setUp];
     kern_return_t initResult = VirtualizationRoots_Init();
     XCTAssertEqual(initResult, KERN_SUCCESS);
     self->cacheWrapper.AllocateCache();
@@ -41,6 +42,7 @@ class org_vfsforgit_PrjFSProviderUserClient
     self->cacheWrapper.FreeCache();
     MockVnodes_CheckAndClear();
     VirtualizationRoots_Cleanup();
+    [super tearDown];
 }
 
 - (void)testActionBitIsSet {
@@ -389,6 +391,12 @@ class org_vfsforgit_PrjFSProviderUserClient
             true, // isDirectory,
             &testRootHandle,
             &pid));
+
+    if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
+    {
+        vnode_get(repoRootVnode.get()); // InsertVirtualizationRoot_Locked doesn't _get directly, but ActiveProvider_Disconnect does _put
+        ActiveProvider_Disconnect(testRootHandle, &userClient);
+    }
 }
 
 - (void)testShouldHandleFileOpEvent_UnsupportedFileSystem {
@@ -419,15 +427,16 @@ class org_vfsforgit_PrjFSProviderUserClient
     shared_ptr<vnode> testVnodeUnsupportedType = vnode::Create(testMount, "/foo", VNON);
 
     org_vfsforgit_PrjFSProviderUserClient userClient;
-    VirtualizationRootHandle testRootHandle = InsertVirtualizationRoot_Locked(
+    VirtualizationRootHandle testRepoHandle = InsertVirtualizationRoot_Locked(
         &userClient,
         0,
         repoRootVnode.get(),
         repoRootVnode->GetVid(),
         FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() },
         repoPath.c_str());
-    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRepoHandle));
 
+    VirtualizationRootHandle testRootHandle;
     int pid;
     // Invalid Vnode Type should fail
     XCTAssertFalse(
@@ -440,6 +449,12 @@ class org_vfsforgit_PrjFSProviderUserClient
             true, // isDirectory,
             &testRootHandle,
             &pid));
+
+    if (VirtualizationRoot_IsValidRootHandle(testRepoHandle))
+    {
+        vnode_get(repoRootVnode.get()); // InsertVirtualizationRoot_Locked doesn't _get directly, but ActiveProvider_Disconnect does _put
+        ActiveProvider_Disconnect(testRepoHandle, &userClient);
+    }
 }
 
 - (void)testShouldHandleFileOpEvent_ProviderOffline {
@@ -507,6 +522,12 @@ class org_vfsforgit_PrjFSProviderUserClient
             true, // isDirectory,
             &testRootHandle,
             &pid));
+    
+    if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
+    {
+        vnode_get(repoRootVnode.get()); // InsertVirtualizationRoot_Locked doesn't _get directly, but ActiveProvider_Disconnect does _put
+        ActiveProvider_Disconnect(testRootHandle, &userClient);
+    }
 }
 
 - (void)testShouldHandleFileOpEvent_VnodeCacheUpdated {
@@ -612,6 +633,12 @@ class org_vfsforgit_PrjFSProviderUserClient
             XCTAssertTrue(0 == self->cacheWrapper[index].vid);
             XCTAssertTrue(0 == self->cacheWrapper[index].virtualizationRoot);
         }
+    }
+
+    if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
+    {
+        vnode_get(repoRootVnode.get());
+        ActiveProvider_Disconnect(testRootHandle, &userClient);
     }
 }
 

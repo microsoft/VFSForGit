@@ -9,7 +9,7 @@
 #include "../PrjFSKext/ProviderMessaging.hpp"
 #include "../PrjFSKext/public/PrjFSXattrs.h"
 #include "../PrjFSKext/kernel-header-wrappers/kauth.h"
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 #import <sys/stat.h>
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
@@ -35,7 +35,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     vnode->xattrs.insert(make_pair(PrjFSFileXAttrName, rootXattrData));
 }
 
-@interface HandleVnodeOperationTests : XCTestCase
+@interface HandleVnodeOperationTests : PFSKextTestCase
 @end
 
 @implementation HandleVnodeOperationTests
@@ -44,6 +44,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     const char* repoPath;
     const char* filePath;
     const char* dirPath;
+    VirtualizationRootHandle dummyRepoHandle;
     PrjFSProviderUserClient dummyClient;
     pid_t dummyClientPid;
     shared_ptr<mount> testMount;
@@ -55,6 +56,8 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 
 - (void) setUp
 {
+    [super setUp];
+    
     kern_return_t initResult = VirtualizationRoots_Init();
     XCTAssertEqual(initResult, KERN_SUCCESS);
     context = vfs_context_create(NULL);
@@ -74,7 +77,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     // Register provider for the repository path (Simulate a mount)
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&dummyClient, dummyClientPid, repoPath);
     XCTAssertEqual(result.error, 0);
-    vnode_put(s_virtualizationRoots[result.root].rootVNode);
+    self->dummyRepoHandle = result.root;
 
     MockProcess_AddContext(context, 501 /*pid*/);
     MockProcess_SetSelfPid(501);
@@ -83,11 +86,15 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     ProvidermessageMock_ResetResultCount();
     ProviderMessageMock_SetDefaultRequestResult(true);
     ProviderMessageMock_SetSecondRequestResult(true);
-    ProviderMessageMock_SetCleanupRootsAfterRequest(false);
 }
 
 - (void) tearDown
 {
+    if (VirtualizationRoot_GetActiveProvider(self->dummyRepoHandle).isOnline)
+    {
+        ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+    }
+
     testMount.reset();
     repoRootVnode.reset();
     testFileVnode.reset();
@@ -99,6 +106,19 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     MockVnodes_CheckAndClear();
     MockCalls::Clear();
     MockProcess_Reset();
+
+    [super tearDown];
+}
+
+- (void) removeAllVirtualizationRoots
+{
+    if (VirtualizationRoot_GetActiveProvider(self->dummyRepoHandle).isOnline)
+    {
+        ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+    }
+    
+    VirtualizationRoots_Cleanup();
+    VirtualizationRoots_Init();
 }
 
 - (void) testEmptyFileHydrates {
@@ -625,7 +645,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testDeleteWithNoVirtualizationRoot {
-    VirtualizationRoots_Cleanup();
+    [self removeAllVirtualizationRoots];
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(HandleVnodeOperation(
         nullptr,
@@ -655,7 +675,11 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testDeleteDirectoryWithDisappearingVirtualizationRoot {
-    ProviderMessageMock_SetCleanupRootsAfterRequest(true);
+    ProviderMessageMock_SetRequestSideEffect(
+        [&]()
+        {
+            ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+        });
     testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(HandleVnodeOperation(
         nullptr,
@@ -686,7 +710,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testReadAttributesDirectoryWithNoVirtualizationRoot {
-    VirtualizationRoots_Cleanup();
+    [self removeAllVirtualizationRoots];
     testDirVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(HandleVnodeOperation(
         nullptr,
@@ -716,7 +740,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testReadAttributesWithNoVirtualizationRoot {
-    VirtualizationRoots_Cleanup();
+    [self removeAllVirtualizationRoots];
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(HandleVnodeOperation(
         nullptr,
@@ -746,7 +770,11 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testWriteWithDisappearingVirtualizationRoot {
-    ProviderMessageMock_SetCleanupRootsAfterRequest(true);
+    ProviderMessageMock_SetRequestSideEffect(
+        [&]()
+        {
+            ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+        });
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(HandleVnodeOperation(
         nullptr,

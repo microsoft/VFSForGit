@@ -9,7 +9,7 @@
 #include "../PrjFSKext/ProviderMessaging.hpp"
 #include "../PrjFSKext/public/PrjFSXattrs.h"
 #include "../PrjFSKext/kernel-header-wrappers/kauth.h"
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 #import <sys/stat.h>
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
@@ -27,7 +27,7 @@ class PrjFSProviderUserClient
 {
 };
 
-@interface HandleFileOpOperationTests : XCTestCase
+@interface HandleFileOpOperationTests : PFSKextTestCase
 @end
 
 @implementation HandleFileOpOperationTests
@@ -58,6 +58,8 @@ class PrjFSProviderUserClient
 
 - (void) setUp
 {
+    [super setUp];
+
     kern_return_t initResult = VirtualizationRoots_Init();
     XCTAssertEqual(initResult, KERN_SUCCESS);
     context = vfs_context_create(NULL);
@@ -98,7 +100,6 @@ class PrjFSProviderUserClient
     ProvidermessageMock_ResetResultCount();
     ProviderMessageMock_SetDefaultRequestResult(true);
     ProviderMessageMock_SetSecondRequestResult(true);
-    ProviderMessageMock_SetCleanupRootsAfterRequest(false);
 }
 
 - (void) tearDownProviders
@@ -133,6 +134,8 @@ class PrjFSProviderUserClient
     MockVnodes_CheckAndClear();
     MockCalls::Clear();
     MockProcess_Reset();
+
+    [super tearDown];
 }
 
 - (void) testOpen {

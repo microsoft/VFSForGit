@@ -1,8 +1,8 @@
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 
 #include "../PrjFSKext/Message_Kernel.hpp"
 
-@interface MessageTests : XCTestCase
+@interface MessageTests : PFSKextTestCase
 
 @end
 
@@ -10,10 +10,12 @@
 
 - (void)setUp
 {
+    [super setUp];
 }
 
 - (void)tearDown
 {
+    [super tearDown];
 }
 
 - (void)testMessageEncodedSize
