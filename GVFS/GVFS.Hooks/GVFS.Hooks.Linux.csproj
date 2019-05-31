@@ -95,7 +95,7 @@
       <Link>Common\Tracing\Keywords.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Platform.Linux\LinuxPlatform.Shared.cs">
-      <Link>"LinuxPlatform.Shared.cs"</Link>
+      <Link>Linux\LinuxPlatform.Shared.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Platform.POSIX\POSIXFileSystem.Shared.cs">
       <Link>POSIX\POSIXFileSystem.Shared.cs</Link>
