@@ -266,7 +266,7 @@ namespace GVFS.Platform.Linux
                 this.Context.Enlistment.WorkingDirectoryBackingRoot,
                 this.Context.Enlistment.WorkingDirectoryRoot,
                 threadCount,
-                this.IsUninitializedMount(this.Context.Enlistment.WorkingDirectoryBackingRoot));
+                this.IsWorkingDirectoryEmpty(this.Context.Enlistment.WorkingDirectoryBackingRoot));
 
             // TODO(Linux): note that most start errors are not reported
             // because they can only be retrieved from projfs_stop() at present
@@ -288,7 +288,7 @@ namespace GVFS.Platform.Linux
             return bytes;
         }
 
-        private bool IsUninitializedMount(string dir)
+        private bool IsWorkingDirectoryEmpty(string dir)
         {
             bool foundDotGit = false,
                  foundDotGitattributes = false;
