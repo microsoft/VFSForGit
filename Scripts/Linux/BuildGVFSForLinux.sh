@@ -7,6 +7,11 @@ if [ -z $CONFIGURATION ]; then
   CONFIGURATION=Debug
 fi
 
+VERSION=$2
+if [ -z $VERSION ]; then
+  VERSION="0.2.173.2"
+fi
+
 if [ ! -d $VFS_OUTPUTDIR ]; then
   mkdir $VFS_OUTPUTDIR
 fi
@@ -55,8 +60,8 @@ if [ "$CONFIGURATION" == "Profiling(Release)" ]; then
   CONFIGURATION=Release
 fi
 
-echo 'Generating CommonAssemblyVersion.cs...'
-$VFS_SCRIPTDIR/GenerateCommonAssemblyVersion.sh || exit 1
+echo "Generating CommonAssemblyVersion.cs as $VERSION..."
+$VFS_SCRIPTDIR/GenerateCommonAssemblyVersion.sh $VERSION || exit 1
 
 echo 'Restoring packages...'
 dotnet restore $VFS_SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Linux --packages $VFS_PACKAGESDIR /warnasmessage:MSB4011 || exit 1
