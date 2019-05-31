@@ -21,7 +21,6 @@
 
   <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
     <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
-    <IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
   </PropertyGroup>
 
   <ItemGroup>
@@ -52,7 +51,7 @@
         <Compile Remove="NativeMethods.Windows.cs" />
       </ItemGroup>
     </When>
-    <When Condition="'$(IsOSX)' == 'true'">
+    <Otherwise>
       <ItemGroup>
         <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
         <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
@@ -61,7 +60,7 @@
         <Compile Remove="NativeMethods.Linux.cs" />
         <Compile Remove="NativeMethods.Windows.cs" />
       </ItemGroup>
-    </When>
+    </Otherwise>
   </Choose>
   
   <ItemGroup>
