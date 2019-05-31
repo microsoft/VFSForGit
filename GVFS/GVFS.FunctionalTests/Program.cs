@@ -56,13 +56,10 @@ namespace GVFS.FunctionalTests
                 {
                     GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllWindowsRunners;
                 }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                         RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                 {
-                    GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllLinuxRunners;
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                {
-                    GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllMacRunners;
+                    GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllPOSIXRunners;
                 }
             }
             else
