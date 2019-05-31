@@ -22,7 +22,6 @@
 
   <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
     <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
-    <IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
   </PropertyGroup>
 
   <!-- ItemGroup Conditions are not supported on VS for Mac and Choose/When must be
@@ -53,7 +52,7 @@
         </Compile>
       </ItemGroup>
     </When>
-    <When Condition="'$(IsOSX)' == 'true'">
+    <Otherwise>
       <PropertyGroup>
         <TargetFrameworks>netcoreapp2.1</TargetFrameworks>
         <RuntimeIdentifiers>osx-x64</RuntimeIdentifiers>
@@ -65,7 +64,7 @@
           <Link>PlatformLoader.Mac.cs</Link>
         </Compile>
       </ItemGroup>
-    </When>
+    </Otherwise>
   </Choose>
 
   <ItemGroup>
