@@ -7,6 +7,7 @@
         public const string GitCommands = "GitCommands";
 
         public const string WindowsOnly = "WindowsOnly";
+        public const string LinuxOnly = "LinuxOnly";
         public const string MacOnly = "MacOnly";
 
         public static class MacTODO

@@ -21,7 +21,7 @@ PATH_STRING GetGVFSPipeName(const char *appName)
 {
     // The pipe name is built using the path of the GVFS enlistment root.
     // Start in the current directory and walk up the directory tree
-    // until we find a folder that contains the ".gvfs" folder
+    // until we find a folder that contains the DOT_GVFS_ROOT folder
     
     // TODO 640838: Support paths longer than MAX_PATH
     char enlistmentRoot[MAX_PATH];
@@ -49,7 +49,7 @@ PATH_STRING GetGVFSPipeName(const char *appName)
     }
     enlistmentRoot[enlistmentRootLength] = '\0';
     
-    // Walk up enlistmentRoot looking for a folder named .gvfs
+    // Walk up enlistmentRoot looking for a folder named DOT_GVFS_ROOT
     char* lastslash = enlistmentRoot + enlistmentRootLength - 1;
     bool gvfsFound = false;
     while (1)
@@ -64,7 +64,7 @@ PATH_STRING GetGVFSPipeName(const char *appName)
         dirent* dirEntry = readdir(directory);
         while (!gvfsFound && dirEntry != nullptr)
         {
-            if (dirEntry->d_type == DT_DIR && strcmp(dirEntry->d_name, ".gvfs") == 0)
+            if (dirEntry->d_type == DT_DIR && strcmp(dirEntry->d_name, DOT_GVFS_ROOT) == 0)
             {
                 gvfsFound = true;
             }
@@ -102,7 +102,7 @@ PATH_STRING GetGVFSPipeName(const char *appName)
     
     *(lastslash) = 0;
     
-    return PATH_STRING(enlistmentRoot) + "/.gvfs/GVFS_NetCorePipe";
+    return PATH_STRING(enlistmentRoot) + "/" + DOT_GVFS_ROOT + "/GVFS_NetCorePipe";
 }
 
 PIPE_HANDLE CreatePipeToGVFS(const PATH_STRING& pipeName)

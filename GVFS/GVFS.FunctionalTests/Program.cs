@@ -49,9 +49,10 @@ namespace GVFS.FunctionalTests
                 {
                     GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllWindowsRunners;
                 }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                         RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                 {
-                    GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllMacRunners;
+                    GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllPOSIXRunners;
                 }
             }
             else
@@ -82,6 +83,15 @@ namespace GVFS.FunctionalTests
                 // RunTests unions all includeCategories.  Remove ExtraCoverage to
                 // ensure that we only run tests flagged as WindowsOnly
                 includeCategories.Remove(Categories.ExtraCoverage);
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                excludeCategories.Add(Categories.WindowsOnly);
+            }
+            else
+            {
+                excludeCategories.Add(Categories.LinuxOnly);
             }
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))

@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using PrjFSLib.Linux.Interop;
 using static PrjFSLib.Linux.Interop.Errno;
 
@@ -10,6 +12,9 @@ namespace PrjFSLib.Linux
     public class VirtualizationInstance
     {
         public const int PlaceholderIdLength = 128;
+
+        private static readonly TimeSpan MountWaitTick = TimeSpan.FromSeconds(0.2);
+        private static readonly TimeSpan MountWaitTotal = TimeSpan.FromSeconds(30);
 
         private ProjFS projfs;
         private int currentProcessId = Process.GetCurrentProcess().Id;
@@ -35,12 +40,21 @@ namespace PrjFSLib.Linux
         public virtual Result StartVirtualizationInstance(
             string storageRootFullPath,
             string virtualizationRootFullPath,
-            uint poolThreadCount)
+            uint poolThreadCount,
+            bool initializeStorageRoot)
         {
             if (this.projfs != null)
             {
                 throw new InvalidOperationException();
             }
+
+            int statResult = LinuxNative.Stat(virtualizationRootFullPath, out LinuxNative.StatBuffer stat);
+            if (statResult != 0)
+            {
+                return Result.Invalid;
+            }
+
+            ulong priorDev = stat.Dev;
 
             ProjFS.Handlers handlers = new ProjFS.Handlers
             {
@@ -49,10 +63,13 @@ namespace PrjFSLib.Linux
                 HandlePermEvent = this.preventGCOnPermEventDelegate = new ProjFS.EventHandler(this.HandlePermEvent)
             };
 
+            string[] args = initializeStorageRoot ? new string[] { "-o", "initial" } : new string[] { };
+
             ProjFS fs = ProjFS.New(
                 storageRootFullPath,
                 virtualizationRootFullPath,
-                handlers);
+                handlers,
+                args);
 
             if (fs == null)
             {
@@ -65,20 +82,45 @@ namespace PrjFSLib.Linux
                 return Result.Invalid;
             }
 
-            this.projfs = fs;
+            Stopwatch watch = Stopwatch.StartNew();
+
+            while (true)
+            {
+                statResult = LinuxNative.Stat(virtualizationRootFullPath, out stat);
+                if (priorDev != stat.Dev)
+                {
+                    break;
+                }
+
+                Thread.Sleep(MountWaitTick);
+
+                if (watch.Elapsed > MountWaitTotal)
+                {
+                    fs.Stop();
+                    return Result.Invalid;
+                }
+            }
+
             this.virtualizationRoot = virtualizationRootFullPath;
+            this.projfs = fs;
+
             return Result.Success;
         }
 
         public virtual void StopVirtualizationInstance()
         {
-            if (this.projfs == null)
+            if (!this.ObtainProjFS(out ProjFS fs))
             {
                 return;
             }
 
-            this.projfs.Stop();
+            fs.Stop();
             this.projfs = null;
+        }
+
+        public virtual IEnumerable<string> EnumerateFileSystemEntries(string path)
+        {
+            return Directory.EnumerateFileSystemEntries(path);
         }
 
         public virtual Result WriteFileContents(
@@ -100,6 +142,12 @@ namespace PrjFSLib.Linux
             out UpdateFailureCause failureCause)
         {
             failureCause = UpdateFailureCause.NoFailure;
+
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return Result.EDriverNotLoaded;
+            }
+
             if (string.IsNullOrEmpty(relativePath))
             {
                 /* Our mount point directory can not be deleted; we would
@@ -118,7 +166,7 @@ namespace PrjFSLib.Linux
             {
                 // TODO(Linux): try to handle races with hydration?
                 ProjectionState state;
-                result = this.projfs.GetProjState(relativePath, out state);
+                result = fs.GetProjState(relativePath, out state);
 
                 // also treat unknown state as full/dirty (e.g., for sockets)
                 if ((result == Result.Success && state == ProjectionState.Full) ||
@@ -149,7 +197,12 @@ namespace PrjFSLib.Linux
         public virtual Result WritePlaceholderDirectory(
             string relativePath)
         {
-            return this.projfs.CreateProjDir(relativePath, Convert.ToUInt32("777", 8));
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return Result.EDriverNotLoaded;
+            }
+
+            return fs.CreateProjDir(relativePath, Convert.ToUInt32("777", 8));
         }
 
         public virtual Result WritePlaceholderFile(
@@ -165,7 +218,12 @@ namespace PrjFSLib.Linux
                 throw new ArgumentException();
             }
 
-            return this.projfs.CreateProjFile(
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return Result.EDriverNotLoaded;
+            }
+
+            return fs.CreateProjFile(
                 relativePath,
                 fileSize,
                 fileMode,
@@ -177,7 +235,12 @@ namespace PrjFSLib.Linux
             string relativePath,
             string symLinkTarget)
         {
-            return this.projfs.CreateProjSymlink(
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return Result.EDriverNotLoaded;
+            }
+
+            return fs.CreateProjSymlink(
                 relativePath,
                 symLinkTarget);
         }
@@ -236,6 +299,16 @@ namespace PrjFSLib.Linux
             string relativeDirectoryPath)
         {
             throw new NotImplementedException();
+        }
+
+        private static string ConvertDotPath(string path)
+        {
+            if (path == ".")
+            {
+                path = string.Empty;
+            }
+
+            return path;
         }
 
         private static Result RemoveFileOrDirectory(
@@ -304,6 +377,12 @@ namespace PrjFSLib.Linux
             return Marshal.PtrToStringAnsi(ptr);
         }
 
+        private bool ObtainProjFS(out ProjFS fs)
+        {
+            fs = this.projfs;
+            return fs != null;
+        }
+
         private bool IsProviderEvent(ProjFS.Event ev)
         {
             return (ev.Pid == this.currentProcessId);
@@ -311,6 +390,11 @@ namespace PrjFSLib.Linux
 
         private int HandleProjEvent(ref ProjFS.Event ev)
         {
+            if (!this.ObtainProjFS(out ProjFS fs))
+            {
+                return -Errno.Constants.ENODEV;
+            }
+
             // ignore events triggered by own process to prevent deadlocks
             if (this.IsProviderEvent(ev))
             {
@@ -326,7 +410,7 @@ namespace PrjFSLib.Linux
             {
                 result = this.OnEnumerateDirectory(
                     commandId: 0,
-                    relativePath: relativePath,
+                    relativePath: ConvertDotPath(relativePath),
                     triggeringProcessId: ev.Pid,
                     triggeringProcessName: triggeringProcessName);
             }
@@ -335,7 +419,7 @@ namespace PrjFSLib.Linux
                 byte[] providerId = new byte[PlaceholderIdLength];
                 byte[] contentId = new byte[PlaceholderIdLength];
 
-                result = this.projfs.GetProjAttrs(
+                result = fs.GetProjAttrs(
                     relativePath,
                     providerId,
                     contentId);
@@ -358,6 +442,11 @@ namespace PrjFSLib.Linux
 
         private int HandleNonProjEvent(ref ProjFS.Event ev, bool perm)
         {
+            if (this.projfs == null)
+            {
+                return -Errno.Constants.ENODEV;
+            }
+
             // ignore events triggered by own process to prevent deadlocks
             if (this.IsProviderEvent(ev))
             {

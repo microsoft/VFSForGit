@@ -19,6 +19,10 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
@@ -33,6 +37,18 @@
         <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
           <Link>PlatformLoader.Windows.cs</Link>
         </Compile>
+        <Compile Remove="NativeMethods.Linux.cs" />
+        <Compile Remove="NativeMethods.Mac.cs" />
+      </ItemGroup>
+    </When>
+    <When Condition="'$(IsLinux)' == 'true'">
+      <ItemGroup>
+        <ProjectReference Include="..\GVFS.Platform.Linux\GVFS.Platform.Linux.csproj" />
+        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Linux.cs">
+          <Link>PlatformLoader.Linux.cs</Link>
+        </Compile>
+        <Compile Remove="NativeMethods.Mac.cs" />
+        <Compile Remove="NativeMethods.Windows.cs" />
       </ItemGroup>
     </When>
     <Otherwise>
@@ -41,6 +57,8 @@
         <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
           <Link>PlatformLoader.Mac.cs</Link>
         </Compile>
+        <Compile Remove="NativeMethods.Linux.cs" />
+        <Compile Remove="NativeMethods.Windows.cs" />
       </ItemGroup>
     </Otherwise>
   </Choose>
