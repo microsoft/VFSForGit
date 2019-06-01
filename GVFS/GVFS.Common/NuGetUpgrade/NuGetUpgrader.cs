@@ -488,7 +488,6 @@ namespace GVFS.Common.NuGetUpgrade
 
         private bool TryGetPersonalAccessToken(string credentialUrl, ITracer tracer, out string token, out string error)
         {
-            error = null;
             return this.credentialStore.TryGetCredential(this.tracer, credentialUrl, out string username, out token, out error);
         }
 
