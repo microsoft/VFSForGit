@@ -714,7 +714,7 @@ KEXT_STATIC int HandleFileOpOperation(
         
         UseMainForkIfNamedStream(currentVnode, putCurrentVnode);
         
-        if (KAUTH_FILEOP_CLOSE_MODIFIED != closeFlags)
+        if (!FileFlagsBitIsSet(closeFlags, KAUTH_FILEOP_CLOSE_MODIFIED))
         {
             goto CleanupAndReturn;
         }

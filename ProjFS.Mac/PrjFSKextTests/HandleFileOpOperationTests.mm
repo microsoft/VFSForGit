@@ -206,6 +206,32 @@ class PrjFSProviderUserClient
             _));
 }
 
+- (void) testCloseWithModifedWithBitChange {
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_CLOSE,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(filePath),
+        KAUTH_FILEOP_CLOSE_MODIFIED | 1<<2,
+        0);
+    
+    XCTAssertTrue(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            MessageType_KtoU_NotifyFileModified,
+            testFileVnode.get(),
+            _,
+            filePath,
+            _,
+            _,
+            _,
+            _));
+}
+
 - (void) testCloseWithModifedOnDirectory {
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
 
