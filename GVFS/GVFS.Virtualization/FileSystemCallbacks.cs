@@ -392,9 +392,9 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileRenamed(oldRelativePath, newRelativePath));
         }
 
-        public virtual void OnFileHardLinkCreated(string newLinkRelativePath)
+        public virtual void OnFileHardLinkCreated(string newLinkRelativePath, string existingRelativePath)
         {
-            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileHardLinkCreated(newLinkRelativePath));
+            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileHardLinkCreated(newLinkRelativePath, existingRelativePath));
         }
 
         public virtual void OnFileSymLinkCreated(string newLinkRelativePath)
@@ -553,10 +553,26 @@ namespace GVFS.Virtualization
             {
                 case FileSystemTask.OperationType.OnFileCreated:
                 case FileSystemTask.OperationType.OnFailedPlaceholderDelete:
-                case FileSystemTask.OperationType.OnFileHardLinkCreated:
                 case FileSystemTask.OperationType.OnFileSymLinkCreated:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.VirtualPath);
+                    break;
+
+                case FileSystemTask.OperationType.OnFileHardLinkCreated:
+                    metadata.Add("virtualPath", gitUpdate.VirtualPath);
+                    metadata.Add("oldVirtualPath", gitUpdate.OldVirtualPath);
+                    result = FileSystemTaskResult.Success;
+                    if (!string.IsNullOrEmpty(gitUpdate.OldVirtualPath) && !IsPathInsideDotGit(gitUpdate.OldVirtualPath))
+                    {
+                        result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.OldVirtualPath);
+                    }
+
+                    if ((result == FileSystemTaskResult.Success) &&
+                        !string.IsNullOrEmpty(gitUpdate.VirtualPath) && !IsPathInsideDotGit(gitUpdate.VirtualPath))
+                    {
+                        result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.VirtualPath);
+                    }
+
                     break;
 
                 case FileSystemTask.OperationType.OnFileRenamed:

@@ -551,13 +551,6 @@ namespace GVFS.Platform.Mac
                 isDirectory: isDirectory);
         }
 
-        private void OnHardLinkCreated(string relativeNewLinkPath)
-        {
-            this.OnHardLinkCreated(
-                relativeExistingFilePath: string.Empty,
-                relativeNewLinkPath: relativeNewLinkPath);
-        }
-
         private Result OnEnumerateDirectory(
             ulong commandId,
             string relativePath,
