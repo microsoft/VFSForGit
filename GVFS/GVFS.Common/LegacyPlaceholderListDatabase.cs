@@ -251,6 +251,21 @@ namespace GVFS.Common
             }
         }
 
+        public int GetFilePlaceholdersCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public int GetFolderPlaceholdersCount()
+        {
+            throw new NotImplementedException();
+        }
+
+        public int GetExpandedFolderCount()
+        {
+            throw new NotImplementedException();
+        }
+
         public void WriteAllEntriesAndFlush(IEnumerable<IPlaceholderData> updatedPlaceholders)
         {
             try
