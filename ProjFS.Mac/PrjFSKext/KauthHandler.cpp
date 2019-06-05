@@ -248,6 +248,14 @@ KEXT_STATIC int HandleVnodeOperation(
     bool isDeleteAction = false;
     bool isDirectory = false;
 
+    {
+        PerfSample considerVnodeSample(&perfTracer, PrjFSPerfCounter_VnodeOp_BasicVnodeChecks);
+        if (!VnodeIsEligibleForEventHandling(currentVnode))
+        {
+            goto CleanupAndReturn;
+        }
+    }
+
     if (!ShouldHandleVnodeOpEvent(
             &perfTracer,
             context,
@@ -818,15 +826,6 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
             //    request in progress is advisory, rather than authoritative.  Listeners
             //    performing consequential work (i.e. not strictly checking authorisation)
             //    may test this flag to avoid performing unnecessary work."
-            *kauthResult = KAUTH_RESULT_DEFER;
-            return false;
-        }
-    }
-    
-    {
-        PerfSample considerVnodeSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_BasicVnodeChecks);
-        if (!VnodeIsEligibleForEventHandling(vnode))
-        {
             *kauthResult = KAUTH_RESULT_DEFER;
             return false;
         }

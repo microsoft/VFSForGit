@@ -853,5 +853,21 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 0);
 }
 
+- (void) testIneligibleFilesystemType
+{
+    shared_ptr<mount> testMountNone = mount::Create("msdos", fsid_t{}, 0);
+    shared_ptr<vnode> testVnodeNone = vnode::Create(testMountNone, "/Volumes/USBSTICK");
+    XCTAssertEqual(
+        KAUTH_RESULT_DEFER,
+        HandleVnodeOperation(
+            nullptr,
+            nullptr,
+            KAUTH_VNODE_ADD_FILE,
+            reinterpret_cast<uintptr_t>(context),
+            reinterpret_cast<uintptr_t>(testVnodeNone.get()),
+            0,
+            0));
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
 
 @end

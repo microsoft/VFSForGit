@@ -7,10 +7,10 @@ enum PrjFSPerfCounter : int32_t
     
     PrjFSPerfCounter_VnodeOp,
         PrjFSPerfCounter_VnodeOp_GetPath,
+        PrjFSPerfCounter_VnodeOp_BasicVnodeChecks,
         PrjFSPerfCounter_VnodeOp_ShouldHandle,
             PrjFSPerfCounter_VnodeOp_ShouldHandle_IsVnodeAccessCheck,
                 PrjFSPerfCounter_VnodeOp_ShouldHandle_IgnoredVnodeAccessCheck,
-            PrjFSPerfCounter_VnodeOp_ShouldHandle_BasicVnodeChecks,
             PrjFSPerfCounter_VnodeOp_ShouldHandle_ReadFileFlags,
                 PrjFSPerfCounter_VnodeOp_ShouldHandle_NotInAnyRoot,
             PrjFSPerfCounter_VnodeOp_ShouldHandle_CheckFileSystemCrawler,

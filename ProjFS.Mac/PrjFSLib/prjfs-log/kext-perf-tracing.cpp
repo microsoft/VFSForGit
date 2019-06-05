@@ -31,10 +31,10 @@ static constexpr const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
 {
     [PrjFSPerfCounter_VnodeOp]                                              = "HandleVnodeOperation",
     [PrjFSPerfCounter_VnodeOp_GetPath]                                      = " |--GetPath",
+    [PrjFSPerfCounter_VnodeOp_BasicVnodeChecks]                             = " |--BasicVnodeChecks",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle]                                 = " |--ShouldHandleVnodeOpEvent",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_IsVnodeAccessCheck]              = " |  |--IsVnodeAccessCheck",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_IgnoredVnodeAccessCheck]         = " |  |  |--IgnoredVnodeAccessCheck",
-    [PrjFSPerfCounter_VnodeOp_ShouldHandle_BasicVnodeChecks]                = " |  |--BasicVnodeChecks",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_ReadFileFlags]                   = " |  |--TryReadVNodeFileFlags",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_NotInAnyRoot]                    = " |  |  |--NotInAnyRoot",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_CheckFileSystemCrawler]          = " |  |--IsFileSystemCrawler",
