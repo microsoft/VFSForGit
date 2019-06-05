@@ -161,9 +161,14 @@ class PrjFSProviderUserClient
         self->repoPath.c_str());
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
 
+    if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
+    {
+        vnode_get(repoRootVnode.get()); // InsertVirtualizationRoot_Locked doesn't _get directly, but ActiveProvider_Disconnect does _put
+        ActiveProvider_Disconnect(testRootHandle, &userClient);
+    }
+
     int pid;
     // Fail when the provider is not online
-    s_virtualizationRoots[0].providerUserClient = nullptr;
     XCTAssertFalse(
         ShouldHandleFileOpEvent(
             &self->perfTracer,
