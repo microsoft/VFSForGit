@@ -6,7 +6,7 @@ namespace GVFS.Common
 {
     public class HeartbeatThread
     {
-        private static readonly TimeSpan HeartBeatWaitTime = TimeSpan.FromMinutes(60);
+        private static readonly TimeSpan HeartBeatWaitTime = TimeSpan.FromSeconds(30);
 
         private readonly ITracer tracer;
         private readonly IHeartBeatMetadataProvider dataProvider;

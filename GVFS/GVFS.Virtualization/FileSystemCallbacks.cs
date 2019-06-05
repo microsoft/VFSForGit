@@ -35,7 +35,9 @@ namespace GVFS.Virtualization
         private IPlaceholderCollection placeholderDatabase;
         private ModifiedPathsDatabase modifiedPaths;
         private ConcurrentHashSet<string> newlyCreatedFileAndFolderPaths;
-        private ConcurrentDictionary<string, PlaceHolderCreateCounter> placeHolderCreationCount;
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> filePlaceHolderCreationCount;
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> folderPlaceHolderCreationCount;
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> fileHydrationCount;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
@@ -59,7 +61,9 @@ namespace GVFS.Virtualization
             this.context = context;
             this.fileSystemVirtualizer = fileSystemVirtualizer;
 
-            this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.filePlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.folderPlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.fileHydrationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
             this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             string error;
@@ -259,30 +263,14 @@ namespace GVFS.Virtualization
         public EventMetadata GetMetadataForHeartBeat(ref EventLevel eventLevel)
         {
             EventMetadata metadata = new EventMetadata();
-            if (this.placeHolderCreationCount.Count > 0)
-            {
-                ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData = this.placeHolderCreationCount;
-                this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
-
-                int count = 0;
-                foreach (KeyValuePair<string, PlaceHolderCreateCounter> processCount in
-                    collectedData.OrderByDescending((KeyValuePair<string, PlaceHolderCreateCounter> kvp) => kvp.Value.Count))
-                {
-                    ++count;
-                    if (count > 10)
-                    {
-                        break;
-                    }
-
-                    metadata.Add("ProcessName" + count, processCount.Key);
-                    metadata.Add("ProcessCount" + count, processCount.Value.Count);
-                }
-
-                eventLevel = EventLevel.Informational;
-            }
+            this.GetPlaceHolderProcessData(metadata, "File", ref this.filePlaceHolderCreationCount);
+            this.GetPlaceHolderProcessData(metadata, "Folder", ref this.folderPlaceHolderCreationCount);
+            this.GetPlaceHolderProcessData(metadata, "FilesHydrated", ref this.fileHydrationCount);
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
-            metadata.Add("PlaceholderCount", this.placeholderDatabase.GetCount());
+            metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
+            metadata.Add("FolderPlaceholderCount", this.placeholderDatabase.GetFolderPlaceholdersCount());
+
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {
                 eventLevel = EventLevel.Informational;
@@ -445,7 +433,7 @@ namespace GVFS.Virtualization
             // Note: Because OnPlaceholderFileCreated is not synchronized on all platforms it is possible that GVFS will double count
             // the creation of file placeholders if multiple requests for the same file are received at the same time on different
             // threads.
-            this.placeHolderCreationCount.AddOrUpdate(
+            this.filePlaceHolderCreationCount.AddOrUpdate(
                 triggeringProcessImageFileName,
                 (imageName) => { return new PlaceHolderCreateCounter(); },
                 (key, oldCount) => { oldCount.Increment(); return oldCount; });
@@ -456,14 +444,27 @@ namespace GVFS.Virtualization
             this.GitIndexProjection.OnPlaceholderCreateBlockedForGit();
         }
 
-        public void OnPlaceholderFolderCreated(string relativePath)
+        public void OnPlaceholderFolderCreated(string relativePath, string triggeringProcessImageFileName)
         {
             this.GitIndexProjection.OnPlaceholderFolderCreated(relativePath);
+
+            this.folderPlaceHolderCreationCount.AddOrUpdate(
+                triggeringProcessImageFileName,
+                (imageName) => { return new PlaceHolderCreateCounter(); },
+                (key, oldCount) => { oldCount.Increment(); return oldCount; });
         }
 
         public void OnPlaceholderFolderExpanded(string relativePath)
         {
             this.GitIndexProjection.OnPlaceholderFolderExpanded(relativePath);
+        }
+
+        public void OnPlaceholderFileHydrated(string triggeringProcessImageFileName)
+        {
+            this.fileHydrationCount.AddOrUpdate(
+                triggeringProcessImageFileName,
+                (imageName) => { return new PlaceHolderCreateCounter(); },
+                (key, oldCount) => { oldCount.Increment(); return oldCount; });
         }
 
         public FileProperties GetLogsHeadFileProperties()
@@ -504,6 +505,29 @@ namespace GVFS.Virtualization
             }
 
             return result;
+        }
+
+        private void GetPlaceHolderProcessData(EventMetadata metadata, string placeholderType, ref ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData)
+        {
+            if (collectedData.Count > 0)
+            {
+                ConcurrentDictionary<string, PlaceHolderCreateCounter> localData = collectedData;
+                collectedData = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+
+                int count = 0;
+                foreach (KeyValuePair<string, PlaceHolderCreateCounter> processCount in
+                    localData.OrderByDescending((KeyValuePair<string, PlaceHolderCreateCounter> kvp) => kvp.Value.Count))
+                {
+                    ++count;
+                    if (count > 10)
+                    {
+                        break;
+                    }
+
+                    metadata.Add(placeholderType + "ProcessName" + count, processCount.Key);
+                    metadata.Add(placeholderType + "ProcessCount" + count, processCount.Value.Count);
+                }
+            }
         }
 
         private void InvalidateState(bool invalidateProjection, bool invalidateModifiedPaths)
