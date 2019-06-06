@@ -114,7 +114,7 @@ namespace GVFS.CommandLine
 
             this.Output.WriteLine("\nRepository status: " + (healthyRepo ? "Healthy" : "Unhealthy"));
 
-            Console.ReadLine();
+            // Console.ReadLine();
         }
 
         /// <summary>
