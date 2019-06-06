@@ -26,6 +26,7 @@ namespace GVFS
                 typeof(PrefetchVerb),
                 typeof(RepairVerb),
                 typeof(ServiceVerb),
+                typeof(StatisticsVerb),
                 typeof(StatusVerb),
                 typeof(UnmountVerb),
                 typeof(UpgradeVerb),
