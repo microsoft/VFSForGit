@@ -263,9 +263,15 @@ namespace GVFS.Virtualization
         public EventMetadata GetMetadataForHeartBeat(ref EventLevel eventLevel)
         {
             EventMetadata metadata = new EventMetadata();
-            this.GetPlaceHolderProcessData(metadata, "File", ref this.filePlaceHolderCreationCount);
-            this.GetPlaceHolderProcessData(metadata, "Folder", ref this.folderPlaceHolderCreationCount);
-            this.GetPlaceHolderProcessData(metadata, "FilesHydrated", ref this.fileHydrationCount);
+            metadata.Add(
+                "FilePlaceholderCreation",
+                this.GetProcessInteractionData(ref this.filePlaceHolderCreationCount, ref eventLevel));
+             metadata.Add(
+                "FolderPlaceholderCreation",
+                this.GetProcessInteractionData(ref this.folderPlaceHolderCreationCount, ref eventLevel));
+            metadata.Add(
+                "FilePlaceholdersHydrated",
+                this.GetProcessInteractionData(ref this.fileHydrationCount, ref eventLevel));
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
             metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
@@ -507,8 +513,10 @@ namespace GVFS.Virtualization
             return result;
         }
 
-        private void GetPlaceHolderProcessData(EventMetadata metadata, string placeholderType, ref ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData)
+        private EventMetadata GetProcessInteractionData(ref ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData, ref EventLevel eventLevel)
         {
+            EventMetadata metadata = new EventMetadata();
+
             if (collectedData.Count > 0)
             {
                 ConcurrentDictionary<string, PlaceHolderCreateCounter> localData = collectedData;
@@ -524,10 +532,14 @@ namespace GVFS.Virtualization
                         break;
                     }
 
-                    metadata.Add(placeholderType + "ProcessName" + count, processCount.Key);
-                    metadata.Add(placeholderType + "ProcessCount" + count, processCount.Value.Count);
+                    metadata.Add("ProcessName" + count, processCount.Key);
+                    metadata.Add("ProcessCount" + count, processCount.Value.Count);
                 }
+
+                eventLevel = EventLevel.Informational;
             }
+
+            return metadata;
         }
 
         private void InvalidateState(bool invalidateProjection, bool invalidateModifiedPaths)
