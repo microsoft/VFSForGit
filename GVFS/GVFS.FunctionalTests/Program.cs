@@ -102,15 +102,6 @@ namespace GVFS.FunctionalTests
                 includeCategories.Remove(Categories.ExtraCoverage);
             }
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                excludeCategories.Add(Categories.WindowsOnly);
-            }
-            else
-            {
-                excludeCategories.Add(Categories.LinuxOnly);
-            }
-
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
@@ -118,10 +109,17 @@ namespace GVFS.FunctionalTests
                 excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
                 excludeCategories.Add(Categories.MacTODO.TestNeedsToLockFile);
                 excludeCategories.Add(Categories.WindowsOnly);
+                excludeCategories.Add(Categories.LinuxOnly);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                excludeCategories.Add(Categories.WindowsOnly);
+                excludeCategories.Add(Categories.MacOnly);
             }
             else
             {
                 // Windows excludes.
+                excludeCategories.Add(Categories.LinuxOnly);
                 excludeCategories.Add(Categories.MacOnly);
                 excludeCategories.Add(Categories.POSIXOnly);
             }
