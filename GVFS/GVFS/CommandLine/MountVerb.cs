@@ -195,7 +195,7 @@ namespace GVFS.CommandLine
                 }
             }
 
-            if (!this.Unattended)
+            if (false && !this.Unattended)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.RegisterMount(enlistment, out errorMessage); },
