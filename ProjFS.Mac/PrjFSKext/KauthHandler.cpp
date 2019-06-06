@@ -265,35 +265,6 @@ KEXT_STATIC int HandleVnodeOperation(
     isDeleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
     isDirectory = vnode_isdir(currentVnode);
     
-    if (isDeleteAction)
-    {
-        // Allow any user to delete individual files, as this generally doesn't cause nested kauth callbacks.
-        ProviderCallbackPolicy callbackPolicy = isDirectory ? CallbackPolicy_UserInitiatedOnly : CallbackPolicy_AllowAny;
-        if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, callbackPolicy, &root, &vnodeFsidInode, &kauthResult, kauthError))
-        {
-            goto CleanupAndReturn;
-        }
-        
-        PerfSample preDeleteSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreDelete);
-        
-        if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
-                root,
-                isDirectory ?
-                    MessageType_KtoU_NotifyDirectoryPreDelete :
-                    MessageType_KtoU_NotifyFilePreDelete,
-                currentVnode,
-                vnodeFsidInode,
-                nullptr, // path not needed, use fsid/inode
-                nullptr, // source path N/A
-                pid,
-                procname,
-                &kauthResult,
-                kauthError))
-        {
-            goto CleanupAndReturn;
-        }
-    }
-    
     if (isDirectory)
     {
         if (ActionBitIsSet(
@@ -432,6 +403,36 @@ KEXT_STATIC int HandleVnodeOperation(
             }
         }
     }
+    
+    if (isDeleteAction)
+    {
+        // Allow any user to delete individual files, as this generally doesn't cause nested kauth callbacks.
+        if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_AllowAny, &root, &vnodeFsidInode, &kauthResult, kauthError))
+        {
+            goto CleanupAndReturn;
+        }
+                
+        PerfSample preDeleteSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreDelete);
+        
+        // Predeletes must be sent after hydration since they may convert the file to full
+        if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
+                root,
+                isDirectory ?
+                MessageType_KtoU_NotifyDirectoryPreDelete :
+                MessageType_KtoU_NotifyFilePreDelete,
+                currentVnode,
+                vnodeFsidInode,
+                nullptr, // path not needed, use fsid/inode
+                nullptr, // source path N/A
+                pid,
+                procname,
+                &kauthResult,
+                kauthError))
+        {
+            goto CleanupAndReturn;
+        }
+    }
+
     
 CleanupAndReturn:
     if (putVnodeWhenDone)
