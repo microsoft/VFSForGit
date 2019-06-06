@@ -40,8 +40,7 @@ namespace GVFS.Platform.Windows
 
         public override bool TryPrepareApplicationDirectory(out string error)
         {
-            string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ProductUpgrader.ToolsDirectory);
+            string toolsDirectoryPath = ProductUpgraderInfo.GetUpgradeApplicationDirectory();
 
             Exception deleteDirectoryException;
             if (this.FileSystem.DirectoryExists(toolsDirectoryPath) &&
