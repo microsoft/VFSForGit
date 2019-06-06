@@ -90,10 +90,10 @@ namespace GVFS.CommandLine
 
             this.Output.WriteLine("\nRepository statistics");
             this.Output.WriteLine("Total paths tracked by git:     " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
-            this.Output.WriteLine("Total number of placeholders:   " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormattedPercent(((double)placeholderCount) / trackedFilesCount));
-            this.Output.WriteLine("Total number of modified paths: " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormattedPercent(((double)modifiedPathsCount) / trackedFilesCount));
+            this.Output.WriteLine("Total number of placeholders:   " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(((double)placeholderCount) / trackedFilesCount));
+            this.Output.WriteLine("Total number of modified paths: " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(((double)modifiedPathsCount) / trackedFilesCount));
 
-            this.Output.WriteLine("\nTotal hydration percentage:     " + this.FormattedPercent((double)(placeholderCount + modifiedPathsCount) / trackedFilesCount).PadLeft(longest + 7));
+            this.Output.WriteLine("\nTotal hydration percentage:     " + this.FormatPercent((double)(placeholderCount + modifiedPathsCount) / trackedFilesCount).PadLeft(longest + 7));
 
             this.Output.WriteLine("\nMost hydrated top level directories:");
 
@@ -106,8 +106,8 @@ namespace GVFS.CommandLine
             for (int i = 0; i < DirectoryDisplayCount && i < topLevelDirectoriesByHydration.Count; i++)
             {
                 string dir = topLevelDirectoriesByHydration[i].Key.PadRight(maxDirectoryNameLength);
-                string percent = this.FormattedPercent((double)topLevelDirectoriesByHydration[i].Value / trackedFilesLookup[topLevelDirectoriesByHydration[i].Key]);
-                this.Output.WriteLine(" " + percent + " | " + dir + " | Primarily hydrated by ____________");
+                string percent = this.FormatPercent((double)topLevelDirectoriesByHydration[i].Value / trackedFilesLookup[topLevelDirectoriesByHydration[i].Key]);
+                this.Output.WriteLine(" " + percent + " | " + dir);
             }
 
             bool healthyRepo = (placeholderCount + modifiedPathsCount) < (trackedFilesCount / 2);
@@ -122,7 +122,7 @@ namespace GVFS.CommandLine
         /// </summary>
         /// <param name="percent">Fractional double to format to a percent</param>
         /// <returns>A 4 character string formatting the percent correctly</returns>
-        private string FormattedPercent(double percent)
+        private string FormatPercent(double percent)
         {
             return percent.ToString("P0").PadLeft(4);
         }
@@ -142,7 +142,7 @@ namespace GVFS.CommandLine
         /// </summary>
         /// <param name="path">The path to a file to parse for the top level directory containing it</param>
         /// <returns>A string containing the top level directory from the provided path, or '/' if the path is for an item in the root</returns>
-        private string TopDirectory(string path)
+        private string ParseTopDirectory(string path)
         {
             int whackLocation = path.IndexOf('/');
             if (whackLocation == -1)
@@ -237,7 +237,7 @@ namespace GVFS.CommandLine
                 GVFSConstants.DotGit.HeadName,
                 line =>
                 {
-                    string topDir = this.TopDirectory(this.TrimGitIndexLine(line));
+                    string topDir = this.ParseTopDirectory(this.TrimGitIndexLine(line));
                     trackedFilesLookup[topDir] = trackedFilesLookup.ContainsKey(topDir) ? trackedFilesLookup[topDir] + 1 : 1;
                     ++addedFiles;
                 },
@@ -270,7 +270,7 @@ namespace GVFS.CommandLine
 
                 if (isFile)
                 {
-                    string topDir = this.TopDirectory(formattedPath);
+                    string topDir = this.ParseTopDirectory(formattedPath);
                     directoryTracking[topDir] = directoryTracking.ContainsKey(topDir) ? directoryTracking[topDir] + 1 : 1;
                 }
                 else
@@ -278,7 +278,7 @@ namespace GVFS.CommandLine
                     string topDir = formattedPath;
                     if (topDir.IndexOf('/') != -1)
                     {
-                        topDir = this.TopDirectory(topDir);
+                        topDir = this.ParseTopDirectory(topDir);
                     }
 
                     directoryTracking[topDir] = directoryTracking.ContainsKey(topDir) ? directoryTracking[topDir] + 1 : 1;
