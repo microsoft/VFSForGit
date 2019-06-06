@@ -94,8 +94,8 @@ namespace GVFS.UnitTests.Virtualization
                 fileSystemVirtualizer: null,
                 placeholderDatabase: mockPlaceholderDb.Object))
             {
-                EventLevel eventLevel = EventLevel.Verbose;
-                EventMetadata metadata = fileSystemCallbacks.GetMetadataForHeartBeat(ref eventLevel);
+                EventMetadata metadata = fileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool writeToLogFile);
+                EventLevel eventLevel = writeToLogFile ? EventLevel.Informational : EventLevel.Verbose;
                 eventLevel.ShouldEqual(EventLevel.Verbose);
 
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
@@ -129,8 +129,8 @@ namespace GVFS.UnitTests.Virtualization
             {
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "1111122222333334444455555666667777788888", "GVFS.UnitTests.exe");
 
-                EventLevel eventLevel = EventLevel.Verbose;
-                EventMetadata metadata = fileSystemCallbacks.GetMetadataForHeartBeat(ref eventLevel);
+                EventMetadata metadata = fileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool writeToLogFile);
+                EventLevel eventLevel = writeToLogFile ? EventLevel.Informational : EventLevel.Verbose;
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
@@ -146,8 +146,8 @@ namespace GVFS.UnitTests.Virtualization
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "2222233333444445555566666777778888899999", "GVFS.UnitTests.exe2");
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "3333344444555556666677777888889999900000", "GVFS.UnitTests.exe2");
 
-                eventLevel = EventLevel.Verbose;
-                metadata = fileSystemCallbacks.GetMetadataForHeartBeat(ref eventLevel);
+                metadata = fileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool writeToLogFile2);
+                eventLevel = writeToLogFile2 ? EventLevel.Informational : EventLevel.Verbose;
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
                 metadata.Count.ShouldEqual(6);

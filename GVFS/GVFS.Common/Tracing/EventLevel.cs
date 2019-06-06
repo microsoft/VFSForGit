@@ -1,6 +1,7 @@
 ﻿namespace GVFS.Common.Tracing
 {
-    // Copied from Microsoft.Diagnostics.Tracing.EventLevel
+    // The default EventLevel is Verbose, which does not go to log files by default.
+    // If you want to log to a file, you need to raise EventLevel to at least Informational
     public enum EventLevel
     {
         LogAlways = 0,

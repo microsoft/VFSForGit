@@ -261,11 +261,6 @@ namespace GVFS.Common
             throw new NotImplementedException();
         }
 
-        public int GetExpandedFolderCount()
-        {
-            throw new NotImplementedException();
-        }
-
         public void WriteAllEntriesAndFlush(IEnumerable<IPlaceholderData> updatedPlaceholders)
         {
             try

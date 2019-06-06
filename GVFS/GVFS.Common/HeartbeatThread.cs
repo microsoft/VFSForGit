@@ -6,7 +6,7 @@ namespace GVFS.Common
 {
     public class HeartbeatThread
     {
-        private static readonly TimeSpan HeartBeatWaitTime = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan HeartBeatWaitTime = TimeSpan.FromMinutes(60);
 
         private readonly ITracer tracer;
         private readonly IHeartBeatMetadataProvider dataProvider;
@@ -50,8 +50,8 @@ namespace GVFS.Common
         {
             try
             {
-                EventLevel eventLevel = EventLevel.Verbose;
-                EventMetadata metadata = this.dataProvider.GetMetadataForHeartBeat(ref eventLevel) ?? new EventMetadata();
+                EventMetadata metadata = this.dataProvider.GetAndResetHeartBeatMetadata(out bool writeToLogFile) ?? new EventMetadata();
+                EventLevel eventLevel = writeToLogFile ? EventLevel.Informational : EventLevel.Verbose;
                 DateTime now = DateTime.Now;
                 metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
                 metadata.Add("MinutesUptime", (long)(now - this.startTime).TotalMinutes);

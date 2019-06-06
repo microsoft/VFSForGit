@@ -11,7 +11,6 @@ namespace GVFS.Common.Database
         void GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
         int GetFilePlaceholdersCount();
         int GetFolderPlaceholdersCount();
-        int GetExpandedFolderCount();
 
         HashSet<string> GetAllFilePaths();
 

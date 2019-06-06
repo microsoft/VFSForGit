@@ -260,18 +260,20 @@ namespace GVFS.Virtualization
             return true;
         }
 
-        public EventMetadata GetMetadataForHeartBeat(ref EventLevel eventLevel)
+        public EventMetadata GetAndResetHeartBeatMetadata(out bool logToFile)
         {
+            logToFile = false;
             EventMetadata metadata = new EventMetadata();
+
             metadata.Add(
                 "FilePlaceholderCreation",
-                this.GetProcessInteractionData(ref this.filePlaceHolderCreationCount, ref eventLevel));
-             metadata.Add(
+                this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.filePlaceHolderCreationCount), ref logToFile));
+            metadata.Add(
                 "FolderPlaceholderCreation",
-                this.GetProcessInteractionData(ref this.folderPlaceHolderCreationCount, ref eventLevel));
+                this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.folderPlaceHolderCreationCount), ref logToFile));
             metadata.Add(
                 "FilePlaceholdersHydrated",
-                this.GetProcessInteractionData(ref this.fileHydrationCount, ref eventLevel));
+                this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.fileHydrationCount), ref logToFile));
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
             metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
@@ -279,7 +281,7 @@ namespace GVFS.Virtualization
 
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {
-                eventLevel = EventLevel.Informational;
+                logToFile = true;
             }
 
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
@@ -513,33 +515,34 @@ namespace GVFS.Virtualization
             return result;
         }
 
-        private EventMetadata GetProcessInteractionData(ref ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData, ref EventLevel eventLevel)
+        private EventMetadata GetProcessInteractionData(ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData, ref bool logToFile)
         {
             EventMetadata metadata = new EventMetadata();
 
             if (collectedData.Count > 0)
             {
-                ConcurrentDictionary<string, PlaceHolderCreateCounter> localData = collectedData;
-                collectedData = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
-
                 int count = 0;
                 foreach (KeyValuePair<string, PlaceHolderCreateCounter> processCount in
-                    localData.OrderByDescending((KeyValuePair<string, PlaceHolderCreateCounter> kvp) => kvp.Value.Count))
+                collectedData.OrderByDescending((KeyValuePair<string, PlaceHolderCreateCounter> kvp) => kvp.Value.Count).Take(10))
                 {
                     ++count;
-                    if (count > 10)
-                    {
-                        break;
-                    }
-
                     metadata.Add("ProcessName" + count, processCount.Key);
                     metadata.Add("ProcessCount" + count, processCount.Value.Count);
                 }
 
-                eventLevel = EventLevel.Informational;
+                logToFile = true;
             }
 
             return metadata;
+        }
+
+        // Captures the current state of dictionary, and resets it
+        // This approach is optimal for our use case to preserve all entries while avoiding additional locking
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> GetAndResetProcessCountMetadata(ref ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData)
+        {
+            ConcurrentDictionary<string, PlaceHolderCreateCounter> localData = collectedData;
+            collectedData = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            return localData;
         }
 
         private void InvalidateState(bool invalidateProjection, bool invalidateModifiedPaths)
