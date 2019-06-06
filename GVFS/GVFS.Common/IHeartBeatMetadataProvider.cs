@@ -4,6 +4,6 @@ namespace GVFS.Common
 {
     public interface IHeartBeatMetadataProvider
     {
-        EventMetadata GetMetadataForHeartBeat(ref EventLevel eventLevel);
+        EventMetadata GetAndResetHeartBeatMetadata(out bool logToFile);
     }
 }

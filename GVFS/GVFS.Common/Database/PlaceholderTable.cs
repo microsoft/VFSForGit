@@ -209,23 +209,6 @@ namespace GVFS.Common.Database
             }
         }
 
-        public int GetExpandedFolderCount()
-        {
-            try
-            {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
-                {
-                    command.CommandText = $"SELECT count(path) FROM Placeholder WHERE pathType = {(int)PlaceholderData.PlaceholderType.ExpandedFolder};";
-                    return Convert.ToInt32(command.ExecuteScalar());
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetCount)} Exception", ex);
-            }
-        }
-
         private void Insert(PlaceholderData placeholder)
         {
             try
