@@ -12,6 +12,7 @@ using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization;
 using GVFS.Virtualization.Background;
 using Moq;
+using Newtonsoft.Json;
 using NUnit.Framework;
 using System;
 using System.IO;
@@ -83,6 +84,8 @@ namespace GVFS.UnitTests.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(0);
+            mockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(() => 0);
+            mockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(() => 0);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -100,7 +103,7 @@ namespace GVFS.UnitTests.Virtualization
 
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
                 metadata.ShouldContain("ModifiedPathsCount", 1);
-                metadata.ShouldContain("PlaceholderCount", 0);
+                metadata.ShouldContain("FilePlaceholderCount", 0);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
             }
 
@@ -108,14 +111,18 @@ namespace GVFS.UnitTests.Virtualization
         }
 
         [TestCase]
-        public void GetMetadataForHeartBeatDoesSetsEventLevelWToInformationalWhenPlaceholdersHaveBeenCreated()
+        public void GetMetadataForHeartBeatDoesSetsEventLevelToInformationalWhenPlaceholdersHaveBeenCreated()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            int placeholderCount = 0;
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(() => placeholderCount);
-            mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "1111122222333334444455555666667777788888")).Callback(() => ++placeholderCount);
-            mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "2222233333444445555566666777778888899999")).Callback(() => ++placeholderCount);
-            mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "3333344444555556666677777888889999900000")).Callback(() => ++placeholderCount);
+            int filePlaceholderCount = 0;
+            int folderPlaceholderCount = 0;
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(() => filePlaceholderCount + folderPlaceholderCount);
+            mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "1111122222333334444455555666667777788888")).Callback(() => ++filePlaceholderCount);
+            mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "2222233333444445555566666777778888899999")).Callback(() => ++filePlaceholderCount);
+            mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "3333344444555556666677777888889999900000")).Callback(() => ++filePlaceholderCount);
+            mockPlaceholderDb.Setup(x => x.AddPartialFolder("foo")).Callback(() => ++folderPlaceholderCount);
+            mockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(() => filePlaceholderCount);
+            mockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(() => folderPlaceholderCount);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -134,29 +141,47 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
-                metadata.Count.ShouldEqual(6);
-                metadata.ShouldContain("ProcessName1", "GVFS.UnitTests.exe");
-                metadata.ShouldContain("ProcessCount1", 1);
+                metadata.Count.ShouldEqual(8);
+                metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
+                metadata.TryGetValue("FilePlaceholderCreation", out object fileNestedMetadata);
+                JsonConvert.SerializeObject(fileNestedMetadata).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe\"");
+                JsonConvert.SerializeObject(fileNestedMetadata).ShouldContain("\"ProcessCount1\":1");
                 metadata.ShouldContain("ModifiedPathsCount", 1);
-                metadata.ShouldContain("PlaceholderCount", 1);
+                metadata.ShouldContain("FilePlaceholderCount", 1);
+                metadata.ShouldContain("FolderPlaceholderCount", 0);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
 
                 // Create more placeholders
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "2222233333444445555566666777778888899999", "GVFS.UnitTests.exe2");
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "3333344444555556666677777888889999900000", "GVFS.UnitTests.exe2");
+                fileSystemCallbacks.OnPlaceholderFolderCreated("foo", "GVFS.UnitTests.exe2");
+
+                // Hydrate a file
+                fileSystemCallbacks.OnPlaceholderFileHydrated("GVFS.UnitTests.exe2");
 
                 metadata = fileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool writeToLogFile2);
                 eventLevel = writeToLogFile2 ? EventLevel.Informational : EventLevel.Verbose;
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
-                metadata.Count.ShouldEqual(6);
+                metadata.Count.ShouldEqual(8);
 
                 // Only processes that have created placeholders since the last heartbeat should be named
-                metadata.ShouldContain("ProcessName1", "GVFS.UnitTests.exe2");
-                metadata.ShouldContain("ProcessCount1", 2);
+                metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
+                metadata.TryGetValue("FilePlaceholderCreation", out object fileNestedMetadata2);
+                JsonConvert.SerializeObject(fileNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
+                JsonConvert.SerializeObject(fileNestedMetadata2).ShouldContain("\"ProcessCount1\":2");
+                metadata.ContainsKey("FolderPlaceholderCreation").ShouldBeTrue();
+                metadata.TryGetValue("FolderPlaceholderCreation", out object folderNestedMetadata2);
+                JsonConvert.SerializeObject(folderNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
+                JsonConvert.SerializeObject(folderNestedMetadata2).ShouldContain("\"ProcessCount1\":1");
+                metadata.ContainsKey("FilePlaceholdersHydrated").ShouldBeTrue();
+                metadata.TryGetValue("FilePlaceholdersHydrated", out object hydrationNestedMetadata2);
+                JsonConvert.SerializeObject(hydrationNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
+                JsonConvert.SerializeObject(hydrationNestedMetadata2).ShouldContain("\"ProcessCount1\":1");
                 metadata.ShouldContain("ModifiedPathsCount", 1);
-                metadata.ShouldContain("PlaceholderCount", 3);
+                metadata.ShouldContain("FilePlaceholderCount", 3);
+                metadata.ShouldContain("FolderPlaceholderCount", 1);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
             }
