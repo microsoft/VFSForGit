@@ -81,8 +81,8 @@ Note that VFS for Git on Mac is under active development.
 
 * Prep your machine to use VFS for Git. The following are all done by the script below.
   * install [Homebrew](https://brew.sh/)
-  * install and setup the Git Credential Manager (with `brew`)
   * install/update Java (with `brew`)
+  * install and setup the Git Credential Manager (with `brew`)
   * install a VFS for Git aware version of Git
 
   ```
