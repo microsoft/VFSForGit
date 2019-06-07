@@ -131,7 +131,7 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.GetDataRootForGVFSComponentImplementation(componentName);
         }
 
-        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
+        public override void StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args)
         {
             string programArguments = string.Empty;
             try
@@ -153,6 +153,11 @@ namespace GVFS.Platform.Windows
                 tracer.RelatedError(metadata, "Failed to start background process.");
                 throw;
             }
+        }
+
+        public override void PrepareProcessToRunInBackground()
+        {
+            // No additional work required
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
