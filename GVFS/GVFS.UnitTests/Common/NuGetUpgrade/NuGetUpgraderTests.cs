@@ -65,6 +65,7 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 NuGetFeedName,
                 this.downloadDirectoryPath,
                 null,
+                GVFSPlatform.Instance.UnderConstruction.SupportsNuGetEncryption,
                 this.tracer);
             this.mockNuGetFeed.Setup(feed => feed.SetCredentials(It.IsAny<string>()));
 
