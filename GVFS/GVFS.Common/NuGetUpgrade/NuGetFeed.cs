@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -154,11 +155,20 @@ namespace GVFS.Common.NuGetUpgrade
 
         private static PackageSourceCredential BuildCredentialsFromPAT(string personalAccessToken)
         {
+            // The storePasswordInClearText property is used to control whether the password
+            // is written to NuGet config files in clear text or not. It also controls whether the
+            // password is stored encrypted in memory or not. The ability to encrypt / decrypt the password
+            // is not supported in non-windows platforms at this point.
+            // We do not actually write out config files or store the password (except in memory). As in our
+            // usage of NuGet functionality we do not write out config files, it is OK to not set this property
+            // (with the tradeoff being the password is not encrypted in memory, and we need to make sure that new code
+            // does not start to write out config files).
+            bool storePasswordInClearText = !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
             return PackageSourceCredential.FromUserInput(
                 "VfsForGitNugetUpgrader",
                 "PersonalAccessToken",
                 personalAccessToken,
-                storePasswordInClearText: false);
+                storePasswordInClearText: storePasswordInClearText);
         }
 
         private void SetSourceRepository()
