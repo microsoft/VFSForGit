@@ -987,7 +987,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.FailsOnBuildAgent)]
         public void EditFileNeedingUtf8Encoding()
         {
             this.ValidateGitCommand("checkout -b tests/functional/EditFileNeedingUtf8Encoding");
