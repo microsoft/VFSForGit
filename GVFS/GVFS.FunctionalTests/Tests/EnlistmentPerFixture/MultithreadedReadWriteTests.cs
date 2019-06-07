@@ -4,6 +4,7 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 
@@ -13,6 +14,24 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixture]
     public class MultithreadedReadWriteTests : TestsWithEnlistmentPerFixture
     {
+        private int nativeEWouldBlock = 0;
+
+        public MultithreadedReadWriteTests()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                // #define EAGAIN      11      /* Resource temporarily unavailable */
+                // #define EWOULDBLOCK EAGAIN  /* Operation would block */
+                this.nativeEWouldBlock = 11;
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                // #define EAGAIN      35      /* Resource temporarily unavailable */
+                // #define EWOULDBLOCK EAGAIN  /* Operation would block */
+                this.nativeEWouldBlock = 35;
+            }
+        }
+
         [TestCase, Order(1)]
         public void CanReadVirtualFileInParallel()
         {
@@ -31,13 +50,22 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 threads[i] = new Thread(() =>
                 {
-                    try
+                    while (true)
                     {
-                        FileSystemRunner.DefaultRunner.ReadAllText(virtualPath).ShouldBeNonEmpty();
-                    }
-                    catch (Exception e)
-                    {
-                        readException = e;
+                        try
+                        {
+                            FileSystemRunner.DefaultRunner.ReadAllText(virtualPath).ShouldBeNonEmpty();
+                            break;
+                        }
+                        catch (IOException) when (Marshal.GetLastWin32Error() == this.nativeEWouldBlock && this.nativeEWouldBlock > 0)
+                        {
+                            // ignore EAGAIN
+                        }
+                        catch (Exception e)
+                        {
+                            readException = e;
+                            break;
+                        }
                     }
                 });
 
@@ -125,6 +153,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             Thread[] threads = new Thread[4];
             StringBuilder[] fileContents = new StringBuilder[4];
 
+            Exception writeException = null;
+
             // Writer
             fileContents[0] = new StringBuilder();
             threads[0] = new Thread(() =>
@@ -134,13 +164,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 while ((DateTime.Now - start).TotalSeconds < 2.5)
                 {
                     string newChar = r.Next(10).ToString();
-                    fileSystem.AppendAllText(virtualPath, newChar);
-                    fileContents[0].Append(newChar);
+                    try
+                    {
+                        fileSystem.AppendAllText(virtualPath, newChar);
+                        fileContents[0].Append(newChar);
+                    }
+                    catch (IOException) when (Marshal.GetLastWin32Error() == this.nativeEWouldBlock && this.nativeEWouldBlock > 0)
+                    {
+                        // ignore EAGAIN
+                    }
+                    catch (Exception e)
+                    {
+                        writeException = e;
+                    }
                     Thread.Yield();
                 }
 
                 keepRunning = false;
             });
+
+            Exception readException = null;
 
             // Readers
             for (int i = 1; i < threads.Length; ++i)
@@ -149,17 +192,41 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 fileContents[i] = new StringBuilder();
                 threads[i] = new Thread(() =>
                 {
-                    using (Stream readStream = File.Open(virtualPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    using (StreamReader reader = new StreamReader(readStream, true))
+                    bool retry = true;
+                    while (retry)
                     {
-                        while (keepRunning)
+                        Stream readStream = null;
+                        try
                         {
-                            Thread.Yield();
-                            fileContents[myIndex].Append(reader.ReadToEnd());
-                        }
+                            readStream = File.Open(virtualPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                            retry = false;
+                            using (StreamReader reader = new StreamReader(readStream, true))
+                            {
+                                while (keepRunning)
+                                {
+                                    Thread.Yield();
+                                    fileContents[myIndex].Append(reader.ReadToEnd());
+                                }
 
-                        // Catch the last write that might have escaped us
-                        fileContents[myIndex].Append(reader.ReadToEnd());
+                                // Catch the last write that might have escaped us
+                                fileContents[myIndex].Append(reader.ReadToEnd());
+                            }
+                        }
+                        catch (IOException) when (Marshal.GetLastWin32Error() == this.nativeEWouldBlock && this.nativeEWouldBlock > 0)
+                        {
+                            // ignore EAGAIN
+                        }
+                        catch (Exception e)
+                        {
+                            readException = e;
+                        }
+                        finally
+                        {
+                            if (readStream != null)
+                            {
+                                ((IDisposable)readStream).Dispose();
+                            }
+                        }
                     }
                 });
             }
@@ -180,6 +247,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
 
             fileSystem.DeleteFile(virtualPath);
+
+            readException.ShouldBeNull("At least one of the reads failed");
+            writeException.ShouldBeNull("At least one of the writes failed");
         }
     }
 }
