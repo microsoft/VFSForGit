@@ -73,7 +73,7 @@ namespace GVFS.Mount
             GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
 
             // Create an empty marker file to know the mount process has started
-            File.Create(GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, "mount_starting"));
+            File.WriteAllText(GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, "mount_starting"), "Starting up");
 
             EventLevel verbosity;
             Keywords keywords;
