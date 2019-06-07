@@ -389,6 +389,14 @@ KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProvid
     {
         assert(rootIndex < s_maxVirtualizationRoots);
         assert(!s_virtualizationRoots[rootIndex].inUse);
+        
+        // Retain a strong reference to the vnode if we have an active provider on it
+        if (userClient != nullptr)
+        {
+            errno_t error = vnode_get(vnode);
+            assertf(error == 0, "The calling code should already hold an iocount on vnode, so vnode_get should never fail. error = %d", error);
+        }
+        
         VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
         
         root->providerUserClient = userClient;
@@ -478,7 +486,10 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                             strlcpy(root.path, virtualizationRootCanonicalPath, sizeof(root.path));
                             KextLog_File(virtualizationRootVNode, "VirtualizationRoot_RegisterProviderForPath: registered provider (PID %d, IOUC %p) for virtualization root %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u.",
                                 clientPID, KextLog_Unslide(userClient), rootIndex, root.path, root.rootFsid.val[0], root.rootFsid.val[1], root.rootInode, KextLog_Unslide(virtualizationRootVNode), rootVid);
-                            virtualizationRootVNode = NULLVP; // transfer ownership
+
+                            // Acquire strong reference while provider is connected
+                            err = vnode_get(virtualizationRootVNode);
+                            assert(err == 0); // we already hold 1 strong reference from vnode_lookup so this should always succeed
                         }
                     }
                     else
@@ -487,14 +498,11 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                         if (rootIndex >= 0)
                         {
                             assert(rootIndex < s_maxVirtualizationRoots);
-                        
-                            virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
-                        
+                            
                             KextLog("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootCanonicalPath);
                         }
                         else
                         {
-                            // TODO: scan the array for roots on mounts which have disappeared, or grow the array
                             KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
                             err = ENOMEM;
                         }
@@ -510,17 +518,16 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
         }
     }
     
+    if (VirtualizationRoot_IsValidRootHandle(rootIndex))
+    {
+        vfs_setauthcache_ttl(vnode_mount(virtualizationRootVNode), 0);
+    }
+
     if (NULLVP != virtualizationRootVNode)
     {
         vnode_put(virtualizationRootVNode);
     }
-    
-    if (rootIndex >= 0)
-    {
-        VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
-        vfs_setauthcache_ttl(vnode_mount(root->rootVNode), 0);
-    }
-    
+
     vfs_context_rele(vfsContext);
     
     return VirtualizationRootResult { err, rootIndex };
