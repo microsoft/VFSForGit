@@ -187,21 +187,28 @@ namespace GVFS.CommandLine
                     }
                 }
 
+                tracer.RelatedInfo($"{nameof(this.Execute)}: Calling TryMount");
+
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
                     "Mounting"))
                 {
                     this.ReportErrorAndExit(errorMessage);
                 }
-            }
 
-            if (!this.Unattended)
-            {
-                if (!this.ShowStatusWhileRunning(
-                    () => { return this.RegisterMount(enlistment, out errorMessage); },
-                    "Registering for automount"))
+                if (!this.Unattended)
                 {
-                    this.Output.WriteLine("    WARNING: " + errorMessage);
+                    tracer.RelatedInfo($"{nameof(this.Execute)}: Registering for automount");
+
+                    if (!this.ShowStatusWhileRunning(
+                        () => { return this.RegisterMount(enlistment, out errorMessage); },
+                        "Registering for automount"))
+                    {
+                        this.Output.WriteLine("    WARNING: " + errorMessage);
+                        tracer.RelatedInfo($"{nameof(this.Execute)}: Failed to register for automount");
+                    }
+
+                    tracer.RelatedInfo($"{nameof(this.Execute)}: Registration complete");
                 }
             }
         }
@@ -258,6 +265,8 @@ namespace GVFS.CommandLine
 
             const string ParamPrefix = "--";
 
+            tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {enlistment.EnlistmentRoot}");
+
             GVFSPlatform.Instance.StartBackgroundProcess(
                 tracer,
                 mountExecutableLocation,
@@ -272,7 +281,9 @@ namespace GVFS.CommandLine
                     this.StartedByService.ToString()
                 });
 
-            return GVFSEnlistment.WaitUntilMounted(enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
+            tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for background process");
+
+            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)

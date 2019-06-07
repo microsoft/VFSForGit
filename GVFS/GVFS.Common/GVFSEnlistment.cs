@@ -1,6 +1,7 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Tracing;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -120,7 +121,7 @@ namespace GVFS.Common
                 fileSystem: fileSystem);
         }
 
-        public static bool WaitUntilMounted(string enlistmentRoot, bool unattended, out string errorMessage)
+        public static bool WaitUntilMounted(ITracer tracer, string enlistmentRoot, bool unattended, out string errorMessage)
         {
             errorMessage = null;
             using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot)))
@@ -131,6 +132,8 @@ namespace GVFS.Common
                     errorMessage = "Unable to mount because the GVFS.Mount process is not responding.";
                     return false;
                 }
+
+                tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Pipe connected");
 
                 while (true)
                 {
@@ -144,26 +147,31 @@ namespace GVFS.Common
 
                         if (getStatusResponse.MountStatus == NamedPipeMessages.GetStatus.Ready)
                         {
+                            tracer.RelatedError($"{nameof(WaitUntilMounted)}: Mount process ready");
                             return true;
                         }
                         else if (getStatusResponse.MountStatus == NamedPipeMessages.GetStatus.MountFailed)
                         {
                             errorMessage = string.Format("Failed to mount at {0}", enlistmentRoot);
+                            tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
                             return false;
                         }
                         else
                         {
+                            tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Sleeping 500ms until next attempt");
                             Thread.Sleep(500);
                         }
                     }
                     catch (BrokenPipeException e)
                     {
                         errorMessage = string.Format("Could not connect to GVFS.Mount: {0}", e);
+                        tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
                         return false;
                     }
                     catch (JsonReaderException e)
                     {
                         errorMessage = string.Format("Failed to parse response from GVFS.Mount.\n {0}", e);
+                        tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
                         return false;
                     }
                 }
