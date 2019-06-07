@@ -856,7 +856,8 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 - (void) testIneligibleFilesystemType
 {
     shared_ptr<mount> testMountNone = mount::Create("msdos", fsid_t{}, 0);
-    shared_ptr<vnode> testVnodeNone = vnode::Create(testMountNone, "/Volumes/USBSTICK");
+    shared_ptr<vnode> testVnodeNone = testMountNone->CreateVnodeTree("/Volumes/USBSTICK", VDIR);
+    
     XCTAssertEqual(
         KAUTH_RESULT_DEFER,
         HandleVnodeOperation(
