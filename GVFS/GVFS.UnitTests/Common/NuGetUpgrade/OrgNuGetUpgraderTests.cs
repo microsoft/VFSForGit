@@ -84,6 +84,7 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 DefaultUpgradeFeedPackageName,
                 this.downloadDirectoryPath,
                 null,
+                GVFSPlatform.Instance.UnderConstruction.SupportsNuGetEncryption,
                 this.tracer);
 
             this.mockFileSystem = new MockFileSystem(

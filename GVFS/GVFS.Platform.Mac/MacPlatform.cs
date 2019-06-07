@@ -82,6 +82,13 @@ namespace GVFS.Platform.Mac
             return result;
         }
 
+        public override ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer)
+        {
+            return new MacProductUpgraderPlatformStrategy(fileSystem, tracer);
+        }
+
         public class MacPlatformConstants : POSIXPlatformConstants
         {
             public override string InstallerExtension

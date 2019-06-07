@@ -58,7 +58,8 @@ namespace GVFS.Common.NuGetUpgrade
                fileSystem,
                config,
                nuGetFeed,
-               credentialStore)
+               credentialStore,
+               GVFSPlatform.Instance.CreateProductUpgraderPlatformInteractions(fileSystem, tracer))
         {
             this.httpClient = httpClient;
             this.platform = platform;

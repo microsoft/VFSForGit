@@ -341,6 +341,13 @@ namespace GVFS.Platform.Windows
             return new WindowsFileBasedLock(fileSystem, tracer, lockPath);
         }
 
+        public override ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer)
+        {
+            return new WindowsProductUpgraderPlatformStrategy(fileSystem, tracer);
+        }
+
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);

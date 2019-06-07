@@ -9,7 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,6 +26,7 @@ namespace GVFS.Common.NuGetUpgrade
         private readonly string feedUrl;
         private readonly string feedName;
         private readonly string downloadFolder;
+        private readonly bool platformSupportsEncryption;
 
         private SourceRepository sourceRepository;
         private string personalAccessToken;
@@ -38,6 +38,7 @@ namespace GVFS.Common.NuGetUpgrade
             string feedName,
             string downloadFolder,
             string personalAccessToken,
+            bool platformSupportsEncryption,
             ITracer tracer)
         {
             this.feedUrl = feedUrl;
@@ -52,6 +53,7 @@ namespace GVFS.Common.NuGetUpgrade
             // - NoCache - Do not cache package version lists
             this.sourceCacheContext = NullSourceCacheContext.Instance.Clone();
             this.sourceCacheContext.NoCache = true;
+            this.platformSupportsEncryption = platformSupportsEncryption;
 
             this.nuGetLogger = new Logger(this.tracer);
             this.SetSourceRepository();
@@ -153,7 +155,7 @@ namespace GVFS.Common.NuGetUpgrade
             return metadata;
         }
 
-        private static PackageSourceCredential BuildCredentialsFromPAT(string personalAccessToken)
+        private static PackageSourceCredential BuildCredentialsFromPAT(string personalAccessToken, bool storePasswordInClearText)
         {
             // The storePasswordInClearText property is used to control whether the password
             // is written to NuGet config files in clear text or not. It also controls whether the
@@ -163,7 +165,6 @@ namespace GVFS.Common.NuGetUpgrade
             // usage of NuGet functionality we do not write out config files, it is OK to not set this property
             // (with the tradeoff being the password is not encrypted in memory, and we need to make sure that new code
             // does not start to write out config files).
-            bool storePasswordInClearText = !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
             return PackageSourceCredential.FromUserInput(
                 "VfsForGitNugetUpgrader",
                 "PersonalAccessToken",
@@ -176,7 +177,7 @@ namespace GVFS.Common.NuGetUpgrade
             this.sourceRepository = Repository.Factory.GetCoreV3(this.feedUrl);
             if (!string.IsNullOrEmpty(this.personalAccessToken))
             {
-                this.sourceRepository.PackageSource.Credentials = BuildCredentialsFromPAT(this.personalAccessToken);
+                this.sourceRepository.PackageSource.Credentials = BuildCredentialsFromPAT(this.personalAccessToken, !this.platformSupportsEncryption);
             }
         }
 

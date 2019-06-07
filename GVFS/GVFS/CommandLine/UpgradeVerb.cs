@@ -24,6 +24,8 @@ namespace GVFS.CommandLine
         private InstallerPreRunChecker prerunChecker;
         private ProcessLauncher processLauncher;
 
+        private ProductUpgraderPlatformStrategy productUpgraderPlatformStrategy;
+
         public UpgradeVerb(
             ProductUpgrader upgrader,
             ITracer tracer,
@@ -38,6 +40,7 @@ namespace GVFS.CommandLine
             this.prerunChecker = prerunChecker;
             this.processLauncher = processWrapper;
             this.Output = output;
+            this.productUpgraderPlatformStrategy = GVFSPlatform.Instance.CreateProductUpgraderPlatformInteractions(fileSystem, tracer);
         }
 
         public UpgradeVerb()
@@ -95,16 +98,9 @@ namespace GVFS.CommandLine
                 error = null;
                 if (this.upgrader == null)
                 {
-                    // Under normal circumstances ProductUpgraderInfo.GetLogDirectoryPath will have already been created by GVFS.Service.  If for some reason it
-                    // does not (e.g. the service failed to start), we need to create ProductUpgraderInfo.GetLogDirectoryPath() explicity to ensure that
-                    // it has the correct ACLs (so that both admin and non-admin users can create log files).
-                    // If the logs directory does not already exist, this call could fail when running as a non-elevated user.
-                    string createDirectoryError;
-                    if (!this.fileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(ProductUpgraderInfo.GetLogDirectoryPath(), out createDirectoryError))
+                    this.productUpgraderPlatformStrategy = GVFSPlatform.Instance.CreateProductUpgraderPlatformInteractions(this.fileSystem, tracer: null);
+                    if (!this.productUpgraderPlatformStrategy.TryPrepareLogDirectory(out error))
                     {
-                        error = $"ERROR: Unable to create directory `{ProductUpgraderInfo.GetLogDirectoryPath()}`";
-                        error += $"\n{createDirectoryError}";
-                        error += $"\n\nTry running {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} from an elevated command prompt.";
                         return false;
                     }
 

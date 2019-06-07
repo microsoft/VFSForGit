@@ -48,8 +48,10 @@ namespace GVFS.Common.NuGetUpgrade
                     config.PackageFeedName,
                     downloadFolder,
                     null,
+                    GVFSPlatform.Instance.UnderConstruction.SupportsNuGetEncryption,
                     tracer),
-                credentialStore)
+                credentialStore,
+                GVFSPlatform.Instance.CreateProductUpgraderPlatformInteractions(fileSystem, tracer))
         {
         }
 
@@ -61,13 +63,15 @@ namespace GVFS.Common.NuGetUpgrade
             PhysicalFileSystem fileSystem,
             NuGetUpgraderConfig config,
             NuGetFeed nuGetFeed,
-            ICredentialStore credentialStore)
+            ICredentialStore credentialStore,
+            ProductUpgraderPlatformStrategy productUpgraderPlatformStrategy)
             : base(
                 currentVersion,
                 tracer,
                 dryRun,
                 noVerify,
-                fileSystem)
+                fileSystem,
+                productUpgraderPlatformStrategy)
         {
             this.nuGetUpgraderConfig = config;
 

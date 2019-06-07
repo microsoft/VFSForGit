@@ -16,7 +16,8 @@ namespace GVFS.Platform.POSIX
         protected POSIXPlatform() : this(
             underConstruction: new UnderConstructionFlags(
                 supportsGVFSUpgrade: false,
-                supportsGVFSConfig: false))
+                supportsGVFSConfig: false,
+                supportsNuGetEncryption: false))
         {
         }
 
