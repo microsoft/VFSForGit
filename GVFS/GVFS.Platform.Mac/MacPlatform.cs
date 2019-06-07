@@ -2,7 +2,11 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Platform.POSIX;
+using System.Collections.Generic;
 using System.IO;
+using System.Xml;
+using System.Xml.Linq;
+using System.Xml.XPath;
 
 namespace GVFS.Platform.Mac
 {
@@ -50,6 +54,32 @@ namespace GVFS.Platform.Mac
             string lockPath)
         {
             return new MacFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
+        {
+            // DiskUtil will return disk statistics in xml format
+            ProcessResult processResult = ProcessHelper.Run("diskutil", "info -plist /", true);
+            Dictionary<string, string> result = new Dictionary<string, string>();
+            if (string.IsNullOrEmpty(processResult.Output))
+            {
+                result.Add("DiskUtilError", processResult.Errors);
+                return result;
+            }
+
+            try
+            {
+                // Parse the XML looking for FilesystemType
+                XDocument xmlDoc = XDocument.Parse(processResult.Output);
+                XElement filesystemTypeValue = xmlDoc.XPathSelectElement("plist/dict/key[text()=\"FilesystemType\"]")?.NextNode as XElement;
+                result.Add("FileSystemType", filesystemTypeValue != null ? filesystemTypeValue.Value: "Not Found");
+            }
+            catch (XmlException ex)
+            {
+                result.Add("DiskUtilError", ex.ToString());
+            }
+
+            return result;
         }
 
         public class MacPlatformConstants : POSIXPlatformConstants
