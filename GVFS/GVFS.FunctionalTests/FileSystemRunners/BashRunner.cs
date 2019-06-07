@@ -104,7 +104,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string existingFileBashPath = this.ConvertWinPathToBashPath(existingFilePath);
             string newLinkBashPath = this.ConvertWinPathToBashPath(newLinkFilePath);
 
-            this.RunProcess(string.Format("-c \"ln -s -F {0} {1}\"", existingFileBashPath, newLinkBashPath));
+            this.RunProcess(string.Format("-c \"ln -s -F '{0}' '{1}'\"", existingFileBashPath, newLinkBashPath));
         }
 
         public override bool FileExists(string path)
@@ -117,7 +117,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string sourceBashPath = this.ConvertWinPathToBashPath(sourcePath);
             string targetBashPath = this.ConvertWinPathToBashPath(targetPath);
 
-            return this.RunProcess(string.Format("-c \"mv {0} {1}\"", sourceBashPath, targetBashPath));
+            return this.RunProcess(string.Format("-c \"mv '{0}' '{1}'\"", sourceBashPath, targetBashPath));
         }
 
         public override void MoveFileShouldFail(string sourcePath, string targetPath)
@@ -137,20 +137,20 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string sourceBashPath = this.ConvertWinPathToBashPath(sourcePath);
             string targetBashPath = this.ConvertWinPathToBashPath(targetPath);
 
-            return this.RunProcess(string.Format("-c \"mv -f {0} {1}\"", sourceBashPath, targetBashPath));
+            return this.RunProcess(string.Format("-c \"mv -f '{0}' '{1}'\"", sourceBashPath, targetBashPath));
         }
 
         public override string DeleteFile(string path)
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
 
-            return this.RunProcess(string.Format("-c \"rm {0}\"", bashPath));
+            return this.RunProcess(string.Format("-c \"rm '{0}'\"", bashPath));
         }
 
         public override string ReadAllText(string path)
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
-            string output = this.RunProcess(string.Format("-c \"cat {0}\"", bashPath));
+            string output = this.RunProcess(string.Format("-c \"cat '{0}'\"", bashPath));
 
             // Bash sometimes sticks a trailing "\n" at the end of the output that we need to remove
             // Until we can figure out why we cannot use this runner with files that have trailing newlines
@@ -169,14 +169,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
 
-            this.RunProcess(string.Format("-c \"echo -n \\\"{0}\\\" >> {1}\"", contents, bashPath));
+            this.RunProcess(string.Format("-c \"echo -n \\\"{0}\\\" >> '{1}'\"", contents, bashPath));
         }
 
         public override void CreateEmptyFile(string path)
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
 
-            this.RunProcess(string.Format("-c \"touch {0}\"", bashPath));
+            this.RunProcess(string.Format("-c \"touch '{0}'\"", bashPath));
         }
 
         public override void CreateHardLink(string newLinkFilePath, string existingFilePath)
@@ -184,14 +184,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string existingFileBashPath = this.ConvertWinPathToBashPath(existingFilePath);
             string newLinkBashPath = this.ConvertWinPathToBashPath(newLinkFilePath);
 
-            this.RunProcess(string.Format("-c \"ln {0} {1}\"", existingFileBashPath, newLinkBashPath));
+            this.RunProcess(string.Format("-c \"ln '{0}' '{1}'\"", existingFileBashPath, newLinkBashPath));
         }
 
         public override void WriteAllText(string path, string contents)
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
 
-            this.RunProcess(string.Format("-c \"echo \\\"{0}\\\" > {1}\"", contents, bashPath));
+            this.RunProcess(string.Format("-c \"echo \\\"{0}\\\" > '{1}'\"", contents, bashPath));
         }
 
         public override void WriteAllTextShouldFail<ExceptionType>(string path, string contents)
@@ -229,21 +229,21 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
 
-            this.RunProcess(string.Format("-c \"mkdir {0}\"", bashPath));
+            this.RunProcess(string.Format("-c \"mkdir '{0}'\"", bashPath));
         }
 
         public override string DeleteDirectory(string path)
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
 
-            return this.RunProcess(string.Format("-c \"rm -rf {0}\"", bashPath));
+            return this.RunProcess(string.Format("-c \"rm -rf '{0}'\"", bashPath));
         }
 
         public override string EnumerateDirectory(string path)
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
 
-            return this.RunProcess(string.Format("-c \"ls {0}\"", bashPath));
+            return this.RunProcess(string.Format("-c \"ls '{0}'\"", bashPath));
         }
 
         public override void ReplaceFile_FileShouldNotBeFound(string sourcePath, string targetPath)
@@ -278,7 +278,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             string octalMode = Convert.ToString(mode, 8);
             string bashPath = this.ConvertWinPathToBashPath(path);
-            string command = $"-c \"chmod {octalMode} {bashPath}\"";
+            string command = $"-c \"chmod {octalMode} '{bashPath}'\"";
             this.RunProcess(command);
         }
 
@@ -294,11 +294,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string statCommand = null;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                statCommand = string.Format("-c \"stat -f \"%z\" {0}\"", bashPath);
+                statCommand = string.Format("-c \"stat -f \"%z\" '{0}'\"", bashPath);
             }
             else
             {
-                statCommand = string.Format("-c \"stat --format \"%s\" {0}\"", bashPath);
+                statCommand = string.Format("-c \"stat --format \"%s\" '{0}'\"", bashPath);
             }
 
             return long.Parse(this.RunProcess(statCommand));
@@ -334,7 +334,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
 
             string bashPath = this.ConvertWinPathToBashPath(path);
-            string command = $"-c  \"[ {checkArgument} {bashPath} ] && echo {ShellRunner.SuccessOutput} || echo {ShellRunner.FailureOutput}\"";
+            string command = $"-c  \"[ {checkArgument} '{bashPath}' ] && echo {ShellRunner.SuccessOutput} || echo {ShellRunner.FailureOutput}\"";
             string output = this.RunProcess(command).Trim();
             return output.Equals(ShellRunner.SuccessOutput, StringComparison.InvariantCulture);
         }
