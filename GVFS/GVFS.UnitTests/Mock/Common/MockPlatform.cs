@@ -136,7 +136,12 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotImplementedException();
         }
 
-        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
+        public override void StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void PrepareProcessToRunInBackground()
         {
             throw new NotSupportedException();
         }
