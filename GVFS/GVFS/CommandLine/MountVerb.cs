@@ -193,7 +193,7 @@ namespace GVFS.CommandLine
                     () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
                     "Mounting"))
                 {
-                    this.ReportErrorAndExit(errorMessage);
+                    this.ReportErrorAndExit(tracer, errorMessage);
                 }
 
                 if (!this.Unattended)

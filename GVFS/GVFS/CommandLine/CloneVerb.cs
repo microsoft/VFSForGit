@@ -229,7 +229,7 @@ namespace GVFS.CommandLine
                     }
                     else
                     {
-                        this.Execute<MountVerb>(
+                        ReturnCode result = this.Execute<MountVerb>(
                             enlistment,
                             verb =>
                             {
@@ -238,6 +238,12 @@ namespace GVFS.CommandLine
                                 verb.ResolvedCacheServer = cacheServer;
                                 verb.DownloadedGVFSConfig = serverGVFSConfig;
                             });
+
+                        if (result != ReturnCode.Success)
+                        {
+                            this.Output.WriteLine("\r\nFailed to mount repo");
+                            exitCode = (int)result;
+                        }
                     }
                 }
                 else

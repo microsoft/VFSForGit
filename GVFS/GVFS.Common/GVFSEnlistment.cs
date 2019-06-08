@@ -123,12 +123,18 @@ namespace GVFS.Common
 
         public static bool WaitUntilMounted(ITracer tracer, string enlistmentRoot, bool unattended, out string errorMessage)
         {
+            tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Creating NamedPipeClient");
+
             errorMessage = null;
             using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot)))
             {
+                tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Connecting to pipe");
+
                 int timeout = unattended ? 300000 : 60000;
                 if (!pipeClient.Connect(timeout))
                 {
+                    tracer.RelatedError($"{nameof(WaitUntilMounted)}: Failed to connect to pipe");
+
                     errorMessage = "Unable to mount because the GVFS.Mount process is not responding.";
                     return false;
                 }
