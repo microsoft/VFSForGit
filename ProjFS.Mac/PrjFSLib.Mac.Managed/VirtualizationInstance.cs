@@ -191,6 +191,7 @@ namespace PrjFSLib.Mac
             switch (notificationType)
             {
                 case NotificationType.PreDelete:
+                case NotificationType.PreDeleteFromRename:
                     return this.OnPreDelete(relativePath, isDirectory);
 
                 case NotificationType.FileModified:
