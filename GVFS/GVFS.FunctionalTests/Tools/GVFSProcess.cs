@@ -1,5 +1,6 @@
 ﻿using GVFS.Tests.Should;
 using System.Diagnostics;
+using System.Text;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -148,23 +149,36 @@ namespace GVFS.FunctionalTests.Tools
                 processInfo.EnvironmentVariables["GIT_TRACE"] = trace;
             }
 
-            using (Process process = Process.Start(processInfo))
+            using (Process process = new Process())
             {
+                process.StartInfo = processInfo;
+
+                StringBuilder output = new StringBuilder();
+                process.OutputDataReceived += (sender, outputArgs) =>
+                {
+                    if (outputArgs.Data != null)
+                    {
+                        output.Append(outputArgs.Data + "\n");
+                    }
+                };
+
+                process.Start();
+
                 if (standardInput != null)
                 {
                     process.StandardInput.Write(standardInput);
                     process.StandardInput.Close();
                 }
 
-                string result = process.StandardOutput.ReadToEnd();
+                process.BeginOutputReadLine();
                 process.WaitForExit();
 
                 if (failOnError)
                 {
-                    process.ExitCode.ShouldEqual(0, result);
+                    process.ExitCode.ShouldEqual(0, output.ToString());
                 }
 
-                return result;
+                return output.ToString();
             }
         }
     }
