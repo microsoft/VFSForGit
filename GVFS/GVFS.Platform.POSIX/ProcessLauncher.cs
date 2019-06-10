@@ -60,30 +60,12 @@ namespace GVFS.Platform.POSIX
             byte** argvPtr = null,
             byte** envpPtr = null)
         {
-            int fdin = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_RDONLY);
-            if (fdin == -1)
+            // Detach and run as system daemon
+            // Unless the argument nochdir is non - zero, daemon() changes the current working directory to the root(/).
+            // Unless the argument noclose is non - zero, daemon() will redirect standard input, standard output, and standard error to / dev / null.
+            if (Daemon(nochdir: 1, noclose: 0) != 0)
             {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open file descriptor for stdin");
-            }
-
-            int fdout = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_WRONLY);
-            if (fdout == -1)
-            {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open file descriptor for stdout");
-            }
-
-            // Redirect stdout/stdin/stderr to "/dev/null"
-            if (Dup2(fdin, StdInFileNo) == -1 ||
-                Dup2(fdout, StdOutFileNo) == -1 ||
-                Dup2(fdout, StdErrFileNo) == -1)
-            {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Error redirecting stdout/stdin/stderr");
-            }
-
-            // Become session leader of a new session
-            if (SetSid() == -1)
-            {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Error calling SetSid()");
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to daemonize process");
             }
 
             // execve will not return if it's successful.
@@ -118,6 +100,9 @@ namespace GVFS.Platform.POSIX
 
         [DllImport("libc", EntryPoint = "dup2", SetLastError = true)]
         private static extern int Dup2(int oldfd, int newfd);
+
+        [DllImport("libc", EntryPoint = "daemon", SetLastError = true)]
+        private static extern int Daemon(int nochdir, int noclose);
 
         [DllImport("libc", EntryPoint = "execve", SetLastError = true)]
         private static extern unsafe int Execve(string filename, byte** argv, byte** envp);
