@@ -6,6 +6,7 @@ using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -142,6 +143,7 @@ namespace GVFS.CommandLine
                                 { "Unattended", this.Unattended },
                                 { "IsElevated", GVFSPlatform.Instance.IsElevated() },
                                 { "NamedPipeName", enlistment.NamedPipeName },
+                                { "Process ID", Process.GetCurrentProcess().Id },
                                 { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                                 { nameof(fullEnlistmentRootPathParameter), fullEnlistmentRootPathParameter },
                             });
