@@ -417,6 +417,7 @@ namespace GVFS.Platform.Mac
                     return e.Result;
                 }
 
+                this.FileSystemCallbacks.OnPlaceholderFileHydrated(triggeringProcessName);
                 return Result.Success;
             }
             catch (Exception e)
@@ -630,7 +631,7 @@ namespace GVFS.Platform.Mac
                 {
                     if (fileInfo.IsFolder)
                     {
-                        this.FileSystemCallbacks.OnPlaceholderFolderCreated(childRelativePath);
+                        this.FileSystemCallbacks.OnPlaceholderFolderCreated(childRelativePath, triggeringProcessName);
                     }
                     else
                     {

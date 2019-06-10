@@ -35,7 +35,9 @@ namespace GVFS.Virtualization
         private IPlaceholderCollection placeholderDatabase;
         private ModifiedPathsDatabase modifiedPaths;
         private ConcurrentHashSet<string> newlyCreatedFileAndFolderPaths;
-        private ConcurrentDictionary<string, PlaceHolderCreateCounter> placeHolderCreationCount;
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> filePlaceHolderCreationCount;
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> folderPlaceHolderCreationCount;
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> fileHydrationCount;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
@@ -59,7 +61,9 @@ namespace GVFS.Virtualization
             this.context = context;
             this.fileSystemVirtualizer = fileSystemVirtualizer;
 
-            this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.filePlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.folderPlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.fileHydrationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
             this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             string error;
@@ -256,36 +260,28 @@ namespace GVFS.Virtualization
             return true;
         }
 
-        public EventMetadata GetMetadataForHeartBeat(ref EventLevel eventLevel)
+        public EventMetadata GetAndResetHeartBeatMetadata(out bool logToFile)
         {
+            logToFile = false;
             EventMetadata metadata = new EventMetadata();
-            if (this.placeHolderCreationCount.Count > 0)
-            {
-                ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData = this.placeHolderCreationCount;
-                this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
 
-                int count = 0;
-                foreach (KeyValuePair<string, PlaceHolderCreateCounter> processCount in
-                    collectedData.OrderByDescending((KeyValuePair<string, PlaceHolderCreateCounter> kvp) => kvp.Value.Count))
-                {
-                    ++count;
-                    if (count > 10)
-                    {
-                        break;
-                    }
-
-                    metadata.Add("ProcessName" + count, processCount.Key);
-                    metadata.Add("ProcessCount" + count, processCount.Value.Count);
-                }
-
-                eventLevel = EventLevel.Informational;
-            }
+            metadata.Add(
+                "FilePlaceholderCreation",
+                this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.filePlaceHolderCreationCount), ref logToFile));
+            metadata.Add(
+                "FolderPlaceholderCreation",
+                this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.folderPlaceHolderCreationCount), ref logToFile));
+            metadata.Add(
+                "FilePlaceholdersHydrated",
+                this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.fileHydrationCount), ref logToFile));
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
-            metadata.Add("PlaceholderCount", this.placeholderDatabase.GetCount());
+            metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
+            metadata.Add("FolderPlaceholderCount", this.placeholderDatabase.GetFolderPlaceholdersCount());
+
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {
-                eventLevel = EventLevel.Informational;
+                logToFile = true;
             }
 
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
@@ -445,7 +441,7 @@ namespace GVFS.Virtualization
             // Note: Because OnPlaceholderFileCreated is not synchronized on all platforms it is possible that GVFS will double count
             // the creation of file placeholders if multiple requests for the same file are received at the same time on different
             // threads.
-            this.placeHolderCreationCount.AddOrUpdate(
+            this.filePlaceHolderCreationCount.AddOrUpdate(
                 triggeringProcessImageFileName,
                 (imageName) => { return new PlaceHolderCreateCounter(); },
                 (key, oldCount) => { oldCount.Increment(); return oldCount; });
@@ -456,14 +452,27 @@ namespace GVFS.Virtualization
             this.GitIndexProjection.OnPlaceholderCreateBlockedForGit();
         }
 
-        public void OnPlaceholderFolderCreated(string relativePath)
+        public void OnPlaceholderFolderCreated(string relativePath, string triggeringProcessImageFileName)
         {
             this.GitIndexProjection.OnPlaceholderFolderCreated(relativePath);
+
+            this.folderPlaceHolderCreationCount.AddOrUpdate(
+                triggeringProcessImageFileName,
+                (imageName) => { return new PlaceHolderCreateCounter(); },
+                (key, oldCount) => { oldCount.Increment(); return oldCount; });
         }
 
         public void OnPlaceholderFolderExpanded(string relativePath)
         {
             this.GitIndexProjection.OnPlaceholderFolderExpanded(relativePath);
+        }
+
+        public void OnPlaceholderFileHydrated(string triggeringProcessImageFileName)
+        {
+            this.fileHydrationCount.AddOrUpdate(
+                triggeringProcessImageFileName,
+                (imageName) => { return new PlaceHolderCreateCounter(); },
+                (key, oldCount) => { oldCount.Increment(); return oldCount; });
         }
 
         public FileProperties GetLogsHeadFileProperties()
@@ -504,6 +513,36 @@ namespace GVFS.Virtualization
             }
 
             return result;
+        }
+
+        private EventMetadata GetProcessInteractionData(ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData, ref bool logToFile)
+        {
+            EventMetadata metadata = new EventMetadata();
+
+            if (collectedData.Count > 0)
+            {
+                int count = 0;
+                foreach (KeyValuePair<string, PlaceHolderCreateCounter> processCount in
+                collectedData.OrderByDescending((KeyValuePair<string, PlaceHolderCreateCounter> kvp) => kvp.Value.Count).Take(10))
+                {
+                    ++count;
+                    metadata.Add("ProcessName" + count, processCount.Key);
+                    metadata.Add("ProcessCount" + count, processCount.Value.Count);
+                }
+
+                logToFile = true;
+            }
+
+            return metadata;
+        }
+
+        // Captures the current state of dictionary, and resets it
+        // This approach is optimal for our use case to preserve all entries while avoiding additional locking
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> GetAndResetProcessCountMetadata(ref ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData)
+        {
+            ConcurrentDictionary<string, PlaceHolderCreateCounter> localData = collectedData;
+            collectedData = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            return localData;
         }
 
         private void InvalidateState(bool invalidateProjection, bool invalidateModifiedPaths)

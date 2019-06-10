@@ -9,6 +9,9 @@ namespace GVFS.Common.Database
     {
         int GetCount();
         void GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
+        int GetFilePlaceholdersCount();
+        int GetFolderPlaceholdersCount();
+
         HashSet<string> GetAllFilePaths();
 
         void AddPartialFolder(string path);
