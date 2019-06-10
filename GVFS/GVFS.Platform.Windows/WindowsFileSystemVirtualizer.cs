@@ -510,7 +510,8 @@ namespace GVFS.Platform.Windows
                         length,
                         streamGuid,
                         sha,
-                        metadata),
+                        metadata,
+                        triggeringProcessImageFileName),
                     () =>
                     {
                         cancellationSource.Dispose();
@@ -828,7 +829,7 @@ namespace GVFS.Platform.Windows
                 {
                     if (fileInfo.IsFolder)
                     {
-                        this.FileSystemCallbacks.OnPlaceholderFolderCreated(gitCaseVirtualPath);
+                        this.FileSystemCallbacks.OnPlaceholderFolderCreated(gitCaseVirtualPath, triggeringProcessImageFileName);
                     }
                     else
                     {
@@ -877,7 +878,8 @@ namespace GVFS.Platform.Windows
             uint length,
             Guid streamGuid,
             string sha,
-            EventMetadata requestMetadata)
+            EventMetadata requestMetadata,
+            string triggeringProcessImageFileName)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -982,6 +984,7 @@ namespace GVFS.Platform.Windows
                 return;
             }
 
+            this.FileSystemCallbacks.OnPlaceholderFileHydrated(triggeringProcessImageFileName);
             this.TryCompleteCommand(commandId, HResult.Ok);
         }
 
@@ -1010,7 +1013,7 @@ namespace GVFS.Platform.Windows
 
                             if (hr == HResult.Ok)
                             {
-                                this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath);
+                                this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath, triggeringProcessImageFileName);
                             }
                             else
                             {

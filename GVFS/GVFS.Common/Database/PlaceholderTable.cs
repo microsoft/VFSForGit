@@ -175,6 +175,40 @@ namespace GVFS.Common.Database
             }
         }
 
+        public int GetFilePlaceholdersCount()
+        {
+            try
+            {
+                using (IDbConnection connection = this.connectionPool.GetConnection())
+                using (IDbCommand command = connection.CreateCommand())
+                {
+                    command.CommandText = $"SELECT count(path) FROM Placeholder WHERE pathType = {(int)PlaceholderData.PlaceholderType.File};";
+                    return Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetCount)} Exception", ex);
+            }
+        }
+
+        public int GetFolderPlaceholdersCount()
+        {
+            try
+            {
+                using (IDbConnection connection = this.connectionPool.GetConnection())
+                using (IDbCommand command = connection.CreateCommand())
+                {
+                    command.CommandText = $"SELECT count(path) FROM Placeholder WHERE pathType = {(int)PlaceholderData.PlaceholderType.PartialFolder};";
+                    return Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetCount)} Exception", ex);
+            }
+        }
+
         private void Insert(PlaceholderData placeholder)
         {
             try
