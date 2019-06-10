@@ -430,7 +430,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
             _,
-            MessageType_KtoU_NotifyFilePreDelete,
+            MessageType_KtoU_NotifyFilePreDeleteFromRename,
             testFileVnode.get(),
             _,
             _,
@@ -550,7 +550,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
            _,
-            MessageType_KtoU_NotifyFilePreDelete,
+            MessageType_KtoU_NotifyFilePreDeleteFromRename,
             testFileVnode.get(),
             _,
             _,
@@ -574,7 +574,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
            _,
-            MessageType_KtoU_NotifyFilePreDelete,
+            MessageType_KtoU_NotifyFilePreDeleteFromRename,
             otherTestFileVnode.get(),
             _,
             _,
