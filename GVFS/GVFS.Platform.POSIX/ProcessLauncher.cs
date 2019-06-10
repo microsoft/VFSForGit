@@ -60,9 +60,13 @@ namespace GVFS.Platform.POSIX
             byte** argvPtr = null,
             byte** envpPtr = null)
         {
+            Close(StdInFileNo);
+            Close(StdOutFileNo);
+            Close(StdErrFileNo);
+
             // Detach and run as system daemon
             // Unless the argument nochdir is non - zero, daemon() changes the current working directory to the root(/).
-            // Unless the argument noclose is non - zero, daemon() will redirect standard input, standard output, and standard error to / dev / null.
+            // Unless the argument noclose is non - zero, daemon() will redirect standard input, standard output, and standard error to /dev/null.
             if (Daemon(nochdir: 1, noclose: 0) != 0)
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to daemonize process");
@@ -97,6 +101,9 @@ namespace GVFS.Platform.POSIX
 
         [DllImport("libc", EntryPoint = "open", SetLastError = true)]
         private static extern int Open(string path, int flag);
+
+        [DllImport("libc", EntryPoint = "close", SetLastError = true)]
+        private static extern int Close(int filedes);
 
         [DllImport("libc", EntryPoint = "dup2", SetLastError = true)]
         private static extern int Dup2(int oldfd, int newfd);
