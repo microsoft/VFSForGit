@@ -57,7 +57,13 @@ NATIVEDIR=$VFS_SRCDIR/GVFS/GVFS.Native.Mac
 xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.xcworkspace build -scheme GVFS.Native.Mac -derivedDataPath $VFS_OUTPUTDIR/GVFS.Native.Mac || exit 1
 
 USERNOTIFICATIONDIR=$VFS_SRCDIR/GVFS/GVFS.Notifications/VFSForGit.Mac
-xcodebuild -configuration $CONFIGURATION -project $USERNOTIFICATIONDIR/VFSForGit.xcodeproj build -scheme "VFS For Git" -derivedDataPath $VFS_OUTPUTDIR/GVFS.Notifications/VFSForGit.Mac || exit 1
+USERNOTIFICATIONPROJECT="$USERNOTIFICATIONDIR/VFSForGit.xcodeproj"
+USERNOTIFICATIONSCHEME="VFS For Git"
+xcodebuild -configuration $CONFIGURATION -project "$USERNOTIFICATIONPROJECT" build -scheme "$USERNOTIFICATIONSCHEME" -derivedDataPath $VFS_OUTPUTDIR/GVFS.Notifications/VFSForGit.Mac || exit 1
+
+# Build the tests in a separate directory, so the binary for distribution does not contain
+# test plugins created and injected by the test build.
+xcodebuild -configuration $CONFIGURATION -project "$USERNOTIFICATIONPROJECT" test -scheme "$USERNOTIFICATIONSCHEME" -derivedDataPath $VFS_OUTPUTDIR/GVFS.Notifications/VFSForGit.Mac/Tests || exit 1
 
 if [ ! -d $VFS_PUBLISHDIR ]; then
   mkdir $VFS_PUBLISHDIR || exit 1
@@ -67,7 +73,6 @@ echo 'Copying native binaries to Publish directory...'
 cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.ReadObjectHook $VFS_PUBLISHDIR || exit 1
 cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.VirtualFileSystemHook $VFS_PUBLISHDIR || exit 1
 cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.PostIndexChangedHook $VFS_PUBLISHDIR || exit 1
-cp -Rf $VFS_OUTPUTDIR/GVFS.Notifications/VFSForGit.Mac/Build/Products/$CONFIGURATION/VFS\ For\ Git.app $VFS_PUBLISHDIR || exit 1
 
 # Publish after native build, so installer package can include the native binaries.
 dotnet publish $VFS_SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Mac /p:Platform=x64 -p:CopyPrjFS=true --runtime osx-x64 --framework netcoreapp2.1 --self-contained --output $VFS_PUBLISHDIR /maxcpucount:1 /warnasmessage:MSB4011 || exit 1

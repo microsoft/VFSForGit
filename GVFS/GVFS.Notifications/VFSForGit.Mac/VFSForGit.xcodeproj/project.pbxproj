@@ -7,18 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		433FE819227B593500488730 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE818227B593500488730 /* AppDelegate.m */; };
+		433FE819227B593500488730 /* VFSAppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE818227B593500488730 /* VFSAppDelegate.m */; };
 		433FE81B227B594300488730 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 433FE81A227B594300488730 /* Assets.xcassets */; };
 		433FE81E227B594300488730 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 433FE81C227B594300488730 /* MainMenu.xib */; };
 		433FE821227B594300488730 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE820227B594300488730 /* main.m */; };
-		433FE846227B90CA00488730 /* UserNotification.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE845227B90CA00488730 /* UserNotification.m */; };
-		433FE8562280C21000488730 /* StatusBarItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE8542280C21000488730 /* StatusBarItem.m */; };
-		433FE85A2280E10F00488730 /* GVFSTask.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE8592280E10F00488730 /* GVFSTask.m */; };
-		433FE8632281D06100488730 /* AboutWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE8602281D06000488730 /* AboutWindowController.m */; };
-		433FE8642281D06100488730 /* AboutWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 433FE8612281D06100488730 /* AboutWindowController.xib */; };
-		43583C362289BDAA003357D6 /* StatusBarItemTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 43583C352289BDAA003357D6 /* StatusBarItemTests.m */; };
-		43583C382289BE94003357D6 /* AboutWindowControllerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 43583C372289BE94003357D6 /* AboutWindowControllerTests.m */; };
-		43583C3A2289BF59003357D6 /* UserNotificationTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 43583C392289BF59003357D6 /* UserNotificationTests.m */; };
+		433FE846227B90CA00488730 /* VFSUserNotification.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE845227B90CA00488730 /* VFSUserNotification.m */; };
+		433FE8562280C21000488730 /* VFSStatusBarItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE8542280C21000488730 /* VFSStatusBarItem.m */; };
+		433FE85A2280E10F00488730 /* VFSProductInfoFetcher.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE8592280E10F00488730 /* VFSProductInfoFetcher.m */; };
+		433FE8632281D06100488730 /* VFSAboutWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 433FE8602281D06000488730 /* VFSAboutWindowController.m */; };
+		433FE8642281D06100488730 /* VFSAboutWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 433FE8612281D06100488730 /* VFSAboutWindowController.xib */; };
+		43583C362289BDAA003357D6 /* VFSStatusBarItemTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 43583C352289BDAA003357D6 /* VFSStatusBarItemTests.m */; };
+		43583C382289BE94003357D6 /* VFSAboutWindowControllerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 43583C372289BE94003357D6 /* VFSAboutWindowControllerTests.m */; };
+		435B1DFB228B4C8400E853F3 /* VFSMockAboutWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 435B1DFA228B4C8400E853F3 /* VFSMockAboutWindowController.m */; };
+		435B1DFF228B590100E853F3 /* VFSMockProductInfoFetcher.m in Sources */ = {isa = PBXBuildFile; fileRef = 435B1DFE228B590100E853F3 /* VFSMockProductInfoFetcher.m */; };
+		435B1E02228B6C3900E853F3 /* VFSMockNotificationCenter.m in Sources */ = {isa = PBXBuildFile; fileRef = 435B1E01228B6C3900E853F3 /* VFSMockNotificationCenter.m */; };
+		435B1E0F228CC1E000E853F3 /* VFSProcessRunner.m in Sources */ = {isa = PBXBuildFile; fileRef = 435B1E0E228CC1E000E853F3 /* VFSProcessRunner.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,27 +36,34 @@
 
 /* Begin PBXFileReference section */
 		433FE814227B593500488730 /* VFS For Git.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "VFS For Git.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		433FE817227B593500488730 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
-		433FE818227B593500488730 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		433FE817227B593500488730 /* VFSAppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VFSAppDelegate.h; sourceTree = "<group>"; };
+		433FE818227B593500488730 /* VFSAppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSAppDelegate.m; sourceTree = "<group>"; };
 		433FE81A227B594300488730 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		433FE81D227B594300488730 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		433FE81F227B594300488730 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		433FE820227B594300488730 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		433FE822227B594300488730 /* VFSForGit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VFSForGit.entitlements; sourceTree = "<group>"; };
-		433FE844227B90CA00488730 /* UserNotification.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UserNotification.h; sourceTree = "<group>"; };
-		433FE845227B90CA00488730 /* UserNotification.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UserNotification.m; sourceTree = "<group>"; };
-		433FE8532280C21000488730 /* StatusBarItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StatusBarItem.h; sourceTree = "<group>"; };
-		433FE8542280C21000488730 /* StatusBarItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = StatusBarItem.m; sourceTree = "<group>"; };
-		433FE8582280E10F00488730 /* GVFSTask.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GVFSTask.h; sourceTree = "<group>"; };
-		433FE8592280E10F00488730 /* GVFSTask.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GVFSTask.m; sourceTree = "<group>"; };
-		433FE8602281D06000488730 /* AboutWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AboutWindowController.m; sourceTree = "<group>"; };
-		433FE8612281D06100488730 /* AboutWindowController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = AboutWindowController.xib; sourceTree = "<group>"; };
-		433FE8622281D06100488730 /* AboutWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AboutWindowController.h; sourceTree = "<group>"; };
+		433FE844227B90CA00488730 /* VFSUserNotification.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VFSUserNotification.h; sourceTree = "<group>"; };
+		433FE845227B90CA00488730 /* VFSUserNotification.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSUserNotification.m; sourceTree = "<group>"; };
+		433FE8532280C21000488730 /* VFSStatusBarItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VFSStatusBarItem.h; sourceTree = "<group>"; };
+		433FE8542280C21000488730 /* VFSStatusBarItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSStatusBarItem.m; sourceTree = "<group>"; };
+		433FE8582280E10F00488730 /* VFSProductInfoFetcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VFSProductInfoFetcher.h; sourceTree = "<group>"; };
+		433FE8592280E10F00488730 /* VFSProductInfoFetcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSProductInfoFetcher.m; sourceTree = "<group>"; };
+		433FE8602281D06000488730 /* VFSAboutWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = VFSAboutWindowController.m; sourceTree = "<group>"; };
+		433FE8612281D06100488730 /* VFSAboutWindowController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = VFSAboutWindowController.xib; sourceTree = "<group>"; };
+		433FE8622281D06100488730 /* VFSAboutWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VFSAboutWindowController.h; sourceTree = "<group>"; };
 		43583C2B2285E3E1003357D6 /* VFSForGit.UnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VFSForGit.UnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		43583C2F2285E3E1003357D6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		43583C352289BDAA003357D6 /* StatusBarItemTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = StatusBarItemTests.m; sourceTree = "<group>"; };
-		43583C372289BE94003357D6 /* AboutWindowControllerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AboutWindowControllerTests.m; sourceTree = "<group>"; };
-		43583C392289BF59003357D6 /* UserNotificationTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UserNotificationTests.m; sourceTree = "<group>"; };
+		43583C352289BDAA003357D6 /* VFSStatusBarItemTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSStatusBarItemTests.m; sourceTree = "<group>"; };
+		43583C372289BE94003357D6 /* VFSAboutWindowControllerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSAboutWindowControllerTests.m; sourceTree = "<group>"; };
+		435B1DFA228B4C8400E853F3 /* VFSMockAboutWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSMockAboutWindowController.m; sourceTree = "<group>"; };
+		435B1DFC228B4CB500E853F3 /* VFSMockAboutWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VFSMockAboutWindowController.h; sourceTree = "<group>"; };
+		435B1DFD228B590100E853F3 /* VFSMockProductInfoFetcher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VFSMockProductInfoFetcher.h; sourceTree = "<group>"; };
+		435B1DFE228B590100E853F3 /* VFSMockProductInfoFetcher.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = VFSMockProductInfoFetcher.m; sourceTree = "<group>"; };
+		435B1E00228B6C3900E853F3 /* VFSMockNotificationCenter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VFSMockNotificationCenter.h; sourceTree = "<group>"; };
+		435B1E01228B6C3900E853F3 /* VFSMockNotificationCenter.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = VFSMockNotificationCenter.m; sourceTree = "<group>"; };
+		435B1E0D228CC1E000E853F3 /* VFSProcessRunner.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VFSProcessRunner.h; sourceTree = "<group>"; };
+		435B1E0E228CC1E000E853F3 /* VFSProcessRunner.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSProcessRunner.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,28 +87,19 @@
 		430ED36D2281E6B200319408 /* UI */ = {
 			isa = PBXGroup;
 			children = (
-				433FE8532280C21000488730 /* StatusBarItem.h */,
-				433FE8542280C21000488730 /* StatusBarItem.m */,
-				433FE8622281D06100488730 /* AboutWindowController.h */,
-				433FE8602281D06000488730 /* AboutWindowController.m */,
-				433FE8612281D06100488730 /* AboutWindowController.xib */,
-				433FE817227B593500488730 /* AppDelegate.h */,
-				433FE818227B593500488730 /* AppDelegate.m */,
-				433FE844227B90CA00488730 /* UserNotification.h */,
-				433FE845227B90CA00488730 /* UserNotification.m */,
+				433FE8532280C21000488730 /* VFSStatusBarItem.h */,
+				433FE8542280C21000488730 /* VFSStatusBarItem.m */,
+				433FE8622281D06100488730 /* VFSAboutWindowController.h */,
+				433FE8602281D06000488730 /* VFSAboutWindowController.m */,
+				433FE8612281D06100488730 /* VFSAboutWindowController.xib */,
+				433FE817227B593500488730 /* VFSAppDelegate.h */,
+				433FE818227B593500488730 /* VFSAppDelegate.m */,
+				433FE844227B90CA00488730 /* VFSUserNotification.h */,
+				433FE845227B90CA00488730 /* VFSUserNotification.m */,
 				433FE81A227B594300488730 /* Assets.xcassets */,
 				433FE81C227B594300488730 /* MainMenu.xib */,
 			);
 			path = UI;
-			sourceTree = "<group>";
-		};
-		430ED36E2281E6D100319408 /* IPC */ = {
-			isa = PBXGroup;
-			children = (
-				433FE8582280E10F00488730 /* GVFSTask.h */,
-				433FE8592280E10F00488730 /* GVFSTask.m */,
-			);
-			path = IPC;
 			sourceTree = "<group>";
 		};
 		433FE80B227B593500488730 = {
@@ -122,7 +123,7 @@
 		433FE816227B593500488730 /* StatusMenuItem */ = {
 			isa = PBXGroup;
 			children = (
-				430ED36E2281E6D100319408 /* IPC */,
+				435B1E04228C88E300E853F3 /* Utilities */,
 				430ED36D2281E6B200319408 /* UI */,
 				433FE81F227B594300488730 /* Info.plist */,
 				433FE820227B594300488730 /* main.m */,
@@ -136,9 +137,8 @@
 			children = (
 				43583C3B228A17D4003357D6 /* Mocks */,
 				43583C2F2285E3E1003357D6 /* Info.plist */,
-				43583C352289BDAA003357D6 /* StatusBarItemTests.m */,
-				43583C372289BE94003357D6 /* AboutWindowControllerTests.m */,
-				43583C392289BF59003357D6 /* UserNotificationTests.m */,
+				43583C352289BDAA003357D6 /* VFSStatusBarItemTests.m */,
+				43583C372289BE94003357D6 /* VFSAboutWindowControllerTests.m */,
 			);
 			path = VFSForGit.UnitTests;
 			sourceTree = "<group>";
@@ -146,8 +146,25 @@
 		43583C3B228A17D4003357D6 /* Mocks */ = {
 			isa = PBXGroup;
 			children = (
+				435B1DFC228B4CB500E853F3 /* VFSMockAboutWindowController.h */,
+				435B1DFA228B4C8400E853F3 /* VFSMockAboutWindowController.m */,
+				435B1DFD228B590100E853F3 /* VFSMockProductInfoFetcher.h */,
+				435B1DFE228B590100E853F3 /* VFSMockProductInfoFetcher.m */,
+				435B1E00228B6C3900E853F3 /* VFSMockNotificationCenter.h */,
+				435B1E01228B6C3900E853F3 /* VFSMockNotificationCenter.m */,
 			);
 			path = Mocks;
+			sourceTree = "<group>";
+		};
+		435B1E04228C88E300E853F3 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				433FE8582280E10F00488730 /* VFSProductInfoFetcher.h */,
+				433FE8592280E10F00488730 /* VFSProductInfoFetcher.m */,
+				435B1E0D228CC1E000E853F3 /* VFSProcessRunner.h */,
+				435B1E0E228CC1E000E853F3 /* VFSProcessRunner.m */,
+			);
+			path = Utilities;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -230,7 +247,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				433FE8642281D06100488730 /* AboutWindowController.xib in Resources */,
+				433FE8642281D06100488730 /* VFSAboutWindowController.xib in Resources */,
 				433FE81B227B594300488730 /* Assets.xcassets in Resources */,
 				433FE81E227B594300488730 /* MainMenu.xib in Resources */,
 			);
@@ -250,12 +267,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				433FE85A2280E10F00488730 /* GVFSTask.m in Sources */,
-				433FE8632281D06100488730 /* AboutWindowController.m in Sources */,
-				433FE846227B90CA00488730 /* UserNotification.m in Sources */,
+				433FE85A2280E10F00488730 /* VFSProductInfoFetcher.m in Sources */,
+				435B1E0F228CC1E000E853F3 /* VFSProcessRunner.m in Sources */,
+				433FE8632281D06100488730 /* VFSAboutWindowController.m in Sources */,
+				433FE846227B90CA00488730 /* VFSUserNotification.m in Sources */,
 				433FE821227B594300488730 /* main.m in Sources */,
-				433FE819227B593500488730 /* AppDelegate.m in Sources */,
-				433FE8562280C21000488730 /* StatusBarItem.m in Sources */,
+				433FE819227B593500488730 /* VFSAppDelegate.m in Sources */,
+				433FE8562280C21000488730 /* VFSStatusBarItem.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -263,9 +281,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				43583C362289BDAA003357D6 /* StatusBarItemTests.m in Sources */,
-				43583C382289BE94003357D6 /* AboutWindowControllerTests.m in Sources */,
-				43583C3A2289BF59003357D6 /* UserNotificationTests.m in Sources */,
+				435B1DFF228B590100E853F3 /* VFSMockProductInfoFetcher.m in Sources */,
+				43583C362289BDAA003357D6 /* VFSStatusBarItemTests.m in Sources */,
+				43583C382289BE94003357D6 /* VFSAboutWindowControllerTests.m in Sources */,
+				435B1DFB228B4C8400E853F3 /* VFSMockAboutWindowController.m in Sources */,
+				435B1E02228B6C3900E853F3 /* VFSMockNotificationCenter.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -432,6 +452,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = UBF8T346G9;
+				ENABLE_TESTABILITY = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/StatusMenuItem/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -451,6 +472,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = UBF8T346G9;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/VFSForGit.UnitTests/Mocks";
 				INFOPLIST_FILE = VFSForGit.UnitTests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -470,6 +492,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = UBF8T346G9;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/VFSForGit.UnitTests/Mocks";
 				INFOPLIST_FILE = VFSForGit.UnitTests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
