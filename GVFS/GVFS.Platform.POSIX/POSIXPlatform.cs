@@ -86,7 +86,9 @@ namespace GVFS.Platform.POSIX
             {
                 programArguments = string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg));
                 ProcessStartInfo processInfo = new ProcessStartInfo(programName, programArguments);
-                processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+                processInfo.RedirectStandardError = true;
+                processInfo.RedirectStandardInput = true;
+                processInfo.RedirectStandardOutput = true;
 
                 Process executingProcess = new Process();
                 executingProcess.StartInfo = processInfo;

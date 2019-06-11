@@ -4,6 +4,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 
@@ -99,8 +100,16 @@ namespace GVFS.Mount
 
         public void Execute()
         {
+            File.WriteAllText(GVFSEnlistment.GetNewGVFSLogFileName("/Users/wilbaker", "mount_starting"), "Starting up");
+
             if (this.StartedByVerb && RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
+                File.WriteAllText("/Users/wilbaker/mount_started.log", "About to become a daemon");
+
+                Close(StdInFileNo);
+                Close(StdOutFileNo);
+                Close(StdErrFileNo);
+
                 int fdin = Open("/dev/null", (int)OpenFlags.O_RDONLY);
                 if (fdin == -1)
                 {
@@ -126,6 +135,13 @@ namespace GVFS.Mount
                 {
                     this.ReportErrorAndExit("Error calling SetSid()", Marshal.GetLastWin32Error());
                 }
+
+                /*
+                if (Daemon(nochdir: 1, noclose: 0) != 0)
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(, "Error calling Daemon()");
+                }
+                */
             }
 
             GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
@@ -189,8 +205,14 @@ namespace GVFS.Mount
         [DllImport("libc", EntryPoint = "open", SetLastError = true)]
         private static extern int Open(string path, int flag);
 
+        [DllImport("libc", EntryPoint = "close", SetLastError = true)]
+        private static extern int Close(int filedes);
+
         [DllImport("libc", EntryPoint = "dup2", SetLastError = true)]
         private static extern int Dup2(int oldfd, int newfd);
+
+        [DllImport("libc", EntryPoint = "daemon", SetLastError = true)]
+        private static extern int Daemon(int nochdir, int noclose);
 
         private void UnhandledGVFSExceptionHandler(ITracer tracer, object sender, UnhandledExceptionEventArgs e)
         {
