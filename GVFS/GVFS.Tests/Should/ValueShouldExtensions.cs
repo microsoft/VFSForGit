@@ -35,6 +35,12 @@ namespace GVFS.Tests.Should
             return actualValue;
         }
 
+        public static T ShouldEqualWithin<T>(this T actualValue, T expectedValue, T delta, string message = "")
+        {
+            Assert.That(actualValue, Is.EqualTo(expectedValue).Within(delta), message);
+            return actualValue;
+        }
+
         public static T[] ShouldEqual<T>(this T[] actualValue, T[] expectedValue, int start, int count)
         {
             expectedValue.Length.ShouldBeAtLeast(start + count);

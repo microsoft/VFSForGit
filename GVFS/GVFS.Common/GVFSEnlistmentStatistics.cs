@@ -87,11 +87,21 @@ namespace GVFS.Common
 
         public double GetPlaceholderPercentage()
         {
+            if (this.trackedFilesCount == 0)
+            {
+                return 0;
+            }
+
             return (double)this.placeholderCount / this.trackedFilesCount;
         }
 
         public double GetModifiedPathsPercentage()
         {
+            if (this.trackedFilesCount == 0)
+            {
+                return 0;
+            }
+
             return (double)this.modifiedPathsCount / this.trackedFilesCount;
         }
 
@@ -128,6 +138,10 @@ namespace GVFS.Common
             {
                 // Ensure all paths have the same slashes
                 string formattedPath = path.Replace('\\', '/');
+                if (formattedPath.StartsWith("/"))
+                {
+                    formattedPath = formattedPath.Substring(1);
+                }
 
                 if (formattedPath.StartsWith(parentDirectory))
                 {
