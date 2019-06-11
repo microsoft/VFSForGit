@@ -60,20 +60,30 @@ namespace GVFS.Platform.POSIX
             byte** argvPtr = null,
             byte** envpPtr = null)
         {
-            // The daemon() function is for programs wishing to detach themselves
-            // from the controlling terminal and run in the background as system
-            // daemons.
-            //
-            // If nochdir is zero, daemon() changes the process's current working
-            // directory to the root directory("/"); otherwise, the current working
-            // directory is left unchanged.
-            //
-            // If noclose is zero, daemon() redirects standard input, standard
-            // output and standard error to /dev/ null; otherwise, no changes are
-            // made to these file descriptors.
-            if (Daemon(nochdir: 1, noclose: 0) != 0)
+            int fdin = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_RDONLY);
+            if (fdin == -1)
             {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to daemonize process");
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open file a read file descriptor for /dev/null");
+            }
+
+            int fdout = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_WRONLY);
+            if (fdout == -1)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open file a write file descriptor for /dev/null");
+            }
+
+            // Redirect stdout/stdin/stderr to "/dev/null"
+            if (Dup2(fdin, StdInFileNo) == -1 ||
+                Dup2(fdout, StdOutFileNo) == -1 ||
+                Dup2(fdout, StdErrFileNo) == -1)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Error redirecting stdout/stdin/stderr");
+            }
+
+            // Become session leader of a new session
+            if (SetSid() == -1)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Error calling SetSid");
             }
 
             // execve will not return if it's successful.
@@ -100,8 +110,14 @@ namespace GVFS.Platform.POSIX
         [DllImport("libc", EntryPoint = "fork", SetLastError = true)]
         private static extern int Fork();
 
-        [DllImport("libc", EntryPoint = "daemon", SetLastError = true)]
-        private static extern int Daemon(int nochdir, int noclose);
+        [DllImport("libc", EntryPoint = "setsid", SetLastError = true)]
+        private static extern int SetSid();
+
+        [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+        private static extern int Open(string path, int flag);
+
+        [DllImport("libc", EntryPoint = "dup2", SetLastError = true)]
+        private static extern int Dup2(int oldfd, int newfd);
 
         [DllImport("libc", EntryPoint = "execve", SetLastError = true)]
         private static extern unsafe int Execve(string filename, byte** argv, byte** envp);
