@@ -100,12 +100,8 @@ namespace GVFS.Mount
 
         public void Execute()
         {
-            File.WriteAllText(GVFSEnlistment.GetNewGVFSLogFileName("/Users/wilbaker", "mount_starting"), "Starting up");
-
             if (this.StartedByVerb && RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                File.WriteAllText("/Users/wilbaker/mount_started.log", "About to become a daemon");
-
                 Close(StdInFileNo);
                 Close(StdOutFileNo);
                 Close(StdErrFileNo);
