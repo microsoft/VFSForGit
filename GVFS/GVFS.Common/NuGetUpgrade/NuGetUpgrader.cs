@@ -48,6 +48,7 @@ namespace GVFS.Common.NuGetUpgrade
                     config.PackageFeedName,
                     downloadFolder,
                     null,
+                    GVFSPlatform.Instance.UnderConstruction.SupportsNuGetEncryption,
                     tracer),
                 credentialStore)
         {
