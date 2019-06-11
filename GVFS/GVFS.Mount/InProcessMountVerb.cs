@@ -102,10 +102,6 @@ namespace GVFS.Mount
         {
             if (this.StartedByVerb && RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                Close(StdInFileNo);
-                Close(StdOutFileNo);
-                Close(StdErrFileNo);
-
                 int fdin = Open("/dev/null", (int)OpenFlags.O_RDONLY);
                 if (fdin == -1)
                 {
@@ -131,13 +127,6 @@ namespace GVFS.Mount
                 {
                     this.ReportErrorAndExit("Error calling SetSid()", Marshal.GetLastWin32Error());
                 }
-
-                /*
-                if (Daemon(nochdir: 1, noclose: 0) != 0)
-                {
-                    throw new Win32Exception(Marshal.GetLastWin32Error(, "Error calling Daemon()");
-                }
-                */
             }
 
             GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
