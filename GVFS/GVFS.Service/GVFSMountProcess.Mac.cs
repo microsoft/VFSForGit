@@ -33,7 +33,7 @@ namespace GVFS.Service
             }
 
             string errorMessage;
-            if (!this.processLauncher.WaitUntilMounted(repoRoot, false, out errorMessage))
+            if (!this.processLauncher.WaitUntilMounted(this.tracer, repoRoot, false, out errorMessage))
             {
                 this.tracer.RelatedError(errorMessage);
                 return false;
@@ -78,9 +78,9 @@ namespace GVFS.Service
                 return true;
             }
 
-            public virtual bool WaitUntilMounted(string enlistmentRoot, bool unattended, out string errorMessage)
+            public virtual bool WaitUntilMounted(ITracer tracer, string enlistmentRoot, bool unattended, out string errorMessage)
             {
-                return GVFSEnlistment.WaitUntilMounted(enlistmentRoot, unattended: false, errorMessage: out errorMessage);
+                return GVFSEnlistment.WaitUntilMounted(tracer, enlistmentRoot, unattended: false, errorMessage: out errorMessage);
             }
         }
     }

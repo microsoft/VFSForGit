@@ -29,6 +29,8 @@ namespace GVFS.Platform.POSIX
                     NetCoreMethods.AllocNullTerminatedArray(argv, ref argvPtr);
                     NetCoreMethods.AllocNullTerminatedArray(envp, ref envpPtr);
 
+                    tracer.RelatedInfo($"{nameof(StartBackgroundProcess)}: Forking process and starting {programName}");
+
                     // Fork the child process
                     int processId = Fork();
                     if (processId == -1)
@@ -42,7 +44,7 @@ namespace GVFS.Platform.POSIX
 
                     if (processId == 0)
                     {
-                        RunChildProcess(tracer, programName, argvPtr, envpPtr);
+                        RunChildProcess(programName, argvPtr, envpPtr);
                     }
                 }
                 finally
@@ -54,40 +56,29 @@ namespace GVFS.Platform.POSIX
         }
 
         private static unsafe void RunChildProcess(
-            ITracer tracer,
             string programName,
             byte** argvPtr = null,
             byte** envpPtr = null)
         {
-            int fdin = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_RDONLY);
-            if (fdin == -1)
+            // The daemon() function is for programs wishing to detach themselves
+            // from the controlling terminal and run in the background as system
+            // daemons.
+            //
+            // If nochdir is zero, daemon() changes the process's current working
+            // directory to the root directory("/"); otherwise, the current working
+            // directory is left unchanged.
+            //
+            // If noclose is zero, daemon() redirects standard input, standard
+            // output and standard error to /dev/ null; otherwise, no changes are
+            // made to these file descriptors.
+            if (Daemon(nochdir: 1, noclose: 0) != 0)
             {
-                LogErrorAndExit(tracer, "Unable to open file descriptor for stdin", Marshal.GetLastWin32Error());
-            }
-
-            int fdout = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_WRONLY);
-            if (fdout == -1)
-            {
-                LogErrorAndExit(tracer, "Unable to open file descriptor for stdout", Marshal.GetLastWin32Error());
-            }
-
-            // Redirect stdout/stdin/stderr to "/dev/null"
-            if (Dup2(fdin, StdInFileNo) == -1 ||
-                Dup2(fdout, StdOutFileNo) == -1 ||
-                Dup2(fdout, StdErrFileNo) == -1)
-            {
-                LogErrorAndExit(tracer, "Error redirecting stdout/stdin/stderr", Marshal.GetLastWin32Error());
-            }
-
-            // Become session leader of a new session
-            if (SetSid() == -1)
-            {
-                LogErrorAndExit(tracer, "Error calling SetSid()", Marshal.GetLastWin32Error());
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to daemonize process");
             }
 
             // execve will not return if it's successful.
             Execve(programName, argvPtr, envpPtr);
-            LogErrorAndExit(tracer, "Error calling Execve", Marshal.GetLastWin32Error());
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Error calling Execve");
         }
 
         private static string[] GenerateArgv(string fileName, string[] args)
@@ -109,14 +100,8 @@ namespace GVFS.Platform.POSIX
         [DllImport("libc", EntryPoint = "fork", SetLastError = true)]
         private static extern int Fork();
 
-        [DllImport("libc", EntryPoint = "setsid", SetLastError = true)]
-        private static extern int SetSid();
-
-        [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-        private static extern int Open(string path, int flag);
-
-        [DllImport("libc", EntryPoint = "dup2", SetLastError = true)]
-        private static extern int Dup2(int oldfd, int newfd);
+        [DllImport("libc", EntryPoint = "daemon", SetLastError = true)]
+        private static extern int Daemon(int nochdir, int noclose);
 
         [DllImport("libc", EntryPoint = "execve", SetLastError = true)]
         private static extern unsafe int Execve(string filename, byte** argv, byte** envp);
