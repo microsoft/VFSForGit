@@ -5,12 +5,17 @@ using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.Mount
 {
     [Verb("mount", HelpText = "Starts the background mount process")]
     public class InProcessMountVerb
     {
+        private const int StdInFileNo = 0; // STDIN_FILENO  -> standard input file descriptor
+        private const int StdOutFileNo = 1; // STDOUT_FILENO -> standard output file descriptor
+        private const int StdErrFileNo = 2; // STDERR_FILENO -> standard error file descriptor
+
         private TextWriter output;
 
         public InProcessMountVerb()
@@ -19,6 +24,22 @@ namespace GVFS.Mount
             this.ReturnCode = ReturnCode.Success;
 
             this.InitializeDefaultParameterValues();
+        }
+
+        [Flags]
+        public enum OpenFlags
+        {
+            // Access modes (mutually exclusive)
+            O_RDONLY = 0x0000,
+            O_WRONLY = 0x0001,
+            O_RDWR = 0x0002,
+
+            // Flags (combinable)
+            O_CLOEXEC = 0x0010,
+            O_CREAT = 0x0020,
+            O_EXCL = 0x0040,
+            O_TRUNC = 0x0080,
+            O_SYNC = 0x0100,
         }
 
         public ReturnCode ReturnCode { get; private set; }
@@ -55,6 +76,14 @@ namespace GVFS.Mount
             HelpText = "Service initiated mount.")]
         public string StartedByService { get; set; }
 
+        [Option(
+            'l',
+            GVFSConstants.VerbParameters.Mount.StartedByVerb,
+            Default = false,
+            Required = false,
+            HelpText = "Verb initiated mount.")]
+        public bool StartedByVerb { get; set; }
+
         [Value(
                 0,
                 Required = true,
@@ -70,6 +99,35 @@ namespace GVFS.Mount
 
         public void Execute()
         {
+            if (this.StartedByVerb && RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                int fdin = Open("/dev/null", (int)OpenFlags.O_RDONLY);
+                if (fdin == -1)
+                {
+                    this.ReportErrorAndExit("Unable to open file descriptor for stdin", Marshal.GetLastWin32Error());
+                }
+
+                int fdout = Open("/dev/null", (int)OpenFlags.O_WRONLY);
+                if (fdout == -1)
+                {
+                    this.ReportErrorAndExit("Unable to open file descriptor for stdout", Marshal.GetLastWin32Error());
+                }
+
+                // Redirect stdout/stdin/stderr to "/dev/null"
+                if (Dup2(fdin, StdInFileNo) == -1 ||
+                    Dup2(fdout, StdOutFileNo) == -1 ||
+                    Dup2(fdout, StdErrFileNo) == -1)
+                {
+                    this.ReportErrorAndExit("Error redirecting stdout/stdin/stderr", Marshal.GetLastWin32Error());
+                }
+
+                // Become session leader of a new session
+                if (SetSid() == -1)
+                {
+                    this.ReportErrorAndExit("Error calling SetSid()", Marshal.GetLastWin32Error());
+                }
+            }
+
             GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
 
             // Create an empty marker file to know the mount process has started
@@ -124,6 +182,15 @@ namespace GVFS.Mount
                 this.ReportErrorAndExit(tracer, "Failed to mount: {0}", ex.Message);
             }
         }
+
+        [DllImport("libc", EntryPoint = "setsid", SetLastError = true)]
+        private static extern int SetSid();
+
+        [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+        private static extern int Open(string path, int flag);
+
+        [DllImport("libc", EntryPoint = "dup2", SetLastError = true)]
+        private static extern int Dup2(int oldfd, int newfd);
 
         private void UnhandledGVFSExceptionHandler(ITracer tracer, object sender, UnhandledExceptionEventArgs e)
         {

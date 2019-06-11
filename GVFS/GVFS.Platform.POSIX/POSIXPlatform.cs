@@ -4,8 +4,10 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
 
@@ -77,7 +79,28 @@ namespace GVFS.Platform.POSIX
 
         public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
-            ProcessLauncher.StartBackgroundProcess(tracer, programName, args);
+            // ProcessLauncher.StartBackgroundProcess(tracer, programName, args);
+
+            string programArguments = string.Empty;
+            try
+            {
+                programArguments = string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg));
+                ProcessStartInfo processInfo = new ProcessStartInfo(programName, programArguments);
+                processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+
+                Process executingProcess = new Process();
+                executingProcess.StartInfo = processInfo;
+                executingProcess.Start();
+            }
+            catch (Exception ex)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(programName), programName);
+                metadata.Add(nameof(programArguments), programArguments);
+                metadata.Add("Exception", ex.ToString());
+                tracer.RelatedError(metadata, "Failed to start background process.");
+                throw;
+            }
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)

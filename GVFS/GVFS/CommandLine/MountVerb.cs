@@ -278,7 +278,9 @@ namespace GVFS.CommandLine
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Keywords,
                     this.KeywordsCsv,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.StartedByService,
-                    this.StartedByService.ToString()
+                    this.StartedByService.ToString(),
+                    ParamPrefix + GVFSConstants.VerbParameters.Mount.StartedByVerb,
+                    true.ToString()
                 });
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for background process");

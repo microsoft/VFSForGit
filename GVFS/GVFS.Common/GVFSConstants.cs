@@ -220,6 +220,7 @@ namespace GVFS.Common
             public static class Mount
             {
                 public const string StartedByService = "StartedByService";
+                public const string StartedByVerb = "StartedByVerb";
                 public const string Verbosity = "verbosity";
                 public const string Keywords = "keywords";
                 public const string DebugWindow = "debug-window";
