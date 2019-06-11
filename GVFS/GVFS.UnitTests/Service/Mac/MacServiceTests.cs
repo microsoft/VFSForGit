@@ -106,6 +106,7 @@ namespace GVFS.UnitTests.Service.Mac
 
             string errorString = null;
             mountLauncherMock.Setup(mp => mp.WaitUntilMounted(
+                this.tracer,
                 ExpectedActiveRepoPath,
                 It.IsAny<bool>(),
                 out errorString))

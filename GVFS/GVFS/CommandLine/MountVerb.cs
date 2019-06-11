@@ -83,7 +83,7 @@ namespace GVFS.CommandLine
         {
             string errorMessage = null;
             string mountExecutableLocation = null;
-            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "PreMount"))
+            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "ExecuteMount"))
             {
                 PhysicalFileSystem fileSystem = new PhysicalFileSystem();
                 GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
@@ -191,17 +191,24 @@ namespace GVFS.CommandLine
                     () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
                     "Mounting"))
                 {
-                    this.ReportErrorAndExit(errorMessage);
+                    this.ReportErrorAndExit(tracer, errorMessage);
                 }
-            }
 
-            if (!this.Unattended)
-            {
-                if (!this.ShowStatusWhileRunning(
-                    () => { return this.RegisterMount(enlistment, out errorMessage); },
-                    "Registering for automount"))
+                if (!this.Unattended)
                 {
-                    this.Output.WriteLine("    WARNING: " + errorMessage);
+                    tracer.RelatedInfo($"{nameof(this.Execute)}: Registering for automount");
+
+                    if (this.ShowStatusWhileRunning(
+                        () => { return this.RegisterMount(enlistment, out errorMessage); },
+                        "Registering for automount"))
+                    {
+                        tracer.RelatedInfo($"{nameof(this.Execute)}: Registered for automount");
+                    }
+                    else
+                    {
+                        this.Output.WriteLine("    WARNING: " + errorMessage);
+                        tracer.RelatedInfo($"{nameof(this.Execute)}: Failed to register for automount");
+                    }
                 }
             }
         }
@@ -258,6 +265,8 @@ namespace GVFS.CommandLine
 
             const string ParamPrefix = "--";
 
+            tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {enlistment.EnlistmentRoot}");
+
             GVFSPlatform.Instance.StartBackgroundProcess(
                 tracer,
                 mountExecutableLocation,
@@ -272,7 +281,8 @@ namespace GVFS.CommandLine
                     this.StartedByService.ToString()
                 });
 
-            return GVFSEnlistment.WaitUntilMounted(enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
+            tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for repo to be mounted");
+            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
