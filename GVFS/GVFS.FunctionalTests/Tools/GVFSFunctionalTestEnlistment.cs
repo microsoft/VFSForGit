@@ -59,6 +59,21 @@ namespace GVFS.FunctionalTests.Tools
 
         public string LocalCacheRoot { get; }
 
+        public string RepoBackingRoot
+        {
+            get
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                {
+                    return Path.Combine(this.EnlistmentRoot, ".vfsforgit/lower");
+                }
+                else
+                {
+                    return this.RepoRoot;
+                }
+            }
+        }
+
         public string RepoRoot
         {
             get { return Path.Combine(this.EnlistmentRoot, "src"); }
@@ -155,7 +170,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             TestResultsHelper.OutputGVFSLogs(this);
 
-            // TODO(Mac): Figure out why the call to DeleteDirectoryWithRetry is not returning.
+            // TODO(POSIX): Figure out why the call to DeleteDirectoryWithRetry is not returning.
             // Once this is resolved, we can replace this duplicated code with RepositoryHelpers.DeleteTestDirectory
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
