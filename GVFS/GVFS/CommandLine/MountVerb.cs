@@ -267,7 +267,7 @@ namespace GVFS.CommandLine
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {enlistment.EnlistmentRoot}");
 
-            GVFSPlatform.Instance.StartBackgroundProcess(
+            GVFSPlatform.Instance.StartBackgroundVFS4GProcess(
                 tracer,
                 mountExecutableLocation,
                 new[]
@@ -278,7 +278,9 @@ namespace GVFS.CommandLine
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Keywords,
                     this.KeywordsCsv,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.StartedByService,
-                    this.StartedByService.ToString()
+                    this.StartedByService.ToString(),
+                    ParamPrefix + GVFSConstants.VerbParameters.Mount.StartedByVerb,
+                    true.ToString()
                 });
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for repo to be mounted");
