@@ -123,7 +123,7 @@ namespace GVFS.Virtualization.Background
         private bool TryParseAddLine(string line, out long key, out FileSystemTask value, out string error)
         {
             // Expected: <ID>\0<Background Update>
-            int idx = line.IndexOf(ValueTerminator, StringComparison.OrdinalIgnoreCase);
+            int idx = line.IndexOf(ValueTerminator, StringComparison.Ordinal);
             if (idx < 0)
             {
                 key = 0;

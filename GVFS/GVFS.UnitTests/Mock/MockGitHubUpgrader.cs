@@ -124,7 +124,7 @@ namespace GVFS.UnitTests.Mock.Upgrader
         protected override bool TryDownloadAsset(Asset asset, out string errorMessage)
         {
             bool validAsset = true;
-            if (this.expectedGVFSAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
+            if (this.expectedGVFSAssetName.Equals(asset.Name, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 if (this.failActionTypes.HasFlag(ActionType.GVFSDownload))
                 {
@@ -132,7 +132,7 @@ namespace GVFS.UnitTests.Mock.Upgrader
                     return false;
                 }
             }
-            else if (this.expectedGitAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
+            else if (this.expectedGitAssetName.Equals(asset.Name, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 if (this.failActionTypes.HasFlag(ActionType.GitDownload))
                 {
@@ -161,7 +161,7 @@ namespace GVFS.UnitTests.Mock.Upgrader
 
         protected override bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
         {
-            if (this.expectedGVFSAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
+            if (this.expectedGVFSAssetName.Equals(asset.Name, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 if (this.failActionTypes.HasFlag(ActionType.GVFSCleanup))
                 {
@@ -172,7 +172,7 @@ namespace GVFS.UnitTests.Mock.Upgrader
                 exception = null;
                 return true;
             }
-            else if (this.expectedGitAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
+            else if (this.expectedGitAssetName.Equals(asset.Name, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 if (this.failActionTypes.HasFlag(ActionType.GitCleanup))
                 {
@@ -215,7 +215,7 @@ namespace GVFS.UnitTests.Mock.Upgrader
             exitCode = 0;
             error = null;
 
-            if (fileName.Equals(this.expectedGitAssetName, StringComparison.OrdinalIgnoreCase))
+            if (fileName.Equals(this.expectedGitAssetName, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 this.InstallerArgs.Add("Git", installationInfo);
                 this.InstallerExeLaunched = true;
@@ -234,7 +234,7 @@ namespace GVFS.UnitTests.Mock.Upgrader
                 return;
             }
 
-            if (fileName.Equals(this.expectedGVFSAssetName, StringComparison.OrdinalIgnoreCase))
+            if (fileName.Equals(this.expectedGVFSAssetName, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 this.InstallerArgs.Add("GVFS", installationInfo);
                 this.InstallerExeLaunched = true;

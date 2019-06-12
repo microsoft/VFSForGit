@@ -27,7 +27,7 @@ namespace GVFS.Service.Linux
 
         public void RunWithArgs(string[] args)
         {
-            string nameArg = args.FirstOrDefault(arg => arg.StartsWith(ServiceNameArgPrefix, StringComparison.OrdinalIgnoreCase));
+            string nameArg = args.FirstOrDefault(arg => arg.StartsWith(ServiceNameArgPrefix, StringComparison.Ordinal));
             if (!string.IsNullOrEmpty(nameArg))
             {
                 this.serviceName = nameArg.Substring(ServiceNameArgPrefix.Length);

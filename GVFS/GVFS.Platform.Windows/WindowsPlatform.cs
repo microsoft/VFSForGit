@@ -493,6 +493,8 @@ namespace GVFS.Platform.Windows
 
             // Tests show that 250 is the max supported pipe name length
             public override int MaxPipePathLength => 250;
+
+            public override bool CaseSensitiveFileSystem => false;
         }
     }
 }
