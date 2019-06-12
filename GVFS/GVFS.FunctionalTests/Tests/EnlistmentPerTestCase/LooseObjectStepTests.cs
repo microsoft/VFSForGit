@@ -188,7 +188,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             using (FileStream packFileStream = File.OpenRead(packFile))
             {
                 string output = GitProcess.InvokeProcess(
-                    this.Enlistment.RepoRoot,
+                    this.Enlistment.RepoBackingRoot,
                     "unpack-objects",
                     new Dictionary<string, string>() { { "GIT_OBJECT_DIRECTORY", this.GitObjectRoot } },
                     inputStream: packFileStream).Output;
