@@ -82,6 +82,9 @@ namespace GVFS.Mount
         {
             if (this.StartedByVerb)
             {
+                // If this process was started by a verb it means that StartBackgroundVFS4GProcess was used
+                // and we should be running in the background.  PrepareProcessToRunInBackground will perform
+                // any platform specific preparation required to run as a background process.
                 GVFSPlatform.Instance.PrepareProcessToRunInBackground();
             }
 

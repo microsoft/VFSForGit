@@ -94,7 +94,16 @@ namespace GVFS.Platform.POSIX
                 // by dup2 before execve is called for the child process
                 // (see https://github.com/dotnet/corefx/blob/b10e8d67b260e26f2e47750cf96669e6f48e774d/src/Native/Unix/System.Native/pal_process.c#L381)
                 //
-                // However, this requires that the child process know that it needs to redirect its standard input/output to /dev/null and
+                // Testing has shown that without redirecting stdin/err/out code like this:
+                //
+                //      string result = process.StandardOutput.ReadToEnd();
+                //      process.WaitForExit();
+                //
+                // That waits on a `gvfs` verb to exit can hang in the WaitForExit() call because the chuild process has inheritied
+                // standard input/output handle(s), and redirecting those streams before spawing the process appears to be the only
+                // way to ensure they're properly closed.
+                //
+                // Note that this approach requires that the child process know that it needs to redirect its standard input/output to /dev/null and
                 // so this method can only be used with VFS4G processes that are aware they're being launched in the background
                 processInfo.RedirectStandardError = true;
                 processInfo.RedirectStandardInput = true;
