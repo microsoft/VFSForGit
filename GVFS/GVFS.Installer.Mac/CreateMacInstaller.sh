@@ -45,6 +45,7 @@ INSTALLERPACKAGENAME="VFSForGit.$PACKAGEVERSION"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
 UNINSTALLERPATH="${SOURCEDIRECTORY}/uninstall_vfsforgit.sh"
 SCRIPTSPATH="${SOURCEDIRECTORY}/scripts"
+COMPONENTSPLISTPATH="${SOURCEDIRECTORY}/vfsforgit_components.plist"
 DIST_FILE_NAME="Distribution.updated.xml"
 
 function CheckBuildIsAvailable()
@@ -129,7 +130,7 @@ function CopyBinariesToInstall()
 
 function CreateVFSForGitInstaller()
 {
-    pkgBuildCommand="/usr/bin/pkgbuild --identifier $INSTALLERPACKAGEID --scripts \"${SCRIPTSPATH}\" --root \"${STAGINGDIR}\" \"${PACKAGESTAGINGDIR}/$INSTALLERPACKAGENAME.pkg\""
+    pkgBuildCommand="/usr/bin/pkgbuild --identifier $INSTALLERPACKAGEID --component-plist \"${COMPONENTSPLISTPATH}\" --scripts \"${SCRIPTSPATH}\" --root \"${STAGINGDIR}\" \"${PACKAGESTAGINGDIR}/$INSTALLERPACKAGENAME.pkg\""
     eval $pkgBuildCommand || exit 1
 }
 
