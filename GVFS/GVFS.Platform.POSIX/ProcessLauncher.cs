@@ -29,6 +29,8 @@ namespace GVFS.Platform.POSIX
                     NetCoreMethods.AllocNullTerminatedArray(argv, ref argvPtr);
                     NetCoreMethods.AllocNullTerminatedArray(envp, ref envpPtr);
 
+                    tracer.RelatedInfo($"{nameof(StartBackgroundProcess)}: Forking process and starting {programName}");
+
                     // Fork the child process
                     int processId = Fork();
                     if (processId == -1)
@@ -42,7 +44,7 @@ namespace GVFS.Platform.POSIX
 
                     if (processId == 0)
                     {
-                        RunChildProcess(tracer, programName, argvPtr, envpPtr);
+                        RunChildProcess(programName, argvPtr, envpPtr);
                     }
                 }
                 finally
@@ -54,7 +56,6 @@ namespace GVFS.Platform.POSIX
         }
 
         private static unsafe void RunChildProcess(
-            ITracer tracer,
             string programName,
             byte** argvPtr = null,
             byte** envpPtr = null)
@@ -62,13 +63,13 @@ namespace GVFS.Platform.POSIX
             int fdin = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_RDONLY);
             if (fdin == -1)
             {
-                LogErrorAndExit(tracer, "Unable to open file descriptor for stdin", Marshal.GetLastWin32Error());
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open file a read file descriptor for /dev/null");
             }
 
             int fdout = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_WRONLY);
             if (fdout == -1)
             {
-                LogErrorAndExit(tracer, "Unable to open file descriptor for stdout", Marshal.GetLastWin32Error());
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open file a write file descriptor for /dev/null");
             }
 
             // Redirect stdout/stdin/stderr to "/dev/null"
@@ -76,18 +77,18 @@ namespace GVFS.Platform.POSIX
                 Dup2(fdout, StdOutFileNo) == -1 ||
                 Dup2(fdout, StdErrFileNo) == -1)
             {
-                LogErrorAndExit(tracer, "Error redirecting stdout/stdin/stderr", Marshal.GetLastWin32Error());
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Error redirecting stdout/stdin/stderr");
             }
 
             // Become session leader of a new session
             if (SetSid() == -1)
             {
-                LogErrorAndExit(tracer, "Error calling SetSid()", Marshal.GetLastWin32Error());
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Error calling SetSid");
             }
 
             // execve will not return if it's successful.
             Execve(programName, argvPtr, envpPtr);
-            LogErrorAndExit(tracer, "Error calling Execve", Marshal.GetLastWin32Error());
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Error calling Execve");
         }
 
         private static string[] GenerateArgv(string fileName, string[] args)
