@@ -316,7 +316,7 @@ namespace GVFS.Common.Maintenance
                                          .FileSystem
                                          .ItemsInDirectory(this.Context.Enlistment.GitPackRoot)
                                          .Where(item => item.Name.StartsWith(prefix)
-                                                        && string.Equals(Path.GetExtension(item.Name), ".pack", StringComparison.OrdinalIgnoreCase))
+                                                        && string.Equals(Path.GetExtension(item.Name), ".pack", GVFSPlatform.Instance.Constants.PathComparison))
                                          .FirstOrDefault();
             if (info == null)
             {

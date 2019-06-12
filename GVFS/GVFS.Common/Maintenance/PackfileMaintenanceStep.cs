@@ -58,12 +58,12 @@ namespace GVFS.Common.Maintenance
             {
                 string extension = Path.GetExtension(info.Name);
 
-                if (string.Equals(extension, ".pack", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(extension, ".pack", GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     count++;
                     size += info.Length;
                 }
-                else if (string.Equals(extension, ".keep", StringComparison.OrdinalIgnoreCase))
+                else if (string.Equals(extension, ".keep", GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     hasKeep = true;
                 }
@@ -88,7 +88,7 @@ namespace GVFS.Common.Maintenance
 
             foreach (DirectoryItemInfo info in packDirContents)
             {
-                if (string.Equals(Path.GetExtension(info.Name), ".idx", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(Path.GetExtension(info.Name), ".idx", GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     string pairedPack = Path.ChangeExtension(info.FullName, ".pack");
 

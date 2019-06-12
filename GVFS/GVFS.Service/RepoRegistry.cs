@@ -197,7 +197,7 @@ namespace GVFS.Service
 
         public Dictionary<string, RepoRegistration> ReadRegistry()
         {
-            Dictionary<string, RepoRegistration> allRepos = new Dictionary<string, RepoRegistration>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, RepoRegistration> allRepos = new Dictionary<string, RepoRegistration>(GVFSPlatform.Instance.Constants.PathComparer);
 
             using (Stream stream = this.fileSystem.OpenFileStream(
                     Path.Combine(this.registryParentFolderPath, RegistryName),
@@ -238,7 +238,7 @@ namespace GVFS.Service
                                 string normalizedEnlistmentRootPath = registration.EnlistmentRoot;
                                 if (this.fileSystem.TryGetNormalizedPath(registration.EnlistmentRoot, out normalizedEnlistmentRootPath, out errorMessage))
                                 {
-                                    if (!normalizedEnlistmentRootPath.Equals(registration.EnlistmentRoot, StringComparison.OrdinalIgnoreCase))
+                                    if (!normalizedEnlistmentRootPath.Equals(registration.EnlistmentRoot, GVFSPlatform.Instance.Constants.PathComparison))
                                     {
                                         EventMetadata metadata = new EventMetadata();
                                         metadata.Add("registration.EnlistmentRoot", registration.EnlistmentRoot);

@@ -964,7 +964,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                                     while (!reader.EndOfStream)
                                     {
                                         string alternatesLine = reader.ReadLine();
-                                        if (string.Equals(alternatesLine, enlistment.GitObjectsRoot, StringComparison.OrdinalIgnoreCase))
+                                        if (string.Equals(alternatesLine, enlistment.GitObjectsRoot, GVFSPlatform.Instance.Constants.PathComparison))
                                         {
                                             gitObjectsRootInAlternates = true;
                                         }

@@ -445,11 +445,6 @@ namespace GVFS.Hooks
             return true;
         }
 
-        private static bool ContainsArg(string[] actualArgs, string expectedArg)
-        {
-            return actualArgs.Contains(expectedArg, StringComparer.OrdinalIgnoreCase);
-        }
-
         private static string GetHookType(string[] args)
         {
             return args[0].ToLowerInvariant();

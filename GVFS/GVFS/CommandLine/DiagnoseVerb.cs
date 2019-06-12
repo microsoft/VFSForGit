@@ -553,7 +553,7 @@ namespace GVFS.CommandLine
                 DriveInfo enlistmentDrive = new DriveInfo(enlistmentNormalizedPathRoot);
                 string enlistmentDriveDiskSpace = this.FormatByteCount(enlistmentDrive.AvailableFreeSpace);
 
-                if (string.Equals(enlistmentNormalizedPathRoot, localCacheNormalizedPathRoot, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(enlistmentNormalizedPathRoot, localCacheNormalizedPathRoot, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     this.WriteMessage("Available space on " + enlistmentDrive.Name + " drive(enlistment and local cache): " + enlistmentDriveDiskSpace);
                 }

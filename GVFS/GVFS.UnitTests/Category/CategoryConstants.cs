@@ -3,5 +3,6 @@
     public static class CategoryConstants
     {
         public const string ExceptionExpected = "ExceptionExpected";
+        public const string CaseInsensitiveFileSystemOnly = "CaseInsensitiveFileSystemOnly";
     }
 }
