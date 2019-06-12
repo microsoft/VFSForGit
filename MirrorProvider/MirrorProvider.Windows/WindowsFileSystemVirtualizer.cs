@@ -12,6 +12,8 @@ namespace MirrorProvider.Windows
         private VirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations = new ConcurrentDictionary<Guid, ActiveEnumeration>();
 
+        protected override StringComparison PathComparison => StringComparison.OrdinalIgnoreCase;
+
         public override bool TryConvertVirtualizationRoot(string directory, out string error)
         {
             error = string.Empty;

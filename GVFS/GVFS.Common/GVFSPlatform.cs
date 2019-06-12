@@ -170,6 +170,28 @@ namespace GVFS.Common
             /// </summary>
             public abstract HashSet<string> UpgradeBlockingProcesses { get; }
 
+            public abstract bool CaseSensitiveFileSystem { get; }
+
+            public StringComparison PathComparison
+            {
+                get
+                {
+                    return this.CaseSensitiveFileSystem ?
+                        StringComparison.Ordinal :
+                        StringComparison.OrdinalIgnoreCase;
+                }
+            }
+
+            public StringComparer PathComparer
+            {
+                get
+                {
+                    return this.CaseSensitiveFileSystem ?
+                        StringComparer.Ordinal :
+                        StringComparer.OrdinalIgnoreCase;
+                }
+            }
+
             public string GVFSHooksExecutableName
             {
                 get { return "GVFS.Hooks" + this.ExecutableExtension; }
