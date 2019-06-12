@@ -268,6 +268,8 @@ namespace GVFS.Common
             private long placeholderUpdateFoldersTimeMs;
             private long placeholderWriteAndFlushTimeMs;
             private int deleteFolderPlacehoderAttempted;
+            private int folderPlaceholdersDeleted;
+            private int folderPlaceholdersPathNotFound;
             private long parseGitIndexTimeMs;
             private long projectionWriteLockHeldMs;
 
@@ -290,13 +292,22 @@ namespace GVFS.Common
                 this.lockHeldExternallyTimeMs = this.lockAcquiredTime.ElapsedMilliseconds;
             }
 
-            public void RecordUpdatePlaceholders(long durationMs, long updateFilesMs, long updateFoldersMs, long writeAndFlushMs, int deleteFolderPlacehoderAttempted)
+            public void RecordUpdatePlaceholders(
+                long durationMs,
+                long updateFilesMs,
+                long updateFoldersMs,
+                long writeAndFlushMs,
+                int deleteFolderPlacehoderAttempted,
+                int folderPlaceholdersDeleted,
+                int folderPlaceholdersPathNotFound)
             {
                 this.placeholderTotalUpdateTimeMs = durationMs;
                 this.placeholderUpdateFilesTimeMs = updateFilesMs;
                 this.placeholderUpdateFoldersTimeMs = updateFoldersMs;
                 this.placeholderWriteAndFlushTimeMs = writeAndFlushMs;
                 this.deleteFolderPlacehoderAttempted = deleteFolderPlacehoderAttempted;
+                this.folderPlaceholdersDeleted = folderPlaceholdersDeleted;
+                this.folderPlaceholdersPathNotFound = folderPlaceholdersPathNotFound;
             }
 
             public void RecordProjectionWriteLockHeld(long durationMs)
@@ -338,6 +349,8 @@ namespace GVFS.Common
                 metadata.Add("UpdateFilePlaceholdersMS", this.placeholderUpdateFilesTimeMs);
                 metadata.Add("UpdateFolderPlaceholdersMS", this.placeholderUpdateFoldersTimeMs);
                 metadata.Add("DeleteFolderPlacehoderAttempted", this.deleteFolderPlacehoderAttempted);
+                metadata.Add("FolderPlaceholdersDeleted", this.folderPlaceholdersDeleted);
+                metadata.Add("FolderPlaceholdersPathNotFound", this.folderPlaceholdersPathNotFound);
                 metadata.Add("PlaceholdersWriteAndFlushMS", this.placeholderWriteAndFlushTimeMs);
                 metadata.Add("ProjectionWriteLockHeldMs", this.projectionWriteLockHeldMs);
 
