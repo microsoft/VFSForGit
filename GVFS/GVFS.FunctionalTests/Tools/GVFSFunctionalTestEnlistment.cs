@@ -59,6 +59,21 @@ namespace GVFS.FunctionalTests.Tools
 
         public string LocalCacheRoot { get; }
 
+        public string RepoBackingRoot
+        {
+            get
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                {
+                    return Path.Combine(this.EnlistmentRoot, ".vfsforgit/lower");
+                }
+                else
+                {
+                    return this.RepoRoot;
+                }
+            }
+        }
+
         public string RepoRoot
         {
             get { return Path.Combine(this.EnlistmentRoot, "src"); }
