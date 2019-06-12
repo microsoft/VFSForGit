@@ -207,7 +207,7 @@ namespace GVFS.Platform.POSIX
 
             public override HashSet<string> UpgradeBlockingProcesses
             {
-                get { return new HashSet<string> { "GVFS.Mount", "git", "wish" }; }
+                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS.Mount", "git", "wish" }; }
             }
         }
     }

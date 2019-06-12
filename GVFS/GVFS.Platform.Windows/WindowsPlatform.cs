@@ -455,7 +455,7 @@ namespace GVFS.Platform.Windows
 
             public override HashSet<string> UpgradeBlockingProcesses
             {
-                get { return new HashSet<string> { "GVFS", "GVFS.Mount", "git", "ssh-agent", "wish", "bash" }; }
+                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "ssh-agent", "wish", "bash" }; }
             }
         }
     }
