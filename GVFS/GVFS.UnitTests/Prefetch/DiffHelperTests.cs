@@ -2,6 +2,7 @@
 using GVFS.Common.Prefetch.Git;
 using GVFS.Tests;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
@@ -102,6 +103,7 @@ namespace GVFS.UnitTests.Prefetch
         // Delete a folder with two sub folders each with a single file
         // Readd it with a different casing and same contents
         [TestCase]
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
         public void ParsesCaseChangesAsAdds()
         {
             MockTracer tracer = new MockTracer();

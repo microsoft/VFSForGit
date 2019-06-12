@@ -26,7 +26,7 @@ namespace FastFetch
 
             Parallel.ForEach(
                 dir.EnumerateDirectories().Where(subdir =>
-                    (!subdir.Name.Equals(GVFSConstants.DotGit.Root, StringComparison.OrdinalIgnoreCase) &&
+                    (!subdir.Name.Equals(GVFSConstants.DotGit.Root, GVFSPlatform.Instance.Constants.PathComparison) &&
                      !subdir.Attributes.HasFlag(FileAttributes.ReparsePoint))),
                 subdir => { ForAllDirectories(subdir, asyncParallelCallback); });
         }
