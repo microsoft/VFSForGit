@@ -289,7 +289,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // Multi-pack-index write happens even if the prefetch downloads nothing, while
             // the commit-graph write happens only when the prefetch downloads at least one pack
 
-            string graphPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "info", "commit-graph");
+            string graphPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "info", "commit-graphs", "commit-graph-chain");
             string graphLockPath = graphPath + ".lock";
             string midxPath = Path.Combine(this.PackRoot, "multi-pack-index");
             string midxLockPath = midxPath + ".lock";
@@ -393,9 +393,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "multi-pack-index verify --object-dir=\"" + objectDir + "\"");
             midxResult.ExitCode.ShouldEqual(0);
 
-            ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph read --object-dir=\"" + objectDir + "\"");
+            ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph verify --shallow --object-dir=\"" + objectDir + "\"");
             graphResult.ExitCode.ShouldEqual(0);
-            graphResult.Output.ShouldContain("43475048"); // Header from commit-graph file.
         }
     }
 }

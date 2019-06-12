@@ -519,7 +519,7 @@ namespace GVFS.Common.Git
         /// </summary>
         public Result WriteCommitGraph(string objectDir, List<string> packs)
         {
-            string command = "commit-graph write --stdin-packs --append --object-dir \"" + objectDir + "\"";
+            string command = "commit-graph write --stdin-packs --split --size-multiple=4 --max-commits=64000 --object-dir \"" + objectDir + "\"";
             return this.InvokeGitInWorkingDirectoryRoot(
                 command,
                 useReadObjectHook: true,
@@ -537,7 +537,7 @@ namespace GVFS.Common.Git
 
         public Result VerifyCommitGraph(string objectDir)
         {
-            string command = "commit-graph verify --object-dir \"" + objectDir + "\"";
+            string command = "commit-graph verify --shallow --object-dir \"" + objectDir + "\"";
             return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: true);
         }
 

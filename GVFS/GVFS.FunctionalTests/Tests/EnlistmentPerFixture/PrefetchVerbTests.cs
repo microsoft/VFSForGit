@@ -239,11 +239,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             midxResult.ExitCode.ShouldEqual(0);
 
             // A commit graph is not always generated, but if it is, then we want to ensure it is in a good state
-            if (this.fileSystem.FileExists(Path.Combine(objectDir, "info", "commit-graph")))
+            if (this.fileSystem.FileExists(Path.Combine(objectDir, "info", "commit-graphs", "commit-graph-chain")))
             {
-                ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph read --object-dir=\"" + objectDir + "\"");
+                ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph verify --shallow --object-dir=\"" + objectDir + "\"");
                 graphResult.ExitCode.ShouldEqual(0);
-                graphResult.Output.ShouldContain("43475048"); // Header from commit-graph file.
             }
         }
     }
