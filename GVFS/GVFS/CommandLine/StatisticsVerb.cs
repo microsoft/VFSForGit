@@ -63,9 +63,9 @@ namespace GVFS.CommandLine
 
             foreach (string path in this.GetModifiedPathsFromPipe(enlistment))
             {
-                if (path.Last() == '/')
+                if (path.Last() == GVFSConstants.GitPathSeparator)
                 {
-                    modifiedPathsFolderList.Add(path.Take(path.Length - 1).ToString());
+                    path.TrimEnd('/');
                 }
                 else
                 {
@@ -78,9 +78,9 @@ namespace GVFS.CommandLine
             GVFSEnlistmentStatistics enlistmentStatistics = new GVFSEnlistmentStatistics(gitPathsList, placeholderFolderPathList, placeholderFilePathList, modifiedPathsFolderList, modifiedPathsFileList);
             enlistmentStatistics.CalculateStatistics(this.Directory);
 
-            string trackedFilesCountFormatted = enlistmentStatistics.GetTrackedFilesCount().ToString("N0");
-            string placeholderCountFormatted = enlistmentStatistics.GetPlaceholderCount().ToString("N0");
-            string modifiedPathsCountFormatted = enlistmentStatistics.GetModifiedPathsCount().ToString("N0");
+            string trackedFilesCountFormatted = enlistmentStatistics.GitTrackedFilesCount.ToString("N0");
+            string placeholderCountFormatted = enlistmentStatistics.PlaceholderCount.ToString("N0");
+            string modifiedPathsCountFormatted = enlistmentStatistics.ModifiedPathsCount.ToString("N0");
 
             // Calculate spacing for the numbers of total files
             int longest = Math.Max(trackedFilesCountFormatted.Length, placeholderCountFormatted.Length);
@@ -90,11 +90,11 @@ namespace GVFS.CommandLine
             List<string> topLevelDirectoriesByHydration = enlistmentStatistics.GetDirectoriesSortedByHydration();
 
             this.Output.WriteLine("\nRepository statistics");
-            this.Output.WriteLine("Total paths tracked by git:     " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
-            this.Output.WriteLine("Total number of placeholders:   " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentStatistics.GetPlaceholderPercentage()));
-            this.Output.WriteLine("Total number of modified paths: " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentStatistics.GetModifiedPathsPercentage()));
+            this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
+            this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentStatistics.GetPlaceholderPercentage()));
+            this.Output.WriteLine("Files managed by git (slow):          " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentStatistics.GetModifiedPathsPercentage()));
 
-            this.Output.WriteLine("\nTotal hydration percentage:     " + this.FormatPercent(enlistmentStatistics.GetPlaceholderPercentage() + enlistmentStatistics.GetModifiedPathsPercentage()).PadLeft(longest + 7));
+            this.Output.WriteLine("\nTotal hydration percentage:           " + this.FormatPercent(enlistmentStatistics.GetPlaceholderPercentage() + enlistmentStatistics.GetModifiedPathsPercentage()).PadLeft(longest + 7));
 
             this.Output.WriteLine("\nMost hydrated top level directories:");
 
