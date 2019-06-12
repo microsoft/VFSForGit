@@ -234,6 +234,8 @@ namespace GVFS.Platform.Mac
             {
                 get { return $"Run {UpgradeConfirmMessage}."; }
             }
+
+            public override bool CaseSensitiveFileSystem => false;
         }
     }
 }

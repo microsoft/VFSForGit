@@ -231,7 +231,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
                 // if it's called for one of those paths remap the paths to be inside the mock: root
                 string mockDirectoryPath = directoryPath;
                 string gvfsProgramData = @"C:\ProgramData\GVFS";
-                if (directoryPath.StartsWith(gvfsProgramData, StringComparison.OrdinalIgnoreCase))
+                if (directoryPath.StartsWith(gvfsProgramData, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     mockDirectoryPath = mockDirectoryPath.Substring(gvfsProgramData.Length);
                     mockDirectoryPath = "mock:" + mockDirectoryPath;

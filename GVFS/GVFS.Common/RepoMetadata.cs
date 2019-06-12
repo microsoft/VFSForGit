@@ -48,7 +48,7 @@ namespace GVFS.Common
             string dictionaryPath = Path.Combine(dotGVFSPath, GVFSConstants.DotGVFS.Databases.RepoMetadata);
             if (Instance != null)
             {
-                if (!Instance.repoMetadata.DataFilePath.Equals(dictionaryPath, StringComparison.OrdinalIgnoreCase))
+                if (!Instance.repoMetadata.DataFilePath.Equals(dictionaryPath, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     throw new InvalidOperationException(
                         string.Format(
