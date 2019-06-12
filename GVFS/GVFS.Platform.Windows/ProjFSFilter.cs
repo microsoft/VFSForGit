@@ -436,7 +436,7 @@ namespace GVFS.Platform.Windows
             {
                 exception = e;
 
-                if (e.FileName.Equals(ProjFSManagedLibFileName, StringComparison.OrdinalIgnoreCase))
+                if (e.FileName.Equals(ProjFSManagedLibFileName, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     error = $"Failed to load {ProjFSManagedLibFileName}. Ensure that ProjFS is installed and enabled";
                 }

@@ -170,6 +170,8 @@ namespace GVFS.Platform.Mac
 
             // Documented here (in the addressing section): https://www.unix.com/man-page/mojave/4/unix/
             public override int MaxPipePathLength => 104;
+
+            public override bool CaseSensitiveFileSystem => false;
         }
     }
 }

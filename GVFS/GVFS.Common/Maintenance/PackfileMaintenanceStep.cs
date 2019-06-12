@@ -66,7 +66,7 @@ namespace GVFS.Common.Maintenance
 
             foreach (DirectoryItemInfo info in packDirContents)
             {
-                if (string.Equals(Path.GetExtension(info.Name), ".idx", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(Path.GetExtension(info.Name), ".idx", GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     string pairedPack = Path.ChangeExtension(info.FullName, ".pack");
 
