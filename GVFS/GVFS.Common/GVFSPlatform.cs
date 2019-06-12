@@ -106,6 +106,20 @@ namespace GVFS.Common
 
             public abstract string GVFSExecutableName { get; }
 
+            public abstract string ProgramLocaterCommand { get; }
+
+            /// <summary>
+            /// Different platforms can have different requirements
+            /// around which processes can block upgrade. For example,
+            /// on Windows, we will block upgrade if any GVFS commands
+            /// are running, but on POSIX platforms, we relax this
+            /// constraint to allow upgrade to run while the upgrade
+            /// command is running. Another example is that
+            /// Non-windows platforms do not block upgrade when bash
+            /// is running.
+            /// </summary>
+            public abstract HashSet<string> UpgradeBlockingProcesses { get; }
+
             public string GVFSHooksExecutableName
             {
                 get { return "GVFS.Hooks" + this.ExecutableExtension; }

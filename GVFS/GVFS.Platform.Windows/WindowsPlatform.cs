@@ -244,7 +244,7 @@ namespace GVFS.Platform.Windows
         {
             error = null;
             hooksVersion = null;
-            hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             if (hooksPath == null)
             {
                 error = "Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName;
@@ -446,6 +446,16 @@ namespace GVFS.Platform.Windows
             public override string GVFSExecutableName
             {
                 get { return "GVFS" + this.ExecutableExtension; }
+            }
+
+            public override string ProgramLocaterCommand
+            {
+                get { return "where"; }
+            }
+
+            public override HashSet<string> UpgradeBlockingProcesses
+            {
+                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "ssh-agent", "wish", "bash" }; }
             }
         }
     }

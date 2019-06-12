@@ -201,6 +201,16 @@ namespace GVFS.UnitTests.Mock.Common
             {
                 get { return "MockGVFS" + this.ExecutableExtension; }
             }
+
+            public override string ProgramLocaterCommand
+            {
+                get { return "MockWhere"; }
+            }
+
+            public override HashSet<string> UpgradeBlockingProcesses
+            {
+                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "wish", "bash" }; }
+            }
         }
     }
 }

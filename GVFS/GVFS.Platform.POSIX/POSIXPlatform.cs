@@ -199,6 +199,16 @@ namespace GVFS.Platform.POSIX
             {
                 get { return "gvfs"; }
             }
+
+            public override string ProgramLocaterCommand
+            {
+                get { return "which"; }
+            }
+
+            public override HashSet<string> UpgradeBlockingProcesses
+            {
+                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS.Mount", "git", "wish" }; }
+            }
         }
     }
 }
