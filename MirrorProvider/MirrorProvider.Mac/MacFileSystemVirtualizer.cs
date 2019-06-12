@@ -10,6 +10,8 @@ namespace MirrorProvider.Mac
     {
         private VirtualizationInstance virtualizationInstance = new VirtualizationInstance();
 
+        protected override StringComparison PathComparison => StringComparison.OrdinalIgnoreCase;
+
         public override bool TryConvertVirtualizationRoot(string directory, out string error)
         {
             Result result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(directory);

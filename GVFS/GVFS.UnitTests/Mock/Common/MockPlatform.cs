@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 
 namespace GVFS.UnitTests.Mock.Common
 {
@@ -237,6 +238,8 @@ namespace GVFS.UnitTests.Mock.Common
             public override bool SupportsUpgradeWhileRunning => false;
 
             public override int MaxPipePathLength => 250;
+
+            public override bool CaseSensitiveFileSystem => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         }
     }
 }

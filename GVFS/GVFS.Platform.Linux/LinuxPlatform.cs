@@ -127,6 +127,8 @@ namespace GVFS.Platform.Linux
             {
                 get { return Path.GetFileName(this.GVFSBinDirectoryPath); }
             }
+
+            public override bool CaseSensitiveFileSystem => true;
         }
     }
 }

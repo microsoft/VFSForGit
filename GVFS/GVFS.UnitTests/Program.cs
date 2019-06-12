@@ -3,6 +3,7 @@ using GVFS.UnitTests.Category;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace GVFS.UnitTests
 {
@@ -17,6 +18,11 @@ namespace GVFS.UnitTests
             if (Debugger.IsAttached)
             {
                 excludeCategories.Add(CategoryConstants.ExceptionExpected);
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                excludeCategories.Add(CategoryConstants.CaseInsensitiveFileSystemOnly);
             }
 
             Environment.ExitCode = runner.RunTests(includeCategories: null, excludeCategories: excludeCategories);

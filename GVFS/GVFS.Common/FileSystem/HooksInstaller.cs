@@ -29,7 +29,7 @@ namespace GVFS.Common.FileSystem
         {
             IEnumerable<string> valuableHooksLines = defaultHooksLines.Where(line => !string.IsNullOrEmpty(line.Trim()));
 
-            if (valuableHooksLines.Contains(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName, StringComparer.OrdinalIgnoreCase))
+            if (valuableHooksLines.Contains(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName, GVFSPlatform.Instance.Constants.PathComparer))
             {
                 throw new HooksConfigurationException(
                     $"{GVFSPlatform.Instance.Constants.GVFSHooksExecutableName} should not be specified in the configuration for "
