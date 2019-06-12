@@ -4,7 +4,9 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
+using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.Mount
 {
@@ -55,6 +57,14 @@ namespace GVFS.Mount
             HelpText = "Service initiated mount.")]
         public string StartedByService { get; set; }
 
+        [Option(
+            'b',
+            GVFSConstants.VerbParameters.Mount.StartedByVerb,
+            Default = false,
+            Required = false,
+            HelpText = "Verb initiated mount.")]
+        public bool StartedByVerb { get; set; }
+
         [Value(
                 0,
                 Required = true,
@@ -70,6 +80,14 @@ namespace GVFS.Mount
 
         public void Execute()
         {
+            if (this.StartedByVerb)
+            {
+                // If this process was started by a verb it means that StartBackgroundVFS4GProcess was used
+                // and we should be running in the background.  PrepareProcessToRunInBackground will perform
+                // any platform specific preparation required to run as a background process.
+                GVFSPlatform.Instance.PrepareProcessToRunInBackground();
+            }
+
             GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
 
             EventLevel verbosity;
@@ -89,6 +107,7 @@ namespace GVFS.Mount
                     { "IsElevated", GVFSPlatform.Instance.IsElevated() },
                     { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     { nameof(this.StartedByService), this.StartedByService },
+                    { nameof(this.StartedByVerb), this.StartedByVerb },
                 });
 
             AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) =>
