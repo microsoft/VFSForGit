@@ -107,6 +107,7 @@ namespace GVFS.Mount
                     { "IsElevated", GVFSPlatform.Instance.IsElevated() },
                     { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     { nameof(this.StartedByService), this.StartedByService },
+                    { nameof(this.StartedByVerb), this.StartedByVerb },
                 });
 
             AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) =>
