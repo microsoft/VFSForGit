@@ -94,7 +94,6 @@
     <Compile Include="WindowsPlatform.Shared.cs" />
     <Compile Include="WindowsProductUpgraderPlatformStrategy.cs" />
     <Compile Include="WindowsFileSystem.cs" />
-    <Compile Include="WindowsProductUpgraderInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config">
