@@ -19,6 +19,7 @@ namespace GVFS.Service
         private string serviceName;
         private IRepoRegistry repoRegistry;
         private RequestHandler requestHandler;
+        private ProductUpgradeTimer productUpgradeTimer;
 
         public GVFSService(
             ITracer tracer,
@@ -32,6 +33,7 @@ namespace GVFS.Service
             this.serviceStopped = new ManualResetEvent(false);
             this.serviceThread = new Thread(this.ServiceThreadMain);
             this.requestHandler = new RequestHandler(this.tracer, EtwArea, this.repoRegistry);
+            this.productUpgradeTimer = new ProductUpgradeTimer(tracer);
         }
 
         public void Run()
@@ -51,6 +53,7 @@ namespace GVFS.Service
                         this.requestHandler.HandleRequest))
                     {
                         this.serviceThread.Start();
+                        this.productUpgradeTimer.Start();
                         this.serviceThread.Join();
                     }
                 }

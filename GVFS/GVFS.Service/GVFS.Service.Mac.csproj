@@ -32,6 +32,7 @@
     <Compile Include="IRepoMounter.cs" />
     <Compile Include="IRepoRegistry.cs" />
     <Compile Include="Program.Mac.cs" />
+    <Compile Include="ProductUpgradeTimer.cs" />
     <Compile Include="RepoRegistration.cs" />
     <Compile Include="RepoRegistry.cs" />
   </ItemGroup>
