@@ -9,6 +9,7 @@ namespace GVFS.Common
         public const string UpgradeDirectoryName = "GVFS.Upgrade";
         public const string LogDirectory = "UpgraderLogs";
         public const string DownloadDirectory = "Downloads";
+        public const string ToolsDirectory = "Tools";
         public const string HighestAvailableVersionFileName = "HighestAvailableVersion";
 
         public static bool IsLocalUpgradeAvailable(ITracer tracer, string gvfsDataRoot)

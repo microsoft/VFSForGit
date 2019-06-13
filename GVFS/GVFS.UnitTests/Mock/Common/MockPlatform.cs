@@ -105,12 +105,12 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string GetUpgradeProtectedDataDirectory()
         {
-            return "mock";
+            return this.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
         }
 
         public override string GetUpgradeNonProtectedDataDirectory()
         {
-            return "mock";
+            return this.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)

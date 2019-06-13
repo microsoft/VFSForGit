@@ -14,6 +14,8 @@ namespace GVFS.Platform.Mac
 {
     public partial class MacPlatform : POSIXPlatform
     {
+        private const string UpgradeProtectedDataDirectory = "/usr/local/vfsforgit_upgrader";
+
         public MacPlatform() : base(
              underConstruction: new UnderConstructionFlags(
                 supportsGVFSUpgrade: true,
@@ -72,7 +74,7 @@ namespace GVFS.Platform.Mac
 
         public override string GetUpgradeProtectedDataDirectory()
         {
-            return "/usr/local/vfsforgit_upgrader";
+            return UpgradeProtectedDataDirectory;
         }
 
         public override string GetUpgradeNonProtectedDataDirectory()

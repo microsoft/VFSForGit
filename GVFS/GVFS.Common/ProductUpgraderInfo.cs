@@ -23,7 +23,7 @@ namespace GVFS.Common
 
         public static string GetUpgradeApplicationDirectory()
         {
-            return Path.Combine(GVFSPlatform.Instance.GetUpgradeProtectedDataDirectory(), "Tools");
+            return Path.Combine(GVFSPlatform.Instance.GetUpgradeProtectedDataDirectory(), ToolsDirectory);
         }
 
         public static string GetUpgradeProtectedDataDirectory()
