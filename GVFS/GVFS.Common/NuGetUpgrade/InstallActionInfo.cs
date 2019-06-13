@@ -7,13 +7,15 @@ namespace GVFS.Common.NuGetUpgrade
         /// </summary>
         public const string ManifestEntryInstallationIdToken = "installation_id";
         public const string ManifestEntryLogDirectoryToken = "log_directory";
+        public const string ManifestEntryInstallerBaseDirectoryToken = "installer_base_path";
 
-        public InstallActionInfo(string name, string version, string args, string installerRelativePath)
+        public InstallActionInfo(string name, string version, string args, string installerRelativePath, string command)
         {
             this.Name = name;
             this.Version = version;
             this.Args = args;
             this.InstallerRelativePath = installerRelativePath;
+            this.Command = command;
         }
 
         /// <summary>
@@ -27,8 +29,8 @@ namespace GVFS.Common.NuGetUpgrade
         public string Name { get; }
 
         /// <summary>
-        /// The path to the installer, relative to the
-        /// content directory of the NuGet package.
+        /// The path to the application or document to start. The path
+        /// is relative to the content directory of the NuGet package.
         /// </summary>
         public string InstallerRelativePath { get; }
 
@@ -36,5 +38,12 @@ namespace GVFS.Common.NuGetUpgrade
         /// The version of the component that this entry installs
         /// </summary>
         public string Version { get; }
+
+        /// <summary>
+        /// The command to run. If this is present, the command is run
+        /// directly (with the processed args), and the
+        /// InstallerRelativePath property is ignored.
+        /// </summary>
+        public string Command { get; }
     }
 }

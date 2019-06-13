@@ -364,11 +364,11 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         {
             string logDirectory = "mock:\\test_log_directory";
             string noTokenSourceString = "/arg no_token log_directory installation_id";
-            NuGetUpgrader.ReplaceArgTokens(noTokenSourceString, "unique_id", logDirectory).ShouldEqual(noTokenSourceString, "String with no tokens should not be modifed");
+            NuGetUpgrader.ReplaceArgTokens(noTokenSourceString, "unique_id", logDirectory, "installerBase").ShouldEqual(noTokenSourceString, "String with no tokens should not be modifed");
 
-            string sourceStringWithTokens = "/arg /log {log_directory}_{installation_id}";
-            string expectedProcessedString = "/arg /log " + logDirectory + "_" + "unique_id";
-            NuGetUpgrader.ReplaceArgTokens(sourceStringWithTokens, "unique_id", logDirectory).ShouldEqual(expectedProcessedString, "expected tokens have not been replaced");
+            string sourceStringWithTokens = "/arg /log {log_directory}_{installation_id}_{installer_base_path}";
+            string expectedProcessedString = "/arg /log " + logDirectory + "_unique_id_installerBase";
+            NuGetUpgrader.ReplaceArgTokens(sourceStringWithTokens, "unique_id", logDirectory, "installerBase").ShouldEqual(expectedProcessedString, "expected tokens have not been replaced");
         }
 
         [TestCase]
