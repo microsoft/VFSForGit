@@ -224,6 +224,8 @@ namespace GVFS.Common.Git
 
         private LooseBlobState GetLooseBlobState(string blobSha, Action<Stream, long> writeAction, out long size)
         {
+            // Ensure SHA path is lowercase for Linux
+            blobSha = blobSha.ToLower();
             string blobPath = Path.Combine(
                 this.enlistment.GitObjectsRoot,
                 blobSha.Substring(0, 2),
