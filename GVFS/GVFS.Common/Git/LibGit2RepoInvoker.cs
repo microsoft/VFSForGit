@@ -19,7 +19,7 @@ namespace GVFS.Common.Git
             this.tracer = tracer;
             this.createRepo = createRepo;
 
-            this.InitializedSharedRepo();
+            this.InitializeSharedRepo();
         }
 
         public void Dispose()
@@ -77,11 +77,11 @@ namespace GVFS.Common.Git
             }
         }
 
-        public void InitializedSharedRepo()
+        public void InitializeSharedRepo()
         {
             // Run a test on the shared repo to ensure the object store
             // is loaded, as that is what takes a long time with many packs.
-            this.GetSharedRepo().ObjectExists(GVFSConstants.AllZeroSha);
+            this.GetSharedRepo()?.ObjectExists(GVFSConstants.AllZeroSha);
         }
 
         private LibGit2Repo GetSharedRepo()

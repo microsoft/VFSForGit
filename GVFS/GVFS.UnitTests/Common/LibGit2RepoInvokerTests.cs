@@ -37,8 +37,9 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void CreatesOnRequestAfterClosed()
+        public void CreatedByInitializeAfterClosed()
         {
+            this.numDisposals.ShouldEqual(0);
             this.numConstructors.ShouldEqual(1);
 
             this.invoker.DisposeSharedRepo();
@@ -46,11 +47,12 @@ namespace GVFS.UnitTests.Common
             this.numDisposals.ShouldEqual(1);
             this.numConstructors.ShouldEqual(1);
 
-            this.invoker.InitializedSharedRepo();
+            this.invoker.InitializeSharedRepo();
 
             this.numDisposals.ShouldEqual(1);
             this.numConstructors.ShouldEqual(2);
 
+            // This should not create another repo
             this.invoker.TryInvoke(repo => { return true; }, out bool result);
 
             this.numDisposals.ShouldEqual(1);
@@ -72,7 +74,8 @@ namespace GVFS.UnitTests.Common
             this.numDisposals.ShouldEqual(1);
             this.numConstructors.ShouldEqual(2);
 
-            this.invoker.InitializedSharedRepo();
+            // This should not create another repo
+            this.invoker.InitializeSharedRepo();
 
             this.numDisposals.ShouldEqual(1);
             this.numConstructors.ShouldEqual(2);
@@ -91,7 +94,7 @@ namespace GVFS.UnitTests.Common
             result.ShouldEqual(true);
             this.numConstructors.ShouldEqual(1);
 
-            this.invoker.InitializedSharedRepo();
+            this.invoker.InitializeSharedRepo();
             this.numConstructors.ShouldEqual(1);
         }
 

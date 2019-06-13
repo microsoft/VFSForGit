@@ -57,7 +57,7 @@ namespace GVFS.Common.Git
 
         public void OpenRepo()
         {
-            this.libgit2RepoInvoker?.InitializedSharedRepo();
+            this.libgit2RepoInvoker?.InitializeSharedRepo();
         }
 
         public bool TryGetIsBlob(string sha, out bool isBlob)
