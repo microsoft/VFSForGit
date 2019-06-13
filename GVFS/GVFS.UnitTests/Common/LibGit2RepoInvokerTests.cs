@@ -183,6 +183,11 @@ namespace GVFS.UnitTests.Common
                 this.parent = parent;
             }
 
+            public override bool ObjectExists(string sha)
+            {
+                return false;
+            }
+
             protected override void Dispose(bool disposing)
             {
                 if (disposing)
