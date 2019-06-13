@@ -1,7 +1,9 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 
 namespace GVFS.Common.Maintenance
 {
@@ -47,6 +49,20 @@ namespace GVFS.Common.Maintenance
                 this.Context.FileSystem.TryDeleteFile(commitGraphLockPath);
 
                 GitProcess.Result writeResult = this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, this.packIndexes), nameof(GitProcess.WriteCommitGraph));
+
+                StringBuilder sb = new StringBuilder();
+                string commitGraphsDir = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", "commit-graphs");
+
+                if (this.Context.FileSystem.DirectoryExists(commitGraphsDir))
+                {
+                    foreach (DirectoryItemInfo info in this.Context.FileSystem.ItemsInDirectory(commitGraphsDir))
+                    {
+                        sb.Append(info.Name);
+                        sb.Append(";");
+                    }
+                }
+
+                activity.RelatedInfo($"commit-graph list after write: {sb}");
 
                 if (writeResult.ExitCodeIsFailure)
                 {
