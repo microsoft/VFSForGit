@@ -92,6 +92,7 @@ void ProviderMessaging_HandleKernelMessageResponse(VirtualizationRootHandle prov
         case MessageType_KtoU_HydrateFile:
         case MessageType_KtoU_NotifyFileModified:
         case MessageType_KtoU_NotifyFilePreDelete:
+        case MessageType_KtoU_NotifyFilePreDeleteFromRename:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
         case MessageType_KtoU_NotifyFileCreated:
         case MessageType_KtoU_NotifyFileRenamed:

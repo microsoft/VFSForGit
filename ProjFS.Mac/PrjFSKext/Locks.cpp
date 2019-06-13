@@ -180,3 +180,30 @@ void RWLock_DropExclusiveToShared(RWLock& rwLock)
 #endif
 }
 
+
+SpinLock SpinLock_Alloc()
+{
+    return SpinLock { lck_spin_alloc_init(s_lockGroup, LCK_ATTR_NULL) };
+}
+
+void SpinLock_FreeMemory(SpinLock* lock)
+{
+    assert(lock->p != nullptr);
+    lck_spin_free(lock->p, s_lockGroup);
+    lock->p = nullptr;
+}
+
+bool SpinLock_IsValid(SpinLock lock)
+{
+    return lock.p != nullptr;
+}
+
+void SpinLock_Acquire(SpinLock lock)
+{
+    lck_spin_lock(lock.p);
+}
+
+void SpinLock_Release(SpinLock lock)
+{
+    lck_spin_unlock(lock.p);
+}

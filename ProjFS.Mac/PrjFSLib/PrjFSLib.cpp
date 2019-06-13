@@ -753,6 +753,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             
         case MessageType_KtoU_NotifyFileModified:
         case MessageType_KtoU_NotifyFilePreDelete:
+        case MessageType_KtoU_NotifyFilePreDeleteFromRename:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
         case MessageType_KtoU_NotifyFilePreConvertToFull:
         {
@@ -1122,10 +1123,13 @@ static PrjFS_Result HandleFileNotification(
         notificationType,
         nullptr /* destinationRelativePath */);
     
-    // We have to convert to full for PreDelete until we have WILL_RENAME support.  The PreDelete could be for a rename.
+    // Remove placeholder xattrs for renames (PreDeleteFromRename) because:
+    //  - Renames are treated as "Delete old path" + "create new path", and new files should not be marked as placeholders
+    //  - The target of the rename might be outside of the root, and we should not allow placeholder files to
+    //    live outside of the virtualization root (as the kext won't know what provider they belong to)
     if (result == PrjFS_Result_Success &&
         placeholderFile &&
-        (PrjFS_NotificationType_PreConvertToFull == notificationType || PrjFS_NotificationType_PreDelete == notificationType))
+        (PrjFS_NotificationType_PreConvertToFull == notificationType || PrjFS_NotificationType_PreDeleteFromRename == notificationType))
     {
         errno_t result = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
         if (0 != result)
@@ -1317,6 +1321,9 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         case MessageType_KtoU_NotifyDirectoryPreDelete:
             return PrjFS_NotificationType_PreDelete;
 
+        case MessageType_KtoU_NotifyFilePreDeleteFromRename:
+            return PrjFS_NotificationType_PreDeleteFromRename;
+
         case MessageType_KtoU_NotifyFilePreConvertToFull:
             return PrjFS_NotificationType_PreConvertToFull;
             
@@ -1445,6 +1452,8 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
             return STRINGIFY(PrjFS_NotificationType_PreDelete);
         case PrjFS_NotificationType_FileRenamed:
             return STRINGIFY(PrjFS_NotificationType_FileRenamed);
+        case PrjFS_NotificationType_PreDeleteFromRename:
+            return STRINGIFY(PrjFS_NotificationType_PreDeleteFromRename);
         case PrjFS_NotificationType_HardLinkCreated:
             return STRINGIFY(PrjFS_NotificationType_HardLinkCreated);
         case PrjFS_NotificationType_PreConvertToFull:

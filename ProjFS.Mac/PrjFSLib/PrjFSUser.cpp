@@ -335,8 +335,8 @@ static void InitDataQueueFunctions()
         return;
     }
     
-    if ((osVersion.major == 17 && osVersion.minor >= 7) // macOS 10.13.6+
-        || (osVersion.major == 18 && osVersion.minor == 0)) // macOS 10.14(.0) exactly
+    if ((osVersion.major == PrjFSDarwinMajorVersion::MacOS10_13_HighSierra && osVersion.minor >= 7) // macOS 10.13.6+
+        || (osVersion.major == PrjFSDarwinMajorVersion::MacOS10_14_Mojave && osVersion.minor == 0)) // macOS 10.14(.0) exactly
     {
         void* dataQueueLibrary = dlopen("libSharedDataQueue.dylib", RTLD_LAZY);
         if (nullptr == dataQueueLibrary)
