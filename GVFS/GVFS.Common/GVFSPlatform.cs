@@ -120,6 +120,7 @@ namespace GVFS.Common
             public static readonly char PathSeparator = Path.DirectorySeparatorChar;
             public abstract string ExecutableExtension { get; }
             public abstract string InstallerExtension { get; }
+            public abstract bool SupportsInlineUpgrade { get; }
             public abstract string WorkingDirectoryBackingRootPath { get; }
             public abstract string DotGVFSRoot { get; }
 
