@@ -27,7 +27,6 @@ namespace GVFS.Platform.Mac
         public override string Name { get => "macOS"; }
         public override GVFSPlatformConstants Constants { get; } = new MacPlatformConstants();
         public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
-        public override ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; } = new MacProductUpgraderInfo();
 
         public override string GVFSConfigPath
         {
@@ -69,6 +68,16 @@ namespace GVFS.Platform.Mac
             string lockPath)
         {
             return new MacFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return "/usr/local/vfsforgit_upgrader";
+        }
+
+        public override string GetUpgradeNonProtectedDataDirectory()
+        {
+            return this.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)

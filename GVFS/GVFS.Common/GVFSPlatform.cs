@@ -27,7 +27,6 @@ namespace GVFS.Common
         public UnderConstructionFlags UnderConstruction { get; }
         public abstract string Name { get; }
 
-        public abstract ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; }
         public abstract string GVFSConfigPath { get; }
 
         public static void Register(GVFSPlatform platform)
@@ -73,6 +72,8 @@ namespace GVFS.Common
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
         public abstract string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer);
+        public abstract string GetUpgradeProtectedDataDirectory();
+        public abstract string GetUpgradeNonProtectedDataDirectory();
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
 
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);

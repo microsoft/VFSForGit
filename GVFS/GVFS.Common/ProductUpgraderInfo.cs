@@ -23,17 +23,17 @@ namespace GVFS.Common
 
         public static string GetUpgradeApplicationDirectory()
         {
-            return GVFSPlatform.Instance.ProductUpgraderInfoImpl.GetUpgradeApplicationDirectory();
+            return Path.Combine(GVFSPlatform.Instance.GetUpgradeProtectedDataDirectory(), "Tools");
         }
 
         public static string GetUpgradeProtectedDataDirectory()
         {
-            return GVFSPlatform.Instance.ProductUpgraderInfoImpl.GetUpgradeProtectedDirectory();
+            return GVFSPlatform.Instance.GetUpgradeProtectedDataDirectory();
         }
 
         public static string GetUpgradeBasicDataDirectory()
         {
-            return GVFSPlatform.Instance.ProductUpgraderInfoImpl.GetUpgradeNonProtectedDirectory();
+            return GVFSPlatform.Instance.GetUpgradeNonProtectedDataDirectory();
         }
 
         public static string GetLogDirectoryPath()
@@ -43,7 +43,7 @@ namespace GVFS.Common
 
         public static string GetAssetDownloadsPath()
         {
-            return GVFSPlatform.Instance.ProductUpgraderInfoImpl.GetAssetDownloadsPath();
+            return Path.Combine(GetUpgradeProtectedDataDirectory(), ProductUpgraderInfo.DownloadDirectory);
         }
 
         public void DeleteAllInstallerDownloads()

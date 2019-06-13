@@ -36,8 +36,6 @@ namespace GVFS.Platform.Windows
         public override string Name { get => "Windows"; }
         public override GVFSPlatformConstants Constants { get; } = new WindowsPlatformConstants();
 
-        public override ProductUpgraderInfoImpl ProductUpgraderInfoImpl { get; } = new WindowsProductUpgraderInfo();
-
         public override string GVFSConfigPath
         {
             get
@@ -337,6 +335,16 @@ namespace GVFS.Platform.Windows
             {
                 return currentUser.Identity.User.Value;
             }
+        }
+
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return this.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
+        }
+
+        public override string GetUpgradeNonProtectedDataDirectory()
+        {
+            return this.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);
