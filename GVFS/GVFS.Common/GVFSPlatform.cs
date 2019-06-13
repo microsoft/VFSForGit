@@ -72,8 +72,20 @@ namespace GVFS.Common
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
         public abstract string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer);
+
+        /// <summary>
+        /// Get the directory for upgrades that is permissioned to
+        /// require elevated privledes to modify. This can be used for
+        /// data that we don't want normal user accounts to modify.
+        /// </summary>
         public abstract string GetUpgradeProtectedDataDirectory();
+
+        /// <summary>
+        /// Get the directory for upgrades that is permissioned for
+        /// user accounts to have access to.
+        /// </summary>
         public abstract string GetUpgradeNonProtectedDataDirectory();
+
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
 
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
