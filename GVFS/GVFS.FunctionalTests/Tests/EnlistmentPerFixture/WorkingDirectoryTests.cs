@@ -474,7 +474,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             ProcessResult revParseResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/AllNullObjectRedownloaded.txt");
             string sha = revParseResult.Output.Trim();
             sha.Length.ShouldEqual(40);
-            string objectPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), sha.Substring(0, 2), sha.Substring(2, 38));
+            string objectPathSha = sha.ToUpper();
+            string objectPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), objectPathSha.Substring(0, 2), objectPathSha.Substring(2, 38));
             objectPath.ShouldNotExistOnDisk(this.fileSystem);
 
             // At this point there should be no corrupt objects

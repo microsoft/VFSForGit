@@ -143,7 +143,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private string GetLooseObjectPath(string fileGitPath, out string sha)
         {
             ProcessResult revParseResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, $"rev-parse :{fileGitPath}");
-            sha = revParseResult.Output.Trim();
+            sha = revParseResult.Output.Trim().ToUpper();
             sha.Length.ShouldEqual(40);
             string objectPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), sha.Substring(0, 2), sha.Substring(2, 38));
             return objectPath;
