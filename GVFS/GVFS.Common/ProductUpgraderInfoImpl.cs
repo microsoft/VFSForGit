@@ -7,8 +7,6 @@ namespace GVFS.Common
 {
     public abstract class ProductUpgraderInfoImpl
     {
-        public abstract string GetUpgradeApplicationDirectory();
-
         public abstract string GetUpgradeNonProtectedDirectory();
 
         public abstract string GetUpgradeProtectedDirectory();
@@ -20,7 +18,12 @@ namespace GVFS.Common
 
         public string GetAssetDownloadsPath()
         {
-            return Path.Combine(this.GetUpgradeNonProtectedDirectory(), ProductUpgraderInfo.DownloadDirectory);
+            return Path.Combine(this.GetUpgradeProtectedDirectory(), ProductUpgraderInfo.DownloadDirectory);
+        }
+
+        public string GetUpgradeApplicationDirectory()
+        {
+            return Path.Combine(this.GetUpgradeProtectedDirectory(), "Tools");
         }
     }
 }

@@ -8,12 +8,7 @@ namespace GVFS.Platform.Mac
 {
     public class MacProductUpgraderInfo : ProductUpgraderInfoImpl
     {
-        private string upgradeApplicationDirectory = "/usr/local/vfsforgit_upgrader";
-
-        public override string GetUpgradeApplicationDirectory()
-        {
-            return this.upgradeApplicationDirectory;
-        }
+        private string protectedDataDirectory = "/usr/local/vfsforgit_upgrader";
 
         public override string GetUpgradeNonProtectedDirectory()
         {
@@ -22,7 +17,7 @@ namespace GVFS.Platform.Mac
 
         public override string GetUpgradeProtectedDirectory()
         {
-            return this.upgradeApplicationDirectory;
+            return this.protectedDataDirectory;
         }
     }
 }
