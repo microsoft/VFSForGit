@@ -77,7 +77,9 @@ namespace GVFS.Common.Git
         {
             // Run a test on the shared repo to ensure the object store
             // is loaded, as that is what takes a long time with many packs.
-            this.GetSharedRepo()?.ObjectExists(GVFSConstants.AllZeroSha);
+            // Using a potentially-real object id is important, as the empty
+            // SHA will stop early instead of loading the object store.
+            this.GetSharedRepo()?.ObjectExists("30380be3963a75e4a34e10726795d644659e1129");
         }
 
         private LibGit2Repo GetSharedRepo()
