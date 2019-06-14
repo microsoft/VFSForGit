@@ -30,14 +30,14 @@ namespace GVFS.UnitTests.Common
             this.enlistmentStatistics = this.GenerateStatistics();
 
             this.enlistmentStatistics.GetDirectoriesSortedByHydration()[0].ShouldEqual("A");
-            this.enlistmentStatistics.GetHydrationOfDirectory("A").ShouldEqualWithin(0.75, Delta);
-            this.enlistmentStatistics.GetHydrationOfDirectory("B").ShouldEqualWithin(0, Delta);
-            this.enlistmentStatistics.GetHydrationOfDirectory("C").ShouldEqualWithin(0, Delta);
+            this.enlistmentStatistics.GetHydrationOfDirectory("A").ShouldEqual(0.75m);
+            this.enlistmentStatistics.GetHydrationOfDirectory("B").ShouldEqual(0);
+            this.enlistmentStatistics.GetHydrationOfDirectory("C").ShouldEqual(0);
             this.enlistmentStatistics.GitTrackedFilesCount.ShouldEqual(12);
             this.enlistmentStatistics.PlaceholderCount.ShouldEqual(3);
             this.enlistmentStatistics.ModifiedPathsCount.ShouldEqual(0);
-            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqualWithin(0.25, Delta);
-            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqualWithin(0, Delta);
+            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqual(0.25m);
+            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqual(0);
         }
 
         [TestCase]
@@ -50,8 +50,8 @@ namespace GVFS.UnitTests.Common
             this.enlistmentStatistics.GitTrackedFilesCount.ShouldEqual(0);
             this.enlistmentStatistics.PlaceholderCount.ShouldEqual(0);
             this.enlistmentStatistics.ModifiedPathsCount.ShouldEqual(0);
-            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqualWithin(0, Delta);
-            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqualWithin(0, Delta);
+            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqual(0);
+            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqual(0);
         }
 
         [TestCase]
@@ -68,8 +68,8 @@ namespace GVFS.UnitTests.Common
             this.enlistmentStatistics.GitTrackedFilesCount.ShouldEqual(12);
             this.enlistmentStatistics.PlaceholderCount.ShouldEqual(12);
             this.enlistmentStatistics.ModifiedPathsCount.ShouldEqual(12);
-            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqualWithin(1, Delta);
-            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqualWithin(1, Delta);
+            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqual(1);
+            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqual(1);
         }
 
         [TestCase]
@@ -122,10 +122,10 @@ namespace GVFS.UnitTests.Common
             this.enlistmentStatistics.ModifiedPathsCount.ShouldEqual(4);
             this.enlistmentStatistics.GitTrackedFilesCount.ShouldEqual(6);
             this.enlistmentStatistics.GetDirectoriesSortedByHydration().Count.ShouldEqual(2);
-            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqualWithin(2.0 / 3.0, Delta);
-            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqualWithin(2.0 / 3.0, Delta);
-            this.enlistmentStatistics.GetHydrationOfDirectory("A").ShouldEqualWithin(4.0 / 3.0, Delta);
-            this.enlistmentStatistics.GetHydrationOfDirectory("B").ShouldEqualWithin(4.0 / 3.0, Delta);
+            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqual(2.0m / 3.0m);
+            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqual(2.0m / 3.0m);
+            this.enlistmentStatistics.GetHydrationOfDirectory("A").ShouldEqual(4.0m / 3.0m);
+            this.enlistmentStatistics.GetHydrationOfDirectory("B").ShouldEqual(4.0m / 3.0m);
         }
 
         [TestCase]
@@ -139,27 +139,44 @@ namespace GVFS.UnitTests.Common
 
             this.enlistmentStatistics = this.GenerateStatistics();
 
-            this.enlistmentStatistics.CalculateStatistics("A");
+            this.enlistmentStatistics.CalculateStatistics("A/");
 
-            this.enlistmentStatistics.GetHydrationOfDirectory("B").ShouldEqualWithin(0, Delta);
+            this.enlistmentStatistics.GetHydrationOfDirectory("B").ShouldEqual(0);
             this.enlistmentStatistics.GitTrackedFilesCount.ShouldEqual(3);
             this.enlistmentStatistics.PlaceholderCount.ShouldEqual(4);
-            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqualWithin(4.0 / 3.0, Delta);
+            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqual(4.0m / 3.0m);
             this.enlistmentStatistics.ModifiedPathsCount.ShouldEqual(0);
-            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqualWithin(0, Delta);
+            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqual(0);
             this.enlistmentStatistics.GetDirectoriesSortedByHydration()[0].ShouldEqual("/");
             this.enlistmentStatistics.GetDirectoriesSortedByHydration().Count.ShouldEqual(1);
 
-            this.enlistmentStatistics.CalculateStatistics("B");
+            this.enlistmentStatistics.CalculateStatistics("/B/");
 
-            this.enlistmentStatistics.GetHydrationOfDirectory("A").ShouldEqualWithin(0, Delta);
+            this.enlistmentStatistics.GetHydrationOfDirectory("A").ShouldEqual(0);
             this.enlistmentStatistics.GitTrackedFilesCount.ShouldEqual(3);
             this.enlistmentStatistics.PlaceholderCount.ShouldEqual(0);
-            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqualWithin(0, Delta);
+            this.enlistmentStatistics.GetPlaceholderPercentage().ShouldEqual(0);
             this.enlistmentStatistics.ModifiedPathsCount.ShouldEqual(4);
-            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqualWithin(4.0 / 3.0, Delta);
+            this.enlistmentStatistics.GetModifiedPathsPercentage().ShouldEqual(4.0m / 3.0m);
             this.enlistmentStatistics.GetDirectoriesSortedByHydration()[0].ShouldEqual("/");
             this.enlistmentStatistics.GetDirectoriesSortedByHydration().Count.ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void FilterByDirectoryWithoutPathSeparator()
+        {
+            this.SetUpStructures();
+
+            this.fauxGit.AddRange(new string[] { "Directory1/Child1/File1.js", "Directory1/Child1/File2.exe", "Directory2/Child2/File1.bat", "Directory2/Child2/File2.css" });
+            this.fauxPlaceholderFiles.AddRange(new string[] { "Directory1/File1.js", "Directory1/File2.exe", "Directory2/File1.bat", "Directory2/File2.css" });
+
+            this.enlistmentStatistics = this.GenerateStatistics();
+            this.enlistmentStatistics.GetDirectoriesSortedByHydration().Count.ShouldEqual(2);
+
+            this.enlistmentStatistics.CalculateStatistics("Directory");
+            this.enlistmentStatistics.GitTrackedFilesCount.ShouldEqual(0);
+            this.enlistmentStatistics.ModifiedPathsCount.ShouldEqual(0);
+            this.enlistmentStatistics.PlaceholderCount.ShouldEqual(0);
         }
 
         private void SetUpStructures()

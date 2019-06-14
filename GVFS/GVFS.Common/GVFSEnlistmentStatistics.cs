@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace GVFS.Common
 {
@@ -49,6 +50,16 @@ namespace GVFS.Common
             this.gitTrackedFilesDirectoryTally = new Dictionary<string, int>();
             this.hydratedFilesDirectoryTally = new Dictionary<string, int>();
 
+            if (!parentDirectory.EndsWith(GVFSConstants.GitPathSeparatorString) && parentDirectory.Length > 0)
+            {
+                parentDirectory += GVFSConstants.GitPathSeparator;
+            }
+
+            if (parentDirectory.StartsWith(GVFSConstants.GitPathSeparatorString))
+            {
+                parentDirectory = parentDirectory.TrimStart(GVFSConstants.GitPathSeparator);
+            }
+
             this.GitTrackedFilesCount += this.CategorizePaths(this.gitPaths, this.gitTrackedFilesDirectoryTally, parentDirectory, isFile: true);
             this.PlaceholderCount += this.CategorizePaths(this.placeholderFolderPaths, this.hydratedFilesDirectoryTally, parentDirectory, isFile: false);
             this.PlaceholderCount += this.CategorizePaths(this.placeholderFilePaths, this.hydratedFilesDirectoryTally, parentDirectory, isFile: true);
@@ -65,44 +76,39 @@ namespace GVFS.Common
                 directoriesSortedByHydration.Add(keyValuePair.Key);
             }
 
-            directoriesSortedByHydration.Sort(
-                delegate(string directoryOne, string directoryTwo)
-                {
-                    // Sort in descending order by comparing directoryTwo to directoryOne
-                    return this.GetHydrationOfDirectory(directoryTwo).CompareTo(this.GetHydrationOfDirectory(directoryOne));
-                });
+            directoriesSortedByHydration = directoriesSortedByHydration.OrderByDescending(path => this.GetHydrationOfDirectory(path)).ToList();
 
             return directoriesSortedByHydration;
         }
 
-        public double GetHydrationOfDirectory(string directory)
+        public decimal GetHydrationOfDirectory(string directory)
         {
             if (!this.hydratedFilesDirectoryTally.ContainsKey(directory))
             {
                 return 0;
             }
 
-            return (double)this.hydratedFilesDirectoryTally[directory] / this.gitTrackedFilesDirectoryTally[directory];
+            return (decimal)this.hydratedFilesDirectoryTally[directory] / this.gitTrackedFilesDirectoryTally[directory];
         }
 
-        public double GetPlaceholderPercentage()
+        public decimal GetPlaceholderPercentage()
         {
             if (this.GitTrackedFilesCount == 0)
             {
                 return 0;
             }
 
-            return (double)this.PlaceholderCount / this.GitTrackedFilesCount;
+            return (decimal)this.PlaceholderCount / this.GitTrackedFilesCount;
         }
 
-        public double GetModifiedPathsPercentage()
+        public decimal GetModifiedPathsPercentage()
         {
             if (this.GitTrackedFilesCount == 0)
             {
                 return 0;
             }
 
-            return (double)this.ModifiedPathsCount / this.GitTrackedFilesCount;
+            return (decimal)this.ModifiedPathsCount / this.GitTrackedFilesCount;
         }
 
         /// <summary>
@@ -115,7 +121,7 @@ namespace GVFS.Common
             int whackLocation = path.IndexOf(GVFSConstants.GitPathSeparator);
             if (whackLocation == -1)
             {
-                return GVFSConstants.GitPathSeparator.ToString();
+                return GVFSConstants.GitPathSeparatorString;
             }
 
             return path.Substring(0, whackLocation);
@@ -132,6 +138,8 @@ namespace GVFS.Common
         /// </remarks>
         /// <param name="paths">An enumerable containing paths as strings</param>
         /// <param name="directoryTracking">A dictionary used to track the number of files per top level directory</param>
+        /// <param name="parentDirectory">Paths will only be categorized if they are descendants of the parentDirectory</param>
+        /// <param name="isFile">Flag which specifies whether the list of paths are paths to files (true) or directories (false)</param>
         private int CategorizePaths(IEnumerable<string> paths, Dictionary<string, int> directoryTracking, string parentDirectory, bool isFile)
         {
             int count = 0;
@@ -144,22 +152,30 @@ namespace GVFS.Common
                     formattedPath = formattedPath.Substring(1);
                 }
 
+                // Only categorize if descendent of the parentDirectory
                 if (formattedPath.StartsWith(parentDirectory))
                 {
                     count++;
 
                     if (isFile)
                     {
+                        // Find out the top level directory of the files path, which will be one level under the parent directory
+                        // If the file is in the parent directory, topDir is set to '/' (just temporary, formatting will eventually just show the path to the parent directory)
                         string topDir = this.ParseTopDirectory(this.TrimDirectoryFromPath(formattedPath, parentDirectory));
                         this.IncreaseDictionaryCounterByKey(directoryTracking, topDir);
                     }
                     else
                     {
+                        // If the path is to the parentDirectory, ignore it to avoid adding string.Empty to the data structures
                         if (!parentDirectory.Equals(formattedPath))
                         {
+                            // Trim the path to parent directory from the path to this directory
                             string topDir = this.TrimDirectoryFromPath(formattedPath, parentDirectory);
+
+                            // If this directory isn't already one level under the parent...
                             if (topDir.IndexOf(GVFSConstants.GitPathSeparator) != -1)
                             {
+                                // ... Get the one that is
                                 topDir = this.ParseTopDirectory(topDir);
                             }
 
@@ -173,20 +189,15 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Format a given path by trimming off the leading part containing the target directory
+        /// Trim the relative path to a directory from the front of a specified path which is its child
         /// </summary>
-        /// <param name="toTrim">The path to trim the original directory off of</param>
-        /// <returns>The newly formatted path without that initial directory</returns>
+        /// <remarks>Precondition: Only even run in the context of TrimDirectoryFromPath(child, parentDirectory)</remarks>
+        /// <param name="path">The path being trimmed</param>
+        /// <param name="directoryTarget">The directory target whose path to trim from the path</param>
+        /// <returns>The newly formatted path with the directory trimmed</returns>
         private string TrimDirectoryFromPath(string path, string directoryTarget)
         {
-            if (directoryTarget.Length == 0)
-            {
-                return path;
-            }
-            else
-            {
-                return path.Substring(directoryTarget.Length + 1);
-            }
+            return path.Substring(directoryTarget.Length);
         }
 
         private void IncreaseDictionaryCounterByKey(Dictionary<string, int> countingDictionary, string key)

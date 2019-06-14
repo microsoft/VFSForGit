@@ -15,8 +15,13 @@ namespace GVFS.CommandLine
     public class StatisticsVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string StatisticsVerbName = "statistics";
+        private const decimal MaximumHealthyHydration = 0.5m;
 
-        private const int DirectoryDisplayCount = 5;
+        [Option(
+            'n',
+            Required = false,
+            HelpText = "The number of directories to display hydration levels for")]
+        public int DirectoryDisplayCount { get; set; } = 5;
 
         [Option(
             'd',
@@ -33,7 +38,7 @@ namespace GVFS.CommandLine
         protected override void Execute(GVFSEnlistment enlistment)
         {
             // The path to the root of git's tree
-            string sourceRoot = enlistment.DotGitRoot.Substring(0, enlistment.DotGitRoot.Length - 4);
+            string sourceRoot = enlistment.WorkingDirectoryRoot;
 
             if (this.Directory == null)
             {
@@ -66,6 +71,7 @@ namespace GVFS.CommandLine
                 if (path.Last() == GVFSConstants.GitPathSeparator)
                 {
                     path.TrimEnd('/');
+                    modifiedPathsFolderList.Add(path);
                 }
                 else
                 {
@@ -104,24 +110,25 @@ namespace GVFS.CommandLine
                 maxDirectoryNameLength = Math.Max(maxDirectoryNameLength, topLevelDirectoriesByHydration[i].Length);
             }
 
-            for (int i = 0; i < DirectoryDisplayCount && i < topLevelDirectoriesByHydration.Count; i++)
+            for (int i = 0; i < this.DirectoryDisplayCount && i < topLevelDirectoriesByHydration.Count; i++)
             {
                 string dir = topLevelDirectoriesByHydration[i].PadRight(maxDirectoryNameLength);
                 string percent = this.FormatPercent(enlistmentStatistics.GetHydrationOfDirectory(topLevelDirectoriesByHydration[i]));
                 this.Output.WriteLine(" " + percent + " | " + dir);
             }
 
-            bool healthyRepo = (enlistmentStatistics.GetPlaceholderPercentage() + enlistmentStatistics.GetModifiedPathsPercentage()) < (0.5);
+            bool healthyRepo = (enlistmentStatistics.GetPlaceholderPercentage() + enlistmentStatistics.GetModifiedPathsPercentage()) < MaximumHealthyHydration;
 
             this.Output.WriteLine("\nRepository status: " + (healthyRepo ? "Healthy" : "Unhealthy"));
+            Console.ReadLine();
         }
 
         /// <summary>
-        /// Takes a fractional double and formats it as a percent taking exactly 4 characters with no decimals
+        /// Takes a fractional decimal and formats it as a percent taking exactly 4 characters with no decimals
         /// </summary>
-        /// <param name="percent">Fractional double to format to a percent</param>
+        /// <param name="percent">Fractional decimal to format to a percent</param>
         /// <returns>A 4 character string formatting the percent correctly</returns>
-        private string FormatPercent(double percent)
+        private string FormatPercent(decimal percent)
         {
             return percent.ToString("P0").PadLeft(4);
         }
@@ -133,7 +140,7 @@ namespace GVFS.CommandLine
         /// <returns>The path extracted from the provided line of the git index</returns>
         private string TrimGitIndexLine(string line)
         {
-            return line.Substring(line.IndexOf("blob") + 46);
+            return line.Substring(line.IndexOf('\t') + 1);
         }
 
         /// <summary>
@@ -154,7 +161,7 @@ namespace GVFS.CommandLine
 
                 try
                 {
-                    NamedPipeMessages.Message modifiedPathsMessage = new NamedPipeMessages.Message(NamedPipeMessages.ModifiedPaths.ListRequest, "1");
+                    NamedPipeMessages.Message modifiedPathsMessage = new NamedPipeMessages.Message(NamedPipeMessages.ModifiedPaths.ListRequest, NamedPipeMessages.ModifiedPaths.CurrentVersion);
                     pipeClient.SendRequest(modifiedPathsMessage);
 
                     NamedPipeMessages.Message modifiedPathsResponse = pipeClient.ReadResponse();
@@ -164,8 +171,7 @@ namespace GVFS.CommandLine
                         return modifiedPathsList;
                     }
 
-                    modifiedPathsList = modifiedPathsResponse.Body.Split('\0');
-                    modifiedPathsList = modifiedPathsList.Take(modifiedPathsList.Length - 1).ToArray();
+                    modifiedPathsList = modifiedPathsResponse.Body.Split(new char[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
                 }
                 catch (BrokenPipeException e)
                 {
