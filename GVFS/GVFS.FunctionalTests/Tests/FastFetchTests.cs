@@ -494,11 +494,11 @@ namespace GVFS.FunctionalTests.Tests
             string fastfetch;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "fastfetch.dll");
+                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "FastFetch.dll");
             }
             else
             {
-                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.dll");
+                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "FastFetch.dll");
             }
 
             File.Exists(fastfetch).ShouldBeTrue($"{fastfetch} did not exist.");
