@@ -12,7 +12,6 @@ namespace GVFS.Common.Git
         private volatile bool disposing;
         private volatile int activeCallers;
         private LibGit2Repo sharedRepo;
-        private Timer sharedRepoDisposalTimer;
 
         public LibGit2RepoInvoker(ITracer tracer, Func<LibGit2Repo> createRepo)
         {
@@ -28,9 +27,6 @@ namespace GVFS.Common.Git
 
             lock (this.sharedRepoLock)
             {
-                this.sharedRepoDisposalTimer?.Dispose();
-                this.sharedRepoDisposalTimer = null;
-
                 this.sharedRepo?.Dispose();
                 this.sharedRepo = null;
             }
