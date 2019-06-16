@@ -884,6 +884,67 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
 }
 
+-(void) testWriteFileHydratedOfflineRoot
+{
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(testFileVnode);
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+    
+    XCTAssertEqual(
+        KAUTH_RESULT_DEFER, // TODO(Mac): Write to placeholder files should be prevented in offline roots (#182)
+        HandleVnodeOperation(
+            nullptr,
+            nullptr,
+            KAUTH_VNODE_WRITE_DATA,
+            reinterpret_cast<uintptr_t>(context),
+            reinterpret_cast<uintptr_t>(testFileVnode.get()),
+            0,
+            0));
+    XCTAssertFalse(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            _,
+            testFileVnode.get(),
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            nullptr));
+}
+
+-(void) testWriteFlaggedNonRepoFile
+{
+    string testFilePath = "/Users/test/code/otherproject/file";
+    shared_ptr<vnode> testFile = testMount->CreateVnodeTree(testFilePath);
+    testFile->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    XCTAssertEqual(
+        KAUTH_RESULT_DEFER,
+        HandleVnodeOperation(
+            nullptr,
+            nullptr,
+            KAUTH_VNODE_WRITE_DATA,
+            reinterpret_cast<uintptr_t>(context),
+            reinterpret_cast<uintptr_t>(testFile.get()),
+            0,
+            0));
+    XCTAssertFalse(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            _,
+            testFileVnode.get(),
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            nullptr));
+}
+
 -(void) testWriteFileFull {
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(HandleVnodeOperation(
