@@ -118,6 +118,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(4)]
         public void PrefetchCleansUpOldPrefetchPack()
         {
+            this.Enlistment.UnmountGVFS();
+
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             long oldestPackTimestamp = this.GetOldestPackTimestamp(prefetchPacks);
 
@@ -147,6 +149,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(5)]
         public void PrefetchFailsWhenItCannotRemoveABadPrefetchPack()
         {
+            this.Enlistment.UnmountGVFS();
+
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             long mostRecentPackTimestamp = this.GetMostRecentPackTimestamp(prefetchPacks);
 
@@ -178,6 +182,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(6)]
         public void PrefetchFailsWhenItCannotRemoveAPrefetchPackNewerThanBadPrefetchPack()
         {
+            this.Enlistment.UnmountGVFS();
+
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             long oldestPackTimestamp = this.GetOldestPackTimestamp(prefetchPacks);
 
@@ -210,6 +216,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(7)]
         public void PrefetchFailsWhenItCannotRemoveAPrefetchIdxNewerThanBadPrefetchPack()
         {
+            this.Enlistment.UnmountGVFS();
+
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             long oldestPackTimestamp = this.GetOldestPackTimestamp(prefetchPacks);
 
