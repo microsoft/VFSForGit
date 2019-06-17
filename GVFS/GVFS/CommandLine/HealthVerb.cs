@@ -11,10 +11,10 @@ using System.Linq;
 
 namespace GVFS.CommandLine
 {
-    [Verb(StatisticsVerb.StatisticsVerbName, HelpText = "Get statistics for the health state of the repository")]
-    public class StatisticsVerb : GVFSVerb.ForExistingEnlistment
+    [Verb(HealthVerb.HealthVerbName, HelpText = "Get statistics for the health state of the repository")]
+    public class HealthVerb : GVFSVerb.ForExistingEnlistment
     {
-        private const string StatisticsVerbName = "statistics";
+        private const string HealthVerbName = "health";
         private const decimal MaximumHealthyHydration = 0.5m;
 
         [Option(
@@ -32,7 +32,7 @@ namespace GVFS.CommandLine
 
         protected override string VerbName
         {
-            get { return StatisticsVerbName; }
+            get { return HealthVerbName; }
         }
 
         protected override void Execute(GVFSEnlistment enlistment)
@@ -81,46 +81,45 @@ namespace GVFS.CommandLine
 
             List<string> gitPathsList = this.GetPathsFromGitIndex(enlistment);
 
-            GVFSEnlistmentStatistics enlistmentStatistics = new GVFSEnlistmentStatistics(gitPathsList, placeholderFolderPathList, placeholderFilePathList, modifiedPathsFolderList, modifiedPathsFileList);
-            enlistmentStatistics.CalculateStatistics(this.Directory);
+            GVFSEnlistmentHealthCalculator enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(gitPathsList, placeholderFolderPathList, placeholderFilePathList, modifiedPathsFolderList, modifiedPathsFileList);
+            GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentData = enlistmentHealthCalculator.CalculateStatistics(this.Directory, this.DirectoryDisplayCount);
 
-            string trackedFilesCountFormatted = enlistmentStatistics.GitTrackedFilesCount.ToString("N0");
-            string placeholderCountFormatted = enlistmentStatistics.PlaceholderCount.ToString("N0");
-            string modifiedPathsCountFormatted = enlistmentStatistics.ModifiedPathsCount.ToString("N0");
+            string trackedFilesCountFormatted = enlistmentData.GitTrackedFilesCount.ToString("N0");
+            string placeholderCountFormatted = enlistmentData.PlaceholderCount.ToString("N0");
+            string modifiedPathsCountFormatted = enlistmentData.ModifiedPathsCount.ToString("N0");
 
             // Calculate spacing for the numbers of total files
             int longest = Math.Max(trackedFilesCountFormatted.Length, placeholderCountFormatted.Length);
             longest = Math.Max(longest, modifiedPathsCountFormatted.Length);
 
             // Sort the dictionary to find the most hydrated directories by percentage
-            List<string> topLevelDirectoriesByHydration = enlistmentStatistics.GetDirectoriesSortedByHydration();
+            List<ValueTuple<string, decimal>> topLevelDirectoriesByHydration = enlistmentData.DirectoryHydrationLevels;
 
-            this.Output.WriteLine("\nRepository statistics");
+            this.Output.WriteLine("\nRepository health");
             this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
-            this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentStatistics.GetPlaceholderPercentage()));
-            this.Output.WriteLine("Files managed by git (slow):          " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentStatistics.GetModifiedPathsPercentage()));
+            this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentData)));
+            this.Output.WriteLine("Files managed by git (slow):          " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentData)));
 
-            this.Output.WriteLine("\nTotal hydration percentage:           " + this.FormatPercent(enlistmentStatistics.GetPlaceholderPercentage() + enlistmentStatistics.GetModifiedPathsPercentage()).PadLeft(longest + 7));
+            this.Output.WriteLine("\nTotal hydration percentage:           " + this.FormatPercent(enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentData) + enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentData)).PadLeft(longest + 7));
 
             this.Output.WriteLine("\nMost hydrated top level directories:");
 
             int maxDirectoryNameLength = 0;
-            for (int i = 0; i < 5 && i < topLevelDirectoriesByHydration.Count; i++)
+            foreach ((string, decimal) pair in topLevelDirectoriesByHydration)
             {
-                maxDirectoryNameLength = Math.Max(maxDirectoryNameLength, topLevelDirectoriesByHydration[i].Length);
+                maxDirectoryNameLength = Math.Max(maxDirectoryNameLength, pair.Item1.Length);
             }
 
-            for (int i = 0; i < this.DirectoryDisplayCount && i < topLevelDirectoriesByHydration.Count; i++)
+            foreach ((string, decimal) pair in topLevelDirectoriesByHydration)
             {
-                string dir = topLevelDirectoriesByHydration[i].PadRight(maxDirectoryNameLength);
-                string percent = this.FormatPercent(enlistmentStatistics.GetHydrationOfDirectory(topLevelDirectoriesByHydration[i]));
+                string dir = pair.Item1.PadRight(maxDirectoryNameLength);
+                string percent = this.FormatPercent(pair.Item2);
                 this.Output.WriteLine(" " + percent + " | " + dir);
             }
 
-            bool healthyRepo = (enlistmentStatistics.GetPlaceholderPercentage() + enlistmentStatistics.GetModifiedPathsPercentage()) < MaximumHealthyHydration;
+            bool healthyRepo = (enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentData) + enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentData)) < MaximumHealthyHydration;
 
             this.Output.WriteLine("\nRepository status: " + (healthyRepo ? "Healthy" : "Unhealthy"));
-            Console.ReadLine();
         }
 
         /// <summary>
