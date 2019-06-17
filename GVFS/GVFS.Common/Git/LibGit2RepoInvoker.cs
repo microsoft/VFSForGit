@@ -6,39 +6,20 @@ namespace GVFS.Common.Git
 {
     public class LibGit2RepoInvoker : IDisposable
     {
-        private static readonly TimeSpan DefaultRepositoryDisposalPeriod = TimeSpan.FromMinutes(15);
-
         private readonly Func<LibGit2Repo> createRepo;
         private readonly ITracer tracer;
         private readonly object sharedRepoLock = new object();
-        private readonly TimeSpan sharedRepositoryDisposalPeriod;
         private volatile bool disposing;
         private volatile int activeCallers;
         private LibGit2Repo sharedRepo;
-        private Timer sharedRepoDisposalTimer;
 
-        public LibGit2RepoInvoker(ITracer tracer, Func<LibGit2Repo> createRepo, TimeSpan? disposalPeriod = null)
+        public LibGit2RepoInvoker(ITracer tracer, Func<LibGit2Repo> createRepo)
         {
             this.tracer = tracer;
             this.createRepo = createRepo;
 
-            if (!disposalPeriod.HasValue || disposalPeriod.Value <= TimeSpan.Zero)
-            {
-                this.sharedRepositoryDisposalPeriod = DefaultRepositoryDisposalPeriod;
-            }
-            else
-            {
-                this.sharedRepositoryDisposalPeriod = disposalPeriod.Value;
-            }
-
-            this.sharedRepoDisposalTimer = new Timer(
-                (state) => this.DisposeSharedRepo(),
-                state: null,
-                dueTime: this.sharedRepositoryDisposalPeriod,
-                period: this.sharedRepositoryDisposalPeriod);
+            this.InitializeSharedRepo();
         }
-
-        public bool IsActive => this.sharedRepo != null;
 
         public void Dispose()
         {
@@ -46,9 +27,6 @@ namespace GVFS.Common.Git
 
             lock (this.sharedRepoLock)
             {
-                this.sharedRepoDisposalTimer?.Dispose();
-                this.sharedRepoDisposalTimer = null;
-
                 this.sharedRepo?.Dispose();
                 this.sharedRepo = null;
             }
@@ -81,27 +59,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        private LibGit2Repo GetSharedRepo()
-        {
-            lock (this.sharedRepoLock)
-            {
-                if (this.disposing)
-                {
-                    return null;
-                }
-
-                this.sharedRepoDisposalTimer?.Change(this.sharedRepositoryDisposalPeriod, this.sharedRepositoryDisposalPeriod);
-
-                if (this.sharedRepo == null)
-                {
-                    this.sharedRepo = this.createRepo();
-                }
-
-                return this.sharedRepo;
-            }
-        }
-
-        private void DisposeSharedRepo()
+        public void DisposeSharedRepo()
         {
             lock (this.sharedRepoLock)
             {
@@ -112,6 +70,33 @@ namespace GVFS.Common.Git
 
                 this.sharedRepo?.Dispose();
                 this.sharedRepo = null;
+            }
+        }
+
+        public void InitializeSharedRepo()
+        {
+            // Run a test on the shared repo to ensure the object store
+            // is loaded, as that is what takes a long time with many packs.
+            // Using a potentially-real object id is important, as the empty
+            // SHA will stop early instead of loading the object store.
+            this.GetSharedRepo()?.ObjectExists("30380be3963a75e4a34e10726795d644659e1129");
+        }
+
+        private LibGit2Repo GetSharedRepo()
+        {
+            lock (this.sharedRepoLock)
+            {
+                if (this.disposing)
+                {
+                    return null;
+                }
+
+                if (this.sharedRepo == null)
+                {
+                    this.sharedRepo = this.createRepo();
+                }
+
+                return this.sharedRepo;
             }
         }
     }
