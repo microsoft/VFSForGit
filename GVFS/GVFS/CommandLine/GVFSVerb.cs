@@ -523,7 +523,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             GitProcess git = new GitProcess(enlistment);
             GitProcess.Result result = git.LsTree(
                 GVFSConstants.DotGit.HeadName,
-                line => rootEntries.Add(DiffTreeResult.ParseFromLsTreeLine(line, repoRoot: string.Empty)),
+                line => rootEntries.Add(DiffTreeResult.ParseFromLsTreeLine(line)),
                 recursive: false);
 
             if (result.ExitCodeIsFailure)
