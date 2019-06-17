@@ -1,13 +1,19 @@
 #import "VFSAboutWindowController.h"
 #import "VFSAppDelegate.h"
+#import "VFSMessageListener.h"
+#import "VFSNotificationDisplay.h"
+#import "VFSForGitNotification.h"
 #import "VFSProductInfoFetcher.h"
 #import "VFSStatusBarItem.h"
-#import "VFSUserNotification.h"
+#import "VFSNotificationDisplay.h"
 
 @interface VFSAppDelegate ()
 
 @property (weak) IBOutlet NSWindow *Window;
 @property (strong) VFSStatusBarItem *StatusDisplay;
+@property (strong) VFSMessageListener *messageListener;
+
+- (void)displayNotification:(NSDictionary *_Nonnull)messageInfo;
 
 @end
 
@@ -15,16 +21,21 @@
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
-    // TODO : Create a message listener object and
-    // start listening for incoming notification
-    // requests.
+    self.messageListener = [[VFSMessageListener alloc]
+        initWithSocket:NSTemporaryDirectory()
+        callback:^(NSDictionary *messageInfo)
+        {
+            [self displayNotification:messageInfo];
+        }];
+    
+    [self.messageListener startListening];
     
     VFSProductInfoFetcher *productInfoFetcher =
     [[VFSProductInfoFetcher alloc]
      initWithProcessRunner:[[VFSProcessRunner alloc] initWithProcessFactory:^NSTask *
-    {
-        return [[NSTask alloc] init];
-    }]];
+                            {
+                                return [[NSTask alloc] init];
+                            }]];
     
     self.StatusDisplay = [[VFSStatusBarItem alloc] initWithAboutWindowController:
                           [[VFSAboutWindowController alloc]
@@ -35,7 +46,27 @@
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification
 {
-    // TODO : Cleanup IPC objects.
+    [self.messageListener stopListening];
 }
 
+- (void)displayNotification:(NSDictionary *_Nonnull)messageInfo
+{
+    NSParameterAssert(messageInfo);
+    
+    VFSForGitNotification *notification;
+    NSError *error;
+    if (![VFSForGitNotification tryValidateMessage:messageInfo
+                                 buildNotification:&notification
+                                             error:&error])
+    {
+        NSLog(@"ERROR: Could not display notification. %@", [error description]);
+        return;
+    }
+    
+    VFSNotificationDisplay *notificationDisplay =
+    [[VFSNotificationDisplay alloc] initWithTitle:notification.title
+                                          message:notification.message];
+    
+    [notificationDisplay display];
+}
 @end

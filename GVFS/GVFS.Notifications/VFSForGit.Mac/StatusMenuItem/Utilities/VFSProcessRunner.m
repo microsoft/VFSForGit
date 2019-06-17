@@ -1,4 +1,5 @@
 #import "VFSProcessRunner.h"
+#import "VFSNotificationErrors.h"
 
 @interface VFSProcessRunner()
 
@@ -66,7 +67,7 @@
             if (error != nil)
             {
                 NSDictionary *userInfo = @{ NSLocalizedDescriptionKey : *output };
-                *error = [NSError errorWithDomain:@"VFSProcessRunner"
+                *error = [NSError errorWithDomain:VFSForGitNotificationErrorDomain
                                              code:exitCode
                                          userInfo:userInfo];
             }

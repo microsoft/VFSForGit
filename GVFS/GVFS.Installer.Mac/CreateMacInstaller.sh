@@ -118,6 +118,9 @@ function CopyBinariesToInstall()
     copyNotificationApp="cp -Rf \"${VFS_OUTPUTDIR}/GVFS.Notifications/VFSForGit.Mac/Build/Products/$CONFIGURATION/VFS For Git.app\" \"${STAGINGDIR}/${LIBRARYAPPSUPPORTDESTINATION}/.\""
     eval $copyNotificationApp || exit 1
     
+    copyNotificationPlist="cp -Rf \"${SOURCEDIRECTORY}/../GVFS.Notifications/VFSForGit.Mac/org.vfsforgit.usernotification.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
+    eval $copyNotificationPlist || exit 1
+    
     copyServicePlist="cp -Rf \"${SOURCEDIRECTORY}/../GVFS.Service/Mac/org.vfsforgit.service.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
     eval $copyServicePlist || exit 1
     

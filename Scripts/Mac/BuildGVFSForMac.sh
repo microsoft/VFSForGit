@@ -59,6 +59,10 @@ xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.x
 USERNOTIFICATIONDIR=$VFS_SRCDIR/GVFS/GVFS.Notifications/VFSForGit.Mac
 USERNOTIFICATIONPROJECT="$USERNOTIFICATIONDIR/VFSForGit.xcodeproj"
 USERNOTIFICATIONSCHEME="VFS For Git"
+updateAppVersionCmd="(cd \"$USERNOTIFICATIONDIR\" && /usr/bin/xcrun agvtool new-marketing-version \"$VERSION\")"
+echo $updateAppVersionCmd
+eval $updateAppVersionCmd
+# Build user notification app
 xcodebuild -configuration $CONFIGURATION -project "$USERNOTIFICATIONPROJECT" build -scheme "$USERNOTIFICATIONSCHEME" -derivedDataPath $VFS_OUTPUTDIR/GVFS.Notifications/VFSForGit.Mac || exit 1
 
 # Build the tests in a separate directory, so the binary for distribution does not contain

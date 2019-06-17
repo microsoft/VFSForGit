@@ -51,22 +51,25 @@ function UnInstallVFSForGit()
     # get its uid (this will correspond to the logged in user's id.) 
     # Then use launchctl bootout gui/uid to unload the Service 
     # for each user.
-    if [ -f "${LAUNCHAGENTDIRECTORY}/$SERVICEAGENTLAUNCHDFILENAME" ]; then
-        for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
-            # Check if the Service is loaded. Unload only if necessary.
-            isLoadedCmd="sudo launchctl kill SIGCONT gui/$uid/org.vfsforgit.service"
+    declare -a launchAgents=(
+    "org.vfsforgit.usernotification"
+    "org.vfsforgit.service"
+    )
+    for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
+        for nextLaunchAgent in "${launchAgents[@]}"; do
+            isLoadedCmd="sudo launchctl kill SIGCONT gui/$uid/$nextLaunchAgent"
             echo "$isLoadedCmd"
             if $isLoadedCmd; then
-                unloadCmd="sudo launchctl bootout gui/$uid ${LAUNCHAGENTDIRECTORY}/$SERVICEAGENTLAUNCHDFILENAME"
-                echo "$unloadCmd..."
-                eval $unloadCmd || { echo "Error: Could not unload ${LAUNCHAGENTDIRECTORY}/$SERVICEAGENTLAUNCHDFILENAME. Unload it manually (\"$unloadCmd\")."; exit 1; }
+                unloadCmd="launchctl bootout gui/$uid /Library/LaunchAgents/$nextLaunchAgent.plist"
+                echo "Unloading Service: '$unloadCmd'..."
+                eval $unloadCmd || exit 1
+                
+                rmCmd="sudo /bin/rm -Rf ${LAUNCHAGENTDIRECTORY}/$nextLaunchAgent.plist"
+                echo "$rmCmd..."
+                eval $rmCmd || { echo "Error: Could not delete ${LAUNCHAGENTDIRECTORY}/$nextLaunchAgent.plist. Delete it manually."; exit 1; }
             fi
         done
-        
-        rmCmd="sudo /bin/rm -Rf ${LAUNCHAGENTDIRECTORY}/$SERVICEAGENTLAUNCHDFILENAME"
-        echo "$rmCmd..."
-        eval $rmCmd || { echo "Error: Could not delete ${LAUNCHAGENTDIRECTORY}/$SERVICEAGENTLAUNCHDFILENAME. Delete it manually."; exit 1; }
-    fi
+    done
     
     if [ -s "${GVFSCOMMANDPATH}" ]; then
         rmCmd="sudo /bin/rm -Rf ${GVFSCOMMANDPATH}"

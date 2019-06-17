@@ -2,6 +2,7 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
+using GVFS.Service.Handlers;
 using System;
 using System.IO;
 using System.Linq;
@@ -51,7 +52,8 @@ namespace GVFS.Service
                 tracer,
                 new PhysicalFileSystem(),
                 serviceDataLocation,
-                new GVFSMountProcess(tracer));
+                new GVFSMountProcess(tracer),
+                new NotificationHandler(tracer));
 
             return new GVFSService(tracer, serviceName, repoRegistry);
         }
