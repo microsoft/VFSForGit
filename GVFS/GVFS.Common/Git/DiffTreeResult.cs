@@ -38,7 +38,7 @@ namespace GVFS.Common.Git
         public ushort SourceMode { get; set; }
         public ushort TargetMode { get; set; }
 
-        public static DiffTreeResult ParseFromDiffTreeLine(string line, string repoRoot)
+        public static DiffTreeResult ParseFromDiffTreeLine(string line)
         {
             if (string.IsNullOrEmpty(line))
             {
@@ -100,7 +100,7 @@ namespace GVFS.Common.Git
             result.SourceSha = parts[2];
             result.TargetSha = parts[3];
             result.Operation = DiffTreeResult.ParseOperation(parts[4]);
-            result.TargetPath = ConvertPathToAbsoluteUtf8Path(repoRoot, parts[5]);
+            result.TargetPath = ConvertPathToUtf8Path(parts[5]);
             if (result.TargetIsDirectory || result.SourceIsDirectory)
             {
                 // Since diff-tree is not doing rename detection, file->directory or directory->file transformations are always multiple lines
@@ -118,7 +118,6 @@ namespace GVFS.Common.Git
         /// Parse the output of calling git ls-tree
         /// </summary>
         /// <param name="line">A line that was output from calling git ls-tree</param>
-        /// <param name="repoRoot">The root path of the repo that the git ls-tree was ran against</param>
         /// <returns>A DiffTreeResult build from the output line</returns>
         /// <remarks>
         /// The call to ls-tree could be any of the following
@@ -127,7 +126,7 @@ namespace GVFS.Common.Git
         /// git ls-tree -t (treeish)
         /// git ls-tree -r -t (treeish)
         /// </remarks>
-        public static DiffTreeResult ParseFromLsTreeLine(string line, string repoRoot)
+        public static DiffTreeResult ParseFromLsTreeLine(string line)
         {
             if (string.IsNullOrEmpty(line))
             {
@@ -149,7 +148,7 @@ namespace GVFS.Common.Git
             {
                 DiffTreeResult treeAdd = new DiffTreeResult();
                 treeAdd.TargetIsDirectory = true;
-                treeAdd.TargetPath = AppendPathSeparatorIfNeeded(ConvertPathToAbsoluteUtf8Path(repoRoot, line.Substring(line.LastIndexOf("\t") + 1)));
+                treeAdd.TargetPath = AppendPathSeparatorIfNeeded(ConvertPathToUtf8Path(line.Substring(line.LastIndexOf("\t") + 1)));
                 treeAdd.Operation = DiffTreeResult.Operations.Add;
 
                 return treeAdd;
@@ -162,7 +161,7 @@ namespace GVFS.Common.Git
                     blobAdd.TargetMode = Convert.ToUInt16(line.Substring(0, 6), 8);
                     blobAdd.TargetIsSymLink = blobAdd.TargetMode == SymLinkFileIndexEntry;
                     blobAdd.TargetSha = line.Substring(TypeMarkerStartIndex + BlobMarker.Length, GVFSConstants.ShaStringLength);
-                    blobAdd.TargetPath = ConvertPathToAbsoluteUtf8Path(repoRoot, line.Substring(line.LastIndexOf("\t") + 1));
+                    blobAdd.TargetPath = ConvertPathToUtf8Path(line.Substring(line.LastIndexOf("\t") + 1));
                     blobAdd.Operation = DiffTreeResult.Operations.Add;
 
                     return blobAdd;
@@ -213,9 +212,9 @@ namespace GVFS.Common.Git
             }
         }
 
-        private static string ConvertPathToAbsoluteUtf8Path(string repoRoot, string relativePath)
+        private static string ConvertPathToUtf8Path(string relativePath)
         {
-            return Path.Combine(repoRoot, GitPathConverter.ConvertPathOctetsToUtf8(relativePath.Trim('"')).Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar));
+            return GitPathConverter.ConvertPathOctetsToUtf8(relativePath.Trim('"')).Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
         }
     }
 }

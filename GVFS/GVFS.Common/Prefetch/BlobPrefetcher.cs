@@ -314,11 +314,12 @@ namespace GVFS.Common.Prefetch
 
             // fileHydrator
             //  Inputs:
+            //      * workingDirectoryRoot (in param): the root of the working directory where hydration takes place
             //      * blobIdsToPaths (in param): paths of all blob ids that need to be hydrated from output of `diff`
             //      * availableBlobs (in param): blobs id that are available locally, from whatever source
             //  Outputs:
             //      * Hydrated files on disk.
-            HydrateFilesStage fileHydrator = new HydrateFilesStage(Environment.ProcessorCount * 2, diff.FileAddOperations, availableBlobs, this.Tracer);
+            HydrateFilesStage fileHydrator = new HydrateFilesStage(Environment.ProcessorCount * 2, this.Enlistment.WorkingDirectoryRoot, diff.FileAddOperations, availableBlobs, this.Tracer);
 
             // All the stages of the pipeline are created and wired up, now kick them off in the proper sequence
 
@@ -535,7 +536,7 @@ namespace GVFS.Common.Prefetch
                 .Union(GetFilesFromStdin(readListFromStdIn))
                 .Where(path => !path.StartsWith(GVFSConstants.GitCommentSign.ToString()))
                 .Where(path => !string.IsNullOrWhiteSpace(path))
-                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder)));
+                .Select(path => BlobPrefetcher.ToFilterPath(path, isFolder: isFolder)));
 
             if (!string.IsNullOrWhiteSpace(fileReadError))
             {
@@ -558,20 +559,19 @@ namespace GVFS.Common.Prefetch
             return true;
         }
 
-        private static string ToAbsolutePath(Enlistment enlistment, string path, bool isFolder)
+        private static string ToFilterPath(string path, bool isFolder)
         {
-            string absolute =
+            string filterPath =
                 path.StartsWith("*")
                 ? path
-                : Path.Combine(enlistment.WorkingDirectoryRoot, path.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
+                : path.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
 
-            if (isFolder &&
-                !absolute.EndsWith(pathSeparatorString))
+            if (isFolder && filterPath.Length > 0 && !filterPath.EndsWith(pathSeparatorString))
             {
-                absolute += pathSeparatorString;
+                filterPath += pathSeparatorString;
             }
 
-            return absolute;
+            return filterPath;
         }
 
         private bool IsSymbolicRef(string targetCommitish)
