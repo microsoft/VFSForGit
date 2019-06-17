@@ -2,7 +2,6 @@
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
-using System;
 using System.Collections.Concurrent;
 using System.Threading;
 
@@ -11,7 +10,6 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class LibGit2RepoInvokerTests
     {
-        private readonly TimeSpan disposalPeriod = TimeSpan.FromMilliseconds(1);
         private MockTracer tracer;
         private LibGit2RepoInvoker invoker;
         private int numConstructors;
@@ -25,32 +23,68 @@ namespace GVFS.UnitTests.Common
             this.invoker?.Dispose();
 
             this.tracer = new MockTracer();
-            this.invoker = new LibGit2RepoInvoker(this.tracer, this.CreateRepo, this.disposalPeriod);
             this.numConstructors = 0;
             this.numDisposals = 0;
             this.DisposalTriggers = new BlockingCollection<object>();
+
+            this.invoker = new LibGit2RepoInvoker(this.tracer, this.CreateRepo);
         }
 
         [TestCase]
-        public void DoesNotCreateRepoOnConstruction()
+        public void DoesCreateRepoOnConstruction()
         {
-            this.numConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(1);
         }
 
         [TestCase]
-        public void CreatesRepoOnTryInvoke()
+        public void CreatedByInitializeAfterClosed()
         {
-            this.numConstructors.ShouldEqual(0);
+            this.numDisposals.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(1);
+
+            this.invoker.DisposeSharedRepo();
+
+            this.numDisposals.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(1);
+
+            this.invoker.InitializeSharedRepo();
+
+            this.numDisposals.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(2);
+
+            // This should not create another repo
+            this.invoker.TryInvoke(repo => { return true; }, out bool result);
+
+            this.numDisposals.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(2);
+        }
+
+        [TestCase]
+        public void CreatesOnInvokeAfterClosed()
+        {
+            this.numConstructors.ShouldEqual(1);
+
+            this.invoker.DisposeSharedRepo();
+
+            this.numDisposals.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(1);
 
             this.invoker.TryInvoke(repo => { return true; }, out bool result);
-            result.ShouldEqual(true);
-            this.numConstructors.ShouldEqual(1);
+
+            this.numDisposals.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(2);
+
+            // This should not create another repo
+            this.invoker.InitializeSharedRepo();
+
+            this.numDisposals.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(2);
         }
 
         [TestCase]
         public void DoesNotCreateMultipleRepos()
         {
-            this.numConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(1);
 
             this.invoker.TryInvoke(repo => { return true; }, out bool result);
             result.ShouldEqual(true);
@@ -60,25 +94,24 @@ namespace GVFS.UnitTests.Common
             result.ShouldEqual(true);
             this.numConstructors.ShouldEqual(1);
 
-            this.invoker.TryInvoke(repo => { return true; }, out result);
-            result.ShouldEqual(true);
+            this.invoker.InitializeSharedRepo();
             this.numConstructors.ShouldEqual(1);
         }
 
         [TestCase]
         public void DoesNotCreateRepoAfterDisposal()
         {
-            this.numConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(1);
             this.invoker.Dispose();
             this.invoker.TryInvoke(repo => { return true; }, out bool result);
             result.ShouldEqual(false);
-            this.numConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(1);
         }
 
         [TestCase]
         public void DisposesSharedRepo()
         {
-            this.numConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(1);
             this.numDisposals.ShouldEqual(0);
 
             this.invoker.TryInvoke(repo => { return true; }, out bool result);
@@ -93,7 +126,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void UsesOnlyOneRepoMultipleThreads()
         {
-            this.numConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(1);
 
             Thread[] threads = new Thread[10];
             BlockingCollection<object> threadStarted = new BlockingCollection<object>();
@@ -138,24 +171,6 @@ namespace GVFS.UnitTests.Common
             this.numConstructors.ShouldEqual(1);
         }
 
-        [TestCase]
-        public void AutomaticallyDisposesAfterNoUse()
-        {
-            this.numConstructors.ShouldEqual(0);
-
-            bool tryInvokeResult1 = this.invoker.TryInvoke(repo => { return true; }, out bool result);
-            result.ShouldEqual(true, string.Format("Unexcepted function result from first call to TryInvoke: {0} ReturnCode: {1}", result, tryInvokeResult1));
-            this.numConstructors.ShouldEqual(1);
-
-            this.DisposalTriggers.TryTake(out object _, (int)this.disposalPeriod.TotalMilliseconds * 500).ShouldBeTrue("Did not dispose object in time");
-            this.numDisposals.ShouldEqual(1);
-            this.numConstructors.ShouldEqual(1);
-
-            bool tryInvokeResult2 = this.invoker.TryInvoke(repo => { return true; }, out result);
-            result.ShouldEqual(true, string.Format("Unexcepted function result from second call to TryInvoke: {0} ReturnCode: {1}", result, tryInvokeResult2));
-            this.numConstructors.ShouldEqual(2);
-        }
-
         private LibGit2Repo CreateRepo()
         {
             Interlocked.Increment(ref this.numConstructors);
@@ -169,6 +184,11 @@ namespace GVFS.UnitTests.Common
             public MockLibGit2Repo(LibGit2RepoInvokerTests parent)
             {
                 this.parent = parent;
+            }
+
+            public override bool ObjectExists(string sha)
+            {
+                return false;
             }
 
             protected override void Dispose(bool disposing)
