@@ -254,6 +254,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(8)]
         public void PrefetchCleansUpStaleTempPrefetchPacks()
         {
+            this.Enlistment.UnmountGVFS();
+
             // Create stale packs and idxs  in the temp folder
             string stalePackContents = "StalePack";
             string stalePackPath = Path.Combine(this.TempPackRoot, $"{PrefetchPackPrefix}-123456-{Guid.NewGuid().ToString("N")}.pack");
@@ -304,18 +306,24 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.fileSystem.CreateEmptyFile(graphLockPath);
 
+            // Unmount so we can delete the files.
+            this.Enlistment.UnmountGVFS();
+
             // Force deleting the prefetch packs to make the prefetch non-trivial.
             this.fileSystem.DeleteDirectory(this.PackRoot);
             this.fileSystem.CreateDirectory(this.PackRoot);
             this.fileSystem.CreateEmptyFile(midxLockPath);
 
+            // Re-mount so the post-fetch job runs
+            this.Enlistment.MountGVFS();
+
             this.Enlistment.Prefetch("--commits");
             this.PostFetchJobShouldComplete();
 
-            this.fileSystem.FileExists(graphLockPath).ShouldBeFalse();
-            this.fileSystem.FileExists(midxLockPath).ShouldBeFalse();
-            this.fileSystem.FileExists(graphPath).ShouldBeTrue();
-            this.fileSystem.FileExists(midxPath).ShouldBeTrue();
+            this.fileSystem.FileExists(graphLockPath).ShouldBeFalse(nameof(graphLockPath));
+            this.fileSystem.FileExists(midxLockPath).ShouldBeFalse(nameof(midxLockPath));
+            this.fileSystem.FileExists(graphPath).ShouldBeTrue(nameof(graphPath));
+            this.fileSystem.FileExists(midxPath).ShouldBeTrue(nameof(midxPath));
         }
 
         private void PackShouldHaveIdxFile(string pathPath)
