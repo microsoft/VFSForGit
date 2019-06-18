@@ -328,6 +328,9 @@ namespace GVFS.CommandLine
                 {
                     this.LogDirectoryEnumeration(gitObjectsRoot, localCacheArchivePath, GVFSConstants.DotGit.Objects.Pack.Name, "packs-cached.txt");
                     this.LogLooseObjectCount(gitObjectsRoot, localCacheArchivePath, string.Empty, "objects-cached.txt");
+
+                    // Store all commit-graph files
+                    this.CopyAllFiles(gitObjectsRoot, localCacheArchivePath, GVFSConstants.DotGit.Objects.Info.Root, copySubFolders: true);
                 }
             }
             catch (Exception e)
