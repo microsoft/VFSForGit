@@ -27,6 +27,8 @@ namespace GVFS.Common
         public UnderConstructionFlags UnderConstruction { get; }
         public abstract string Name { get; }
 
+        public abstract string GVFSConfigPath { get; }
+
         public static void Register(GVFSPlatform platform)
         {
             if (GVFSPlatform.Instance != null)
@@ -70,6 +72,27 @@ namespace GVFS.Common
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
         public abstract string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer);
+
+        /// <summary>
+        /// Get the directory for upgrades that is permissioned to
+        /// require elevated privileges to modify. This can be used for
+        /// data that we don't want normal user accounts to modify.
+        /// </summary>
+        public abstract string GetUpgradeProtectedDataDirectory();
+
+        /// <summary>
+        /// Directory that upgrader log directory should be placed
+        /// in. There can be multiple log directories, so this is the
+        /// containing directory to place them in.
+        /// </summary>
+        public abstract string GetUpgradeLogDirectoryParentDirectory();
+
+        /// <summary>
+        /// Directory that contains the file indicating that a new
+        /// version is available.
+        /// </summary>
+        public abstract string GetUpgradeHighestAvailableVersionDirectory();
+
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
 
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);

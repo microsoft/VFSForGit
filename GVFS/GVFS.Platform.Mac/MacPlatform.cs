@@ -14,6 +14,8 @@ namespace GVFS.Platform.Mac
 {
     public partial class MacPlatform : POSIXPlatform
     {
+        private const string UpgradeProtectedDataDirectory = "/usr/local/vfsforgit_upgrader";
+
         public MacPlatform()
         {
         }
@@ -23,6 +25,14 @@ namespace GVFS.Platform.Mac
         public override string Name { get => "macOS"; }
         public override GVFSPlatformConstants Constants { get; } = new MacPlatformConstants();
         public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
+
+        public override string GVFSConfigPath
+        {
+            get
+            {
+                return Path.Combine(this.Constants.GVFSBinDirectoryPath, LocalGVFSConfig.FileName);
+            }
+        }
 
         public override string GetOSVersionInformation()
         {
@@ -56,6 +66,26 @@ namespace GVFS.Platform.Mac
             string lockPath)
         {
             return new MacFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return UpgradeProtectedDataDirectory;
+        }
+
+        public override string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return GetUpgradeHighestAvailableVersionDirectoryImplementation();
+        }
+
+        /// <summary>
+        /// This is the directory in which the upgradelogs directory should go.
+        /// There can be multiple logs directories, so here we return the containing
+        //  directory.
+        /// </summary>
+        public override string GetUpgradeLogDirectoryParentDirectory()
+        {
+            return this.GetUpgradeNonProtectedDataDirectory();
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)

@@ -36,6 +36,17 @@ namespace GVFS.Platform.Windows
         public override string Name { get => "Windows"; }
         public override GVFSPlatformConstants Constants { get; } = new WindowsPlatformConstants();
 
+        public override string GVFSConfigPath
+        {
+            get
+            {
+                string servicePath = GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName);
+                string gvfsDirectory = Path.GetDirectoryName(servicePath);
+
+                return Path.Combine(gvfsDirectory, LocalGVFSConfig.FileName);
+            }
+        }
+
         public static string GetStringFromRegistry(string key, string valueName)
         {
             object value = GetValueFromRegistry(RegistryHive.LocalMachine, key, valueName);
@@ -324,6 +335,21 @@ namespace GVFS.Platform.Windows
             {
                 return currentUser.Identity.User.Value;
             }
+        }
+
+        public override string GetUpgradeLogDirectoryParentDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return GetUpgradeProtectedDataDirectoryImplementation();
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);

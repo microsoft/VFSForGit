@@ -29,6 +29,8 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string Name { get => "Mock"; }
 
+        public override string GVFSConfigPath { get => Path.Combine("mock:", LocalGVFSConfig.FileName); }
+
         public override GVFSPlatformConstants Constants { get; } = new MockPlatformConstants();
 
         public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
@@ -99,6 +101,21 @@ namespace GVFS.UnitTests.Mock.Common
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
             return new Dictionary<string, string>();
+        }
+
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return this.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
+        }
+
+        public override string GetUpgradeLogDirectoryParentDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)

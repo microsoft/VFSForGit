@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using GVFS.Common;
 using GVFS.Platform.POSIX;
 
 namespace GVFS.Platform.Mac
@@ -27,9 +28,24 @@ namespace GVFS.Platform.Mac
             return POSIXPlatform.TryGetGVFSEnlistmentRootImplementation(directory, DotGVFSRoot, out enlistmentRoot, out errorMessage);
         }
 
+        public static string GetUpgradeHighestAvailableVersionDirectoryImplementation()
+        {
+            return GetUpgradeNonProtectedDirectoryImplementation();
+        }
+
+        public static string GetUpgradeNonProtectedDirectoryImplementation()
+        {
+            return Path.Combine(GetDataRootForGVFSImplementation(), ProductUpgraderInfo.UpgradeDirectoryName);
+        }
+
         public static string GetNamedPipeNameImplementation(string enlistmentRoot)
         {
             return POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot, DotGVFSRoot);
+        }
+
+        private string GetUpgradeNonProtectedDataDirectory()
+        {
+            return GetUpgradeNonProtectedDirectoryImplementation();
         }
     }
 }
