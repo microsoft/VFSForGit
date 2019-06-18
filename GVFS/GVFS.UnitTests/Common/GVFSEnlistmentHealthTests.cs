@@ -184,12 +184,12 @@ namespace GVFS.UnitTests.Common
 
         private GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData GenerateStatistics(string directory)
         {
-            this.enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(
+            this.enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(new GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData(
                 this.fauxGit,
                 this.fauxPlaceholderFolders,
                 this.fauxPlaceholderFiles,
                 this.fauxModifiedPathsFolders,
-                this.fauxModifiedPathsFiles);
+                this.fauxModifiedPathsFiles));
             return this.enlistmentHealthCalculator.CalculateStatistics(directory, 5);
         }
     }

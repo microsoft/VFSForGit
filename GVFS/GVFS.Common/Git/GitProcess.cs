@@ -580,6 +580,14 @@ namespace GVFS.Common.Git
                 parseStdOutLine);
         }
 
+        public Result LsFiles(Action<string> parseStdOutLine, bool showSkipTreeBit = false)
+        {
+            return this.InvokeGitInWorkingDirectoryRoot(
+                "ls-files " + (showSkipTreeBit ? "-sv " : string.Empty),
+                useReadObjectHook: false,
+                parseStdOutLine: parseStdOutLine);
+        }
+
         public Result SetUpstream(string branchName, string upstream)
         {
             return this.InvokeGitAgainstDotGitFolder("branch --set-upstream-to=" + upstream + " " + branchName);
@@ -842,7 +850,8 @@ namespace GVFS.Common.Git
         private Result InvokeGitInWorkingDirectoryRoot(
             string command,
             bool useReadObjectHook,
-            Action<StreamWriter> writeStdIn = null)
+            Action<StreamWriter> writeStdIn = null,
+            Action<string> parseStdOutLine = null)
         {
             return this.InvokeGitImpl(
                 command,
@@ -850,7 +859,7 @@ namespace GVFS.Common.Git
                 dotGitDirectory: null,
                 useReadObjectHook: useReadObjectHook,
                 writeStdIn: writeStdIn,
-                parseStdOutLine: null,
+                parseStdOutLine: parseStdOutLine,
                 timeoutMs: -1);
         }
 

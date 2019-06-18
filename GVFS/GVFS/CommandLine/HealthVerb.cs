@@ -81,26 +81,39 @@ namespace GVFS.CommandLine
 
             List<string> gitPathsList = this.GetPathsFromGitIndex(enlistment);
 
-            GVFSEnlistmentHealthCalculator enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(gitPathsList, placeholderFolderPathList, placeholderFilePathList, modifiedPathsFolderList, modifiedPathsFileList);
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentData = enlistmentHealthCalculator.CalculateStatistics(this.Directory, this.DirectoryDisplayCount);
+            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData(
+                gitPathsList,
+                placeholderFolderPathList,
+                placeholderFilePathList,
+                modifiedPathsFolderList,
+                modifiedPathsFileList);
+            GVFSEnlistmentHealthCalculator enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(pathData);
+            GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory, this.DirectoryDisplayCount);
 
-            string trackedFilesCountFormatted = enlistmentData.GitTrackedFilesCount.ToString("N0");
-            string placeholderCountFormatted = enlistmentData.PlaceholderCount.ToString("N0");
-            string modifiedPathsCountFormatted = enlistmentData.ModifiedPathsCount.ToString("N0");
+            this.PrintOutput(enlistmentHealthCalculator, enlistmentHealthData);
+        }
+
+        private void PrintOutput(
+            GVFSEnlistmentHealthCalculator enlistmentHealthCalculator,
+            GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData)
+        {
+            string trackedFilesCountFormatted = enlistmentHealthData.GitTrackedFilesCount.ToString("N0");
+            string placeholderCountFormatted = enlistmentHealthData.PlaceholderCount.ToString("N0");
+            string modifiedPathsCountFormatted = enlistmentHealthData.ModifiedPathsCount.ToString("N0");
 
             // Calculate spacing for the numbers of total files
             int longest = Math.Max(trackedFilesCountFormatted.Length, placeholderCountFormatted.Length);
             longest = Math.Max(longest, modifiedPathsCountFormatted.Length);
 
             // Sort the dictionary to find the most hydrated directories by percentage
-            List<ValueTuple<string, decimal>> topLevelDirectoriesByHydration = enlistmentData.DirectoryHydrationLevels;
+            List<ValueTuple<string, decimal>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels;
 
             this.Output.WriteLine("\nRepository health");
             this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
-            this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentData)));
-            this.Output.WriteLine("Files managed by git (slow):          " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentData)));
+            this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentHealthData)));
+            this.Output.WriteLine("Files managed by git (slow):          " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentHealthData)));
 
-            this.Output.WriteLine("\nTotal hydration percentage:           " + this.FormatPercent(enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentData) + enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentData)).PadLeft(longest + 7));
+            this.Output.WriteLine("\nTotal hydration percentage:           " + this.FormatPercent(enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentHealthData) + enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentHealthData)).PadLeft(longest + 7));
 
             this.Output.WriteLine("\nMost hydrated top level directories:");
 
@@ -117,7 +130,7 @@ namespace GVFS.CommandLine
                 this.Output.WriteLine(" " + percent + " | " + dir);
             }
 
-            bool healthyRepo = (enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentData) + enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentData)) < MaximumHealthyHydration;
+            bool healthyRepo = (enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentHealthData) + enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentHealthData)) < MaximumHealthyHydration;
 
             this.Output.WriteLine("\nRepository status: " + (healthyRepo ? "Healthy" : "Unhealthy"));
         }
@@ -201,13 +214,13 @@ namespace GVFS.CommandLine
             List<string> gitPaths = new List<string>();
             GitProcess gitProcess = new GitProcess(enlistment);
 
-            GitProcess.Result result = gitProcess.LsTree(
-                GVFSConstants.DotGit.HeadName,
+            GitProcess.Result result = gitProcess.LsFiles(
                 line =>
                 {
                     gitPaths.Add(this.TrimGitIndexLine(line));
                 },
-                recursive: true);
+                showSkipTreeBit: true);
+            this.Output.WriteLine(result.Errors);
             return gitPaths;
         }
     }
