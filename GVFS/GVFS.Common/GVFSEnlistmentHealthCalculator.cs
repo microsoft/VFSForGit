@@ -25,10 +25,10 @@ namespace GVFS.Common
 
         public GVFSEnlistmentHealthData CalculateStatistics(string parentDirectory, int directoryOutputCount)
         {
-            int gitTrackedFilesCount = 0;
+            int gitTrackedItemsCount = 0;
             int placeholderCount = 0;
             int modifiedPathsCount = 0;
-            Dictionary<string, int> gitTrackedFilesDirectoryTally = new Dictionary<string, int>();
+            Dictionary<string, int> gitTrackedItemsDirectoryTally = new Dictionary<string, int>();
             Dictionary<string, int> hydratedFilesDirectoryTally = new Dictionary<string, int>();
 
             if (!parentDirectory.EndsWith(GVFSConstants.GitPathSeparatorString) && parentDirectory.Length > 0)
@@ -41,7 +41,8 @@ namespace GVFS.Common
                 parentDirectory = parentDirectory.TrimStart(GVFSConstants.GitPathSeparator);
             }
 
-            gitTrackedFilesCount += this.CategorizePaths(this.enlistmentPathData.GitPaths, gitTrackedFilesDirectoryTally, parentDirectory, isFile: true);
+            gitTrackedItemsCount += this.CategorizePaths(this.enlistmentPathData.GitFolderPaths, gitTrackedItemsDirectoryTally, parentDirectory, isFile: false);
+            gitTrackedItemsCount += this.CategorizePaths(this.enlistmentPathData.GitFilePaths, gitTrackedItemsDirectoryTally, parentDirectory, isFile: true);
             placeholderCount += this.CategorizePaths(this.enlistmentPathData.PlaceholderFolderPaths, hydratedFilesDirectoryTally, parentDirectory, isFile: false);
             placeholderCount += this.CategorizePaths(this.enlistmentPathData.PlaceholderFilePaths, hydratedFilesDirectoryTally, parentDirectory, isFile: true);
             modifiedPathsCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFolderPaths, hydratedFilesDirectoryTally, parentDirectory, isFile: false);
@@ -50,7 +51,7 @@ namespace GVFS.Common
             Dictionary<string, decimal> mostHydratedDirectories = new Dictionary<string, decimal>();
 
             // Map directory names to the corresponding health data from gitTrackedFilesDirectoryTally and hydratedFilesDirectoryTally
-            foreach (KeyValuePair<string, int> pair in gitTrackedFilesDirectoryTally)
+            foreach (KeyValuePair<string, int> pair in gitTrackedItemsDirectoryTally)
             {
                 if (hydratedFilesDirectoryTally.TryGetValue(pair.Key, out int hydratedFiles))
                 {
@@ -78,32 +79,32 @@ namespace GVFS.Common
             }
 
             // Generate and return a data object
-            return new GVFSEnlistmentHealthData(parentDirectory, gitTrackedFilesCount, placeholderCount, modifiedPathsCount, outputDirectories);
+            return new GVFSEnlistmentHealthData(parentDirectory, gitTrackedItemsCount, placeholderCount, modifiedPathsCount, outputDirectories);
         }
 
         public decimal GetPlaceholderPercentage(GVFSEnlistmentHealthData healthData)
         {
-            if (healthData.GitTrackedFilesCount == 0)
+            if (healthData.GitTrackedItemsCount == 0)
             {
                 return 0;
             }
 
-            return (decimal)healthData.PlaceholderCount / healthData.GitTrackedFilesCount;
+            return (decimal)healthData.PlaceholderCount / healthData.GitTrackedItemsCount;
         }
 
         public decimal GetModifiedPathsPercentage(GVFSEnlistmentHealthData healthData)
         {
-            if (healthData.GitTrackedFilesCount == 0)
+            if (healthData.GitTrackedItemsCount == 0)
             {
                 return 0;
             }
 
-            return (decimal)healthData.ModifiedPathsCount / healthData.GitTrackedFilesCount;
+            return (decimal)healthData.ModifiedPathsCount / healthData.GitTrackedItemsCount;
         }
 
         public decimal CalculateHealthMetric(GVFSEnlistmentHealthData healthData)
         {
-            return this.CalculateHealthMetric(healthData.PlaceholderCount + healthData.ModifiedPathsCount, healthData.GitTrackedFilesCount);
+            return this.CalculateHealthMetric(healthData.PlaceholderCount + healthData.ModifiedPathsCount, healthData.GitTrackedItemsCount);
         }
 
         /// <summary>
@@ -129,7 +130,7 @@ namespace GVFS.Common
         /// <remarks>
         /// The distinction between files and directories is important --
         /// If the path to a file doesn't contain a GVFSConstants.GitPathSeparator, then that means it falls within the root
-        /// However if a directory's path doesn't contain a GVFSConstants.GitPathSeparator, it counts towards itself for hydration
+        /// However if a directory's path doesn't contain a GVFSConstants.GitPathSeparator, it doesn't count towards its own hydration
         /// </remarks>
         /// <param name="paths">An enumerable containing paths as strings</param>
         /// <param name="directoryTracking">A dictionary used to track the number of files per top level directory</param>
@@ -160,14 +161,13 @@ namespace GVFS.Common
                             // Trim the path to parent directory from the path to this directory
                             string topDir = this.TrimDirectoryFromPath(path, parentDirectory);
 
-                            // If this directory isn't already one level under the parent...
+                            // If the directory isn't one level underneath the parent, count it
+                            // Otherwise, don't add it to the dictionary (it shouldn't count itself)
                             if (topDir.IndexOf(GVFSConstants.GitPathSeparator) != -1)
                             {
-                                // ... Get the one that is
                                 topDir = this.ParseTopDirectory(topDir);
+                                this.IncreaseDictionaryCounterByKey(directoryTracking, topDir);
                             }
-
-                            this.IncreaseDictionaryCounterByKey(directoryTracking, topDir);
                         }
                     }
                 }
@@ -205,26 +205,32 @@ namespace GVFS.Common
 
         public class GVFSEnlistmentPathData
         {
-            public readonly List<string> GitPaths;
+            public readonly List<string> GitFolderPaths;
+            public readonly List<string> GitFilePaths;
             public readonly List<string> PlaceholderFolderPaths;
             public readonly List<string> PlaceholderFilePaths;
             public readonly List<string> ModifiedFolderPaths;
             public readonly List<string> ModifiedFilePaths;
 
             public GVFSEnlistmentPathData(
-            List<string> gitPaths,
+            List<string> gitFolderPaths,
+            List<string> gitFilePaths,
             List<string> placeholderFolderPaths,
             List<string> placeholderFilePaths,
             List<string> modifiedFolderPaths,
-            List<string> modifiedFilePaths)
+            List<string> modifiedFilePaths,
+            List<string> skipWorkTreeFilesPaths)
             {
-                this.GitPaths = gitPaths;
+                this.GitFolderPaths = gitFolderPaths;
+                this.GitFilePaths = gitFilePaths;
                 this.PlaceholderFolderPaths = placeholderFolderPaths;
                 this.PlaceholderFilePaths = placeholderFilePaths;
                 this.ModifiedFolderPaths = modifiedFolderPaths;
                 this.ModifiedFilePaths = modifiedFilePaths;
+                this.ModifiedFilePaths.Union(skipWorkTreeFilesPaths);
 
-                this.NormalizePaths(this.GitPaths);
+                this.NormalizePaths(this.GitFolderPaths);
+                this.NormalizePaths(this.GitFilePaths);
                 this.NormalizePaths(this.PlaceholderFolderPaths);
                 this.NormalizePaths(this.PlaceholderFilePaths);
                 this.NormalizePaths(this.ModifiedFolderPaths);
@@ -236,10 +242,8 @@ namespace GVFS.Common
                 for (int i = 0; i < paths.Count; i++)
                 {
                     paths[i] = paths[i].Replace('\\', GVFSConstants.GitPathSeparator);
-                    if (paths[i].First() == GVFSConstants.GitPathSeparator)
-                    {
-                        paths[i] = paths[i].Substring(1);
-                    }
+                    paths[i] = paths[i].TrimStart(GVFSConstants.GitPathSeparator);
+                    paths[i] = paths[i].TrimEnd(GVFSConstants.GitPathSeparator);
                 }
             }
         }
@@ -248,20 +252,20 @@ namespace GVFS.Common
         {
             public GVFSEnlistmentHealthData(
                 string targetDirectory,
-                int gitFilesCount,
+                int gitItemsCount,
                 int placeholderCount,
                 int modifiedPathsCount,
                 List<ValueTuple<string, decimal>> directoryHydrationLevels)
             {
                 this.TargetDirectory = targetDirectory;
-                this.GitTrackedFilesCount = gitFilesCount;
+                this.GitTrackedItemsCount = gitItemsCount;
                 this.PlaceholderCount = placeholderCount;
                 this.ModifiedPathsCount = modifiedPathsCount;
                 this.DirectoryHydrationLevels = directoryHydrationLevels;
             }
 
             public string TargetDirectory { get; private set; }
-            public int GitTrackedFilesCount { get; private set; }
+            public int GitTrackedItemsCount { get; private set; }
             public int PlaceholderCount { get; private set; }
             public int ModifiedPathsCount { get; private set; }
             public List<ValueTuple<string, decimal>> DirectoryHydrationLevels { get; private set; }

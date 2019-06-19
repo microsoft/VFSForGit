@@ -572,10 +572,10 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder("cat-file -t " + objectId);
         }
 
-        public Result LsTree(string treeish, Action<string> parseStdOutLine, bool recursive, bool showAllTrees = false)
+        public Result LsTree(string treeish, Action<string> parseStdOutLine, bool recursive, bool showAllTrees = false, bool showDirectories = false)
         {
             return this.InvokeGitAgainstDotGitFolder(
-                "ls-tree " + (recursive ? "-r " : string.Empty) + (showAllTrees ? "-t " : string.Empty) + treeish,
+                "ls-tree " + (recursive ? "-r " : string.Empty) + (showAllTrees ? "-t " : string.Empty) + (showDirectories ? "-d " : string.Empty) + treeish,
                 null,
                 parseStdOutLine);
         }

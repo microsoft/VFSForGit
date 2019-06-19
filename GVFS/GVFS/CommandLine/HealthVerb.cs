@@ -79,14 +79,16 @@ namespace GVFS.CommandLine
                 }
             }
 
-            List<string> gitPathsList = this.GetPathsFromGitIndex(enlistment);
+            this.GetPathsFromGitIndex(enlistment, out List<string> gitFilePaths, out List<string> gitFolderPaths, out List<string> skipWorkTreeFiles);
 
             GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData(
-                gitPathsList,
+                gitFolderPaths,
+                gitFilePaths,
                 placeholderFolderPathList,
                 placeholderFilePathList,
                 modifiedPathsFolderList,
-                modifiedPathsFileList);
+                modifiedPathsFileList,
+                skipWorkTreeFiles);
             GVFSEnlistmentHealthCalculator enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(pathData);
             GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory, this.DirectoryDisplayCount);
 
@@ -97,7 +99,7 @@ namespace GVFS.CommandLine
             GVFSEnlistmentHealthCalculator enlistmentHealthCalculator,
             GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData)
         {
-            string trackedFilesCountFormatted = enlistmentHealthData.GitTrackedFilesCount.ToString("N0");
+            string trackedFilesCountFormatted = enlistmentHealthData.GitTrackedItemsCount.ToString("N0");
             string placeholderCountFormatted = enlistmentHealthData.PlaceholderCount.ToString("N0");
             string modifiedPathsCountFormatted = enlistmentHealthData.ModifiedPathsCount.ToString("N0");
 
@@ -209,19 +211,36 @@ namespace GVFS.CommandLine
             placeholderTable.GetAllEntries(out filePlaceholders, out folderPlaceholders);
         }
 
-        private List<string> GetPathsFromGitIndex(GVFSEnlistment enlistment)
+        private void GetPathsFromGitIndex(GVFSEnlistment enlistment, out List<string> gitFilePaths, out List<string> gitFolderPaths, out List<string> skipWorktreeFiles)
         {
-            List<string> gitPaths = new List<string>();
+            List<string> tempGitFilePaths = new List<string>();
+            List<string> tempGitFolderPaths = new List<string>();
+            List<string> tempSkipWorktreeFiles = new List<string>();
             GitProcess gitProcess = new GitProcess(enlistment);
 
-            GitProcess.Result result = gitProcess.LsFiles(
+            GitProcess.Result fileResult = gitProcess.LsFiles(
                 line =>
                 {
-                    gitPaths.Add(this.TrimGitIndexLine(line));
+                    if (line.First() == 'S')
+                    {
+                        tempSkipWorktreeFiles.Add(this.TrimGitIndexLine(line));
+                    }
+
+                    tempGitFilePaths.Add(this.TrimGitIndexLine(line));
                 },
                 showSkipTreeBit: true);
-            this.Output.WriteLine(result.Errors);
-            return gitPaths;
+            GitProcess.Result folderResult = gitProcess.LsTree(
+                GVFSConstants.DotGit.HeadName,
+                line =>
+                {
+                    tempGitFolderPaths.Add(this.TrimGitIndexLine(line));
+                },
+                recursive: true,
+                showDirectories: true);
+
+            gitFilePaths = tempGitFilePaths;
+            gitFolderPaths = tempGitFolderPaths;
+            skipWorktreeFiles = tempSkipWorktreeFiles;
         }
     }
 }
