@@ -78,6 +78,8 @@ namespace GVFS.Platform.Mac
             {
                 get { return "vfsforgit"; }
             }
+
+            public override bool CaseSensitiveFileSystem => false;
         }
     }
 }

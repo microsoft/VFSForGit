@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 
 namespace GVFS.UnitTests.Mock.Common
 {
@@ -194,6 +195,8 @@ namespace GVFS.UnitTests.Mock.Common
             {
                 get { return "MockGVFS" + this.ExecutableExtension; }
             }
+
+            public override bool CaseSensitiveFileSystem => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         }
     }
 }

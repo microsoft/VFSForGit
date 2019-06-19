@@ -440,6 +440,8 @@ namespace GVFS.Platform.Windows
             {
                 get { return "GVFS" + this.ExecutableExtension; }
             }
+
+            public override bool CaseSensitiveFileSystem => false;
         }
     }
 }

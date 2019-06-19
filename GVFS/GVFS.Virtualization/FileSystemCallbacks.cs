@@ -69,7 +69,7 @@ namespace GVFS.Virtualization
             this.context = context;
             this.fileSystemVirtualizer = fileSystemVirtualizer;
 
-            this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
             this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             string error;
@@ -165,7 +165,7 @@ namespace GVFS.Virtualization
         /// </summary>
         public static bool IsPathInsideDotGit(string relativePath)
         {
-            return relativePath.StartsWith(GVFSConstants.DotGit.Root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            return relativePath.StartsWith(GVFSConstants.DotGit.Root + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison);
         }
 
         public bool TryStart(out string error)
@@ -282,7 +282,7 @@ namespace GVFS.Virtualization
             if (this.placeHolderCreationCount.Count > 0)
             {
                 ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData = this.placeHolderCreationCount;
-                this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+                this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
 
                 int count = 0;
                 foreach (KeyValuePair<string, PlaceHolderCreateCounter> processCount in

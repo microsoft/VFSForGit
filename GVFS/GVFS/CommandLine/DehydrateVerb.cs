@@ -359,7 +359,7 @@ of your enlistment's src folder.
             foreach (string file in Directory.GetFiles(folderPath, searchPattern))
             {
                 string fileName = Path.GetFileName(file);
-                if (!filenamesToSkip.Any(x => x.Equals(fileName, StringComparison.OrdinalIgnoreCase)))
+                if (!filenamesToSkip.Any(x => x.Equals(fileName, GVFSPlatform.Instance.Constants.PathComparison)))
                 {
                     if (!this.TryIO(
                         tracer,

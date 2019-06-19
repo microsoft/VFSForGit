@@ -101,7 +101,7 @@ namespace GVFS.CommandLine
 
                 if (normalizedLocalCacheRootPath.StartsWith(
                     Path.Combine(normalizedEnlistmentRootPath, GVFSConstants.WorkingDirectoryRootName),
-                    StringComparison.OrdinalIgnoreCase))
+                    GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     this.ReportErrorAndExit("'--local-cache-path' cannot be inside the src folder");
                 }
@@ -291,7 +291,7 @@ namespace GVFS.CommandLine
             // LogFileEventListener will create a file in EnlistmentRootPath
             if (Directory.Exists(normalizedEnlistementRootPath) && Directory.EnumerateFileSystemEntries(normalizedEnlistementRootPath).Any())
             {
-                if (fullEnlistmentRootPathParameter.Equals(normalizedEnlistementRootPath, StringComparison.OrdinalIgnoreCase))
+                if (fullEnlistmentRootPathParameter.Equals(normalizedEnlistementRootPath, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     return new Result($"Clone directory '{fullEnlistmentRootPathParameter}' exists and is not empty");
                 }
