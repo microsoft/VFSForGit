@@ -92,11 +92,11 @@ namespace GVFS.CommandLine
             GVFSEnlistmentHealthCalculator enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(pathData);
             GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory, this.DirectoryDisplayCount);
 
-            this.PrintOutput(enlistmentHealthCalculator, enlistmentHealthData);
+            this.PrintOutput(enlistment, enlistmentHealthData);
         }
 
         private void PrintOutput(
-            GVFSEnlistmentHealthCalculator enlistmentHealthCalculator,
+            GVFSEnlistment enlistment,
             GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData)
         {
             string trackedFilesCountFormatted = enlistmentHealthData.GitTrackedItemsCount.ToString("N0");
@@ -112,10 +112,10 @@ namespace GVFS.CommandLine
 
             this.Output.WriteLine("\nRepository health");
             this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
-            this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentHealthData)));
-            this.Output.WriteLine("Files managed by git (slow):          " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentHealthData)));
+            this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthData.PlaceholderPercentage));
+            this.Output.WriteLine("Files managed by git (slow):          " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthData.ModifiedPathsPercentage));
 
-            this.Output.WriteLine("\nTotal hydration percentage:           " + this.FormatPercent(enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentHealthData) + enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentHealthData)).PadLeft(longest + 7));
+            this.Output.WriteLine("\nTotal hydration percentage:           " + this.FormatPercent(enlistmentHealthData.PlaceholderPercentage + enlistmentHealthData.ModifiedPathsPercentage).PadLeft(longest + 7));
 
             this.Output.WriteLine("\nMost hydrated top level directories:");
 
@@ -125,14 +125,14 @@ namespace GVFS.CommandLine
                 maxDirectoryNameLength = Math.Max(maxDirectoryNameLength, pair.Item1.Length);
             }
 
-            foreach ((string, decimal) pair in topLevelDirectoriesByHydration)
+            foreach ((string, decimal) pair in topLevelDirectoriesByHydration.Take(this.DirectoryDisplayCount))
             {
                 string dir = pair.Item1.PadRight(maxDirectoryNameLength);
                 string percent = this.FormatPercent(pair.Item2);
                 this.Output.WriteLine(" " + percent + " | " + dir);
             }
 
-            bool healthyRepo = (enlistmentHealthCalculator.GetPlaceholderPercentage(enlistmentHealthData) + enlistmentHealthCalculator.GetModifiedPathsPercentage(enlistmentHealthData)) < MaximumHealthyHydration;
+            bool healthyRepo = (enlistmentHealthData.PlaceholderPercentage + enlistmentHealthData.ModifiedPathsPercentage) < MaximumHealthyHydration;
 
             this.Output.WriteLine("\nRepository status: " + (healthyRepo ? "Healthy" : "Unhealthy"));
         }

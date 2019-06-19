@@ -36,8 +36,8 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(12);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(3);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(0);
-            this.enlistmentHealthCalculator.GetPlaceholderPercentage(this.enlistmentHealthData).ShouldEqual(0.25m);
-            this.enlistmentHealthCalculator.GetModifiedPathsPercentage(this.enlistmentHealthData).ShouldEqual(0);
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(0.25m);
+            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(0);
         }
 
         [TestCase]
@@ -50,8 +50,8 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(0);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(0);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(0);
-            this.enlistmentHealthCalculator.GetPlaceholderPercentage(this.enlistmentHealthData).ShouldEqual(0);
-            this.enlistmentHealthCalculator.GetModifiedPathsPercentage(this.enlistmentHealthData).ShouldEqual(0);
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(0);
+            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(0);
         }
 
         [TestCase]
@@ -68,8 +68,8 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(12);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(12);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(12);
-            this.enlistmentHealthCalculator.GetPlaceholderPercentage(this.enlistmentHealthData).ShouldEqual(1);
-            this.enlistmentHealthCalculator.GetModifiedPathsPercentage(this.enlistmentHealthData).ShouldEqual(1);
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(1);
+            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(1);
         }
 
         [TestCase]
@@ -122,8 +122,8 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(4);
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(6);
             this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(2);
-            this.enlistmentHealthCalculator.GetPlaceholderPercentage(this.enlistmentHealthData).ShouldEqual(2.0m / 3.0m);
-            this.enlistmentHealthCalculator.GetModifiedPathsPercentage(this.enlistmentHealthData).ShouldEqual(2.0m / 3.0m);
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(2.0m / 3.0m);
+            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(2.0m / 3.0m);
             this.enlistmentHealthData.DirectoryHydrationLevels[0].Item2.ShouldEqual(4.0m / 3.0m);
             this.enlistmentHealthData.DirectoryHydrationLevels[1].Item2.ShouldEqual(4.0m / 3.0m);
         }
@@ -141,9 +141,9 @@ namespace GVFS.UnitTests.Common
 
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(3);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(4);
-            this.enlistmentHealthCalculator.GetPlaceholderPercentage(this.enlistmentHealthData).ShouldEqual(4.0m / 3.0m);
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(4.0m / 3.0m);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(0);
-            this.enlistmentHealthCalculator.GetModifiedPathsPercentage(this.enlistmentHealthData).ShouldEqual(0);
+            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(0);
             this.enlistmentHealthData.DirectoryHydrationLevels[0].Item1.ShouldEqual("/");
             this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(1);
 
@@ -151,9 +151,9 @@ namespace GVFS.UnitTests.Common
 
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(3);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(0);
-            this.enlistmentHealthCalculator.GetPlaceholderPercentage(this.enlistmentHealthData).ShouldEqual(0);
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(0);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(4);
-            this.enlistmentHealthCalculator.GetModifiedPathsPercentage(this.enlistmentHealthData).ShouldEqual(4.0m / 3.0m);
+            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(4.0m / 3.0m);
             this.enlistmentHealthData.DirectoryHydrationLevels[0].Item1.ShouldEqual("/");
             this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(1);
         }
@@ -188,7 +188,7 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.DirectoryHydrationLevels[0].Item2.ShouldEqual(1);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(5);
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(6);
-            this.enlistmentHealthCalculator.GetPlaceholderPercentage(this.enlistmentHealthData).ShouldEqual(5m / 6m);
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(5m / 6m);
         }
 
         [TestCase]
@@ -205,7 +205,7 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.DirectoryHydrationLevels[0].Item2.ShouldEqual(1);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(6);
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(6);
-            this.enlistmentHealthCalculator.GetPlaceholderPercentage(this.enlistmentHealthData).ShouldEqual(1);
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(1);
         }
 
         [TestCase]
@@ -219,7 +219,7 @@ namespace GVFS.UnitTests.Common
 
             this.enlistmentHealthData = this.GenerateStatistics(string.Empty);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(6);
-            this.enlistmentHealthCalculator.GetModifiedPathsPercentage(this.enlistmentHealthData).ShouldEqual(1);
+            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(1);
             this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(2);
         }
 
