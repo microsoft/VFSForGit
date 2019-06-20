@@ -30,14 +30,15 @@ namespace PrjFSLib.Linux
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
         public virtual LogErrorCallback OnLogError { get; set; }
 
-        public virtual NotifyFileModified OnFileModified { get; set; }
-        public virtual NotifyFilePreConvertToFullEvent OnFilePreConvertToFull { get; set; }
         public virtual NotifyPreDeleteEvent OnPreDelete { get; set; }
         public virtual NotifyPreRenameEvent OnPreRename { get; set; }
+        public virtual NotifyFilePreConvertToFullEvent OnFilePreConvertToFull { get; set; }
+
         public virtual NotifyNewFileCreatedEvent OnNewFileCreated { get; set; }
         public virtual NotifyFileDeletedEvent OnFileDeleted { get; set; }
         public virtual NotifyFileRenamedEvent OnFileRenamed { get; set; }
         public virtual NotifyHardLinkCreatedEvent OnHardLinkCreated { get; set; }
+        public virtual NotifyFileModified OnFileModified { get; set; }
 
         public virtual Result StartVirtualizationInstance(
             string storageRootFullPath,
@@ -466,13 +467,17 @@ namespace PrjFSLib.Linux
             {
                 nt = NotificationType.PreRename;
             }
-            else if ((ev.Mask & ProjFS.Constants.PROJFS_CLOSE_WRITE) != 0)
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_OPEN_PERM) != 0)
             {
-                nt = NotificationType.FileModified;
+                nt = NotificationType.PreConvertToFull;
             }
             else if ((ev.Mask & ProjFS.Constants.PROJFS_CREATE) != 0 && !isLink)
             {
                 nt = NotificationType.NewFileCreated;
+            }
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_DELETE) != 0)
+            {
+                nt = NotificationType.FileDeleted;
             }
             else if ((ev.Mask & ProjFS.Constants.PROJFS_MOVE) != 0)
             {
@@ -482,13 +487,9 @@ namespace PrjFSLib.Linux
             {
                 nt = NotificationType.HardLinkCreated;
             }
-            else if ((ev.Mask & ProjFS.Constants.PROJFS_DELETE) != 0)
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_CLOSE_WRITE) != 0)
             {
-                nt = NotificationType.FileDeleted;
-            }
-            else if ((ev.Mask & ProjFS.Constants.PROJFS_OPEN_PERM) != 0)
-            {
-                nt = NotificationType.PreConvertToFull;
+                nt = NotificationType.FileModified;
             }
             else
             {
@@ -553,9 +554,8 @@ namespace PrjFSLib.Linux
                 case NotificationType.PreRename:
                     return this.OnPreRename(relativePath, relativeDestinationPath, isDirectory);
 
-                case NotificationType.FileModified:
-                    this.OnFileModified(relativePath);
-                    return Result.Success;
+                case NotificationType.PreConvertToFull:
+                    return this.OnFilePreConvertToFull(relativePath);
 
                 case NotificationType.NewFileCreated:
                     this.OnNewFileCreated(relativePath, isDirectory);
@@ -573,8 +573,9 @@ namespace PrjFSLib.Linux
                     this.OnHardLinkCreated(relativePath, relativeDestinationPath);
                     return Result.Success;
 
-                case NotificationType.PreConvertToFull:
-                    return this.OnFilePreConvertToFull(relativePath);
+                case NotificationType.FileModified:
+                    this.OnFileModified(relativePath);
+                    return Result.Success;
             }
 
             return Result.ENotYetImplemented;
