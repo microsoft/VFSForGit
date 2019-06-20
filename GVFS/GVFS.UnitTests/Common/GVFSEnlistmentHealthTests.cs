@@ -22,8 +22,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void OnlyOneHydratedDirectory()
         {
-            this.SetUpStructures();
-
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "A/4.js", "B/1.js", "B/2.js", "B/3.js", "B/4.js", "C/1.js", "C/2.js", "C/3.js", "C/4.js" });
             this.fauxPlaceholderFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js" });
 
@@ -43,8 +41,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AllEmptyLists()
         {
-            this.SetUpStructures();
-
             this.enlistmentHealthData = this.GenerateStatistics(string.Empty);
 
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(0);
@@ -57,8 +53,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void OverHydrated()
         {
-            this.SetUpStructures();
-
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "A/4.js", "B/1.js", "B/2.js", "B/3.js", "B/4.js", "C/1.js", "C/2.js", "C/3.js", "C/4.js" });
             this.fauxPlaceholderFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "A/4.js", "B/1.js", "B/2.js", "B/3.js", "B/4.js", "C/1.js", "C/2.js", "C/3.js", "C/4.js" });
             this.fauxModifiedPathsFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "A/4.js", "B/1.js", "B/2.js", "B/3.js", "B/4.js", "C/1.js", "C/2.js", "C/3.js", "C/4.js" });
@@ -75,8 +69,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void SortByHydration()
         {
-            this.SetUpStructures();
-
             this.fauxGitFiles.AddRange(new string[] { "C/1.js", "A/1.js", "B/1.js", "B/2.js", "A/2.js", "C/2.js", "A/3.js", "C/3.js", "B/3.js" });
             this.fauxModifiedPathsFiles.AddRange(new string[] { "C/1.js", "B/2.js", "A/3.js" });
             this.fauxPlaceholderFiles.AddRange(new string[] { "B/1.js", "A/2.js" });
@@ -94,8 +86,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void VariedDirectoryFormatting()
         {
-            this.SetUpStructures();
-
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js" });
             this.fauxPlaceholderFolders.AddRange(new string[] { "/A/", @"\B\", "A/", @"B\", "/A", @"\B", "A", "B" });
 
@@ -110,8 +100,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void VariedFilePathFormatting()
         {
-            this.SetUpStructures();
-
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js" });
             this.fauxPlaceholderFiles.AddRange(new string[] { "A/1.js", @"A\2.js", "/A/1.js", @"\A\1.js" });
             this.fauxModifiedPathsFiles.AddRange(new string[] { "B/1.js", @"B\2.js", "/B/1.js", @"\B\1.js" });
@@ -131,8 +119,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void FilterByDirectory()
         {
-            this.SetUpStructures();
-
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js" });
             this.fauxPlaceholderFiles.AddRange(new string[] { "A/1.js", @"A\2.js", "/A/1.js", @"\A\1.js" });
             this.fauxModifiedPathsFiles.AddRange(new string[] { "B/1.js", @"B\2.js", "/B/1.js", @"\B\1.js" });
@@ -161,8 +147,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void FilterByDirectoryWithoutPathSeparator()
         {
-            this.SetUpStructures();
-
             this.fauxGitFiles.AddRange(new string[] { "Directory1/Child1/File1.js", "Directory1/Child1/File2.exe", "Directory2/Child2/File1.bat", "Directory2/Child2/File2.css" });
             this.fauxPlaceholderFiles.AddRange(new string[] { "Directory1/File1.js", "Directory1/File2.exe", "Directory2/File1.bat", "Directory2/File2.css" });
 
@@ -178,8 +162,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void EnsureFolderNotIncludedInOwnCount()
         {
-            this.SetUpStructures();
-
             this.fauxGitFolders.Add("foo/");
             this.fauxGitFiles.AddRange(new string[] { "foo/file1.jpg", "foo/file2.jpg", "foo/file3.jpg", "foo/file4.jpg", "foo/file5.jpg" });
             this.fauxPlaceholderFiles.AddRange(new string[] { "foo/file1.jpg", "foo/file2.jpg", "foo/file3.jpg", "foo/file4.jpg", "foo/file5.jpg" });
@@ -194,8 +176,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void FolderNotDoubleCounted()
         {
-            this.SetUpStructures();
-
             this.fauxGitFolders.Add("foo/");
             this.fauxGitFiles.AddRange(new string[] { "foo/file1.jpg", "foo/file2.jpg", "foo/file3.jpg", "foo/file4.jpg", "foo/file5.jpg" });
             this.fauxPlaceholderFiles.AddRange(new string[] { "foo/file1.jpg", "foo/file2.jpg", "foo/file3.jpg", "foo/file4.jpg", "foo/file5.jpg" });
@@ -211,8 +191,6 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void UnionOfSkipWorktreeAndModifiedPathsNoDuplicates()
         {
-            this.SetUpStructures();
-
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js" });
             this.fauxModifiedPathsFiles.AddRange(new string[] { "A/1.js", "A/2.js", "/A/3.js", "B/1.js", "B/2.js", "B/3.js" });
             this.fauxSkipWorktreeFiles.AddRange(new string[] { "A/1.js", "/A/2.js", "\\A/3.js", "B/1.js", "B\\2.js", "/B\\3.js" });
@@ -223,7 +201,8 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(2);
         }
 
-        private void SetUpStructures()
+        [SetUp]
+        public void SetUpStructures()
         {
             this.fauxGitFiles.Clear();
             this.fauxGitFolders.Clear();
@@ -244,7 +223,7 @@ namespace GVFS.UnitTests.Common
                 this.fauxModifiedPathsFolders,
                 this.fauxModifiedPathsFiles,
                 this.fauxSkipWorktreeFiles));
-            return this.enlistmentHealthCalculator.CalculateStatistics(directory, 5);
+            return this.enlistmentHealthCalculator.CalculateStatistics(directory);
         }
     }
 }

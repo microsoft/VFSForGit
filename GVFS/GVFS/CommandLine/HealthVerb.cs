@@ -90,14 +90,12 @@ namespace GVFS.CommandLine
                 modifiedPathsFileList,
                 skipWorkTreeFiles);
             GVFSEnlistmentHealthCalculator enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(pathData);
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory, this.DirectoryDisplayCount);
+            GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
 
-            this.PrintOutput(enlistment, enlistmentHealthData);
+            this.PrintOutput(enlistmentHealthData);
         }
 
-        private void PrintOutput(
-            GVFSEnlistment enlistment,
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData)
+        private void PrintOutput(GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData)
         {
             string trackedFilesCountFormatted = enlistmentHealthData.GitTrackedItemsCount.ToString("N0");
             string placeholderCountFormatted = enlistmentHealthData.PlaceholderCount.ToString("N0");
@@ -134,7 +132,7 @@ namespace GVFS.CommandLine
 
             bool healthyRepo = (enlistmentHealthData.PlaceholderPercentage + enlistmentHealthData.ModifiedPathsPercentage) < MaximumHealthyHydration;
 
-            this.Output.WriteLine("\nRepository status: " + (healthyRepo ? "Healthy" : "Unhealthy"));
+            this.Output.WriteLine("\nRepository status: " + (healthyRepo ? "OK" : "Highly Hydrated"));
         }
 
         /// <summary>
