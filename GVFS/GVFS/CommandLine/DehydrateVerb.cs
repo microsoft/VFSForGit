@@ -80,6 +80,10 @@ namespace GVFS.CommandLine
                                     batchSize: this.PackfileMaintenanceBatchSize ?? PackfileMaintenanceStep.DefaultBatchSize)).Execute();
                                 return;
 
+                            case "PostFetch":
+                                (new PostFetchStep(context, new System.Collections.Generic.List<string>(), requireObjectCacheLock: false)).Execute();
+                                return;
+
                             default:
                                 this.ReportErrorAndExit($"Unknown maintenance job requested: {this.MaintenanceJob}");
                                 break;

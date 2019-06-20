@@ -73,6 +73,15 @@ namespace GVFS.FunctionalTests.Tools
                 internalParameter: internalParameter);
         }
 
+        public string PostFetchStep()
+        {
+            string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PostFetch\\\"");
+            return this.CallGVFS(
+                "dehydrate \"" + this.enlistmentRoot + "\"",
+                failOnError: true,
+                internalParameter: internalParameter);
+        }
+
         public string Diagnose()
         {
             return this.CallGVFS("diagnose \"" + this.enlistmentRoot + "\"");

@@ -150,6 +150,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.WriteAllText(oldKeepFile, this.Enlistment.EnlistmentRoot);
 
             this.Enlistment.Prefetch("--commits");
+            this.Enlistment.PostFetchStep();
             oldGitTempFile.ShouldNotExistOnDisk(this.fileSystem);
             oldKeepFile.ShouldNotExistOnDisk(this.fileSystem);
 
