@@ -11,7 +11,7 @@ using System.Linq;
 
 namespace GVFS.CommandLine
 {
-    [Verb(HealthVerb.HealthVerbName, HelpText = "Get statistics for the health state of the repository")]
+    [Verb(HealthVerb.HealthVerbName, HelpText = "Measure the health of the repository")]
     public class HealthVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string HealthVerbName = "health";
@@ -20,7 +20,7 @@ namespace GVFS.CommandLine
         [Option(
             'n',
             Required = false,
-            HelpText = "The number of directories to display hydration levels for")]
+            HelpText = "Only display the <n> most hydrated directories in the output")]
         public int DirectoryDisplayCount { get; set; } = 5;
 
         [Option(
@@ -30,65 +30,34 @@ namespace GVFS.CommandLine
             HelpText = "Run the statistics tool on a specific directory")]
         public string Directory { get; set; }
 
-        protected override string VerbName
-        {
-            get { return HealthVerbName; }
-        }
+        protected override string VerbName => HealthVerbName;
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
-            // The path to the root of git's tree
-            string sourceRoot = enlistment.WorkingDirectoryRoot;
-
-            if (this.Directory == null)
+            // Now default to the current working directory when running the verb without a specified path
+            if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
             {
-                this.Directory = string.Empty;
-            }
-            else if (this.Directory.Equals("."))
-            {
-                this.Directory = Environment.CurrentDirectory.Substring(sourceRoot.Length);
-            }
-
-            // Get all of the data needed to calculate statistics then pass them into GVFSEnlistmentStatistics
-            List<string> modifiedPathsFileList = new List<string>();
-            List<string> modifiedPathsFolderList = new List<string>();
-            List<string> placeholderFilePathList = new List<string>();
-            List<string> placeholderFolderPathList = new List<string>();
-
-            this.GetPlaceholdersFromDatabase(enlistment, out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
-            foreach (IPlaceholderData placeholderData in filePlaceholders)
-            {
-                placeholderFilePathList.Add(placeholderData.Path);
-            }
-
-            foreach (IPlaceholderData placeholderData in folderPlaceholders)
-            {
-                placeholderFolderPathList.Add(placeholderData.Path);
-            }
-
-            foreach (string path in this.GetModifiedPathsFromPipe(enlistment))
-            {
-                if (path.Last() == GVFSConstants.GitPathSeparator)
+                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot))
                 {
-                    path.TrimEnd('/');
-                    modifiedPathsFolderList.Add(path);
+                    this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
                 }
                 else
                 {
-                    modifiedPathsFileList.Add(path);
+                    // If the path is not under the source root, set the directory to empty
+                    this.Directory = string.Empty;
                 }
             }
 
-            this.GetPathsFromGitIndex(enlistment, out List<string> gitFilePaths, out List<string> gitFolderPaths, out List<string> skipWorkTreeFiles);
+            this.Directory = this.Directory.Replace('\\', GVFSConstants.GitPathSeparator);
 
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData(
-                gitFolderPaths,
-                gitFilePaths,
-                placeholderFolderPathList,
-                placeholderFilePathList,
-                modifiedPathsFolderList,
-                modifiedPathsFileList,
-                skipWorkTreeFiles);
+            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData();
+
+            this.GetPathsFromGitIndex(enlistment, pathData);
+            this.GetPlaceholdersFromDatabase(enlistment, pathData);
+            this.GetModifiedPathsFromPipe(enlistment, pathData);
+
+            pathData.NormalizeAllPaths();
+
             GVFSEnlistmentHealthCalculator enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(pathData);
             GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
 
@@ -106,7 +75,7 @@ namespace GVFS.CommandLine
             longest = Math.Max(longest, modifiedPathsCountFormatted.Length);
 
             // Sort the dictionary to find the most hydrated directories by percentage
-            List<ValueTuple<string, decimal>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels;
+            List<KeyValuePair<string, decimal>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
 
             this.Output.WriteLine("\nRepository health");
             this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
@@ -118,15 +87,15 @@ namespace GVFS.CommandLine
             this.Output.WriteLine("\nMost hydrated top level directories:");
 
             int maxDirectoryNameLength = 0;
-            foreach ((string, decimal) pair in topLevelDirectoriesByHydration)
+            foreach (KeyValuePair<string, decimal> pair in topLevelDirectoriesByHydration)
             {
-                maxDirectoryNameLength = Math.Max(maxDirectoryNameLength, pair.Item1.Length);
+                maxDirectoryNameLength = Math.Max(maxDirectoryNameLength, pair.Key.Length);
             }
 
-            foreach ((string, decimal) pair in topLevelDirectoriesByHydration.Take(this.DirectoryDisplayCount))
+            foreach (KeyValuePair<string, decimal> pair in topLevelDirectoriesByHydration)
             {
-                string dir = pair.Item1.PadRight(maxDirectoryNameLength);
-                string percent = this.FormatPercent(pair.Item2);
+                string dir = pair.Key.PadRight(maxDirectoryNameLength);
+                string percent = this.FormatPercent(pair.Value);
                 this.Output.WriteLine(" " + percent + " | " + dir);
             }
 
@@ -160,11 +129,11 @@ namespace GVFS.CommandLine
         /// </summary>
         /// <param name="enlistment">The enlistment being operated on</param>
         /// <returns>An array containing all of the modified paths in string format</returns>
-        private string[] GetModifiedPathsFromPipe(GVFSEnlistment enlistment)
+        private void GetModifiedPathsFromPipe(GVFSEnlistment enlistment, GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData)
         {
             using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
             {
-                string[] modifiedPathsList = { };
+                string[] modifiedPathsList = Array.Empty<string>();
 
                 if (!pipeClient.Connect())
                 {
@@ -180,7 +149,7 @@ namespace GVFS.CommandLine
                     if (!modifiedPathsResponse.Header.Equals(NamedPipeMessages.ModifiedPaths.SuccessResult))
                     {
                         this.Output.WriteLine("Bad response from modified path pipe: " + modifiedPathsResponse.Header);
-                        return modifiedPathsList;
+                        return;
                     }
 
                     modifiedPathsList = modifiedPathsResponse.Body.Split(new char[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
@@ -190,7 +159,18 @@ namespace GVFS.CommandLine
                     this.ReportErrorAndExit("Unable to communicate with GVFS: " + e.ToString());
                 }
 
-                return modifiedPathsList;
+                foreach (string path in modifiedPathsList)
+                {
+                    if (path.Last() == GVFSConstants.GitPathSeparator)
+                    {
+                        path.TrimEnd(GVFSConstants.GitPathSeparator);
+                        pathData.ModifiedFolderPaths.Add(path);
+                    }
+                    else
+                    {
+                        pathData.ModifiedFilePaths.Add(path);
+                    }
+                }
             }
         }
 
@@ -201,19 +181,24 @@ namespace GVFS.CommandLine
         /// <param name="enlistment">The current GVFS enlistment being operated on</param>
         /// <param name="filePlaceholders">Out parameter where the list of file placeholders will end up</param>
         /// <param name="folderPlaceholders">Out parameter where the list of folder placeholders will end up</param>
-        private void GetPlaceholdersFromDatabase(GVFSEnlistment enlistment, out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders)
+        private void GetPlaceholdersFromDatabase(GVFSEnlistment enlistment, GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData)
         {
-            GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase());
-            PlaceholderTable placeholderTable = new PlaceholderTable(database);
+            List<IPlaceholderData> filePlaceholders = new List<IPlaceholderData>();
+            List<IPlaceholderData> folderPlaceholders = new List<IPlaceholderData>();
 
-            placeholderTable.GetAllEntries(out filePlaceholders, out folderPlaceholders);
+            using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase()))
+            {
+                PlaceholderTable placeholderTable = new PlaceholderTable(database);
+                placeholderTable.GetAllEntries(out filePlaceholders, out folderPlaceholders);
+            }
+
+            pathData.PlaceholderFilePaths.AddRange(filePlaceholders.Select(placeholderData => placeholderData.Path));
+            pathData.PlaceholderFolderPaths.AddRange(folderPlaceholders.Select(placeholderData => placeholderData.Path));
         }
 
-        private void GetPathsFromGitIndex(GVFSEnlistment enlistment, out List<string> gitFilePaths, out List<string> gitFolderPaths, out List<string> skipWorktreeFiles)
+        private void GetPathsFromGitIndex(GVFSEnlistment enlistment, GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData)
         {
-            List<string> tempGitFilePaths = new List<string>();
-            List<string> tempGitFolderPaths = new List<string>();
-            List<string> tempSkipWorktreeFiles = new List<string>();
+            List<string> skipWorktreeFiles = new List<string>();
             GitProcess gitProcess = new GitProcess(enlistment);
 
             GitProcess.Result fileResult = gitProcess.LsFiles(
@@ -221,24 +206,22 @@ namespace GVFS.CommandLine
                 {
                     if (line.First() == 'S')
                     {
-                        tempSkipWorktreeFiles.Add(this.TrimGitIndexLine(line));
+                        skipWorktreeFiles.Add(this.TrimGitIndexLine(line));
                     }
 
-                    tempGitFilePaths.Add(this.TrimGitIndexLine(line));
+                    pathData.GitFilePaths.Add(this.TrimGitIndexLine(line));
                 },
                 showSkipTreeBit: true);
             GitProcess.Result folderResult = gitProcess.LsTree(
                 GVFSConstants.DotGit.HeadName,
                 line =>
                 {
-                    tempGitFolderPaths.Add(this.TrimGitIndexLine(line));
+                    pathData.GitFolderPaths.Add(this.TrimGitIndexLine(line));
                 },
                 recursive: true,
                 showDirectories: true);
 
-            gitFilePaths = tempGitFilePaths;
-            gitFolderPaths = tempGitFolderPaths;
-            skipWorktreeFiles = tempSkipWorktreeFiles;
+            pathData.AddSkipWorkTreeFilePaths(skipWorktreeFiles);
         }
     }
 }

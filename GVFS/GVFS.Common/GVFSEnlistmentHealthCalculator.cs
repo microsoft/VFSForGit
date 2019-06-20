@@ -72,10 +72,7 @@ namespace GVFS.Common
                 placeholderCount,
                 modifiedPathsCount,
                 this.CalculateHealthMetric(placeholderCount + modifiedPathsCount, gitTrackedItemsCount),
-                mostHydratedDirectories
-                    .OrderByDescending(kp => kp.Value)
-                    .Select(kp =>(kp.Key, kp.Value))
-                    .ToList());
+                mostHydratedDirectories.OrderByDescending(kp => kp.Value).ToList());
         }
 
         /// <summary>
@@ -163,30 +160,30 @@ namespace GVFS.Common
 
         public class GVFSEnlistmentPathData
         {
-            public readonly List<string> GitFolderPaths;
-            public readonly List<string> GitFilePaths;
-            public readonly List<string> PlaceholderFolderPaths;
-            public readonly List<string> PlaceholderFilePaths;
-            public readonly List<string> ModifiedFolderPaths;
-            public readonly List<string> ModifiedFilePaths;
+            public List<string> GitFolderPaths;
+            public List<string> GitFilePaths;
+            public List<string> PlaceholderFolderPaths;
+            public List<string> PlaceholderFilePaths;
+            public List<string> ModifiedFolderPaths;
+            public List<string> ModifiedFilePaths;
 
-            public GVFSEnlistmentPathData(
-                List<string> gitFolderPaths,
-                List<string> gitFilePaths,
-                List<string> placeholderFolderPaths,
-                List<string> placeholderFilePaths,
-                List<string> modifiedFolderPaths,
-                List<string> modifiedFilePaths,
-                List<string> skipWorkTreeFilesPaths)
+            public GVFSEnlistmentPathData()
             {
-                this.GitFolderPaths = gitFolderPaths;
-                this.GitFilePaths = gitFilePaths;
-                this.PlaceholderFolderPaths = placeholderFolderPaths;
-                this.PlaceholderFilePaths = placeholderFilePaths;
-                this.ModifiedFolderPaths = modifiedFolderPaths;
-                this.ModifiedFilePaths = modifiedFilePaths;
-                this.ModifiedFilePaths.Union(skipWorkTreeFilesPaths);
+                this.GitFolderPaths = new List<string>();
+                this.GitFilePaths = new List<string>();
+                this.PlaceholderFolderPaths = new List<string>();
+                this.PlaceholderFilePaths = new List<string>();
+                this.ModifiedFolderPaths = new List<string>();
+                this.ModifiedFilePaths = new List<string>();
+            }
 
+            public void AddSkipWorkTreeFilePaths(List<string> skipWorkTreeFilePaths)
+            {
+                this.ModifiedFilePaths.Union(skipWorkTreeFilePaths);
+            }
+
+            public void NormalizeAllPaths()
+            {
                 this.NormalizePaths(this.GitFolderPaths);
                 this.NormalizePaths(this.GitFilePaths);
                 this.NormalizePaths(this.PlaceholderFolderPaths);
@@ -214,7 +211,7 @@ namespace GVFS.Common
                 int placeholderCount,
                 int modifiedPathsCount,
                 decimal healthMetric,
-                List<ValueTuple<string, decimal>> directoryHydrationLevels)
+                List<KeyValuePair<string, decimal>> directoryHydrationLevels)
             {
                 this.TargetDirectory = targetDirectory;
                 this.GitTrackedItemsCount = gitItemsCount;
@@ -228,7 +225,7 @@ namespace GVFS.Common
             public int GitTrackedItemsCount { get; private set; }
             public int PlaceholderCount { get; private set; }
             public int ModifiedPathsCount { get; private set; }
-            public List<ValueTuple<string, decimal>> DirectoryHydrationLevels { get; private set; }
+            public List<KeyValuePair<string, decimal>> DirectoryHydrationLevels { get; private set; }
             public decimal HealthMetric { get; private set; }
             public decimal PlaceholderPercentage
             {
