@@ -26,6 +26,11 @@ namespace PrjFSLib.Linux
         string relativePath,
         bool isDirectory);
 
+    public delegate Result NotifyPreRenameEvent(
+        string relativePath,
+        string relativeDestinationPath,
+        bool isDirectory);
+
     public delegate Result NotifyFilePreConvertToFullEvent(
         string relativePath);
 
@@ -34,11 +39,17 @@ namespace PrjFSLib.Linux
         string relativePath,
         bool isDirectory);
 
+    public delegate void NotifyFileDeletedEvent(
+        string relativePath,
+        bool isDirectory);
+
     public delegate void NotifyFileRenamedEvent(
+        string relativePath,
         string relativeDestinationPath,
         bool isDirectory);
 
     public delegate void NotifyHardLinkCreatedEvent(
+        string relativeExistingFilePath,
         string relativeNewLinkPath);
 
     public delegate void NotifyFileModified(
