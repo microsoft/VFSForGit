@@ -57,6 +57,7 @@ namespace GVFS.Virtualization.Projection
 
         private BlobSizes blobSizes;
         private IPlaceholderCollection placeholderDatabase;
+        private IIncludedFolderCollection includedFolderCollection;
         private GVFSGitObjects gitObjects;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private ReaderWriterLockSlim projectionReadWriteLock;
@@ -92,6 +93,7 @@ namespace GVFS.Virtualization.Projection
             RepoMetadata repoMetadata,
             FileSystemVirtualizer fileSystemVirtualizer,
             IPlaceholderCollection placeholderDatabase,
+            IIncludedFolderCollection includedFolderCollection,
             ModifiedPathsDatabase modifiedPaths)
         {
             this.context = context;
@@ -107,6 +109,7 @@ namespace GVFS.Virtualization.Projection
             this.projectionIndexBackupPath = Path.Combine(this.context.Enlistment.DotGVFSRoot, ProjectionIndexBackupName);
             this.indexPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index);
             this.placeholderDatabase = placeholderDatabase;
+            this.includedFolderCollection = includedFolderCollection;
             this.modifiedPaths = modifiedPaths;
         }
 

@@ -54,6 +54,7 @@ namespace GVFS.Virtualization
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
             IPlaceholderCollection placeholderDatabase,
+            IIncludedFolderCollection includedFolderCollection,
             GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;
@@ -88,6 +89,7 @@ namespace GVFS.Virtualization
                 repoMetadata,
                 fileSystemVirtualizer,
                 this.placeholderDatabase,
+                includedFolderCollection,
                 this.modifiedPaths);
 
             if (backgroundFileSystemTaskRunner != null)
