@@ -1,5 +1,6 @@
 ﻿using GVFS.Tests.Should;
 using System.Diagnostics;
+using System.IO;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -8,6 +9,11 @@ namespace GVFS.FunctionalTests.Tools
         private readonly string pathToGVFS;
         private readonly string enlistmentRoot;
         private readonly string localCacheRoot;
+
+        public GVFSProcess(GVFSFunctionalTestEnlistment enlistment)
+            : this(GVFSTestConfig.PathToGVFS, enlistment.EnlistmentRoot, Path.Combine(enlistment.EnlistmentRoot, GVFSTestConfig.DotGVFSRoot))
+        {
+        }
 
         public GVFSProcess(string pathToGVFS, string enlistmentRoot, string localCacheRoot)
         {
@@ -40,6 +46,16 @@ namespace GVFS.FunctionalTests.Tools
             this.IsEnlistmentMounted().ShouldEqual(false, "GVFS is already mounted");
             output = this.CallGVFS("mount \"" + this.enlistmentRoot + "\"");
             return this.IsEnlistmentMounted();
+        }
+
+        public void AddIncludedFolders(params string[] folders)
+        {
+            this.CallGVFS($"include {this.enlistmentRoot} -a {string.Join(";", folders)}");
+        }
+
+        public void RemoveIncludedFolders(params string[] folders)
+        {
+            this.CallGVFS($" include {this.enlistmentRoot} -r {string.Join(";", folders)}");
         }
 
         public string Prefetch(string args, bool failOnError, string standardInput = null)
