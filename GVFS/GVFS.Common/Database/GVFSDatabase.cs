@@ -118,6 +118,7 @@ namespace GVFS.Common.Database
                 }
 
                 PlaceholderTable.CreateTable(connection);
+                IncludedFolderTable.CreateTable(connection);
             }
         }
 
