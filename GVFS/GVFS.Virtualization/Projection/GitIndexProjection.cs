@@ -14,6 +14,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -58,6 +59,7 @@ namespace GVFS.Virtualization.Projection
         private BlobSizes blobSizes;
         private IPlaceholderCollection placeholderDatabase;
         private IIncludedFolderCollection includedFolderCollection;
+        private IncludedFolderData rootIncludedFolder;
         private GVFSGitObjects gitObjects;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private ReaderWriterLockSlim projectionReadWriteLock;
@@ -111,6 +113,8 @@ namespace GVFS.Virtualization.Projection
             this.placeholderDatabase = placeholderDatabase;
             this.includedFolderCollection = includedFolderCollection;
             this.modifiedPaths = modifiedPaths;
+            this.rootIncludedFolder = new IncludedFolderData();
+            this.RefreshFoldersToInclude();
         }
 
         // For Unit Testing
@@ -661,7 +665,12 @@ namespace GVFS.Virtualization.Projection
         {
             if (indexEntry.BuildingProjection_HasSameParentAsLastEntry)
             {
-                indexEntry.BuildingProjection_LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
+                if (this.rootIncludedFolder.Children.Count == 0 ||
+                    indexEntry.BuildingProjection_ShouldInclude ||
+                    indexEntry.BuildingProjection_ShouldIncludeRecursive)
+                {
+                    indexEntry.BuildingProjection_LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
+                }
             }
             else
             {
@@ -703,7 +712,43 @@ namespace GVFS.Virtualization.Projection
             LazyUTF8String.FreePool();
             this.projectionFolderCache.Clear();
             this.nonDefaultFileTypesAndModes.Clear();
+            this.RefreshFoldersToInclude();
             this.rootFolderData.ResetData(new LazyUTF8String("<root>"));
+        }
+
+        private void RefreshFoldersToInclude()
+        {
+            this.rootIncludedFolder.Children.Clear();
+            if (this.includedFolderCollection != null)
+            {
+                Dictionary<string, IncludedFolderData> parentFolder = this.rootIncludedFolder.Children;
+                foreach (string directoryPath in this.includedFolderCollection.GetAll())
+                {
+                    string[] folders = directoryPath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                    for (int i = 0; i < folders.Length; i++)
+                    {
+                        IncludedFolderData folderData;
+                        if (!parentFolder.ContainsKey(folders[i]))
+                        {
+                            folderData = new IncludedFolderData();
+                            parentFolder.Add(folders[i], folderData);
+                        }
+                        else
+                        {
+                            folderData = parentFolder[folders[i]];
+                        }
+
+                        if (!folderData.IsRecursive)
+                        {
+                            folderData.IsRecursive = i == folders.Length - 1;
+                        }
+
+                        parentFolder = folderData.Children;
+                    }
+
+                    parentFolder = this.rootIncludedFolder.Children;
+                }
+            }
         }
 
         private bool TryGetSha(string childName, string parentKey, out string sha)
@@ -796,6 +841,36 @@ namespace GVFS.Virtualization.Projection
                     this.context.Tracer.RelatedError(metadata, "AddFileToTree: Found a file where a folder was expected");
 
                     throw new InvalidDataException("Found a file (" + parentFolderName + ") where a folder was expected: " + gitPath);
+                }
+
+                if (this.rootIncludedFolder.Children.Count > 0)
+                {
+                    if (indexEntry.BuildingProjection_LastEntryIncludedFolder == null)
+                    {
+                        indexEntry.BuildingProjection_LastEntryIncludedFolder = this.rootIncludedFolder;
+                    }
+
+                    if (!indexEntry.BuildingProjection_ShouldIncludeRecursive)
+                    {
+                        string folderName = indexEntry.BuildingProjection_PathParts[pathIndex].GetString();
+                        if (indexEntry.BuildingProjection_LastEntryIncludedFolder.Children.ContainsKey(folderName))
+                        {
+                            indexEntry.BuildingProjection_ShouldInclude = true;
+                            indexEntry.BuildingProjection_ShouldIncludeRecursive = indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName].IsRecursive;
+                            indexEntry.BuildingProjection_LastEntryIncludedFolder = indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName];
+                        }
+                        else
+                        {
+                            indexEntry.BuildingProjection_ShouldInclude = false;
+                            indexEntry.BuildingProjection_ShouldIncludeRecursive = false;
+                            indexEntry.BuildingProjection_LastEntryIncludedFolder = null;
+                        }
+
+                        if (!indexEntry.BuildingProjection_ShouldInclude)
+                        {
+                            return parentFolder;
+                        }
+                    }
                 }
 
                 parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.BuildingProjection_PathParts[pathIndex]);
