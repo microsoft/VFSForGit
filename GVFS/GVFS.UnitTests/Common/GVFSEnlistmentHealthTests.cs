@@ -148,6 +148,9 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData = this.GenerateStatistics(string.Empty);
             this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(2);
 
+            this.enlistmentHealthData = this.GenerateStatistics(GVFSConstants.GitPathSeparatorString);
+            this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(2);
+
             this.enlistmentHealthData = this.GenerateStatistics("Directory");
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(0);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(0);
@@ -218,7 +221,7 @@ namespace GVFS.UnitTests.Common
             pathData.PlaceholderFilePaths.AddRange(this.fauxPlaceholderFiles);
             pathData.ModifiedFolderPaths.AddRange(this.fauxModifiedPathsFolders);
             pathData.ModifiedFilePaths.AddRange(this.fauxModifiedPathsFiles);
-            pathData.AddSkipWorkTreeFilePaths(this.fauxSkipWorktreeFiles);
+            pathData.AddGitTrackingPaths(this.fauxSkipWorktreeFiles);
 
             pathData.NormalizeAllPaths();
 

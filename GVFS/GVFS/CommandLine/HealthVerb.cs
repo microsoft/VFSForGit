@@ -26,7 +26,7 @@ namespace GVFS.CommandLine
             'd',
             "directory",
             Required = false,
-            HelpText = "Run the statistics tool on a specific directory")]
+            HelpText = "Get the health of a specific directory (default is the current working directory")]
         public string Directory { get; set; }
 
         protected override string VerbName => HealthVerbName;
@@ -36,7 +36,7 @@ namespace GVFS.CommandLine
             // Now default to the current working directory when running the verb without a specified path
             if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
             {
-                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot))
+                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, StringComparison.OrdinalIgnoreCase))
                 {
                     this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
                 }
@@ -47,7 +47,7 @@ namespace GVFS.CommandLine
                 }
             }
 
-            this.Directory = this.Directory.Replace('\\', GVFSConstants.GitPathSeparator);
+            this.Directory = this.Directory.Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
 
             GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData();
 
@@ -220,7 +220,7 @@ namespace GVFS.CommandLine
                 recursive: true,
                 showDirectories: true);
 
-            pathData.AddSkipWorkTreeFilePaths(skipWorktreeFiles);
+            pathData.AddGitTrackingPaths(skipWorktreeFiles);
         }
     }
 }

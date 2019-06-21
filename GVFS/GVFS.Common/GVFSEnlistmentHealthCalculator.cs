@@ -12,7 +12,7 @@ namespace GVFS.Common
     /// </summary>
     public class GVFSEnlistmentHealthCalculator
     {
-        // In the context of this project, hydrated files are placeholders or modified paths
+        // In the context of this class, hydrated files are placeholders or modified paths
         // The total number of hydrated files is this.PlaceholderCount + this.ModifiedPathsCount
         private readonly GVFSEnlistmentPathData enlistmentPathData;
 
@@ -29,6 +29,7 @@ namespace GVFS.Common
             Dictionary<string, int> gitTrackedItemsDirectoryTally = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, int> hydratedFilesDirectoryTally = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
+            // Parent directory is a path relative to the root of the repository which is already in git format
             if (!parentDirectory.EndsWith(GVFSConstants.GitPathSeparatorString) && parentDirectory.Length > 0)
             {
                 parentDirectory += GVFSConstants.GitPathSeparator;
@@ -63,7 +64,6 @@ namespace GVFS.Common
                 }
             }
 
-            // Generate and return a data object
             return new GVFSEnlistmentHealthData(
                 parentDirectory,
                 gitTrackedItemsCount,
@@ -74,7 +74,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Take a string representing a file path on system and pull out the upper-most directory from it as a string, or GVFSConstants.GitPathSeparator if it is in the root
+        /// Take a file path and get the top level directory from it, or GVFSConstants.GitPathSeparator if it is not in a directory
         /// </summary>
         /// <param name="path">The path to a file to parse for the top level directory containing it</param>
         /// <returns>A string containing the top level directory from the provided path, or GVFSConstants.GitPathSeparator if the path is for an item in the root</returns>
@@ -107,7 +107,7 @@ namespace GVFS.Common
             foreach (string path in paths)
             {
                 // Only categorize if descendent of the parentDirectory
-                if (path.StartsWith(parentDirectory))
+                if (path.StartsWith(parentDirectory, StringComparison.OrdinalIgnoreCase))
                 {
                     count++;
 
@@ -178,9 +178,9 @@ namespace GVFS.Common
                 this.ModifiedFilePaths = new List<string>();
             }
 
-            public void AddSkipWorkTreeFilePaths(List<string> skipWorkTreeFilePaths)
+            public void AddGitTrackingPaths(List<string> gitTrackingPaths)
             {
-                this.ModifiedFilePaths.Union(skipWorkTreeFilePaths);
+                this.ModifiedFilePaths.Union(gitTrackingPaths);
             }
 
             public void NormalizeAllPaths()
@@ -197,7 +197,7 @@ namespace GVFS.Common
             {
                 for (int i = 0; i < paths.Count; i++)
                 {
-                    paths[i] = paths[i].Replace('\\', GVFSConstants.GitPathSeparator);
+                    paths[i] = paths[i].Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
                     paths[i] = paths[i].TrimStart(GVFSConstants.GitPathSeparator);
                     paths[i] = paths[i].TrimEnd(GVFSConstants.GitPathSeparator);
                 }
