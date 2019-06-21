@@ -203,7 +203,7 @@ namespace GVFS.CommandLine
             GitProcess.Result fileResult = gitProcess.LsFiles(
                 line =>
                 {
-                    if (line.First() == 'S')
+                    if (line.First() == 'H')
                     {
                         skipWorktreeFiles.Add(this.TrimGitIndexLine(line));
                     }
