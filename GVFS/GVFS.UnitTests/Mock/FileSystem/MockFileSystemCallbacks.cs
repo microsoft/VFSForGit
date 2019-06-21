@@ -19,8 +19,9 @@ namespace GVFS.UnitTests.Mock.FileSystem
             GitIndexProjection gitIndexProjection,
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
-            IPlaceholderCollection placeholderDatabase)
-            : base(context, gitObjects, repoMetadata, blobSizes, gitIndexProjection, backgroundFileSystemTaskRunner, fileSystemVirtualizer, placeholderDatabase)
+            IPlaceholderCollection placeholderDatabase,
+            IIncludedFolderCollection includedFolderCollection)
+            : base(context, gitObjects, repoMetadata, blobSizes, gitIndexProjection, backgroundFileSystemTaskRunner, fileSystemVirtualizer, placeholderDatabase, includedFolderCollection)
         {
         }
 
