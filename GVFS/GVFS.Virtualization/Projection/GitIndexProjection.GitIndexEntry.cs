@@ -67,6 +67,21 @@ namespace GVFS.Virtualization.Projection
                get; private set;
             }
 
+            public bool BuildingProjection_ShouldInclude
+            {
+                get; set;
+            }
+
+            public bool BuildingProjection_ShouldIncludeRecursive
+            {
+                get; set;
+            }
+
+            public IncludedFolderData BuildingProjection_LastEntryIncludedFolder
+            {
+                get; set;
+            }
+
             /// <summary>
             /// Parses the path using LazyUTF8Strings. It should only be called when building a new projection.
             /// </summary>
@@ -211,6 +226,9 @@ namespace GVFS.Virtualization.Projection
             {
                 this.buildingProjectionPreviousFinalSeparatorIndex = int.MaxValue;
                 this.BuildingProjection_HasSameParentAsLastEntry = false;
+                this.BuildingProjection_ShouldInclude = false;
+                this.BuildingProjection_ShouldIncludeRecursive = false;
+                this.BuildingProjection_LastEntryIncludedFolder = null;
                 this.BuildingProjection_LastParent = null;
             }
 
