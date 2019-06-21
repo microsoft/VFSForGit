@@ -6,7 +6,6 @@ using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 
 namespace GVFS.CommandLine
