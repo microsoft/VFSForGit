@@ -17,6 +17,8 @@ namespace GVFS.UnitTests.Mock.Virtualization.Background
 
         public List<FileSystemTask> BackgroundTasks { get; private set; }
 
+        public override bool IsEmpty => this.BackgroundTasks.Count == 0;
+
         public override int Count
         {
             get

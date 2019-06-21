@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
@@ -31,28 +32,18 @@ namespace GVFS.Virtualization
         private readonly string logsHeadPath;
 
         private GVFSContext context;
+        private IPlaceholderCollection placeholderDatabase;
         private ModifiedPathsDatabase modifiedPaths;
         private ConcurrentHashSet<string> newlyCreatedFileAndFolderPaths;
-        private ConcurrentDictionary<string, PlaceHolderCreateCounter> placeHolderCreationCount;
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> filePlaceHolderCreationCount;
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> folderPlaceHolderCreationCount;
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> fileHydrationCount;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
 
         private GitStatusCache gitStatusCache;
         private bool enableGitStatusCache;
-
-        public FileSystemCallbacks(GVFSContext context, GVFSGitObjects gitObjects, RepoMetadata repoMetadata, FileSystemVirtualizer fileSystemVirtualizer, GitStatusCache gitStatusCache)
-            : this(
-                  context,
-                  gitObjects,
-                  repoMetadata,
-                  new BlobSizes(context.Enlistment.BlobSizesRoot, context.FileSystem, context.Tracer),
-                  gitIndexProjection: null,
-                  backgroundFileSystemTaskRunner: null,
-                  fileSystemVirtualizer: fileSystemVirtualizer,
-                  gitStatusCache: gitStatusCache)
-        {
-        }
 
         public FileSystemCallbacks(
             GVFSContext context,
@@ -62,6 +53,7 @@ namespace GVFS.Virtualization
             GitIndexProjection gitIndexProjection,
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
+            IPlaceholderCollection placeholderDatabase,
             GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;
@@ -69,7 +61,9 @@ namespace GVFS.Virtualization
             this.context = context;
             this.fileSystemVirtualizer = fileSystemVirtualizer;
 
-            this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.filePlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.folderPlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            this.fileHydrationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
             this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             string error;
@@ -83,27 +77,17 @@ namespace GVFS.Virtualization
                 throw new InvalidRepoException(error);
             }
 
-            this.BlobSizes = blobSizes;
+            this.BlobSizes = blobSizes ?? new BlobSizes(context.Enlistment.BlobSizesRoot, context.FileSystem, context.Tracer);
             this.BlobSizes.Initialize();
 
-            PlaceholderListDatabase placeholders;
-            if (!PlaceholderListDatabase.TryCreate(
-                this.context.Tracer,
-                Path.Combine(this.context.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList),
-                this.context.FileSystem,
-                out placeholders,
-                out error))
-            {
-                throw new InvalidRepoException(error);
-            }
-
+            this.placeholderDatabase = placeholderDatabase;
             this.GitIndexProjection = gitIndexProjection ?? new GitIndexProjection(
                 context,
                 gitObjects,
                 this.BlobSizes,
                 repoMetadata,
                 fileSystemVirtualizer,
-                placeholders,
+                this.placeholderDatabase,
                 this.modifiedPaths);
 
             if (backgroundFileSystemTaskRunner != null)
@@ -130,10 +114,10 @@ namespace GVFS.Virtualization
             // This lets us from having to add null checks to callsites into GitStatusCache.
             this.gitStatusCache = gitStatusCache ?? new GitStatusCache(context, TimeSpan.Zero);
 
-            this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Logs.Head);
+            this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Logs.Head);
 
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("placeholders.Count", placeholders.EstimatedCount);
+            metadata.Add("placeholders.Count", this.placeholderDatabase.GetCount());
             metadata.Add("background.Count", this.backgroundFileSystemTaskRunner.Count);
             metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(FileSystemCallbacks)} created");
             this.context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(FileSystemCallbacks)}_Constructor", metadata);
@@ -144,6 +128,13 @@ namespace GVFS.Virtualization
             get { return this.GitIndexProjection; }
         }
 
+        /// <summary>
+        /// Gets the count of tasks in the background operation queue
+        /// </summary>
+        /// <remarks>
+        /// This is an expensive call on .net core and you should avoid calling
+        /// in performance critical paths.
+        /// </remarks>
         public int BackgroundOperationCount
         {
             get { return this.backgroundFileSystemTaskRunner.Count; }
@@ -243,7 +234,7 @@ namespace GVFS.Virtualization
 
         public bool IsReadyForExternalAcquireLockRequests(NamedPipeMessages.LockData requester, out string denyMessage)
         {
-            if (this.BackgroundOperationCount != 0)
+            if (!this.backgroundFileSystemTaskRunner.IsEmpty)
             {
                 denyMessage = "Waiting for GVFS to release the lock";
                 return false;
@@ -269,43 +260,35 @@ namespace GVFS.Virtualization
             return true;
         }
 
-        public EventMetadata GetMetadataForHeartBeat(ref EventLevel eventLevel)
+        public EventMetadata GetAndResetHeartBeatMetadata(out bool logToFile)
         {
+            logToFile = false;
             EventMetadata metadata = new EventMetadata();
-            if (this.placeHolderCreationCount.Count > 0)
-            {
-                ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData = this.placeHolderCreationCount;
-                this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
 
-                int count = 0;
-                foreach (KeyValuePair<string, PlaceHolderCreateCounter> processCount in
-                    collectedData.OrderByDescending((KeyValuePair<string, PlaceHolderCreateCounter> kvp) => kvp.Value.Count))
-                {
-                    ++count;
-                    if (count > 10)
-                    {
-                        break;
-                    }
-
-                    metadata.Add("ProcessName" + count, processCount.Key);
-                    metadata.Add("ProcessCount" + count, processCount.Value.Count);
-                }
-
-                eventLevel = EventLevel.Informational;
-            }
+            metadata.Add(
+                "FilePlaceholderCreation",
+                this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.filePlaceHolderCreationCount), ref logToFile));
+            metadata.Add(
+                "FolderPlaceholderCreation",
+                this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.folderPlaceHolderCreationCount), ref logToFile));
+            metadata.Add(
+                "FilePlaceholdersHydrated",
+                this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.fileHydrationCount), ref logToFile));
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
-            metadata.Add("PlaceholderCount", this.GitIndexProjection.EstimatedPlaceholderCount);
+            metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
+            metadata.Add("FolderPlaceholderCount", this.placeholderDatabase.GetFolderPlaceholdersCount());
+
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {
-                eventLevel = EventLevel.Informational;
+                logToFile = true;
             }
 
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
             metadata.Add(
                 "PhysicalDiskInfo",
                 GVFSPlatform.Instance.GetPhysicalDiskInfo(
-                    this.context.Enlistment.WorkingDirectoryRoot,
+                    this.context.Enlistment.WorkingDirectoryBackingRoot,
                     sizeStatsOnly: true));
 
             return metadata;
@@ -353,7 +336,7 @@ namespace GVFS.Virtualization
 
             // If there are background tasks queued up, then it will be
             // refreshed after they have been processed.
-            if (this.backgroundFileSystemTaskRunner.Count == 0)
+            if (this.backgroundFileSystemTaskRunner.IsEmpty)
             {
                 this.gitStatusCache.RefreshAsynchronously();
             }
@@ -405,9 +388,9 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileRenamed(oldRelativePath, newRelativePath));
         }
 
-        public virtual void OnFileHardLinkCreated(string newLinkRelativePath)
+        public virtual void OnFileHardLinkCreated(string newLinkRelativePath, string existingRelativePath)
         {
-            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileHardLinkCreated(newLinkRelativePath));
+            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileHardLinkCreated(newLinkRelativePath, existingRelativePath));
         }
 
         public virtual void OnFileSymLinkCreated(string newLinkRelativePath)
@@ -458,7 +441,7 @@ namespace GVFS.Virtualization
             // Note: Because OnPlaceholderFileCreated is not synchronized on all platforms it is possible that GVFS will double count
             // the creation of file placeholders if multiple requests for the same file are received at the same time on different
             // threads.
-            this.placeHolderCreationCount.AddOrUpdate(
+            this.filePlaceHolderCreationCount.AddOrUpdate(
                 triggeringProcessImageFileName,
                 (imageName) => { return new PlaceHolderCreateCounter(); },
                 (key, oldCount) => { oldCount.Increment(); return oldCount; });
@@ -469,14 +452,27 @@ namespace GVFS.Virtualization
             this.GitIndexProjection.OnPlaceholderCreateBlockedForGit();
         }
 
-        public void OnPlaceholderFolderCreated(string relativePath)
+        public void OnPlaceholderFolderCreated(string relativePath, string triggeringProcessImageFileName)
         {
             this.GitIndexProjection.OnPlaceholderFolderCreated(relativePath);
+
+            this.folderPlaceHolderCreationCount.AddOrUpdate(
+                triggeringProcessImageFileName,
+                (imageName) => { return new PlaceHolderCreateCounter(); },
+                (key, oldCount) => { oldCount.Increment(); return oldCount; });
         }
 
         public void OnPlaceholderFolderExpanded(string relativePath)
         {
             this.GitIndexProjection.OnPlaceholderFolderExpanded(relativePath);
+        }
+
+        public void OnPlaceholderFileHydrated(string triggeringProcessImageFileName)
+        {
+            this.fileHydrationCount.AddOrUpdate(
+                triggeringProcessImageFileName,
+                (imageName) => { return new PlaceHolderCreateCounter(); },
+                (key, oldCount) => { oldCount.Increment(); return oldCount; });
         }
 
         public FileProperties GetLogsHeadFileProperties()
@@ -517,6 +513,36 @@ namespace GVFS.Virtualization
             }
 
             return result;
+        }
+
+        private EventMetadata GetProcessInteractionData(ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData, ref bool logToFile)
+        {
+            EventMetadata metadata = new EventMetadata();
+
+            if (collectedData.Count > 0)
+            {
+                int count = 0;
+                foreach (KeyValuePair<string, PlaceHolderCreateCounter> processCount in
+                collectedData.OrderByDescending((KeyValuePair<string, PlaceHolderCreateCounter> kvp) => kvp.Value.Count).Take(10))
+                {
+                    ++count;
+                    metadata.Add("ProcessName" + count, processCount.Key);
+                    metadata.Add("ProcessCount" + count, processCount.Value.Count);
+                }
+
+                logToFile = true;
+            }
+
+            return metadata;
+        }
+
+        // Captures the current state of dictionary, and resets it
+        // This approach is optimal for our use case to preserve all entries while avoiding additional locking
+        private ConcurrentDictionary<string, PlaceHolderCreateCounter> GetAndResetProcessCountMetadata(ref ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData)
+        {
+            ConcurrentDictionary<string, PlaceHolderCreateCounter> localData = collectedData;
+            collectedData = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            return localData;
         }
 
         private void InvalidateState(bool invalidateProjection, bool invalidateModifiedPaths)
@@ -566,10 +592,26 @@ namespace GVFS.Virtualization
             {
                 case FileSystemTask.OperationType.OnFileCreated:
                 case FileSystemTask.OperationType.OnFailedPlaceholderDelete:
-                case FileSystemTask.OperationType.OnFileHardLinkCreated:
                 case FileSystemTask.OperationType.OnFileSymLinkCreated:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.VirtualPath);
+                    break;
+
+                case FileSystemTask.OperationType.OnFileHardLinkCreated:
+                    metadata.Add("virtualPath", gitUpdate.VirtualPath);
+                    metadata.Add("oldVirtualPath", gitUpdate.OldVirtualPath);
+                    result = FileSystemTaskResult.Success;
+                    if (!string.IsNullOrEmpty(gitUpdate.OldVirtualPath) && !IsPathInsideDotGit(gitUpdate.OldVirtualPath))
+                    {
+                        result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.OldVirtualPath);
+                    }
+
+                    if ((result == FileSystemTaskResult.Success) &&
+                        !string.IsNullOrEmpty(gitUpdate.VirtualPath) && !IsPathInsideDotGit(gitUpdate.VirtualPath))
+                    {
+                        result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.VirtualPath);
+                    }
+
                     break;
 
                 case FileSystemTask.OperationType.OnFileRenamed:

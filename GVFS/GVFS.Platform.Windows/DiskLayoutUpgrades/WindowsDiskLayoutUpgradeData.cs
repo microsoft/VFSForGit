@@ -29,12 +29,13 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     new DiskLayout15to16Upgrade_GitStatusCache(),
                     new DiskLayout16to17Upgrade_FolderPlaceholderValues(),
                     new DiskLayout17to18Upgrade_TombstoneFolderPlaceholders(),
+                    new DiskLayout18to19Upgrade_SqlitePlacholders(),
                 };
             }
         }
 
         public DiskLayoutVersion Version => new DiskLayoutVersion(
-                    currentMajorVersion: 18,
+                    currentMajorVersion: 19,
                     currentMinorVersion: 0,
                     minimumSupportedMajorVersion: 7);
 

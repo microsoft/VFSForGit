@@ -59,7 +59,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             // This step should put the loose objects into a packfile
             this.Enlistment.LooseObjectStep();
 
-            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(looseObjectCount);
+            this.GetLooseObjectFiles().Count.ShouldEqual(looseObjectCount);
             this.CountPackFiles().ShouldEqual(1);
 
             // Running the step a second time should remove the loose obects and keep the pack file
@@ -107,7 +107,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.fileSystem.FileExists(fakeBlob).ShouldBeFalse(
                    "Step failed to delete corrupt blob");
             this.CountPackFiles().ShouldEqual(0, "Incorrect number of packs after first loose object step");
-            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(
+            this.GetLooseObjectFiles().Count.ShouldEqual(
                 looseObjectCount,
                 "unexpected number of loose objects after step");
 
@@ -115,7 +115,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.Enlistment.LooseObjectStep();
 
             this.CountPackFiles().ShouldEqual(1, "Incorrect number of packs after second loose object step");
-            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(looseObjectCount);
+            this.GetLooseObjectFiles().Count.ShouldEqual(looseObjectCount);
 
             // This step should delete the loose objects
             this.Enlistment.LooseObjectStep();
@@ -125,6 +125,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
         private void ClearAllObjects()
         {
+            this.Enlistment.UnmountGVFS();
+
             // Delete/Move any starting loose objects and packfiles
             this.DeleteFiles(this.GetLooseObjectFiles());
             this.MovePackFilesToTemp();

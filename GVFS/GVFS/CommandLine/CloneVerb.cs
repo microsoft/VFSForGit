@@ -6,6 +6,7 @@ using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -142,6 +143,7 @@ namespace GVFS.CommandLine
                                 { "Unattended", this.Unattended },
                                 { "IsElevated", GVFSPlatform.Instance.IsElevated() },
                                 { "NamedPipeName", enlistment.NamedPipeName },
+                                { "ProcessID", Process.GetCurrentProcess().Id },
                                 { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                                 { nameof(fullEnlistmentRootPathParameter), fullEnlistmentRootPathParameter },
                             });
@@ -560,7 +562,7 @@ namespace GVFS.CommandLine
             }
 
             File.WriteAllText(
-                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head),
+                Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Head),
                 "ref: refs/heads/" + branch);
 
             if (!this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
@@ -646,7 +648,7 @@ namespace GVFS.CommandLine
             // Prepare the working directory folder for GVFS last to ensure that gvfs mount will fail if gvfs clone has failed
             Exception exception;
             string prepFileSystemError;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError, out exception))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryBackingRoot, out prepFileSystemError, out exception))
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add(nameof(prepFileSystemError), prepFileSystemError);
@@ -662,6 +664,7 @@ namespace GVFS.CommandLine
             return new Result(true);
         }
 
+        // TODO(Linux), TODO(Mac): either adjust to "git" or remove entirely
         private void CreateGitScript(GVFSEnlistment enlistment)
         {
             FileInfo gitCmd = new FileInfo(Path.Combine(enlistment.EnlistmentRoot, "git.cmd"));
@@ -688,7 +691,7 @@ git %*
 
         private Result TryInitRepo(ITracer tracer, GitRefs refs, Enlistment enlistmentToInit)
         {
-            string repoPath = enlistmentToInit.WorkingDirectoryRoot;
+            string repoPath = enlistmentToInit.WorkingDirectoryBackingRoot;
             GitProcess.Result initResult = GitProcess.Init(enlistmentToInit);
             if (initResult.ExitCodeIsFailure)
             {

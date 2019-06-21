@@ -105,6 +105,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public abstract void MoveDirectory_TargetShouldBeInvalid(string sourcePath, string targetPath);
         public abstract void CreateDirectory(string path);
         public abstract string EnumerateDirectory(string path);
+        public abstract long FileSize(string path);
 
         /// <summary>
         /// A recursive delete of a directory

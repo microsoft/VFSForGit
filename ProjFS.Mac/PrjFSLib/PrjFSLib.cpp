@@ -116,12 +116,14 @@ static PrjFS_Result HandleNewFileInRootNotification(
     const MessageHeader* request,
     const char* relativePath,
     const char* fullPath,
+    const char* relativeFromPath,
     bool isDirectory,
     PrjFS_NotificationType notificationType);
 static PrjFS_Result HandleFileNotification(
     const MessageHeader* request,
     const char* relativePath,
     const char* fullPath,
+    const char* relativeFromPath,
     bool isDirectory,
     PrjFS_NotificationType notificationType);
 
@@ -137,6 +139,8 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
 static FileMutexMap::iterator CheckoutFileMutexIterator(const FsidInode& fsidInode);
 static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator);
 
+static void LogError(const char* formatString, ...) __attribute__((__format__ (printf, 1, 2)));
+
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
 static string s_virtualizationRootFullPath;
@@ -145,8 +149,8 @@ static dispatch_queue_t s_messageQueueDispatchQueue;
 static dispatch_queue_t s_kernelRequestHandlingConcurrentQueue;
 
 // Map of FsidInode -> MutexAndUseCount for that FsidInode, plus mutex to protect the map itself.
-FileMutexMap s_fileLocks;
-mutex s_fileLocksMutex;
+static FileMutexMap s_fileLocks;
+static mutex s_fileLocksMutex;
 
 // The full API is defined in the header, but only the minimal set of functions needed
 // for the initial MirrorProvider implementation are listed here. Calling any other function
@@ -389,13 +393,6 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         goto CleanupAndFail;
     }
     
-    // Expand the file to the desired size
-    if (ftruncate(fileno(file), fileSize))
-    {
-        result = PrjFS_Result_EIOError;
-        goto CleanupAndFail;
-    }
-    
     fclose(file);
     file = nullptr;
     
@@ -632,22 +629,35 @@ PrjFS_Result PrjFS_WriteFileContents(
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
 {
     const MessageHeader* header = static_cast<const MessageHeader*>(messageMemory);
-    if (header->pathSizeBytes + sizeof(*header) != size)
+    if (size != Message_EncodedSize(header))
     {
-        fprintf(stderr, "ParseMessageMemory: invariant failed, bad message? PathSizeBytes = %u, message size = %u, expecting %zu\n",
-            header->pathSizeBytes, size, header->pathSizeBytes + sizeof(*header));
+        LogError("ParseMessageMemory: invariant failed, bad message? message size = %u, expecting minimum of %zu\n", size, sizeof(*header));
         abort();
     }
-            
-    const char* path = nullptr;
-    if (header->pathSizeBytes > 0)
+    
+    Message parsedMessage = { header };
+    
+    const char* messagePosition = static_cast<const char*>(messageMemory) + sizeof(*header);
+    uint32_t messageBytesRemain = size - sizeof(*header);
+    for (unsigned i = 0; i < extent<decltype(parsedMessage.paths)>::value; ++i)
     {
-        path = static_cast<const char*>(messageMemory) + sizeof(*header);
-        
-        // Path string should fit exactly in reserved memory, with nul terminator in end position
-        assert(strnlen(path, header->pathSizeBytes) == header->pathSizeBytes - 1);
+        if (header->pathSizesBytes[i] > 0)
+        {
+            uint16_t stringSize = header->pathSizesBytes[i];
+            assert(messageBytesRemain >= stringSize);
+            const char* string = messagePosition;
+            // Path string should fit exactly in reserved memory, with nul terminator in end position
+            assert(strnlen(string, stringSize) == stringSize - 1);
+            messagePosition += stringSize;
+            messageBytesRemain -= stringSize;
+            
+            parsedMessage.paths[i] = string;
+        }
     }
-    return Message { header, path };
+    
+    assert(messageBytesRemain == 0);
+
+    return parsedMessage;
 }
 
 static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
@@ -664,7 +674,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     // whereas messages originating in the kext's vnode handler will only fill
     // the fsid/inode, so we need to look up the path below.
     char pathBuffer[PrjFSMaxPath];
-    if (request.path == nullptr)
+    if (request.paths[MessagePath_Target] == nullptr)
     {
         fsid_t fsid = request.messageHeader->fsidInode.fsid;
         ssize_t pathSize = fsgetpath(pathBuffer, sizeof(pathBuffer), &fsid, request.messageHeader->fsidInode.inode);
@@ -693,6 +703,10 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         {
             absolutePath = pathBuffer;
             relativePath = GetRelativePath(pathBuffer, s_virtualizationRootFullPath.c_str());
+            if (relativePath == nullptr)
+            {
+                goto CleanupAndReturn;
+            }
 #if DEBUG
             cout
                 << "PrjFSLib.HandleKernelRequest: fsgetpath for fsid 0x"
@@ -701,8 +715,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                 << dec << request.messageHeader->fsidInode.inode
                 << " -> '"
                 << pathBuffer
-                << "' -> relative path '"
-                << (request.path != nullptr ? request.path : "[NULL]")
+                << "' -> relative path '" << relativePath
                 << "'"
                 << endl;
 #endif
@@ -710,8 +723,12 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     }
     else
     {
-        absolutePath = request.path;
+        absolutePath = request.paths[MessagePath_Target];
         relativePath = GetRelativePath(absolutePath, s_virtualizationRootFullPath.c_str());
+        if (relativePath == nullptr)
+        {
+            goto CleanupAndReturn;
+        }
     }
     
     switch (requestHeader->messageType)
@@ -743,21 +760,62 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                 requestHeader,
                 relativePath,
                 absolutePath,
+                nullptr, /* relativeFromPath */
                 requestHeader->messageType == MessageType_KtoU_NotifyDirectoryPreDelete,  // isDirectory
                 KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
         }
         
+        case MessageType_KtoU_NotifyFileHardLinkCreated:
+        {
+            const char* absoluteFromPath = request.paths[MessagePath_From];
+            const char* relativeFromPath = GetRelativePath(absoluteFromPath, s_virtualizationRootFullPath.c_str());
+            if (relativeFromPath == nullptr)
+            {
+                goto CleanupAndReturn;
+            }
+            
+#ifdef DEBUG
+            cout << "PrjFSLib.HandleKernelRequest: " << "hard-linked ";
+            cout << "from this root (relative path " << relativeFromPath << ") ";
+            cout << "into this root (relative path " << relativePath << ")";
+            cout << endl;
+#endif
+            
+            if (strcmp(relativePath, "") == 0)
+            {
+                result = HandleFileNotification(
+                    requestHeader,
+                    relativePath,
+                    absolutePath,
+                    relativeFromPath,
+                    false, // isDirectory; TODO: may yet be a directory
+                    KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
+            }
+            else
+            {
+                result = HandleNewFileInRootNotification(
+                    requestHeader,
+                    relativePath,
+                    absolutePath,
+                    relativeFromPath,
+                    false, // isDirectory; TODO: may yet be a directory
+                    KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
+            }
+            
+            break;
+        }
+
         case MessageType_KtoU_NotifyFileCreated:
         case MessageType_KtoU_NotifyFileRenamed:
         case MessageType_KtoU_NotifyDirectoryRenamed:
-        case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
             bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
             result = HandleNewFileInRootNotification(
                 requestHeader,
                 relativePath,
                 absolutePath,
+                nullptr, /* relativeFromPath */
                 isDirectory,
                 KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
@@ -996,14 +1054,15 @@ static PrjFS_Result HandleNewFileInRootNotification(
     const MessageHeader* request,
     const char* relativePath,
     const char* absolutePath,
+    const char* relativeFromPath,
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
 #ifdef DEBUG
     cout
-        << "HandleNewFileInRootNotification: "
-        << absolutePath
+        << "HandleNewFileInRootNotification: " << absolutePath
         << " (root-relative: " << relativePath << ")"
+        << " (root-relative from: " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << " notificationType: " << NotificationTypeToString(notificationType)
@@ -1019,6 +1078,7 @@ static PrjFS_Result HandleNewFileInRootNotification(
         request,
         relativePath,
         absolutePath,
+        relativeFromPath,
         isDirectory,
         notificationType);
     
@@ -1032,14 +1092,15 @@ static PrjFS_Result HandleFileNotification(
     const MessageHeader* request,
     const char* relativePath,
     const char* absolutePath,
+    const char* relativeFromPath,
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
 #ifdef DEBUG
     cout
-        << "PrjFSLib.HandleFileNotification: "
-        << absolutePath
+        << "PrjFSLib.HandleFileNotification: " << absolutePath
         << " (root-relative: " << relativePath << ")"
+        << " (root-relative from: " << (relativeFromPath == nullptr ? "[NULL]" : relativeFromPath) << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << " notificationType: " << NotificationTypeToString(notificationType)
@@ -1052,6 +1113,7 @@ static PrjFS_Result HandleFileNotification(
     PrjFS_Result result = s_callbacks.NotifyOperation(
         0 /* commandId */,
         relativePath,
+        relativeFromPath,
         xattrData.providerId,
         xattrData.contentId,
         request->pid,
@@ -1060,7 +1122,10 @@ static PrjFS_Result HandleFileNotification(
         notificationType,
         nullptr /* destinationRelativePath */);
     
-    if (result == 0 && placeholderFile && PrjFS_NotificationType_PreConvertToFull == notificationType)
+    // We have to convert to full for PreDelete until we have WILL_RENAME support.  The PreDelete could be for a rename.
+    if (result == PrjFS_Result_Success &&
+        placeholderFile &&
+        (PrjFS_NotificationType_PreConvertToFull == notificationType || PrjFS_NotificationType_PreDelete == notificationType))
     {
         errno_t result = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
         if (0 != result)
@@ -1105,6 +1170,7 @@ static void FindNewFoldersInRootAndNotifyProvider(const MessageHeader* request, 
             request,
             parentFolderPath.first.c_str(),
             parentFolderPath.second.c_str(),
+            nullptr, /* relativeFromPath */
             true, // isDirectory
             PrjFS_NotificationType_NewFileCreated);
         
@@ -1424,12 +1490,18 @@ static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator)
 
 static const char* GetRelativePath(const char* fullPath, const char* root)
 {
+    // Hardlinks will send an empty path when files are linked outside the virtualization root
+    if (strcmp(fullPath, "") == 0)
+    {
+        return "";
+    }
+    
     size_t rootLength = strlen(root);
     size_t pathLength = strlen(fullPath);
     if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
     {
         // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
-        fprintf(stderr, "GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
+        LogError("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
         return nullptr;
     }
     
@@ -1441,9 +1513,22 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
     {
         // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
-        fprintf(stderr, "GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
+        LogError("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
         return nullptr;
     }
     
     return relativePath;
+}
+
+static void LogError(const char* formatString, ...)
+{
+    va_list dataArgs;
+    char* logString = nullptr;
+
+    va_start(dataArgs, formatString);
+    vasprintf(&logString, formatString, dataArgs);
+    va_end(dataArgs);
+    
+    s_callbacks.LogError(logString);
+    free(logString);
 }

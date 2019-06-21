@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
@@ -22,12 +23,12 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
         /// </summary>
         public override bool TryUpgrade(ITracer tracer, string enlistmentRoot)
         {
-            string dotGVFSRoot = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root);
+            string dotGVFSRoot = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             try
             {
                 string error;
-                PlaceholderListDatabase placeholders;
-                if (!PlaceholderListDatabase.TryCreate(
+                LegacyPlaceholderListDatabase placeholders;
+                if (!LegacyPlaceholderListDatabase.TryCreate(
                     tracer,
                     Path.Combine(dotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList),
                     new PhysicalFileSystem(),
@@ -43,12 +44,12 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     string workingDirectoryRoot = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName);
 
                     // Run through the folder placeholders adding to the placeholder list
-                    IEnumerable<PlaceholderListDatabase.PlaceholderData> folderPlaceholderPaths =
+                    IEnumerable<IPlaceholderData> folderPlaceholderPaths =
                         GetFolderPlaceholdersFromDisk(tracer, new PhysicalFileSystem(), workingDirectoryRoot)
                         .Select(x => x.Substring(workingDirectoryRoot.Length + 1))
-                        .Select(x => new PlaceholderListDatabase.PlaceholderData(x, GVFSConstants.AllZeroSha));
+                        .Select(x => new LegacyPlaceholderListDatabase.PlaceholderData(x, GVFSConstants.AllZeroSha));
 
-                    List<PlaceholderListDatabase.PlaceholderData> placeholderEntries = placeholders.GetAllEntriesAndPrepToWriteAllEntries();
+                    List<IPlaceholderData> placeholderEntries = placeholders.GetAllEntries();
                     placeholderEntries.AddRange(folderPlaceholderPaths);
 
                     placeholders.WriteAllEntriesAndFlush(placeholderEntries);

@@ -238,7 +238,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string persistedDeleteFileTask = $"A 1\0{this.fileDeletedBackgroundOperationCode}\0{deleteFilePath}\0";
             string persistedDeleteDirectoryTask = $"A 2\0{this.directoryDeletedBackgroundOperationCode}\0{deleteDirPath}\0";
             this.fileSystem.WriteAllText(
-                Path.Combine(this.Enlistment.EnlistmentRoot, ".gvfs", "databases", "BackgroundGitOperations.dat"),
+                Path.Combine(this.Enlistment.EnlistmentRoot, GVFSTestConfig.DotGVFSRoot, "databases", "BackgroundGitOperations.dat"),
                 $"{persistedDeleteFileTask}\r\n{persistedDeleteDirectoryTask}\r\n");
 
             // Background queue should process the delete messages and modifiedPaths should show the change

@@ -40,14 +40,14 @@ namespace GVFS.UnitTests.Common
             MockTracer tracer = new MockTracer();
 
             string enlistmentRoot = Path.Combine("mock:", "GVFS", "UnitTests", "Repo");
-            string statusCachePath = Path.Combine("mock:", "GVFS", "UnitTests", "Repo", ".gvfs", "gitStatusCache");
+            string statusCachePath = Path.Combine("mock:", "GVFS", "UnitTests", "Repo", GVFSPlatform.Instance.Constants.DotGVFSRoot, "gitStatusCache");
 
             this.gitProcess = new MockGitProcess();
             this.gitProcess.SetExpectedCommandResult($"--no-optional-locks status \"--serialize={statusCachePath}", () => new GitProcess.Result(string.Empty, string.Empty, 0), true);
             MockGVFSEnlistment enlistment = new MockGVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", null, this.gitProcess);
             enlistment.InitializeCachePathsFromKey("fake:\\gvfsSharedCache", "fakeCacheKey");
 
-            this.gitParentPath = enlistment.WorkingDirectoryRoot;
+            this.gitParentPath = enlistment.WorkingDirectoryBackingRoot;
             this.gvfsMetadataPath = enlistment.DotGVFSRoot;
 
             this.enlistmentDirectory = new MockDirectory(

@@ -86,7 +86,7 @@ namespace GVFS.CommandLine
         {
             get
             {
-                return this.ServiceName + ".Pipe";
+                return GVFSPlatform.Instance.GetGVFSServiceNamedPipeName(this.ServiceName);
             }
         }
 
@@ -98,7 +98,7 @@ namespace GVFS.CommandLine
 
         public static bool TrySetRequiredGitConfigSettings(Enlistment enlistment)
         {
-            string expectedHooksPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.Root);
+            string expectedHooksPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.Root);
             expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
 
             string gitStatusCachePath = null;
@@ -106,7 +106,7 @@ namespace GVFS.CommandLine
             {
                 gitStatusCachePath = Path.Combine(
                     enlistment.EnlistmentRoot,
-                    GVFSConstants.DotGVFS.Root,
+                    GVFSPlatform.Instance.Constants.DotGVFSRoot,
                     GVFSConstants.DotGVFS.GitStatusCache.CachePath);
 
                 gitStatusCachePath = Paths.ConvertPathToGitFormat(gitStatusCachePath);
@@ -683,7 +683,7 @@ You can specify a URL, a name of a configured cache server, or the special names
 
         private string GetAlternatesPath(GVFSEnlistment enlistment)
         {
-            return Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
+            return Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
         }
 
         private void CheckFileSystemSupportsRequiredFeatures(ITracer tracer, Enlistment enlistment)
@@ -860,7 +860,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 CacheServerInfo cacheServer)
             {
                 string error;
-                if (!RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.Root), out error))
+                if (!RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot), out error))
                 {
                     this.ReportErrorAndExit(tracer, "Failed to initialize repo metadata: " + error);
                 }

@@ -1,6 +1,7 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Tracing;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -23,6 +24,7 @@ namespace GVFS.Common
             : base(
                   enlistmentRoot,
                   Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName),
+                  Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.WorkingDirectoryBackingRootPath),
                   repoUrl,
                   gitBinPath,
                   gvfsHooksRoot,
@@ -30,11 +32,11 @@ namespace GVFS.Common
                   authentication: authentication)
         {
             this.NamedPipeName = GVFSPlatform.Instance.GetNamedPipeName(this.EnlistmentRoot);
-            this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.Root);
+            this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             this.GitStatusCacheFolder = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.Name);
             this.GitStatusCachePath = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.CachePath);
-            this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
-            this.LocalObjectsRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Root);
+            this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.LogName);
+            this.LocalObjectsRoot = Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Root);
         }
 
         // Existing, configured enlistment
@@ -119,17 +121,25 @@ namespace GVFS.Common
                 fileSystem: fileSystem);
         }
 
-        public static bool WaitUntilMounted(string enlistmentRoot, bool unattended, out string errorMessage)
+        public static bool WaitUntilMounted(ITracer tracer, string enlistmentRoot, bool unattended, out string errorMessage)
         {
+            string pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot);
+            tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Creating NamedPipeClient for pipe '{pipeName}'");
+
             errorMessage = null;
-            using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot)))
+            using (NamedPipeClient pipeClient = new NamedPipeClient(pipeName))
             {
+                tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Connecting to '{pipeName}'");
+
                 int timeout = unattended ? 300000 : 60000;
                 if (!pipeClient.Connect(timeout))
                 {
+                    tracer.RelatedError($"{nameof(WaitUntilMounted)}: Failed to connect to '{pipeName}' after {timeout} ms");
                     errorMessage = "Unable to mount because the GVFS.Mount process is not responding.";
                     return false;
                 }
+
+                tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Connected to '{pipeName}'");
 
                 while (true)
                 {
@@ -143,26 +153,31 @@ namespace GVFS.Common
 
                         if (getStatusResponse.MountStatus == NamedPipeMessages.GetStatus.Ready)
                         {
+                            tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Mount process ready");
                             return true;
                         }
                         else if (getStatusResponse.MountStatus == NamedPipeMessages.GetStatus.MountFailed)
                         {
                             errorMessage = string.Format("Failed to mount at {0}", enlistmentRoot);
+                            tracer.RelatedError($"{nameof(WaitUntilMounted)}: Mount failed: {errorMessage}");
                             return false;
                         }
                         else
                         {
+                            tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Waiting 500ms for mount process to be ready");
                             Thread.Sleep(500);
                         }
                     }
                     catch (BrokenPipeException e)
                     {
                         errorMessage = string.Format("Could not connect to GVFS.Mount: {0}", e);
+                        tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
                         return false;
                     }
                     catch (JsonReaderException e)
                     {
                         errorMessage = string.Format("Failed to parse response from GVFS.Mount.\n {0}", e);
+                        tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
                         return false;
                     }
                 }

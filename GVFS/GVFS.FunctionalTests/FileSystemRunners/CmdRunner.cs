@@ -238,5 +238,10 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             throw new NotImplementedException();
         }
+
+        public override long FileSize(string path)
+        {
+            return long.Parse(this.RunProcess(string.Format("/C for %I in ({0}) do @echo %~zI", path)));
+        }
     }
 }

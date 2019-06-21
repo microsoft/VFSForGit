@@ -11,11 +11,11 @@ namespace GVFS.Service.Handlers
         private NamedPipeServer.Connection connection;
         private NamedPipeMessages.GetActiveRepoListRequest request;
         private ITracer tracer;
-        private RepoRegistry registry;
+        private IRepoRegistry registry;
 
         public GetActiveRepoListHandler(
             ITracer tracer,
-            RepoRegistry registry,
+            IRepoRegistry registry,
             NamedPipeServer.Connection connection,
             NamedPipeMessages.GetActiveRepoListRequest request)
         {

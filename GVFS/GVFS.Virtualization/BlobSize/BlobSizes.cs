@@ -1,4 +1,5 @@
-﻿using GVFS.Common.FileSystem;
+﻿using GVFS.Common.Database;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using Microsoft.Data.Sqlite;
@@ -12,10 +13,10 @@ namespace GVFS.Virtualization.BlobSize
 {
     public class BlobSizes : IDisposable
     {
+        public const string DatabaseName = "BlobSizes.sql";
+
         private const string EtwArea = nameof(BlobSizes);
         private const int SaveSizesRetryDelayMS = 50;
-
-        private static readonly string DatabaseName = "BlobSizes.sql";
 
         private readonly string databasePath;
         private readonly string sqliteConnectionString;
@@ -35,54 +36,7 @@ namespace GVFS.Virtualization.BlobSize
             this.tracer = tracer;
             this.wakeUpFlushThread = new AutoResetEvent(false);
             this.queuedSizes = new ConcurrentQueue<BlobSize>();
-            this.sqliteConnectionString = CreateSQLiteConnectionString(this.databasePath);
-        }
-
-        public static bool HasIssue(string blobSizesRoot, PhysicalFileSystem filesystem, out string issue)
-        {
-            issue = null;
-            string databasePath = Path.Combine(blobSizesRoot, DatabaseName);
-
-            if (filesystem.FileExists(databasePath))
-            {
-                List<string> integrityCheckResults = new List<string>();
-
-                try
-                {
-                    string sqliteConnectionString = CreateSQLiteConnectionString(databasePath);
-                    using (SqliteConnection integrityConnection = new SqliteConnection(sqliteConnectionString))
-                    {
-                        integrityConnection.Open();
-
-                        using (SqliteCommand pragmaCommand = integrityConnection.CreateCommand())
-                        {
-                            pragmaCommand.CommandText = $"PRAGMA integrity_check;";
-                            using (SqliteDataReader reader = pragmaCommand.ExecuteReader())
-                            {
-                                while (reader.Read())
-                                {
-                                    integrityCheckResults.Add(reader.GetString(0));
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    issue = "Exception while trying to access database: " + e.Message;
-                    return true;
-                }
-
-                // If pragma integrity_check finds no errors, a single row with the value 'ok' is returned
-                // http://www.sqlite.org/pragma.html#pragma_integrity_check
-                if (integrityCheckResults.Count != 1 || integrityCheckResults[0] != "ok")
-                {
-                    issue = string.Join(",", integrityCheckResults);
-                    return true;
-                }
-            }
-
-            return false;
+            this.sqliteConnectionString = SqliteDatabase.CreateConnectionString(this.databasePath);
         }
 
         /// <summary>
@@ -201,13 +155,6 @@ namespace GVFS.Virtualization.BlobSize
                 this.wakeUpFlushThread.Dispose();
                 this.wakeUpFlushThread = null;
             }
-        }
-
-        private static string CreateSQLiteConnectionString(string databasePath)
-        {
-            // Share-Cache mode allows multiple connections from the same process to share the same data cache
-            // http://www.sqlite.org/sharedcache.html
-            return $"data source={databasePath};Cache=Shared";
         }
 
         private void FlushDbThreadMain()

@@ -14,19 +14,9 @@ namespace GVFS.Hooks.HooksPlatform
             return POSIXPlatform.IsProcessActiveImplementation(processId);
         }
 
-        public static string GetNamedPipeName(string enlistmentRoot)
-        {
-            return POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
-        }
-
         public static bool IsConsoleOutputRedirectedToFile()
         {
             return POSIXPlatform.IsConsoleOutputRedirectedToFileImplementation();
-        }
-
-        public static bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
-        {
-            return POSIXPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
         }
 
         public static bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)

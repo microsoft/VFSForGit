@@ -133,7 +133,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void RenameDirectory(string workingDirectory, string source, string target)
         {
-            MoveFileEx(Path.Combine(workingDirectory, source), Path.Combine(workingDirectory, target), 0);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                MoveFileEx(Path.Combine(workingDirectory, source), Path.Combine(workingDirectory, target), 0);
+            }
+            else
+            {
+                Rename(Path.Combine(workingDirectory, source), Path.Combine(workingDirectory, target));
+            }
         }
 
         public override void MoveDirectory_RequestShouldNotBeSupported(string sourcePath, string targetPath)
@@ -213,6 +220,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
         }
 
+        public override long FileSize(string path)
+        {
+            return new FileInfo(path).Length;
+        }
+
         [DllImport("kernel32", SetLastError = true)]
         private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
 
@@ -221,6 +233,9 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
         private static extern int Chmod(string pathname, ushort mode);
+
+        [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
+        private static extern int Rename(string oldPath, string newPath);
 
         [DllImport("kernel32.dll", EntryPoint = "CreateHardLink", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool WindowsCreateHardLink(

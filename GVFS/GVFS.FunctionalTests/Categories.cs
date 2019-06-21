@@ -15,14 +15,26 @@
             // machines but not on the build agents
             public const string FailsOnBuildAgent = "FailsOnBuildAgent";
 
-            // Tests that require #356 (old paths to be delivered with rename notifications)
-            public const string NeedsRenameOldPath = "NeedsRenameOldPath";
+            // Tests that require #360 (detecting/handling new empty folders)
+            public const string NeedsNewFolderCreateNotification = "NeedsNewFolderCreateNotification";
 
-            // Git related tests that are not yet passing on Mac
-            public const string M3 = "M3_AllGitCommands";
+            // Tests that require the Status Cache to be built
+            public const string NeedsStatusCache = "NeedsStatusCache";
 
-            // Tests for GVFS features that are not required for correct git functionality
-            public const string M4 = "M4_GVFSFeatures";
+            // Tests that require Config to be built
+            public const string NeedsGVFSConfig = "NeedsConfig";
+
+            // Tests that require VFS Service
+            public const string NeedsServiceVerb = "NeedsServiceVerb";
+
+            // Requires both functional and test fixes
+            public const string NeedsDehydrate = "NeedsDehydrate";
+
+            // Tests requires code updates so that we lock the file instead of looking for a .lock file
+            public const string TestNeedsToLockFile = "TestNeedsToLockFile";
+
+            // Corrupt Objects are not redownloaded
+            public const string NeedsCorruptObjectFix = "NeedsCorruptObjectFix";
 
             // Tests that have been flaky on build servers and need additional logging and\or
             // investigation

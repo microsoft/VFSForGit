@@ -345,10 +345,13 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(9)]
-        public void WriteToHydratedFileAfterRemount()
+        public void AppendToHydratedFileAfterRemount()
         {
-            string virtualFilePath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "WriteToHydratedFileAfterRemount.cpp");
+            string fileToAppendEntry = "Test_EPF_WorkingDirectoryTests/WriteToHydratedFileAfterRemount.cpp";
+            string virtualFilePath = this.Enlistment.GetVirtualPathTo(fileToAppendEntry);
             string fileContents = virtualFilePath.ShouldBeAFile(this.fileSystem).WithContents();
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileToAppendEntry);
 
             // Remount
             this.Enlistment.UnmountGVFS();
@@ -356,6 +359,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             string appendedText = "Text to append";
             this.fileSystem.AppendAllText(virtualFilePath, appendedText);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToAppendEntry);
             virtualFilePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents + appendedText);
         }
 
@@ -392,7 +397,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         [TestCase, Order(13)]
         [Category(Categories.GitCommands)]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
         public void FolderContentsProjectedAfterFolderCreateAndCheckout()
         {
             string folderName = "GVFlt_MultiThreadTest";
@@ -496,7 +501,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         // TODO(Mac): Figure out why git for Mac is not requesting a redownload of the truncated object
         [TestCase, Order(17)]
-        [Category(Categories.MacTODO.M4)]
+        [Category(Categories.MacTODO.NeedsCorruptObjectFix)]
         public void TruncatedObjectRedownloaded()
         {
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
@@ -567,6 +572,14 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             this.fileSystem.MoveFile(newFilePath, filePath);
             filePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents);
+        }
+
+        [TestCase, Order(20)]
+        public void VerifyFileSize()
+        {
+            string filePath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "ProjectedFileHasExpectedContents.cpp");
+            long fileSize = this.fileSystem.FileSize(filePath);
+            fileSize.ShouldEqual(536);
         }
 
         private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)

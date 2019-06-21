@@ -24,9 +24,9 @@ namespace GVFS.Service.Handlers
 
         private string etwArea;
         private ITracer tracer;
-        private RepoRegistry repoRegistry;
+        private IRepoRegistry repoRegistry;
 
-        public RequestHandler(ITracer tracer, string etwArea, RepoRegistry repoRegistry)
+        public RequestHandler(ITracer tracer, string etwArea, IRepoRegistry repoRegistry)
         {
             this.tracer = tracer;
             this.etwArea = etwArea;
@@ -96,7 +96,7 @@ namespace GVFS.Service.Handlers
                     NamedPipeMessages.EnableAndAttachProjFSRequest.Response response = new NamedPipeMessages.EnableAndAttachProjFSRequest.Response();
                     response.State = NamedPipeMessages.CompletionState.Success;
 
-                    this.TrySendResponse(tracer, response.ToString(), connection);
+                    this.TrySendResponse(tracer, response.ToMessage().ToString(), connection);
                     break;
 
                 default:

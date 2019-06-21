@@ -53,6 +53,11 @@ proc_t vfs_context_proc(vfs_context_t ctx)
     return proc_find(foundPidId->second);
 }
 
+int vfs_context_pid(vfs_context_t ctx)
+{
+    return proc_pid(vfs_context_proc(ctx));
+}
+
 proc_t proc_self(void)
 {
     map<int /*process Id*/, proc>::iterator selfIter = s_processMap.find(s_selfPid);

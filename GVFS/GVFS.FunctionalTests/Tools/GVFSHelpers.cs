@@ -7,12 +7,14 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 
 namespace GVFS.FunctionalTests.Tools
 {
     public static class GVFSHelpers
     {
         public const string ModifiedPathsNewLine = "\r\n";
+        public const string PlaceholderFieldDelimiter = "\0";
 
         public static readonly string BackgroundOpsFile = Path.Combine("databases", "BackgroundGitOperations.dat");
         public static readonly string PlaceholderListFile = Path.Combine("databases", "PlaceholderList.dat");
@@ -71,25 +73,61 @@ namespace GVFS.FunctionalTests.Tools
 
         public static void SQLiteBlobSizesDatabaseHasEntry(string blobSizesDbPath, string blobSha, long blobSize)
         {
-            string connectionString = $"data source={blobSizesDbPath}";
-            using (SqliteConnection readConnection = new SqliteConnection(connectionString))
+            RunSqliteCommand(blobSizesDbPath, command =>
             {
-                readConnection.Open();
-                using (SqliteCommand selectCommand = readConnection.CreateCommand())
-                {
-                    SqliteParameter shaParam = selectCommand.CreateParameter();
-                    shaParam.ParameterName = "@sha";
-                    selectCommand.CommandText = "SELECT size FROM BlobSizes WHERE sha = (@sha)";
-                    selectCommand.Parameters.Add(shaParam);
-                    shaParam.Value = StringToShaBytes(blobSha);
+                SqliteParameter shaParam = command.CreateParameter();
+                shaParam.ParameterName = "@sha";
+                command.CommandText = "SELECT size FROM BlobSizes WHERE sha = (@sha)";
+                command.Parameters.Add(shaParam);
+                shaParam.Value = StringToShaBytes(blobSha);
 
-                    using (SqliteDataReader reader = selectCommand.ExecuteReader())
-                    {
-                        reader.Read().ShouldBeTrue();
-                        reader.GetInt64(0).ShouldEqual(blobSize);
-                    }
+                using (SqliteDataReader reader = command.ExecuteReader())
+                {
+                    reader.Read().ShouldBeTrue();
+                    reader.GetInt64(0).ShouldEqual(blobSize);
                 }
-            }
+
+                return true;
+            });
+        }
+
+        public static string GetAllSQLitePlaceholdersAsString(string placeholdersDbPath)
+        {
+            return RunSqliteCommand(placeholdersDbPath, command =>
+                {
+                    command.CommandText = "SELECT path, pathType, sha FROM Placeholder";
+                    using (SqliteDataReader reader = command.ExecuteReader())
+                    {
+                        StringBuilder sb = new StringBuilder();
+                        while (reader.Read())
+                        {
+                            sb.Append(reader.GetString(0));
+                            sb.Append(PlaceholderFieldDelimiter);
+                            sb.Append(reader.GetByte(1));
+                            sb.Append(PlaceholderFieldDelimiter);
+                            if (!reader.IsDBNull(2))
+                            {
+                                sb.Append(reader.GetString(2));
+                                sb.Append(PlaceholderFieldDelimiter);
+                            }
+
+                            sb.AppendLine();
+                        }
+
+                        return sb.ToString();
+                    }
+                });
+        }
+
+        public static void AddPlaceholderFolder(string placeholdersDbPath, string path, int pathType)
+        {
+            RunSqliteCommand(placeholdersDbPath, command =>
+            {
+                command.CommandText = "INSERT OR REPLACE INTO Placeholder (path, pathType, sha) VALUES (@path, @pathType, NULL)";
+                command.Parameters.AddWithValue("@path", path);
+                command.Parameters.AddWithValue("@pathType", pathType);
+                return command.ExecuteNonQuery();
+            });
         }
 
         public static string ReadAllTextFromWriteLockedFile(string filename)
@@ -147,6 +185,19 @@ namespace GVFS.FunctionalTests.Tools
             string modifiedPathsDatabase = Path.Combine(enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             return GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
+        }
+
+        private static T RunSqliteCommand<T>(string sqliteDbPath, Func<SqliteCommand, T> runCommand)
+        {
+            string connectionString = $"data source={sqliteDbPath}";
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                connection.Open();
+                using (SqliteCommand command = connection.CreateCommand())
+                {
+                    return runCommand(command);
+                }
+            }
         }
 
         private static byte[] StringToShaBytes(string sha)

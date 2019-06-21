@@ -287,6 +287,23 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             Assert.Fail("Unlike the other runners, bash.exe does not check folder handle before recusively deleting");
         }
 
+        public override long FileSize(string path)
+        {
+            string bashPath = this.ConvertWinPathToBashPath(path);
+
+            string statCommand = null;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                statCommand = string.Format("-c \"stat -f \"%z\" {0}\"", bashPath);
+            }
+            else
+            {
+                statCommand = string.Format("-c \"stat --format \"%s\" {0}\"", bashPath);
+            }
+
+            return long.Parse(this.RunProcess(statCommand));
+        }
+
         public override void CreateFileWithoutClose(string path)
         {
             throw new NotImplementedException();

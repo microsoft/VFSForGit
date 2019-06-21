@@ -26,7 +26,7 @@ namespace GVFS.Common.Git
 
             this.libgit2RepoInvoker = new LibGit2RepoInvoker(
                 tracer,
-                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot)));
+                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot)));
         }
 
         // For Unit Testing
@@ -44,12 +44,20 @@ namespace GVFS.Common.Git
             Unknown,
         }
 
-        public bool HasActiveLibGit2Repo => this.libgit2RepoInvoker?.IsActive == true;
-
         public GVFSLock GVFSLock
         {
             get;
             private set;
+        }
+
+        public void CloseActiveRepo()
+        {
+            this.libgit2RepoInvoker?.DisposeSharedRepo();
+        }
+
+        public void OpenRepo()
+        {
+            this.libgit2RepoInvoker?.InitializeSharedRepo();
         }
 
         public bool TryGetIsBlob(string sha, out bool isBlob)
@@ -195,7 +203,7 @@ namespace GVFS.Common.Git
             {
                 if (corruptLooseObject)
                 {
-                    string corruptBlobsFolderPath = Path.Combine(this.enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.CorruptObjectsPath);
+                    string corruptBlobsFolderPath = Path.Combine(this.enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.CorruptObjectsName);
                     string corruptBlobPath = Path.Combine(corruptBlobsFolderPath, Path.GetRandomFileName());
 
                     EventMetadata metadata = new EventMetadata();

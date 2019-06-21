@@ -4,6 +4,7 @@
 #include "../PrjFSKext/kernel-header-wrappers/vnode.h"
 #include "../PrjFSKext/PerformanceTracing.hpp"
 #include "../PrjFSKext/VirtualizationRoots.hpp"
+#include "KauthHandler.hpp"
 
 #ifndef __cplusplus
 #error None of the kext code is set up for being called from C or Objective-C; change the including file to C++ or Objective-C++
@@ -44,7 +45,6 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     kauth_action_t action,
 
     // Out params:
-    vtype* vnodeType,
     uint32_t* vnodeFileFlags,
     int* pid,
     char procname[MAXCOMLEN + 1],
@@ -55,12 +55,12 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     PerfTracer* perfTracer,
     vfs_context_t context,
     const vnode_t vnode,
+    const char* path,
     kauth_action_t action,
     bool isDirectory,
 
     // Out params:
     VirtualizationRootHandle* root,
-    FsidInode* vnodeFsidInode,
     int* pid);
 KEXT_STATIC void UseMainForkIfNamedStream(vnode_t& vnode, bool& putVnodeWhenDone);
 KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser();

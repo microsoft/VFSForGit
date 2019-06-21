@@ -10,6 +10,7 @@ namespace GVFS.Common
         protected Enlistment(
             string enlistmentRoot,
             string workingDirectoryRoot,
+            string workingDirectoryBackingRoot,
             string repoUrl,
             string gitBinPath,
             string gvfsHooksRoot,
@@ -23,7 +24,8 @@ namespace GVFS.Common
 
             this.EnlistmentRoot = enlistmentRoot;
             this.WorkingDirectoryRoot = workingDirectoryRoot;
-            this.DotGitRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
+            this.WorkingDirectoryBackingRoot = workingDirectoryBackingRoot;
+            this.DotGitRoot = Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
             this.GitBinPath = gitBinPath;
             this.GVFSHooksRoot = gvfsHooksRoot;
             this.FlushFileBuffersForPacks = flushFileBuffersForPacks;
@@ -53,7 +55,15 @@ namespace GVFS.Common
         }
 
         public string EnlistmentRoot { get; }
+
+        // Path to the root of the working (i.e. "src") directory.
+        // On platforms where the contents of the working directory are stored
+        // at a different location (e.g. Linux), WorkingDirectoryBackingRoot is the path of that backing
+        // storage location.  On all other platforms WorkingDirectoryRoot and WorkingDirectoryBackingRoot
+        // are the same.
         public string WorkingDirectoryRoot { get; }
+        public string WorkingDirectoryBackingRoot { get; }
+
         public string DotGitRoot { get; private set; }
         public abstract string GitObjectsRoot { get; protected set; }
         public abstract string LocalObjectsRoot { get; protected set; }

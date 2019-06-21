@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
@@ -17,12 +18,12 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
 
         public override bool TryUpgrade(ITracer tracer, string enlistmentRoot)
         {
-            string dotGVFSRoot = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root);
+            string dotGVFSRoot = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             try
             {
                 string error;
-                PlaceholderListDatabase placeholders;
-                if (!PlaceholderListDatabase.TryCreate(
+                LegacyPlaceholderListDatabase placeholders;
+                if (!LegacyPlaceholderListDatabase.TryCreate(
                     tracer,
                     Path.Combine(dotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList),
                     new PhysicalFileSystem(),
@@ -35,14 +36,14 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
 
                 using (placeholders)
                 {
-                    List<PlaceholderListDatabase.PlaceholderData> oldPlaceholderEntries = placeholders.GetAllEntriesAndPrepToWriteAllEntries();
-                    List<PlaceholderListDatabase.PlaceholderData> newPlaceholderEntries = new List<PlaceholderListDatabase.PlaceholderData>();
+                    List<IPlaceholderData> oldPlaceholderEntries = placeholders.GetAllEntries();
+                    List<IPlaceholderData> newPlaceholderEntries = new List<IPlaceholderData>();
 
-                    foreach (PlaceholderListDatabase.PlaceholderData entry in oldPlaceholderEntries)
+                    foreach (IPlaceholderData entry in oldPlaceholderEntries)
                     {
                         if (entry.Sha == GVFSConstants.AllZeroSha)
                         {
-                            newPlaceholderEntries.Add(new PlaceholderListDatabase.PlaceholderData(entry.Path, PlaceholderListDatabase.PartialFolderValue));
+                            newPlaceholderEntries.Add(new LegacyPlaceholderListDatabase.PlaceholderData(entry.Path, LegacyPlaceholderListDatabase.PartialFolderValue));
                         }
                         else
                         {

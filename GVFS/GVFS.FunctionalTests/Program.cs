@@ -87,16 +87,21 @@ namespace GVFS.FunctionalTests
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 excludeCategories.Add(Categories.MacTODO.FailsOnBuildAgent);
-                excludeCategories.Add(Categories.MacTODO.NeedsRenameOldPath);
-                excludeCategories.Add(Categories.MacTODO.M3);
-                excludeCategories.Add(Categories.MacTODO.M4);
-                excludeCategories.Add(Categories.MacTODO.FlakyTest);
+                excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
+                excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
+                excludeCategories.Add(Categories.MacTODO.NeedsDehydrate);
+                excludeCategories.Add(Categories.MacTODO.NeedsServiceVerb);
+                excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
+                excludeCategories.Add(Categories.MacTODO.NeedsCorruptObjectFix);
+                excludeCategories.Add(Categories.MacTODO.TestNeedsToLockFile);
                 excludeCategories.Add(Categories.WindowsOnly);
             }
             else
             {
                 excludeCategories.Add(Categories.MacOnly);
             }
+
+            GVFSTestConfig.DotGVFSRoot = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? ".vfsforgit" : ".gvfs";
 
             GVFSTestConfig.RepoToClone =
                 runner.GetCustomArgWithParam("--repo-to-clone")

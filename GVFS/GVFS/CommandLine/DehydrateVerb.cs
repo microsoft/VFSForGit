@@ -258,7 +258,7 @@ of your enlistment's src folder.
         {
             Exception exception;
             string error;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out error, out exception))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryBackingRoot, out error, out exception))
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add(nameof(error), error);
@@ -276,7 +276,7 @@ of your enlistment's src folder.
         {
             string backupSrc = Path.Combine(backupRoot, "src");
             string backupGit = Path.Combine(backupRoot, ".git");
-            string backupGvfs = Path.Combine(backupRoot, ".gvfs");
+            string backupGvfs = Path.Combine(backupRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             string backupDatabases = Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.Name);
 
             string errorMessage = string.Empty;

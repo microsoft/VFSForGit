@@ -25,7 +25,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
         /// </summary>
         public override bool TryUpgrade(ITracer tracer, string enlistmentRoot)
         {
-            string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root);
+            string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             string error;
             if (!RepoMetadata.TryInitialize(tracer, dotGVFSPath, out error))
             {
@@ -68,7 +68,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
             {
                 // This is an old repo that was cloned prior to the shared cache
                 // Blob sizes root should be <root>\.gvfs\databases\blobSizes
-                newBlobSizesRoot = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, GVFSConstants.DotGVFS.Databases.Name, GVFSEnlistment.BlobSizesCacheName);
+                newBlobSizesRoot = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.Name, GVFSEnlistment.BlobSizesCacheName);
             }
             else
             {
@@ -89,7 +89,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
 
         private void MigrateBlobSizes(ITracer tracer, string enlistmentRoot, string newBlobSizesRoot)
         {
-            string esentBlobSizeFolder = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, BlobSizesName);
+            string esentBlobSizeFolder = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, BlobSizesName);
             PhysicalFileSystem fileSystem = new PhysicalFileSystem();
             if (!fileSystem.DirectoryExists(esentBlobSizeFolder))
             {

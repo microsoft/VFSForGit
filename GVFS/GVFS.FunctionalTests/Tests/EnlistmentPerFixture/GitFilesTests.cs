@@ -80,7 +80,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(4)]
-        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         public void RenameEmptyFolderTest()
         {
             string folderName = "folder3a";
@@ -101,7 +100,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
-        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         public void RenameFolderTest()
         {
             string folderName = "folder4a";
@@ -141,7 +139,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(6)]
-        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         public void CaseOnlyRenameOfNewFolderKeepsModifiedPathsEntries()
         {
             if (this.fileSystem is PowerShellRunner)
@@ -356,6 +353,114 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // Verify new content written
             fileToSupersedePath.ShouldBeAFile(this.fileSystem).WithContents(newContent);
+        }
+
+        [TestCase, Order(16)]
+        public void FileMovedFromOutsideRepoToInside()
+        {
+            string fileName = "OutsideRepoToInside.txt";
+            string fileOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileName);
+            this.fileSystem.WriteAllText(fileOutsideRepo, "Contents for the new file");
+            fileOutsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileMovedInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            this.fileSystem.MoveFile(fileOutsideRepo, fileMovedInsideRepo);
+            fileMovedInsideRepo.ShouldBeAFile(this.fileSystem);
+            fileOutsideRepo.ShouldNotExistOnDisk(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+        }
+
+        [TestCase, Order(17)]
+        public void FileMovedFromInsideRepoToOutside()
+        {
+            string fileName = "InsideRepoToOutside.txt";
+            string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            this.fileSystem.WriteAllText(fileInsideRepo, "Contents for the new file");
+            fileInsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileMovedOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileName);
+            this.fileSystem.MoveFile(fileInsideRepo, fileMovedOutsideRepo);
+            fileInsideRepo.ShouldNotExistOnDisk(this.fileSystem);
+            fileMovedOutsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
+        }
+
+        [TestCase, Order(18)]
+        public void HardlinkFromOutsideRepoToInside()
+        {
+            string fileName = "OutsideRepoToInside_FileForHardlink.txt";
+            string fileOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileName);
+            this.fileSystem.WriteAllText(fileOutsideRepo, "Contents for the new file");
+            fileOutsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileNameLink = "OutsideRepoToInside_RepoLink.txt";
+            string fileLinkInsideRepo = this.Enlistment.GetVirtualPathTo(fileNameLink);
+            this.fileSystem.CreateHardLink(fileLinkInsideRepo, fileOutsideRepo);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileNameLink);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
+            fileLinkInsideRepo.ShouldBeAFile(this.fileSystem);
+        }
+
+        [TestCase, Order(19)]
+        public void HardlinkFromInsideRepoToOutside()
+        {
+            string fileName = "Readme.md";
+            string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileNameLink = "InsideRepoToOutside_RepoLink.txt";
+            string fileLinkOutsideRepo = Path.Combine(this.Enlistment.EnlistmentRoot, fileNameLink);
+            this.fileSystem.CreateHardLink(fileLinkOutsideRepo, fileInsideRepo);
+            fileLinkOutsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileNameLink);
+        }
+
+        [TestCase, Order(20)]
+        public void HardlinkInsideRepo()
+        {
+            string fileName = "InsideRepo_FileForHardlink.txt";
+            string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            this.fileSystem.WriteAllText(fileInsideRepo, "Contents for the new file");
+            fileInsideRepo.ShouldBeAFile(this.fileSystem);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+
+            string fileNameLink = "InsideRepo_RepoLink.txt";
+            string fileLinkInsideRepo = this.Enlistment.GetVirtualPathTo(fileNameLink);
+            this.fileSystem.CreateHardLink(fileLinkInsideRepo, fileInsideRepo);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileNameLink);
+            fileLinkInsideRepo.ShouldBeAFile(this.fileSystem);
+        }
+
+        [TestCase, Order(21)]
+        public void HardlinkExistingFileInRepo()
+        {
+            string fileName = "GVFS/GVFS.Mount/Program.cs";
+            string fileNameLink = "HardLinkToReadme";
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileNameLink);
+
+            string fileInsideRepo = this.Enlistment.GetVirtualPathTo(fileName);
+            string fileLinkInsideRepo = this.Enlistment.GetVirtualPathTo(fileNameLink);
+            this.fileSystem.CreateHardLink(fileLinkInsideRepo, fileInsideRepo);
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileNameLink);
+            fileInsideRepo.ShouldBeAFile(this.fileSystem);
+            fileLinkInsideRepo.ShouldBeAFile(this.fileSystem);
         }
 
         [DllImport("GVFS.NativeTests.dll", CharSet = CharSet.Unicode)]

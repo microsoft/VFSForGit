@@ -119,7 +119,7 @@ namespace GVFS.RepairJobs
                 blobSizes: null,
                 repoMetadata: null,
                 fileSystemVirtualizer: null,
-                placeholderList: null,
+                placeholderDatabase: null,
                 modifiedPaths: null))
             {
                 try

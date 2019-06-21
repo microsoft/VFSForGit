@@ -66,7 +66,7 @@ namespace GVFS.FunctionalTests.Tools
 
         public string DotGVFSRoot
         {
-            get { return Path.Combine(this.EnlistmentRoot, ".gvfs"); }
+            get { return Path.Combine(this.EnlistmentRoot, GVFSTestConfig.DotGVFSRoot); }
         }
 
         public string GVFSLogsRoot
@@ -314,7 +314,7 @@ namespace GVFS.FunctionalTests.Tools
 
         private static string GetRepoSpecificLocalCacheRoot(string enlistmentRoot)
         {
-            return Path.Combine(enlistmentRoot, ".gvfs", ".gvfsCache");
+            return Path.Combine(enlistmentRoot, GVFSTestConfig.DotGVFSRoot, ".gvfsCache");
         }
 
         private bool WaitForStatus(int maxWaitMilliseconds, string statusShouldContain)

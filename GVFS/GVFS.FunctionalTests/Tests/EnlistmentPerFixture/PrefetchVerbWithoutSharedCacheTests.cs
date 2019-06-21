@@ -13,7 +13,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     // to work on Mac (where post-fetch.lock is not removed from disk)
     [TestFixture]
     [Category(Categories.ExtraCoverage)]
-    [Category(Categories.MacTODO.M4)]
+    [Category(Categories.MacTODO.TestNeedsToLockFile)]
     public class PrefetchVerbWithoutSharedCacheTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchPackPrefix = "prefetch";
@@ -71,6 +71,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteFile(idxPath);
             idxPath.ShouldNotExistOnDisk(this.fileSystem);
 
+            // Remove midx that contains references to the pack
+            string midxPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack", "multi-pack-index");
+            File.SetAttributes(midxPath, FileAttributes.Normal);
+            this.fileSystem.DeleteFile(midxPath);
+            midxPath.ShouldNotExistOnDisk(this.fileSystem);
+
             // Prefetch should rebuild the missing idx
             this.Enlistment.Prefetch("--commits");
             this.PostFetchJobShouldComplete();
@@ -112,6 +118,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(4)]
         public void PrefetchCleansUpOldPrefetchPack()
         {
+            this.Enlistment.UnmountGVFS();
+
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             long oldestPackTimestamp = this.GetOldestPackTimestamp(prefetchPacks);
 
@@ -141,6 +149,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(5)]
         public void PrefetchFailsWhenItCannotRemoveABadPrefetchPack()
         {
+            this.Enlistment.UnmountGVFS();
+
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             long mostRecentPackTimestamp = this.GetMostRecentPackTimestamp(prefetchPacks);
 
@@ -172,6 +182,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(6)]
         public void PrefetchFailsWhenItCannotRemoveAPrefetchPackNewerThanBadPrefetchPack()
         {
+            this.Enlistment.UnmountGVFS();
+
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             long oldestPackTimestamp = this.GetOldestPackTimestamp(prefetchPacks);
 
@@ -204,6 +216,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(7)]
         public void PrefetchFailsWhenItCannotRemoveAPrefetchIdxNewerThanBadPrefetchPack()
         {
+            this.Enlistment.UnmountGVFS();
+
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             long oldestPackTimestamp = this.GetOldestPackTimestamp(prefetchPacks);
 
@@ -240,6 +254,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(8)]
         public void PrefetchCleansUpStaleTempPrefetchPacks()
         {
+            this.Enlistment.UnmountGVFS();
+
             // Create stale packs and idxs  in the temp folder
             string stalePackContents = "StalePack";
             string stalePackPath = Path.Combine(this.TempPackRoot, $"{PrefetchPackPrefix}-123456-{Guid.NewGuid().ToString("N")}.pack");
@@ -290,18 +306,24 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.fileSystem.CreateEmptyFile(graphLockPath);
 
+            // Unmount so we can delete the files.
+            this.Enlistment.UnmountGVFS();
+
             // Force deleting the prefetch packs to make the prefetch non-trivial.
             this.fileSystem.DeleteDirectory(this.PackRoot);
             this.fileSystem.CreateDirectory(this.PackRoot);
             this.fileSystem.CreateEmptyFile(midxLockPath);
 
+            // Re-mount so the post-fetch job runs
+            this.Enlistment.MountGVFS();
+
             this.Enlistment.Prefetch("--commits");
             this.PostFetchJobShouldComplete();
 
-            this.fileSystem.FileExists(graphLockPath).ShouldBeFalse();
-            this.fileSystem.FileExists(midxLockPath).ShouldBeFalse();
-            this.fileSystem.FileExists(graphPath).ShouldBeTrue();
-            this.fileSystem.FileExists(midxPath).ShouldBeTrue();
+            this.fileSystem.FileExists(graphLockPath).ShouldBeFalse(nameof(graphLockPath));
+            this.fileSystem.FileExists(midxLockPath).ShouldBeFalse(nameof(midxLockPath));
+            this.fileSystem.FileExists(graphPath).ShouldBeTrue(nameof(graphPath));
+            this.fileSystem.FileExists(midxPath).ShouldBeTrue(nameof(midxPath));
         }
 
         private void PackShouldHaveIdxFile(string pathPath)

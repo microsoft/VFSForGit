@@ -1,6 +1,7 @@
 #include "ProviderMessaging.hpp"
 #include "Locks.hpp"
 #include "KextLog.hpp"
+#include "Message_Kernel.hpp"
 #include "kernel-header-wrappers/stdatomic.h"
 
 #include <kern/assert.h>
@@ -130,13 +131,14 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     const vnode_t vnode,
     const FsidInode& vnodeFsidInode,
     const char* vnodePath,
+    const char* fromPath,
     int pid,
     const char* procname,
     int* kauthResult,
     int* kauthError)
 {
     // To be useful, the message needs to either provide an FSID/inode pair or a path
-    assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0));
+    assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0) || fromPath != nullptr);
     bool result = false;
     
     OutstandingMessage message =
@@ -156,7 +158,8 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
         vnodeFsidInode,
         pid,
         procname,
-        vnodePath);
+        vnodePath,
+        fromPath);
 
     if (s_isShuttingDown)
     {

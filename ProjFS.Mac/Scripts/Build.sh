@@ -5,6 +5,11 @@ if [ -z $CONFIGURATION ]; then
   CONFIGURATION=Debug
 fi
 
+VERSION=$2
+if [ -z $VERSION ]; then
+  VERSION="0.2.173.2"
+fi
+
 SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
 SRCDIR=$SCRIPTDIR/../..
 ROOTDIR=$SRCDIR/..
@@ -12,6 +17,9 @@ PACKAGES=$ROOTDIR/packages
 COVERAGEDIR=$ROOTDIR/BuildOutput/ProjFS.Mac/Coverage
 
 PROJFS=$SRCDIR/ProjFS.Mac
+
+echo "Generating PrjFSVersion.h as $VERSION..."
+$SCRIPTDIR/GeneratePrjFSVersionHeader.sh $VERSION || exit 1
 
 xcodebuild -configuration $CONFIGURATION -project $PROJFS/PrjFS.xcodeproj  -scheme 'Build All' -derivedDataPath $ROOTDIR/BuildOutput/ProjFS.Mac/Native build || exit 1
 
@@ -48,10 +56,10 @@ xcrun xccov view "$COVERAGE_FILE" | tee $PROJFS/CoverageResult.txt
 while read line; do
   if [[ $line != *"100.00%"* ]] && 
      [[ $line == *"%"* ]] && 
+	 # PrjFSKext exclusions
 	 [[ $line != *"AllArrayElementsInitialized"* ]] &&              #Function is used for compile time checks only
 	 [[ $line != *"KauthHandler_Init"* ]] && 
 	 [[ $line != *"KauthHandler_Cleanup"* ]] && 
-	 [[ $line != *"HandleVnodeOperation"* ]] &&                      #SHOULD ADD COVERAGE
 	 [[ $line != *"HandleFileOpOperation"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"TryGetVirtualizationRoot"* ]] &&                  #SHOULD ADD COVERAGE
 	 [[ $line != *"WaitForListenerCompletion"* ]] && 
@@ -82,9 +90,49 @@ while read line; do
 	 [[ $line != *"RetainIOCount"* ]] && 
 	 [[ $line != *"ProviderMessaging_"* ]] && 
 	 [[ $line != *"RWLock_DropExclusiveToShared"* ]] && 
+      # Not going down the "unexpected" code path in isKextAssertionFailureExpected, Assert & panic is good!
+	 [[ $line != *"PFSKextTestCase isKextAssertionFailureExpected"* ]] &&
+	 [[ $line != *"Assert"* ]] &&
+	 [[ $line != *"panic"* ]] &&
+
+	 # PrjFSLib exclusions
+	 [[ $line != *"PrjFS_"* ]] &&                                     #SHOULD ADD COVERAGE
+	 [[ $line != *"FsidInodeCompare"* ]] &&                           #SHOULD ADD COVERAGE
+	 [[ $line != *"ParseMessageMemory"* ]] &&                         #SHOULD ADD COVERAGE
+	 [[ $line != *"HandleKernelRequest"* ]] &&                        #SHOULD ADD COVERAGE
+	 [[ $line != *"HandleEnumerateDirectoryRequest"* ]] &&            #SHOULD ADD COVERAGE
+	 [[ $line != *"HandleRecursivelyEnumerateDirectoryRequest"* ]] && #SHOULD ADD COVERAGE
+	 [[ $line != *"HandleHydrateFileRequest"* ]] &&                   #SHOULD ADD COVERAGE
+	 [[ $line != *"FindNewFoldersInRootAndNotifyProvider"* ]] &&      #SHOULD ADD COVERAGE
+	 [[ $line != *"IsDirEntChildDirectory"* ]] &&                     #SHOULD ADD COVERAGE
+	 [[ $line != *"InitializeEmptyPlaceholder"* ]] &&                 #SHOULD ADD COVERAGE
+	 [[ $line != *"IsVirtualizationRoot"* ]] &&                       #SHOULD ADD COVERAGE
+	 [[ $line != *"CombinePaths"* ]] &&                               #SHOULD ADD COVERAGE
+	 [[ $line != *"SetBitInFileFlags"* ]] &&                          #SHOULD ADD COVERAGE
+	 [[ $line != *"IsBitSetInFileFlags"* ]] &&                        #SHOULD ADD COVERAGE
+	 [[ $line != *"AddXAttr"* ]] &&                                   #SHOULD ADD COVERAGE
+	 [[ $line != *"TryGetXAttr"* ]] &&                                #SHOULD ADD COVERAGE
+	 [[ $line != *"RemoveXAttrWithoutFollowingLinks"* ]] &&           #SHOULD ADD COVERAGE
+	 [[ $line != *"KUMessageTypeToNotificationType"* ]] &&            #SHOULD ADD COVERAGE
+	 [[ $line != *"SendKernelMessageResponse"* ]] &&                  #SHOULD ADD COVERAGE
+	 [[ $line != *"RegisterVirtualizationRootPath"* ]] &&             #SHOULD ADD COVERAGE
+	 [[ $line != *"RecursivelyMarkAllChildrenAsInRoot"* ]] &&         #SHOULD ADD COVERAGE
+	 [[ $line != *"CheckoutFileMutexIterator"* ]] &&                  #SHOULD ADD COVERAGE
+	 [[ $line != *"ReturnFileMutexIterator"* ]] &&                    #SHOULD ADD COVERAGE
+	 [[ $line != *"GetRelativePath"* ]] &&                            #SHOULD ADD COVERAGE
+	 [[ $line != *"LogError"* ]] &&                                   #SHOULD ADD COVERAGE
+	 [[ $line != *"PrjFSService_"* ]] &&                              #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
+	 [[ $line != *"ServiceMatched"* ]] &&                             #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
+	 [[ $line != *"ServiceTerminated"* ]] &&                          #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
+	 [[ $line != *"DataQueue_"* ]] &&                                 #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
+	 [[ $line != *"GetDarwinVersion"* ]] &&                           #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
+	 [[ $line != *"InitDataQueueFunctions"* ]] &&                     #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
+	 [[ $line != *".dylib"* ]] && 
+	 # Global exclusions
 	 [[ $line != *".xctest"* ]] && 
 	 [[ $line != *".cpp"* ]] && 
 	 [[ $line != *".a"* ]] && 
+	 [[ $line != *".m"* ]] &&
 	 [[ $line != *".hpp"* ]]; then
        echo "Error: not at 100% Code Coverage $line"
        exit 1

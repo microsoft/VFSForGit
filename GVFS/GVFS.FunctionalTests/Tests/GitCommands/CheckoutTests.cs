@@ -823,7 +823,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
         public void CreateAFolderThenCheckoutBranchWithFolder()
         {
             this.FolderShouldExistAndHaveFile("DeleteFileWithNameAheadOfDotAndSwitchCommits", "1");

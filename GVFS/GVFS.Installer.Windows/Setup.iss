@@ -4,6 +4,7 @@
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
 
 #define PrjFltDir PackagesDir + "\" + ProjFSNativePackage + "\filter" 
+#define ProjFSNativeLibDir PackagesDir + "\" + ProjFSNativePackage + "\lib" 
 #define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.2.0-build\lib\x64"
 #define GVFSDir BuildOutputDir + "\GVFS.Windows\bin\" + PlatformAndConfiguration
 #define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration + "\netstandard2.0"
@@ -15,7 +16,7 @@
 #define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook.Windows\bin\" + PlatformAndConfiguration
 #define VirtualFileSystemDir BuildOutputDir + "\GVFS.VirtualFileSystemHook.Windows\bin\" + PlatformAndConfiguration
 #define PostIndexChangedDir BuildOutputDir + "\GVFS.PostIndexChangedHook.Windows\bin\" + PlatformAndConfiguration
-#define GVFSUpgraderDir BuildOutputDir + "\GVFS.Upgrader\bin\" + PlatformAndConfiguration
+#define GVFSUpgraderDir BuildOutputDir + "\GVFS.Upgrader\bin\" + PlatformAndConfiguration + "\net461"
 
 #define MyAppName "GVFS"
 #define MyAppInstallerVersion GetFileVersion(GVFSDir + "\GVFS.exe")
@@ -75,7 +76,7 @@ DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#PrjFltDir}\PrjFlt.sys"
 DestDir : "{app}\Filter"; Flags: ignoreversion; Source: "{#PrjFltDir}\prjflt.inf"
 
 ; PrjFlt Native Library Files, the GVFS.Service will copy these files into the {app} directory if needed
-DestDir: "{app}\ProjFS"; Flags: ignoreversion; Source:"{#GVFSDir}\ProjectedFSLib.dll"
+DestDir: "{app}\ProjFS"; Flags: ignoreversion; Source:"{#ProjFSNativeLibDir}\ProjectedFSLib.dll"
 
 ; PrjFlt Managed Assembly Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\ProjectedFSLib.Managed.dll"

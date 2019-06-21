@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.Platform.POSIX
 {
@@ -9,8 +10,8 @@ namespace GVFS.Platform.POSIX
     {
         public static bool IsElevatedImplementation()
         {
-            // TODO(POSIX): Implement proper check
-            return false;
+            int euid = GetEuid();
+            return euid == 0;
         }
 
         public static bool IsProcessActiveImplementation(int processId)
@@ -27,10 +28,10 @@ namespace GVFS.Platform.POSIX
             return true;
         }
 
-        public static string GetNamedPipeNameImplementation(string enlistmentRoot)
+        public static string GetNamedPipeNameImplementation(string enlistmentRoot, string dotGVFSRoot)
         {
             // Pipes are stored as files on POSIX, use a rooted pipe name to keep full control of the location of the file
-            return Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, "GVFS_NetCorePipe");
+            return Path.Combine(enlistmentRoot, dotGVFSRoot, "GVFS_NetCorePipe");
         }
 
         public static bool IsConsoleOutputRedirectedToFileImplementation()
@@ -39,7 +40,7 @@ namespace GVFS.Platform.POSIX
             return false;
         }
 
-        public static bool TryGetGVFSEnlistmentRootImplementation(string directory, out string enlistmentRoot, out string errorMessage)
+        public static bool TryGetGVFSEnlistmentRootImplementation(string directory, string dotGVFSRoot, out string enlistmentRoot, out string errorMessage)
         {
             // TODO(POSIX): Merge this code with the implementation in WindowsPlatform
 
@@ -51,14 +52,17 @@ namespace GVFS.Platform.POSIX
                 return false;
             }
 
-            enlistmentRoot = Paths.GetRoot(finalDirectory, GVFSConstants.DotGVFS.Root);
+            enlistmentRoot = Paths.GetRoot(finalDirectory, dotGVFSRoot);
             if (enlistmentRoot == null)
             {
-                errorMessage = $"Failed to find the root directory for {GVFSConstants.DotGVFS.Root} in {finalDirectory}";
+                errorMessage = $"Failed to find the root directory for {dotGVFSRoot} in {finalDirectory}";
                 return false;
             }
 
             return true;
         }
+
+        [DllImport("libc", EntryPoint = "geteuid", SetLastError = true)]
+        private static extern int GetEuid();
     }
 }

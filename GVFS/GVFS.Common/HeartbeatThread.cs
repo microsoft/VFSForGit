@@ -50,8 +50,8 @@ namespace GVFS.Common
         {
             try
             {
-                EventLevel eventLevel = EventLevel.Verbose;
-                EventMetadata metadata = this.dataProvider.GetMetadataForHeartBeat(ref eventLevel) ?? new EventMetadata();
+                EventMetadata metadata = this.dataProvider.GetAndResetHeartBeatMetadata(out bool writeToLogFile) ?? new EventMetadata();
+                EventLevel eventLevel = writeToLogFile ? EventLevel.Informational : EventLevel.Verbose;
                 DateTime now = DateTime.Now;
                 metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
                 metadata.Add("MinutesUptime", (long)(now - this.startTime).TotalMinutes);

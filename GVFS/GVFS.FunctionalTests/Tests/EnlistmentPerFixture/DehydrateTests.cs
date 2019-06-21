@@ -11,7 +11,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.ExtraCoverage)]
-    [Category(Categories.MacTODO.M4)]
     public class DehydrateTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
@@ -32,6 +31,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsDehydrate)]  // Dehydrate is not successful
         public void DehydrateShouldSucceedInCommonCase()
         {
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: false);
@@ -46,6 +46,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsDehydrate)]  // Call CmdRunner which is windows specific
         public void DehydrateShouldSucceedEvenIfObjectCacheIsDeleted()
         {
             this.Enlistment.UnmountGVFS();
@@ -54,6 +55,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsDehydrate)]  // .git / .gvfs are not copied to backup folder on Mac
         public void DehydrateShouldBackupFiles()
         {
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: false);
@@ -61,18 +63,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             backupFolder.ShouldBeADirectory(this.fileSystem);
             string[] backupFolderItems = this.fileSystem.EnumerateDirectory(backupFolder).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             backupFolderItems.Length.ShouldEqual(1);
-            this.DirectoryShouldContain(backupFolderItems[0], ".git", ".gvfs", "src");
+            this.DirectoryShouldContain(backupFolderItems[0], ".git", GVFSTestConfig.DotGVFSRoot, "src");
 
             // .git folder items
             string gitFolder = Path.Combine(backupFolderItems[0], ".git");
             this.DirectoryShouldContain(gitFolder, "index");
 
             // .gvfs folder items
-            string gvfsFolder = Path.Combine(backupFolderItems[0], ".gvfs");
+            string gvfsFolder = Path.Combine(backupFolderItems[0], GVFSTestConfig.DotGVFSRoot);
             this.DirectoryShouldContain(gvfsFolder, "databases", "GVFS_projection");
 
             string gvfsDatabasesFolder = Path.Combine(gvfsFolder, "databases");
-            this.DirectoryShouldContain(gvfsDatabasesFolder, "BackgroundGitOperations.dat", "ModifiedPaths.dat", "PlaceholderList.dat");
+            this.DirectoryShouldContain(gvfsDatabasesFolder, "BackgroundGitOperations.dat", "ModifiedPaths.dat", "VFSForGit.sqlite");
         }
 
         [TestCase]
@@ -128,6 +130,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsDehydrate)]  // Error messages on mac are different, DehydrateShouldFail fails on message checking
         public void DehydrateShouldFailOnWrongDiskLayoutVersion()
         {
             this.Enlistment.UnmountGVFS();

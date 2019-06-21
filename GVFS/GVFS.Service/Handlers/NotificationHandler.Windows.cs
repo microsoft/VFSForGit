@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.Platform.Windows;
 using System;
 using System.Diagnostics;
 
