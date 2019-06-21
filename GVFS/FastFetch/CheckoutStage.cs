@@ -91,7 +91,7 @@ namespace FastFetch
                 Keywords.Telemetry,
                 metadata: null))
             {
-                Parallel.For(1, this.maxParallel, (i) => { this.HandleAllFileDeleteOperations(); });
+                Parallel.For(0, this.maxParallel, (i) => { this.HandleAllFileDeleteOperations(); });
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("FilesDeleted", this.fileDeleteCount);
                 activity.Stop(metadata);
@@ -104,7 +104,7 @@ namespace FastFetch
                 Keywords.Telemetry,
                 metadata: null))
             {
-                Parallel.For(1, this.maxParallel, (i) => { this.HandleAllDirectoryOperations(); });
+                Parallel.For(0, this.maxParallel, (i) => { this.HandleAllDirectoryOperations(); });
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("DirectoryOperationsCompleted", this.directoryOpCount);
                 activity.Stop(metadata);
@@ -117,7 +117,7 @@ namespace FastFetch
                 Keywords.Telemetry,
                 metadata: null))
             {
-                Parallel.For(1, this.maxParallel, (i) => { this.HandleAllFileAddOperations(); });
+                Parallel.For(0, this.maxParallel, (i) => { this.HandleAllFileAddOperations(); });
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("FilesWritten", this.fileWriteCount);
                 activity.Stop(metadata);
