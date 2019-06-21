@@ -76,7 +76,7 @@ namespace GVFS.CommandLine
             // Sort the dictionary to find the most hydrated directories by percentage
             List<KeyValuePair<string, decimal>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
 
-            this.Output.WriteLine("\nRepository health");
+            this.Output.WriteLine("\nHealth of directory: " + enlistmentHealthData.TargetDirectory);
             this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
             this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthData.PlaceholderPercentage));
             this.Output.WriteLine("Files managed by git (slow):          " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthData.ModifiedPathsPercentage));

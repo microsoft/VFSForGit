@@ -116,7 +116,10 @@ namespace GVFS.Common
                     {
                         // Trim the path to parent directory
                         string topDir = this.ParseTopDirectory(this.TrimDirectoryFromPath(path, parentDirectory));
-                        this.IncreaseDictionaryCounterByKey(directoryTracking, topDir);
+                        if (!topDir.Equals(GVFSConstants.GitPathSeparatorString))
+                        {
+                            this.IncreaseDictionaryCounterByKey(directoryTracking, topDir);
+                        }
                     }
                 }
             }

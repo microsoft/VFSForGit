@@ -129,8 +129,6 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(4.0m / 3.0m);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(0);
             this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(0);
-            this.enlistmentHealthData.DirectoryHydrationLevels[0].Key.ShouldEqual("/");
-            this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(1);
 
             this.enlistmentHealthData = this.GenerateStatistics("/B/");
 
@@ -139,8 +137,6 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(0);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(4);
             this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(4.0m / 3.0m);
-            this.enlistmentHealthData.DirectoryHydrationLevels[0].Key.ShouldEqual("/");
-            this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(1);
         }
 
         [TestCase]
