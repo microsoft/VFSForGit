@@ -118,6 +118,7 @@
     <Compile Include="CommandLine\DehydrateVerb.cs" />
     <Compile Include="CommandLine\DiagnoseVerb.cs" />
     <Compile Include="CommandLine\GVFSVerb.cs" />
+    <Compile Include="CommandLine\IncludeVerb.cs" />
     <Compile Include="CommandLine\LogVerb.cs" />
     <Compile Include="CommandLine\MountVerb.cs" />
     <Compile Include="CommandLine\PrefetchVerb.cs" />
