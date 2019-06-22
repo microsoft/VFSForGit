@@ -654,7 +654,9 @@ namespace GVFS.Virtualization.Projection
         {
             if (indexEntry.BuildingProjection_HasSameParentAsLastEntry)
             {
-                if (indexEntry.BuildingProjection_ShouldInclude || indexEntry.BuildingProjection_ShouldIncludeRecursive)
+                if (this.rootIncludedFolder.Children.Count == 0 ||
+                    indexEntry.BuildingProjection_ShouldInclude ||
+                    indexEntry.BuildingProjection_ShouldIncludeRecursive)
                 {
                     indexEntry.BuildingProjection_LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
                 }
@@ -711,32 +713,35 @@ namespace GVFS.Virtualization.Projection
         private void RefreshFoldersToInclude()
         {
             this.rootIncludedFolder.Children.Clear();
-            Dictionary<string, IncludedFolderData> parentFolder = this.rootIncludedFolder.Children;
-            foreach (string directoryPath in this.includedFolderCollection.GetAll())
+            if (this.includedFolderCollection != null)
             {
-                string[] folders = directoryPath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
-                for (int i = 0; i < folders.Length; i++)
+                Dictionary<string, IncludedFolderData> parentFolder = this.rootIncludedFolder.Children;
+                foreach (string directoryPath in this.includedFolderCollection.GetAll())
                 {
-                    IncludedFolderData folderData;
-                    if (!parentFolder.ContainsKey(folders[i]))
+                    string[] folders = directoryPath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                    for (int i = 0; i < folders.Length; i++)
                     {
-                        folderData = new IncludedFolderData();
-                        parentFolder.Add(folders[i], folderData);
-                    }
-                    else
-                    {
-                        folderData = parentFolder[folders[i]];
+                        IncludedFolderData folderData;
+                        if (!parentFolder.ContainsKey(folders[i]))
+                        {
+                            folderData = new IncludedFolderData();
+                            parentFolder.Add(folders[i], folderData);
+                        }
+                        else
+                        {
+                            folderData = parentFolder[folders[i]];
+                        }
+
+                        if (!folderData.IsRecursive)
+                        {
+                            folderData.IsRecursive = i == folders.Length - 1;
+                        }
+
+                        parentFolder = folderData.Children;
                     }
 
-                    if (!folderData.IsRecursive)
-                    {
-                        folderData.IsRecursive = i == folders.Length - 1;
-                    }
-
-                    parentFolder = folderData.Children;
+                    parentFolder = this.rootIncludedFolder.Children;
                 }
-
-                parentFolder = this.rootIncludedFolder.Children;
             }
         }
 
