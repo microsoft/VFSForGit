@@ -9,7 +9,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     public class RmTests : GitRepoTests
     {
         public RmTests()
-            : base(enlistmentPerTest: false, validateWorkingTree: false)
+            : base(enlistmentPerTest: false, validateWorkingTree: (int)ValidateWorkingTreeMode.None)
         {
         }
 

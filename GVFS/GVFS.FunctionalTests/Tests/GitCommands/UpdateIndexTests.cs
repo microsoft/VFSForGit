@@ -8,7 +8,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class UpdateIndexTests : GitRepoTests
     {
-        public UpdateIndexTests(bool validateWorkingTree)
+        public UpdateIndexTests(int validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

@@ -1,5 +1,4 @@
 ﻿using GVFS.FunctionalTests.Should;
-using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
@@ -8,7 +7,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class DeleteEmptyFolderTests : GitRepoTests
     {
-        public DeleteEmptyFolderTests(bool validateWorkingTree)
+        public DeleteEmptyFolderTests(int validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
@@ -20,7 +19,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.RunGitCommand("reset --hard HEAD");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
         }
 
         [TestCase]
@@ -30,7 +29,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.RunGitCommand("clean -fd");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
         }
 
         private void SetupFolderDeleteTest()

@@ -10,7 +10,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         // enumeration when they don't fit in a user's buffer
         private const string EnumerationReproCommitish = "FunctionalTests/20170602";
 
-        public EnumerationMergeTest(bool validateWorkingTree)
+        public EnumerationMergeTest(int validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

@@ -6,7 +6,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class RebaseConflictTests : GitRepoTests
     {
-        public RebaseConflictTests(bool validateWorkingTree)
+        public RebaseConflictTests(int validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

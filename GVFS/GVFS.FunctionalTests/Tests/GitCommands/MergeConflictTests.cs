@@ -8,7 +8,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class MergeConflictTests : GitRepoTests
     {
-        public MergeConflictTests(bool validateWorkingTree)
+        public MergeConflictTests(int validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

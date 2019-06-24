@@ -7,7 +7,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class ResetMixedTests : GitRepoTests
     {
-        public ResetMixedTests(bool validateWorkingTree)
+        public ResetMixedTests(int validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
@@ -101,17 +101,17 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // Then reset --mixed to the parent commit, and validate that the deleted files did not come back into the projection
             this.ValidateGitCommand("reset --mixed HEAD~1");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
 
             // And checkout a file (without changing branches) and ensure that that doesn't update the projection either
             this.ValidateGitCommand("checkout HEAD~2 .gitattributes");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
 
             // And now if we checkout the original commit, the deleted files should stay deleted
             this.ValidateGitCommand("checkout FunctionalTests/20170602");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
         }
 
         protected override void CreateEnlistment()

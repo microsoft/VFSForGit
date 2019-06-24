@@ -15,7 +15,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class CheckoutTests : GitRepoTests
     {
-        public CheckoutTests(bool validateWorkingTree)
+        public CheckoutTests(int validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
@@ -238,11 +238,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true, withinPrefixes: this.pathPrefixes);
 
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true, withinPrefixes: this.pathPrefixes);
 
             // Verify modified paths contents
             GVFSHelpers.ModifiedPathsContentsShouldEqual(this.Enlistment, this.FileSystem, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);

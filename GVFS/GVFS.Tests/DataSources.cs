@@ -1,5 +1,4 @@
-﻿using System;
-namespace GVFS.Tests
+﻿namespace GVFS.Tests
 {
     public class DataSources
     {
@@ -13,6 +12,17 @@ namespace GVFS.Tests
                      new object[] { false },
                 };
             }
+        }
+
+        public static object[] IntegerModes(int num)
+        {
+            object[] modes = new object[num];
+            for (int i = 0; i < num; i++)
+            {
+                modes[i] = new object[] { i };
+            }
+
+            return modes;
         }
     }
 }

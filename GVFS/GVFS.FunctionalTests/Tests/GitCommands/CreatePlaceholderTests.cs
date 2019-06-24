@@ -13,7 +13,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     {
         private static readonly string FileToRead = Path.Combine("GVFS", "GVFS", "Program.cs");
 
-        public CreatePlaceholderTests(bool validateWorkingTree)
+        public CreatePlaceholderTests(int validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
