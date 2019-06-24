@@ -88,9 +88,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 {
                     "# A comment",
                     " ",
-                    "gvfs/",
-                    "gvfs/gvfs",
-                    "gvfs/"
+                    "GVFS/",
+                    "GVFS/GVFS",
+                    "GVFS/"
                 });
 
             this.ExpectBlobCount(this.Enlistment.Prefetch("--folders-list \"" + tempFilePath + "\""), 279);
@@ -166,7 +166,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 new[]
                 {
                     Path.Combine("GVFS", "GVFS", "packages.config"),
-                    Path.Combine("GVFS", "GVFS.FunctionalTests", "App.config")
+                    Path.Combine("GVFS", "GVFS.FunctionalTests", "app.config")
                 });
 
             this.ExpectBlobCount(this.Enlistment.Prefetch("--stdin-files-list", standardInput: input), 2);
@@ -181,9 +181,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 {
                     "# A comment",
                     " ",
-                    "gvfs/",
-                    "gvfs/gvfs",
-                    "gvfs/"
+                    "GVFS/",
+                    "GVFS/GVFS",
+                    "GVFS/"
                 });
 
             this.ExpectBlobCount(this.Enlistment.Prefetch("--stdin-folders-list", standardInput: input), 279);
