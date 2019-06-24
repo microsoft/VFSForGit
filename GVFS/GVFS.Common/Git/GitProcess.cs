@@ -468,9 +468,19 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot("checkout -f " + target, useReadObjectHook: false);
         }
 
-        public Result Status(bool allowObjectDownloads, bool useStatusCache)
+        public Result Status(bool allowObjectDownloads, bool useStatusCache, bool showUntracked = false)
         {
-            string command = useStatusCache ? "status" : "status --no-deserialize";
+            string command = "status";
+            if (!useStatusCache)
+            {
+                command += " --no-deserialize";
+            }
+
+            if (showUntracked)
+            {
+                command += " -uall";
+            }
+
             return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: allowObjectDownloads);
         }
 
