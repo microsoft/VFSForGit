@@ -421,6 +421,41 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
+        public bool IsPathExcluded(string virtualPath)
+        {
+            this.GetChildNameAndParentKey(virtualPath, out string fileName, out string parentKey);
+            FolderEntryData data = this.GetProjectedFolderEntryData(
+                blobSizesConnection: null,
+                childName: fileName,
+                parentKey: parentKey);
+
+            return !(data != null && data.IsIncluded);
+        }
+
+        public bool TryAddIncludedFolder(string virtualPath)
+        {
+            try
+            {
+                this.GetChildNameAndParentKey(virtualPath, out string fileName, out string parentKey);
+                FolderEntryData data = this.GetProjectedFolderEntryData(
+                    blobSizesConnection: null,
+                    childName: fileName,
+                    parentKey: parentKey);
+
+                if (data != null && !data.IsIncluded)
+                {
+                    data.Include();
+                    this.includedFolderCollection.Add(virtualPath);
+                }
+
+                return true;
+            }
+            catch (GVFSDatabaseException)
+            {
+                return false;
+            }
+        }
+
         public virtual bool IsPathProjected(string virtualPath, out string fileName, out bool isFolder)
         {
             isFolder = false;
@@ -431,7 +466,7 @@ namespace GVFS.Virtualization.Projection
                 childName: fileName,
                 parentKey: parentKey);
 
-            if (data != null)
+            if (data != null && data.IsIncluded)
             {
                 isFolder = data.IsFolder;
                 return true;
@@ -459,7 +494,7 @@ namespace GVFS.Virtualization.Projection
                 parentKey: parentKey,
                 gitCasedChildName: out gitCasedChildName);
 
-            if (data != null)
+            if (data != null && data.IsIncluded)
             {
                 if (data.IsFolder)
                 {
@@ -632,18 +667,22 @@ namespace GVFS.Virtualization.Projection
         private static List<ProjectedFileInfo> ConvertToProjectedFileInfos(SortedFolderEntries sortedFolderEntries)
         {
             List<ProjectedFileInfo> childItems = new List<ProjectedFileInfo>(sortedFolderEntries.Count);
+            FolderEntryData childEntry;
             for (int i = 0; i < sortedFolderEntries.Count; i++)
             {
-                FolderEntryData childEntry = sortedFolderEntries[i];
+                childEntry = sortedFolderEntries[i];
 
-                if (childEntry.IsFolder)
+                if (childEntry.IsIncluded)
                 {
-                    childItems.Add(new ProjectedFileInfo(childEntry.Name.GetString(), size: 0, isFolder: true, sha: Sha1Id.None));
-                }
-                else
-                {
-                    FileData fileData = (FileData)childEntry;
-                    childItems.Add(new ProjectedFileInfo(fileData.Name.GetString(), fileData.Size, isFolder: false, sha: fileData.Sha));
+                    if (childEntry.IsFolder)
+                    {
+                        childItems.Add(new ProjectedFileInfo(childEntry.Name.GetString(), size: 0, isFolder: true, sha: Sha1Id.None));
+                    }
+                    else
+                    {
+                        FileData fileData = (FileData)childEntry;
+                        childItems.Add(new ProjectedFileInfo(fileData.Name.GetString(), fileData.Size, isFolder: false, sha: fileData.Sha));
+                    }
                 }
             }
 
@@ -654,12 +693,7 @@ namespace GVFS.Virtualization.Projection
         {
             if (indexEntry.BuildingProjection_HasSameParentAsLastEntry)
             {
-                if (this.rootIncludedFolder.Children.Count == 0 ||
-                    indexEntry.BuildingProjection_ShouldInclude ||
-                    indexEntry.BuildingProjection_ShouldIncludeRecursive)
-                {
-                    indexEntry.BuildingProjection_LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
-                }
+                indexEntry.BuildingProjection_LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
             }
             else
             {
@@ -832,6 +866,8 @@ namespace GVFS.Virtualization.Projection
                     throw new InvalidDataException("Found a file (" + parentFolderName + ") where a folder was expected: " + gitPath);
                 }
 
+                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.BuildingProjection_PathParts[pathIndex]);
+
                 if (this.rootIncludedFolder.Children.Count > 0)
                 {
                     if (indexEntry.BuildingProjection_LastEntryIncludedFolder == null)
@@ -854,15 +890,10 @@ namespace GVFS.Virtualization.Projection
                             indexEntry.BuildingProjection_ShouldIncludeRecursive = false;
                             indexEntry.BuildingProjection_LastEntryIncludedFolder = null;
                         }
-
-                        if (!indexEntry.BuildingProjection_ShouldInclude)
-                        {
-                            return parentFolder;
-                        }
                     }
-                }
 
-                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.BuildingProjection_PathParts[pathIndex]);
+                    parentFolder.IsIncluded = indexEntry.BuildingProjection_ShouldInclude || indexEntry.BuildingProjection_ShouldIncludeRecursive;
+                }
             }
 
             parentFolder.AddChildFile(indexEntry.BuildingProjection_PathParts[indexEntry.BuildingProjection_NumParts - 1], indexEntry.Sha);
