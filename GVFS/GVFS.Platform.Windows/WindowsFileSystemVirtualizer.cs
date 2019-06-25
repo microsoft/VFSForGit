@@ -1003,31 +1003,9 @@ namespace GVFS.Platform.Windows
                     if (isDirectory)
                     {
                         GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
-                        if (gitCommand.IsValidGitCommand)
+                        if (gitCommand.IsValidGitCommand || this.FileSystemCallbacks.OnFolderCreated(virtualPath))
                         {
-                            string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
-                            HResult hr = this.virtualizationInstance.MarkDirectoryAsPlaceholder(
-                                directoryPath,
-                                FolderContentId,
-                                PlaceholderVersionId);
-
-                            if (hr == HResult.Ok)
-                            {
-                                this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath, triggeringProcessImageFileName);
-                            }
-                            else
-                            {
-                                EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                                metadata.Add("isDirectory", isDirectory);
-                                metadata.Add("triggeringProcessId", triggeringProcessId);
-                                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                                metadata.Add("HResult", hr.ToString());
-                                this.Context.Tracer.RelatedError(metadata, nameof(this.NotifyNewFileCreatedHandler) + "_" + nameof(this.virtualizationInstance.MarkDirectoryAsPlaceholder) + " error");
-                            }
-                        }
-                        else
-                        {
-                            this.FileSystemCallbacks.OnFolderCreated(virtualPath);
+                            this.MarkDirectoryAsPlaceholder(virtualPath, isDirectory, triggeringProcessId, triggeringProcessImageFileName);
                         }
                     }
                     else
@@ -1043,6 +1021,33 @@ namespace GVFS.Platform.Windows
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 this.LogUnhandledExceptionAndExit(nameof(this.NotifyNewFileCreatedHandler), metadata);
+            }
+        }
+
+        private void MarkDirectoryAsPlaceholder(
+            string virtualPath,
+            bool isDirectory,
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName)
+        {
+            string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
+            HResult hr = this.virtualizationInstance.MarkDirectoryAsPlaceholder(
+                directoryPath,
+                FolderContentId,
+                PlaceholderVersionId);
+
+            if (hr == HResult.Ok)
+            {
+                this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath, triggeringProcessImageFileName);
+            }
+            else
+            {
+                EventMetadata metadata = this.CreateEventMetadata(virtualPath);
+                metadata.Add("isDirectory", true);
+                metadata.Add("triggeringProcessId", triggeringProcessId);
+                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                metadata.Add("HResult", hr.ToString());
+                this.Context.Tracer.RelatedError(metadata, nameof(this.NotifyNewFileCreatedHandler) + "_" + nameof(this.virtualizationInstance.MarkDirectoryAsPlaceholder) + " error");
             }
         }
 
