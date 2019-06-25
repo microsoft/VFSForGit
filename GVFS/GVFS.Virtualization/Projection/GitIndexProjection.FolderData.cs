@@ -21,6 +21,7 @@ namespace GVFS.Virtualization.Projection
             {
                 this.Name = name;
                 this.ChildrenHaveSizes = false;
+                this.IsIncluded = true;
                 if (this.ChildEntries == null)
                 {
                     this.ChildEntries = new SortedFolderEntries();
@@ -37,6 +38,15 @@ namespace GVFS.Virtualization.Projection
             public FileData AddChildFile(LazyUTF8String name, byte[] shaBytes)
             {
                 return this.ChildEntries.AddFile(name, shaBytes);
+            }
+
+            public override void Include()
+            {
+                base.Include();
+                for (int i = 0; i < this.ChildEntries.Count; i++)
+                {
+                    this.ChildEntries[i].Include();
+                }
             }
 
             public void PopulateSizes(
