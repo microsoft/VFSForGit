@@ -583,7 +583,7 @@ namespace GVFS.Common.Git
         public Result LsFiles(Action<string> parseStdOutLine, bool showSkipTreeBit = false)
         {
             return this.InvokeGitInWorkingDirectoryRoot(
-                "ls-files " + (showSkipTreeBit ? "-sv " : string.Empty),
+                "ls-files " + (showSkipTreeBit ? "-v " : string.Empty),
                 useReadObjectHook: false,
                 parseStdOutLine: parseStdOutLine);
         }

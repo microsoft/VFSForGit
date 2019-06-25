@@ -198,8 +198,7 @@ namespace GVFS.Common
                 for (int i = 0; i < paths.Count; i++)
                 {
                     paths[i] = paths[i].Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
-                    paths[i] = paths[i].TrimStart(GVFSConstants.GitPathSeparator);
-                    paths[i] = paths[i].TrimEnd(GVFSConstants.GitPathSeparator);
+                    paths[i] = paths[i].Trim(GVFSConstants.GitPathSeparator);
                 }
             }
         }

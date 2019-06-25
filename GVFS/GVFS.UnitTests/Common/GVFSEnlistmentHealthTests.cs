@@ -8,6 +8,8 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class GVFSEnlistmentHealthTests
     {
+        private readonly char sep = GVFSPlatform.GVFSPlatformConstants.PathSeparator;
+
         private List<string> fauxGitFiles = new List<string>();
         private List<string> fauxGitFolders = new List<string>();
         private List<string> fauxPlaceholderFiles = new List<string>();
@@ -86,7 +88,7 @@ namespace GVFS.UnitTests.Common
         public void VariedDirectoryFormatting()
         {
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js" });
-            this.fauxPlaceholderFolders.AddRange(new string[] { "/A/", @"\B\", "A/", @"B\", "/A", @"\B", "A", "B" });
+            this.fauxPlaceholderFolders.AddRange(new string[] { "/A/", $"{this.sep}B{this.sep}", "A/", $"B{this.sep}", "/A", $"{this.sep}B", "A", "B" });
 
             this.enlistmentHealthData = this.GenerateStatistics(string.Empty);
 
@@ -100,8 +102,8 @@ namespace GVFS.UnitTests.Common
         public void VariedFilePathFormatting()
         {
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js" });
-            this.fauxPlaceholderFiles.AddRange(new string[] { "A/1.js", @"A\2.js", "/A/1.js", @"\A\1.js" });
-            this.fauxModifiedPathsFiles.AddRange(new string[] { "B/1.js", @"B\2.js", "/B/1.js", @"\B\1.js" });
+            this.fauxPlaceholderFiles.AddRange(new string[] { "A/1.js", $"A{this.sep}2.js", "/A/1.js", $"{this.sep}A{this.sep}1.js" });
+            this.fauxModifiedPathsFiles.AddRange(new string[] { "B/1.js", $"B{this.sep}2.js", "/B/1.js", $"{this.sep}B{this.sep}1.js" });
 
             this.enlistmentHealthData = this.GenerateStatistics(string.Empty);
 
@@ -119,8 +121,8 @@ namespace GVFS.UnitTests.Common
         public void FilterByDirectory()
         {
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js" });
-            this.fauxPlaceholderFiles.AddRange(new string[] { "A/1.js", @"A\2.js", "/A/1.js", @"\A\1.js" });
-            this.fauxModifiedPathsFiles.AddRange(new string[] { "B/1.js", @"B\2.js", "/B/1.js", @"\B\1.js" });
+            this.fauxPlaceholderFiles.AddRange(new string[] { "A/1.js", $"A{this.sep}2.js", "/A/1.js", $"{this.sep}A{this.sep}1.js" });
+            this.fauxModifiedPathsFiles.AddRange(new string[] { "B/1.js", $"B{this.sep}2.js", "/B/1.js", $"{this.sep}B{this.sep}1.js" });
 
             this.enlistmentHealthData = this.GenerateStatistics("A/");
 
@@ -191,7 +193,7 @@ namespace GVFS.UnitTests.Common
         {
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js" });
             this.fauxModifiedPathsFiles.AddRange(new string[] { "A/1.js", "A/2.js", "/A/3.js", "B/1.js", "B/2.js", "B/3.js" });
-            this.fauxSkipWorktreeFiles.AddRange(new string[] { "A/1.js", "/A/2.js", "\\A/3.js", "B/1.js", "B\\2.js", "/B\\3.js" });
+            this.fauxSkipWorktreeFiles.AddRange(new string[] { "A/1.js", "/A/2.js", $"{this.sep}A/3.js", "B/1.js", $"B{this.sep}2.js", $"/B{this.sep}3.js" });
 
             this.enlistmentHealthData = this.GenerateStatistics(string.Empty);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(6);
