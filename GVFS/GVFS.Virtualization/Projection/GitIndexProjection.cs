@@ -774,7 +774,7 @@ namespace GVFS.Virtualization.Projection
 
                         if (!folderData.IsRecursive)
                         {
-                            folderData.IsRecursive = i == folders.Length - 1;
+                            folderData.IsRecursive = (i == folders.Length - 1);
                         }
 
                         parentFolder = folderData.Children;
