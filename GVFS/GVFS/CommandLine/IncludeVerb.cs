@@ -11,7 +11,7 @@ using System.Text;
 
 namespace GVFS.CommandLine
 {
-    [Verb(IncludeVerb.IncludeVerbName, HelpText = "Clone a git repo and mount it as a GVFS virtual repo")]
+    [Verb(IncludeVerb.IncludeVerbName, HelpText = "List, add, or Remove from the list of folder that are included to project")]
     public class IncludeVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string IncludeVerbName = "include";
@@ -60,9 +60,16 @@ namespace GVFS.CommandLine
                         if (this.List)
                         {
                             List<string> directories = includedFolderTable.GetAll();
-                            foreach (string directory in directories)
+                            if (directories.Count == 0)
                             {
-                                this.Output.WriteLine(directory);
+                                this.Output.WriteLine("No folders in included list.");
+                            }
+                            else
+                            {
+                                foreach (string directory in directories)
+                                {
+                                    this.Output.WriteLine(directory);
+                                }
                             }
 
                             return;
@@ -88,7 +95,7 @@ namespace GVFS.CommandLine
                         }
                     }
 
-                    // Force a projection update
+                    // Force a projection update to get the current inclusion set
                     this.ForceProjectionChange(tracer, enlistment);
                 }
                 catch (Exception e)
