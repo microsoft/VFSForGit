@@ -394,18 +394,20 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             virtualFilePath.ShouldBeAFile(this.FileSystem).WithContents(controlFilePath.ShouldBeAFile(this.FileSystem).WithContents());
         }
 
-        protected void FileShouldHaveCaseMatchingName(string filePath, string caseSensitiveName)
+        protected void FileShouldHaveCaseMatchingName(string caseSensitiveFilePath)
         {
-            string virtualFilePath = Path.Combine(this.Enlistment.RepoRoot, filePath);
-            string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filePath);
+            string virtualFilePath = Path.Combine(this.Enlistment.RepoRoot, caseSensitiveFilePath);
+            string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, caseSensitiveFilePath);
+            string caseSensitiveName = Path.GetFileName(caseSensitiveFilePath);
             virtualFilePath.ShouldBeAFile(this.FileSystem).WithCaseMatchingName(caseSensitiveName);
             controlFilePath.ShouldBeAFile(this.FileSystem).WithCaseMatchingName(caseSensitiveName);
         }
 
-        protected void FolderShouldHaveCaseMatchingName(string folderPath, string caseSensitiveName)
+        protected void FolderShouldHaveCaseMatchingName(string caseSensitiveFolderPath)
         {
-            string virtualFolderPath = Path.Combine(this.Enlistment.RepoRoot, folderPath);
-            string controlFolderPath = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
+            string virtualFolderPath = Path.Combine(this.Enlistment.RepoRoot, caseSensitiveFolderPath);
+            string controlFolderPath = Path.Combine(this.ControlGitRepo.RootPath, caseSensitiveFolderPath);
+            string caseSensitiveName = Path.GetFileName(caseSensitiveFolderPath);
             virtualFolderPath.ShouldBeADirectory(this.FileSystem).WithCaseMatchingName(caseSensitiveName);
             controlFolderPath.ShouldBeADirectory(this.FileSystem).WithCaseMatchingName(caseSensitiveName);
         }
