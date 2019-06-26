@@ -711,6 +711,7 @@ namespace GVFS.Virtualization
                     if (this.GitIndexProjection.IsPathExcluded(gitUpdate.VirtualPath))
                     {
                         bool added = this.GitIndexProjection.TryAddIncludedFolder(gitUpdate.VirtualPath);
+                        this.InvalidateGitStatusCache();
                         result = added ? FileSystemTaskResult.Success : FileSystemTaskResult.RetryableError;
                     }
                     else
