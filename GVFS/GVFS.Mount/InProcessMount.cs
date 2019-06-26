@@ -23,7 +23,6 @@ namespace GVFS.Mount
         // Tests show that 250 is the max supported pipe name length
         private const int MaxPipeNameLength = 250;
         private const int MutexMaxWaitTimeMS = 500;
-        private const string ModifiedPathsVersion = "1";
 
         private readonly bool showDebugWindow;
 
@@ -386,7 +385,7 @@ namespace GVFS.Mount
             }
             else
             {
-                if (request.Version != ModifiedPathsVersion)
+                if (request.Version != NamedPipeMessages.ModifiedPaths.CurrentVersion)
                 {
                     response = new NamedPipeMessages.ModifiedPaths.Response(NamedPipeMessages.ModifiedPaths.InvalidVersion);
                 }
