@@ -233,6 +233,8 @@ namespace GVFS.UnitTests.Mock.Common
             {
                 get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "wish", "bash" }; }
             }
+
+            public override bool SupportsUpgradeWhileRunning => false;
         }
     }
 }

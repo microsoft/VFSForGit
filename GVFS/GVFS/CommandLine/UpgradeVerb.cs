@@ -244,6 +244,7 @@ namespace GVFS.CommandLine
         {
             string upgraderPath = null;
             string errorMessage = null;
+            bool supportsInlineUpgrade = GVFSPlatform.Instance.Constants.SupportsUpgradeWhileRunning;
 
             this.ReportInfoToConsole("Launching upgrade tool...");
 
@@ -252,12 +253,24 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            if (!this.TryLaunchUpgradeTool(upgraderPath, out errorMessage))
+            if (!this.TryLaunchUpgradeTool(
+                    upgraderPath,
+                    runUpgradeInline: supportsInlineUpgrade,
+                    consoleError: out errorMessage))
             {
                 return false;
             }
 
-            this.ReportInfoToConsole($"{Environment.NewLine}Installer launched in a new window. Do not run any git or gvfs commands until the installer has completed.");
+            if (supportsInlineUpgrade)
+            {
+                this.processLauncher.WaitForExit();
+                this.ReportInfoToConsole($"{Environment.NewLine}Upgrade completed.");
+            }
+            else
+            {
+                this.ReportInfoToConsole($"{Environment.NewLine}Installer launched in a new window. Do not run any git or gvfs commands until the installer has completed.");
+            }
+
             consoleError = null;
             return true;
         }
@@ -279,13 +292,16 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryLaunchUpgradeTool(string path, out string consoleError)
+        private bool TryLaunchUpgradeTool(string path, bool runUpgradeInline, out string consoleError)
         {
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryLaunchUpgradeTool), EventLevel.Informational))
             {
                 Exception exception;
                 string args = string.Empty + (this.DryRun ? $" {DryRunOption}" : string.Empty) + (this.NoVerify ? $" {NoVerifyOption}" : string.Empty);
-                if (!this.processLauncher.TryStart(path, args, out exception))
+
+                // If the upgrade application is being run "inline" with the current process, then do not run the installer via the
+                // shell - we want the upgrade process to inherit the current terminal's stdin / stdout / sterr
+                if (!this.processLauncher.TryStart(path, args, !runUpgradeInline, out exception))
                 {
                     if (exception != null)
                     {
@@ -385,11 +401,16 @@ namespace GVFS.CommandLine
                 get { return this.Process.ExitCode; }
             }
 
-            public virtual bool TryStart(string path, string args, out Exception exception)
+            public virtual void WaitForExit()
+            {
+                this.Process.WaitForExit();
+            }
+
+            public virtual bool TryStart(string path, string args, bool useShellExecute, out Exception exception)
             {
                 this.Process.StartInfo = new ProcessStartInfo(path)
                 {
-                    UseShellExecute = true,
+                    UseShellExecute = useShellExecute,
                     WorkingDirectory = Environment.SystemDirectory,
                     WindowStyle = ProcessWindowStyle.Normal,
                     Arguments = args
