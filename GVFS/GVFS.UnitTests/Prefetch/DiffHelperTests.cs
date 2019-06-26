@@ -54,7 +54,7 @@ namespace GVFS.UnitTests.Prefetch
         {
             MockTracer tracer = new MockTracer();
             DiffHelper diffForwards = new DiffHelper(tracer, new MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
-            diffForwards.ParseDiffFile(GetDataPath("forward.txt"), "xx:\\fakeRepo");
+            diffForwards.ParseDiffFile(GetDataPath("forward.txt"));
 
             // File added, file edited, file renamed, folder => file, edit-rename file, SymLink added (if applicable)
             // Children of: Add folder, Renamed folder, edited folder, file => folder
@@ -82,7 +82,7 @@ namespace GVFS.UnitTests.Prefetch
         {
             MockTracer tracer = new MockTracer();
             DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
-            diffBackwards.ParseDiffFile(GetDataPath("backward.txt"), "xx:\\fakeRepo");
+            diffBackwards.ParseDiffFile(GetDataPath("backward.txt"));
 
             // File > folder, deleted file, edited file, renamed file, rename-edit file
             // Children of file > folder, renamed folder, deleted folder, recursive delete file, edited folder
@@ -106,7 +106,7 @@ namespace GVFS.UnitTests.Prefetch
         {
             MockTracer tracer = new MockTracer();
             DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
-            diffBackwards.ParseDiffFile(GetDataPath("caseChange.txt"), "xx:\\fakeRepo");
+            diffBackwards.ParseDiffFile(GetDataPath("caseChange.txt"));
 
             diffBackwards.RequiredBlobs.Count.ShouldEqual(2);
             diffBackwards.FileAddOperations.Sum(list => list.Value.Count).ShouldEqual(2);

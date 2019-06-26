@@ -213,7 +213,7 @@ namespace FastFetch
                     addedOrEditedLocalFiles,
                     (localPath) =>
                     {
-                        string gitPath = FromDotnetFullPathToGitRelativePath(localPath, this.repoRoot);
+                        string gitPath = localPath.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
                         long offset;
                         if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                         {

@@ -160,6 +160,8 @@ namespace FastFetch
             DiffTreeResult treeOp;
             while (this.diff.DirectoryOperations.TryDequeue(out treeOp))
             {
+                string absoluteTargetPath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, treeOp.TargetPath);
+
                 if (this.HasFailures)
                 {
                     return;
@@ -171,13 +173,13 @@ namespace FastFetch
                     case DiffTreeResult.Operations.Add:
                         try
                         {
-                            Directory.CreateDirectory(treeOp.TargetPath);
+                            Directory.CreateDirectory(absoluteTargetPath);
                         }
                         catch (Exception ex)
                         {
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("Operation", "CreateDirectory");
-                            metadata.Add(nameof(treeOp.TargetPath), treeOp.TargetPath);
+                            metadata.Add(nameof(treeOp.TargetPath), absoluteTargetPath);
                             this.tracer.RelatedError(metadata, ex.Message);
                             this.HasFailures = true;
                         }
@@ -186,19 +188,19 @@ namespace FastFetch
                     case DiffTreeResult.Operations.Delete:
                         try
                         {
-                            if (Directory.Exists(treeOp.TargetPath))
+                            if (Directory.Exists(absoluteTargetPath))
                             {
-                                this.fileSystem.DeleteDirectory(treeOp.TargetPath);
+                                this.fileSystem.DeleteDirectory(absoluteTargetPath);
                             }
                         }
                         catch (Exception ex)
                         {
                             // We are deleting directories and subdirectories in parallel
-                            if (Directory.Exists(treeOp.TargetPath))
+                            if (Directory.Exists(absoluteTargetPath))
                             {
                                 EventMetadata metadata = new EventMetadata();
                                 metadata.Add("Operation", "DeleteDirectory");
-                                metadata.Add(nameof(treeOp.TargetPath), treeOp.TargetPath);
+                                metadata.Add(nameof(treeOp.TargetPath), absoluteTargetPath);
                                 this.tracer.RelatedError(metadata, ex.Message);
                                 this.HasFailures = true;
                             }
@@ -206,7 +208,7 @@ namespace FastFetch
 
                         break;
                     default:
-                        this.tracer.RelatedError("Ignoring unexpected Tree Operation {0}: {1}", treeOp.TargetPath, treeOp.Operation);
+                        this.tracer.RelatedError("Ignoring unexpected Tree Operation {0}: {1}", absoluteTargetPath, treeOp.Operation);
                         continue;
                 }
 

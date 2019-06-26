@@ -18,7 +18,6 @@ namespace GVFS.UnitTests.Prefetch
         private const string TestTreePath2 = "Test/directory with blob and spaces";
         private const string TestBlobPath1 = "Test/file with spaces.txt";
         private const string TestBlobPath2 = "Test/file with tree and spaces.txt";
-        private static readonly string RepoRoot = Path.Combine("C:", "root");
 
         private static readonly string MissingColonLineFromDiffTree = $"040000 040000 {TestSha1} {Test2Sha1} M\t{TestTreePath1}";
         private static readonly string TooManyFieldsLineFromDiffTree = $":040000 040000 {TestSha1} {Test2Sha1} M BadData\t{TestTreePath1}";
@@ -43,21 +42,14 @@ namespace GVFS.UnitTests.Prefetch
         [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromDiffTreeLine_NullLine()
         {
-            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(null, RepoRoot));
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(null));
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromDiffTreeLine_EmptyLine()
         {
-            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(string.Empty, RepoRoot));
-        }
-
-        [TestCase]
-        [Category(CategoryConstants.ExceptionExpected)]
-        public void ParseFromDiffTreeLine_NullRepo()
-        {
-            Assert.Throws<ArgumentNullException>(() => DiffTreeResult.ParseFromDiffTreeLine(ModifyTreeLineFromDiffTree, null));
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(string.Empty));
         }
 
         [TestCase]
@@ -74,7 +66,7 @@ namespace GVFS.UnitTests.Prefetch
                 TargetSha = Test2Sha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(ModifyTreeLineFromDiffTree, string.Empty);
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(ModifyTreeLineFromDiffTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -82,21 +74,14 @@ namespace GVFS.UnitTests.Prefetch
         [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromLsTreeLine_NullLine()
         {
-            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromLsTreeLine(null, RepoRoot));
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromLsTreeLine(null));
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromLsTreeLine_EmptyLine()
         {
-            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromLsTreeLine(string.Empty, RepoRoot));
-        }
-
-        [TestCase]
-        [Category(CategoryConstants.ExceptionExpected)]
-        public void ParseFromLsTreeLine_NullRepoRoot()
-        {
-            Assert.Throws<ArgumentNullException>(() => DiffTreeResult.ParseFromLsTreeLine(BlobLineFromLsTree, null));
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromLsTreeLine(string.Empty));
         }
 
         [TestCase]
@@ -112,7 +97,7 @@ namespace GVFS.UnitTests.Prefetch
                 TargetSha = TestSha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(BlobLineFromLsTree, string.Empty);
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(BlobLineFromLsTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -124,12 +109,12 @@ namespace GVFS.UnitTests.Prefetch
                 Operation = DiffTreeResult.Operations.Add,
                 SourceIsDirectory = false,
                 TargetIsDirectory = false,
-                TargetPath = Path.Combine(RepoRoot, TestTreePath1.Replace('/', Path.DirectorySeparatorChar)),
+                TargetPath = TestTreePath1.Replace('/', Path.DirectorySeparatorChar),
                 SourceSha = null,
                 TargetSha = TestSha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(BlobLineFromLsTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(BlobLineFromLsTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -146,35 +131,35 @@ namespace GVFS.UnitTests.Prefetch
                 TargetSha = null
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(TreeLineFromLsTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(TreeLineFromLsTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
         [TestCase]
         public void ParseFromLsTreeLine_InvalidLine()
         {
-            DiffTreeResult.ParseFromLsTreeLine(InvalidLineFromLsTree, RepoRoot).ShouldBeNull();
+            DiffTreeResult.ParseFromLsTreeLine(InvalidLineFromLsTree).ShouldBeNull();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromDiffTreeLine_NoColonLine()
         {
-            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(MissingColonLineFromDiffTree, RepoRoot));
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(MissingColonLineFromDiffTree));
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromDiffTreeLine_TooManyFieldsLine()
         {
-            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(TooManyFieldsLineFromDiffTree, RepoRoot));
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(TooManyFieldsLineFromDiffTree));
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromDiffTreeLine_NotEnoughFieldsLine()
         {
-            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(NotEnoughFieldsLineFromDiffTree, RepoRoot));
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(NotEnoughFieldsLineFromDiffTree));
         }
 
         [TestCase]
@@ -182,7 +167,7 @@ namespace GVFS.UnitTests.Prefetch
         [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromDiffTreeLine_TwoPathLine()
         {
-            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(TwoPathLineFromDiffTree, RepoRoot));
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(TwoPathLineFromDiffTree));
         }
 
         [TestCase]
@@ -198,7 +183,7 @@ namespace GVFS.UnitTests.Prefetch
                 TargetSha = Test2Sha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(ModifyTreeLineFromDiffTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(ModifyTreeLineFromDiffTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -215,7 +200,7 @@ namespace GVFS.UnitTests.Prefetch
                 TargetSha = EmptySha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(DeleteTreeLineFromDiffTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(DeleteTreeLineFromDiffTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -232,7 +217,7 @@ namespace GVFS.UnitTests.Prefetch
                 TargetSha = Test2Sha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(AddTreeLineFromDiffTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(AddTreeLineFromDiffTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -244,12 +229,12 @@ namespace GVFS.UnitTests.Prefetch
                 Operation = DiffTreeResult.Operations.Add,
                 SourceIsDirectory = false,
                 TargetIsDirectory = false,
-                TargetPath = Path.Combine(RepoRoot, TestBlobPath1.Replace('/', Path.DirectorySeparatorChar)),
+                TargetPath = TestBlobPath1.Replace('/', Path.DirectorySeparatorChar),
                 SourceSha = EmptySha1,
                 TargetSha = Test2Sha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(AddBlobLineFromDiffTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(AddBlobLineFromDiffTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -261,12 +246,12 @@ namespace GVFS.UnitTests.Prefetch
                 Operation = DiffTreeResult.Operations.Delete,
                 SourceIsDirectory = false,
                 TargetIsDirectory = false,
-                TargetPath = Path.Combine(RepoRoot, TestBlobPath1.Replace('/', Path.DirectorySeparatorChar)),
+                TargetPath = TestBlobPath1.Replace('/', Path.DirectorySeparatorChar),
                 SourceSha = TestSha1,
                 TargetSha = EmptySha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(DeleteBlobLineFromDiffTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(DeleteBlobLineFromDiffTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -278,12 +263,12 @@ namespace GVFS.UnitTests.Prefetch
                 Operation = DiffTreeResult.Operations.Delete,
                 SourceIsDirectory = false,
                 TargetIsDirectory = false,
-                TargetPath = Path.Combine(RepoRoot, TestBlobPath1.Replace('/', Path.DirectorySeparatorChar)),
+                TargetPath = TestBlobPath1.Replace('/', Path.DirectorySeparatorChar),
                 SourceSha = TestSha1,
                 TargetSha = EmptySha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(DeleteBlobLineFromDiffTree2, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(DeleteBlobLineFromDiffTree2);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -295,12 +280,12 @@ namespace GVFS.UnitTests.Prefetch
                 Operation = DiffTreeResult.Operations.Modify,
                 SourceIsDirectory = false,
                 TargetIsDirectory = false,
-                TargetPath = Path.Combine(RepoRoot, TestBlobPath1.Replace('/', Path.DirectorySeparatorChar)),
+                TargetPath = TestBlobPath1.Replace('/', Path.DirectorySeparatorChar),
                 SourceSha = TestSha1,
                 TargetSha = Test2Sha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(ModifyBlobLineFromDiffTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(ModifyBlobLineFromDiffTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -313,12 +298,12 @@ namespace GVFS.UnitTests.Prefetch
                 SourceIsDirectory = false,
                 TargetIsDirectory = false,
                 TargetIsSymLink = true,
-                TargetPath = Path.Combine(RepoRoot, TestTreePath1.Replace('/', Path.DirectorySeparatorChar)),
+                TargetPath = TestTreePath1.Replace('/', Path.DirectorySeparatorChar),
                 SourceSha = null,
                 TargetSha = TestSha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(SymLinkLineFromLsTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(SymLinkLineFromLsTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -335,7 +320,7 @@ namespace GVFS.UnitTests.Prefetch
                 TargetSha = null
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(TreeLineWithBlobPathFromLsTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(TreeLineWithBlobPathFromLsTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -347,12 +332,12 @@ namespace GVFS.UnitTests.Prefetch
                 Operation = DiffTreeResult.Operations.Add,
                 SourceIsDirectory = false,
                 TargetIsDirectory = false,
-                TargetPath = Path.Combine(RepoRoot, TestBlobPath2.Replace('/', Path.DirectorySeparatorChar)),
+                TargetPath = TestBlobPath2.Replace('/', Path.DirectorySeparatorChar),
                 SourceSha = null,
                 TargetSha = TestSha1
             };
 
-            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(BlobLineWithTreePathFromLsTree, RepoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(BlobLineWithTreePathFromLsTree);
             this.ValidateDiffTreeResult(expected, result);
         }
 
@@ -370,7 +355,7 @@ namespace GVFS.UnitTests.Prefetch
 
         private static string CreateTreePath(string testPath)
         {
-            return Path.Combine(RepoRoot, testPath.Replace('/', Path.DirectorySeparatorChar)) + Path.DirectorySeparatorChar;
+            return testPath.Replace('/', Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         }
 
         private void ValidateDiffTreeResult(DiffTreeResult expected, DiffTreeResult actual)
