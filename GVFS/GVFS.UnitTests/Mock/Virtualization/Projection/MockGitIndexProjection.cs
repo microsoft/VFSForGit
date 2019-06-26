@@ -67,6 +67,11 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             return this.ProjectionParseComplete;
         }
 
+        public override bool IsPathExcluded(string virtualPath)
+        {
+            return true;
+        }
+
         public void BlockGetProjectedItems(bool willWaitForRequest)
         {
             if (willWaitForRequest)
