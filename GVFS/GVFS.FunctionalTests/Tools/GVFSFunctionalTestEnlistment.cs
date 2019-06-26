@@ -295,10 +295,20 @@ namespace GVFS.FunctionalTests.Tools
             return Path.Combine(this.RepoRoot, Path.Combine(pathParts));
         }
 
+        public string GetBackingPathTo(params string[] pathParts)
+        {
+            return Path.Combine(this.RepoBackingRoot, Path.Combine(pathParts));
+        }
+
+        public string GetDotGitPath(params string[] pathParts)
+        {
+            return this.GetBackingPathTo(TestConstants.DotGit.Root, Path.Combine(pathParts));
+        }
+
         public string GetObjectPathTo(string objectHash)
         {
             return Path.Combine(
-                this.RepoRoot,
+                this.RepoBackingRoot,
                 TestConstants.DotGit.Objects.Root,
                 objectHash.Substring(0, 2),
                 objectHash.Substring(2));
