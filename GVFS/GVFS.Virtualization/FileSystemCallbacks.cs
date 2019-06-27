@@ -417,15 +417,15 @@ namespace GVFS.Virtualization
 
         public bool OnFolderCreated(string relativePath)
         {
-            bool pathExcluded = this.GitIndexProjection.IsPathExcluded(relativePath);
-            if (!pathExcluded)
+            GitIndexProjection.PathProjectionState pathProjectionState = this.GitIndexProjection.GetPathProjectionState(relativePath);
+            if (pathProjectionState == GitIndexProjection.PathProjectionState.NotFound)
             {
                 this.AddToNewlyCreatedList(relativePath, isFolder: true);
             }
 
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderCreated(relativePath));
 
-            return pathExcluded;
+            return pathProjectionState == GitIndexProjection.PathProjectionState.Excluded;
         }
 
         public virtual void OnFolderRenamed(string oldRelativePath, string newRelativePath)
@@ -708,7 +708,7 @@ namespace GVFS.Virtualization
 
                 case FileSystemTask.OperationType.OnFolderCreated:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
-                    if (this.GitIndexProjection.IsPathExcluded(gitUpdate.VirtualPath))
+                    if (this.GitIndexProjection.GetPathProjectionState(gitUpdate.VirtualPath) == GitIndexProjection.PathProjectionState.Excluded)
                     {
                         bool added = this.GitIndexProjection.TryAddIncludedFolder(gitUpdate.VirtualPath);
                         this.InvalidateGitStatusCache();
