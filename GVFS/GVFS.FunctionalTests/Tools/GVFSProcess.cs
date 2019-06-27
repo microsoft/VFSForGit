@@ -1,4 +1,5 @@
 ﻿using GVFS.Tests.Should;
+using System;
 using System.Diagnostics;
 using System.IO;
 
@@ -56,6 +57,17 @@ namespace GVFS.FunctionalTests.Tools
         public void RemoveIncludedFolders(params string[] folders)
         {
             this.CallGVFS($" include {this.enlistmentRoot} -r {string.Join(";", folders)}");
+        }
+
+        public string[] IncludedFoldersList()
+        {
+            string output = this.CallGVFS($" include {this.enlistmentRoot} -l");
+            if (output.StartsWith("No folders in included list."))
+            {
+                return new string[0];
+            }
+
+            return output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         }
 
         public string Prefetch(string args, bool failOnError, string standardInput = null)
