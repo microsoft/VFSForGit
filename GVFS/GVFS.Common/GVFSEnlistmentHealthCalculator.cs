@@ -178,7 +178,7 @@ namespace GVFS.Common
                 this.ModifiedFilePaths = new List<string>();
             }
 
-            public void AddGitTrackingPaths(List<string> gitTrackingPaths)
+            public void AddGitTrackingPaths(IEnumerable<string> gitTrackingPaths)
             {
                 this.ModifiedFilePaths.Union(gitTrackingPaths);
             }
