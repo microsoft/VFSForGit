@@ -21,7 +21,7 @@ namespace GVFS.UnitTests.Common
         private GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData;
 
         [TestCase]
-        public void OnlyOneHydratedDirectory()
+        public void SingleHydratedDirectoryShouldHaveOtherDirectoriesCompletelyHealthy()
         {
             this.fauxGitFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js", "A/4.js", "B/1.js", "B/2.js", "B/3.js", "B/4.js", "C/1.js", "C/2.js", "C/3.js", "C/4.js" });
             this.fauxPlaceholderFiles.AddRange(new string[] { "A/1.js", "A/2.js", "A/3.js" });
@@ -30,7 +30,9 @@ namespace GVFS.UnitTests.Common
 
             this.enlistmentHealthData.DirectoryHydrationLevels[0].Key.ShouldEqual("A");
             this.enlistmentHealthData.DirectoryHydrationLevels[0].Value.ShouldEqual(0.75m);
+            this.enlistmentHealthData.DirectoryHydrationLevels[1].Key.ShouldEqual("B");
             this.enlistmentHealthData.DirectoryHydrationLevels[1].Value.ShouldEqual(0);
+            this.enlistmentHealthData.DirectoryHydrationLevels[2].Key.ShouldEqual("C");
             this.enlistmentHealthData.DirectoryHydrationLevels[2].Value.ShouldEqual(0);
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(12);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(3);
@@ -229,6 +231,52 @@ namespace GVFS.UnitTests.Common
 
             this.enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(pathData);
             return this.enlistmentHealthCalculator.CalculateStatistics(directory);
+        }
+
+        public class PathDataBuilder
+        {
+            private GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData();
+
+            public PathDataBuilder AddPlaceholderFiles(params string[] placeholderFilePaths)
+            {
+                this.pathData.PlaceholderFilePaths.AddRange(placeholderFilePaths);
+                return this;
+            }
+
+            public PathDataBuilder AddPlaceholderFolders(params string[] placeholderFolderPaths)
+            {
+                this.pathData.PlaceholderFolderPaths.AddRange(placeholderFolderPaths);
+                return this;
+            }
+
+            public PathDataBuilder AddModifiedPathFiles(params string[] modifiedFilePaths)
+            {
+                this.pathData.ModifiedFilePaths.AddRange(modifiedFilePaths);
+                return this;
+            }
+
+            public PathDataBuilder AddModifiedPathFolders(params string[] modifiedFolderPaths)
+            {
+                this.pathData.ModifiedFolderPaths.AddRange(modifiedFolderPaths);
+                return this;
+            }
+
+            public PathDataBuilder AddGitFiles(params string[] gitFilePaths)
+            {
+                this.pathData.GitFilePaths.AddRange(gitFilePaths);
+                return this;
+            }
+
+            public PathDataBuilder AddGitFolders(params string[] gitFolderPaths)
+            {
+                this.pathData.ModifiedFolderPaths.AddRange(gitFolderPaths);
+                return this;
+            }
+
+            public GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData Build()
+            {
+                return this.pathData;
+            }
         }
     }
 }
