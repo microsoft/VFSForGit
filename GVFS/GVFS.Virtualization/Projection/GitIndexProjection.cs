@@ -132,6 +132,13 @@ namespace GVFS.Virtualization.Projection
             GitLink,
         }
 
+        public enum PathProjectionState
+        {
+            NotFound,
+            Included,
+            Excluded,
+        }
+
         public static void ReadIndex(ITracer tracer, string indexPath)
         {
             using (FileStream indexStream = new FileStream(indexPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, IndexFileStreamBufferSize))
@@ -422,7 +429,7 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public virtual bool IsPathExcluded(string virtualPath)
+        public virtual PathProjectionState GetPathProjectionState(string virtualPath)
         {
             this.GetChildNameAndParentKey(virtualPath, out string fileName, out string parentKey);
             FolderEntryData data = this.GetProjectedFolderEntryData(
@@ -430,7 +437,18 @@ namespace GVFS.Virtualization.Projection
                 childName: fileName,
                 parentKey: parentKey);
 
-            return !(data != null && data.IsIncluded);
+            if (data == null)
+            {
+                return PathProjectionState.NotFound;
+            }
+            else if (data.IsIncluded)
+            {
+                return PathProjectionState.Included;
+            }
+            else
+            {
+                return PathProjectionState.Excluded;
+            }
         }
 
         public bool TryAddIncludedFolder(string virtualPath)
