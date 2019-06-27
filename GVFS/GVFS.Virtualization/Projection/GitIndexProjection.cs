@@ -1504,8 +1504,8 @@ namespace GVFS.Virtualization.Projection
             string relativeFolderPath,
             HashSet<string> existingPlaceholders)
         {
-            FolderData folderData;
-            if (!this.TryGetOrAddFolderDataFromCache(relativeFolderPath, out folderData))
+            bool foundFolder = this.TryGetOrAddFolderDataFromCache(relativeFolderPath, out FolderData folderData);
+            if (!foundFolder || !folderData.IsIncluded)
             {
                 // Folder is no longer in the projection
                 existingPlaceholders.Remove(relativeFolderPath);
@@ -1524,54 +1524,57 @@ namespace GVFS.Virtualization.Projection
             for (int i = 0; i < folderData.ChildEntries.Count; i++)
             {
                 FolderEntryData childEntry = folderData.ChildEntries[i];
-                string childRelativePath;
-                if (relativeFolderPath.Length == 0)
+                if (childEntry.IsIncluded)
                 {
-                    childRelativePath = childEntry.Name.GetString();
-                }
-                else
-                {
-                    childRelativePath = relativeFolderPath + Path.DirectorySeparatorChar + childEntry.Name.GetString();
-                }
-
-                if (!existingPlaceholders.Contains(childRelativePath))
-                {
-                    FileSystemResult result;
-                    if (childEntry.IsFolder)
+                    string childRelativePath;
+                    if (relativeFolderPath.Length == 0)
                     {
-                        result = this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
-                        if (result.Result == FSResult.Ok)
-                        {
-                            this.placeholderDatabase.AddPartialFolder(childRelativePath);
-                        }
+                        childRelativePath = childEntry.Name.GetString();
                     }
                     else
                     {
-                        FileData childFileData = childEntry as FileData;
-                        string fileSha = childFileData.Sha.ToString();
-                        result = this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, fileSha);
-                        if (result.Result == FSResult.Ok)
-                        {
-                            this.placeholderDatabase.AddFile(childRelativePath, fileSha);
-                        }
+                        childRelativePath = relativeFolderPath + Path.DirectorySeparatorChar + childEntry.Name.GetString();
                     }
 
-                    switch (result.Result)
+                    if (!existingPlaceholders.Contains(childRelativePath))
                     {
-                        case FSResult.Ok:
-                            break;
+                        FileSystemResult result;
+                        if (childEntry.IsFolder)
+                        {
+                            result = this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
+                            if (result.Result == FSResult.Ok)
+                            {
+                                this.placeholderDatabase.AddPartialFolder(childRelativePath);
+                            }
+                        }
+                        else
+                        {
+                            FileData childFileData = childEntry as FileData;
+                            string fileSha = childFileData.Sha.ToString();
+                            result = this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, fileSha);
+                            if (result.Result == FSResult.Ok)
+                            {
+                                this.placeholderDatabase.AddFile(childRelativePath, fileSha);
+                            }
+                        }
 
-                        case FSResult.FileOrPathNotFound:
-                            // Git command must have removed the folder being re-expanded (relativeFolderPath)
-                            // Remove the folder from existingFolderPlaceholders so that its parent will create
-                            // it again (when it's re-expanded)
-                            existingPlaceholders.Remove(relativeFolderPath);
-                            this.placeholderDatabase.Remove(relativeFolderPath);
-                            return;
+                        switch (result.Result)
+                        {
+                            case FSResult.Ok:
+                                break;
 
-                        default:
-                            // TODO(#245): Handle failures of WritePlaceholderDirectory and WritePlaceholderFile
-                            break;
+                            case FSResult.FileOrPathNotFound:
+                                // Git command must have removed the folder being re-expanded (relativeFolderPath)
+                                // Remove the folder from existingFolderPlaceholders so that its parent will create
+                                // it again (when it's re-expanded)
+                                existingPlaceholders.Remove(relativeFolderPath);
+                                this.placeholderDatabase.Remove(relativeFolderPath);
+                                return;
+
+                            default:
+                                // TODO(#245): Handle failures of WritePlaceholderDirectory and WritePlaceholderFile
+                                break;
+                        }
                     }
                 }
             }
