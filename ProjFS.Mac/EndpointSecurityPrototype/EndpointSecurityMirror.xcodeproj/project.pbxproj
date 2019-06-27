@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		4A6A654B22C227CA00E207E2 /* libEndpointSecurity.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A6A654A22C227CA00E207E2 /* libEndpointSecurity.tbd */; };
 		4A6A654F22C4A8BE00E207E2 /* EndpointSecurityMirror.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A6A654E22C4A8BE00E207E2 /* EndpointSecurityMirror.cpp */; };
+		4A6A656922C4C33200E207E2 /* libbsm.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A6A656822C4C32B00E207E2 /* libbsm.tbd */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -28,6 +29,8 @@
 		4A6A654A22C227CA00E207E2 /* libEndpointSecurity.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libEndpointSecurity.tbd; path = usr/lib/libEndpointSecurity.tbd; sourceTree = SDKROOT; };
 		4A6A654C22C22E9500E207E2 /* EndpointSecurityMirror.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = EndpointSecurityMirror.entitlements; sourceTree = "<group>"; };
 		4A6A654E22C4A8BE00E207E2 /* EndpointSecurityMirror.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = EndpointSecurityMirror.cpp; sourceTree = "<group>"; };
+		4A6A655022C4A9E000E207E2 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		4A6A656822C4C32B00E207E2 /* libbsm.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libbsm.tbd; path = usr/lib/libbsm.tbd; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -36,6 +39,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4A6A654B22C227CA00E207E2 /* libEndpointSecurity.tbd in Frameworks */,
+				4A6A656922C4C33200E207E2 /* libbsm.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -64,6 +68,7 @@
 			children = (
 				4A6A654C22C22E9500E207E2 /* EndpointSecurityMirror.entitlements */,
 				4A6A654E22C4A8BE00E207E2 /* EndpointSecurityMirror.cpp */,
+				4A6A655022C4A9E000E207E2 /* README.md */,
 			);
 			path = EndpointSecurityMirror;
 			sourceTree = "<group>";
@@ -71,6 +76,7 @@
 		4A6A654922C227CA00E207E2 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				4A6A656822C4C32B00E207E2 /* libbsm.tbd */,
 				4A6A654A22C227CA00E207E2 /* libEndpointSecurity.tbd */,
 			);
 			name = Frameworks;

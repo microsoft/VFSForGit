@@ -8,12 +8,24 @@
 #include <sys/errno.h>
 #include <string>
 #include <cstdlib>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
+#include <bsm/libbsm.h>
 
 using std::string;
+using std::mutex;
+using std::unordered_map;
+using std::vector;
+
+typedef std::lock_guard<mutex> Guard;
 
 static constexpr const char* EmptyFileXattr = "org.vfsforgit.endpointsecuritymirror.emptyfile";
 
 static es_client_t* client = nullptr;
+static dispatch_queue_t s_hydrationQueue = nullptr;
+static mutex s_hydrationMutex;
+static unordered_map<string, vector<es_message_t*>> s_waitingFileHydrationMessages;
 
 static void HandleSecurityEvent(
 	es_client_t* _Nonnull client, const es_message_t* _Nonnull message);
@@ -50,6 +62,8 @@ int main(int argc, const char* argv[])
 		return 1;
 	}
 	
+	s_hydrationQueue = dispatch_queue_create("org.vfsforgit.endpointsecuritymirror.hydrationqueue", DISPATCH_QUEUE_CONCURRENT);
+	
 	const char* const sourceDir = argv[1];
 	struct stat sourceDirStat = {};
 	if (0 != stat(sourceDir, &sourceDirStat))
@@ -85,19 +99,6 @@ int main(int argc, const char* argv[])
 		if (errno == ENOENT)
 		{
 			// target directory does not exist, create it and enumerate
-			/*
-			if (0 != mkdir(targetDir, sourceDirStat.st_mode))
-			{
-				perror("mkdir() of target failed");
-				return 1;
-			}
-			if (0 != chown(targetDir, sourceDirStat.st_uid, sourceDirStat.st_gid))
-			{
-				perror("chown() of target failed");
-				return 1;
-			}
-			 */
-
 			copyfile_state_t copyState = copyfile_state_alloc();
 			copyfile_state_set(copyState, COPYFILE_STATE_STATUS_CB, reinterpret_cast<void*>(&RecursiveEnumerationCopyfileStatusCallback));
 			int result = copyfile(sourceDir, targetDir, copyState, COPYFILE_METADATA | COPYFILE_RECURSIVE);
@@ -150,6 +151,8 @@ static string SourcePathForTargetFile(const char* targetPath)
 	return s_sourcePrefix + (targetPath + s_targetPrefix.length());
 }
 
+static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* message);
+
 static void HandleSecurityEvent(
 	es_client_t* _Nonnull client, const es_message_t* _Nonnull message)
 {
@@ -164,24 +167,17 @@ static void HandleSecurityEvent(
 			{
 				if (PathLiesWithinTarget(eventPath))
 				{
-					string sourcePath = SourcePathForTargetFile(eventPath);
-					
-					printf("Hydrating '%s' -> '%s'\n", sourcePath.c_str(), eventPath);
-					int result = copyfile(sourcePath.c_str(), eventPath, nullptr /* state */, COPYFILE_DATA);
-					if (result == 0)
+					const char* processFilename = FilenameFromPath(message->proc.file.path);
+					if (0 == strcmp("mdworker_shared", processFilename))
 					{
-						result = removexattr(eventPath, EmptyFileXattr, 0 /* options */);
-						if (result != 0)
-						{
-							perror("removexattr failed");
-						}
+						printf("Denying crawler process %u (%s) access to empty file '%s'\n", audit_token_to_pid(message->proc.audit_token), processFilename, eventPath);
+						es_respond_flags_result(client, message, 0x0, false /* don't cache */);
 					}
 					else
 					{
-						perror("hydration copyfile failed");
-						es_respond_flags_result(client, message, 0x0, false /* don't cache */);
-						return;
+						HydrateFileOrAwaitHydration(eventPath, message);
 					}
+					return;
 				}
 				else
 				{
@@ -192,11 +188,82 @@ static void HandleSecurityEvent(
 			}
 			else if (errno != ENOATTR)
 			{
-				perror("getxattr failed");
+				fprintf(stderr, "getxattr failed (%u, %s) on '%s' (within mirror target directory: %s)\n",
+					errno, strerror(errno), eventPath, PathLiesWithinTarget(eventPath) ? "YES" : "NO");
 			}
 		
 			es_respond_flags_result(client, message, 0x7fffffff, false /* don't cache */);
 		}
+	}
+}
+
+static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* message)
+{
+	es_message_t* messageCopy = es_copy_message(message);
+	Guard lock(s_hydrationMutex);
+	if (!s_waitingFileHydrationMessages.insert(make_pair(eventPath, vector<es_message_t*>())).second)
+	{
+		// already being hydrated, add to messages needing approval
+		s_waitingFileHydrationMessages[eventPath].push_back(messageCopy);
+	}
+	else
+	{
+		dispatch_async(s_hydrationQueue, ^{
+			char xattrBuffer[16];
+			ssize_t xattrBytes = getxattr(eventPath.c_str(), EmptyFileXattr, xattrBuffer, sizeof(xattrBuffer), 0 /* offset */, 0 /* options */);
+			if (xattrBytes < 0)
+			{
+				// Raced with other thread, hydration already done
+				es_respond_flags_result(client, messageCopy, 0x7fffffff, false /* don't cache */);
+				return;
+			}
+
+			string sourcePath = SourcePathForTargetFile(eventPath.c_str());
+			// NOTE: if you increase this beyond 60000ms (1 minute) the process ends up being killed
+			unsigned delay_ms = random() % 60000u;
+			printf("Hydrating '%s' -> '%s' for process %u (%s), with %u ms delay\n", sourcePath.c_str(), eventPath.c_str(), audit_token_to_pid(messageCopy->proc.audit_token), FilenameFromPath(messageCopy->proc.file.path), delay_ms);
+			usleep(delay_ms * 1000u);
+			int result = copyfile(sourcePath.c_str(), eventPath.c_str(), nullptr /* state */, COPYFILE_DATA);
+			
+			uint32_t responseFlags = 0x7fffffff;
+			if (result == 0)
+			{
+				result = removexattr(eventPath.c_str(), EmptyFileXattr, 0 /* options */);
+				if (result != 0)
+				{
+					perror("removexattr failed");
+				}
+				else
+				{
+					printf("Hydrating '%s' done\n", eventPath.c_str());
+				}
+			}
+			else
+			{
+				perror("hydration copyfile failed");
+				responseFlags = 0x0;
+			}
+			
+			es_respond_flags_result(client, messageCopy, responseFlags, false /* don't cache */);
+			free(messageCopy);
+			
+			vector<es_message_t*> waitingMessages;
+			
+			{
+				Guard lock(s_hydrationMutex);
+			 	s_waitingFileHydrationMessages[eventPath].swap(waitingMessages);
+			 	s_waitingFileHydrationMessages.erase(eventPath);
+			}
+			
+			while (!waitingMessages.empty())
+			{
+				es_message_t* waitingMessage = waitingMessages.back();
+				waitingMessages.pop_back();
+				
+				es_respond_flags_result(client, waitingMessage, responseFlags, false /* don't cache */);
+				free(waitingMessage);
+			}
+		});
 	}
 }
 
