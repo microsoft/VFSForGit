@@ -30,7 +30,7 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(pathData.GitFilePaths.Count);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(pathData.PlaceholderFilePaths.Count);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(0);
-            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual((decimal)(pathData.PlaceholderFilePaths.Count / pathData.GitFilePaths.Count));
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual((decimal)pathData.PlaceholderFilePaths.Count / (decimal)pathData.GitFilePaths.Count);
             this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(0);
         }
 
@@ -117,8 +117,8 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(pathData.ModifiedFilePaths.Count);
             this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(pathData.GitFilePaths.Count);
             this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(2);
-            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual((decimal)(pathData.PlaceholderFilePaths.Count / pathData.GitFilePaths.Count));
-            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual((decimal)(pathData.ModifiedFilePaths.Count / pathData.GitFilePaths.Count));
+            this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual((decimal)pathData.PlaceholderFilePaths.Count / (decimal)pathData.GitFilePaths.Count);
+            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual((decimal)pathData.ModifiedFilePaths.Count / (decimal)pathData.GitFilePaths.Count);
             this.enlistmentHealthData.DirectoryHydrationLevels[0].Value.ShouldEqual(4.0m / 3.0m);
             this.enlistmentHealthData.DirectoryHydrationLevels[1].Value.ShouldEqual(4.0m / 3.0m);
         }
