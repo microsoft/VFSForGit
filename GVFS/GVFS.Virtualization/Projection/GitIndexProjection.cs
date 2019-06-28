@@ -778,6 +778,7 @@ namespace GVFS.Virtualization.Projection
                         if (!parentFolder.ContainsKey(folders[i]))
                         {
                             folderData = new IncludedFolderData();
+                            folderData.Depth = i;
                             parentFolder.Add(folders[i], folderData);
                         }
                         else
@@ -902,7 +903,8 @@ namespace GVFS.Virtualization.Projection
                     if (!indexEntry.BuildingProjection_ShouldIncludeRecursive)
                     {
                         string folderName = indexEntry.BuildingProjection_PathParts[pathIndex].GetString();
-                        if (indexEntry.BuildingProjection_LastEntryIncludedFolder.Children.ContainsKey(folderName))
+                        if (indexEntry.BuildingProjection_LastEntryIncludedFolder.Children.ContainsKey(folderName) &&
+                            indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName].Depth == pathIndex)
                         {
                             indexEntry.BuildingProjection_ShouldInclude = true;
                             indexEntry.BuildingProjection_ShouldIncludeRecursive = indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName].IsRecursive;
@@ -1610,9 +1612,10 @@ namespace GVFS.Virtualization.Projection
             string childName;
             string parentKey;
             this.GetChildNameAndParentKey(placeholder.Path, out childName, out parentKey);
+            PathProjectionState projectionState = this.GetPathProjectionState(placeholder.Path);
 
             string projectedSha;
-            if (!this.TryGetSha(childName, parentKey, out projectedSha))
+            if (projectionState != PathProjectionState.Included || !this.TryGetSha(childName, parentKey, out projectedSha))
             {
                 UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
                 FileSystemResult result = this.fileSystemVirtualizer.DeleteFile(placeholder.Path, FilePlaceholderUpdateFlags, out failureReason);
