@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -414,110 +415,52 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileShouldHaveCaseMatchingName(newFileName);
         }
 
+        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCase]
-        public void MoveFileFromOutsideRepoToInsideRepoAndAdd()
+        [Category(Categories.RepositoryMountsSameFileSystem)]
+        public void MoveFileFromOutsideRepoToInsideRepoOnSameFileSystemAndAdd()
         {
-            string testFileContents = "0123456789";
-            string filename = "MoveFileFromOutsideRepoToInsideRepo.cs";
-
-            // Create the test files in this.Enlistment.EnlistmentRoot as it's outside of src and the control
-            // repo and is cleaned up when the functional tests run
-            string oldFilePath = Path.Combine(this.Enlistment.EnlistmentRoot, filename);
-            string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filename);
-            string gvfsFilePath = Path.Combine(this.Enlistment.RepoRoot, filename);
-
-            string newBranchName = "tests/functional/MoveFileFromOutsideRepoToInsideRepoAndAdd";
-            this.ValidateGitCommand("checkout -b " + newBranchName);
-
-            // Move file to control repo
-            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
-            this.FileSystem.MoveFile(oldFilePath, controlFilePath);
-            oldFilePath.ShouldNotExistOnDisk(this.FileSystem);
-            controlFilePath.ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
-
-            // Move file to GVFS repo
-            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
-            this.FileSystem.MoveFile(oldFilePath, gvfsFilePath);
-            oldFilePath.ShouldNotExistOnDisk(this.FileSystem);
-            gvfsFilePath.ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
-
-            this.ValidateGitCommand("status");
-            this.ValidateGitCommand("add .");
-            this.RunGitCommand("commit -m \"Change for MoveFileFromOutsideRepoToInsideRepoAndAdd\"");
-            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+            this.MoveFileFromOutsideRepoToInsideRepoAndAdd(true);
         }
 
+        // Linux only because Linux uses a separate repo mount device
         [TestCase]
-        public void MoveFolderFromOutsideRepoToInsideRepoAndAdd()
+        [Category(Categories.RepositoryMountsDifferentFileSystem)]
+        public void MoveFileFromOutsideRepoToInsideRepoOnDifferentFileSystemAndAdd()
         {
-            string testFileContents = "0123456789";
-            string filename = "MoveFolderFromOutsideRepoToInsideRepoAndAdd.cs";
-            string folderName = "GitCommand_MoveFolderFromOutsideRepoToInsideRepoAndAdd";
-
-            // Create the test folders in this.Enlistment.EnlistmentRoot as it's outside of src and the control
-            // repo and is cleaned up when the functional tests run
-            string oldFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName);
-            string oldFilePath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName, filename);
-            string controlFolderPath = Path.Combine(this.ControlGitRepo.RootPath, folderName);
-            string gvfsFolderPath = Path.Combine(this.Enlistment.RepoRoot, folderName);
-
-            string newBranchName = "tests/functional/MoveFolderFromOutsideRepoToInsideRepoAndAdd";
-            this.ValidateGitCommand("checkout -b " + newBranchName);
-
-            // Move folder to control repo
-            this.FileSystem.CreateDirectory(oldFolderPath);
-            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
-            this.FileSystem.MoveDirectory(oldFolderPath, controlFolderPath);
-            oldFolderPath.ShouldNotExistOnDisk(this.FileSystem);
-            Path.Combine(controlFolderPath, filename).ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
-
-            // Move folder to GVFS repo
-            this.FileSystem.CreateDirectory(oldFolderPath);
-            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
-            this.FileSystem.MoveDirectory(oldFolderPath, gvfsFolderPath);
-            oldFolderPath.ShouldNotExistOnDisk(this.FileSystem);
-            Path.Combine(gvfsFolderPath, filename).ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
-
-            this.ValidateGitCommand("status");
-            this.ValidateGitCommand("add .");
-            this.RunGitCommand("commit -m \"Change for MoveFolderFromOutsideRepoToInsideRepoAndAdd\"");
-            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+            this.MoveFileFromOutsideRepoToInsideRepoAndAdd(false);
         }
 
+        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCase]
-        public void MoveFileFromInsideRepoToOutsideRepoAndCommit()
+        [Category(Categories.RepositoryMountsSameFileSystem)]
+        public void MoveFolderFromOutsideRepoToInsideRepoOnSameFileSystemAndAdd()
         {
-            string newBranchName = "tests/functional/MoveFileFromInsideRepoToOutsideRepoAndCommit";
-            this.ValidateGitCommand("checkout -b " + newBranchName);
+            this.MoveFolderFromOutsideRepoToInsideRepoAndAdd(true);
+        }
 
-            // Confirm that no other test has caused "Protocol.md" to be added to the modified paths
-            string fileName = "Protocol.md";
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
+        // Linux only because Linux uses a separate repo mount device
+        [TestCase]
+        [Category(Categories.RepositoryMountsDifferentFileSystem)]
+        public void MoveFolderFromOutsideRepoToInsideRepoOnDifferentFileSystemAndAdd()
+        {
+            this.MoveFolderFromOutsideRepoToInsideRepoAndAdd(false);
+        }
 
-            string controlTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_ControlTarget";
-            string gvfsTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_GVFSTarget";
+        // Mac and Windows only because Linux uses a separate repo mount device
+        [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
+        public void MoveFileFromInsideRepoToOutsideRepoOnSameFileSystemAndCommit()
+        {
+            this.MoveFileFromInsideRepoToOutsideRepoAndCommit(true);
+        }
 
-            // Create the target folders in this.Enlistment.EnlistmentRoot as it's outside of src and the control repo
-            // and is cleaned up when the functional tests run
-            string controlTargetFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, controlTargetFolder);
-            string gvfsTargetFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, gvfsTargetFolder);
-            string controlTargetFilePath = Path.Combine(controlTargetFolderPath, fileName);
-            string gvfsTargetFilePath = Path.Combine(gvfsTargetFolderPath, fileName);
-
-            // Move control repo file
-            this.FileSystem.CreateDirectory(controlTargetFolderPath);
-            this.FileSystem.MoveFile(Path.Combine(this.ControlGitRepo.RootPath, fileName), controlTargetFilePath);
-            controlTargetFilePath.ShouldBeAFile(this.FileSystem);
-
-            // Move GVFS repo file
-            this.FileSystem.CreateDirectory(gvfsTargetFolderPath);
-            this.FileSystem.MoveFile(Path.Combine(this.Enlistment.RepoRoot, fileName), gvfsTargetFilePath);
-            gvfsTargetFilePath.ShouldBeAFile(this.FileSystem);
-
-            this.ValidateGitCommand("status");
-            this.ValidateGitCommand("add .");
-            this.RunGitCommand("commit -m \"Change for MoveFileFromInsideRepoToOutsideRepoAndCommit\"");
-            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+        // Linux only because Linux uses a separate repo mount device
+        [TestCase]
+        [Category(Categories.RepositoryMountsDifferentFileSystem)]
+        public void MoveFileFromInsideRepoToOutsideRepoOnDifferentFileSystemAndCommit()
+        {
+            this.MoveFileFromInsideRepoToOutsideRepoAndCommit(false);
         }
 
         [TestCase]
@@ -1118,6 +1061,136 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private void MoveFolder()
         {
             this.MoveFolder(GitCommandsTests.RenameFolderPathFrom, GitCommandsTests.RenameFolderPathTo);
+        }
+
+        private void MoveFileFromOutsideRepoToInsideRepoAndAdd(bool sameFileSystem)
+        {
+            string testFileContents = "0123456789";
+            string testName = $"MoveFileFromOutsideRepoToInsideRepoOn{(sameFileSystem ? "Same" : "Different")}FileSystemAndAdd";
+            string filename = $"{testName}.cs";
+
+            // Create the test files in this.Enlistment.EnlistmentRoot as it's outside of src and the control
+            // repo and is cleaned up when the functional tests run
+            string oldFilePath = Path.Combine(this.Enlistment.EnlistmentRoot, filename);
+            string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filename);
+            string gvfsFilePath = Path.Combine(this.Enlistment.RepoRoot, filename);
+
+            string newBranchName = $"tests/functional/{testName}";
+            this.ValidateGitCommand("checkout -b " + newBranchName);
+
+            // Move file to control repo
+            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
+            this.FileSystem.MoveFile(oldFilePath, controlFilePath);
+            oldFilePath.ShouldNotExistOnDisk(this.FileSystem);
+            controlFilePath.ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
+
+            // Move file to GVFS repo
+            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
+            if (sameFileSystem)
+            {
+                this.FileSystem.MoveFile(oldFilePath, gvfsFilePath);
+            }
+            else
+            {
+                new BashRunner().MoveFile(oldFilePath, gvfsFilePath);
+            }
+
+            oldFilePath.ShouldNotExistOnDisk(this.FileSystem);
+            gvfsFilePath.ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
+
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("add .");
+            this.RunGitCommand($"commit -m \"Change for {testName}\"");
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+        }
+
+        private void MoveFolderFromOutsideRepoToInsideRepoAndAdd(bool sameFileSystem)
+        {
+            string testFileContents = "0123456789";
+            string testName = $"MoveFolderFromOutsideRepoToInsideRepoOn{(sameFileSystem ? "Same" : "Different")}FileSystemAndAdd";
+            string filename = $"{testName}.cs";
+            string folderName = $"GitCommand_{testName}";
+
+            // Create the test folders in this.Enlistment.EnlistmentRoot as it's outside of src and the control
+            // repo and is cleaned up when the functional tests run
+            string oldFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName);
+            string oldFilePath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName, filename);
+            string controlFolderPath = Path.Combine(this.ControlGitRepo.RootPath, folderName);
+            string gvfsFolderPath = Path.Combine(this.Enlistment.RepoRoot, folderName);
+
+            string newBranchName = $"tests/functional/{testName}";
+            this.ValidateGitCommand("checkout -b " + newBranchName);
+
+            // Move folder to control repo
+            this.FileSystem.CreateDirectory(oldFolderPath);
+            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
+            this.FileSystem.MoveDirectory(oldFolderPath, controlFolderPath);
+            oldFolderPath.ShouldNotExistOnDisk(this.FileSystem);
+            Path.Combine(controlFolderPath, filename).ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
+
+            // Move folder to GVFS repo
+            this.FileSystem.CreateDirectory(oldFolderPath);
+            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
+            if (sameFileSystem)
+            {
+                this.FileSystem.MoveDirectory(oldFolderPath, gvfsFolderPath);
+            }
+            else
+            {
+                new BashRunner().MoveDirectory(oldFolderPath, gvfsFolderPath);
+            }
+
+            oldFolderPath.ShouldNotExistOnDisk(this.FileSystem);
+            Path.Combine(gvfsFolderPath, filename).ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
+
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("add .");
+            this.RunGitCommand($"commit -m \"Change for {testName}\"");
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+        }
+
+        private void MoveFileFromInsideRepoToOutsideRepoAndCommit(bool sameFileSystem)
+        {
+            string testName = $"MoveFileFromInsideRepoToOutsideRepoOn{(sameFileSystem ? "Same" : "Different")}FileSystemAndCommit";
+            string newBranchName = $"tests/functional/{testName}";
+            this.ValidateGitCommand("checkout -b " + newBranchName);
+
+            // Confirm that no other test has caused "Protocol.md" to be added to the modified paths
+            string fileName = "Protocol.md";
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
+
+            string controlTargetFolder = $"{testName}_ControlTarget";
+            string gvfsTargetFolder = $"{testName}_GVFSTarget";
+
+            // Create the target folders in this.Enlistment.EnlistmentRoot as it's outside of src and the control repo
+            // and is cleaned up when the functional tests run
+            string controlTargetFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, controlTargetFolder);
+            string gvfsTargetFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, gvfsTargetFolder);
+            string controlTargetFilePath = Path.Combine(controlTargetFolderPath, fileName);
+            string gvfsTargetFilePath = Path.Combine(gvfsTargetFolderPath, fileName);
+
+            // Move control repo file
+            this.FileSystem.CreateDirectory(controlTargetFolderPath);
+            this.FileSystem.MoveFile(Path.Combine(this.ControlGitRepo.RootPath, fileName), controlTargetFilePath);
+            controlTargetFilePath.ShouldBeAFile(this.FileSystem);
+
+            // Move GVFS repo file
+            this.FileSystem.CreateDirectory(gvfsTargetFolderPath);
+            if (sameFileSystem)
+            {
+                this.FileSystem.MoveFile(Path.Combine(this.Enlistment.RepoRoot, fileName), gvfsTargetFilePath);
+            }
+            else
+            {
+                new BashRunner().MoveFile(Path.Combine(this.Enlistment.RepoRoot, fileName), gvfsTargetFilePath);
+            }
+
+            gvfsTargetFilePath.ShouldBeAFile(this.FileSystem);
+
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("add .");
+            this.RunGitCommand($"commit -m \"Change for {testName}\"");
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
         }
     }
 }

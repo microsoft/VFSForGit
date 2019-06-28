@@ -7,6 +7,8 @@
         public const string GitCommands = "GitCommands";
 
         public const string FileSystemSupportsFileMode = "FileSystemSupportsFileMode";
+        public const string RepositoryMountsDifferentFileSystem = "RepositoryMountsDifferentFileSystem";
+        public const string RepositoryMountsSameFileSystem = "RepositoryMountsSameFileSystem";
 
         public const string WindowsOnly = "WindowsOnly";
         public const string LinuxOnly = "LinuxOnly";

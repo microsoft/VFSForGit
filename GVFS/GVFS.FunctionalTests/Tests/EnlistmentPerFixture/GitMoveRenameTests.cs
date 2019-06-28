@@ -220,31 +220,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             result.Output.ShouldContain("deleted:    Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program.cs");
         }
 
+        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCase, Order(11)]
-        public void GitStatusAfterRenameFolderIntoRepo()
+        [Category(Categories.RepositoryMountsSameFileSystem)]
+        public void GitStatusAfterRenameFolderIntoRepoOnSameFileSystem()
         {
-            string folderName = "GitStatusAfterRenameFolderIntoRepo";
+            this.GitStatusAfterRenameFolderIntoRepo(true);
+        }
 
-            // Create the test folder in this.Enlistment.EnlistmentRoot as it's outside of src
-            // and is cleaned up when the functional tests run
-            string folderPath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName);
-
-            this.fileSystem.CreateDirectory(folderPath);
-
-            string fileName = "GitStatusAfterRenameFolderIntoRepo_file.txt";
-            string filePath = Path.Combine(folderPath, fileName);
-            this.fileSystem.WriteAllText(filePath, this.testFileContents);
-            filePath.ShouldBeAFile(this.fileSystem).WithContents(this.testFileContents);
-
-            this.fileSystem.MoveDirectory(folderPath, this.Enlistment.GetVirtualPathTo(folderName));
-
-            GitHelpers.CheckGitCommandAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "status -uall",
-                "On branch " + Properties.Settings.Default.Commitish,
-                "Untracked files:",
-                folderName + "/",
-                folderName + "/" + fileName);
+        // Linux only because Linux uses a separate repo mount device
+        [TestCase, Order(11)]
+        [Category(Categories.RepositoryMountsDifferentFileSystem)]
+        public void GitStatusAfterRenameFolderIntoRepoOnDifferentFileSystem()
+        {
+            this.GitStatusAfterRenameFolderIntoRepo(false);
         }
 
         private void EnsureTestFileExists(string relativePath)
@@ -256,6 +245,40 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
 
             this.Enlistment.GetVirtualPathTo(relativePath).ShouldBeAFile(this.fileSystem);
+        }
+
+        private void GitStatusAfterRenameFolderIntoRepo(bool sameFileSystem)
+        {
+            string testName = $"GitStatusAfterRenameFolderIntoRepoOn{(sameFileSystem ? "Same" : "Different")}FileSystem";
+            string folderName = testName;
+
+            // Create the test folder in this.Enlistment.EnlistmentRoot as it's outside of src
+            // and is cleaned up when the functional tests run
+            string folderPath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName);
+
+            this.fileSystem.CreateDirectory(folderPath);
+
+            string fileName = $"{testName}_file.txt";
+            string filePath = Path.Combine(folderPath, fileName);
+            this.fileSystem.WriteAllText(filePath, this.testFileContents);
+            filePath.ShouldBeAFile(this.fileSystem).WithContents(this.testFileContents);
+
+            if (sameFileSystem)
+            {
+                this.fileSystem.MoveDirectory(folderPath, this.Enlistment.GetVirtualPathTo(folderName));
+            }
+            else
+            {
+                new BashRunner().MoveDirectory(folderPath, this.Enlistment.GetVirtualPathTo(folderName));
+            }
+
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
+                this.Enlistment.RepoRoot,
+                "status -uall",
+                "On branch " + Properties.Settings.Default.Commitish,
+                "Untracked files:",
+                folderName + "/",
+                folderName + "/" + fileName);
         }
     }
 }

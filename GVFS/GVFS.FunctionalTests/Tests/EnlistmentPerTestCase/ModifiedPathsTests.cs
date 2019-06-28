@@ -4,6 +4,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -156,53 +157,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             }
         }
 
+        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
-        public void ModifiedPathsCorrectAfterHardLinking(FileSystemRunner fileSystem)
+        [Category(Categories.RepositoryMountsSameFileSystem)]
+        public void ModifiedPathsCorrectAfterHardLinkingOnSameFileSystem(FileSystemRunner fileSystem)
         {
-            string[] expectedModifiedFilesContentsAfterHardlinks =
-                {
-                    "A .gitattributes",
-                    "A LinkToReadme.md",
-                    "A LinkToFileOutsideSrc.txt",
-                    "A Readme.md",
-                    "A GVFS/GVFS/Program.cs",
-                };
+            this.ModifiedPathsCorrectAfterHardLinking(true, fileSystem);
+        }
 
-            // Create a link from src\LinkToReadme.md to src\Readme.md
-            string existingFileInRepoPath = this.Enlistment.GetVirtualPathTo("Readme.md");
-            string contents = existingFileInRepoPath.ShouldBeAFile(fileSystem).WithContents();
-            string hardLinkToFileInRepoPath = this.Enlistment.GetVirtualPathTo("LinkToReadme.md");
-            hardLinkToFileInRepoPath.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.CreateHardLink(hardLinkToFileInRepoPath, existingFileInRepoPath);
-            hardLinkToFileInRepoPath.ShouldBeAFile(fileSystem).WithContents(contents);
-
-            // Create a link from src\LinkToFileOutsideSrc.txt to FileOutsideRepo.txt
-            string fileOutsideOfRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "FileOutsideRepo.txt");
-            string fileOutsideOfRepoContents = "File outside of repo";
-            fileOutsideOfRepoPath.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.WriteAllText(fileOutsideOfRepoPath, fileOutsideOfRepoContents);
-            string hardLinkToFileOutsideRepoPath = this.Enlistment.GetVirtualPathTo("LinkToFileOutsideSrc.txt");
-            hardLinkToFileOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.CreateHardLink(hardLinkToFileOutsideRepoPath, fileOutsideOfRepoPath);
-            hardLinkToFileOutsideRepoPath.ShouldBeAFile(fileSystem).WithContents(fileOutsideOfRepoContents);
-
-            // Create a link from LinkOutsideSrcToInsideSrc.cs to src\GVFS\GVFS\Program.cs
-            string secondFileInRepoPath = this.Enlistment.GetVirtualPathTo("GVFS", "GVFS", "Program.cs");
-            contents = secondFileInRepoPath.ShouldBeAFile(fileSystem).WithContents();
-            string hardLinkOutsideRepoToFileInRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "LinkOutsideSrcToInsideSrc.cs");
-            hardLinkOutsideRepoToFileInRepoPath.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.CreateHardLink(hardLinkOutsideRepoToFileInRepoPath, secondFileInRepoPath);
-            hardLinkOutsideRepoToFileInRepoPath.ShouldBeAFile(fileSystem).WithContents(contents);
-
-            this.Enlistment.WaitForBackgroundOperations();
-
-            string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
-            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
-            using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
-            {
-                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
-                    .ShouldMatchInOrder(expectedModifiedFilesContentsAfterHardlinks.OrderBy(x => x));
-            }
+        // Linux only because Linux uses a separate repo mount device
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        [Category(Categories.RepositoryMountsDifferentFileSystem)]
+        public void ModifiedPathsCorrectAfterHardLinkingOnDifferentFileSystem(FileSystemRunner fileSystem)
+        {
+            this.ModifiedPathsCorrectAfterHardLinking(false, fileSystem);
         }
 
         private string CreateDirectory(FileSystemRunner fileSystem, string relativePath)
@@ -219,6 +187,61 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             fileSystem.WriteAllText(tempFile, $"Contents for the {relativePath} file");
             tempFile.ShouldBeAFile(fileSystem);
             return tempFile;
+        }
+
+        private void ModifiedPathsCorrectAfterHardLinking(bool sameFileSystem, FileSystemRunner fileSystem)
+        {
+            List<string> expectedModifiedFilesContentsAfterHardlinks = new List<string>();
+            expectedModifiedFilesContentsAfterHardlinks.Add("A .gitattributes");
+            expectedModifiedFilesContentsAfterHardlinks.Add("A LinkToReadme.md");
+
+            // Create a link from src\LinkToReadme.md to src\Readme.md
+            string existingFileInRepoPath = this.Enlistment.GetVirtualPathTo("Readme.md");
+            string contents = existingFileInRepoPath.ShouldBeAFile(fileSystem).WithContents();
+            string hardLinkToFileInRepoPath = this.Enlistment.GetVirtualPathTo("LinkToReadme.md");
+            hardLinkToFileInRepoPath.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.CreateHardLink(hardLinkToFileInRepoPath, existingFileInRepoPath);
+            hardLinkToFileInRepoPath.ShouldBeAFile(fileSystem).WithContents(contents);
+
+            if (sameFileSystem)
+            {
+                expectedModifiedFilesContentsAfterHardlinks.Add("A LinkToFileOutsideSrc.txt");
+
+                // Create a link from src\LinkToFileOutsideSrc.txt to FileOutsideRepo.txt
+                string fileOutsideOfRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "FileOutsideRepo.txt");
+                string fileOutsideOfRepoContents = "File outside of repo";
+                fileOutsideOfRepoPath.ShouldNotExistOnDisk(fileSystem);
+                fileSystem.WriteAllText(fileOutsideOfRepoPath, fileOutsideOfRepoContents);
+                string hardLinkToFileOutsideRepoPath = this.Enlistment.GetVirtualPathTo("LinkToFileOutsideSrc.txt");
+                hardLinkToFileOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
+                fileSystem.CreateHardLink(hardLinkToFileOutsideRepoPath, fileOutsideOfRepoPath);
+                hardLinkToFileOutsideRepoPath.ShouldBeAFile(fileSystem).WithContents(fileOutsideOfRepoContents);
+            }
+
+            expectedModifiedFilesContentsAfterHardlinks.Add("A Readme.md");
+
+            if (sameFileSystem)
+            {
+                expectedModifiedFilesContentsAfterHardlinks.Add("A GVFS/GVFS/Program.cs");
+
+                // Create a link from LinkOutsideSrcToInsideSrc.cs to src\GVFS\GVFS\Program.cs
+                string secondFileInRepoPath = this.Enlistment.GetVirtualPathTo("GVFS", "GVFS", "Program.cs");
+                contents = secondFileInRepoPath.ShouldBeAFile(fileSystem).WithContents();
+                string hardLinkOutsideRepoToFileInRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "LinkOutsideSrcToInsideSrc.cs");
+                hardLinkOutsideRepoToFileInRepoPath.ShouldNotExistOnDisk(fileSystem);
+                fileSystem.CreateHardLink(hardLinkOutsideRepoToFileInRepoPath, secondFileInRepoPath);
+                hardLinkOutsideRepoToFileInRepoPath.ShouldBeAFile(fileSystem).WithContents(contents);
+            }
+
+            this.Enlistment.WaitForBackgroundOperations();
+
+            string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
+            using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+            {
+                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
+                    .ShouldMatchInOrder(expectedModifiedFilesContentsAfterHardlinks.OrderBy(x => x));
+            }
         }
     }
 }
