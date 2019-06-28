@@ -113,14 +113,14 @@ namespace GVFS.Virtualization.Projection
                 return lazyString;
             }
 
-            public unsafe int CaseInsensitiveCompare(LazyUTF8String other)
+            public unsafe int Compare(LazyUTF8String other, bool caseSensitive)
             {
                 // If we've already converted to a .NET String, use their implementation because it's likely to contain
                 // extended characters, which we're not set up to handle below
                 if (this.utf16string != null ||
                     other.utf16string != null)
                 {
-                    return string.Compare(this.GetString(), other.GetString(), StringComparison.OrdinalIgnoreCase);
+                    return string.Compare(this.GetString(), other.GetString(), caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
                 }
 
                 // We now know that both strings are ASCII, because if they had extended characters they would
@@ -137,6 +137,11 @@ namespace GVFS.Virtualization.Projection
                     {
                         byte thisC = *thisPtr;
                         byte otherC = *otherPtr;
+
+                        if (caseSensitive)
+                        {
+                            return thisC - otherC;
+                        }
 
                         // The more intuitive approach to checking IsLower() is to do two comparisons to see if c is within the range 'a'-'z'.
                         // However since byte is unsigned, we can rely on underflow to satisfy both conditions with one comparison.
@@ -183,9 +188,24 @@ namespace GVFS.Virtualization.Projection
                 return this.length - other.length;
             }
 
+            public unsafe int CaseInsensitiveCompare(LazyUTF8String other)
+            {
+                return this.Compare(other, false);
+            }
+
+            public unsafe int CaseSensitiveCompare(LazyUTF8String other)
+            {
+                return this.Compare(other, true);
+            }
+
             public bool CaseInsensitiveEquals(LazyUTF8String other)
             {
                 return this.CaseInsensitiveCompare(other) == 0;
+            }
+
+            public bool CaseSensitiveEquals(LazyUTF8String other)
+            {
+                return this.CaseSensitiveCompare(other) == 0;
             }
 
             public unsafe string GetString()

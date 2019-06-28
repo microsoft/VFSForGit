@@ -49,11 +49,11 @@ namespace GVFS.Virtualization.Projection
         private GitIndexParser indexParser;
 
         // Cache of folder paths (in Windows format) to folder data
-        private ConcurrentDictionary<string, FolderData> projectionFolderCache = new ConcurrentDictionary<string, FolderData>(StringComparer.OrdinalIgnoreCase);
+        private ConcurrentDictionary<string, FolderData> projectionFolderCache = new ConcurrentDictionary<string, FolderData>(GVFSPlatform.Instance.Constants.PathComparer);
 
         // nonDefaultFileTypesAndModes is only populated when the platform supports file mode
         // On platforms that support file modes, file paths that are not in nonDefaultFileTypesAndModes are regular files with mode 644
-        private Dictionary<string, FileTypeAndMode> nonDefaultFileTypesAndModes = new Dictionary<string, FileTypeAndMode>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, FileTypeAndMode> nonDefaultFileTypesAndModes = new Dictionary<string, FileTypeAndMode>(GVFSPlatform.Instance.Constants.PathComparer);
 
         private BlobSizes blobSizes;
         private PlaceholderListDatabase placeholderList;
@@ -1158,7 +1158,7 @@ namespace GVFS.Virtualization.Projection
                     // A hash of the folder placeholders is only required if the platform expands directories
                     HashSet<string> folderPlaceholders =
                         GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories ?
-                        new HashSet<string>(placeholderFoldersListCopy.Select(x => x.Path), StringComparer.OrdinalIgnoreCase) :
+                        new HashSet<string>(placeholderFoldersListCopy.Select(x => x.Path), GVFSPlatform.Instance.Constants.PathComparer) :
                         null;
 
                     // Order the folders in decscending order so that we walk the tree from bottom up.
