@@ -211,6 +211,10 @@ function CreateMetaDistribution()
     eval $copyGitPkgCmd
 
     UpdateDistributionFile "$GITPKGNAME" "$GITVERSIONSTRING"
+
+    copyGitPkgInstallerCmd="/bin/cp \"${GITINSTALLERPATH}\" \"${BUILDOUTPUTDIR}/\""
+    echo $copyGitPkgInstallerCmd
+    eval $copyGitPkgInstallerCmd || exit 1
     
     METAPACKAGENAME="$INSTALLERPACKAGENAME-Git.$GITVERSION.pkg"
     buildMetapkgCmd="/usr/bin/productbuild --distribution \"${BUILDOUTPUTDIR}/Distribution.updated.xml\" --package-path \"$PACKAGESTAGINGDIR\" \"${BUILDOUTPUTDIR}/$METAPACKAGENAME\""
