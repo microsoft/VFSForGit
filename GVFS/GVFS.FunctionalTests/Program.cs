@@ -131,6 +131,7 @@ namespace GVFS.FunctionalTests
             {
                 // Windows excludes.
                 excludeCategories.Add(Categories.CaseSensitiveFileSystemOnly);
+                excludeCategories.Add(Categories.FileSystemSupportsFileMode);
 
                 excludeCategories.Add(Categories.LinuxOnly);
                 excludeCategories.Add(Categories.MacOnly);

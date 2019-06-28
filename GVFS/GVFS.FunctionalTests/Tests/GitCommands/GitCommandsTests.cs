@@ -559,9 +559,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: this.MoveFolder);
         }
 
-        // MacOnly because Windows does not support file mode
+        // Mac and Linux only because Windows does not support file mode
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.FileSystemSupportsFileMode)]
         public void UpdateFileModeOnly()
         {
             const string TestFileName = "test-file-mode";
