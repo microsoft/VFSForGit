@@ -6,6 +6,8 @@
         public const string FastFetch = "FastFetch";
         public const string GitCommands = "GitCommands";
 
+        public const string FileSystemSupportsFileMode = "FileSystemSupportsFileMode";
+
         public const string WindowsOnly = "WindowsOnly";
         public const string LinuxOnly = "LinuxOnly";
         public const string MacOnly = "MacOnly";
