@@ -37,7 +37,7 @@ namespace GVFS.Virtualization.Projection
 
             public FileData AddChildFile(LazyUTF8String name, byte[] shaBytes)
             {
-                return this.ChildEntries.AddFile(name, shaBytes);
+                return this.ChildEntries.AddFile(name, shaBytes, this.IsIncluded);
             }
 
             public override void Include()

@@ -39,10 +39,11 @@ namespace GVFS.Virtualization.Projection
                 return this.Sha.ToString();
             }
 
-            public void ResetData(LazyUTF8String name, byte[] shaBytes)
+            public void ResetData(LazyUTF8String name, byte[] shaBytes, bool isIncluded)
             {
                 this.Name = name;
                 this.Size = InvalidSize;
+                this.IsIncluded = isIncluded;
                 Sha1Id.ShaBufferToParts(shaBytes, out this.shaBytes1through8, out this.shaBytes9Through16, out this.shaBytes17Through20);
             }
 
