@@ -136,6 +136,46 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             projectedFile.ShouldBeAFile(this.fileSystem);
         }
 
+        [TestCase, Order(6)]
+        public void ReadFileThenChangingIncludeFoldersShouldRemoveFileAndFolder()
+        {
+            string fileToRead = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunFunctionalTests.bat");
+            this.fileSystem.ReadAllText(fileToRead);
+
+            this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder);
+            this.ValidateIncludedFolders(this.mainIncludedFolder);
+
+            string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
+            folderPath.ShouldNotExistOnDisk(this.fileSystem);
+            fileToRead.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCase, Order(7)]
+        public void ModifiedFileShouldNotAllowIncludedFolderChange()
+        {
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunFunctionalTests.bat");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+
+            this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder);
+            this.ValidateIncludedFolders(new string[0]);
+        }
+
+        [TestCase, Order(8)]
+        public void ModifiedFileAndCommitThenChangingIncludeFoldersShouldKeepFileAndFolder()
+        {
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunFunctionalTests.bat");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "add .");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
+
+            this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder);
+            this.ValidateIncludedFolders(this.mainIncludedFolder);
+
+            string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
+            folderPath.ShouldBeADirectory(this.fileSystem);
+            modifiedPath.ShouldBeAFile(this.fileSystem);
+        }
+
         private void ValidateIncludedFolders(params string[] folders)
         {
             HashSet<string> actualIncludedFolders = new HashSet<string>(this.gvfsProcess.IncludedFoldersList());
