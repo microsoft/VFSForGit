@@ -94,10 +94,10 @@ namespace GVFS.Virtualization.Projection
                 return this.InsertFolder(name, insertionIndex);
             }
 
-            public FileData AddFile(LazyUTF8String name, byte[] shaBytes)
+            public FileData AddFile(LazyUTF8String name, byte[] shaBytes, bool isIncluded)
             {
                 int insertionIndex = this.GetInsertionIndex(name);
-                return this.InsertFile(name, shaBytes, insertionIndex);
+                return this.InsertFile(name, shaBytes, isIncluded, insertionIndex);
             }
 
             public FolderData GetOrAddFolder(LazyUTF8String name)
@@ -151,10 +151,10 @@ namespace GVFS.Virtualization.Projection
                 return data;
             }
 
-            private FileData InsertFile(LazyUTF8String name, byte[] shaBytes, int insertionIndex)
+            private FileData InsertFile(LazyUTF8String name, byte[] shaBytes, bool isIncluded, int insertionIndex)
             {
                 FileData data = filePool.GetNew();
-                data.ResetData(name, shaBytes);
+                data.ResetData(name, shaBytes, isIncluded);
                 this.sortedEntries.Insert(insertionIndex, data);
                 return data;
             }

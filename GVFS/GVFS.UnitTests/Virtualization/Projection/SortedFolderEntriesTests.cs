@@ -166,7 +166,7 @@ namespace GVFS.UnitTests.Virtualization.Git
             for (int i = 0; i < names.Length; i++)
             {
                 LazyUTF8String entryString = ConstructLazyUTF8String(names[i]);
-                entries.AddFile(entryString, new byte[20]);
+                entries.AddFile(entryString, new byte[20], isIncluded: true);
             }
         }
 

@@ -1610,9 +1610,10 @@ namespace GVFS.Virtualization.Projection
             string childName;
             string parentKey;
             this.GetChildNameAndParentKey(placeholder.Path, out childName, out parentKey);
+            PathProjectionState projectionState = this.GetPathProjectionState(placeholder.Path);
 
             string projectedSha;
-            if (!this.TryGetSha(childName, parentKey, out projectedSha))
+            if (projectionState != PathProjectionState.Included || !this.TryGetSha(childName, parentKey, out projectedSha))
             {
                 UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
                 FileSystemResult result = this.fileSystemVirtualizer.DeleteFile(placeholder.Path, FilePlaceholderUpdateFlags, out failureReason);
