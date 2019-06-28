@@ -9,6 +9,8 @@
         public const string CaseInsensitiveFileSystemOnly = "CaseInsensitiveFileSystemOnly";
         public const string CaseSensitiveFileSystemOnly = "CaseSensitiveFileSystemOnly";
         public const string FileSystemSupportsFileMode = "FileSystemSupportsFileMode";
+        public const string RepositoryMountsDifferentFileSystem = "RepositoryMountsDifferentFileSystem";
+        public const string RepositoryMountsSameFileSystem = "RepositoryMountsSameFileSystem";
 
         public const string WindowsOnly = "WindowsOnly";
         public const string LinuxOnly = "LinuxOnly";
