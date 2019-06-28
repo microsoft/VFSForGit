@@ -1090,7 +1090,7 @@ namespace GVFS.Platform.Windows
         {
             try
             {
-                if (destinationPath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
+                if (destinationPath.Equals(GVFSConstants.DotGit.Index, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
                     if (string.IsNullOrEmpty(lockedGitCommand))

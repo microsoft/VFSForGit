@@ -1,4 +1,5 @@
-﻿using GVFS.Common.FileSystem;
+﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
@@ -241,7 +242,7 @@ namespace GVFS.UnitTests.Common
                 bool allFilesExist = false,
                 bool noOpDelete = false)
             {
-                this.ExistingFiles = new Dictionary<string, FileAttributes>(StringComparer.OrdinalIgnoreCase);
+                this.ExistingFiles = new Dictionary<string, FileAttributes>(GVFSPlatform.Instance.Constants.PathComparer);
                 foreach (KeyValuePair<string, FileAttributes> kvp in existingFiles)
                 {
                     this.ExistingFiles[kvp.Key] = kvp.Value;

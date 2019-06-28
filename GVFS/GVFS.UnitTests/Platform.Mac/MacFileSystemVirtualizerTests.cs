@@ -340,7 +340,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 gitIndexProjection.EnumerationInMemory = false;
                 mockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
+                    kvp => kvp.Key.Equals(testFilePath, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode644);
                 fileSystemCallbacks.Stop();
             }
 
@@ -386,7 +386,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 gitIndexProjection.EnumerationInMemory = true;
                 mockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
+                    kvp => kvp.Key.Equals(testFilePath, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode644);
                 gitIndexProjection.ExpandedFolders.ShouldMatchInOrder(TestFolderName);
                 fileSystemCallbacks.Stop();
             }
@@ -443,11 +443,11 @@ namespace GVFS.UnitTests.Platform.Mac
                 gitIndexProjection.EnumerationInMemory = true;
                 mockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFile644Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
+                    kvp => kvp.Key.Equals(testFile644Path, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode644);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFile664Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode664);
+                    kvp => kvp.Key.Equals(testFile664Path, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode664);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFile755Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode755);
+                    kvp => kvp.Key.Equals(testFile755Path, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode755);
                 fileSystemCallbacks.Stop();
             }
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GVFS.Common;
+using System;
 using System.Collections.Generic;
 
 namespace GVFS.Virtualization.Projection
@@ -30,7 +31,7 @@ namespace GVFS.Virtualization.Projection
         {
             public SparseFolderData()
             {
-                this.Children = new Dictionary<string, SparseFolderData>(StringComparer.OrdinalIgnoreCase);
+                this.Children = new Dictionary<string, SparseFolderData>(GVFSPlatform.Instance.Constants.PathComparer);
             }
 
             public bool IsRecursive { get; set; }

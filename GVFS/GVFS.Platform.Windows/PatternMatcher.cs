@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GVFS.Common;
+using System;
 
 namespace GVFS.Platform.Windows
 {
@@ -173,7 +174,7 @@ namespace GVFS.Platform.Windows
                 // if name is shorter that the stuff to the right of * in expression, we don't
                 // need to do the string compare, otherwise we compare rightlength characters
                 // and the end of both strings.
-                if (name.Length >= rightLength && string.Compare(expression, 1, name, name.Length - rightLength, rightLength, StringComparison.OrdinalIgnoreCase) == 0)
+                if (name.Length >= rightLength && string.Compare(expression, 1, name, name.Length - rightLength, rightLength, GVFSPlatform.Instance.Constants.PathComparison) == 0)
                 {
                     return true;
                 }
