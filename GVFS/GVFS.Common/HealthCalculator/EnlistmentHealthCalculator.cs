@@ -10,7 +10,7 @@ namespace GVFS.Common
     /// internally stores the calculated information. Compute or recompute via CalculateStatistics
     /// with an optional parameter to only look for paths which are under the specified directory
     /// </summary>
-    public partial class EnlistmentHealthCalculator
+    public class EnlistmentHealthCalculator
     {
         // In the context of this class, hydrated files are placeholders or modified paths
         // The total number of hydrated files is this.PlaceholderCount + this.ModifiedPathsCount
