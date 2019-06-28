@@ -49,7 +49,7 @@ namespace GVFS.CommandLine
 
             this.Directory = this.Directory.Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
 
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData();
+            EnlistmentPathData pathData = new EnlistmentPathData();
 
             this.GetPathsFromGitIndex(enlistment, pathData);
             this.GetPlaceholdersFromDatabase(enlistment, pathData);
@@ -57,13 +57,13 @@ namespace GVFS.CommandLine
 
             pathData.NormalizeAllPaths();
 
-            GVFSEnlistmentHealthCalculator enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(pathData);
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
+            EnlistmentHealthCalculator enlistmentHealthCalculator = new EnlistmentHealthCalculator(pathData);
+            EnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
 
             this.PrintOutput(enlistmentHealthData);
         }
 
-        private void PrintOutput(GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData)
+        private void PrintOutput(EnlistmentHealthData enlistmentHealthData)
         {
             string trackedFilesCountFormatted = enlistmentHealthData.GitTrackedItemsCount.ToString("N0");
             string placeholderCountFormatted = enlistmentHealthData.PlaceholderCount.ToString("N0");
@@ -128,7 +128,7 @@ namespace GVFS.CommandLine
         /// </summary>
         /// <param name="enlistment">The enlistment being operated on</param>
         /// <returns>An array containing all of the modified paths in string format</returns>
-        private void GetModifiedPathsFromPipe(GVFSEnlistment enlistment, GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData)
+        private void GetModifiedPathsFromPipe(GVFSEnlistment enlistment, EnlistmentPathData pathData)
         {
             using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
             {
@@ -180,7 +180,7 @@ namespace GVFS.CommandLine
         /// <param name="enlistment">The current GVFS enlistment being operated on</param>
         /// <param name="filePlaceholders">Out parameter where the list of file placeholders will end up</param>
         /// <param name="folderPlaceholders">Out parameter where the list of folder placeholders will end up</param>
-        private void GetPlaceholdersFromDatabase(GVFSEnlistment enlistment, GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData)
+        private void GetPlaceholdersFromDatabase(GVFSEnlistment enlistment, EnlistmentPathData pathData)
         {
             List<IPlaceholderData> filePlaceholders = new List<IPlaceholderData>();
             List<IPlaceholderData> folderPlaceholders = new List<IPlaceholderData>();
@@ -195,7 +195,7 @@ namespace GVFS.CommandLine
             pathData.PlaceholderFolderPaths.AddRange(folderPlaceholders.Select(placeholderData => placeholderData.Path));
         }
 
-        private void GetPathsFromGitIndex(GVFSEnlistment enlistment, GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData)
+        private void GetPathsFromGitIndex(GVFSEnlistment enlistment, EnlistmentPathData pathData)
         {
             List<string> skipWorktreeFiles = new List<string>();
             GitProcess gitProcess = new GitProcess(enlistment);

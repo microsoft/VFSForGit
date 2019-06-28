@@ -8,13 +8,13 @@ namespace GVFS.UnitTests.Common
     public class GVFSEnlistmentHealthTests
     {
         private readonly char sep = GVFSPlatform.GVFSPlatformConstants.PathSeparator;
-        private GVFSEnlistmentHealthCalculator enlistmentHealthCalculator;
-        private GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData enlistmentHealthData;
+        private EnlistmentHealthCalculator enlistmentHealthCalculator;
+        private EnlistmentHealthData enlistmentHealthData;
 
         [TestCase]
         public void SingleHydratedDirectoryShouldHaveOtherDirectoriesCompletelyHealthy()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles("A/1.js", "A/2.js", "A/3.js", "A/4.js", "B/1.js", "B/2.js", "B/3.js", "B/4.js", "C/1.js", "C/2.js", "C/3.js", "C/4.js")
                 .AddPlaceholderFiles("A/1.js", "A/2.js", "A/3.js")
                 .Build();
@@ -37,7 +37,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AllEmptyLists()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .Build();
 
             this.enlistmentHealthData = this.GenerateStatistics(pathData, string.Empty);
@@ -52,7 +52,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void OverHydrated()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles("A/1.js", "A/2.js", "A/3.js", "A/4.js", "B/1.js", "B/2.js", "B/3.js", "B/4.js", "C/1.js", "C/2.js", "C/3.js", "C/4.js")
                 .AddPlaceholderFiles("A/1.js", "A/2.js", "A/3.js", "A/4.js", "B/1.js", "B/2.js", "B/3.js", "B/4.js", "C/1.js", "C/2.js", "C/3.js", "C/4.js")
                 .AddModifiedPathFiles("A/1.js", "A/2.js", "A/3.js", "A/4.js", "B/1.js", "B/2.js", "B/3.js", "B/4.js", "C/1.js", "C/2.js", "C/3.js", "C/4.js")
@@ -70,7 +70,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void SortByHydration()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles("C/1.js", "A/1.js", "B/1.js", "B/2.js", "A/2.js", "C/2.js", "A/3.js", "C/3.js", "B/3.js")
                 .AddModifiedPathFiles("C/1.js", "B/2.js", "A/3.js")
                 .AddPlaceholderFiles("B/1.js", "A/2.js")
@@ -89,7 +89,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void VariedDirectoryFormatting()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles("A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js")
                 .AddPlaceholderFolders("/A/", $"{this.sep}B{this.sep}", "A/", $"B{this.sep}", "/A", $"{this.sep}B", "A", "B")
                 .Build();
@@ -105,7 +105,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void VariedFilePathFormatting()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles("A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js")
                 .AddPlaceholderFiles("A/1.js", $"A{this.sep}2.js", "/A/1.js", $"{this.sep}A{this.sep}1.js")
                 .AddModifiedPathFiles("B/1.js", $"B{this.sep}2.js", "/B/1.js", $"{this.sep}B{this.sep}1.js")
@@ -129,7 +129,7 @@ namespace GVFS.UnitTests.Common
             string[] gitFilesDirectoryA = new string[] { "A/1.js", "A/2.js", "A/3.js" };
             string[] gitFilesDirectoryB = new string[] { "B/1.js", "B/2.js", "B/3.js" };
 
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles(gitFilesDirectoryA)
                 .AddGitFiles(gitFilesDirectoryB)
                 .AddPlaceholderFiles("A/1.js", $"A{this.sep}2.js", "/A/1.js", $"{this.sep}A{this.sep}1.js")
@@ -156,7 +156,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void FilterByDirectoryWithoutPathSeparator()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles("Directory1/Child1/File1.js", "Directory1/Child1/File2.exe", "Directory2/Child2/File1.bat", "Directory2/Child2/File2.css")
                 .AddPlaceholderFiles("Directory1/File1.js", "Directory1/File2.exe", "Directory2/File1.bat", "Directory2/File2.css")
                 .Build();
@@ -179,7 +179,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void EnsureFolderNotIncludedInOwnCount()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFolders("foo/")
                 .AddGitFiles("foo/file1.jpg", "foo/file2.jpg", "foo/file3.jpg", "foo/file4.jpg", "foo/file5.jpg")
                 .AddPlaceholderFiles("foo/file1.jpg", "foo/file2.jpg", "foo/file3.jpg", "foo/file4.jpg", "foo/file5.jpg")
@@ -196,7 +196,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void FolderNotDoubleCounted()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFolders("foo/")
                 .AddGitFiles("foo/file1.jpg", "foo/file2.jpg", "foo/file3.jpg", "foo/file4.jpg", "foo/file5.jpg")
                 .AddPlaceholderFiles("foo/file1.jpg", "foo/file2.jpg", "foo/file3.jpg", "foo/file4.jpg", "foo/file5.jpg")
@@ -213,7 +213,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void UnionOfSkipWorktreeAndModifiedPathsNoDuplicates()
         {
-            GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
+            EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles("A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js")
                 .AddModifiedPathFiles("A/1.js", "A/2.js", "/A/3.js", "B/1.js", "B/2.js", "B/3.js")
                 .AddNonSkipWorktreeFiles("A/1.js", "/A/2.js", $"{this.sep}A/3.js", "B/1.js", $"B{this.sep}2.js", $"/B{this.sep}3.js")
@@ -228,15 +228,15 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.DirectoryHydrationLevels.Count.ShouldEqual(2);
         }
 
-        private GVFSEnlistmentHealthCalculator.GVFSEnlistmentHealthData GenerateStatistics(GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData, string directory)
+        private EnlistmentHealthData GenerateStatistics(EnlistmentPathData pathData, string directory)
         {
-            this.enlistmentHealthCalculator = new GVFSEnlistmentHealthCalculator(pathData);
+            this.enlistmentHealthCalculator = new EnlistmentHealthCalculator(pathData);
             return this.enlistmentHealthCalculator.CalculateStatistics(directory);
         }
 
         public class PathDataBuilder
         {
-            private GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData();
+            private EnlistmentPathData pathData = new EnlistmentPathData();
 
             public PathDataBuilder AddPlaceholderFiles(params string[] placeholderFilePaths)
             {
@@ -280,7 +280,7 @@ namespace GVFS.UnitTests.Common
                 return this;
             }
 
-            public GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData Build()
+            public EnlistmentPathData Build()
             {
                 this.pathData.NormalizeAllPaths();
                 return this.pathData;
