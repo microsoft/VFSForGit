@@ -14,6 +14,7 @@ namespace GVFS.Virtualization.Projection
             }
 
             public bool IsRecursive { get; set; }
+            public int Depth { get; set; }
             public Dictionary<string, IncludedFolderData> Children { get; }
         }
     }
