@@ -524,7 +524,10 @@ namespace GVFS.Platform.Mac
                         }
                         else
                         {
-                            this.FileSystemCallbacks.OnFolderCreated(relativePath);
+                            if (this.FileSystemCallbacks.OnFolderCreated(relativePath))
+                            {
+                                this.OnEnumerateDirectory(0, relativePath, -1, $"{nameof(this.OnNewFileCreated)}_FolderIncluded");
+                            }
                         }
                     }
                     else
