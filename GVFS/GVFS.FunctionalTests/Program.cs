@@ -87,6 +87,8 @@ namespace GVFS.FunctionalTests
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
+                excludeCategories.Add(Categories.RepositoryMountsDifferentFileSystem);
+
                 excludeCategories.Add(Categories.MacTODO.FailsOnBuildAgent);
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
                 excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
@@ -100,6 +102,8 @@ namespace GVFS.FunctionalTests
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
+                excludeCategories.Add(Categories.RepositoryMountsSameFileSystem);
+
                 // TODO(Linux): determine which are really generic POSIX TODOs
                 excludeCategories.Add(Categories.MacTODO.FailsOnBuildAgent);
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
@@ -117,6 +121,7 @@ namespace GVFS.FunctionalTests
             {
                 // Windows excludes.
                 excludeCategories.Add(Categories.FileSystemSupportsFileMode);
+                excludeCategories.Add(Categories.RepositoryMountsDifferentFileSystem);
 
                 excludeCategories.Add(Categories.LinuxOnly);
                 excludeCategories.Add(Categories.MacOnly);
