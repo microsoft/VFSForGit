@@ -4,5 +4,6 @@
     {
         public const string ExceptionExpected = "ExceptionExpected";
         public const string CaseInsensitiveFileSystemOnly = "CaseInsensitiveFileSystemOnly";
+        public const string CaseSensitiveFileSystemOnly = "CaseSensitiveFileSystemOnly";
     }
 }

@@ -260,7 +260,7 @@ namespace GVFS.Common
 
         private IEnumerable<string> GenerateDataLines(IEnumerable<IPlaceholderData> updatedPlaceholders)
         {
-            HashSet<string> keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> keys = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
             this.Count = 0;
             foreach (IPlaceholderData updated in updatedPlaceholders)

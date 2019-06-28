@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 
@@ -176,8 +177,10 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 // Insertions are almost always at the end, because the inputs are pre-sorted by git.
-                // We only have to insert at a different spot where Windows and git disagree on the sort order.
-                int compareResult = this.sortedEntries[this.sortedEntries.Count - 1].Name.CaseInsensitiveCompare(name);
+                // We only have to insert at a different spot where Windows/Mac and git disagree on the sort order;
+                // on Linux we use a case-sensitive comparsion, which we expect t to align with git.
+                bool caseSensitive = GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem;
+                int compareResult = this.sortedEntries[this.sortedEntries.Count - 1].Name.Compare(name, caseSensitive);
                 if (compareResult == 0)
                 {
                     return this.sortedEntries.Count - 1;
@@ -193,7 +196,7 @@ namespace GVFS.Virtualization.Projection
                 while (right - left > 2)
                 {
                     int middle = left + ((right - left) / 2);
-                    int comparison = this.sortedEntries[middle].Name.CaseInsensitiveCompare(name);
+                    int comparison = this.sortedEntries[middle].Name.Compare(name, caseSensitive);
 
                     if (comparison == 0)
                     {
@@ -212,7 +215,7 @@ namespace GVFS.Virtualization.Projection
 
                 for (int i = right; i >= left; i--)
                 {
-                    compareResult = this.sortedEntries[i].Name.CaseInsensitiveCompare(name);
+                    compareResult = this.sortedEntries[i].Name.Compare(name, caseSensitive);
                     if (compareResult == 0)
                     {
                         return i;

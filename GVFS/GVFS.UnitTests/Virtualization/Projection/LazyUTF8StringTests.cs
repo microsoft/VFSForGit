@@ -73,6 +73,19 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
+        public unsafe void CaseSensitiveEquals_SameName_EqualsTrue()
+        {
+            UseASCIIBytePointer(
+                "folderonefile.txtfolder",
+                bufferPtr =>
+                {
+                    LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
+                    LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 6);
+                    firstFolder.CaseSensitiveEquals(secondFolder).ShouldBeTrue(nameof(firstFolder.CaseSensitiveEquals));
+                });
+        }
+
+        [TestCase]
         public unsafe void CaseInsensitiveEquals_SameNameDifferentCase1_EqualsTrue()
         {
             UseASCIIBytePointer(
@@ -82,6 +95,19 @@ namespace GVFS.UnitTests.Virtualization.Git
                     LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
                     LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 6);
                     firstFolder.CaseInsensitiveEquals(secondFolder).ShouldBeTrue(nameof(firstFolder.CaseInsensitiveEquals));
+                });
+        }
+
+        [TestCase]
+        public unsafe void CaseSensitiveEquals_SameNameDifferentCase1_EqualsFalse()
+        {
+            UseASCIIBytePointer(
+                "folderonefile.txtFolder",
+                bufferPtr =>
+                {
+                    LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
+                    LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 6);
+                    firstFolder.CaseSensitiveEquals(secondFolder).ShouldBeFalse(nameof(firstFolder.CaseSensitiveEquals));
                 });
         }
 
@@ -99,6 +125,19 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
+        public unsafe void CaseSensitiveEquals_SameNameDifferentCase2_EqualsFalse()
+        {
+            UseASCIIBytePointer(
+                "FOlderonefile.txtFolder",
+                bufferPtr =>
+                {
+                    LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
+                    LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 6);
+                    firstFolder.CaseSensitiveEquals(secondFolder).ShouldBeFalse(nameof(firstFolder.CaseSensitiveEquals));
+                });
+        }
+
+        [TestCase]
         public unsafe void CaseInsensitiveEquals_OneNameLongerEqualsFalse()
         {
             UseASCIIBytePointer(
@@ -108,6 +147,19 @@ namespace GVFS.UnitTests.Virtualization.Git
                     LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
                     LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 10);
                     firstFolder.CaseInsensitiveEquals(secondFolder).ShouldBeFalse(nameof(firstFolder.CaseInsensitiveEquals));
+                });
+        }
+
+        [TestCase]
+        public unsafe void CaseSensitiveEquals_OneNameLongerEqualsFalse()
+        {
+            UseASCIIBytePointer(
+                "folderonefile.txtfoldertest",
+                bufferPtr =>
+                {
+                    LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
+                    LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 10);
+                    firstFolder.CaseSensitiveEquals(secondFolder).ShouldBeFalse(nameof(firstFolder.CaseSensitiveEquals));
                 });
         }
 
@@ -125,7 +177,20 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
-        public unsafe void CaseInsensitiveCompare_EqualsZero()
+        public unsafe void CaseSensitiveEquals_OneNameShorterEqualsFalse()
+        {
+            UseASCIIBytePointer(
+                "folderonefile.txtfold",
+                bufferPtr =>
+                {
+                    LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
+                    LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 4);
+                    firstFolder.CaseSensitiveEquals(secondFolder).ShouldBeFalse(nameof(firstFolder.CaseSensitiveEquals));
+                });
+        }
+
+        [TestCase]
+        public unsafe void Compare_EqualsZero()
         {
             UseASCIIBytePointer(
                 "folderonefile.txtfolder",
@@ -134,11 +199,12 @@ namespace GVFS.UnitTests.Virtualization.Git
                     LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
                     LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 6);
                     firstFolder.CaseInsensitiveCompare(secondFolder).ShouldEqual(0, nameof(firstFolder.CaseInsensitiveCompare));
+                    firstFolder.CaseSensitiveCompare(secondFolder).ShouldEqual(0, nameof(firstFolder.CaseSensitiveCompare));
                 });
         }
 
         [TestCase]
-        public unsafe void CaseInsensitiveCompare_EqualsLessThanZero()
+        public unsafe void Compare_EqualsLessThanZero()
         {
             UseASCIIBytePointer(
                 "folderonefile.txtfolders",
@@ -147,11 +213,12 @@ namespace GVFS.UnitTests.Virtualization.Git
                     LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
                     LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 7);
                     firstFolder.CaseInsensitiveCompare(secondFolder).ShouldBeAtMost(-1, nameof(firstFolder.CaseInsensitiveCompare));
+                    firstFolder.CaseSensitiveCompare(secondFolder).ShouldBeAtMost(-1, nameof(firstFolder.CaseSensitiveCompare));
                 });
         }
 
         [TestCase]
-        public unsafe void CaseInsensitiveCompare_EqualsLessThanZero2()
+        public unsafe void Compare_EqualsLessThanZero2()
         {
             UseASCIIBytePointer(
                 "folderDKfile.txtSDKfolders",
@@ -160,11 +227,12 @@ namespace GVFS.UnitTests.Virtualization.Git
                     LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 6, 2);
                     LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 16, 3);
                     firstFolder.CaseInsensitiveCompare(secondFolder).ShouldBeAtMost(-1, nameof(firstFolder.CaseInsensitiveCompare));
+                    firstFolder.CaseSensitiveCompare(secondFolder).ShouldBeAtMost(-1, nameof(firstFolder.CaseSensitiveCompare));
                 });
         }
 
         [TestCase]
-        public unsafe void CaseInsensitiveCompare_EqualsGreaterThanZero()
+        public unsafe void Compare_EqualsGreaterThanZero()
         {
             UseASCIIBytePointer(
                 "folderonefile.txtfold",
@@ -173,11 +241,12 @@ namespace GVFS.UnitTests.Virtualization.Git
                     LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 0, 6);
                     LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 4);
                     firstFolder.CaseInsensitiveCompare(secondFolder).ShouldBeAtLeast(1, nameof(firstFolder.CaseInsensitiveCompare));
+                    firstFolder.CaseSensitiveCompare(secondFolder).ShouldBeAtLeast(1, nameof(firstFolder.CaseSensitiveCompare));
                 });
         }
 
         [TestCase]
-        public unsafe void CaseInsensitiveCompare_EqualsGreaterThanZero2()
+        public unsafe void Compare_EqualsGreaterThanZero2()
         {
             UseASCIIBytePointer(
                 "folderSDKfile.txtDKfolders",
@@ -186,6 +255,7 @@ namespace GVFS.UnitTests.Virtualization.Git
                     LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 6, 3);
                     LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 2);
                     firstFolder.CaseInsensitiveCompare(secondFolder).ShouldBeAtLeast(1, nameof(firstFolder.CaseInsensitiveCompare));
+                    firstFolder.CaseSensitiveCompare(secondFolder).ShouldBeAtLeast(1, nameof(firstFolder.CaseSensitiveCompare));
                 });
         }
 
@@ -296,6 +366,7 @@ namespace GVFS.UnitTests.Virtualization.Git
                     LazyUTF8String firstFolder = LazyUTF8String.FromByteArray(bufferPtr + 6, 3);
                     LazyUTF8String secondFolder = LazyUTF8String.FromByteArray(bufferPtr + 17, 20);
                     firstFolder.CaseInsensitiveCompare(secondFolder).ShouldBeAtMost(-1, nameof(firstFolder.CaseInsensitiveCompare));
+                    firstFolder.CaseSensitiveCompare(secondFolder).ShouldBeAtMost(-1, nameof(firstFolder.CaseSensitiveCompare));
                 });
         }
 
