@@ -4,7 +4,7 @@ using System.IO;
 
 namespace GVFS.FunctionalTests.Tools
 {
-    public class GitProcess
+    public static class GitProcess
     {
         public static string Invoke(string executionWorkingDirectory, string command)
         {
