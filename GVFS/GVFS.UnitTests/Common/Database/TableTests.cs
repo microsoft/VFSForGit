@@ -33,7 +33,7 @@ namespace GVFS.UnitTests.Common.Database
             Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
             mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
 
-            this.CreateTable(mockConnection.Object);
+            this.CreateTable(mockConnection.Object, false);
             mockCommand.VerifyAll();
             mockConnection.VerifyAll();
         }
@@ -50,14 +50,14 @@ namespace GVFS.UnitTests.Common.Database
             Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
             mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
 
-            Exception ex = Assert.Throws<Exception>(() => this.CreateTable(mockConnection.Object));
+            Exception ex = Assert.Throws<Exception>(() => this.CreateTable(mockConnection.Object, false));
             ex.Message.ShouldEqual(DefaultExceptionMessage);
             mockCommand.VerifyAll();
             mockConnection.VerifyAll();
         }
 
         protected abstract T TableFactory(IGVFSConnectionPool pool);
-        protected abstract void CreateTable(IDbConnection connection);
+        protected abstract void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem);
 
         protected void TestTableWithReader(Action<T, Mock<IDbCommand>, Mock<IDataReader>> testCode)
         {

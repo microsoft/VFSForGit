@@ -25,6 +25,10 @@ namespace GVFS.UnitTests
             {
                 excludeCategories.Add(CategoryConstants.CaseInsensitiveFileSystemOnly);
             }
+            else
+            {
+                excludeCategories.Add(CategoryConstants.CaseSensitiveFileSystemOnly);
+            }
 
             Environment.ExitCode = runner.RunTests(includeCategories: null, excludeCategories: excludeCategories);
 

@@ -18,7 +18,7 @@ namespace GVFS.Common
         protected ModifiedPathsDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath)
             : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: true)
         {
-            this.modifiedPaths = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
+            this.modifiedPaths = new ConcurrentHashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
         }
 
         public int Count
