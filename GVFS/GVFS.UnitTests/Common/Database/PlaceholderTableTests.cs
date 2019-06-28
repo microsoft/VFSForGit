@@ -40,7 +40,7 @@ namespace GVFS.UnitTests.Common.Database
             Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
             mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
 
-            PlaceholderTable.CreateTable(mockConnection.Object);
+            PlaceholderTable.CreateTable(mockConnection.Object, false);
             mockCommand.VerifyAll();
             mockConnection.VerifyAll();
         }
@@ -57,7 +57,7 @@ namespace GVFS.UnitTests.Common.Database
             Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
             mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
 
-            Exception ex = Assert.Throws<Exception>(() => PlaceholderTable.CreateTable(mockConnection.Object));
+            Exception ex = Assert.Throws<Exception>(() => PlaceholderTable.CreateTable(mockConnection.Object, false));
             ex.Message.ShouldEqual(DefaultExceptionMessage);
             mockCommand.VerifyAll();
             mockConnection.VerifyAll();

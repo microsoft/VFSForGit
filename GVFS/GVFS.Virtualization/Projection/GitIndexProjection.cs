@@ -49,11 +49,11 @@ namespace GVFS.Virtualization.Projection
         private GitIndexParser indexParser;
 
         // Cache of folder paths (in Windows format) to folder data
-        private ConcurrentDictionary<string, FolderData> projectionFolderCache = new ConcurrentDictionary<string, FolderData>(StringComparer.OrdinalIgnoreCase);
+        private ConcurrentDictionary<string, FolderData> projectionFolderCache = new ConcurrentDictionary<string, FolderData>(GVFSPlatform.Instance.Constants.PathComparer);
 
         // nonDefaultFileTypesAndModes is only populated when the platform supports file mode
         // On platforms that support file modes, file paths that are not in nonDefaultFileTypesAndModes are regular files with mode 644
-        private Dictionary<string, FileTypeAndMode> nonDefaultFileTypesAndModes = new Dictionary<string, FileTypeAndMode>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, FileTypeAndMode> nonDefaultFileTypesAndModes = new Dictionary<string, FileTypeAndMode>(GVFSPlatform.Instance.Constants.PathComparer);
 
         private BlobSizes blobSizes;
         private IPlaceholderCollection placeholderDatabase;
@@ -1105,7 +1105,7 @@ namespace GVFS.Virtualization.Projection
 
                 // folderPlaceholdersToKeep always contains the empty path so as to avoid unnecessary attempts
                 // to remove the repository's root folder.
-                ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
+                ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
                 folderPlaceholdersToKeep.Add(string.Empty);
 
                 stopwatch.Restart();
@@ -1141,7 +1141,7 @@ namespace GVFS.Virtualization.Projection
                         IEnumerable<string> allPlaceholders = placeholderFoldersListCopy
                             .Select(x => x.Path)
                             .Union(this.placeholderDatabase.GetAllFilePaths());
-                        existingPlaceholders = new HashSet<string>(allPlaceholders, StringComparer.OrdinalIgnoreCase);
+                        existingPlaceholders = new HashSet<string>(allPlaceholders, GVFSPlatform.Instance.Constants.PathComparer);
                     }
 
                     // Order the folders in decscending order so that we walk the tree from bottom up.
