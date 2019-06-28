@@ -126,15 +126,19 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void FilterByDirectory()
         {
+            string[] gitFilesDirectoryA = new string[] { "A/1.js", "A/2.js", "A/3.js" };
+            string[] gitFilesDirectoryB = new string[] { "B/1.js", "B/2.js", "B/3.js" };
+
             GVFSEnlistmentHealthCalculator.GVFSEnlistmentPathData pathData = new PathDataBuilder()
-                .AddGitFiles("A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js")
+                .AddGitFiles(gitFilesDirectoryA)
+                .AddGitFiles(gitFilesDirectoryB)
                 .AddPlaceholderFiles("A/1.js", $"A{this.sep}2.js", "/A/1.js", $"{this.sep}A{this.sep}1.js")
                 .AddModifiedPathFiles("B/1.js", $"B{this.sep}2.js", "/B/1.js", $"{this.sep}B{this.sep}1.js")
                 .Build();
 
             this.enlistmentHealthData = this.GenerateStatistics(pathData, "A/");
 
-            this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(pathData.GitFilePaths.Count / 2);
+            this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(gitFilesDirectoryA.Length);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(pathData.PlaceholderFilePaths.Count);
             this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(4.0m / 3.0m);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(0);
@@ -142,7 +146,7 @@ namespace GVFS.UnitTests.Common
 
             this.enlistmentHealthData = this.GenerateStatistics(pathData, "/B/");
 
-            this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(pathData.GitFilePaths.Count / 2);
+            this.enlistmentHealthData.GitTrackedItemsCount.ShouldEqual(gitFilesDirectoryB.Length);
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(0);
             this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(0);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(pathData.ModifiedFilePaths.Count);
