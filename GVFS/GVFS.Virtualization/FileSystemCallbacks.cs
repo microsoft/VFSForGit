@@ -64,7 +64,7 @@ namespace GVFS.Virtualization
             this.filePlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
             this.folderPlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
             this.fileHydrationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
-            this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
+            this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
             string error;
             if (!ModifiedPathsDatabase.TryLoadOrCreate(

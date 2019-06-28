@@ -117,7 +117,7 @@ namespace GVFS.Common.Database
                     command.ExecuteNonQuery();
                 }
 
-                PlaceholderTable.CreateTable(connection);
+                PlaceholderTable.CreateTable(connection, GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem);
             }
         }
 

@@ -1,4 +1,5 @@
 ﻿using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
@@ -76,12 +77,23 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
         public void EntryFoundDifferentCase()
         {
             SortedFolderEntries sfe = SetupDefaultEntries();
             LazyUTF8String findName = ConstructLazyUTF8String("Folder");
             sfe.TryGetValue(findName, out FolderEntryData folderEntryData).ShouldBeTrue();
             folderEntryData.ShouldNotBeNull();
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.CaseSensitiveFileSystemOnly)]
+        public void EntryNotFoundDifferentCase()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String findName = ConstructLazyUTF8String("Folder");
+            sfe.TryGetValue(findName, out FolderEntryData folderEntryData).ShouldBeFalse();
+            folderEntryData.ShouldBeNull();
         }
 
         [TestCase]
@@ -103,11 +115,27 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
-        public void ValidateOrderOfDefaultEntries()
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
+        public void ValidateCaseInsensitiveOrderOfDefaultEntries()
         {
             List<string> allEntries = new List<string>(defaultFiles);
             allEntries.AddRange(defaultFolders);
             allEntries.Sort(CaseInsensitiveStringCompare);
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            sfe.Count.ShouldEqual(14);
+            for (int i = 0; i < allEntries.Count; i++)
+            {
+                sfe[i].Name.GetString().ShouldEqual(allEntries[i]);
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.CaseSensitiveFileSystemOnly)]
+        public void ValidateCaseSensitiveOrderOfDefaultEntries()
+        {
+            List<string> allEntries = new List<string>(defaultFiles);
+            allEntries.AddRange(defaultFolders);
+            allEntries.Sort(CaseSensitiveStringCompare);
             SortedFolderEntries sfe = SetupDefaultEntries();
             sfe.Count.ShouldEqual(14);
             for (int i = 0; i < allEntries.Count; i++)
@@ -141,6 +169,11 @@ namespace GVFS.UnitTests.Virtualization.Git
         private static int CaseInsensitiveStringCompare(string x, string y)
         {
             return string.Compare(x, y, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static int CaseSensitiveStringCompare(string x, string y)
+        {
+            return string.Compare(x, y, StringComparison.Ordinal);
         }
 
         private static SortedFolderEntries SetupDefaultEntries()
