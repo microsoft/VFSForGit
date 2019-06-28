@@ -49,14 +49,14 @@ namespace GVFS.FunctionalTests.Tools
             return this.IsEnlistmentMounted();
         }
 
-        public void AddIncludedFolders(params string[] folders)
+        public string AddIncludedFolders(params string[] folders)
         {
-            this.CallGVFS($"include {this.enlistmentRoot} -a {string.Join(";", folders)}");
+            return this.CallGVFS($"include {this.enlistmentRoot} -a {string.Join(";", folders)}");
         }
 
-        public void RemoveIncludedFolders(params string[] folders)
+        public string RemoveIncludedFolders(params string[] folders)
         {
-            this.CallGVFS($" include {this.enlistmentRoot} -r {string.Join(";", folders)}");
+            return this.CallGVFS($" include {this.enlistmentRoot} -r {string.Join(";", folders)}");
         }
 
         public string[] IncludedFoldersList()
