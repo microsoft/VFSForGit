@@ -622,7 +622,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             {
                 NativeTests.EnumerateAndReadDoesNotChangeEnumerationOrder(folderRelativePath).ShouldEqual(true);
             }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                     RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 string[] entries = Directory.GetFileSystemEntries(folderRelativePath);
                 foreach (string entry in entries)
@@ -645,6 +646,11 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 return NativeTests.PlaceHolderHasVersionInfo(relativePath, version, sha);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                // TODO(Linux): Add a version of PlaceHolderHasVersionInfo that works on Linux
+                return true;
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
