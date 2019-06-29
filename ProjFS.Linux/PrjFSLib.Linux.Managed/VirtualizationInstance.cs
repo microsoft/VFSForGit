@@ -30,12 +30,15 @@ namespace PrjFSLib.Linux
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
         public virtual LogErrorCallback OnLogError { get; set; }
 
-        public virtual NotifyFileModified OnFileModified { get; set; }
-        public virtual NotifyFilePreConvertToFullEvent OnFilePreConvertToFull { get; set; }
         public virtual NotifyPreDeleteEvent OnPreDelete { get; set; }
+        public virtual NotifyPreRenameEvent OnPreRename { get; set; }
+        public virtual NotifyFilePreConvertToFullEvent OnFilePreConvertToFull { get; set; }
+
         public virtual NotifyNewFileCreatedEvent OnNewFileCreated { get; set; }
+        public virtual NotifyFileDeletedEvent OnFileDeleted { get; set; }
         public virtual NotifyFileRenamedEvent OnFileRenamed { get; set; }
         public virtual NotifyHardLinkCreatedEvent OnHardLinkCreated { get; set; }
+        public virtual NotifyFileModified OnFileModified { get; set; }
 
         public virtual Result StartVirtualizationInstance(
             string storageRootFullPath,
@@ -460,13 +463,21 @@ namespace PrjFSLib.Linux
             {
                 nt = NotificationType.PreDelete;
             }
-            else if ((ev.Mask & ProjFS.Constants.PROJFS_CLOSE_WRITE) != 0)
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_MOVE_PERM) != 0)
             {
-                nt = NotificationType.FileModified;
+                nt = NotificationType.PreRename;
+            }
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_OPEN_PERM) != 0)
+            {
+                nt = NotificationType.PreConvertToFull;
             }
             else if ((ev.Mask & ProjFS.Constants.PROJFS_CREATE) != 0 && !isLink)
             {
                 nt = NotificationType.NewFileCreated;
+            }
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_DELETE) != 0)
+            {
+                nt = NotificationType.FileDeleted;
             }
             else if ((ev.Mask & ProjFS.Constants.PROJFS_MOVE) != 0)
             {
@@ -476,9 +487,9 @@ namespace PrjFSLib.Linux
             {
                 nt = NotificationType.HardLinkCreated;
             }
-            else if ((ev.Mask & ProjFS.Constants.PROJFS_OPEN_PERM) != 0)
+            else if ((ev.Mask & ProjFS.Constants.PROJFS_CLOSE_WRITE) != 0)
             {
-                nt = NotificationType.PreConvertToFull;
+                nt = NotificationType.FileModified;
             }
             else
             {
@@ -486,20 +497,19 @@ namespace PrjFSLib.Linux
             }
 
             bool isDirectory = (ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0;
-            string relativePath;
+            string relativePath = PtrToStringUTF8(ev.Path);
+            string relativeDestinationPath = null;
 
-            if (nt == NotificationType.FileRenamed ||
+            if (nt == NotificationType.PreRename ||
+                nt == NotificationType.FileRenamed ||
                 nt == NotificationType.HardLinkCreated)
             {
-                relativePath = PtrToStringUTF8(ev.TargetPath);
-            }
-            else
-            {
-                relativePath = PtrToStringUTF8(ev.Path);
+                relativeDestinationPath = PtrToStringUTF8(ev.TargetPath);
             }
 
             Result result = this.OnNotifyOperation(
                 relativePath: relativePath,
+                relativeDestinationPath: relativeDestinationPath,
                 isDirectory: isDirectory,
                 notificationType: nt);
 
@@ -532,6 +542,7 @@ namespace PrjFSLib.Linux
 
         private Result OnNotifyOperation(
             string relativePath,
+            string relativeDestinationPath,
             bool isDirectory,
             NotificationType notificationType)
         {
@@ -540,24 +551,31 @@ namespace PrjFSLib.Linux
                 case NotificationType.PreDelete:
                     return this.OnPreDelete(relativePath, isDirectory);
 
-                case NotificationType.FileModified:
-                    this.OnFileModified(relativePath);
-                    return Result.Success;
+                case NotificationType.PreRename:
+                    return this.OnPreRename(relativePath, relativeDestinationPath, isDirectory);
+
+                case NotificationType.PreConvertToFull:
+                    return this.OnFilePreConvertToFull(relativePath);
 
                 case NotificationType.NewFileCreated:
                     this.OnNewFileCreated(relativePath, isDirectory);
                     return Result.Success;
 
+                case NotificationType.FileDeleted:
+                    this.OnFileDeleted(relativePath, isDirectory);
+                    return Result.Success;
+
                 case NotificationType.FileRenamed:
-                    this.OnFileRenamed(relativePath, isDirectory);
+                    this.OnFileRenamed(relativePath, relativeDestinationPath, isDirectory);
                     return Result.Success;
 
                 case NotificationType.HardLinkCreated:
-                    this.OnHardLinkCreated(relativePath);
+                    this.OnHardLinkCreated(relativePath, relativeDestinationPath);
                     return Result.Success;
 
-                case NotificationType.PreConvertToFull:
-                    return this.OnFilePreConvertToFull(relativePath);
+                case NotificationType.FileModified:
+                    this.OnFileModified(relativePath);
+                    return Result.Success;
             }
 
             return Result.ENotYetImplemented;
