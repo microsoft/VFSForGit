@@ -116,6 +116,7 @@ namespace GVFS.FunctionalTests
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
+                excludeCategories.Add(Categories.CaseInsensitiveFileSystemOnly);
                 excludeCategories.Add(Categories.RepositoryMountsSameFileSystem);
 
                 // TODO(Linux): determine which are really generic POSIX TODOs
