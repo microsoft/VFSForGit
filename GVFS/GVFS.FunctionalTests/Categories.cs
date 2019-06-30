@@ -6,6 +6,8 @@
         public const string FastFetch = "FastFetch";
         public const string GitCommands = "GitCommands";
 
+        public const string CaseInsensitiveFileSystemOnly = "CaseInsensitiveFileSystemOnly";
+        public const string CaseSensitiveFileSystemOnly = "CaseSensitiveFileSystemOnly";
         public const string FileSystemSupportsFileMode = "FileSystemSupportsFileMode";
         public const string RepositoryMountsDifferentFileSystem = "RepositoryMountsDifferentFileSystem";
         public const string RepositoryMountsSameFileSystem = "RepositoryMountsSameFileSystem";
