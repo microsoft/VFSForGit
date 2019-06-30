@@ -6,6 +6,9 @@
         public const string FastFetch = "FastFetch";
         public const string GitCommands = "GitCommands";
 
+        public const string CaseInsensitiveFileSystemOnly = "CaseInsensitiveFileSystemOnly";
+        public const string CaseSensitiveFileSystemOnly = "CaseSensitiveFileSystemOnly";
+
         public const string WindowsOnly = "WindowsOnly";
         public const string MacOnly = "MacOnly";
 
