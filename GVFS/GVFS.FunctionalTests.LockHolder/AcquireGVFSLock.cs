@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
+using GVFS.Platform.Linux;
 using GVFS.Platform.Mac;
 using GVFS.Platform.Windows;
 using System;
@@ -43,7 +44,11 @@ namespace GVFS.FunctionalTests.LockHolder
 
         private static bool TryGetGVFSEnlistmentRootImplementation(string directory, out string enlistmentRoot, out string errorMessage)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return LinuxPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 return MacPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
             }
@@ -70,7 +75,11 @@ namespace GVFS.FunctionalTests.LockHolder
 
         private static string GetNamedPipeNameImplementation(string enlistmentRoot)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return LinuxPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 return MacPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
             }
