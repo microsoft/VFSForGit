@@ -103,6 +103,8 @@ namespace GVFS.FunctionalTests
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
+                excludeCategories.Add(Categories.CaseSensitiveFileSystemOnly);
+
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
                 excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
                 excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
@@ -111,6 +113,9 @@ namespace GVFS.FunctionalTests
             }
             else
             {
+                // Windows excludes.
+                excludeCategories.Add(Categories.CaseSensitiveFileSystemOnly);
+
                 excludeCategories.Add(Categories.MacOnly);
             }
 
