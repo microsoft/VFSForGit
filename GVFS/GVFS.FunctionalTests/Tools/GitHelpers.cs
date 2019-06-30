@@ -28,10 +28,11 @@ namespace GVFS.FunctionalTests.Tools
         {
             get
             {
-                // On OSX functional tests are run from inside Publish directory. Dependent
+                // On Linux and OSX functional tests are run from inside Publish directory. Dependent
                 // assemblies including LockHolder test are available at the same level in
                 // the same directory.
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                    RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                 {
                     return Path.Combine(
                         Settings.Default.CurrentDirectory,

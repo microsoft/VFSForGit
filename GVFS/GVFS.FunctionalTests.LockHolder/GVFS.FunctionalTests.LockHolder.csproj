@@ -7,7 +7,7 @@
     <!-- see https://github.com/NuGet/Home/issues/4837 for reference to CopyLocalLockFileAssemblies -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <RuntimeIdentifiers>win-x64;osx-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;osx-x64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
   
   <PropertyGroup>
@@ -25,6 +25,7 @@
   <ItemGroup>
     <Compile Include="..\GVFS.Platform.POSIX\POSIXFileSystem.Shared.cs" Link="POSIXFileSystem.Shared.cs" />
     <Compile Include="..\GVFS.Platform.POSIX\POSIXPlatform.Shared.cs" Link="POSIXPlatform.Shared.cs" />
+    <Compile Include="..\GVFS.Platform.Linux\LinuxPlatform.Shared.cs" Link="LinuxPlatform.Shared.cs" />
     <Compile Include="..\GVFS.Platform.Mac\MacPlatform.Shared.cs" Link="MacPlatform.Shared.cs" />
     <Compile Include="..\GVFS.Platform.Windows\WindowsFileSystem.Shared.cs" Link="WindowsFileSystem.Shared.cs" />
   </ItemGroup>
