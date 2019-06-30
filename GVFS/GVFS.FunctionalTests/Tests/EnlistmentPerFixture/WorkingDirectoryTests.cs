@@ -303,45 +303,36 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems();
         }
 
+        // Case-insensitive filesystems only
         [TestCase, Order(7)]
-        public void HydratingFileUsesNameCaseFromRepo()
+        [Category(Categories.CaseInsensitiveFileSystemOnly)]
+        public void HydratingFileUsesNameCaseFromRepoOnCaseInsensitiveFileSystem()
         {
-            string fileName = "Readme.md";
-            string parentFolderPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(fileName));
-            parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
-
-            // Hydrate file with a request using different file name case
-            string wrongCaseFilePath = this.Enlistment.GetVirtualPathTo(fileName.ToUpper());
-            string fileContents = wrongCaseFilePath.ShouldBeAFile(this.fileSystem).WithContents();
-
-            // File on disk should have original case projected from repo
-            parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
+            this.HydratingFileUsesNameCaseFromRepo(false);
         }
 
-        [TestCase, Order(8)]
-        public void HydratingNestedFileUsesNameCaseFromRepo()
+        // Case-sensitive filesystems only
+        [TestCase, Order(7)]
+        [Category(Categories.CaseSensitiveFileSystemOnly)]
+        public void HydratingFileUsesNameCaseFromRepoOnCaseSensitiveFileSystem()
         {
-            string filePath = Path.Combine("GVFS", "FastFetch", "Properties", "AssemblyInfo.cs");
-            string filePathAllCaps = filePath.ToUpper();
-            string parentFolderVirtualPathAllCaps = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(filePathAllCaps));
-            parentFolderVirtualPathAllCaps.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
+            this.HydratingFileUsesNameCaseFromRepo(true);
+        }
 
-            // Hydrate file with a request using different file name case
-            string wrongCaseFilePath = this.Enlistment.GetVirtualPathTo(filePathAllCaps);
-            string fileContents = wrongCaseFilePath.ShouldBeAFile(this.fileSystem).WithContents();
+        // Case-insensitive filesystems only
+        [TestCase, Order(8)]
+        [Category(Categories.CaseInsensitiveFileSystemOnly)]
+        public void HydratingNestedFileUsesNameCaseFromRepoOnCaseInsensitiveFileSystem()
+        {
+            this.HydratingNestedFileUsesNameCaseFromRepo(false);
+        }
 
-            // File on disk should have original case projected from repo
-            string parentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(filePath));
-            parentFolderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
-
-            // Confirm all folders up to root have the correct case
-            string parentFolderPath = Path.GetDirectoryName(filePath);
-            while (!string.IsNullOrWhiteSpace(parentFolderPath))
-            {
-                string folderName = Path.GetFileName(parentFolderPath);
-                parentFolderPath = Path.GetDirectoryName(parentFolderPath);
-                this.Enlistment.GetVirtualPathTo(parentFolderPath).ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(folderName, StringComparison.Ordinal));
-            }
+        // Case-sensitive filesystems only
+        [TestCase, Order(8)]
+        [Category(Categories.CaseSensitiveFileSystemOnly)]
+        public void HydratingNestedFileUsesNameCaseFromRepoOnCaseSensitiveFileSystem()
+        {
+            this.HydratingNestedFileUsesNameCaseFromRepo(true);
         }
 
         [TestCase, Order(9)]
@@ -637,6 +628,46 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             else
             {
                 Assert.Fail("Unsupported platform");
+            }
+        }
+
+        private void HydratingFileUsesNameCaseFromRepo(bool caseSensitiveFileSystem)
+        {
+            string fileName = "Readme.md";
+            string parentFolderPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(fileName));
+            parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
+
+            // Hydrate file with a request using different file name case except on case-sensitive filesystems
+            string testFileName = caseSensitiveFileSystem ? fileName : fileName.ToUpper();
+            string testFilePath = this.Enlistment.GetVirtualPathTo(testFileName);
+            string fileContents = testFilePath.ShouldBeAFile(this.fileSystem).WithContents();
+
+            // File on disk should have original case projected from repo
+            parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
+        }
+
+        private void HydratingNestedFileUsesNameCaseFromRepo(bool caseSensitiveFileSystem)
+        {
+            string filePath = Path.Combine("GVFS", "FastFetch", "Properties", "AssemblyInfo.cs");
+            string testFilePath = caseSensitiveFileSystem ? filePath : filePath.ToUpper();
+            string testParentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(testFilePath));
+            testParentFolderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
+
+            // Hydrate file with a request using different file name case except on case-sensitive filesystems
+            testFilePath = this.Enlistment.GetVirtualPathTo(testFilePath);
+            string fileContents = testFilePath.ShouldBeAFile(this.fileSystem).WithContents();
+
+            // File on disk should have original case projected from repo
+            string parentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(filePath));
+            parentFolderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
+
+            // Confirm all folders up to root have the correct case
+            string parentFolderPath = Path.GetDirectoryName(filePath);
+            while (!string.IsNullOrWhiteSpace(parentFolderPath))
+            {
+                string folderName = Path.GetFileName(parentFolderPath);
+                parentFolderPath = Path.GetDirectoryName(parentFolderPath);
+                this.Enlistment.GetVirtualPathTo(parentFolderPath).ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(folderName, StringComparison.Ordinal));
             }
         }
 
