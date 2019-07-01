@@ -524,8 +524,10 @@ namespace GVFS.Platform.Linux
             try
             {
                 bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
-                if (pathInsideDotGit &&
-                    (relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.Ordinal) ||
+                bool destinationPathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativeDestinationPath);
+                if ((pathInsideDotGit &&
+                     relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.Ordinal)) ||
+                    (destinationPathInsideDotGit &&
                      relativeDestinationPath.Equals(GVFSConstants.DotGit.Index, StringComparison.Ordinal)))
                 {
                     string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
