@@ -151,6 +151,27 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(7)]
+        public void CreateNewFileWillPreventRemoveIncludedFolder()
+        {
+            this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder, "Scripts");
+            this.ValidateIncludedFolders(this.mainIncludedFolder, "Scripts");
+
+            string fileToCreate = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "newfile.txt");
+            this.fileSystem.WriteAllText(fileToCreate, "New Contents");
+
+            this.gvfsProcess.RemoveIncludedFolders("Scripts");
+            this.ValidateIncludedFolders(this.mainIncludedFolder, "Scripts");
+
+            string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
+            folderPath.ShouldBeADirectory(this.fileSystem);
+            string[] fileSystemEntries = Directory.GetFileSystemEntries(folderPath);
+            fileSystemEntries.Length.ShouldEqual(6);
+            fileToCreate.ShouldBeAFile(this.fileSystem);
+
+            this.fileSystem.DeleteFile(fileToCreate);
+        }
+
+        [TestCase, Order(8)]
         public void ModifiedFileShouldNotAllowIncludedFolderChange()
         {
             string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunFunctionalTests.bat");
@@ -160,7 +181,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateIncludedFolders(new string[0]);
         }
 
-        [TestCase, Order(8)]
+        [TestCase, Order(9)]
         public void ModifiedFileAndCommitThenChangingIncludeFoldersShouldKeepFileAndFolder()
         {
             string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunFunctionalTests.bat");
@@ -174,6 +195,27 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
             folderPath.ShouldBeADirectory(this.fileSystem);
             modifiedPath.ShouldBeAFile(this.fileSystem);
+        }
+
+        [TestCase, Order(10)]
+        public void CreateNewFileAndCommitThenRemoveIncludedFolderShouldKeepFileAndFolder()
+        {
+            this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder, "Scripts");
+            this.ValidateIncludedFolders(this.mainIncludedFolder, "Scripts");
+
+            string fileToCreate = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "newfile.txt");
+            this.fileSystem.WriteAllText(fileToCreate, "New Contents");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "add .");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
+
+            this.gvfsProcess.RemoveIncludedFolders("Scripts");
+            this.ValidateIncludedFolders(this.mainIncludedFolder);
+
+            string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
+            folderPath.ShouldBeADirectory(this.fileSystem);
+            string[] fileSystemEntries = Directory.GetFileSystemEntries(folderPath);
+            fileSystemEntries.Length.ShouldEqual(2);
+            fileToCreate.ShouldBeAFile(this.fileSystem);
         }
 
         private void ValidateIncludedFolders(params string[] folders)
