@@ -33,7 +33,7 @@
   </PropertyGroup>
   <ItemGroup> 
     <FilesToSign Include="$(OutputPath)SetupGVFS.$(GVFSVersion).exe">
-      <Authenticode>Microsoft</Authenticode>
+      <Authenticode>Microsoft400</Authenticode>
       <InProject>false</InProject>
     </FilesToSign>
   </ItemGroup>
