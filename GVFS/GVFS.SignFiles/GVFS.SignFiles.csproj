@@ -49,7 +49,7 @@
       $(BuildOutputDir)\GVFS.PostIndexChangedHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.PostIndexChangedHook.exe;
       $(BuildOutputDir)\GVFS.Upgrader\bin\$(Platform)\$(Configuration)\net461\GVFS.Upgrader.exe;
       $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\GVFS.exe;">
-      <Authenticode>Microsoft</Authenticode>
+      <Authenticode>Microsoft400</Authenticode>
       <InProject>false</InProject>
     </FilesToSign>
   </ItemGroup>
