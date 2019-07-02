@@ -1,5 +1,26 @@
 #!/bin/bash
 
+function startOrRestartService()
+{
+	domain=$1
+	service=$2
+	if [[ $domain == system* ]]; then
+		plistPath="/Library/LaunchDaemons"
+	elif [[ $domain == gui/* ]]; then
+		plistPath="/Library/LaunchAgents"
+	fi
+	startCmd="/bin/launchctl bootstrap $domain $plistPath/$service.plist"
+	restartCmd="/bin/launchctl kickstart -k $domain/$service"
+	isLoaded=`/bin/launchctl print $domain/$service | wc -l`
+	if [ $isLoaded -gt "0" ]; then
+		echo "Restarting Service: '$restartCmd'"
+		eval $restartCmd || exit 1
+	else
+		echo "Starting Service: '$startCmd'"
+		eval $startCmd || exit 1
+	fi
+}
+
 # Load PrjFSKext if it is not loaded already
 # PrjFSKext is an IOKit kext and should get automatically loaded 
 # by macOS after install. But the system does not seem to auto-load it
@@ -24,9 +45,7 @@ else
     echo "$kextstatOutput"
 fi
 
-loadCmd="sudo launchctl load -w /Library/LaunchDaemons/org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist"
-echo "Loading PrjFSKextLogDaemon: '$loadCmd'..."
-eval $loadCmd || exit 1
+startOrRestartService "system" "org.vfsforgit.prjfs.PrjFSKextLogDaemon"
 
 # Load Launch Agents in all active User sessions
 # There will be one loginwindow instance for each logged in user, 
@@ -34,13 +53,11 @@ eval $loadCmd || exit 1
 # Then use launchctl bootstrap gui/uid to auto load the Service 
 # for each user.
 declare -a launchAgents=(
-    "/Library/LaunchAgents/org.vfsforgit.usernotification.plist"
-    "/Library/LaunchAgents/org.vfsforgit.service.plist"
+    "org.vfsforgit.usernotification"
+    "org.vfsforgit.service"
 )
 for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
     for nextLaunchAgent in "${launchAgents[@]}"; do
-        loadCmd="launchctl bootstrap gui/$uid ${nextLaunchAgent}"
-        echo "Loading Service: '$loadCmd'..."
-        eval $loadCmd || exit 1
+        startOrRestartService "gui/$uid" $nextLaunchAgent
     done
 done 

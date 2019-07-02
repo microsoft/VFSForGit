@@ -31,16 +31,16 @@ function UnInstallVFSForGit()
         eval $rmCmd || { echo "Error: Could not delete ${PRJFSKEXTDIRECTORY}/$KEXTFILENAME. Delete it manually."; exit 1; }
     fi
     
-    if [ -f "${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME" ]; then
-        # Check if the daemon is loaded. Unload only if necessary.
-        isLoadedCmd="sudo launchctl kill SIGCONT system/org.vfsforgit.prjfs.PrjFSKextLogDaemon"
-        echo "$isLoadedCmd"
-        if $isLoadedCmd; then
-            unloadCmd="sudo launchctl unload -w ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME"
-            echo "$unloadCmd..."
-            eval $unloadCmd || { echo "Error: Could not unload ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME. Unload it manually (\"$unloadCmd\")."; exit 1; }
-        fi
+    # Check if the daemon is loaded. Unload only if necessary.
+	isLoadedCmd="sudo launchctl kill SIGCONT system/org.vfsforgit.prjfs.PrjFSKextLogDaemon"
+	echo "$isLoadedCmd"
+	if $isLoadedCmd; then
+		unloadCmd="sudo launchctl unload ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME"
+		echo "$unloadCmd..."
+		eval $unloadCmd || { echo "Error: Could not unload ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME. Unload it manually (\"$unloadCmd\")."; exit 1; }
+	fi
         
+    if [ -f "${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME" ]; then
         rmCmd="sudo /bin/rm -Rf ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME"
         echo "$rmCmd..."
         eval $rmCmd || { echo "Error: Could not delete ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME. Delete it manually."; exit 1; }
@@ -55,22 +55,22 @@ function UnInstallVFSForGit()
     "org.vfsforgit.usernotification"
     "org.vfsforgit.service"
     )
-    for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
-        for nextLaunchAgent in "${launchAgents[@]}"; do
-            isLoadedCmd="sudo launchctl kill SIGCONT gui/$uid/$nextLaunchAgent"
+    for nextLaunchAgent in "${launchAgents[@]}"; do
+    	for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
+			isLoadedCmd="sudo launchctl kill SIGCONT gui/$uid/$nextLaunchAgent"
             echo "$isLoadedCmd"
             if $isLoadedCmd; then
                 unloadCmd="launchctl bootout gui/$uid /Library/LaunchAgents/$nextLaunchAgent.plist"
                 echo "Unloading Service: '$unloadCmd'..."
-                eval $unloadCmd || exit 1
-                
-                rmCmd="sudo /bin/rm -Rf ${LAUNCHAGENTDIRECTORY}/$nextLaunchAgent.plist"
-                echo "$rmCmd..."
-                eval $rmCmd || { echo "Error: Could not delete ${LAUNCHAGENTDIRECTORY}/$nextLaunchAgent.plist. Delete it manually."; exit 1; }
+                eval $unloadCmd || exit 1                
             fi
-        done
-    done
-    
+    	done
+    	
+		rmCmd="sudo /bin/rm -Rf ${LAUNCHAGENTDIRECTORY}/$nextLaunchAgent.plist"
+		echo "$rmCmd..."
+		eval $rmCmd || { echo "Error: Could not delete ${LAUNCHAGENTDIRECTORY}/$nextLaunchAgent.plist. Delete it manually."; exit 1; }
+	done
+        
     if [ -s "${GVFSCOMMANDPATH}" ]; then
         rmCmd="sudo /bin/rm -Rf ${GVFSCOMMANDPATH}"
         echo "$rmCmd..."
