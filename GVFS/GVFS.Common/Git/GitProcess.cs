@@ -675,11 +675,10 @@ namespace GVFS.Common.Git
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
             processInfo.EnvironmentVariables["GCM_VALIDATE"] = "0";
-            processInfo.EnvironmentVariables["PATH"] =
-                string.Join(
-                    ";",
-                    this.gitBinPath,
-                    this.gvfsHooksRoot ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(this.gvfsHooksRoot))
+            {
+                processInfo.EnvironmentVariables["PATH"] = this.gvfsHooksRoot + Path.PathSeparator + processInfo.EnvironmentVariables["PATH"];
+            }
 
             if (gitObjectsDirectory != null)
             {
