@@ -127,7 +127,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem
                 .EnumerateDirectory(this.Enlistment.GetPackRoot(this.fileSystem))
                 .Split()
-                .Where(file => string.Equals(Path.GetExtension(file), ".keep", StringComparison.OrdinalIgnoreCase))
+                .Where(file => string.Equals(Path.GetExtension(file), ".keep", FileSystemHelpers.PathComparison))
                 .Count()
                 .ShouldEqual(1, "Incorrect number of .keep files in pack directory");
 

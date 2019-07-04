@@ -252,7 +252,7 @@ namespace GVFS.FunctionalTests.Should
                 return info;
             }
 
-            private static bool IsMatchedPath(FileSystemInfo info, string repoRoot, string[] prefixes)
+            private static bool IsMatchedPath(FileSystemInfo info, string repoRoot, string[] prefixes, bool ignoreCase)
             {
                 if (prefixes == null || prefixes.Length == 0)
                 {
@@ -260,8 +260,9 @@ namespace GVFS.FunctionalTests.Should
                 }
 
                 string localPath = info.FullName.Substring(repoRoot.Length + 1);
+                StringComparison pathComparison = ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
-                if (localPath.Equals(".git", StringComparison.OrdinalIgnoreCase))
+                if (localPath.Equals(".git", pathComparison))
                 {
                     // Include _just_ the .git folder.
                     // All sub-items are not included in the enumerator.
@@ -277,12 +278,12 @@ namespace GVFS.FunctionalTests.Should
 
                 foreach (string prefixDir in prefixes)
                 {
-                    if (localPath.StartsWith(prefixDir, StringComparison.OrdinalIgnoreCase))
+                    if (localPath.StartsWith(prefixDir, pathComparison))
                     {
                         return true;
                     }
 
-                    if (prefixDir.StartsWith(localPath, StringComparison.OrdinalIgnoreCase) &&
+                    if (prefixDir.StartsWith(localPath, pathComparison) &&
                         Directory.Exists(info.FullName))
                     {
                         // For example: localPath = "GVFS" and prefix is "GVFS\\GVFS".
@@ -308,7 +309,7 @@ namespace GVFS.FunctionalTests.Should
                 IEnumerator<FileSystemInfo> expectedEnumerator = expectedEntries
                     .Where(x => !x.FullName.Contains(dotGitFolder))
                     .OrderBy(x => x.FullName)
-                    .Where(x => IsMatchedPath(x, expectedPath, withinPrefixes))
+                    .Where(x => IsMatchedPath(x, expectedPath, withinPrefixes, ignoreCase))
                     .GetEnumerator();
                 IEnumerator<FileSystemInfo> actualEnumerator = actualEntries
                     .Where(x => !x.FullName.Contains(dotGitFolder))
