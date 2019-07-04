@@ -152,7 +152,7 @@ namespace GVFS.FunctionalTests.Tools
             string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
             foreach (string gitPath in gitPaths)
             {
-                modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLineAddPrefix + gitPath, StringComparison.OrdinalIgnoreCase));
+                modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLineAddPrefix + gitPath, FileSystemHelpers.PathComparison));
             }
         }
 
@@ -165,8 +165,8 @@ namespace GVFS.FunctionalTests.Tools
                 modifedPathLines.ShouldNotContain(
                     path =>
                     {
-                        return path.Equals(ModifedPathsLineAddPrefix + gitPath, StringComparison.OrdinalIgnoreCase) ||
-                               path.Equals(ModifedPathsLineDeletePrefix + gitPath, StringComparison.OrdinalIgnoreCase);
+                        return path.Equals(ModifedPathsLineAddPrefix + gitPath, FileSystemHelpers.PathComparison) ||
+                               path.Equals(ModifedPathsLineDeletePrefix + gitPath, FileSystemHelpers.PathComparison);
                     });
             }
         }
