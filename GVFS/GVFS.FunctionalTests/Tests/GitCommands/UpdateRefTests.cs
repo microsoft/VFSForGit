@@ -1,5 +1,6 @@
 ﻿using GVFS.FunctionalTests.Properties;
 using NUnit.Framework;
+using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -29,11 +30,19 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         public override void TearDownForTest()
         {
-            // Need to ignore case changes in this test because the update-ref will have
-            // folder names that only changed the case and when checking the folder structure
-            // it will create partial folders with that case and will not get updated to the
-            // previous case when the reset --hard running in the tear down step
-            this.TestValidationAndCleanup(ignoreCase: true);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                this.TestValidationAndCleanup();
+            }
+            else
+            {
+                // On case-insensitive filesystems, we
+                // need to ignore case changes in this test because the update-ref will have
+                // folder names that only changed the case and when checking the folder structure
+                // it will create partial folders with that case and will not get updated to the
+                // previous case when the reset --hard running in the tear down step
+                this.TestValidationAndCleanup(ignoreCase: true);
+            }
         }
     }
 }

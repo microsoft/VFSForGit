@@ -101,7 +101,7 @@ namespace GVFS.FunctionalTests.Tests
                 .Count()
                 .ShouldEqual(345);
 
-            this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", StringComparison.OrdinalIgnoreCase));
+            this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", FileSystemHelpers.PathComparison));
         }
 
         [TestCase]
@@ -123,7 +123,7 @@ namespace GVFS.FunctionalTests.Tests
             Directory.EnumerateFileSystemEntries(Path.Combine(this.fastFetchRepoRoot, "GVFS"), "*", SearchOption.AllDirectories)
                 .Count()
                 .ShouldEqual(345);
-            this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", StringComparison.OrdinalIgnoreCase));
+            this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", FileSystemHelpers.PathComparison));
 
             // Run a second time in the same repo on the same branch with more folders.
             this.RunFastFetch($"--checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish} --force-checkout");
@@ -177,7 +177,7 @@ namespace GVFS.FunctionalTests.Tests
                 Path.Combine(this.fastFetchRepoRoot, "GVFS", "GVFS", "Properties", "AssemblyInfo.cs"),
             });
 
-            this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", StringComparison.OrdinalIgnoreCase));
+            this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", FileSystemHelpers.PathComparison));
         }
 
         [TestCase]
@@ -321,8 +321,9 @@ namespace GVFS.FunctionalTests.Tests
 
             try
             {
+                // Ignore case differences on case-insensitive filesystems
                 this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                    .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, ignoreCase: true);
+                    .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, ignoreCase: !RuntimeInformation.IsOSPlatform(OSPlatform.Linux));
             }
             finally
             {
