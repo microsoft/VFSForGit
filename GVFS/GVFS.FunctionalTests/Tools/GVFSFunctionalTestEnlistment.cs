@@ -138,7 +138,7 @@ namespace GVFS.FunctionalTests.Tools
             string mappingFile = Path.Combine(this.LocalCacheRoot, "mapping.dat");
             mappingFile.ShouldBeAFile(fileSystem);
 
-            HashSet<string> allowedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            HashSet<string> allowedFileNames = new HashSet<string>(FileSystemHelpers.PathComparer)
             {
                 "mapping.dat",
                 "mapping.dat.lock" // mapping.dat.lock can be present, but doesn't have to be present
