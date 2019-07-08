@@ -2,7 +2,9 @@
 using NUnit.Framework;
 using NUnit.Framework.Internal;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -14,21 +16,22 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             // .gitignore is always a placeholder on creation
             // .gitconfig is always a modified path in functional tests since it is written at run time
-            string[] healthOutputLines = this.GetHealthOutputLines();
 
-            healthOutputLines[0].ShouldEqual("Health of directory: ");
-            healthOutputLines[1].ShouldEqual("Total files in HEAD commit:           1,211 | 100%");
-            healthOutputLines[2].ShouldEqual("Files managed by VFS for Git (fast):      1 |   0%");
-            healthOutputLines[3].ShouldEqual("Files managed by git (slow):              1 |   0%");
-            healthOutputLines[4].ShouldEqual("Total hydration percentage:                     0%");
+            List<string> topHydratedDirectories = new List<string> { "GVFS", "GVFlt_BugRegressionTest", "GVFlt_DeleteFileTest", "GVFlt_DeleteFolderTest", "GVFlt_EnumTest" };
+            List<int> directoryHydrationLevels = new List<int> { 0, 0, 0, 0, 0 };
 
-            healthOutputLines[6].ShouldEqual("   0% | GVFS                   ");
-            healthOutputLines[7].ShouldEqual("   0% | GVFlt_BugRegressionTest");
-            healthOutputLines[8].ShouldEqual("   0% | GVFlt_DeleteFileTest   ");
-            healthOutputLines[9].ShouldEqual("   0% | GVFlt_DeleteFolderTest ");
-            healthOutputLines[10].ShouldEqual("   0% | GVFlt_EnumTest         ");
-
-            healthOutputLines[11].ShouldEqual("Repository status: OK");
+            this.ValidateHealthOutputValues(
+                directory: string.Empty,
+                totalFiles: 1211,
+                totalFilePercent: 100,
+                fastFiles: 1,
+                fastFilePercent: 0,
+                slowFiles: 1,
+                slowFilePercent: 0,
+                totalPercent: 0,
+                topHydratedDirectories,
+                directoryHydrationLevels,
+                enlistmentHealthStatus: "OK");
         }
 
         [TestCase, Order(1)]
@@ -42,21 +45,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.HydratePlaceholder(Path.Combine(this.Enlistment.RepoRoot, "Scripts/RunFunctionalTests.bat"));
             this.HydratePlaceholder(Path.Combine(this.Enlistment.RepoRoot, "Scripts/RunUnitTests.bat"));
 
-            string[] healthOutputLines = this.GetHealthOutputLines();
+            List<string> topHydratedDirectories = new List<string> { "Scripts", "GVFS", "GVFlt_BugRegressionTest", "GVFlt_DeleteFileTest", "GVFlt_DeleteFolderTest" };
+            List<int> directoryHydrationLevels = new List<int> { 100, 0, 0, 0, 0 };
 
-            healthOutputLines[0].ShouldEqual("Health of directory: ");
-            healthOutputLines[1].ShouldEqual("Total files in HEAD commit:           1,211 | 100%");
-            healthOutputLines[2].ShouldEqual("Files managed by VFS for Git (fast):      7 |   1%");
-            healthOutputLines[3].ShouldEqual("Files managed by git (slow):              1 |   0%");
-            healthOutputLines[4].ShouldEqual("Total hydration percentage:                     1%");
-
-            healthOutputLines[6].ShouldEqual(" 100% | Scripts                ");
-            healthOutputLines[7].ShouldEqual("   0% | GVFS                   ");
-            healthOutputLines[8].ShouldEqual("   0% | GVFlt_BugRegressionTest");
-            healthOutputLines[9].ShouldEqual("   0% | GVFlt_DeleteFileTest   ");
-            healthOutputLines[10].ShouldEqual("   0% | GVFlt_DeleteFolderTest ");
-
-            healthOutputLines[11].ShouldEqual("Repository status: OK");
+            this.ValidateHealthOutputValues(
+                directory: string.Empty,
+                totalFiles: 1211,
+                totalFilePercent: 100,
+                fastFiles: 7,
+                fastFilePercent: 1,
+                slowFiles: 1,
+                slowFilePercent: 0,
+                totalPercent:1,
+                topHydratedDirectories,
+                directoryHydrationLevels,
+                enlistmentHealthStatus: "OK");
         }
 
         [TestCase, Order(2)]
@@ -67,21 +70,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.HydrateFullFile(Path.Combine(this.Enlistment.RepoRoot, "GVFlt_FileOperationTest/DeleteExistingFile.txt"));
             this.HydrateFullFile(Path.Combine(this.Enlistment.RepoRoot, "GVFlt_FileOperationTest/WriteAndVerify.txt"));
 
-            string[] healthOutputLines = this.GetHealthOutputLines();
+            List<string> topHydratedDirectories = new List<string> { "GVFlt_FileOperationTest", "Scripts", "GVFS", "GVFlt_BugRegressionTest", "GVFlt_DeleteFileTest" };
+            List<int> directoryHydrationLevels = new List<int> { 100, 100, 0, 0, 0 };
 
-            healthOutputLines[0].ShouldEqual("Health of directory: ");
-            healthOutputLines[1].ShouldEqual("Total files in HEAD commit:           1,211 | 100%");
-            healthOutputLines[2].ShouldEqual("Files managed by VFS for Git (fast):      8 |   1%");
-            healthOutputLines[3].ShouldEqual("Files managed by git (slow):              3 |   0%");
-            healthOutputLines[4].ShouldEqual("Total hydration percentage:                     1%");
-
-            healthOutputLines[6].ShouldEqual(" 100% | GVFlt_FileOperationTest");
-            healthOutputLines[7].ShouldEqual(" 100% | Scripts                ");
-            healthOutputLines[8].ShouldEqual("   0% | GVFS                   ");
-            healthOutputLines[9].ShouldEqual("   0% | GVFlt_BugRegressionTest");
-            healthOutputLines[10].ShouldEqual("   0% | GVFlt_DeleteFileTest   ");
-
-            healthOutputLines[11].ShouldEqual("Repository status: OK");
+            this.ValidateHealthOutputValues(
+                directory: string.Empty,
+                totalFiles: 1211,
+                totalFilePercent: 100,
+                fastFiles: 8,
+                fastFilePercent: 1,
+                slowFiles: 3,
+                slowFilePercent: 0,
+                totalPercent: 1,
+                topHydratedDirectories,
+                directoryHydrationLevels,
+                enlistmentHealthStatus: "OK");
         }
 
         [TestCase, Order(3)]
@@ -94,35 +97,41 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.HydrateFullFile(Path.Combine(this.Enlistment.RepoRoot, "Scripts/RunFunctionalTests.bat"));
             this.HydrateFullFile(Path.Combine(this.Enlistment.RepoRoot, "Scripts/RunUnitTests.bat"));
 
-            string[] healthOutputLines = this.GetHealthOutputLines();
+            List<string> topHydratedDirectories = new List<string> { "GVFlt_FileOperationTest", "Scripts", "GVFS", "GVFlt_BugRegressionTest", "GVFlt_DeleteFileTest" };
+            List<int> directoryHydrationLevels = new List<int> { 100, 100, 0, 0, 0 };
 
-            healthOutputLines[0].ShouldEqual("Health of directory: ");
-            healthOutputLines[1].ShouldEqual("Total files in HEAD commit:           1,211 | 100%");
-            healthOutputLines[2].ShouldEqual("Files managed by VFS for Git (fast):      3 |   0%");
-            healthOutputLines[3].ShouldEqual("Files managed by git (slow):              8 |   1%");
-            healthOutputLines[4].ShouldEqual("Total hydration percentage:                     1%");
-
-            healthOutputLines[6].ShouldEqual(" 100% | GVFlt_FileOperationTest");
-            healthOutputLines[7].ShouldEqual(" 100% | Scripts                ");
-            healthOutputLines[8].ShouldEqual("   0% | GVFS                   ");
-            healthOutputLines[9].ShouldEqual("   0% | GVFlt_BugRegressionTest");
-            healthOutputLines[10].ShouldEqual("   0% | GVFlt_DeleteFileTest   ");
-
-            healthOutputLines[11].ShouldEqual("Repository status: OK");
+            this.ValidateHealthOutputValues(
+                directory: string.Empty,
+                totalFiles: 1211,
+                totalFilePercent: 100,
+                fastFiles: 3,
+                fastFilePercent: 0,
+                slowFiles: 8,
+                slowFilePercent: 1,
+                totalPercent: 1,
+                topHydratedDirectories,
+                directoryHydrationLevels,
+                enlistmentHealthStatus: "OK");
         }
 
         [TestCase, Order(4)]
         public void FilterIntoDirectory()
         {
-            string[] healthOutputLines = this.GetHealthOutputLines("Scripts/");
+            List<string> topHydratedDirectories = new List<string>();
+            List<int> directoryHydrationLevels = new List<int>();
 
-            healthOutputLines[0].ShouldEqual("Health of directory: Scripts/");
-            healthOutputLines[1].ShouldEqual("Total files in HEAD commit:           5 | 100%");
-            healthOutputLines[2].ShouldEqual("Files managed by VFS for Git (fast):  0 |   0%");
-            healthOutputLines[3].ShouldEqual("Files managed by git (slow):          5 | 100%");
-            healthOutputLines[4].ShouldEqual("Total hydration percentage:               100%");
-
-            healthOutputLines[6].ShouldEqual("Repository status: Highly Hydrated");
+            this.ValidateHealthOutputValues(
+                directory: "Scripts/",
+                totalFiles: 5,
+                totalFilePercent: 100,
+                fastFiles: 0,
+                fastFilePercent: 0,
+                slowFiles: 5,
+                slowFilePercent: 100,
+                totalPercent: 100,
+                topHydratedDirectories,
+                directoryHydrationLevels,
+                enlistmentHealthStatus: "Highly Hydrated");
         }
 
         private void HydratePlaceholder(string filePath)
@@ -135,9 +144,111 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             File.OpenWrite(filePath).Close();
         }
 
-        private string[] GetHealthOutputLines(string directory = null)
+        private void ValidateHealthOutputValues(
+            string directory,
+            int totalFiles,
+            int totalFilePercent,
+            int fastFiles,
+            int fastFilePercent,
+            int slowFiles,
+            int slowFilePercent,
+            int totalPercent,
+            List<string> topHydratedDirectories,
+            List<int> directoryHydrationLevels,
+            string enlistmentHealthStatus)
         {
-            return this.Enlistment.Health(directory).Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+            List<string> healthOutputLines = new List<string>(this.Enlistment.Health(directory).Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
+
+            int numberOfExpectedSubdirectories = topHydratedDirectories.Count;
+
+            this.ValidateTargetDirectory(healthOutputLines[0], directory);
+            this.ValidateTotalFileInfo(healthOutputLines[1], totalFiles, totalFilePercent);
+            this.ValidateFastFileInfo(healthOutputLines[2], fastFiles, fastFilePercent);
+            this.ValidateSlowFileInfo(healthOutputLines[3], slowFiles, slowFilePercent);
+            this.ValidateTotalHydration(healthOutputLines[4], totalPercent);
+            this.ValidateSubDirectoryHealth(healthOutputLines.GetRange(6, numberOfExpectedSubdirectories), topHydratedDirectories, directoryHydrationLevels);
+            this.ValidateEnlistmentStatus(healthOutputLines[6 + numberOfExpectedSubdirectories], enlistmentHealthStatus);
+        }
+
+        private void ValidateTargetDirectory(string outputLine, string targetDirectory)
+        {
+            // Regex to extract the target directory
+            Match lineMatch = Regex.Match(outputLine, @"^Health of directory:\s*(.*)$");
+
+            string outputtedTargetDirectory = lineMatch.Groups[1].Value;
+
+            outputtedTargetDirectory.ShouldEqual(targetDirectory);
+        }
+
+        private void ValidateTotalFileInfo(string outputLine, int totalFiles, int totalFilePercent)
+        {
+            // Regex to extract the total number of files and percentage they represent (should always be 100)
+            Match lineMatch = Regex.Match(outputLine, @"^Total files in HEAD commit:\s*([\d,]+)\s*\|\s*(\d+)%$");
+
+            int outputtedTotalFiles = int.Parse(lineMatch.Groups[1].Value, System.Globalization.NumberStyles.AllowThousands);
+            int outputtedTotalFilePercent = int.Parse(lineMatch.Groups[2].Value);
+
+            outputtedTotalFiles.ShouldEqual(totalFiles);
+            outputtedTotalFilePercent.ShouldEqual(totalFilePercent);
+        }
+
+        private void ValidateFastFileInfo(string outputLine, int fastFiles, int fastFilesPercent)
+        {
+            // Regex to extract the total number of fast files and percentage they represent
+            Match lineMatch = Regex.Match(outputLine, @"^Files managed by VFS for Git \(fast\):\s*([\d,]+)\s*\|\s*(\d+)%$");
+
+            int outputtedFastFiles = int.Parse(lineMatch.Groups[1].Value, System.Globalization.NumberStyles.AllowThousands);
+            int outputtedFastFilesPercent = int.Parse(lineMatch.Groups[2].Value);
+
+            outputtedFastFiles.ShouldEqual(fastFiles);
+            outputtedFastFilesPercent.ShouldEqual(fastFilesPercent);
+        }
+
+        private void ValidateSlowFileInfo(string outputLine, int slowFiles, int slowFilesPercent)
+        {
+            // Regex to extract the total number of slow files and percentage they represent
+            Match lineMatch = Regex.Match(outputLine, @"^Files managed by git \(slow\):\s*([\d,]+)\s*\|\s*(\d+)%$");
+
+            int outputtedSlowFiles = int.Parse(lineMatch.Groups[1].Value, System.Globalization.NumberStyles.AllowThousands);
+            int outputtedSlowFilesPercent = int.Parse(lineMatch.Groups[2].Value);
+
+            outputtedSlowFiles.ShouldEqual(slowFiles);
+            outputtedSlowFilesPercent.ShouldEqual(slowFilesPercent);
+        }
+
+        private void ValidateTotalHydration(string outputLine, int totalHydration)
+        {
+            // Regex to extract the total hydration percentage of the enlistment
+            Match lineMatch = Regex.Match(outputLine, @"^Total hydration percentage:\s*(\d+)%$");
+
+            int outputtedTotalHydration = int.Parse(lineMatch.Groups[1].Value);
+
+            outputtedTotalHydration.ShouldEqual(totalHydration);
+        }
+
+        private void ValidateSubDirectoryHealth(List<string> outputLines, List<string> subdirectories, List<int> healthScores)
+        {
+            for (int i = 0; i < outputLines.Count; i++)
+            {
+                // Regex to extract the most hydrated subdirectory names and their hydration percentage
+                Match lineMatch = Regex.Match(outputLines[i], @"^\s*(\d+)%\s*\|\s*(\S.*\S)\s*$");
+
+                int outputtedHealthScore = int.Parse(lineMatch.Groups[1].Value);
+                string outputtedSubdirectory = lineMatch.Groups[2].Value;
+
+                outputtedHealthScore.ShouldEqual(healthScores[i]);
+                outputtedSubdirectory.ShouldEqual(subdirectories[i]);
+            }
+        }
+
+        private void ValidateEnlistmentStatus(string outputLine, string statusMessage)
+        {
+            // Regex to extract the status message for the enlistment
+            Match lineMatch = Regex.Match(outputLine, @"^Repository status:\s*(.*)$");
+
+            string outputtedStatusMessage = lineMatch.Groups[1].Value;
+
+            outputtedStatusMessage.ShouldEqual(statusMessage);
         }
     }
 }
