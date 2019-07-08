@@ -74,7 +74,7 @@ namespace GVFS.RepairJobs
 
         public override FixResult TryFixIssues(List<string> messages)
         {
-            string configPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Config);
+            string configPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Config);
             string configBackupPath;
             if (!this.TryRenameToBackupFile(configPath, out configBackupPath, messages))
             {
