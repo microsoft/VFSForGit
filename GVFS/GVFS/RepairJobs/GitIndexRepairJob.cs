@@ -18,14 +18,14 @@ namespace GVFS.RepairJobs
 
         public override string Name
         {
-            get { return @".git\index"; }
+            get { return $".git{Path.DirectorySeparatorChar}index"; }
         }
 
         public override IssueType HasIssue(List<string> messages)
         {
             if (!File.Exists(this.indexPath))
             {
-                messages.Add(".git\\index not found");
+                messages.Add($".git{Path.DirectorySeparatorChar}index not found");
                 return IssueType.Fixable;
             }
             else
@@ -62,7 +62,7 @@ namespace GVFS.RepairJobs
             {
                 if (!this.TryDeleteFile(indexBackupPath))
                 {
-                    messages.Add("Warning: Could not delete backed up .git\\index at: " + indexBackupPath);
+                    messages.Add($"Warning: Could not delete backed up .git{Path.DirectorySeparatorChar}index at: " + indexBackupPath);
                 }
             }
 
