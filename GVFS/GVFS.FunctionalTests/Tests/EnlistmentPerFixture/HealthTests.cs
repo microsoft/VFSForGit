@@ -29,8 +29,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 slowFiles: 1,
                 slowFilePercent: 0,
                 totalPercent: 0,
-                topHydratedDirectories,
-                directoryHydrationLevels,
+                topHydratedDirectories: topHydratedDirectories,
+                directoryHydrationLevels: directoryHydrationLevels,
                 enlistmentHealthStatus: "OK");
         }
 
@@ -57,8 +57,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 slowFiles: 1,
                 slowFilePercent: 0,
                 totalPercent:1,
-                topHydratedDirectories,
-                directoryHydrationLevels,
+                topHydratedDirectories: topHydratedDirectories,
+                directoryHydrationLevels: directoryHydrationLevels,
                 enlistmentHealthStatus: "OK");
         }
 
@@ -82,8 +82,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 slowFiles: 3,
                 slowFilePercent: 0,
                 totalPercent: 1,
-                topHydratedDirectories,
-                directoryHydrationLevels,
+                topHydratedDirectories: topHydratedDirectories,
+                directoryHydrationLevels: directoryHydrationLevels,
                 enlistmentHealthStatus: "OK");
         }
 
@@ -109,8 +109,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 slowFiles: 8,
                 slowFilePercent: 1,
                 totalPercent: 1,
-                topHydratedDirectories,
-                directoryHydrationLevels,
+                topHydratedDirectories: topHydratedDirectories,
+                directoryHydrationLevels: directoryHydrationLevels,
                 enlistmentHealthStatus: "OK");
         }
 
@@ -129,8 +129,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 slowFiles: 5,
                 slowFilePercent: 100,
                 totalPercent: 100,
-                topHydratedDirectories,
-                directoryHydrationLevels,
+                topHydratedDirectories: topHydratedDirectories,
+                directoryHydrationLevels: directoryHydrationLevels,
                 enlistmentHealthStatus: "Highly Hydrated");
         }
 
