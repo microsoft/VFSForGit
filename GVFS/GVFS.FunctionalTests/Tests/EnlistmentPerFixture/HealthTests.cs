@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    [TestFixture]
+    [TestFixture, Category(Categories.WindowsOnly)]
     public class HealthTests : TestsWithEnlistmentPerFixture
     {
         [TestCase, Order(0)]
@@ -173,6 +173,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void ValidateTargetDirectory(string outputLine, string targetDirectory)
         {
             // Regex to extract the target directory
+            // "Health of directory: <directory>"
             Match lineMatch = Regex.Match(outputLine, @"^Health of directory:\s*(.*)$");
 
             string outputtedTargetDirectory = lineMatch.Groups[1].Value;
@@ -183,6 +184,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void ValidateTotalFileInfo(string outputLine, int totalFiles, int totalFilePercent)
         {
             // Regex to extract the total number of files and percentage they represent (should always be 100)
+            // "Total files in HEAD commit:           <count> | <percentage>%"
             Match lineMatch = Regex.Match(outputLine, @"^Total files in HEAD commit:\s*([\d,]+)\s*\|\s*(\d+)%$");
 
             int outputtedTotalFiles = int.Parse(lineMatch.Groups[1].Value, System.Globalization.NumberStyles.AllowThousands);
@@ -195,6 +197,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void ValidateFastFileInfo(string outputLine, int fastFiles, int fastFilesPercent)
         {
             // Regex to extract the total number of fast files and percentage they represent
+            // "Files managed by VFS for Git (fast):    <count> | <percentage>%"
             Match lineMatch = Regex.Match(outputLine, @"^Files managed by VFS for Git \(fast\):\s*([\d,]+)\s*\|\s*(\d+)%$");
 
             int outputtedFastFiles = int.Parse(lineMatch.Groups[1].Value, System.Globalization.NumberStyles.AllowThousands);
@@ -207,6 +210,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void ValidateSlowFileInfo(string outputLine, int slowFiles, int slowFilesPercent)
         {
             // Regex to extract the total number of slow files and percentage they represent
+            // "Files managed by git (slow):                <count> | <percentage>%"
             Match lineMatch = Regex.Match(outputLine, @"^Files managed by git \(slow\):\s*([\d,]+)\s*\|\s*(\d+)%$");
 
             int outputtedSlowFiles = int.Parse(lineMatch.Groups[1].Value, System.Globalization.NumberStyles.AllowThousands);
@@ -219,6 +223,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void ValidateTotalHydration(string outputLine, int totalHydration)
         {
             // Regex to extract the total hydration percentage of the enlistment
+            // "Total hydration percentage:            <percentage>%
             Match lineMatch = Regex.Match(outputLine, @"^Total hydration percentage:\s*(\d+)%$");
 
             int outputtedTotalHydration = int.Parse(lineMatch.Groups[1].Value);
@@ -231,6 +236,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             for (int i = 0; i < outputLines.Count; i++)
             {
                 // Regex to extract the most hydrated subdirectory names and their hydration percentage
+                // "  <percentage>% | <directory-name>" listed several times for different directories
                 Match lineMatch = Regex.Match(outputLines[i], @"^\s*(\d+)%\s*\|\s*(\S.*\S)\s*$");
 
                 int outputtedHealthScore = int.Parse(lineMatch.Groups[1].Value);
@@ -244,6 +250,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void ValidateEnlistmentStatus(string outputLine, string statusMessage)
         {
             // Regex to extract the status message for the enlistment
+            // "Repository status: <status-message>"
             Match lineMatch = Regex.Match(outputLine, @"^Repository status:\s*(.*)$");
 
             string outputtedStatusMessage = lineMatch.Groups[1].Value;
