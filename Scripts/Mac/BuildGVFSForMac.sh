@@ -7,9 +7,13 @@ if [ -z $CONFIGURATION ]; then
   CONFIGURATION=Debug
 fi
 
+runVersionUpdater="yes"
 VERSION=$2
 if [ -z $VERSION ]; then
   VERSION="0.2.173.2"
+  
+  # don't update version number for developer builds
+  runVersionUpdater="no"
 fi
 
 if [ ! -d $VFS_OUTPUTDIR ]; then
@@ -59,9 +63,11 @@ xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.x
 USERNOTIFICATIONDIR=$VFS_SRCDIR/GVFS/GVFS.Notifications/VFSForGit.Mac
 USERNOTIFICATIONPROJECT="$USERNOTIFICATIONDIR/VFSForGit.xcodeproj"
 USERNOTIFICATIONSCHEME="VFS For Git"
-updateAppVersionCmd="(cd \"$USERNOTIFICATIONDIR\" && /usr/bin/xcrun agvtool new-marketing-version \"$VERSION\")"
-echo $updateAppVersionCmd
-eval $updateAppVersionCmd
+if [ "$runVersionUpdater" == "yes" ]; then
+    updateAppVersionCmd="(cd \"$USERNOTIFICATIONDIR\" && /usr/bin/xcrun agvtool new-marketing-version \"$VERSION\")"
+    echo $updateAppVersionCmd
+    eval $updateAppVersionCmd || exit 1
+fi
 # Build user notification app
 xcodebuild -configuration $CONFIGURATION -project "$USERNOTIFICATIONPROJECT" build -scheme "$USERNOTIFICATIONSCHEME" -derivedDataPath $VFS_OUTPUTDIR/GVFS.Notifications/VFSForGit.Mac || exit 1
 
