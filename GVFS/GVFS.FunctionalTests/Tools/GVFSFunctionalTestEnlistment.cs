@@ -231,6 +231,11 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.Status(trace);
         }
 
+        public string Health(string directory = null)
+        {
+            return this.gvfsProcess.Health(directory);
+        }
+
         public bool WaitForBackgroundOperations(int maxWaitMilliseconds = DefaultMaxWaitMSForStatusCheck)
         {
             return this.WaitForStatus(maxWaitMilliseconds, ZeroBackgroundOperations).ShouldBeTrue("Background operations failed to complete.");

@@ -123,6 +123,11 @@ namespace GVFS.CommandLine
             return line.Substring(line.IndexOf('\t') + 1);
         }
 
+        private string TrimGitIndexLineWithSkipWorktree(string line)
+        {
+            return line.Substring(line.IndexOf(' ') + 1);
+        }
+
         /// <summary>
         /// Talk to the mount process across the named pipe to get a list of the modified paths
         /// </summary>
@@ -205,10 +210,10 @@ namespace GVFS.CommandLine
                 {
                     if (line.First() == 'H')
                     {
-                        skipWorktreeFiles.Add(this.TrimGitIndexLine(line));
+                        skipWorktreeFiles.Add(this.TrimGitIndexLineWithSkipWorktree(line));
                     }
 
-                    pathData.GitFilePaths.Add(this.TrimGitIndexLine(line));
+                    pathData.GitFilePaths.Add(this.TrimGitIndexLineWithSkipWorktree(line));
                 },
                 showSkipTreeBit: true);
             GitProcess.Result folderResult = gitProcess.LsTree(

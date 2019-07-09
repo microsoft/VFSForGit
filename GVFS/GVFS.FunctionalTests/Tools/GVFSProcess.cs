@@ -92,6 +92,18 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("status " + this.enlistmentRoot, trace: trace);
         }
 
+        public string Health(string directory = null)
+        {
+            if (string.IsNullOrEmpty(directory))
+            {
+                return this.CallGVFS("health " + this.enlistmentRoot);
+            }
+            else
+            {
+                return this.CallGVFS("health -d " + directory + " " + this.enlistmentRoot);
+            }
+        }
+
         public string CacheServer(string args)
         {
             return this.CallGVFS("cache-server " + args + " \"" + this.enlistmentRoot + "\"");
