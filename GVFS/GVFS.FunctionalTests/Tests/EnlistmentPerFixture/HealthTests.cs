@@ -3,6 +3,7 @@ using NUnit.Framework;
 using NUnit.Framework.Internal;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 
@@ -187,8 +188,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // "Total files in HEAD commit:           <count> | <percentage>%"
             Match lineMatch = Regex.Match(outputLine, @"^Total files in HEAD commit:\s*([\d,]+)\s*\|\s*(\d+)%$");
 
-            int outputtedTotalFiles = int.Parse(lineMatch.Groups[1].Value, System.Globalization.NumberStyles.AllowThousands);
-            int outputtedTotalFilePercent = int.Parse(lineMatch.Groups[2].Value);
+            int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedTotalFiles).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[2].Value, out int outputtedTotalFilePercent).ShouldBeTrue();
 
             outputtedTotalFiles.ShouldEqual(totalFiles);
             outputtedTotalFilePercent.ShouldEqual(totalFilePercent);
@@ -200,8 +201,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // "Files managed by VFS for Git (fast):    <count> | <percentage>%"
             Match lineMatch = Regex.Match(outputLine, @"^Files managed by VFS for Git \(fast\):\s*([\d,]+)\s*\|\s*(\d+)%$");
 
-            int outputtedFastFiles = int.Parse(lineMatch.Groups[1].Value, System.Globalization.NumberStyles.AllowThousands);
-            int outputtedFastFilesPercent = int.Parse(lineMatch.Groups[2].Value);
+            int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedFastFiles).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[2].Value, out int outputtedFastFilesPercent).ShouldBeTrue();
 
             outputtedFastFiles.ShouldEqual(fastFiles);
             outputtedFastFilesPercent.ShouldEqual(fastFilesPercent);
@@ -213,8 +214,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // "Files managed by git (slow):                <count> | <percentage>%"
             Match lineMatch = Regex.Match(outputLine, @"^Files managed by git \(slow\):\s*([\d,]+)\s*\|\s*(\d+)%$");
 
-            int outputtedSlowFiles = int.Parse(lineMatch.Groups[1].Value, System.Globalization.NumberStyles.AllowThousands);
-            int outputtedSlowFilesPercent = int.Parse(lineMatch.Groups[2].Value);
+            int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedSlowFiles).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[2].Value, out int outputtedSlowFilesPercent).ShouldBeTrue();
 
             outputtedSlowFiles.ShouldEqual(slowFiles);
             outputtedSlowFilesPercent.ShouldEqual(slowFilesPercent);
@@ -226,7 +227,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // "Total hydration percentage:            <percentage>%
             Match lineMatch = Regex.Match(outputLine, @"^Total hydration percentage:\s*(\d+)%$");
 
-            int outputtedTotalHydration = int.Parse(lineMatch.Groups[1].Value);
+            int.TryParse(lineMatch.Groups[1].Value, out int outputtedTotalHydration).ShouldBeTrue();
 
             outputtedTotalHydration.ShouldEqual(totalHydration);
         }
@@ -239,7 +240,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 // "  <percentage>% | <directory-name>" listed several times for different directories
                 Match lineMatch = Regex.Match(outputLines[i], @"^\s*(\d+)%\s*\|\s*(\S.*\S)\s*$");
 
-                int outputtedHealthScore = int.Parse(lineMatch.Groups[1].Value);
+                int.TryParse(lineMatch.Groups[1].Value, out int outputtedHealthScore).ShouldBeTrue();
                 string outputtedSubdirectory = lineMatch.Groups[2].Value;
 
                 outputtedHealthScore.ShouldEqual(healthScores[i]);
