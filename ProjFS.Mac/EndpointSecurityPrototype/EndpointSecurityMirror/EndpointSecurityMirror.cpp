@@ -12,11 +12,13 @@
 #include <unordered_map>
 #include <vector>
 #include <bsm/libbsm.h>
+#include <atomic>
 
 using std::string;
 using std::mutex;
 using std::unordered_map;
 using std::vector;
+using std::atomic_uint;
 
 typedef std::lock_guard<mutex> Guard;
 
@@ -33,6 +35,8 @@ static int RecursiveEnumerationCopyfileStatusCallback(
 	int what, int stage, copyfile_state_t state, const char * src, const char * dst, void * ctx);
 
 static string s_sourcePrefix, s_targetPrefix;
+
+static atomic_uint s_pendingAuthCount(0);
 
 // Helper function that automatically fills out the event_count in es_subscribe calls
 template <typename... ARGS>
@@ -84,6 +88,7 @@ int main(int argc, const char* argv[])
 		&client,
 		^(es_client_t* _Nonnull client, const es_message_t* _Nonnull message)
 		{
+			std::atomic_fetch_add(&s_pendingAuthCount, 1u);
 			HandleSecurityEvent(client, message);
 		});
 	if (result != ES_NEW_CLIENT_RESULT_SUCCESS)
@@ -174,6 +179,11 @@ static void HandleSecurityEvent(
 					{
 						//printf("Denying crawler process %u (%s) access to empty file '%s'\n", audit_token_to_pid(message->proc.audit_token), processFilename, eventPath);
 						es_respond_flags_result(client, message, 0x0, false /* don't cache */);
+						unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
+						if (count != 1)
+						{
+							printf("In-flight authorisation requests pending: %u\n", count - 1);
+						}
 					}
 					else
 					{
@@ -185,6 +195,11 @@ static void HandleSecurityEvent(
 				{
 					fprintf(stderr, "File tagged as empty found outside target directory: '%s'\n", eventPath);
 					es_respond_flags_result(client, message, 0x0, false /* don't cache */);
+					unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
+					if (count != 1)
+					{
+						printf("In-flight authorisation requests pending: %u\n", count - 1);
+					}
 					return;
 				}
 			}
@@ -194,6 +209,11 @@ static void HandleSecurityEvent(
 					errno, strerror(errno), eventPath);
 			}
 		
+			unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
+			if (count != 1)
+			{
+				printf("In-flight authorisation requests pending: %u\n", count - 1);
+			}
 			es_respond_flags_result(client, message, 0x7fffffff, false /* don't cache */);
 		}
         else
@@ -204,6 +224,11 @@ static void HandleSecurityEvent(
 	else
 	{
 		printf("Unexpected action type: %u, event type: %u\n", message->action_type, message->event_type);
+		unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
+		if (count != 1)
+		{
+			printf("In-flight authorisation requests pending: %u\n", count - 1);
+		}
 	}
 }
 
@@ -225,6 +250,11 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 			if (xattrBytes < 0)
 			{
 				// Raced with other thread, hydration already done
+				unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
+				if (count != 1)
+				{
+					printf("In-flight authorisation requests pending: %u\n", count - 1);
+				}
 				es_respond_flags_result(client, messageCopy, 0x7fffffff, false /* don't cache */);
 				return;
 			}
@@ -255,6 +285,11 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 				responseFlags = 0x0;
 			}
 			
+			unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
+			if (count != 1)
+			{
+				printf("In-flight authorisation requests pending: %u\n", count - 1);
+			}
 			es_respond_flags_result(client, messageCopy, responseFlags, false /* don't cache */);
 			free(messageCopy);
 			
@@ -276,6 +311,11 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 				
 				es_respond_flags_result(client, waitingMessage, responseFlags, false /* don't cache */);
 				free(waitingMessage);
+				unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
+				if (count != 1)
+				{
+					printf("In-flight authorisation requests pending: %u\n", count - 1);
+				}
 			}
 		});
 	}
