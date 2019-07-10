@@ -13,6 +13,7 @@
 #include <vector>
 #include <bsm/libbsm.h>
 #include <atomic>
+#include <mach/mach_time.h>
 
 using std::string;
 using std::mutex;
@@ -37,6 +38,7 @@ static int RecursiveEnumerationCopyfileStatusCallback(
 static string s_sourcePrefix, s_targetPrefix;
 
 static atomic_uint s_pendingAuthCount(0);
+static mach_timebase_info_data_t s_machTimebase;
 
 // Helper function that automatically fills out the event_count in es_subscribe calls
 template <typename... ARGS>
@@ -44,6 +46,17 @@ es_return_t ESSubscribe(es_client_t* _Nonnull client, ARGS... events)
 {
 	es_event_type_t requestedEvents[sizeof...(events)] = { events... };
   return es_subscribe(client, requestedEvents, sizeof...(events));
+}
+
+static uint64_t usecFromMachDuration(uint64_t machDuration)
+{
+	// timebase gives ns, divide by 1000 for usec
+	return ((machDuration * s_machTimebase.numer) / s_machTimebase.denom) / 1000u;
+}
+
+static int64_t usecFromMachDuration(int64_t machDuration)
+{
+	return ((machDuration * s_machTimebase.numer) / s_machTimebase.denom) / 1000;
 }
 
 static const char* FilenameFromPath(const char* path)
@@ -61,6 +74,8 @@ static const char* FilenameFromPath(const char* path)
 
 int main(int argc, const char* argv[])
 {
+	mach_timebase_info(&s_machTimebase);
+	
 	if (argc < 3)
 	{
 		fprintf(stderr, "Run as: %s <source directory> <target directory>\n", FilenameFromPath(argv[0]));
@@ -274,10 +289,6 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 				{
 					perror("removexattr failed");
 				}
-				else
-				{
-					printf("Hydrating '%s' done\n", eventPath.c_str());
-				}
 			}
 			else
 			{
@@ -291,6 +302,16 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 				printf("In-flight authorisation requests pending: %u\n", count - 1);
 			}
 			es_respond_flags_result(client, messageCopy, responseFlags, false /* don't cache */);
+			uint64_t responseMachTime = mach_absolute_time();
+			uint64_t responseMachDuration = responseMachTime - messageCopy->mach_time;
+			int64_t responseMachDeadlineDelta = responseMachTime - messageCopy->deadline;
+	
+			printf("Hydrating '%s' done; response took %llu µs, %lld µs %s deadline\n",
+				eventPath.c_str(),
+				usecFromMachDuration(responseMachDuration),
+				std::abs(usecFromMachDuration(responseMachDeadlineDelta)),
+				responseMachDeadlineDelta <= 0 ? "before" : "after");
+
 			free(messageCopy);
 			
 			vector<es_message_t*> waitingMessages;
