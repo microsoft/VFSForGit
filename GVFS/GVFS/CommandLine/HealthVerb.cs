@@ -73,7 +73,7 @@ namespace GVFS.CommandLine
             int longest = Math.Max(trackedFilesCountFormatted.Length, placeholderCountFormatted.Length);
             longest = Math.Max(longest, modifiedPathsCountFormatted.Length);
 
-            // Sort the dictionary to find the most hydrated directories by percentage
+            // Sort the dictionary to find the most hydrated directories by health score
             List<KeyValuePair<string, decimal>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
 
             this.Output.WriteLine("\nHealth of directory: " + enlistmentHealthData.TargetDirectory);
@@ -123,6 +123,12 @@ namespace GVFS.CommandLine
             return line.Substring(line.IndexOf('\t') + 1);
         }
 
+        /// <summary>
+        /// Parse a line of the git index coming from the ls-files endpoint in the git process to get the path to that files
+        /// These paths begin with 'S' or 'H' depending on if they have the skip-worktree bit set
+        /// </summary>
+        /// <param name="line">The line from the output of the git index</param>
+        /// <returns>The path extracted from the provided line of the git index</returns>
         private string TrimGitIndexLineWithSkipWorktree(string line)
         {
             return line.Substring(line.IndexOf(' ') + 1);
@@ -131,6 +137,7 @@ namespace GVFS.CommandLine
         /// <summary>
         /// Talk to the mount process across the named pipe to get a list of the modified paths
         /// </summary>
+        /// <remarks>If/when modified paths are moved to SQLite go there instead</remarks>
         /// <param name="enlistment">The enlistment being operated on</param>
         /// <returns>An array containing all of the modified paths in string format</returns>
         private void GetModifiedPathsFromPipe(GVFSEnlistment enlistment, EnlistmentPathData pathData)
@@ -200,6 +207,11 @@ namespace GVFS.CommandLine
             pathData.PlaceholderFolderPaths.AddRange(folderPlaceholders.Select(placeholderData => placeholderData.Path));
         }
 
+        /// <summary>
+        /// Call 'git ls-files' and 'git ls-tree' to get a list of all files and directories in the enlistment
+        /// </summary>
+        /// <param name="enlistment">The current GVFS enlistmetn being operated on</param>
+        /// <param name="pathData">The path data object where paths are being saved</param>
         private void GetPathsFromGitIndex(GVFSEnlistment enlistment, EnlistmentPathData pathData)
         {
             List<string> skipWorktreeFiles = new List<string>();
