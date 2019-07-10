@@ -229,7 +229,7 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 
 			string sourcePath = SourcePathForTargetFile(eventPath.c_str());
 			// NOTE: if you increase this beyond 60000ms (1 minute) the process ends up being killed
-			unsigned delay_ms = random() % 60000u;
+			unsigned delay_ms = 0;//random() % 60000u;
 			printf("Hydrating '%s' -> '%s' for process %u (%s), with %u ms delay\n", sourcePath.c_str(), eventPath.c_str(), audit_token_to_pid(messageCopy->proc.audit_token), FilenameFromPath(messageCopy->proc.file.path.data), delay_ms);
 			usleep(delay_ms * 1000u);
 			int result = copyfile(sourcePath.c_str(), eventPath.c_str(), nullptr /* state */, COPYFILE_DATA);
@@ -311,7 +311,7 @@ static const char* CopyfileStageString(int stage)
 static int RecursiveEnumerationCopyfileStatusCallback(
 	int what, int stage, copyfile_state_t state, const char* src, const char* dst, void* ctx)
 {
-	printf("copyfile callback: what = %s, stage = %s, src = '%s', dst = '%s'\n", CopyfileWhatString(what), CopyfileStageString(stage), src, dst);
+	//printf("copyfile callback: what = %s, stage = %s, src = '%s', dst = '%s'\n", CopyfileWhatString(what), CopyfileStageString(stage), src, dst);
 	
 	if (what == COPYFILE_RECURSE_FILE && stage == COPYFILE_FINISH)
 	{
