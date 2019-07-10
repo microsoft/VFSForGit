@@ -169,9 +169,10 @@ static void HandleSecurityEvent(
 				if (PathLiesWithinTarget(eventPath))
 				{
 					const char* processFilename = FilenameFromPath(message->proc.file.path.data);
-					if (0 == strcmp("mdworker_shared", processFilename))
+					if (0 == strcmp("mdworker_shared", processFilename)
+					    || 0 == strcmp("mds", processFilename))
 					{
-						printf("Denying crawler process %u (%s) access to empty file '%s'\n", audit_token_to_pid(message->proc.audit_token), processFilename, eventPath);
+						//printf("Denying crawler process %u (%s) access to empty file '%s'\n", audit_token_to_pid(message->proc.audit_token), processFilename, eventPath);
 						es_respond_flags_result(client, message, 0x0, false /* don't cache */);
 					}
 					else
@@ -187,10 +188,10 @@ static void HandleSecurityEvent(
 					return;
 				}
 			}
-			else if (errno != ENOATTR)
+			else if (errno != ENOATTR && PathLiesWithinTarget(eventPath))
 			{
-				fprintf(stderr, "getxattr failed (%u, %s) on '%s' (within mirror target directory: %s)\n",
-					errno, strerror(errno), eventPath, PathLiesWithinTarget(eventPath) ? "YES" : "NO");
+				fprintf(stderr, "getxattr failed (%u, %s) on '%s' (within mirror target directory)\n",
+					errno, strerror(errno), eventPath);
 			}
 		
 			es_respond_flags_result(client, message, 0x7fffffff, false /* don't cache */);
@@ -200,10 +201,10 @@ static void HandleSecurityEvent(
             fprintf(stderr, "Unexpected event type: %u\n", message->event_type);
         }
 	}
-    else
-    {
-        fprintf(stderr, "Unexpected action type: %u, event type: %u\n", message->action_type, message->event_type);
-    }
+	else
+	{
+		printf("Unexpected action type: %u, event type: %u\n", message->action_type, message->event_type);
+	}
 }
 
 static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* message)
@@ -265,6 +266,9 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 			 	s_waitingFileHydrationMessages.erase(eventPath);
 			}
 			
+			if (!waitingMessages.empty())
+				printf("Responding to %zu other auth events for file '%s'\n", waitingMessages.size(), eventPath.c_str());
+
 			while (!waitingMessages.empty())
 			{
 				es_message_t* waitingMessage = waitingMessages.back();
