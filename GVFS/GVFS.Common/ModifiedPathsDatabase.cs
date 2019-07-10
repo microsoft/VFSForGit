@@ -114,6 +114,20 @@ namespace GVFS.Common
             return true;
         }
 
+        public void RemoveAllEntriesForFolder(string path)
+        {
+            string entry = this.NormalizeEntryString(path, isFolder: true);
+            foreach (string modifiedPath in this.modifiedPaths)
+            {
+                if (modifiedPath.StartsWith(entry, StringComparison.OrdinalIgnoreCase))
+                {
+                    this.modifiedPaths.TryRemove(modifiedPath);
+                }
+            }
+
+            this.WriteAllEntriesAndFlush();
+        }
+
         public bool TryRemove(string path, bool isFolder, out bool isRetryable)
         {
             isRetryable = true;
