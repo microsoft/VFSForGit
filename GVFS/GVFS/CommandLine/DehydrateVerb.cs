@@ -144,28 +144,32 @@ of your enlistment's src folder.
 
                 // Local cache and objects paths are required for TryDownloadGitObjects
                 this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig: null, cacheServer: null);
+                RunFullDehydrate(enlistment, tracer, backupRoot, retryConfig);
+            }
+        }
 
-                if (this.TryBackupFiles(tracer, enlistment, backupRoot))
+        private void RunFullDehydrate(GVFSEnlistment enlistment, JsonTracer tracer, string backupRoot, RetryConfig retryConfig)
+        {
+            if (this.TryBackupFiles(tracer, enlistment, backupRoot))
+            {
+                if (this.TryDownloadGitObjects(tracer, enlistment, retryConfig) &&
+                    this.TryRecreateIndex(tracer, enlistment))
                 {
-                    if (this.TryDownloadGitObjects(tracer, enlistment, retryConfig) &&
-                        this.TryRecreateIndex(tracer, enlistment))
-                    {
-                        // Converting the src folder to partial must be the final step before mount
-                        this.PrepareSrcFolder(tracer, enlistment);
-                        this.Mount(tracer);
-
-                        this.Output.WriteLine();
-                        this.WriteMessage(tracer, "The repo was successfully dehydrated and remounted");
-                    }
-                }
-                else
-                {
-                    this.Output.WriteLine();
-                    this.WriteMessage(tracer, "ERROR: Backup failed. We will attempt to mount, but you may need to reclone if that fails");
-
+                    // Converting the src folder to partial must be the final step before mount
+                    this.PrepareSrcFolder(tracer, enlistment);
                     this.Mount(tracer);
-                    this.WriteMessage(tracer, "Dehydrate failed, but remounting succeeded");
+
+                    this.Output.WriteLine();
+                    this.WriteMessage(tracer, "The repo was successfully dehydrated and remounted");
                 }
+            }
+            else
+            {
+                this.Output.WriteLine();
+                this.WriteMessage(tracer, "ERROR: Backup failed. We will attempt to mount, but you may need to reclone if that fails");
+
+                this.Mount(tracer);
+                this.WriteMessage(tracer, "Dehydrate failed, but remounting succeeded");
             }
         }
 
