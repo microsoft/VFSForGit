@@ -168,6 +168,7 @@ namespace GVFS.Platform.Mac
                 get { return "vfsforgit"; }
             }
 
+            // Documented here (in the addressing section): https://www.unix.com/man-page/mojave/4/unix/
             public override int MaxPipePathLength => 104;
         }
     }
