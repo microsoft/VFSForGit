@@ -167,6 +167,8 @@ namespace GVFS.Platform.Mac
             {
                 get { return "vfsforgit"; }
             }
+
+            public override int MaxPipePathLength => 104;
         }
     }
 }

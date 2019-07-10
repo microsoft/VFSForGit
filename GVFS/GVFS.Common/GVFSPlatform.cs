@@ -138,6 +138,7 @@ namespace GVFS.Common
         public abstract class GVFSPlatformConstants
         {
             public static readonly char PathSeparator = Path.DirectorySeparatorChar;
+            public abstract int MaxPipePathLength { get; }
             public abstract string ExecutableExtension { get; }
             public abstract string InstallerExtension { get; }
 

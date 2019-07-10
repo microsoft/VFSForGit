@@ -298,6 +298,8 @@ namespace GVFS.Platform.POSIX
             }
 
             public override bool SupportsUpgradeWhileRunning => true;
+
+            public override int MaxPipePathLength => 108;
         }
     }
 }

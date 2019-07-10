@@ -490,6 +490,8 @@ namespace GVFS.Platform.Windows
             {
                 get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "ssh-agent", "wish", "bash" }; }
             }
+
+            public override int MaxPipePathLength => 250;
         }
     }
 }
