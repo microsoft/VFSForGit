@@ -194,7 +194,15 @@ static void HandleSecurityEvent(
 		
 			es_respond_flags_result(client, message, 0x7fffffff, false /* don't cache */);
 		}
+        else
+        {
+            fprintf(stderr, "Unexpected event type: %u\n", message->event_type);
+        }
 	}
+    else
+    {
+        fprintf(stderr, "Unexpected action type: %u, event type: %u\n", message->action_type, message->event_type);
+    }
 }
 
 static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* message)
