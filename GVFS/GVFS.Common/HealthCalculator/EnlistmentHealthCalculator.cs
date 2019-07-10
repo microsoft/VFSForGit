@@ -49,7 +49,7 @@ namespace GVFS.Common
 
             Dictionary<string, decimal> mostHydratedDirectories = new Dictionary<string, decimal>();
 
-            // Map directory names to the corresponding health data from gitTrackedFilesDirectoryTally and hydratedFilesDirectoryTally
+            // Map directory names to the corresponding health data from gitTrackedItemsDirectoryTally and hydratedFilesDirectoryTally
             foreach (KeyValuePair<string, int> pair in gitTrackedItemsDirectoryTally)
             {
                 if (hydratedFilesDirectoryTally.TryGetValue(pair.Key, out int hydratedFiles))
@@ -130,7 +130,7 @@ namespace GVFS.Common
         /// <summary>
         /// Trim the relative path to a directory from the front of a specified path which is its child
         /// </summary>
-        /// <remarks>Precondition: Only even run in the context of TrimDirectoryFromPath(child, parentDirectory)</remarks>
+        /// <remarks>Precondition: 'directoryTarget' must be an ancestor of 'path'</remarks>
         /// <param name="path">The path being trimmed</param>
         /// <param name="directoryTarget">The directory target whose path to trim from the path</param>
         /// <returns>The newly formatted path with the directory trimmed</returns>
