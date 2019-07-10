@@ -102,7 +102,7 @@ int main(int argc, const char* argv[])
 			// target directory does not exist, create it and enumerate
 			copyfile_state_t copyState = copyfile_state_alloc();
 			copyfile_state_set(copyState, COPYFILE_STATE_STATUS_CB, reinterpret_cast<void*>(&RecursiveEnumerationCopyfileStatusCallback));
-			int result = copyfile(sourceDir, targetDir, copyState, COPYFILE_METADATA | COPYFILE_RECURSIVE);
+			int result = copyfile(sourceDir, targetDir, copyState, COPYFILE_METADATA | COPYFILE_RECURSIVE | COPYFILE_NOFOLLOW_SRC | COPYFILE_NOFOLLOW_DST);
 			if (result != 0)
 			{
 				perror("copyfile() for enumeration failed");
@@ -213,6 +213,7 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 	if (!s_waitingFileHydrationMessages.insert(make_pair(eventPath, vector<es_message_t*>())).second)
 	{
 		// already being hydrated, add to messages needing approval
+		printf("File '%s' already being hydrated by another thread\n", eventPath.c_str());
 		s_waitingFileHydrationMessages[eventPath].push_back(messageCopy);
 	}
 	else
@@ -316,15 +317,25 @@ static int RecursiveEnumerationCopyfileStatusCallback(
 	if (what == COPYFILE_RECURSE_FILE && stage == COPYFILE_FINISH)
 	{
 		struct stat destStat = {};
-		if (0 != stat(dst, &destStat))
+		struct stat srcStat = {};
+		if (0 != fstatat(AT_FDCWD, src, &srcStat, AT_SYMLINK_NOFOLLOW))
 		{
-			perror("stat() on destination failed");
+			fprintf(stderr, "stat() on source file '%s' failed: %d, %s\n", src, errno, strerror(errno));
 		}
-		else
+		else if (0 != fstatat(AT_FDCWD, dst, &destStat, AT_SYMLINK_NOFOLLOW))
+		{
+			fprintf(stderr, "stat() on destination file '%s' failed: %d, %s\n", dst, errno, strerror(errno));
+		}
+		else if (S_ISREG(srcStat.st_mode))
 		{
 			if (0 != setxattr(dst, EmptyFileXattr, "", 0 /* size */, 0 /* offset */, 0 /* options */))
 			{
 				perror("setxattr failed: ");
+			}
+			//printf("truncate('%s', %llu)\n", dst, srcStat.st_size);
+			if (0 != truncate(dst, srcStat.st_size))
+			{
+				fprintf(stderr, "truncate() on '%s', %llu bytes failed: %d, %s\n", src, srcStat.st_size, errno, strerror(errno));
 			}
 		}
 	}
