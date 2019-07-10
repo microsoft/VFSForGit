@@ -36,9 +36,10 @@ static string s_sourcePrefix, s_targetPrefix;
 
 // Helper function that automatically fills out the event_count in es_subscribe calls
 template <typename... ARGS>
-bool ESSubscribe(es_client_t* _Nonnull client, ARGS... events)
+es_return_t ESSubscribe(es_client_t* _Nonnull client, ARGS... events)
 {
-  return es_subscribe(client, sizeof...(events), events...);
+	es_event_type_t requestedEvents[sizeof...(events)] = { events... };
+  return es_subscribe(client, requestedEvents, sizeof...(events));
 }
 
 static const char* FilenameFromPath(const char* path)
@@ -131,7 +132,7 @@ int main(int argc, const char* argv[])
 	es_clear_cache(client);
 	
 	
-	if (!ESSubscribe(client, ES_EVENT_TYPE_AUTH_OPEN))
+	if (ES_RETURN_SUCCESS != ESSubscribe(client, ES_EVENT_TYPE_AUTH_OPEN))
 	{
 		fprintf(stderr, "es_subscribe failed\n");
 		return 1;
@@ -161,13 +162,13 @@ static void HandleSecurityEvent(
 		if (message->event_type == ES_EVENT_TYPE_AUTH_OPEN)
 		{
 			char xattrBuffer[16];
-			const char* eventPath = message->event.open.file.path;
+			const char* eventPath = message->event.open.file.path.data;
 			ssize_t xattrBytes = getxattr(eventPath, EmptyFileXattr, xattrBuffer, sizeof(xattrBuffer), 0 /* offset */, 0 /* options */);
 			if (xattrBytes >= 0)
 			{
 				if (PathLiesWithinTarget(eventPath))
 				{
-					const char* processFilename = FilenameFromPath(message->proc.file.path);
+					const char* processFilename = FilenameFromPath(message->proc.file.path.data);
 					if (0 == strcmp("mdworker_shared", processFilename))
 					{
 						printf("Denying crawler process %u (%s) access to empty file '%s'\n", audit_token_to_pid(message->proc.audit_token), processFilename, eventPath);
@@ -229,7 +230,7 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 			string sourcePath = SourcePathForTargetFile(eventPath.c_str());
 			// NOTE: if you increase this beyond 60000ms (1 minute) the process ends up being killed
 			unsigned delay_ms = random() % 60000u;
-			printf("Hydrating '%s' -> '%s' for process %u (%s), with %u ms delay\n", sourcePath.c_str(), eventPath.c_str(), audit_token_to_pid(messageCopy->proc.audit_token), FilenameFromPath(messageCopy->proc.file.path), delay_ms);
+			printf("Hydrating '%s' -> '%s' for process %u (%s), with %u ms delay\n", sourcePath.c_str(), eventPath.c_str(), audit_token_to_pid(messageCopy->proc.audit_token), FilenameFromPath(messageCopy->proc.file.path.data), delay_ms);
 			usleep(delay_ms * 1000u);
 			int result = copyfile(sourcePath.c_str(), eventPath.c_str(), nullptr /* state */, COPYFILE_DATA);
 			
