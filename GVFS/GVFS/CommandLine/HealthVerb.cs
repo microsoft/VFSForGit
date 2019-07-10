@@ -73,7 +73,7 @@ namespace GVFS.CommandLine
             int longest = Math.Max(trackedFilesCountFormatted.Length, placeholderCountFormatted.Length);
             longest = Math.Max(longest, modifiedPathsCountFormatted.Length);
 
-            // Sort the dictionary to find the most hydrated directories by health store
+            // Sort the dictionary to find the most hydrated directories by health score
             List<KeyValuePair<string, decimal>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
 
             this.Output.WriteLine("\nHealth of directory: " + enlistmentHealthData.TargetDirectory);
@@ -124,7 +124,7 @@ namespace GVFS.CommandLine
         }
 
         /// <summary>
-        /// Rase a line of the git index coming from the ls-files endpoint in the git process to get the path to that files
+        /// Parse a line of the git index coming from the ls-files endpoint in the git process to get the path to that files
         /// These paths begin with 'S' or 'H' depending on if they have the skip-worktree bit set
         /// </summary>
         /// <param name="line">The line from the output of the git index</param>
@@ -208,7 +208,7 @@ namespace GVFS.CommandLine
         }
 
         /// <summary>
-        /// Call 'git ls-files' and 'git ls-tree' to get a list of all total files in the enlistment
+        /// Call 'git ls-files' and 'git ls-tree' to get a list of all files and directories in the enlistment
         /// </summary>
         /// <param name="enlistment">The current GVFS enlistmetn being operated on</param>
         /// <param name="pathData">The path data object where paths are being saved</param>
