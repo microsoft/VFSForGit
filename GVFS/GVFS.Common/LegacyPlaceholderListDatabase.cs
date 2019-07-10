@@ -273,6 +273,11 @@ namespace GVFS.Common
             }
         }
 
+        public void RemoveStartingWith(string path)
+        {
+            throw new NotImplementedException();
+        }
+
         private IEnumerable<string> GenerateDataLines(IEnumerable<IPlaceholderData> updatedPlaceholders)
         {
             HashSet<string> keys = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);

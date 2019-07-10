@@ -159,6 +159,24 @@ namespace GVFS.Common.Database
             this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PossibleTombstoneFolder });
         }
 
+        public void RemoveStartingWith(string path)
+        {
+            try
+            {
+                using (IDbConnection connection = this.connectionPool.GetConnection())
+                using (IDbCommand command = connection.CreateCommand())
+                {
+                    command.CommandText = "DELETE FROM Placeholder WHERE path LIKE @path;";
+                    command.AddParameter("@path", DbType.String, $"{path}%");
+                    command.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.Remove)}({path}) Exception", ex);
+            }
+        }
+
         public void Remove(string path)
         {
             try
