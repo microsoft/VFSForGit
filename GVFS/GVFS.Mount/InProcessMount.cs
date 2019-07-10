@@ -263,6 +263,10 @@ namespace GVFS.Mount
                     this.HandlePostFetchJobRequest(message, connection);
                     break;
 
+                case NamedPipeMessages.DehydrateFolders.Dehydrate:
+                    this.HandleDehydrateFolders(message, connection);
+                    break;
+
                 default:
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", "Mount");
@@ -272,6 +276,37 @@ namespace GVFS.Mount
                     connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
                     break;
             }
+        }
+
+        private void HandleDehydrateFolders(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(message);
+
+            this.tracer.RelatedInfo($"Received dehydrate folders request with body {message.Body}");
+
+            NamedPipeMessages.DehydrateFolders.Response response;
+            if (this.currentState == MountState.Ready)
+            {
+                response = new NamedPipeMessages.DehydrateFolders.Response(NamedPipeMessages.DehydrateFolders.DehydratedResult);
+                string[] folders = request.Folders.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (string folder in folders)
+                {
+                    if (this.fileSystemCallbacks.DehydrateFolder(folder))
+                    {
+                        response.SuccessfulFolders.Add(folder);
+                    }
+                    else
+                    {
+                        response.FailedFolders.Add(folder);
+                    }
+                }
+            }
+            else
+            {
+                response = new NamedPipeMessages.DehydrateFolders.Response(NamedPipeMessages.DehydrateFolders.MountNotReadyResult);
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
         }
 
         private void HandleLockRequest(string messageBody, NamedPipeServer.Connection connection)

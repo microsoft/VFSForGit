@@ -184,7 +184,48 @@ of your enlistment's src folder.
 
         private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string[] folders)
         {
+            foreach (string folder in folders)
+            {
+                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
+                fileSystem.DeleteDirectory(fullPath, recursive: true);
+            }
 
+            this.Mount(tracer);
+
+            this.SendDehydrateMessage(tracer, enlistment, folders);
+        }
+
+        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, string[] folders)
+        {
+            using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+            {
+                if (!pipeClient.Connect())
+                {
+                    this.ReportErrorAndExit("Unable to connect to GVFS.  Try running 'gvfs mount'");
+                }
+
+                try
+                {
+                    NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(string.Join(";", folders));
+                    pipeClient.SendRequest(request.CreateMessage());
+                    NamedPipeMessages.DehydrateFolders.Response response = NamedPipeMessages.DehydrateFolders.Response.FromMessage(NamedPipeMessages.Message.FromString(pipeClient.ReadRawResponse()));
+
+                    foreach (string folder in response.SuccessfulFolders)
+                    {
+                        this.WriteMessage(tracer, $"{folder} successfully dehydrated.");
+                    }
+
+                    foreach (string folder in response.FailedFolders)
+                    {
+                        this.WriteMessage(tracer, $"{folder} dehydration failed.");
+                    }
+                }
+                catch (BrokenPipeException e)
+                {
+                    this.ReportErrorAndExit("Unable to communicate with GVFS: " + e.ToString());
+                }
+            }
         }
 
         private void RunFullDehydrate(JsonTracer tracer, GVFSEnlistment enlistment, string backupRoot, RetryConfig retryConfig)

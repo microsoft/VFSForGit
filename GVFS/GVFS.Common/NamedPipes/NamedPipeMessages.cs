@@ -179,6 +179,57 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
+        public static class DehydrateFolders
+        {
+            public const string Dehydrate = "Dehydrate";
+            public const string DehydratedResult = "Dehydrated";
+            public const string MountNotReadyResult = "MountNotReady";
+
+            public class Request
+            {
+                public Request(string folders)
+                {
+                    this.Folders = folders;
+                }
+
+                public Request(Message message)
+                {
+                    this.Folders = message.Body;
+                }
+
+                public string Folders { get; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(Dehydrate, this.Folders);
+                }
+            }
+
+            public class Response
+            {
+                public Response(string result)
+                {
+                    this.Result = result;
+                    this.SuccessfulFolders = new List<string>();
+                    this.FailedFolders = new List<string>();
+                }
+
+                public string Result { get; }
+                public List<string> SuccessfulFolders { get; }
+                public List<string> FailedFolders { get; }
+
+                public static Response FromMessage(Message message)
+                {
+                    return JsonConvert.DeserializeObject<Response>(message.Body);
+                }
+
+                public Message CreateMessage()
+                {
+                    return new Message(this.Result, JsonConvert.SerializeObject(this));
+                }
+            }
+        }
+
         public static class RunPostFetchJob
         {
             public const string PostFetchJob = "PostFetch";
