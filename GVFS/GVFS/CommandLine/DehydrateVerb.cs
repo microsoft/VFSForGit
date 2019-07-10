@@ -34,6 +34,13 @@ namespace GVFS.CommandLine
             HelpText = "Skip 'git status' before dehydrating")]
         public bool NoStatus { get; set; }
 
+        [Option(
+            "folders",
+            Default = "",
+            Required = false,
+            HelpText = "The folders to dehydrate separated by ;")]
+        public string Folders { get; set; }
+
         protected override string VerbName
         {
             get { return DehydrateVerb.DehydrateVerbName; }
@@ -118,8 +125,18 @@ of your enlistment's src folder.
 
                 string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 this.Output.WriteLine();
-                this.WriteMessage(tracer, "Starting dehydration. All of your existing files will be backed up in " + backupRoot);
+
+                if (string.IsNullOrEmpty(this.Folders))
+                {
+                    this.WriteMessage(tracer, "Starting dehydration. All of your existing files will be backed up in " + backupRoot);
+                }
+                else
+                {
+                    this.WriteMessage(tracer, "Starting dehydration. Files for folders specified will be backed up in " + backupRoot);
+                }
+
                 this.WriteMessage(tracer, "WARNING: If you abort the dehydrate after this point, the repo may become corrupt");
+
                 this.Output.WriteLine();
 
                 this.Unmount(tracer);
@@ -144,11 +161,33 @@ of your enlistment's src folder.
 
                 // Local cache and objects paths are required for TryDownloadGitObjects
                 this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig: null, cacheServer: null);
-                RunFullDehydrate(enlistment, tracer, backupRoot, retryConfig);
+
+                if (string.IsNullOrEmpty(this.Folders))
+                {
+                    this.RunFullDehydrate(tracer, enlistment, backupRoot, retryConfig);
+                }
+                else
+                {
+                    string[] folders = this.Folders.Split(new[] { ";" }, StringSplitOptions.RemoveEmptyEntries);
+
+                    if (folders.Length > 0)
+                    {
+                        this.DehydrateFolders(tracer, enlistment, folders);
+                    }
+                    else
+                    {
+                        this.ReportErrorAndExit("No folders to dehydrate.");
+                    }
+                }
             }
         }
 
-        private void RunFullDehydrate(GVFSEnlistment enlistment, JsonTracer tracer, string backupRoot, RetryConfig retryConfig)
+        private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string[] folders)
+        {
+
+        }
+
+        private void RunFullDehydrate(JsonTracer tracer, GVFSEnlistment enlistment, string backupRoot, RetryConfig retryConfig)
         {
             if (this.TryBackupFiles(tracer, enlistment, backupRoot))
             {
