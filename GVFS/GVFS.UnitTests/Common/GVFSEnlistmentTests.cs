@@ -32,7 +32,7 @@ namespace GVFS.UnitTests.Common
             private MockGitProcess gitProcess;
 
             public TestGVFSEnlistment()
-                : base("mock:\\path", "mock://repoUrl", "mock:\\git", gvfsHooksRoot: null, authentication: null)
+                : base("mock:\\path", "mock://repoUrl", "mock:\\git", authentication: null)
             {
                 this.gitProcess = new MockGitProcess();
                 this.gitProcess.SetExpectedCommandResult(

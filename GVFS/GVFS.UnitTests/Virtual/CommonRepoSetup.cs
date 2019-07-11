@@ -15,7 +15,7 @@ namespace GVFS.UnitTests.Virtual
             MockTracer tracer = new MockTracer();
 
             string enlistmentRoot = Path.Combine("mock:", "GVFS", "UnitTests", "Repo");
-            GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", gvfsHooksRoot: null, authentication: null);
+            GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", authentication: null);
             enlistment.InitializeCachePathsFromKey("fake:\\gvfsSharedCache", "fakeCacheKey");
 
             this.GitParentPath = enlistment.WorkingDirectoryRoot;

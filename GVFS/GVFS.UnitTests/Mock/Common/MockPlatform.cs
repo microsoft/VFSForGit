@@ -40,7 +40,7 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error)
+        public override bool TryGetGVFSHooksVersion(out string hooksVersion, out string error)
         {
             throw new NotSupportedException();
         }

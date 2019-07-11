@@ -38,9 +38,9 @@ namespace GVFS.Platform.POSIX
         {
         }
 
-        public override bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error)
+        public override bool TryGetGVFSHooksVersion(out string hooksVersion, out string error)
         {
-            hooksPaths = string.Empty;
+            string hooksPaths = string.Empty;
             string binPath = Path.Combine(this.Constants.GVFSBinDirectoryPath, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             if (File.Exists(binPath))
             {

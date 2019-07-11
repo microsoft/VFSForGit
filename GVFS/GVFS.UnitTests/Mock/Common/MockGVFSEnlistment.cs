@@ -10,15 +10,15 @@ namespace GVFS.UnitTests.Mock.Common
         private MockGitProcess gitProcess;
 
         public MockGVFSEnlistment()
-            : base(Path.Combine("mock:", "path"), "mock://repoUrl", Path.Combine("mock:", "git"), gvfsHooksRoot: null, authentication: null)
+            : base(Path.Combine("mock:", "path"), "mock://repoUrl", Path.Combine("mock:", "git"), authentication: null)
         {
             this.GitObjectsRoot = Path.Combine("mock:", "path", ".git", "objects");
             this.LocalObjectsRoot = this.GitObjectsRoot;
             this.GitPackRoot = Path.Combine("mock:", "path", ".git", "objects", "pack");
         }
 
-        public MockGVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, string gvfsHooksRoot, MockGitProcess gitProcess)
-            : base(enlistmentRoot, repoUrl, gitBinPath, gvfsHooksRoot, authentication: null)
+        public MockGVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, MockGitProcess gitProcess)
+            : base(enlistmentRoot, repoUrl, gitBinPath, authentication: null)
         {
             this.gitProcess = gitProcess;
         }

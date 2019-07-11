@@ -256,11 +256,11 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        public override bool TryGetGVFSHooksPathAndVersion(out string hooksPath, out string hooksVersion, out string error)
+        public override bool TryGetGVFSHooksVersion(out string hooksVersion, out string error)
         {
             error = null;
             hooksVersion = null;
-            hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            string hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             if (hooksPath == null)
             {
                 error = "Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName;

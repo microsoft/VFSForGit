@@ -38,7 +38,7 @@ namespace GVFS.CommandLine
         {
             this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
+            this.CheckGVFSHooksVersion(tracer: null, hooksVersion: out _);
 
             if (!Directory.Exists(this.EnlistmentRootPathParameter))
             {
@@ -59,7 +59,6 @@ namespace GVFS.CommandLine
                 enlistment = GVFSEnlistment.CreateFromDirectory(
                     this.EnlistmentRootPathParameter,
                     GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
-                    hooksPath,
                     authentication: null,
                     createWithoutRepoURL: true);
             }
