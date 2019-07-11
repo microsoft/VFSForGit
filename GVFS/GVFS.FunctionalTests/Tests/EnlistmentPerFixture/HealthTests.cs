@@ -47,7 +47,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.HydratePlaceholder(Path.Combine(this.Enlistment.RepoRoot, "Scripts/RunUnitTests.bat"));
 
             List<string> topHydratedDirectories = new List<string> { "Scripts", "GVFS", "GVFlt_BugRegressionTest", "GVFlt_DeleteFileTest", "GVFlt_DeleteFolderTest" };
-            List<int> directoryHydrationLevels = new List<int> { 100, 0, 0, 0, 0 };
+            List<int> directoryHydrationLevels = new List<int> { 5, 0, 0, 0, 0 };
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
@@ -71,8 +71,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.HydrateFullFile(Path.Combine(this.Enlistment.RepoRoot, "GVFlt_FileOperationTest/DeleteExistingFile.txt"));
             this.HydrateFullFile(Path.Combine(this.Enlistment.RepoRoot, "GVFlt_FileOperationTest/WriteAndVerify.txt"));
 
-            List<string> topHydratedDirectories = new List<string> { "GVFlt_FileOperationTest", "Scripts", "GVFS", "GVFlt_BugRegressionTest", "GVFlt_DeleteFileTest" };
-            List<int> directoryHydrationLevels = new List<int> { 100, 100, 0, 0, 0 };
+            List<string> topHydratedDirectories = new List<string> { "Scripts", "GVFlt_FileOperationTest", "GVFS", "GVFlt_BugRegressionTest", "GVFlt_DeleteFileTest" };
+            List<int> directoryHydrationLevels = new List<int> { 5, 2, 0, 0, 0 };
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
@@ -98,8 +98,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.HydrateFullFile(Path.Combine(this.Enlistment.RepoRoot, "Scripts/RunFunctionalTests.bat"));
             this.HydrateFullFile(Path.Combine(this.Enlistment.RepoRoot, "Scripts/RunUnitTests.bat"));
 
-            List<string> topHydratedDirectories = new List<string> { "GVFlt_FileOperationTest", "Scripts", "GVFS", "GVFlt_BugRegressionTest", "GVFlt_DeleteFileTest" };
-            List<int> directoryHydrationLevels = new List<int> { 100, 100, 0, 0, 0 };
+            List<string> topHydratedDirectories = new List<string> { "Scripts", "GVFlt_FileOperationTest", "GVFS", "GVFlt_BugRegressionTest", "GVFlt_DeleteFileTest" };
+            List<int> directoryHydrationLevels = new List<int> { 5, 2, 0, 0, 0 };
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
@@ -237,10 +237,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             for (int i = 0; i < outputLines.Count; i++)
             {
                 // Regex to extract the most hydrated subdirectory names and their hydration percentage
-                // "  <percentage>% | <directory-name>" listed several times for different directories
-                Match lineMatch = Regex.Match(outputLines[i], @"^\s*(\d+)%\s*\|\s*(\S.*\S)\s*$");
+                // "  <hydrated-file-count> | <directory-name>" listed several times for different directories
+                Match lineMatch = Regex.Match(outputLines[i], @"^\s*([\d,]+)\s*\|\s*(\S.*\S)\s*$");
 
-                int.TryParse(lineMatch.Groups[1].Value, out int outputtedHealthScore).ShouldBeTrue();
+                int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedHealthScore).ShouldBeTrue();
                 string outputtedSubdirectory = lineMatch.Groups[2].Value;
 
                 outputtedHealthScore.ShouldEqual(healthScores[i]);
