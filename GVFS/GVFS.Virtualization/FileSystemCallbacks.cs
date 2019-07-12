@@ -410,6 +410,14 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFilePreDelete(relativePath));
         }
 
+        /// <summary>
+        /// Called to indicate a folder was created
+        /// </summary>
+        /// <param name="relativePath">The relative path to the newly created folder</param>
+        /// <returns>
+        /// true when the folder is successfully added to the include list because it is in the projection but currently excluded.
+        /// false when the folder was not excluded or there was a failure adding to the included list.
+        /// </returns>
         public bool OnFolderCreated(string relativePath)
         {
             GitIndexProjection.PathProjectionState pathProjectionState = this.GitIndexProjection.GetPathProjectionState(relativePath);

@@ -526,6 +526,8 @@ namespace GVFS.Platform.Mac
                         {
                             if (this.FileSystemCallbacks.OnFolderCreated(relativePath))
                             {
+                                // Need to enumerate the directory to get and create placeholders
+                                // for all the directory items that are now included
                                 this.OnEnumerateDirectory(0, relativePath, -1, $"{nameof(this.OnNewFileCreated)}_FolderIncluded");
                             }
                         }
