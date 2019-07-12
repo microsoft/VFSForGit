@@ -56,8 +56,10 @@ namespace GVFS.CommandLine
                     using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase()))
                     {
                         IncludedFolderTable includedFolderTable = new IncludedFolderTable(database);
+                        bool haveFoldersToAdd = !string.IsNullOrEmpty(this.Add);
+                        bool haveFoldersToRemove = !string.IsNullOrEmpty(this.Remove);
 
-                        if (this.List)
+                        if (this.List || (!haveFoldersToAdd && !haveFoldersToRemove))
                         {
                             List<string> directories = includedFolderTable.GetAll();
                             if (directories.Count == 0)
@@ -78,7 +80,7 @@ namespace GVFS.CommandLine
                         // Make sure there is a clean git status before allowing inclusions to change
                         this.CheckGitStatus(tracer, enlistment);
 
-                        if (!string.IsNullOrEmpty(this.Remove))
+                        if (haveFoldersToRemove)
                         {
                             foreach (string directoryPath in this.Remove.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
                             {
@@ -86,7 +88,7 @@ namespace GVFS.CommandLine
                             }
                         }
 
-                        if (!string.IsNullOrEmpty(this.Add))
+                        if (haveFoldersToAdd)
                         {
                             foreach (string directoryPath in this.Add.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
                             {
