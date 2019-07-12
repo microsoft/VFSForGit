@@ -1003,9 +1003,18 @@ namespace GVFS.Platform.Windows
                     if (isDirectory)
                     {
                         GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
-                        if (gitCommand.IsValidGitCommand || this.FileSystemCallbacks.OnFolderCreated(virtualPath))
+                        if (gitCommand.IsValidGitCommand)
                         {
                             this.MarkDirectoryAsPlaceholder(virtualPath, isDirectory, triggeringProcessId, triggeringProcessImageFileName);
+                        }
+                        else
+                        {
+                            if (this.FileSystemCallbacks.OnFolderCreated(virtualPath))
+                            {
+                                // When OnFolderCreated returns true it means the folder was previously excluded from the projection and was
+                                // included so it needs to be marked as a placeholder so that it will start projecting items in the folder
+                                this.MarkDirectoryAsPlaceholder(virtualPath, isDirectory, triggeringProcessId, triggeringProcessImageFileName);
+                            }
                         }
                     }
                     else
