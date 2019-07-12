@@ -74,7 +74,7 @@ namespace GVFS.CommandLine
             longest = Math.Max(longest, modifiedPathsCountFormatted.Length);
 
             // Sort the dictionary to find the most hydrated directories by health score
-            List<KeyValuePair<string, decimal>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
+            List<KeyValuePair<string, int>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
 
             this.Output.WriteLine("\nHealth of directory: " + enlistmentHealthData.TargetDirectory);
             this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
@@ -85,17 +85,15 @@ namespace GVFS.CommandLine
 
             this.Output.WriteLine("\nMost hydrated top level directories:");
 
-            int maxDirectoryNameLength = 0;
-            foreach (KeyValuePair<string, decimal> pair in topLevelDirectoriesByHydration)
+            int maxCountLength = 0;
+            foreach (KeyValuePair<string, int> pair in topLevelDirectoriesByHydration)
             {
-                maxDirectoryNameLength = Math.Max(maxDirectoryNameLength, pair.Key.Length);
+                maxCountLength = Math.Max(maxCountLength, pair.Value.ToString().Length);
             }
 
-            foreach (KeyValuePair<string, decimal> pair in topLevelDirectoriesByHydration)
+            foreach (KeyValuePair<string, int> pair in topLevelDirectoriesByHydration)
             {
-                string dir = pair.Key.PadRight(maxDirectoryNameLength);
-                string percent = this.FormatPercent(pair.Value);
-                this.Output.WriteLine(" " + percent + " | " + dir);
+                this.Output.WriteLine(" " + pair.Value.ToString("N0").PadLeft(maxCountLength) + " | " + pair.Key);
             }
 
             bool healthyRepo = (enlistmentHealthData.PlaceholderPercentage + enlistmentHealthData.ModifiedPathsPercentage) < MaximumHealthyHydration;
