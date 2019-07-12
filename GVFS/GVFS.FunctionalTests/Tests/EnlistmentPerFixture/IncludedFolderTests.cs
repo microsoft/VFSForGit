@@ -115,6 +115,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
+        [Category(Categories.WindowsOnly)]
         public void CreatingFolderShouldAddToIncludedListAndStartProjecting()
         {
             this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder);
@@ -126,6 +127,32 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             newFolderPath.ShouldBeADirectory(this.fileSystem);
             string[] fileSystemEntries = Directory.GetFileSystemEntries(newFolderPath);
             fileSystemEntries.Length.ShouldEqual(32);
+
+            string projectedFolder = Path.Combine(newFolderPath, "Git");
+            projectedFolder.ShouldBeADirectory(this.fileSystem);
+            fileSystemEntries = Directory.GetFileSystemEntries(projectedFolder);
+            fileSystemEntries.Length.ShouldEqual(13);
+
+            string projectedFile = Path.Combine(newFolderPath, "ReturnCode.cs");
+            projectedFile.ShouldBeAFile(this.fileSystem);
+        }
+
+        [TestCase, Order(5)]
+        [Category(Categories.MacOnly)]
+        public void CreateFolderThenFileShouldAddToIncludedListAndStartProjecting()
+        {
+            this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder);
+            this.ValidateIncludedFolders(this.mainIncludedFolder);
+
+            string newFolderPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Common");
+            newFolderPath.ShouldNotExistOnDisk(this.fileSystem);
+            Directory.CreateDirectory(newFolderPath);
+            string newFilePath = Path.Combine(newFolderPath, "test.txt");
+            File.WriteAllText(newFilePath, "New file content");
+            newFolderPath.ShouldBeADirectory(this.fileSystem);
+            newFilePath.ShouldBeAFile(this.fileSystem);
+            string[] fileSystemEntries = Directory.GetFileSystemEntries(newFolderPath);
+            fileSystemEntries.Length.ShouldEqual(33);
 
             string projectedFolder = Path.Combine(newFolderPath, "Git");
             projectedFolder.ShouldBeADirectory(this.fileSystem);
