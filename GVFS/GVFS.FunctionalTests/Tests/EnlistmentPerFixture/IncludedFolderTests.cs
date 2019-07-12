@@ -177,7 +177,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunFunctionalTests.bat");
             this.fileSystem.WriteAllText(modifiedPath, "New Contents");
 
-            this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder);
+            string output = this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder);
+            output.ShouldContain("Include was aborted");
             this.ValidateIncludedFolders(new string[0]);
         }
 
