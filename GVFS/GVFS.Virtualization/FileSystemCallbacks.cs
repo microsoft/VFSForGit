@@ -428,8 +428,10 @@ namespace GVFS.Virtualization
             GitIndexProjection.PathProjectionState pathProjectionState = this.GitIndexProjection.GetPathProjectionState(relativePath);
             if (pathProjectionState == GitIndexProjection.PathProjectionState.Excluded)
             {
-                this.GitIndexProjection.TryAddIncludedFolder(relativePath);
-                return true;
+                if (this.GitIndexProjection.TryAddIncludedFolder(relativePath))
+                {
+                    return true;
+                }
             }
 
             this.AddToNewlyCreatedList(relativePath, isFolder: true);
