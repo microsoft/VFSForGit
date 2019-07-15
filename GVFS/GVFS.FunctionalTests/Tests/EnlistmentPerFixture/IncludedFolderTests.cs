@@ -28,6 +28,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TearDown]
         public void TearDown()
         {
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
+
             foreach (string includedFolder in this.gvfsProcess.IncludedFoldersList())
             {
                 this.gvfsProcess.RemoveIncludedFolders(includedFolder);
