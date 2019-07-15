@@ -627,10 +627,18 @@ namespace GVFS.Platform.Mac
                     metadata.Add("fileInfo.Name", fileInfo.Name);
                     metadata.Add("fileInfo.Size", fileInfo.Size);
                     metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
+                    metadata.Add(nameof(result), result.ToString());
                     metadata.Add(nameof(sha), sha);
                     this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholders)}: Write placeholder failed");
 
-                    return result;
+                    if (result == Result.EIOError)
+                    {
+                        this.FileSystemCallbacks.OnFileConvertedToFull(childRelativePath);
+                    }
+                    else
+                    {
+                        return result;
+                    }
                 }
                 else
                 {
