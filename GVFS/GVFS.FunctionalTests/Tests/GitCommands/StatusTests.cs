@@ -1,4 +1,5 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
@@ -13,7 +14,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class StatusTests : GitRepoTests
     {
-        public StatusTests(int validateWorkingTree)
+        public StatusTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

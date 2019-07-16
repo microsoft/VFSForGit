@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Tests;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Tests;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
 using System;
@@ -11,10 +12,6 @@ namespace GVFS.FunctionalTests
 {
     public class Program
     {
-        private const int ValidateWorkTreeModeFull = 1;
-        private const int ValidateWorkTreeModePartial = 2;
-        private const int NumberOfValidateWorkTreeModes = 3;
-
         public static void Main(string[] args)
         {
             Properties.Settings.Default.Initialize();
@@ -47,7 +44,13 @@ namespace GVFS.FunctionalTests
             {
                 Console.WriteLine("Running the full suite of tests");
 
-                GVFSTestConfig.GitRepoTestsValidateWorkTree = DataSources.IntegerModes(NumberOfValidateWorkTreeModes);
+                List<object[]> modes = new List<object[]>();
+                foreach (Settings.ValidateWorkingTreeMode mode in Enum.GetValues(typeof(Settings.ValidateWorkingTreeMode)))
+                {
+                    modes.Add(new object[] { mode });
+                }
+
+                GVFSTestConfig.GitRepoTestsValidateWorkTree = modes.ToArray();
 
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
@@ -60,11 +63,11 @@ namespace GVFS.FunctionalTests
             }
             else
             {
-                int validateMode = ValidateWorkTreeModeFull;
+                Settings.ValidateWorkingTreeMode validateMode = Settings.ValidateWorkingTreeMode.Full;
 
                 if (runner.HasCustomArg("--partial-mode"))
                 {
-                    validateMode = ValidateWorkTreeModePartial;
+                    validateMode = Settings.ValidateWorkingTreeMode.IncludeMode;
                     includeCategories.Add(Categories.GitCommands);
                 }
 

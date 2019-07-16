@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -12,7 +13,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class GitCommandsTests : GitRepoTests
     {
-        protected const string TopLevelFolderToCreate = "level1";
+        public const string TopLevelFolderToCreate = "level1";
         private const string EncodingFileFolder = "FilenameEncoding";
         private const string EncodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
         private const string ContentWhenEditingFile = "// Adding a comment to the file";
@@ -26,7 +27,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private static readonly string RenameFolderPathFrom = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacks");
         private static readonly string RenameFolderPathTo = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacksRenamed");
 
-        public GitCommandsTests(int validateWorkingTree)
+        public GitCommandsTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: false, validateWorkingTree: validateWorkingTree)
         {
         }

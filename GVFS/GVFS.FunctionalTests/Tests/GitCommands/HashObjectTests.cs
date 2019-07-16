@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 using System.IO;
@@ -10,7 +11,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     public class HashObjectTests : GitRepoTests
     {
         public HashObjectTests()
-            : base(enlistmentPerTest: false, validateWorkingTree: (int)ValidateWorkingTreeMode.None)
+            : base(enlistmentPerTest: false, validateWorkingTree: Settings.ValidateWorkingTreeMode.None)
         {
         }
 

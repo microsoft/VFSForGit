@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;
@@ -15,7 +16,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class CheckoutTests : GitRepoTests
     {
-        public CheckoutTests(int validateWorkingTree)
+        public CheckoutTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

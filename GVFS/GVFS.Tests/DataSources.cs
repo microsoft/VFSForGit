@@ -13,16 +13,5 @@
                 };
             }
         }
-
-        public static object[] IntegerModes(int num)
-        {
-            object[] modes = new object[num];
-            for (int i = 0; i < num; i++)
-            {
-                modes[i] = new object[] { i };
-            }
-
-            return modes;
-        }
     }
 }

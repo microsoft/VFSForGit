@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using GVFS.FunctionalTests.Properties;
+using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -6,7 +7,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class UpdateRefTests : GitRepoTests
     {
-        public UpdateRefTests(int validateWorkingTree)
+        public UpdateRefTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

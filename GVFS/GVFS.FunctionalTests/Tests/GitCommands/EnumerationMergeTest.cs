@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using GVFS.FunctionalTests.Properties;
+using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -10,7 +11,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         // enumeration when they don't fit in a user's buffer
         private const string EnumerationReproCommitish = "FunctionalTests/20170602";
 
-        public EnumerationMergeTest(int validateWorkingTree)
+        public EnumerationMergeTest(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

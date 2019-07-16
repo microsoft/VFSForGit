@@ -202,7 +202,7 @@ namespace GVFS.FunctionalTests.Should
                 string otherPath,
                 bool ignoreCase = false,
                 bool compareContent = false,
-                HashSet<string> withinPrefixes = null)
+                string[] withinPrefixes = null)
             {
                 otherPath.ShouldBeADirectory(this.runner);
                 CompareDirectories(fileSystem, otherPath, this.Path, ignoreCase, compareContent, withinPrefixes);
@@ -252,9 +252,9 @@ namespace GVFS.FunctionalTests.Should
                 return info;
             }
 
-            private static bool IsMatchedPath(FileSystemInfo info, string repoRoot, HashSet<string> prefixes)
+            private static bool IsMatchedPath(FileSystemInfo info, string repoRoot, string[] prefixes)
             {
-                if (prefixes == null)
+                if (prefixes == null || prefixes.Length == 0)
                 {
                     return true;
                 }
@@ -269,16 +269,14 @@ namespace GVFS.FunctionalTests.Should
                 }
 
                 if (!localPath.Contains(System.IO.Path.DirectorySeparatorChar) &&
-                    File.Exists(info.FullName))
+                    (info.Attributes & FileAttributes.Directory) != FileAttributes.Directory)
                 {
-                    // If we are in the root folder, then include it.
+                    // If it is a file in the root folder, then include it.
                     return true;
                 }
 
-                foreach (string prefix in prefixes)
+                foreach (string prefixDir in prefixes)
                 {
-                    string prefixDir = prefix + System.IO.Path.DirectorySeparatorChar;
-
                     if (localPath.StartsWith(prefixDir, StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
@@ -301,7 +299,7 @@ namespace GVFS.FunctionalTests.Should
                 string actualPath,
                 bool ignoreCase,
                 bool compareContent,
-                HashSet<string> withinPrefixes)
+                string[] withinPrefixes)
             {
                 IEnumerable<FileSystemInfo> expectedEntries = new DirectoryInfo(expectedPath).EnumerateFileSystemInfos("*", SearchOption.AllDirectories);
                 IEnumerable<FileSystemInfo> actualEntries = new DirectoryInfo(actualPath).EnumerateFileSystemInfos("*", SearchOption.AllDirectories);

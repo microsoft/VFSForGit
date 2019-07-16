@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Should;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
@@ -9,7 +10,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     {
         private const string ResetHardCommand = "reset --hard";
 
-        public ResetHardTests(int validateWorkingTree)
+        public ResetHardTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
