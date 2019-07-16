@@ -1,5 +1,6 @@
 ﻿using GVFS.Tests.Should;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -155,6 +156,12 @@ namespace GVFS.FunctionalTests.Tools
             if (trace != null)
             {
                 processInfo.EnvironmentVariables["GIT_TRACE"] = trace;
+            }
+
+            // TODO(Linux): remove when GVFS.Service process available; until then, do not output warning which confuses MountTests
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                processInfo.EnvironmentVariables["GVFS_UNATTENDED"] = "1";
             }
 
             using (Process process = Process.Start(processInfo))
