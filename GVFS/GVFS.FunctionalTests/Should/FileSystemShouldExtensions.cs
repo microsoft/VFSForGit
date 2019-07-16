@@ -261,7 +261,7 @@ namespace GVFS.FunctionalTests.Should
 
                 string localPath = info.FullName.Substring(repoRoot.Length + 1);
 
-                if (localPath.Equals(".git"))
+                if (localPath.Equals(".git", StringComparison.OrdinalIgnoreCase))
                 {
                     // Include _just_ the .git folder.
                     // All sub-items are not included in the enumerator.
@@ -347,8 +347,6 @@ namespace GVFS.FunctionalTests.Should
                         }
 
                         Assert.Fail($"File names don't match: expected: {expectedEnumerator.Current.FullName} actual: {actualEnumerator.Current.FullName}");
-                        expectedMoved = expectedEnumerator.MoveNext();
-                        continue;
                     }
 
                     if ((expectedEnumerator.Current.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
@@ -361,7 +359,7 @@ namespace GVFS.FunctionalTests.Should
 
                         FileInfo expectedFileInfo = (expectedEnumerator.Current as FileInfo).ShouldNotBeNull();
                         FileInfo actualFileInfo = (actualEnumerator.Current as FileInfo).ShouldNotBeNull();
-                        actualFileInfo.Length.ShouldEqual(expectedFileInfo.Length, $"File lengths do not agree for {expectedEnumerator.Current.FullName} vs {actualEnumerator.Current.FullName}");
+                        actualFileInfo.Length.ShouldEqual(expectedFileInfo.Length, $"File lengths do not agree expected: {expectedEnumerator.Current.FullName} = {expectedFileInfo.Length} actual: {actualEnumerator.Current.FullName} = {actualFileInfo.Length}");
 
                         if (compareContent)
                         {
