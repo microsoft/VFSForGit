@@ -299,6 +299,7 @@ namespace GVFS.Platform.POSIX
 
             public override bool SupportsUpgradeWhileRunning => true;
 
+            // Documented here (in the addressing section): https://www.unix.com/man-page/linux/7/unix/
             public override int MaxPipePathLength => 108;
         }
     }
