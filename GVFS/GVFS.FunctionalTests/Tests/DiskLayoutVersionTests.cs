@@ -12,8 +12,10 @@ namespace GVFS.FunctionalTests.Tests
     {
         private const int WindowsCurrentDiskLayoutMajorVersion = 19;
         private const int MacCurrentDiskLayoutMajorVersion = 19;
+        private const int LinuxCurrentDiskLayoutMajorVersion = 19;
         private const int WindowsCurrentDiskLayoutMinimumMajorVersion = 7;
         private const int MacCurrentDiskLayoutMinimumMajorVersion = 18;
+        private const int LinuxCurrentDiskLayoutMinimumMajorVersion = 19;
         private const int CurrentDiskLayoutMinorVersion = 0;
         private int currentDiskMajorVersion;
         private int currentDiskMinimumMajorVersion;
@@ -27,6 +29,11 @@ namespace GVFS.FunctionalTests.Tests
             {
                 this.currentDiskMajorVersion = MacCurrentDiskLayoutMajorVersion;
                 this.currentDiskMinimumMajorVersion = MacCurrentDiskLayoutMinimumMajorVersion;
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                this.currentDiskMajorVersion = LinuxCurrentDiskLayoutMajorVersion;
+                this.currentDiskMinimumMajorVersion = LinuxCurrentDiskLayoutMinimumMajorVersion;
             }
             else
             {
