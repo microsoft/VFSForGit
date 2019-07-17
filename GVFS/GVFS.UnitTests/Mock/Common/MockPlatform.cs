@@ -235,6 +235,8 @@ namespace GVFS.UnitTests.Mock.Common
             }
 
             public override bool SupportsUpgradeWhileRunning => false;
+
+            public override int MaxPipePathLength => 250;
         }
     }
 }
