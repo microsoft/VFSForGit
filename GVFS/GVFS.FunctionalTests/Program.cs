@@ -65,7 +65,7 @@ namespace GVFS.FunctionalTests
             {
                 Settings.ValidateWorkingTreeMode validateMode = Settings.ValidateWorkingTreeMode.Full;
 
-                if (runner.HasCustomArg("--partial-mode"))
+                if (runner.HasCustomArg("--include-mode"))
                 {
                     validateMode = Settings.ValidateWorkingTreeMode.IncludeMode;
                     includeCategories.Add(Categories.GitCommands);
