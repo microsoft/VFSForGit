@@ -469,8 +469,9 @@ namespace GVFS.Virtualization.Projection
 
                 return true;
             }
-            catch (GVFSDatabaseException)
+            catch (GVFSDatabaseException ex)
             {
+                this.context.Tracer.RelatedWarning($"{nameof(this.TryAddIncludedFolder)} failed for {virtualPath}.  {ex.ToString()}");
                 return false;
             }
         }
