@@ -59,7 +59,7 @@ namespace GVFS.UnitTests.Virtualization
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
-            mockIncludeDb.Setup(x => x.GetAll()).Returns(new List<string>());
+            mockIncludeDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -92,7 +92,7 @@ namespace GVFS.UnitTests.Virtualization
             mockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(() => 0);
             mockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(() => 0);
             Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
-            mockIncludeDb.Setup(x => x.GetAll()).Returns(new List<string>());
+            mockIncludeDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -133,7 +133,7 @@ namespace GVFS.UnitTests.Virtualization
             mockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(() => filePlaceholderCount);
             mockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(() => folderPlaceholderCount);
             Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
-            mockIncludeDb.Setup(x => x.GetAll()).Returns(new List<string>());
+            mockIncludeDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -284,7 +284,7 @@ namespace GVFS.UnitTests.Virtualization
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
-            mockIncludeDb.Setup(x => x.GetAll()).Returns(new List<string>());
+            mockIncludeDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
