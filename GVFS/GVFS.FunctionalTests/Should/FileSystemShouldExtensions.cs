@@ -201,10 +201,11 @@ namespace GVFS.FunctionalTests.Should
                 FileSystemRunner fileSystem,
                 string otherPath,
                 bool ignoreCase = false,
-                bool compareContent = false)
+                bool compareContent = false,
+                string[] withinPrefixes = null)
             {
                 otherPath.ShouldBeADirectory(this.runner);
-                CompareDirectories(fileSystem, otherPath, this.Path, ignoreCase, compareContent);
+                CompareDirectories(fileSystem, otherPath, this.Path, ignoreCase, compareContent, withinPrefixes);
                 return this;
             }
 
@@ -251,12 +252,54 @@ namespace GVFS.FunctionalTests.Should
                 return info;
             }
 
+            private static bool IsMatchedPath(FileSystemInfo info, string repoRoot, string[] prefixes)
+            {
+                if (prefixes == null || prefixes.Length == 0)
+                {
+                    return true;
+                }
+
+                string localPath = info.FullName.Substring(repoRoot.Length + 1);
+
+                if (localPath.Equals(".git", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Include _just_ the .git folder.
+                    // All sub-items are not included in the enumerator.
+                    return true;
+                }
+
+                if (!localPath.Contains(System.IO.Path.DirectorySeparatorChar) &&
+                    (info.Attributes & FileAttributes.Directory) != FileAttributes.Directory)
+                {
+                    // If it is a file in the root folder, then include it.
+                    return true;
+                }
+
+                foreach (string prefixDir in prefixes)
+                {
+                    if (localPath.StartsWith(prefixDir, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+
+                    if (prefixDir.StartsWith(localPath, StringComparison.OrdinalIgnoreCase) &&
+                        Directory.Exists(info.FullName))
+                    {
+                        // For example: localPath = "GVFS" and prefix is "GVFS\\GVFS".
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
             private static void CompareDirectories(
                 FileSystemRunner fileSystem,
                 string expectedPath,
                 string actualPath,
                 bool ignoreCase,
-                bool compareContent)
+                bool compareContent,
+                string[] withinPrefixes)
             {
                 IEnumerable<FileSystemInfo> expectedEntries = new DirectoryInfo(expectedPath).EnumerateFileSystemInfos("*", SearchOption.AllDirectories);
                 IEnumerable<FileSystemInfo> actualEntries = new DirectoryInfo(actualPath).EnumerateFileSystemInfos("*", SearchOption.AllDirectories);
@@ -265,6 +308,7 @@ namespace GVFS.FunctionalTests.Should
                 IEnumerator<FileSystemInfo> expectedEnumerator = expectedEntries
                     .Where(x => !x.FullName.Contains(dotGitFolder))
                     .OrderBy(x => x.FullName)
+                    .Where(x => IsMatchedPath(x, expectedPath, withinPrefixes))
                     .GetEnumerator();
                 IEnumerator<FileSystemInfo> actualEnumerator = actualEntries
                     .Where(x => !x.FullName.Contains(dotGitFolder))
@@ -279,7 +323,7 @@ namespace GVFS.FunctionalTests.Should
                     bool nameIsEqual = false;
                     if (ignoreCase)
                     {
-                         nameIsEqual = actualEnumerator.Current.Name.Equals(expectedEnumerator.Current.Name, StringComparison.OrdinalIgnoreCase);
+                        nameIsEqual = actualEnumerator.Current.Name.Equals(expectedEnumerator.Current.Name, StringComparison.OrdinalIgnoreCase);
                     }
                     else
                     {
@@ -297,6 +341,7 @@ namespace GVFS.FunctionalTests.Should
                             if (Directory.GetFileSystemEntries(expectedEnumerator.Current.FullName, "*", SearchOption.TopDirectoryOnly).Length == 0)
                             {
                                 expectedMoved = expectedEnumerator.MoveNext();
+
                                 continue;
                             }
                         }
@@ -306,15 +351,15 @@ namespace GVFS.FunctionalTests.Should
 
                     if ((expectedEnumerator.Current.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
                     {
-                        (actualEnumerator.Current.Attributes & FileAttributes.Directory).ShouldEqual(FileAttributes.Directory, $"expected path: {expectedEnumerator.Current.FullName} actual path: {actualEnumerator.Current.FullName}");
+                        (actualEnumerator.Current.Attributes & FileAttributes.Directory).ShouldEqual(FileAttributes.Directory, $"expected directory path: {expectedEnumerator.Current.FullName} actual file path: {actualEnumerator.Current.FullName}");
                     }
                     else
                     {
-                        (actualEnumerator.Current.Attributes & FileAttributes.Directory).ShouldNotEqual(FileAttributes.Directory, $"expected path: {expectedEnumerator.Current.FullName} actual path: {actualEnumerator.Current.FullName}");
+                        (actualEnumerator.Current.Attributes & FileAttributes.Directory).ShouldNotEqual(FileAttributes.Directory, $"expected file path: {expectedEnumerator.Current.FullName} actual directory path: {actualEnumerator.Current.FullName}");
 
                         FileInfo expectedFileInfo = (expectedEnumerator.Current as FileInfo).ShouldNotBeNull();
                         FileInfo actualFileInfo = (actualEnumerator.Current as FileInfo).ShouldNotBeNull();
-                        actualFileInfo.Length.ShouldEqual(expectedFileInfo.Length);
+                        actualFileInfo.Length.ShouldEqual(expectedFileInfo.Length, $"File lengths do not agree expected: {expectedEnumerator.Current.FullName} = {expectedFileInfo.Length} actual: {actualEnumerator.Current.FullName} = {actualFileInfo.Length}");
 
                         if (compareContent)
                         {
@@ -327,6 +372,7 @@ namespace GVFS.FunctionalTests.Should
                 }
 
                 StringBuilder errorEntries = new StringBuilder();
+
                 if (expectedMoved)
                 {
                     do

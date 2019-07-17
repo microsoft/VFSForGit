@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Tests;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Tests;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
 using System;
@@ -43,7 +44,13 @@ namespace GVFS.FunctionalTests
             {
                 Console.WriteLine("Running the full suite of tests");
 
-                GVFSTestConfig.GitRepoTestsValidateWorkTree = DataSources.AllBools;
+                List<object[]> modes = new List<object[]>();
+                foreach (Settings.ValidateWorkingTreeMode mode in Enum.GetValues(typeof(Settings.ValidateWorkingTreeMode)))
+                {
+                    modes.Add(new object[] { mode });
+                }
+
+                GVFSTestConfig.GitRepoTestsValidateWorkTree = modes.ToArray();
 
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
@@ -56,10 +63,18 @@ namespace GVFS.FunctionalTests
             }
             else
             {
+                Settings.ValidateWorkingTreeMode validateMode = Settings.ValidateWorkingTreeMode.Full;
+
+                if (runner.HasCustomArg("--include-mode"))
+                {
+                    validateMode = Settings.ValidateWorkingTreeMode.IncludeMode;
+                    includeCategories.Add(Categories.GitCommands);
+                }
+
                 GVFSTestConfig.GitRepoTestsValidateWorkTree =
                     new object[]
                     {
-                        new object[] { true }
+                        new object[] { validateMode },
                     };
 
                 if (runner.HasCustomArg("--extra-only"))

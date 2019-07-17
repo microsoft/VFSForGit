@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -12,11 +13,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class GitCommandsTests : GitRepoTests
     {
+        public const string TopLevelFolderToCreate = "level1";
         private const string EncodingFileFolder = "FilenameEncoding";
         private const string EncodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
         private const string ContentWhenEditingFile = "// Adding a comment to the file";
         private const string UnknownTestName = "Unknown";
-        private const string TopLevelFolderToCreate = "level1";
         private const string SubFolderToCreate = "level2";
 
         private static readonly string EditFilePath = Path.Combine("GVFS", "GVFS.Common", "GVFSContext.cs");
@@ -26,7 +27,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private static readonly string RenameFolderPathFrom = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacks");
         private static readonly string RenameFolderPathTo = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacksRenamed");
 
-        public GitCommandsTests(bool validateWorkingTree)
+        public GitCommandsTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: false, validateWorkingTree: validateWorkingTree)
         {
         }
@@ -586,7 +587,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("commit -m \"Delete file for AddFileCommitThenDeleteAndCommit\"");
             this.ValidateGitCommand("checkout tests/functional/AddFileCommitThenDeleteAndCommit_before");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-               .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+               .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
             this.ValidateGitCommand("checkout tests/functional/AddFileCommitThenDeleteAndCommit_after");
         }
 
@@ -674,7 +675,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout -b tests/functional/AddFileCommitThenDeleteAndResetSoft");
             string folderPath = "test_folder";
             this.CreateFolder(folderPath);
-            string filePath = Path.Combine(folderPath + "testfile.txt");
+            string filePath = Path.Combine(folderPath, "testfile.txt");
             this.CreateFile("Some new content for the file", filePath);
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
@@ -1080,7 +1081,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("commit -m \"Change for {0}\"", branch);
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
 
             this.ValidateGitCommand("checkout {0}", branch);
         }

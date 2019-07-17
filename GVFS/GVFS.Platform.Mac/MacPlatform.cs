@@ -85,7 +85,7 @@ namespace GVFS.Platform.Mac
         /// <summary>
         /// This is the directory in which the upgradelogs directory should go.
         /// There can be multiple logs directories, so here we return the containing
-        //  directory.
+        /// directory.
         /// </summary>
         public override string GetUpgradeLogDirectoryParentDirectory()
         {

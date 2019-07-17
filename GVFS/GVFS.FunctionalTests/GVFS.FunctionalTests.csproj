@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\GVFS.Build\GVFS.cs.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
