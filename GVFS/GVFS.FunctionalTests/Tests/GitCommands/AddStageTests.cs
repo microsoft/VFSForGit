@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 using System.IO;
 using System.Threading;
@@ -9,7 +10,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class AddStageTests : GitRepoTests
     {
-        public AddStageTests(bool validateWorkingTree)
+        public AddStageTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: false, validateWorkingTree: validateWorkingTree)
         {
         }

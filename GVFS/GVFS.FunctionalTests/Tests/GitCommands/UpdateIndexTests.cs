@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 using System.IO;
 
@@ -8,7 +9,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class UpdateIndexTests : GitRepoTests
     {
-        public UpdateIndexTests(bool validateWorkingTree)
+        public UpdateIndexTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
