@@ -17,6 +17,12 @@
         public const string MacOnly = "MacOnly";
         public const string POSIXOnly = "POSIXOnly";
 
+        public static class LinuxTODO
+        {
+            // Tests that fail due to flock() contention with libprojfs
+            public const string NeedsContentionFreeFileLock = "NeedsNonContendedFileLock";
+        }
+
         public static class MacTODO
         {
             // Tests that require #360 (detecting/handling new empty folders)

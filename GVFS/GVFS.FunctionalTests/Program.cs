@@ -115,6 +115,8 @@ namespace GVFS.FunctionalTests
             {
                 excludeCategories.Add(Categories.RepositoryMountsSameFileSystem);
 
+                excludeCategories.Add(Categories.LinuxTODO.NeedsContentionFreeFileLock);
+
                 excludeCategories.Add(Categories.WindowsOnly);
                 excludeCategories.Add(Categories.MacOnly);
             }

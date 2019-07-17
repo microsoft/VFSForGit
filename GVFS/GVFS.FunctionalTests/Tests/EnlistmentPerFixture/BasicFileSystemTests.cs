@@ -449,6 +449,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.CanDeleteFilesWhileTheyAreOpenRunners))]
+        [Category(Categories.LinuxTODO.NeedsContentionFreeFileLock)]
         public void CanDeleteFilesWhileTheyAreOpen(FileSystemRunner fileSystem, string parentFolder)
         {
             string filename = Path.Combine(parentFolder, "CanDeleteFilesWhileTheyAreOpen");
@@ -480,6 +481,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
+        [Category(Categories.LinuxTODO.NeedsContentionFreeFileLock)]
         public void CanDeleteHydratedFilesWhileTheyAreOpenForWrite()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
