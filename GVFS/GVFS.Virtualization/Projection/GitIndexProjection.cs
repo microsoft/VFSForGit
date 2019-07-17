@@ -895,26 +895,26 @@ namespace GVFS.Virtualization.Projection
 
                 if (this.rootIncludedFolder.Children.Count > 0)
                 {
-                    if (indexEntry.BuildingProjection_LastEntryIncludedFolder == null)
+                    if (indexEntry.BuildingProjection_IncludedFolderToCheck == null)
                     {
-                        indexEntry.BuildingProjection_LastEntryIncludedFolder = this.rootIncludedFolder;
+                        indexEntry.BuildingProjection_IncludedFolderToCheck = this.rootIncludedFolder;
                     }
 
                     if (!indexEntry.BuildingProjection_ShouldIncludeRecursive)
                     {
                         string folderName = indexEntry.BuildingProjection_PathParts[pathIndex].GetString();
-                        if (indexEntry.BuildingProjection_LastEntryIncludedFolder.Children.ContainsKey(folderName) &&
-                            indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName].Depth == pathIndex)
+                        if (indexEntry.BuildingProjection_IncludedFolderToCheck.Children.ContainsKey(folderName) &&
+                            indexEntry.BuildingProjection_IncludedFolderToCheck.Children[folderName].Depth == pathIndex)
                         {
                             indexEntry.BuildingProjection_ShouldInclude = true;
-                            indexEntry.BuildingProjection_ShouldIncludeRecursive = indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName].IsRecursive;
-                            indexEntry.BuildingProjection_LastEntryIncludedFolder = indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName];
+                            indexEntry.BuildingProjection_ShouldIncludeRecursive = indexEntry.BuildingProjection_IncludedFolderToCheck.Children[folderName].IsRecursive;
+                            indexEntry.BuildingProjection_IncludedFolderToCheck = indexEntry.BuildingProjection_IncludedFolderToCheck.Children[folderName];
                         }
                         else
                         {
                             indexEntry.BuildingProjection_ShouldInclude = false;
                             indexEntry.BuildingProjection_ShouldIncludeRecursive = false;
-                            indexEntry.BuildingProjection_LastEntryIncludedFolder = null;
+                            indexEntry.BuildingProjection_IncludedFolderToCheck = null;
                         }
                     }
 
