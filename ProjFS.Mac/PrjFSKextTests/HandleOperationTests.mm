@@ -450,6 +450,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
 {
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
 
+    InitPendingRenames();
     XCTAssertTrue(HandleVnodeOperation(
         nullptr,
         nullptr,
@@ -484,10 +485,12 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
         _,
         _,
         nullptr));
+    CleanupPendingRenames();
 }
 
 - (void) testConcurrentRenameOperationRecording
 {
+    InitPendingRenames();
     self->testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
 
     string otherFilePath = repoPath + "/otherFile";
@@ -588,6 +591,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
             nullptr))
     );
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 4);
+    CleanupPendingRenames();
 }
 
 
@@ -648,6 +652,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
 
     TestForAllSupportedDarwinVersions(^{
+        InitPendingRenames();
         XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
@@ -692,6 +697,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
         }
         
         MockCalls::Clear();
+        CleanupPendingRenames();
     });
 }
 

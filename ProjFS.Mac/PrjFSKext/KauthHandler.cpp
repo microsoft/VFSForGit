@@ -133,6 +133,7 @@ static SpinLock s_renameLock;
 static PendingRenameOperation* s_pendingRenames = nullptr;
 KEXT_STATIC uint32_t s_pendingRenameCount = 0;
 KEXT_STATIC uint32_t s_maxPendingRenames = 0;
+static bool s_osSupportsRenameDetection = false;
 
 // Public functions
 kern_return_t KauthHandler_Init()
@@ -252,7 +253,9 @@ KEXT_STATIC void UseMainForkIfNamedStream(
 
 KEXT_STATIC bool InitPendingRenames()
 {
-    if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave) // Only need to track renames on Mojave and newer
+    // Only need to/can track renames on Mojave and newer
+    s_osSupportsRenameDetection = (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave);
+    if (s_osSupportsRenameDetection)
     {
         s_renameLock = SpinLock_Alloc();
         s_maxPendingRenames = 8; // Arbitrary choice, should be maximum number of expected concurrent threads performing renames, but array will resize on demand
@@ -271,7 +274,7 @@ KEXT_STATIC bool InitPendingRenames()
 
 KEXT_STATIC void CleanupPendingRenames()
 {
-    if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+    if (s_osSupportsRenameDetection)
     {
         if (SpinLock_IsValid(s_renameLock))
         {
@@ -325,7 +328,7 @@ KEXT_STATIC void ResizePendingRenames(uint32_t newMaxPendingRenames)
 
 KEXT_STATIC void RecordPendingRenameOperation(vnode_t vnode)
 {
-    assertf(version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave, "This function should only be called from the KAUTH_FILEOP_WILL_RENAME handler, which is only supported by Darwin 18 (macOS 10.14 Mojave) and newer (version_major = %u)", version_major);
+    assertf(s_osSupportsRenameDetection, "This function should only be called from the KAUTH_FILEOP_WILL_RENAME handler, which is only supported by Darwin 18 (macOS 10.14 Mojave) and newer (version_major = %u)", version_major);
     thread_t myThread = current_thread();
     
     bool resizeTable;
@@ -370,7 +373,7 @@ KEXT_STATIC void RecordPendingRenameOperation(vnode_t vnode)
 
 KEXT_STATIC bool DeleteOpIsForRename(vnode_t vnode)
 {
-    if (version_major < PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+    if (!s_osSupportsRenameDetection)
     {
         // High Sierra and earlier do not support WILL_RENAME notification, so we have to assume any delete may be caused by a rename
         assert(s_pendingRenameCount == 0);
@@ -493,7 +496,10 @@ KEXT_STATIC int HandleVnodeOperation(
                         pid,
                         // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
                         CallbackPolicy_UserInitiatedOnly,
-                        false, // allow deleting offline directories even if not expanded
+                        // We want to block directory renames when provider is offline, but we can only do this on
+                        // newer OS versions as any delete operation could be a rename on High Sierra and older,
+                        // so on those versions, isRename is true for all delete events.
+                        s_osSupportsRenameDetection,
                         &root,
                         &vnodeFsidInode,
                         &kauthResult,
@@ -706,7 +712,9 @@ KEXT_STATIC int HandleVnodeOperation(
                 pid,
                 // Allow any user to delete individual files, as this generally doesn't cause nested kauth callbacks.
                 CallbackPolicy_AllowAny,
-                false, // allow deletes even if provider offline
+                // Allow deletes even if provider offline, except renames. Allow all deletes
+                // on OS versions where we can't distinguish renames & other deletes.
+                isRename && s_osSupportsRenameDetection,
                 &root,
                 &vnodeFsidInode,
                 &kauthResult,
