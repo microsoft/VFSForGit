@@ -23,8 +23,8 @@ namespace GVFS.Tests.Should
         public static Dictionary<TKey, TValue> ShouldContain<TKey, TValue>(this Dictionary<TKey, TValue> dictionary, TKey key, TValue value)
         {
             TValue dictionaryValue;
-            dictionary.TryGetValue(key, out dictionaryValue).ShouldBeTrue();
-            dictionaryValue.ShouldEqual(value);
+            dictionary.TryGetValue(key, out dictionaryValue).ShouldBeTrue($"Dictionary {nameof(ShouldContain)} does not contain {key}");
+            dictionaryValue.ShouldEqual(value, $"Dictionary {nameof(ShouldContain)} does not match on key {key} expected: {value} actual: {dictionaryValue}");
 
             return dictionary;
         }

@@ -1,5 +1,4 @@
-﻿using System;
-namespace GVFS.Tests
+﻿namespace GVFS.Tests
 {
     public class DataSources
     {

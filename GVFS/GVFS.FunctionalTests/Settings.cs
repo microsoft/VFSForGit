@@ -6,6 +6,13 @@ namespace GVFS.FunctionalTests.Properties
 {
     public static class Settings
     {
+        public enum ValidateWorkingTreeMode
+        {
+            None = 0,
+            Full = 1,
+            IncludeMode = 2,
+        }
+
         public static class Default
         {
             public static string CurrentDirectory { get; private set; }
