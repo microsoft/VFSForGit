@@ -1009,9 +1009,10 @@ namespace GVFS.Platform.Windows
                         }
                         else
                         {
-                            if (this.FileSystemCallbacks.OnFolderCreated(virtualPath))
+                            this.FileSystemCallbacks.OnFolderCreated(virtualPath, out bool includedFoldersUpdated);
+                            if (includedFoldersUpdated)
                             {
-                                // When OnFolderCreated returns true it means the folder was previously excluded from the projection and was
+                                // When includedFoldersUpdated is true it means the folder was previously excluded from the projection and was
                                 // included so it needs to be marked as a placeholder so that it will start projecting items in the folder
                                 this.MarkDirectoryAsPlaceholder(virtualPath, isDirectory, triggeringProcessId, triggeringProcessImageFileName);
                             }
