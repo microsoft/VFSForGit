@@ -33,6 +33,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(1)]
+        [Category(Categories.LinuxTODO.NeedsContentionFreeFileLock)]
         public void LockWithFullShareUpdateAndDelete()
         {
             string testFileUpdate4Contents = "Commit2LockToPreventUpdateAndDelete4 \r\n";
@@ -93,6 +94,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(2)]
+        [Category(Categories.LinuxTODO.NeedsContentionFreeFileLock)]
         public void FileProjectedAfterPlaceholderDeleteFileAndCheckout()
         {
             string testFile1Contents = "ProjectAfterDeleteAndCheckout \r\n";
@@ -131,6 +133,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(3)]
+        [Category(Categories.LinuxTODO.NeedsContentionFreeFileLock)]
         public void FullFilesDontAffectThePlaceholderDatabase()
         {
             string testFile = Path.Combine(this.Enlistment.RepoRoot, "FullFilesDontAffectThePlaceholderDatabase");

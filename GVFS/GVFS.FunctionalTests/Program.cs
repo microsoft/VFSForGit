@@ -114,6 +114,8 @@ namespace GVFS.FunctionalTests
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
+                excludeCategories.Add(Categories.LinuxTODO.NeedsContentionFreeFileLock);
+
                 excludeCategories.Add(Categories.WindowsOnly);
                 excludeCategories.Add(Categories.MacOnly);
             }
