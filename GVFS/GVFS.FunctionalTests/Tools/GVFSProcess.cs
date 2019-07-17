@@ -59,7 +59,7 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS($" include {this.enlistmentRoot} -r {string.Join(";", folders)}");
         }
 
-        public string[] IncludedFoldersList()
+        public string[] GetIncludedFolders()
         {
             string output = this.CallGVFS($" include {this.enlistmentRoot} -l");
             if (output.StartsWith("No folders in included list."))

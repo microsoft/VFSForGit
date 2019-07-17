@@ -31,7 +31,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
 
-            foreach (string includedFolder in this.gvfsProcess.IncludedFoldersList())
+            foreach (string includedFolder in this.gvfsProcess.GetIncludedFolders())
             {
                 this.gvfsProcess.RemoveIncludedFolders(includedFolder);
             }
@@ -251,7 +251,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void ValidateIncludedFolders(params string[] folders)
         {
-            HashSet<string> actualIncludedFolders = new HashSet<string>(this.gvfsProcess.IncludedFoldersList());
+            HashSet<string> actualIncludedFolders = new HashSet<string>(this.gvfsProcess.GetIncludedFolders());
             folders.Length.ShouldEqual(actualIncludedFolders.Count);
             foreach (string expectedFolder in folders)
             {
