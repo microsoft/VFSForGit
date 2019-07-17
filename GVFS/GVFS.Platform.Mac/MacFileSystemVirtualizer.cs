@@ -635,6 +635,10 @@ namespace GVFS.Platform.Mac
 
                     if (result == Result.EIOError)
                     {
+                        // If there is an IO error writing the placeholder then the file might already exist and it needs to
+                        // be added to the modified paths so that git will show any differences or errors when interacting with the file
+                        // This will happen in the include mode when the user creates a file that is already in the files that
+                        // should be projected but we are trying to create the placeholder after it has already been created
                         this.FileSystemCallbacks.OnFileConvertedToFull(childRelativePath);
                     }
                     else
