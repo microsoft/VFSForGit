@@ -30,6 +30,13 @@
             // Tests that require #360 (detecting/handling new empty folders)
             public const string NeedsNewFolderCreateNotification = "NeedsNewFolderCreateNotification";
 
+            // Tests that have been flaky on build servers and need additional logging and\or
+            // investigation
+            public const string FlakyTest = "MacFlakyTest";
+        }
+
+        public static class NonWindowsTODO
+        {
             // Tests that require the Status Cache to be built
             public const string NeedsStatusCache = "NeedsStatusCache";
 
@@ -47,10 +54,6 @@
 
             // Corrupt Objects are not redownloaded
             public const string NeedsCorruptObjectFix = "NeedsCorruptObjectFix";
-
-            // Tests that have been flaky on build servers and need additional logging and\or
-            // investigation
-            public const string FlakyTest = "MacFlakyTest";
         }
     }
 }

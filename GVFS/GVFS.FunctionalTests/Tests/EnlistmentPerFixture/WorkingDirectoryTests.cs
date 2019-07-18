@@ -485,9 +485,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (badObject as FileInfo).ShouldNotBeNull().Length.ShouldEqual(objectFileInfo.Length);
         }
 
-        // TODO(#1218): Figure out why git for Mac is not requesting a redownload of the truncated object
+        // TODO(#1218): Figure out why git for Mac/Linux is not requesting a redownload of the truncated object
         [TestCase, Order(17)]
-        [Category(Categories.MacTODO.NeedsCorruptObjectFix)]
+        [Category(Categories.NonWindowsTODO.NeedsCorruptObjectFix)]
         public void TruncatedObjectRedownloaded()
         {
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);

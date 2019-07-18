@@ -31,7 +31,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsDehydrate)]  // Dehydrate is not successful
+        [Category(Categories.NonWindowsTODO.NeedsDehydrate)]  // Dehydrate is not successful
         public void DehydrateShouldSucceedInCommonCase()
         {
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: false);
@@ -46,7 +46,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsDehydrate)]  // Call CmdRunner which is windows specific
+        [Category(Categories.NonWindowsTODO.NeedsDehydrate)]  // Call CmdRunner which is windows specific
         public void DehydrateShouldSucceedEvenIfObjectCacheIsDeleted()
         {
             this.Enlistment.UnmountGVFS();
@@ -55,7 +55,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsDehydrate)]  // .git / .gvfs are not copied to backup folder on Mac
+        [Category(Categories.NonWindowsTODO.NeedsDehydrate)]  // .git / .gvfs are not copied to backup folder on Mac or Linux
         public void DehydrateShouldBackupFiles()
         {
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: false);
@@ -130,7 +130,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsDehydrate)]  // Error messages on mac are different, DehydrateShouldFail fails on message checking
+        [Category(Categories.NonWindowsTODO.NeedsDehydrate)]  // Error messages on POSIX are different, DehydrateShouldFail fails on message checking
         public void DehydrateShouldFailOnWrongDiskLayoutVersion()
         {
             this.Enlistment.UnmountGVFS();
