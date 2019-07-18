@@ -110,7 +110,6 @@ namespace GVFS.FunctionalTests
 
                 // TODO(Linux): determine which are really generic POSIX TODOs
                 excludeCategories.Add(Categories.MacTODO.FailsOnBuildAgent);
-                excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
                 excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
                 excludeCategories.Add(Categories.MacTODO.NeedsDehydrate);
                 excludeCategories.Add(Categories.MacTODO.NeedsServiceVerb);

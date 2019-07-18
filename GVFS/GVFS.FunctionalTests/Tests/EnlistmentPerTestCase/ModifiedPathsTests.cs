@@ -75,86 +75,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
         }
 
+        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
-        public void ModifiedPathsSavedAfterRemount(FileSystemRunner fileSystem)
+        public void ModifiedPathsSavedAfterRemountOnSameFileSystem(FileSystemRunner fileSystem)
         {
-            string fileToAdd = this.Enlistment.GetVirtualPathTo(FileToAdd);
-            fileSystem.WriteAllText(fileToAdd, "Contents for the new file");
+            this.ModifiedPathsSavedAfterRemount(true, fileSystem);
+        }
 
-            string fileToUpdate = this.Enlistment.GetVirtualPathTo(FileToUpdate);
-            fileSystem.AppendAllText(fileToUpdate, "// Testing");
-
-            string fileToDelete = this.Enlistment.GetVirtualPathTo(FileToDelete);
-            fileSystem.DeleteFile(fileToDelete);
-            fileToDelete.ShouldNotExistOnDisk(fileSystem);
-
-            string fileToRename = this.Enlistment.GetVirtualPathTo(FileToRename);
-            fileSystem.MoveFile(fileToRename, this.Enlistment.GetVirtualPathTo(RenameFileTarget));
-
-            string folderToCreate = this.Enlistment.GetVirtualPathTo(FolderToCreate);
-            fileSystem.CreateDirectory(folderToCreate);
-
-            string folderToRename = this.Enlistment.GetVirtualPathTo(FolderToRename);
-            fileSystem.CreateDirectory(folderToRename);
-            string folderToRenameTarget = this.Enlistment.GetVirtualPathTo(RenameFolderTarget);
-            fileSystem.MoveDirectory(folderToRename, folderToRenameTarget);
-
-            // Moving the new folder out of the repo will remove it from the modified paths file
-            string folderTargetOutsideSrc = Path.Combine(this.Enlistment.EnlistmentRoot, RenameFolderTarget);
-            folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);
-            folderTargetOutsideSrc.ShouldBeADirectory(fileSystem);
-            folderToRenameTarget.ShouldNotExistOnDisk(fileSystem);
-
-            // Moving a file from the .git folder to the working directory should add the file to the modified paths
-            string dotGitfileToAdd = this.Enlistment.GetVirtualPathTo(DotGitFileToCreate);
-            fileSystem.WriteAllText(dotGitfileToAdd, "Contents for the new file in dot git");
-            fileSystem.MoveFile(dotGitfileToAdd, this.Enlistment.GetVirtualPathTo(RenameNewDotGitFileTarget));
-
-            // Move a file from outside of src into src
-            string fileToCreateOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, FileToCreateOutsideRepo);
-            fileSystem.WriteAllText(fileToCreateOutsideRepoPath, "Contents for the new file outside of repo");
-            string fileToCreateOutsideRepoTargetPath = this.Enlistment.GetVirtualPathTo(FileToCreateOutsideRepo);
-            fileToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.MoveFile(fileToCreateOutsideRepoPath, fileToCreateOutsideRepoTargetPath);
-            fileToCreateOutsideRepoTargetPath.ShouldBeAFile(fileSystem);
-            fileToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
-
-            // Move a folder from outside of src into src
-            string folderToCreateOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, FolderToCreateOutsideRepo);
-            fileSystem.CreateDirectory(folderToCreateOutsideRepoPath);
-            folderToCreateOutsideRepoPath.ShouldBeADirectory(fileSystem);
-            string folderToCreateOutsideRepoTargetPath = this.Enlistment.GetVirtualPathTo(FolderToCreateOutsideRepo);
-            folderToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.MoveDirectory(folderToCreateOutsideRepoPath, folderToCreateOutsideRepoTargetPath);
-            folderToCreateOutsideRepoTargetPath.ShouldBeADirectory(fileSystem);
-            folderToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
-
-            string folderToDeleteFullPath = this.Enlistment.GetVirtualPathTo(FolderToDelete);
-            fileSystem.WriteAllText(Path.Combine(folderToDeleteFullPath, "NewFile.txt"), "Contents for new file");
-            string newFileToDelete = Path.Combine(folderToDeleteFullPath, "NewFileToDelete.txt");
-            fileSystem.WriteAllText(newFileToDelete, "Contents for new file");
-            fileSystem.DeleteFile(newFileToDelete);
-            fileSystem.WriteAllText(Path.Combine(folderToDeleteFullPath, "CreateCommonVersionHeader.bat"), "Changing the file contents");
-            fileSystem.DeleteFile(Path.Combine(folderToDeleteFullPath, "RunUnitTests.bat"));
-
-            fileSystem.DeleteDirectory(folderToDeleteFullPath);
-            folderToDeleteFullPath.ShouldNotExistOnDisk(fileSystem);
-
-            // Remount
-            this.Enlistment.UnmountGVFS();
-            this.Enlistment.MountGVFS();
-
-            this.Enlistment.WaitForBackgroundOperations();
-
-            string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
-            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
-            using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
-            {
-                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
-                    .ShouldMatchInOrder(ExpectedModifiedFilesContentsAfterRemount.OrderBy(x => x));
-            }
+        // Linux only because Linux uses a separate repo mount device
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        [Category(Categories.RepositoryMountsDifferentFileSystem)]
+        public void ModifiedPathsSavedAfterRemountOnDifferentFileSystem(FileSystemRunner fileSystem)
+        {
+            this.ModifiedPathsSavedAfterRemount(false, fileSystem);
         }
 
         // Mac and Windows only because Linux uses a separate repo mount device
@@ -241,6 +176,88 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             {
                 reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
                     .ShouldMatchInOrder(expectedModifiedFilesContentsAfterHardlinks.OrderBy(x => x));
+            }
+        }
+
+        private void ModifiedPathsSavedAfterRemount(bool sameFileSystem, FileSystemRunner fileSystem)
+        {
+            FileSystemRunner outsideSrcFileSystemRunner = sameFileSystem ? fileSystem : new BashRunner();
+
+            string fileToAdd = this.Enlistment.GetVirtualPathTo(FileToAdd);
+            fileSystem.WriteAllText(fileToAdd, "Contents for the new file");
+
+            string fileToUpdate = this.Enlistment.GetVirtualPathTo(FileToUpdate);
+            fileSystem.AppendAllText(fileToUpdate, "// Testing");
+
+            string fileToDelete = this.Enlistment.GetVirtualPathTo(FileToDelete);
+            fileSystem.DeleteFile(fileToDelete);
+            fileToDelete.ShouldNotExistOnDisk(fileSystem);
+
+            string fileToRename = this.Enlistment.GetVirtualPathTo(FileToRename);
+            fileSystem.MoveFile(fileToRename, this.Enlistment.GetVirtualPathTo(RenameFileTarget));
+
+            string folderToCreate = this.Enlistment.GetVirtualPathTo(FolderToCreate);
+            fileSystem.CreateDirectory(folderToCreate);
+
+            string folderToRename = this.Enlistment.GetVirtualPathTo(FolderToRename);
+            fileSystem.CreateDirectory(folderToRename);
+            string folderToRenameTarget = this.Enlistment.GetVirtualPathTo(RenameFolderTarget);
+            fileSystem.MoveDirectory(folderToRename, folderToRenameTarget);
+
+            // Moving the new folder out of the repo will remove it from the modified paths file
+            string folderTargetOutsideSrc = Path.Combine(this.Enlistment.EnlistmentRoot, RenameFolderTarget);
+            folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
+            outsideSrcFileSystemRunner.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);
+            folderTargetOutsideSrc.ShouldBeADirectory(fileSystem);
+            folderToRenameTarget.ShouldNotExistOnDisk(fileSystem);
+
+            // Moving a file from the .git folder to the working directory should add the file to the modified paths
+            string dotGitfileToAdd = this.Enlistment.GetVirtualPathTo(DotGitFileToCreate);
+            fileSystem.WriteAllText(dotGitfileToAdd, "Contents for the new file in dot git");
+            fileSystem.MoveFile(dotGitfileToAdd, this.Enlistment.GetVirtualPathTo(RenameNewDotGitFileTarget));
+
+            // Move a file from outside of src into src
+            string fileToCreateOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, FileToCreateOutsideRepo);
+            fileSystem.WriteAllText(fileToCreateOutsideRepoPath, "Contents for the new file outside of repo");
+            string fileToCreateOutsideRepoTargetPath = this.Enlistment.GetVirtualPathTo(FileToCreateOutsideRepo);
+            fileToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
+            outsideSrcFileSystemRunner.MoveFile(fileToCreateOutsideRepoPath, fileToCreateOutsideRepoTargetPath);
+            fileToCreateOutsideRepoTargetPath.ShouldBeAFile(fileSystem);
+            fileToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
+
+            // Move a folder from outside of src into src
+            string folderToCreateOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, FolderToCreateOutsideRepo);
+            fileSystem.CreateDirectory(folderToCreateOutsideRepoPath);
+            folderToCreateOutsideRepoPath.ShouldBeADirectory(fileSystem);
+            string folderToCreateOutsideRepoTargetPath = this.Enlistment.GetVirtualPathTo(FolderToCreateOutsideRepo);
+            folderToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
+            outsideSrcFileSystemRunner.MoveDirectory(folderToCreateOutsideRepoPath, folderToCreateOutsideRepoTargetPath);
+            folderToCreateOutsideRepoTargetPath.ShouldBeADirectory(fileSystem);
+            folderToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
+
+            string folderToDeleteFullPath = this.Enlistment.GetVirtualPathTo(FolderToDelete);
+            fileSystem.WriteAllText(Path.Combine(folderToDeleteFullPath, "NewFile.txt"), "Contents for new file");
+            string newFileToDelete = Path.Combine(folderToDeleteFullPath, "NewFileToDelete.txt");
+            fileSystem.WriteAllText(newFileToDelete, "Contents for new file");
+            fileSystem.DeleteFile(newFileToDelete);
+            fileSystem.WriteAllText(Path.Combine(folderToDeleteFullPath, "CreateCommonVersionHeader.bat"), "Changing the file contents");
+            fileSystem.DeleteFile(Path.Combine(folderToDeleteFullPath, "RunUnitTests.bat"));
+
+            fileSystem.DeleteDirectory(folderToDeleteFullPath);
+            folderToDeleteFullPath.ShouldNotExistOnDisk(fileSystem);
+
+            // Remount
+            this.Enlistment.UnmountGVFS();
+            this.Enlistment.MountGVFS();
+
+            this.Enlistment.WaitForBackgroundOperations();
+
+            string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
+            using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+            {
+                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
+                    .ShouldMatchInOrder(ExpectedModifiedFilesContentsAfterRemount.OrderBy(x => x));
             }
         }
     }
