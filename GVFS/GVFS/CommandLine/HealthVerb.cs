@@ -51,9 +51,9 @@ namespace GVFS.CommandLine
 
             EnlistmentPathData pathData = new EnlistmentPathData();
 
-            this.GetPathsFromGitIndex(enlistment, pathData);
             this.GetPlaceholdersFromDatabase(enlistment, pathData);
             this.GetModifiedPathsFromPipe(enlistment, pathData);
+            this.GetPathsFromGitIndex(enlistment, pathData);
 
             pathData.NormalizeAllPaths();
 
@@ -88,7 +88,7 @@ namespace GVFS.CommandLine
             int maxCountLength = 0;
             foreach (KeyValuePair<string, int> pair in topLevelDirectoriesByHydration)
             {
-                maxCountLength = Math.Max(maxCountLength, pair.Value.ToString().Length);
+                maxCountLength = Math.Max(maxCountLength, pair.Value.ToString("N0").Length);
             }
 
             foreach (KeyValuePair<string, int> pair in topLevelDirectoriesByHydration)

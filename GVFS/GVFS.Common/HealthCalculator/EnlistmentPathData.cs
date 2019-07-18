@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace GVFS.Common
@@ -24,7 +25,13 @@ namespace GVFS.Common
 
         public void AddGitTrackingPaths(IEnumerable<string> gitTrackingPaths)
         {
-            this.ModifiedFilePaths.Union(gitTrackingPaths);
+            // Ensure that both lists of paths have been normalized before unioning to ensure no duplicity
+            List<string> normalizedGitTrackingPaths = gitTrackingPaths.ToList();
+            this.NormalizePaths(normalizedGitTrackingPaths);
+
+            this.NormalizePaths(this.ModifiedFilePaths);
+
+            this.ModifiedFilePaths = this.ModifiedFilePaths.Union(normalizedGitTrackingPaths).ToList();
         }
 
         public void NormalizeAllPaths()
