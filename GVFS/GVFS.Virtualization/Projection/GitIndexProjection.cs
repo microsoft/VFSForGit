@@ -97,7 +97,6 @@ namespace GVFS.Virtualization.Projection
             IPlaceholderCollection placeholderDatabase,
             IIncludedFolderCollection includedFolderCollection,
             ModifiedPathsDatabase modifiedPaths)
-            : this()
         {
             this.context = context;
             this.gitObjects = gitObjects;
@@ -106,6 +105,9 @@ namespace GVFS.Virtualization.Projection
             this.fileSystemVirtualizer = fileSystemVirtualizer;
             this.indexParser = new GitIndexParser(this);
 
+            this.projectionReadWriteLock = new ReaderWriterLockSlim();
+            this.projectionParseComplete = new ManualResetEventSlim(initialState: false);
+            this.wakeUpIndexParsingThread = new AutoResetEvent(initialState: false);
             this.projectionIndexBackupPath = Path.Combine(this.context.Enlistment.DotGVFSRoot, ProjectionIndexBackupName);
             this.indexPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index);
             this.placeholderDatabase = placeholderDatabase;
@@ -115,12 +117,9 @@ namespace GVFS.Virtualization.Projection
             this.ClearProjectionCaches();
         }
 
+        // For Unit Testing
         protected GitIndexProjection()
         {
-            this.projectionReadWriteLock = new ReaderWriterLockSlim();
-            this.projectionParseComplete = new ManualResetEventSlim(initialState: false);
-            this.wakeUpIndexParsingThread = new AutoResetEvent(initialState: false);
-            this.rootFolderData.ResetData(new LazyUTF8String("<root>"));
         }
 
         public enum FileType : short
