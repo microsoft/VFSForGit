@@ -7,8 +7,8 @@ using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    // MacOnly until issue #297 (add SymLink support for Windows) is complete
-    [Category(Categories.MacOnly)]
+    // POSIXOnly until issue #297 (add SymLink support for Windows) is complete
+    [Category(Categories.POSIXOnly)]
     [TestFixture]
     public class SymbolicLinkTests : TestsWithEnlistmentPerFixture
     {
@@ -191,6 +191,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.bashRunner.IsSymbolicLink(testFile2Path).ShouldBeFalse($"{testFile2Path} should not be a symlink");
 
             // Update testFilePath's symlink to point to testFile2Path
+            this.bashRunner.DeleteFile(testFilePath);
             this.bashRunner.CreateSymbolicLink(testFilePath, testFile2Path);
 
             testFilePath.ShouldBeAFile(this.bashRunner).WithContents(TestFile2Contents);
