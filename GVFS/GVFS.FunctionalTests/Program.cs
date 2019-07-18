@@ -107,10 +107,12 @@ namespace GVFS.FunctionalTests
                 excludeCategories.Add(Categories.RepositoryMountsDifferentFileSystem);
 
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
-                excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
-                excludeCategories.Add(Categories.MacTODO.NeedsServiceVerb);
-                excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
-                excludeCategories.Add(Categories.MacTODO.TestNeedsToLockFile);
+
+                excludeCategories.Add(Categories.NonWindowsTODO.NeedsGVFSConfig);
+                excludeCategories.Add(Categories.NonWindowsTODO.NeedsServiceVerb);
+                excludeCategories.Add(Categories.NonWindowsTODO.NeedsStatusCache);
+                excludeCategories.Add(Categories.NonWindowsTODO.TestNeedsToLockFile);
+
                 excludeCategories.Add(Categories.WindowsOnly);
                 excludeCategories.Add(Categories.LinuxOnly);
             }
@@ -122,12 +124,10 @@ namespace GVFS.FunctionalTests
                 excludeCategories.Add(Categories.LinuxTODO.NeedsContentionFreeFileLock);
                 excludeCategories.Add(Categories.LinuxTODO.NeedsConsistentBufferedWrites);
 
-                // TODO(Linux): determine which are really generic POSIX TODOs
-                excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
-                excludeCategories.Add(Categories.MacTODO.NeedsDehydrate);
-                excludeCategories.Add(Categories.MacTODO.NeedsServiceVerb);
-                excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
-                excludeCategories.Add(Categories.MacTODO.TestNeedsToLockFile);
+                excludeCategories.Add(Categories.NonWindowsTODO.NeedsGVFSConfig);
+                excludeCategories.Add(Categories.NonWindowsTODO.NeedsServiceVerb);
+                excludeCategories.Add(Categories.NonWindowsTODO.NeedsStatusCache);
+                excludeCategories.Add(Categories.NonWindowsTODO.TestNeedsToLockFile);
 
                 excludeCategories.Add(Categories.WindowsOnly);
                 excludeCategories.Add(Categories.MacOnly);
