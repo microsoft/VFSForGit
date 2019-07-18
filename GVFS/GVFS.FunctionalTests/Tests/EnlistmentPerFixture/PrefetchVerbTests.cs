@@ -113,9 +113,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.Prefetch("--files *").ShouldContain("Nothing new to prefetch.");
         }
 
-        // TODO(#1219): Handle that lock files are not deleted on Mac, they are simply unlocked
+        // TODO(#1219): Handle that lock files are not deleted on Mac or Linux, they are simply unlocked
         [TestCase, Order(11)]
-        [Category(Categories.MacTODO.TestNeedsToLockFile)]
+        [Category(Categories.NonWindowsTODO.TestNeedsToLockFile)]
         public void PrefetchCleansUpStalePrefetchLock()
         {
             this.Enlistment.Prefetch("--commits");
@@ -138,7 +138,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(11)]
-        [Category(Categories.MacTODO.TestNeedsToLockFile)]  // PostFetchStepShouldComplete waits for a lock file
+        [Category(Categories.NonWindowsTODO.TestNeedsToLockFile)]  // PostFetchStepShouldComplete waits for a lock file
         public void PrefetchCleansUpPackDir()
         {
             string multiPackIndexLockFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), MultiPackIndexLock);

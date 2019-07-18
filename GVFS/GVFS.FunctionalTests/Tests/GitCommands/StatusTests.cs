@@ -80,7 +80,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsStatusCache)]
+        [Category(Categories.NonWindowsTODO.NeedsStatusCache)]
         public void ModifyingAndDeletingRepositoryExcludeFileInvalidatesCache()
         {
             string repositoryExcludeFile = Path.Combine(".git", "info", "exclude");
@@ -106,7 +106,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsStatusCache)]
+        [Category(Categories.NonWindowsTODO.NeedsStatusCache)]
         public void NewRepositoryExcludeFileInvalidatesCache()
         {
             string repositoryExcludeFileRelativePath = Path.Combine(".git", "info", "exclude");
@@ -127,7 +127,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsStatusCache)]
+        [Category(Categories.NonWindowsTODO.NeedsStatusCache)]
         public void ModifyingHeadSymbolicRefInvalidatesCache()
         {
             this.ValidateGitCommand("status");
@@ -143,7 +143,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsStatusCache)]
+        [Category(Categories.NonWindowsTODO.NeedsStatusCache)]
         public void ModifyingHeadRefInvalidatesCache()
         {
             this.ValidateGitCommand("status");
