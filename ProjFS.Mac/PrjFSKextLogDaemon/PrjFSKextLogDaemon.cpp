@@ -2,6 +2,7 @@
 #include "../PrjFSKext/public/PrjFSVnodeCacheHealth.h"
 #include "../PrjFSLib/Json/JsonWriter.hpp"
 #include "../PrjFSLib/PrjFSUser.hpp"
+#include <atomic>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -11,6 +12,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+using std::atomic_exchange;
+using std::atomic_uint32_t;
 using std::hex;
 using std::lock_guard;
 using std::mutex;
@@ -35,12 +38,16 @@ enum class MessageType
 
 static mutex s_messageListenerMutex;
 
+static atomic_uint32_t s_droppedMessageCount(0);
+
 static void StartLoggingKextMessages(io_connect_t connection, io_service_t service);
 static void HandleSigterm(int sig, siginfo_t* info, void* uc);
 static void SetupExitSignalHandler();
 
 static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection);
 static bool TryFetchAndLogKextHealthData(io_connect_t connection);
+
+static void ReportDroppedKextMessages();
 
 // LogXXX functions will log to the OS as well as the message listener
 static void LogDaemonError(const string& message);
@@ -196,11 +203,7 @@ static void StartLoggingKextMessages(io_connect_t connection, io_service_t prjfs
     });
     dispatch_resume(logDataQueue->dispatchSource);
 
-    dispatch_source_t timer = nullptr;
-    if (TryFetchAndLogKextHealthData(connection))
-    {
-        timer = StartKextHealthDataPolling(connection);
-    }
+    dispatch_source_t timer = StartKextHealthDataPolling(connection);
 
     PrjFSService_WatchForServiceTermination(
         prjfsService,
@@ -253,6 +256,7 @@ static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection)
         // Every time the timer fires attempt to connect (if not already connected)
         CreatePipeToMessageListener();
         TryFetchAndLogKextHealthData(connection);
+        ReportDroppedKextMessages();
     });
     dispatch_resume(timer);
     return timer;
@@ -283,6 +287,18 @@ static bool TryFetchAndLogKextHealthData(io_connect_t connection)
     return true;
 }
 
+static void ReportDroppedKextMessages()
+{
+    uint32_t droppedMessageCount = atomic_exchange(&s_droppedMessageCount, 0U);
+    
+    if (droppedMessageCount > 0)
+    {
+        ostringstream message;
+        message << "ReportAnyDroppedMessages: " << droppedMessageCount << " reports of dropped kext log messages since last checked";
+        LogDaemonError(message.str());
+    }
+}
+
 static void LogDaemonError(const string& message)
 {
     os_log_error(s_daemonLogger, "%{public}s", message.c_str());
@@ -296,12 +312,11 @@ static void LogKextMessage(os_log_type_t messageLogType, uint32_t messageFlags, 
 {
     if (messageFlags & LogMessageFlag_LogMessagesDropped)
     {
-        // One or more earlier messages have been dropped
-        os_log_error(s_kextLogger, "One or more kext log messages have been dropped");
-        
-        JsonWriter messageWriter;
-        messageWriter.Add(MessageKey, "One or more kext log messages have been dropped");
-        WriteJsonToMessageListener(MessageType::Error, messageWriter);
+        if (1 == ++s_droppedMessageCount)
+        {
+            // Don't log every time a message is dropped to avoid flooding the logs under heavy load
+            LogDaemonError("LogKextMessage: One or more kext log messages have been dropped");
+        }
     }
     
     os_log_with_type(
