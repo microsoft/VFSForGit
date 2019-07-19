@@ -214,7 +214,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             // Regex to extract the total number of slow files and percentage they represent
             // "Files managed by git (slow):                <count> | <percentage>%"
-            Match lineMatch = Regex.Match(outputLine, @"^Files managed by git \(slow\):\s*([\d,]+)\s*\|\s*(\d+)%$");
+            Match lineMatch = Regex.Match(outputLine, @"^Files managed by Git:\s*([\d,]+)\s*\|\s*(\d+)%$");
 
             int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedSlowFiles).ShouldBeTrue();
             int.TryParse(lineMatch.Groups[2].Value, out int outputtedSlowFilesPercent).ShouldBeTrue();

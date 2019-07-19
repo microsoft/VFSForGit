@@ -580,10 +580,10 @@ namespace GVFS.Common.Git
                 parseStdOutLine);
         }
 
-        public Result LsFiles(Action<string> parseStdOutLine, bool showSkipTreeBit = false)
+        public Result LsFiles(Action<string> parseStdOutLine)
         {
             return this.InvokeGitInWorkingDirectoryRoot(
-                "ls-files " + (showSkipTreeBit ? "-v " : string.Empty),
+                "ls-files -v",
                 useReadObjectHook: false,
                 parseStdOutLine: parseStdOutLine);
         }

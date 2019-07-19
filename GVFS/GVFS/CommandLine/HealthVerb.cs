@@ -79,7 +79,7 @@ namespace GVFS.CommandLine
             this.Output.WriteLine("\nHealth of directory: " + enlistmentHealthData.TargetDirectory);
             this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
             this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthData.PlaceholderPercentage));
-            this.Output.WriteLine("Files managed by git (slow):          " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthData.ModifiedPathsPercentage));
+            this.Output.WriteLine("Files managed by Git:                 " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthData.ModifiedPathsPercentage));
 
             this.Output.WriteLine("\nTotal hydration percentage:           " + this.FormatPercent(enlistmentHealthData.PlaceholderPercentage + enlistmentHealthData.ModifiedPathsPercentage).PadLeft(longest + 7));
 
@@ -224,8 +224,7 @@ namespace GVFS.CommandLine
                     }
 
                     pathData.GitFilePaths.Add(this.TrimGitIndexLineWithSkipWorktree(line));
-                },
-                showSkipTreeBit: true);
+                });
             GitProcess.Result folderResult = gitProcess.LsTree(
                 GVFSConstants.DotGit.HeadName,
                 line =>
