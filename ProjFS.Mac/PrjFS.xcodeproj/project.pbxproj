@@ -7,15 +7,15 @@
 	objects = {
 
 /* Begin PBXAggregateTarget section */
-		26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */ = {
+		26A7DE91229363EA004F6252 /* GeneratePrjFSVersionFiles */ = {
 			isa = PBXAggregateTarget;
-			buildConfigurationList = 26A7DE95229363EA004F6252 /* Build configuration list for PBXAggregateTarget "GeneratePrjFSVersion" */;
+			buildConfigurationList = 26A7DE95229363EA004F6252 /* Build configuration list for PBXAggregateTarget "GeneratePrjFSVersionFiles" */;
 			buildPhases = (
 				26A7DE96229363F2004F6252 /* ShellScript */,
 			);
 			dependencies = (
 			);
-			name = GeneratePrjFSVersion;
+			name = GeneratePrjFSVersionFiles;
 			productName = GeneratePrjFSVersion;
 		};
 		4391F90021E436210008103C /* Build All */ = {
@@ -241,6 +241,7 @@
 		265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MockPerfTracing.cpp; sourceTree = "<group>"; };
 		26786AE5228B815E00F53311 /* JsonWriter.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = JsonWriter.hpp; sourceTree = "<group>"; };
 		26786AE6228B816E00F53311 /* JsonWriter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = JsonWriter.cpp; sourceTree = "<group>"; };
+		26BBD24B22E282EA007273D9 /* PrjFSConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = PrjFSConfig.xcconfig; path = ../../BuildOutput/PrjFSConfig.xcconfig; sourceTree = "<group>"; };
 		43057C5B21E439C700487681 /* prjfs-log.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "prjfs-log.cpp"; sourceTree = "<group>"; };
 		43057C5C21E439C700487681 /* kext-perf-tracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "kext-perf-tracing.cpp"; sourceTree = "<group>"; };
 		43057C5D21E439C700487681 /* kext-perf-tracing.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = "kext-perf-tracing.hpp"; sourceTree = "<group>"; };
@@ -411,6 +412,7 @@
 		4391F87521E4278C0008103C = {
 			isa = PBXGroup;
 			children = (
+				26BBD24B22E282EA007273D9 /* PrjFSConfig.xcconfig */,
 				4391F8C221E4306D0008103C /* PrjFSLib */,
 				4391F88D21E42AA70008103C /* PrjFSKext */,
 				4A08256921E77B7F00E21AFD /* PrjFSKextLogDaemon */,
@@ -783,7 +785,7 @@
 				F5E39C7621F1118D006D65C2 /* PrjFSKextTests */,
 				4A8C139F21F23EE800002878 /* PrjFSKextTestable */,
 				264E723822930E660059E150 /* PrjFSLibTests */,
-				26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */,
+				26A7DE91229363EA004F6252 /* GeneratePrjFSVersionFiles */,
 			);
 		};
 /* End PBXProject section */
@@ -825,7 +827,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ ! -f \"${BUILD_ROOT}/../../PrjFSVersion.h\" ]; then\n    \"${PROJECT_DIR}/Scripts/GeneratePrjFSVersionHeader.sh\"\nfi";
+			shellScript = "if [ ! -f \"${BUILD_ROOT}/../../PrjFSVersion.h\" ]; then\n    \"${PROJECT_DIR}/Scripts/GeneratePrjFSVersionHeader.sh\"\nfi\nif [ ! -f \"${BUILD_ROOT}/../../PrjFSConfig.xcconfig\" ]; then\n    \"${PROJECT_DIR}/Scripts/GeneratePrjFSXCConfig.sh\"\nfi";
 		};
 		43057C6021E43CC100487681 /* Run Script - Check kext linkage */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -951,37 +953,37 @@
 		};
 		26A7DE982293643F004F6252 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersionFiles */;
 			targetProxy = 26A7DE972293643F004F6252 /* PBXContainerItemProxy */;
 		};
 		26A7DE9A2293644B004F6252 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersionFiles */;
 			targetProxy = 26A7DE992293644B004F6252 /* PBXContainerItemProxy */;
 		};
 		26A7DE9C22936451004F6252 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersionFiles */;
 			targetProxy = 26A7DE9B22936451004F6252 /* PBXContainerItemProxy */;
 		};
 		26A7DE9E22936459004F6252 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersionFiles */;
 			targetProxy = 26A7DE9D22936459004F6252 /* PBXContainerItemProxy */;
 		};
 		26A7DEA222936473004F6252 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersionFiles */;
 			targetProxy = 26A7DEA122936473004F6252 /* PBXContainerItemProxy */;
 		};
 		26A7DEA422936496004F6252 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersionFiles */;
 			targetProxy = 26A7DEA322936496004F6252 /* PBXContainerItemProxy */;
 		};
 		26A7DEA62293649E004F6252 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersion */;
+			target = 26A7DE91229363EA004F6252 /* GeneratePrjFSVersionFiles */;
 			targetProxy = 26A7DEA52293649E004F6252 /* PBXContainerItemProxy */;
 		};
 		4391F90521E4362B0008103C /* PBXTargetDependency */ = {
@@ -1096,6 +1098,7 @@
 		};
 		43057C5221E437F300487681 /* Profiling(Release) */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 26BBD24B22E282EA007273D9 /* PrjFSConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1219,6 +1222,7 @@
 		};
 		4391F88521E4278C0008103C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 26BBD24B22E282EA007273D9 /* PrjFSConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1290,6 +1294,7 @@
 		};
 		4391F88621E4278C0008103C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 26BBD24B22E282EA007273D9 /* PrjFSConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1651,7 +1656,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		26A7DE95229363EA004F6252 /* Build configuration list for PBXAggregateTarget "GeneratePrjFSVersion" */ = {
+		26A7DE95229363EA004F6252 /* Build configuration list for PBXAggregateTarget "GeneratePrjFSVersionFiles" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				26A7DE92229363EA004F6252 /* Debug */,

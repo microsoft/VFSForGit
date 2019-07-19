@@ -21,6 +21,9 @@ PROJFS=$SRCDIR/ProjFS.Mac
 echo "Generating PrjFSVersion.h as $VERSION..."
 $SCRIPTDIR/GeneratePrjFSVersionHeader.sh $VERSION || exit 1
 
+echo "Generating PrjFSConfig.xcconfig for $VERSION..."
+$SCRIPTDIR/GeneratePrjFSXCConfig.sh $VERSION || exit 1
+
 xcodebuild -configuration $CONFIGURATION -project $PROJFS/PrjFS.xcodeproj  -scheme 'Build All' -derivedDataPath $ROOTDIR/BuildOutput/ProjFS.Mac/Native build || exit 1
 
 if !(gem list --local | grep xcpretty); then
