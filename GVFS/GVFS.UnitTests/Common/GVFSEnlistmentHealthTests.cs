@@ -108,7 +108,7 @@ namespace GVFS.UnitTests.Common
             EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles("A/1.js", "A/2.js", "A/3.js", "B/1.js", "B/2.js", "B/3.js")
                 .AddPlaceholderFiles("A/1.js", $"A{this.sep}2.js", "/A/1.js", $"{this.sep}A{this.sep}1.js")
-                .AddModifiedPathFiles("B/1.js", $"B{this.sep}2.js", "/B/1.js", $"{this.sep}B{this.sep}1.js")
+                .AddModifiedPathFiles($"B{this.sep}2.js", $"{this.sep}B{this.sep}1.js")
                 .Build();
 
             this.enlistmentHealthData = this.GenerateStatistics(pathData, string.Empty);
@@ -120,7 +120,7 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual((decimal)pathData.PlaceholderFilePaths.Count / (decimal)pathData.GitFilePaths.Count);
             this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual((decimal)pathData.ModifiedFilePaths.Count / (decimal)pathData.GitFilePaths.Count);
             this.enlistmentHealthData.DirectoryHydrationLevels[0].Value.ShouldEqual(4);
-            this.enlistmentHealthData.DirectoryHydrationLevels[1].Value.ShouldEqual(4);
+            this.enlistmentHealthData.DirectoryHydrationLevels[1].Value.ShouldEqual(2);
         }
 
         [TestCase]
@@ -128,6 +128,9 @@ namespace GVFS.UnitTests.Common
         {
             string[] gitFilesDirectoryA = new string[] { "A/1.js", "A/2.js", "A/3.js" };
             string[] gitFilesDirectoryB = new string[] { "B/1.js", "B/2.js", "B/3.js" };
+
+            // Duplicate modified paths get cleaned up when unioned with non skip worktree paths from git
+            // Duplicate placeholders remain as read from the placeholder database to most accurately represent information
 
             EnlistmentPathData pathData = new PathDataBuilder()
                 .AddGitFiles(gitFilesDirectoryA)
@@ -150,7 +153,7 @@ namespace GVFS.UnitTests.Common
             this.enlistmentHealthData.PlaceholderCount.ShouldEqual(0);
             this.enlistmentHealthData.PlaceholderPercentage.ShouldEqual(0);
             this.enlistmentHealthData.ModifiedPathsCount.ShouldEqual(pathData.ModifiedFilePaths.Count);
-            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(4.0m / 3.0m);
+            this.enlistmentHealthData.ModifiedPathsPercentage.ShouldEqual(2.0m / 3.0m);
         }
 
         [TestCase]
@@ -276,7 +279,7 @@ namespace GVFS.UnitTests.Common
 
             public PathDataBuilder AddNonSkipWorktreeFiles(params string[] nonSkipWorktreeFiles)
             {
-                this.pathData.AddGitTrackingPaths(nonSkipWorktreeFiles);
+                this.pathData.GitTrackingPaths.AddRange(nonSkipWorktreeFiles);
                 return this;
             }
 

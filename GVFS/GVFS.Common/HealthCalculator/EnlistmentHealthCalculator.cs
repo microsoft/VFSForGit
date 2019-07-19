@@ -47,7 +47,7 @@ namespace GVFS.Common
             modifiedPathsCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFolderPaths, hydratedFilesDirectoryTally, parentDirectory);
             modifiedPathsCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFilePaths, hydratedFilesDirectoryTally, parentDirectory);
 
-            Dictionary<string, int> mostHydratedDirectories = new Dictionary<string, int>();
+            Dictionary<string, int> mostHydratedDirectories = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             // Map directory names to the corresponding health data from gitTrackedItemsDirectoryTally and hydratedFilesDirectoryTally
             foreach (KeyValuePair<string, int> pair in gitTrackedItemsDirectoryTally)

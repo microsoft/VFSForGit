@@ -12,6 +12,7 @@ namespace GVFS.Common
         public List<string> PlaceholderFilePaths;
         public List<string> ModifiedFolderPaths;
         public List<string> ModifiedFilePaths;
+        public List<string> GitTrackingPaths;
 
         public EnlistmentPathData()
         {
@@ -21,17 +22,7 @@ namespace GVFS.Common
             this.PlaceholderFilePaths = new List<string>();
             this.ModifiedFolderPaths = new List<string>();
             this.ModifiedFilePaths = new List<string>();
-        }
-
-        public void AddGitTrackingPaths(IEnumerable<string> gitTrackingPaths)
-        {
-            // Ensure that both lists of paths have been normalized before unioning to ensure no duplicity
-            List<string> normalizedGitTrackingPaths = gitTrackingPaths.ToList();
-            this.NormalizePaths(normalizedGitTrackingPaths);
-
-            this.NormalizePaths(this.ModifiedFilePaths);
-
-            this.ModifiedFilePaths = this.ModifiedFilePaths.Union(normalizedGitTrackingPaths).ToList();
+            this.GitTrackingPaths = new List<string>();
         }
 
         public void NormalizeAllPaths()
@@ -42,6 +33,9 @@ namespace GVFS.Common
             this.NormalizePaths(this.PlaceholderFilePaths);
             this.NormalizePaths(this.ModifiedFolderPaths);
             this.NormalizePaths(this.ModifiedFilePaths);
+            this.NormalizePaths(this.GitTrackingPaths);
+
+            this.ModifiedFilePaths = this.ModifiedFilePaths.Union(this.GitTrackingPaths).ToList();
         }
 
         private void NormalizePaths(List<string> paths)
