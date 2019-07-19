@@ -235,7 +235,7 @@ namespace GVFS.CommandLine
                 recursive: true,
                 showDirectories: true);
 
-            pathData.AddGitTrackingPaths(skipWorktreeFiles);
+            pathData.GitTrackingPaths.AddRange(skipWorktreeFiles);
         }
     }
 }

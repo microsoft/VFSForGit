@@ -162,15 +162,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             List<string> healthOutputLines = new List<string>(this.Enlistment.Health(directory).Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
 
-            healthOutputLines = this.GetHealthData(directory);
-
-            // Strip the lines which have the status
-            // These lines all have the format: "(<n>/3) <Status message>...Succeeded"
-            while (healthOutputLines[0].StartsWith("("))
-            {
-                healthOutputLines.RemoveAt(0);
-            }
-
             int numberOfExpectedSubdirectories = topHydratedDirectories.Count;
 
             this.ValidateTargetDirectory(healthOutputLines[0], directory);
@@ -180,25 +171,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateTotalHydration(healthOutputLines[4], totalPercent);
             this.ValidateSubDirectoryHealth(healthOutputLines.GetRange(6, numberOfExpectedSubdirectories), topHydratedDirectories, directoryHydrationLevels);
             this.ValidateEnlistmentStatus(healthOutputLines[6 + numberOfExpectedSubdirectories], enlistmentHealthStatus);
-        }
-
-        private List<string> GetHealthData(string directory = null)
-        {
-            ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);
-            processInfo.Arguments = "health" + (!string.IsNullOrEmpty(directory) ? " -d " + directory : string.Empty);
-            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            processInfo.WorkingDirectory = this.Enlistment.EnlistmentRoot;
-            processInfo.UseShellExecute = false;
-            processInfo.RedirectStandardOutput = true;
-
-            List<string> healthOutputLines = new List<string>(ProcessHelper.Run(processInfo).Output.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
-
-            while (healthOutputLines[0].StartsWith("("))
-            {
-                healthOutputLines.RemoveAt(0);
-            }
-
-            return healthOutputLines;
         }
 
         private void ValidateTargetDirectory(string outputLine, string targetDirectory)
