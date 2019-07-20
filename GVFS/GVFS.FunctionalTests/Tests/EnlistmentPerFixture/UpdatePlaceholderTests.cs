@@ -135,18 +135,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string testFile = Path.Combine(this.Enlistment.RepoRoot, "FullFilesDontAffectThePlaceholderDatabase");
 
-            string placeholderDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "PlaceholderList.dat");
-            string placeholdersBefore = GVFSHelpers.ReadAllTextFromWriteLockedFile(placeholderDatabase);
+            string placeholderDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "VFSForGit.sqlite");
+            string placeholdersBefore = GVFSHelpers.GetAllSQLitePlaceholdersAsString(placeholderDatabase);
 
             this.fileSystem.CreateEmptyFile(testFile);
 
             this.Enlistment.WaitForBackgroundOperations();
-            GVFSHelpers.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
+            GVFSHelpers.GetAllSQLitePlaceholdersAsString(placeholderDatabase).ShouldEqual(placeholdersBefore);
 
             this.fileSystem.DeleteFile(testFile);
 
             this.Enlistment.WaitForBackgroundOperations();
-            GVFSHelpers.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
+            GVFSHelpers.GetAllSQLitePlaceholdersAsString(placeholderDatabase).ShouldEqual(placeholdersBefore);
         }
 
         private ProcessResult InvokeGitAgainstGVFSRepo(string command)

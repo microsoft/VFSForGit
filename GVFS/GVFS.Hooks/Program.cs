@@ -114,7 +114,7 @@ namespace GVFS.Hooks
             int randomValue = random.Next(0, 100);
 
             if (randomValue <= reminderFrequency &&
-                ProductUpgraderInfo.IsLocalUpgradeAvailable(tracer: null, gvfsDataRoot: GVFSHooksPlatform.GetDataRootForGVFS()))
+                ProductUpgraderInfo.IsLocalUpgradeAvailable(tracer: null, highestAvailableVersionDirectory: GVFSHooksPlatform.GetUpgradeHighestAvailableVersionDirectory()))
             {
                 Console.WriteLine(Environment.NewLine + GVFSConstants.UpgradeVerbMessages.ReminderNotification);
             }
@@ -135,41 +135,9 @@ namespace GVFS.Hooks
             string command = GetGitCommand(args);
             switch (command)
             {
-                case "status":
-                    VerifyRenameDetectionSettings(args);
-                    break;
-
                 case "gui":
                     ExitWithError("To access the 'git gui' in a GVFS repo, please invoke 'git-gui.exe' instead.");
                     break;
-            }
-        }
-
-        private static void VerifyRenameDetectionSettings(string[] args)
-        {
-            string srcRoot = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName);
-            if (File.Exists(Path.Combine(srcRoot, GVFSConstants.DotGit.MergeHead)) ||
-                File.Exists(Path.Combine(srcRoot, GVFSConstants.DotGit.RevertHead)))
-            {
-                // If no-renames is specified, avoid reading config.
-                if (!args.Contains("--no-renames"))
-                {
-                    // To behave properly, this needs to check for the status.renames setting the same
-                    // way that git does including global and local config files, setting inheritance from
-                    // diff.renames, etc.  This is probably best accomplished by calling "git config --get status.renames"
-                    // to ensure we are getting the correct value and then checking for "true" (rather than
-                    // just existance like below).
-                    Dictionary<string, GitConfigSetting> statusConfig = GitConfigHelper.GetSettings(
-                        File.ReadAllLines(Path.Combine(srcRoot, GVFSConstants.DotGit.Config)),
-                        "test");
-
-                    if (!statusConfig.ContainsKey("renames"))
-                    {
-                        ExitWithError(
-                            "git status requires rename detection to be disabled during a merge or revert conflict.",
-                            "Run 'git status --no-renames'");
-                    }
-                }
             }
         }
 

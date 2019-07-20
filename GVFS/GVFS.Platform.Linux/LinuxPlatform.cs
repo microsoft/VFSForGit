@@ -9,6 +9,9 @@ namespace GVFS.Platform.Linux
 {
     public partial class LinuxPlatform : POSIXPlatform
     {
+        // TODO(Linux): determine installation location and upgrader path
+        private const string UpgradeProtectedDataDirectory = "/usr/local/vfsforgit_upgrader";
+
         public LinuxPlatform()
         {
         }
@@ -18,6 +21,14 @@ namespace GVFS.Platform.Linux
         public override string Name { get => "Linux"; }
         public override GVFSPlatformConstants Constants { get; } = new LinuxPlatformConstants();
         public override IPlatformFileSystem FileSystem { get; } = new LinuxFileSystem();
+
+        public override string GVFSConfigPath
+        {
+            get
+            {
+                return Path.Combine(this.Constants.GVFSBinDirectoryPath, LocalGVFSConfig.FileName);
+            }
+        }
 
         public override string GetOSVersionInformation()
         {
@@ -51,6 +62,33 @@ namespace GVFS.Platform.Linux
             string lockPath)
         {
             return new LinuxFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return UpgradeProtectedDataDirectory;
+        }
+
+        public override string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return GetUpgradeHighestAvailableVersionDirectoryImplementation();
+        }
+
+        /// <summary>
+        /// This is the directory in which the upgradelogs directory should go.
+        /// There can be multiple logs directories, so here we return the containing
+        //  directory.
+        /// </summary>
+        public override string GetUpgradeLogDirectoryParentDirectory()
+        {
+            return this.GetUpgradeNonProtectedDataDirectory();
+        }
+
+        public override ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer)
+        {
+            return new LinuxProductUpgraderPlatformStrategy(fileSystem, tracer);
         }
 
         public class LinuxPlatformConstants : POSIXPlatformConstants

@@ -18,7 +18,7 @@
         <string>org.vfsforgit.usernotification</string>
         <key>ProgramArguments</key>
         <array>
-            <string>/usr/local/vfsforgit/VFS For Git.app/Contents/MacOS/VFS For Git</string>
+            <string>/Library/Application Support/VFS For Git/VFS For Git.app/Contents/MacOS/VFS For Git</string>
         </array>
         <key>WorkingDirectory</key>
         <string>/usr/local/vfsforgit</string>

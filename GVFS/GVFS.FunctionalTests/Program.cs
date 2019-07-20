@@ -87,7 +87,6 @@ namespace GVFS.FunctionalTests
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                excludeCategories.Add(Categories.MacTODO.FailsOnBuildAgent);
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
                 excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
                 excludeCategories.Add(Categories.MacTODO.NeedsDehydrate);

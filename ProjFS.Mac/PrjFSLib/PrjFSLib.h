@@ -47,6 +47,7 @@ typedef enum
     PrjFS_NotificationType_None                     = 0x00000001,
     PrjFS_NotificationType_NewFileCreated           = 0x00000004,
     PrjFS_NotificationType_PreDelete                = 0x00000010,
+    PrjFS_NotificationType_PreDeleteFromRename      = 0x00000011,
     PrjFS_NotificationType_FileRenamed              = 0x00000080,
     PrjFS_NotificationType_HardLinkCreated          = 0x00000100,
     PrjFS_NotificationType_PreConvertToFull         = 0x00001000,
@@ -159,6 +160,7 @@ typedef PrjFS_Result (PrjFS_GetFileStreamCallback)(
 typedef PrjFS_Result (PrjFS_NotifyOperationCallback)(
     _In_    unsigned long                           commandId,
     _In_    const char*                             relativePath,
+    _In_    const char*                             relativeFromPath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
     _In_    int                                     triggeringProcessId,

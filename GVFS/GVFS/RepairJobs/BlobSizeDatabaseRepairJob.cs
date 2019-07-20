@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.BlobSize;
@@ -43,7 +44,8 @@ namespace GVFS.RepairJobs
                 RepoMetadata.Shutdown();
             }
 
-            if (BlobSizes.HasIssue(this.blobSizeRoot, new PhysicalFileSystem(), out error))
+            string blobsizesDatabasePath = Path.Combine(this.blobSizeRoot, BlobSizes.DatabaseName);
+            if (SqliteDatabase.HasIssue(blobsizesDatabasePath, new PhysicalFileSystem(), out error))
             {
                 messages.Add("Could not load blob size database: " + error);
                 return IssueType.Fixable;

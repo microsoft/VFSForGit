@@ -45,6 +45,7 @@ INSTALLERPACKAGENAME="VFSForGit.$PACKAGEVERSION"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
 UNINSTALLERPATH="${SOURCEDIRECTORY}/uninstall_vfsforgit.sh"
 SCRIPTSPATH="${SOURCEDIRECTORY}/scripts"
+COMPONENTSPLISTPATH="${SOURCEDIRECTORY}/vfsforgit_components.plist"
 DIST_FILE_NAME="Distribution.updated.xml"
 
 function CheckBuildIsAvailable()
@@ -117,6 +118,9 @@ function CopyBinariesToInstall()
     copyNotificationApp="cp -Rf \"${VFS_OUTPUTDIR}/GVFS.Notifications/VFSForGit.Mac/Build/Products/$CONFIGURATION/VFS For Git.app\" \"${STAGINGDIR}/${LIBRARYAPPSUPPORTDESTINATION}/.\""
     eval $copyNotificationApp || exit 1
     
+    copyNotificationPlist="cp -Rf \"${SOURCEDIRECTORY}/../GVFS.Notifications/VFSForGit.Mac/org.vfsforgit.usernotification.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
+    eval $copyNotificationPlist || exit 1
+    
     copyServicePlist="cp -Rf \"${SOURCEDIRECTORY}/../GVFS.Service/Mac/org.vfsforgit.service.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
     eval $copyServicePlist || exit 1
     
@@ -129,7 +133,7 @@ function CopyBinariesToInstall()
 
 function CreateVFSForGitInstaller()
 {
-    pkgBuildCommand="/usr/bin/pkgbuild --identifier $INSTALLERPACKAGEID --scripts \"${SCRIPTSPATH}\" --root \"${STAGINGDIR}\" \"${PACKAGESTAGINGDIR}/$INSTALLERPACKAGENAME.pkg\""
+    pkgBuildCommand="/usr/bin/pkgbuild --identifier $INSTALLERPACKAGEID --component-plist \"${COMPONENTSPLISTPATH}\" --scripts \"${SCRIPTSPATH}\" --root \"${STAGINGDIR}\" \"${PACKAGESTAGINGDIR}/$INSTALLERPACKAGENAME.pkg\""
     eval $pkgBuildCommand || exit 1
 }
 

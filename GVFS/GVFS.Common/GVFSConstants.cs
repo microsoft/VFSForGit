@@ -112,6 +112,7 @@ namespace GVFS.Common
                 public static readonly string PlaceholderList = Path.Combine(Name, "PlaceholderList.dat");
                 public static readonly string ModifiedPaths = Path.Combine(Name, "ModifiedPaths.dat");
                 public static readonly string RepoMetadata = Path.Combine(Name, "RepoMetadata.dat");
+                public static readonly string VFSForGit = Path.Combine(Name, "VFSForGit.sqlite");
             }
 
             public static class GitStatusCache
@@ -156,7 +157,7 @@ namespace GVFS.Common
                 public const string PostCommandHookName = "post-command";
                 public const string ReadObjectName = "read-object";
                 public const string VirtualFileSystemName = "virtual-filesystem";
-                public const string PostIndexChangedName = "post-indexchanged";
+                public const string PostIndexChangedName = "post-index-change";
                 public static readonly string Root = Path.Combine(DotGit.Root, "hooks");
                 public static readonly string PreCommandPath = Path.Combine(Hooks.Root, PreCommandHookName);
                 public static readonly string PostCommandPath = Path.Combine(Hooks.Root, PostCommandHookName);
@@ -219,6 +220,7 @@ namespace GVFS.Common
             public static class Mount
             {
                 public const string StartedByService = "StartedByService";
+                public const string StartedByVerb = "StartedByVerb";
                 public const string Verbosity = "verbosity";
                 public const string Keywords = "keywords";
                 public const string DebugWindow = "debug-window";

@@ -22,17 +22,20 @@ namespace GVFS.Service
         private PhysicalFileSystem fileSystem;
         private object repoLock = new object();
         private IRepoMounter repoMounter;
+        private INotificationHandler notificationHandler;
 
         public RepoRegistry(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
             string serviceDataLocation,
-            IRepoMounter repoMounter)
+            IRepoMounter repoMounter,
+            INotificationHandler notificationHandler)
         {
             this.tracer = tracer;
             this.fileSystem = fileSystem;
             this.registryParentFolderPath = serviceDataLocation;
             this.repoMounter = repoMounter;
+            this.notificationHandler = notificationHandler;
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Area", EtwArea);
@@ -173,23 +176,15 @@ namespace GVFS.Service
             using (ITracer activity = this.tracer.StartActivity("AutoMount", EventLevel.Informational))
             {
                 List<RepoRegistration> activeRepos = this.GetActiveReposForUser(userId);
-                if (activeRepos.Count == 0)
-                {
-                    return;
-                }
-
-                this.SendNotification(sessionId, "GVFS AutoMount", "Attempting to mount {0} GVFS repo(s)", activeRepos.Count);
-
                 foreach (RepoRegistration repo in activeRepos)
                 {
                     // TODO #1089: We need to respect the elevation level of the original mount
-                    if (this.repoMounter.MountRepository(repo.EnlistmentRoot, sessionId))
+                    if (!this.repoMounter.MountRepository(repo.EnlistmentRoot, sessionId))
                     {
-                        this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo is now mounted: \n{0}", repo.EnlistmentRoot);
-                    }
-                    else
-                    {
-                        this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo failed to mount: \n{0}", repo.EnlistmentRoot);
+                        this.SendNotification(
+                            sessionId,
+                            NamedPipeMessages.Notification.Request.Identifier.MountFailure,
+                            repo.EnlistmentRoot);
                     }
                 }
             }
@@ -322,13 +317,18 @@ namespace GVFS.Service
             }
         }
 
-        private void SendNotification(int sessionId, string title, string format, params object[] args)
+        private void SendNotification(
+            int sessionId,
+            NamedPipeMessages.Notification.Request.Identifier requestId,
+            string enlistment = null,
+            int enlistmentCount = 0)
         {
             NamedPipeMessages.Notification.Request request = new NamedPipeMessages.Notification.Request();
-            request.Title = title;
-            request.Message = string.Format(format, args);
+            request.Id = requestId;
+            request.Enlistment = enlistment;
+            request.EnlistmentCount = enlistmentCount;
 
-            NotificationHandler.Instance.SendNotification(this.tracer, sessionId, request);
+            this.notificationHandler.SendNotification(sessionId, request);
         }
 
         private void WriteRegistry(Dictionary<string, RepoRegistration> registry)

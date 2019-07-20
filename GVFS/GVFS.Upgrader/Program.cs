@@ -9,8 +9,8 @@ namespace GVFS.Upgrader
         {
             GVFSPlatformLoader.Initialize();
 
-            Parser.Default.ParseArguments<UpgradeOrchestrator>(args)
-                    .WithParsed(upgrader => upgrader.Execute());
+            Parser.Default.ParseArguments<UpgradeOptions>(args)
+                .WithParsed(options =>  UpgradeOrchestratorFactory.Create(options).Execute());
         }
     }
 }

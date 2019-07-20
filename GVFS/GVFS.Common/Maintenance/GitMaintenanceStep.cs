@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
@@ -103,6 +104,29 @@ namespace GVFS.Common.Maintenance
                                 error),
                             metadata: null);
                     }
+                }
+            }
+        }
+
+        // public only for unit tests
+        public void GetPackFilesInfo(out int count, out long size, out bool hasKeep)
+        {
+            count = 0;
+            size = 0;
+            hasKeep = false;
+
+            foreach (DirectoryItemInfo info in this.Context.FileSystem.ItemsInDirectory(this.Context.Enlistment.GitPackRoot))
+            {
+                string extension = Path.GetExtension(info.Name);
+
+                if (string.Equals(extension, ".pack", StringComparison.OrdinalIgnoreCase))
+                {
+                    count++;
+                    size += info.Length;
+                }
+                else if (string.Equals(extension, ".keep", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasKeep = true;
                 }
             }
         }

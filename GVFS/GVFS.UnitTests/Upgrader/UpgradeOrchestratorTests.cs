@@ -43,7 +43,7 @@ namespace GVFS.UnitTests.Upgrader
             this.PreRunChecker = new MockInstallerPrerunChecker(this.Tracer);
             this.PreRunChecker.Reset();
             this.MoqUpgrader = this.DefaultUpgrader();
-            this.orchestrator = new UpgradeOrchestrator(
+            this.orchestrator = new WindowsUpgradeOrchestrator(
                 this.MoqUpgrader.Object,
                 this.Tracer,
                 this.FileSystem,

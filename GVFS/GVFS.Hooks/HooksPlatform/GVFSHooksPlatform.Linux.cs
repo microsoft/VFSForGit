@@ -9,6 +9,11 @@ namespace GVFS.Hooks.HooksPlatform
             return LinuxPlatform.GetDataRootForGVFSImplementation();
         }
 
+        public static string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return LinuxPlatform.GetUpgradeHighestAvailableVersionDirectoryImplementation();
+        }
+
         public static bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return LinuxPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);

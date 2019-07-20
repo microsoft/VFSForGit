@@ -93,8 +93,6 @@ namespace GVFS.UnitTests.Common
             MockLocalGVFSConfig gvfsConfig = this.ConstructDefaultGitHubConfigBuilder()
                 .Build();
 
-            this.fileSystemMock.Setup(m => m.CreateDirectory(It.IsAny<string>()));
-
             bool success = ProductUpgrader.TryCreateUpgrader(
                 this.tracer,
                 this.fileSystemMock.Object,

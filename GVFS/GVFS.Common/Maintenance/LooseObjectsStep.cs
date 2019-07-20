@@ -41,9 +41,10 @@ namespace GVFS.Common.Maintenance
         protected override string LastRunTimeFilePath => Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", LooseObjectsLastRunFileName);
         protected override TimeSpan TimeBetweenRuns => TimeSpan.FromDays(1);
 
-        public int CountLooseObjects()
+        public void CountLooseObjects(out int count, out long size)
         {
-            int count = 0;
+            count = 0;
+            size = 0;
 
             foreach (string directoryPath in this.Context.FileSystem.EnumerateDirectories(this.Context.Enlistment.GitObjectsRoot))
             {
@@ -51,11 +52,12 @@ namespace GVFS.Common.Maintenance
 
                 if (GitObjects.IsLooseObjectsDirectory(directoryName))
                 {
-                    count += this.Context.FileSystem.GetFiles(Path.Combine(this.Context.Enlistment.GitObjectsRoot, directoryPath), "*").Count();
+                    string dirPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, directoryPath);
+                    List<DirectoryItemInfo> dirItems = this.Context.FileSystem.ItemsInDirectory(dirPath).ToList();
+                    count += dirItems.Count;
+                    size += dirItems.Sum(item => item.Length);
                 }
             }
-
-            return count;
         }
 
         public IEnumerable<string> GetBatchOfLooseObjects(int batchSize)
@@ -167,7 +169,9 @@ namespace GVFS.Common.Maintenance
             int numDeletedObjects = 0;
             int numFailedDeletes = 0;
 
-            foreach (string objectId in this.GetBatchOfLooseObjects(this.MaxLooseObjectsInPack))
+            // Double the batch size to look beyond the current batch for bad objects, as there
+            // may be more bad objects in the next batch after deleting the corrupt objects.
+            foreach (string objectId in this.GetBatchOfLooseObjects(2 * this.MaxLooseObjectsInPack))
             {
                 if (!this.Context.Repository.ObjectExists(objectId))
                 {
@@ -211,16 +215,29 @@ namespace GVFS.Common.Maintenance
                         }
                     }
 
-                    int beforeLooseObjectsCount = this.CountLooseObjects();
-                    GitProcess.Result gitResult = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.PrunePacked));
-                    int afterLooseObjectsCount = this.CountLooseObjects();
+                    this.CountLooseObjects(out int beforeLooseObjectsCount, out long beforeLooseObjectsSize);
+                    this.GetPackFilesInfo(out int beforePackCount, out long beforePackSize, out bool _);
 
+                    GitProcess.Result gitResult = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.PrunePacked));
                     CreatePackResult createPackResult = this.TryCreateLooseObjectsPackFile(out int objectsAddedToPack);
+
+                    this.CountLooseObjects(out int afterLooseObjectsCount, out long afterLooseObjectsSize);
+                    this.GetPackFilesInfo(out int afterPackCount, out long afterPackSize, out bool _);
 
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("GitObjectsRoot", this.Context.Enlistment.GitObjectsRoot);
+
+                    metadata.Add("PrunedPackedExitCode", gitResult.ExitCode);
                     metadata.Add("StartingCount", beforeLooseObjectsCount);
                     metadata.Add("EndingCount", afterLooseObjectsCount);
+                    metadata.Add("StartingPackCount", beforePackCount);
+                    metadata.Add("EndingPackCount", afterPackCount);
+
+                    metadata.Add("StartingSize", beforeLooseObjectsSize);
+                    metadata.Add("EndingSize", afterLooseObjectsSize);
+                    metadata.Add("StartingPackSize", beforePackSize);
+                    metadata.Add("EndingPackSize", afterPackSize);
+
                     metadata.Add("RemovedCount", beforeLooseObjectsCount - afterLooseObjectsCount);
                     metadata.Add("LooseObjectsPutIntoPackFile", objectsAddedToPack);
                     metadata.Add("CreatePackResult", createPackResult.ToString());

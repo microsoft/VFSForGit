@@ -35,7 +35,7 @@ namespace GVFS.Service
                 }
 
                 string errorMessage;
-                if (!GVFSEnlistment.WaitUntilMounted(repoRoot, false, out errorMessage))
+                if (!GVFSEnlistment.WaitUntilMounted(this.tracer, repoRoot, false, out errorMessage))
                 {
                     this.tracer.RelatedError(errorMessage);
                     return false;

@@ -1,15 +1,17 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
-using GVFS.Platform.Windows;
 using GVFS.Virtualization;
 
 namespace GVFS.PerfProfiling
 {
     internal class ProfilingEnvironment
     {
+        private GVFSDatabase gvfsDatabase;
+
         public ProfilingEnvironment(string enlistmentRootPath)
         {
             this.Enlistment = this.CreateEnlistment(enlistmentRootPath);
@@ -24,7 +26,7 @@ namespace GVFS.PerfProfiling
         private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
         {
             string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            string hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            string hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
 
             return GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication: null);
         }
@@ -76,8 +78,18 @@ namespace GVFS.PerfProfiling
                 cacheServer,
                 new RetryConfig());
 
+            this.gvfsDatabase = new GVFSDatabase(this.Context.FileSystem, this.Context.Enlistment.EnlistmentRoot, new SqliteDatabase());
             GVFSGitObjects gitObjects = new GVFSGitObjects(this.Context, objectRequestor);
-            return new FileSystemCallbacks(this.Context, gitObjects, RepoMetadata.Instance, fileSystemVirtualizer: null, gitStatusCache : null);
+            return new FileSystemCallbacks(
+                this.Context,
+                gitObjects,
+                RepoMetadata.Instance,
+                blobSizes: null,
+                gitIndexProjection: null,
+                backgroundFileSystemTaskRunner: null,
+                fileSystemVirtualizer: null,
+                placeholderDatabase: new PlaceholderTable(this.gvfsDatabase),
+                gitStatusCache : null);
         }
     }
 }

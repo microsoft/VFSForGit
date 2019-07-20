@@ -64,7 +64,7 @@ namespace GVFS.Common.Maintenance
                 this.UpdateKeepPacks();
             }
 
-            this.TrySchedulePostFetchJob(packIndexes);
+            this.SchedulePostFetchJob(packIndexes);
 
             return true;
         }
@@ -229,6 +229,11 @@ namespace GVFS.Common.Maintenance
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)} deleting bad idx file");
                     this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)}_DeleteBadIdx", metadata);
 
+                    // We need to close the LibGit2 repo data in order to delete .idx files.
+                    // Close inside the loop to only close if necessary, reopen outside the loop
+                    // to minimize initializations.
+                    this.Context.Repository.CloseActiveRepo();
+
                     if (!this.Context.FileSystem.TryWaitForDelete(this.Context.Tracer, idxPath, IoFailureRetryDelayMS, MaxDeleteRetries, RetryLoggingThreshold))
                     {
                         error = $"Unable to delete {idxPath}";
@@ -246,14 +251,21 @@ namespace GVFS.Common.Maintenance
                         return false;
                     }
                 }
+
+                this.Context.Repository.OpenRepo();
             }
 
             error = null;
             return true;
         }
 
-        private bool TrySchedulePostFetchJob(List<string> packIndexes)
+        private void SchedulePostFetchJob(List<string> packIndexes)
         {
+            if (packIndexes.Count == 0)
+            {
+                return;
+            }
+
             // We make a best-effort request to run MIDX and commit-graph writes
             using (NamedPipeClient pipeClient = new NamedPipeClient(this.Context.Enlistment.NamedPipeName))
             {
@@ -263,7 +275,7 @@ namespace GVFS.Common.Maintenance
                         metadata: this.CreateEventMetadata(),
                         message: "Failed to connect to GVFS.Mount process. Skipping post-fetch job request.",
                         keywords: Keywords.Telemetry);
-                    return false;
+                    return;
                 }
 
                 NamedPipeMessages.RunPostFetchJob.Request request = new NamedPipeMessages.RunPostFetchJob.Request(packIndexes);
@@ -274,7 +286,6 @@ namespace GVFS.Common.Maintenance
                     if (pipeClient.TryReadResponse(out response))
                     {
                         this.Context.Tracer.RelatedInfo("Requested post-fetch job with resonse '{0}'", response.Header);
-                        return true;
                     }
                     else
                     {
@@ -292,8 +303,6 @@ namespace GVFS.Common.Maintenance
                         keywords: Keywords.Telemetry);
                 }
             }
-
-            return false;
         }
 
         /// <summary>

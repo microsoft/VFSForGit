@@ -9,10 +9,14 @@
 #include <libkern/OSAtomic.h>
 #include <sys/kauth.h>
 #include "ProviderMessagingMock.hpp"
+#include <functional>
+
+using std::function;
+using std::move;
 
 bool static s_defaultRequestResult = true;
 bool static s_secondRequestResult = true;
-bool static s_cleanupRootsAfterRequest = false;
+static function<void()> s_trySendRequestSideEffect;
 int static s_requestCount = 0;
 
 bool ProviderMessaging_Init()
@@ -30,9 +34,9 @@ void ProviderMessageMock_SetDefaultRequestResult(bool success)
     s_defaultRequestResult = success;
 }
 
-void ProviderMessageMock_SetCleanupRootsAfterRequest(bool cleanupRoots)
+void ProviderMessageMock_SetRequestSideEffect(function<void()> sideEffectFunction)
 {
-    s_cleanupRootsAfterRequest = cleanupRoots;
+    s_trySendRequestSideEffect = move(sideEffectFunction);
 }
 
 void ProviderMessageMock_SetSecondRequestResult(bool secondRequestResult)
@@ -43,6 +47,7 @@ void ProviderMessageMock_SetSecondRequestResult(bool secondRequestResult)
 void ProvidermessageMock_ResetResultCount()
 {
     s_requestCount = 0;
+    s_trySendRequestSideEffect = nullptr;
 }
 
 void ProviderMessaging_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType)
@@ -78,9 +83,9 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
         kauthResult,
         kauthError);
     
-    if (s_cleanupRootsAfterRequest)
+    if (s_trySendRequestSideEffect)
     {
-        VirtualizationRoots_Cleanup();
+        s_trySendRequestSideEffect();
     }
     
     s_requestCount++;

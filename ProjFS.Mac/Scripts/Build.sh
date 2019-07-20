@@ -59,7 +59,8 @@ while read line; do
 	 # PrjFSKext exclusions
 	 [[ $line != *"AllArrayElementsInitialized"* ]] &&              #Function is used for compile time checks only
 	 [[ $line != *"KauthHandler_Init"* ]] && 
-	 [[ $line != *"KauthHandler_Cleanup"* ]] && 
+	 [[ $line != *"KauthHandler_Cleanup"* ]] &&
+	 [[ $line != *"InitPendingRenames"* ]] &&
 	 [[ $line != *"HandleFileOpOperation"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"TryGetVirtualizationRoot"* ]] &&                  #SHOULD ADD COVERAGE
 	 [[ $line != *"WaitForListenerCompletion"* ]] && 
@@ -90,6 +91,11 @@ while read line; do
 	 [[ $line != *"RetainIOCount"* ]] && 
 	 [[ $line != *"ProviderMessaging_"* ]] && 
 	 [[ $line != *"RWLock_DropExclusiveToShared"* ]] && 
+      # Not going down the "unexpected" code path in isKextAssertionFailureExpected, Assert & panic is good!
+	 [[ $line != *"PFSKextTestCase isKextAssertionFailureExpected"* ]] &&
+	 [[ $line != *"Assert"* ]] &&
+	 [[ $line != *"panic"* ]] &&
+
 	 # PrjFSLib exclusions
 	 [[ $line != *"PrjFS_"* ]] &&                                     #SHOULD ADD COVERAGE
 	 [[ $line != *"FsidInodeCompare"* ]] &&                           #SHOULD ADD COVERAGE
@@ -127,6 +133,7 @@ while read line; do
 	 [[ $line != *".xctest"* ]] && 
 	 [[ $line != *".cpp"* ]] && 
 	 [[ $line != *".a"* ]] && 
+	 [[ $line != *".m"* ]] &&
 	 [[ $line != *".hpp"* ]]; then
        echo "Error: not at 100% Code Coverage $line"
        exit 1

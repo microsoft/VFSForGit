@@ -125,7 +125,7 @@ namespace GVFS.Common.Prefetch.Git
                     GitProcess.Result result = this.git.DiffTree(
                         sourceTreeSha,
                         targetTreeSha,
-                        line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.WorkingDirectoryBackingRoot, line));
+                        line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, line));
 
                     if (result.ExitCodeIsFailure)
                     {
@@ -143,11 +143,12 @@ namespace GVFS.Common.Prefetch.Git
                 metadata.Add("DirectoryOperationsCount", this.TotalDirectoryOperations);
                 metadata.Add("FileDeleteOperationsCount", this.TotalFileDeletes);
                 metadata.Add("RequiredBlobsCount", this.RequiredBlobs.Count);
+                metadata.Add("FileAddOperationsCount", this.FileAddOperations.Sum(kvp => kvp.Value.Count));
                 activity.Stop(metadata);
             }
         }
 
-        public void ParseDiffFile(string filename, string repoRoot)
+        public void ParseDiffFile(string filename)
         {
             using (ITracer activity = this.tracer.StartActivity("PerformDiff", EventLevel.Informational))
             {
@@ -155,7 +156,7 @@ namespace GVFS.Common.Prefetch.Git
                 {
                     while (!file.EndOfStream)
                     {
-                        this.EnqueueOperationsFromDiffTreeLine(activity, repoRoot, file.ReadLine());
+                        this.EnqueueOperationsFromDiffTreeLine(activity, file.ReadLine());
                     }
                 }
 
@@ -170,7 +171,6 @@ namespace GVFS.Common.Prefetch.Git
             {
                 // Don't enqueue deletes that will be handled by recursively deleting their parent.
                 // Git traverses diffs in pre-order, so we are guaranteed to ignore child deletes here.
-                // Append trailing slash terminator to avoid matches with directory prefixes (Eg. \GVFS and \GVFS.Common)
                 if (result.Operation == DiffTreeResult.Operations.Delete)
                 {
                     if (deletedPaths.Any(path => result.TargetPath.StartsWith(path, StringComparison.OrdinalIgnoreCase)))
@@ -186,13 +186,12 @@ namespace GVFS.Common.Prefetch.Git
 
             foreach (string filePath in this.stagedFileDeletes)
             {
-                string pathWithSlash = filePath;
-                if (deletedPaths.Any(path => pathWithSlash.StartsWith(path, StringComparison.OrdinalIgnoreCase)))
+                if (deletedPaths.Any(path => filePath.StartsWith(path, StringComparison.OrdinalIgnoreCase)))
                 {
                     continue;
                 }
 
-                deletedPaths.Add(pathWithSlash);
+                deletedPaths.Add(filePath);
 
                 this.FileDeleteOperations.Enqueue(filePath);
             }
@@ -202,7 +201,7 @@ namespace GVFS.Common.Prefetch.Git
 
         private void EnqueueOperationsFromLsTreeLine(ITracer activity, string line)
         {
-            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(line, this.enlistment.WorkingDirectoryBackingRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(line);
             if (result == null)
             {
                 this.tracer.RelatedError("Unrecognized ls-tree line: {0}", line);
@@ -233,7 +232,7 @@ namespace GVFS.Common.Prefetch.Git
             }
         }
 
-        private void EnqueueOperationsFromDiffTreeLine(ITracer activity, string repoRoot, string line)
+        private void EnqueueOperationsFromDiffTreeLine(ITracer activity, string line)
         {
             if (!line.StartsWith(":"))
             {
@@ -242,7 +241,7 @@ namespace GVFS.Common.Prefetch.Git
                 return;
             }
 
-            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(line, repoRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(line);
             if (!this.ShouldIncludeResult(result))
             {
                 return;

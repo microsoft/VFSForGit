@@ -44,6 +44,7 @@
 		264E723422930E1E0059E150 /* JsonWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26786AE6228B816E00F53311 /* JsonWriter.cpp */; };
 		264E723E22930E660059E150 /* libPrjFSLib.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8D521E430CF0008103C /* libPrjFSLib.dylib */; };
 		264E7245229318170059E150 /* JsonWriterTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 264E723122930AA30059E150 /* JsonWriterTests.mm */; };
+		264F8B642298455900B6EF84 /* ShouldHandleFileOpTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 264F8B632298455900B6EF84 /* ShouldHandleFileOpTests.mm */; };
 		265504D0224ADE11005FAD74 /* MockPerfTracing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */; };
 		43057C5E21E439C700487681 /* prjfs-log.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 43057C5B21E439C700487681 /* prjfs-log.cpp */; };
 		43057C5F21E439C700487681 /* kext-perf-tracing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 43057C5C21E439C700487681 /* kext-perf-tracing.cpp */; };
@@ -84,6 +85,7 @@
 		4A08257721E77C4B00E21AFD /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DC21E430EB0008103C /* IOKit.framework */; };
 		4A08257821E77C5400E21AFD /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8E421E435230008103C /* PrjFSUser.cpp */; };
 		4A08257921E77C7000E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */; };
+		4A2A69A02297339A00ACAAAF /* KextAssertIntegration.m in Sources */ = {isa = PBXBuildFile; fileRef = 4A2A699F2297339A00ACAAAF /* KextAssertIntegration.m */; };
 		4A558DBA22357AB000AFDE07 /* ProviderMessaging.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */; };
 		4A558DBC22357AB000AFDE07 /* ProviderMessaging.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */; };
 		4A558DBD22357AB000AFDE07 /* ProviderMessaging.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */; };
@@ -235,6 +237,7 @@
 		264E723122930AA30059E150 /* JsonWriterTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = JsonWriterTests.mm; sourceTree = "<group>"; };
 		264E723922930E660059E150 /* PrjFSLibTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PrjFSLibTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		264E723D22930E660059E150 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		264F8B632298455900B6EF84 /* ShouldHandleFileOpTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ShouldHandleFileOpTests.mm; sourceTree = "<group>"; };
 		265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MockPerfTracing.cpp; sourceTree = "<group>"; };
 		26786AE5228B815E00F53311 /* JsonWriter.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = JsonWriter.hpp; sourceTree = "<group>"; };
 		26786AE6228B816E00F53311 /* JsonWriter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = JsonWriter.cpp; sourceTree = "<group>"; };
@@ -280,6 +283,10 @@
 		4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist; sourceTree = "<group>"; };
 		4A08257121E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSKextLogDaemon.cpp; sourceTree = "<group>"; };
 		4A08257221E77BDD00E21AFD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4A2A699B2295AA7800ACAAAF /* ArrayUtilities.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ArrayUtilities.hpp; sourceTree = "<group>"; };
+		4A2A699D2296BACE00ACAAAF /* KauthHandlerPrivate.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KauthHandlerPrivate.hpp; sourceTree = "<group>"; };
+		4A2A699F2297339A00ACAAAF /* KextAssertIntegration.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KextAssertIntegration.m; sourceTree = "<group>"; };
+		4A2A69A12297375A00ACAAAF /* KextAssertIntegration.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KextAssertIntegration.h; sourceTree = "<group>"; };
 		4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProviderMessaging.cpp; sourceTree = "<group>"; };
 		4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ProviderMessaging.hpp; sourceTree = "<group>"; };
 		4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = VirtualizationRootsTests.mm; sourceTree = "<group>"; };
@@ -434,9 +441,11 @@
 		4391F88D21E42AA70008103C /* PrjFSKext */ = {
 			isa = PBXGroup;
 			children = (
+				4A2A699B2295AA7800ACAAAF /* ArrayUtilities.hpp */,
 				4391F88F21E42AC40008103C /* Info.plist */,
 				4391F89321E42AC40008103C /* KauthHandler.cpp */,
 				4391F8A421E42AC50008103C /* KauthHandler.hpp */,
+				4A2A699D2296BACE00ACAAAF /* KauthHandlerPrivate.hpp */,
 				F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */,
 				4391F89021E42AC40008103C /* kernel-header-wrappers */,
 				4391F89121E42AC40008103C /* KextLog.cpp */,
@@ -516,24 +525,27 @@
 				F5E39C7B21F1118D006D65C2 /* Info.plist */,
 				F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */,
 				4A781DAF2223391A00DB7733 /* KextLogMock.cpp */,
+				4A2A69A12297375A00ACAAAF /* KextAssertIntegration.h */,
+				4A2A699F2297339A00ACAAAF /* KextAssertIntegration.m */,
 				F557623E22009F0E005DE35E /* KextLogMock.h */,
 				4A781DAA222330F700DB7733 /* KextMockUtilities.cpp */,
 				4A781DA92223305C00DB7733 /* KextMockUtilities.hpp */,
 				D9C087F122384670009C1110 /* MemoryTests.mm */,
 				4A82C45B228086F800276002 /* MessageTests.mm */,
 				265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */,
+				F5554F412239883B00B31D19 /* MockProc.cpp */,
+				F5554F402239881800B31D19 /* MockProc.hpp */,
 				4A781DAC2223374200DB7733 /* MockVnodeAndMount.cpp */,
 				4A781DAD2223374200DB7733 /* MockVnodeAndMount.hpp */,
+				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
+				F554202C224BB6E5008BAE95 /* ProviderMessagingMock.cpp */,
+				F5151F7F226F9083004B92C9 /* ProviderMessagingMock.hpp */,
+				264F8B632298455900B6EF84 /* ShouldHandleFileOpTests.mm */,
 				4A781DB122233A1E00DB7733 /* TestLocks.cpp */,
 				4A781DB322233A4500DB7733 /* TestMemory.cpp */,
 				263DD5AD225D44C2005FEE9C /* VnodeCacheEntriesWrapper.hpp */,
 				264758CD21FA71140095B9F8 /* VnodeCacheTests.mm */,
 				4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */,
-				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
-				F5554F402239881800B31D19 /* MockProc.hpp */,
-				F5554F412239883B00B31D19 /* MockProc.cpp */,
-				F554202C224BB6E5008BAE95 /* ProviderMessagingMock.cpp */,
-				F5151F7F226F9083004B92C9 /* ProviderMessagingMock.hpp */,
 			);
 			path = PrjFSKextTests;
 			sourceTree = "<group>";
@@ -910,9 +922,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				4A781DAB222330F700DB7733 /* KextMockUtilities.cpp in Sources */,
+				264F8B642298455900B6EF84 /* ShouldHandleFileOpTests.mm in Sources */,
 				4A82C45C228086F800276002 /* MessageTests.mm in Sources */,
 				265504D0224ADE11005FAD74 /* MockPerfTracing.cpp in Sources */,
 				4A781DA52220946000DB7733 /* VirtualizationRootsTests.mm in Sources */,
+				4A2A69A02297339A00ACAAAF /* KextAssertIntegration.m in Sources */,
 				4A781DAE2223374200DB7733 /* MockVnodeAndMount.cpp in Sources */,
 				4AAE3FCA22832340002673FA /* HandleFileOpOperationTests.mm in Sources */,
 				F5554F422239883B00B31D19 /* MockProc.cpp in Sources */,
@@ -1493,6 +1507,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					TESTABLE_KEXT_TARGET,
 					KEXT_UNIT_TESTING,
+					"MACH_ASSERT=1",
 					"$(inherited)",
 				);
 				LINK_WITH_STANDARD_LIBRARIES = NO;
@@ -1515,6 +1530,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					TESTABLE_KEXT_TARGET,
 					KEXT_UNIT_TESTING,
+					"MACH_ASSERT=1",
 					"$(inherited)",
 				);
 				LINK_WITH_STANDARD_LIBRARIES = NO;
@@ -1537,6 +1553,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					TESTABLE_KEXT_TARGET,
 					KEXT_UNIT_TESTING,
+					"MACH_ASSERT=1",
 					"$(inherited)",
 				);
 				LINK_WITH_STANDARD_LIBRARIES = NO;

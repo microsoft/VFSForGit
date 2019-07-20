@@ -44,12 +44,20 @@ namespace GVFS.Common.Git
             Unknown,
         }
 
-        public bool HasActiveLibGit2Repo => this.libgit2RepoInvoker?.IsActive == true;
-
         public GVFSLock GVFSLock
         {
             get;
             private set;
+        }
+
+        public void CloseActiveRepo()
+        {
+            this.libgit2RepoInvoker?.DisposeSharedRepo();
+        }
+
+        public void OpenRepo()
+        {
+            this.libgit2RepoInvoker?.InitializeSharedRepo();
         }
 
         public bool TryGetIsBlob(string sha, out bool isBlob)

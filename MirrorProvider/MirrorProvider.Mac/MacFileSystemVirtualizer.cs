@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace MirrorProvider.Mac
 {
@@ -204,9 +205,9 @@ namespace MirrorProvider.Mac
             Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}) destination: {relativeDestinationPath}");
         }
 
-        private void OnHardLinkCreated(string relativeNewLinkPath)
+        private void OnHardLinkCreated(string existingRelativePath, string relativeNewLinkPath)
         {
-            Console.WriteLine($"OnHardLinkCreated: {relativeNewLinkPath}");
+            Console.WriteLine($"OnHardLinkCreated {relativeNewLinkPath} from {existingRelativePath}");
         }
 
         private Result OnFilePreConvertToFull(string relativePath)

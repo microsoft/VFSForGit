@@ -7,43 +7,37 @@ using System.Diagnostics;
 
 namespace GVFS.Service.Handlers
 {
-    public class NotificationHandler
+    public class NotificationHandler : INotificationHandler
     {
-        // NotificationHandler uses a singleton so in the future, we can create callback actions
-        // from responses sent by GVFS.Service.UI when a user clicks on a notification.
-        private static NotificationHandler instance = new NotificationHandler();
+        private ITracer tracer;
 
-        private NotificationHandler()
+        public NotificationHandler(ITracer tracer)
         {
+            this.tracer = tracer;
         }
 
-        public static NotificationHandler Instance
-        {
-            get { return instance; }
-        }
-
-        public void SendNotification(ITracer tracer, int sessionId, NamedPipeMessages.Notification.Request request)
+        public void SendNotification(int sessionId, NamedPipeMessages.Notification.Request request)
         {
             NamedPipeClient client;
-            if (!this.TryOpenConnectionToUIProcess(tracer, out client))
+            if (!this.TryOpenConnectionToUIProcess(out client))
             {
-                this.TerminateExistingProcess(tracer, GVFSConstants.Service.UIName);
+                this.TerminateExistingProcess(GVFSConstants.Service.UIName);
 
-                CurrentUser currentUser = new CurrentUser(tracer, sessionId);
+                CurrentUser currentUser = new CurrentUser(this.tracer, sessionId);
                 if (!currentUser.RunAs(
                     Configuration.Instance.GVFSServiceUILocation,
                     string.Empty))
                 {
-                    tracer.RelatedError("Could not start " + GVFSConstants.Service.UIName);
+                    this.tracer.RelatedError("Could not start " + GVFSConstants.Service.UIName);
                     return;
                 }
 
-                this.TryOpenConnectionToUIProcess(tracer, out client);
+                this.TryOpenConnectionToUIProcess(out client);
             }
 
             if (client == null)
             {
-                tracer.RelatedError("Failed to connect to " + GVFSConstants.Service.UIName);
+                this.tracer.RelatedError("Failed to connect to " + GVFSConstants.Service.UIName);
                 return;
             }
 
@@ -51,7 +45,7 @@ namespace GVFS.Service.Handlers
             {
                 if (!client.TrySendRequest(request.ToMessage()))
                 {
-                    tracer.RelatedInfo("Failed to send notification request to " + GVFSConstants.Service.UIName);
+                    this.tracer.RelatedInfo("Failed to send notification request to " + GVFSConstants.Service.UIName);
                 }
             }
             finally
@@ -60,7 +54,7 @@ namespace GVFS.Service.Handlers
             }
         }
 
-        private bool TryOpenConnectionToUIProcess(ITracer tracer, out NamedPipeClient client)
+        private bool TryOpenConnectionToUIProcess(out NamedPipeClient client)
         {
             client = new NamedPipeClient(GVFSConstants.Service.UIName);
             if (client.Connect())
@@ -73,7 +67,7 @@ namespace GVFS.Service.Handlers
             return false;
         }
 
-        private void TerminateExistingProcess(ITracer tracer, string processName)
+        private void TerminateExistingProcess(string processName)
         {
             try
             {
@@ -84,7 +78,7 @@ namespace GVFS.Service.Handlers
             }
             catch (Exception ex)
             {
-                tracer.RelatedError("Could not find and kill existing instances of {0}: {1}", processName, ex.Message);
+                this.tracer.RelatedError("Could not find and kill existing instances of {0}: {1}", processName, ex.Message);
             }
         }
     }

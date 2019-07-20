@@ -83,7 +83,8 @@ namespace GVFS.UnitTests.Service.Mac
                 this.tracer,
                 this.fileSystem,
                 ServiceDataLocation,
-                repoMounterMock.Object);
+                repoMounterMock.Object,
+                null);
 
             repoRegistry.AutoMountRepos(ExpectedActiveUserId.ToString(), ExpectedSessionId);
 
@@ -106,6 +107,7 @@ namespace GVFS.UnitTests.Service.Mac
 
             string errorString = null;
             mountLauncherMock.Setup(mp => mp.WaitUntilMounted(
+                this.tracer,
                 ExpectedActiveRepoPath,
                 It.IsAny<bool>(),
                 out errorString))

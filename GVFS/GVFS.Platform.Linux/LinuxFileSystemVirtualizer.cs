@@ -697,7 +697,7 @@ namespace GVFS.Platform.Linux
                 {
                     if (fileInfo.IsFolder)
                     {
-                        this.FileSystemCallbacks.OnPlaceholderFolderCreated(childRelativePath);
+                        this.FileSystemCallbacks.OnPlaceholderFolderCreated(childRelativePath, triggeringProcessName);
                     }
                     else
                     {

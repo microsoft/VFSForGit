@@ -22,8 +22,8 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
             try
             {
                 string error;
-                PlaceholderListDatabase placeholders;
-                if (!PlaceholderListDatabase.TryCreate(
+                LegacyPlaceholderListDatabase placeholders;
+                if (!LegacyPlaceholderListDatabase.TryCreate(
                     tracer,
                     Path.Combine(dotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList),
                     new PhysicalFileSystem(),
@@ -43,7 +43,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     {
                         if (entry.Sha == GVFSConstants.AllZeroSha)
                         {
-                            newPlaceholderEntries.Add(new PlaceholderListDatabase.PlaceholderData(entry.Path, PlaceholderListDatabase.PartialFolderValue));
+                            newPlaceholderEntries.Add(new LegacyPlaceholderListDatabase.PlaceholderData(entry.Path, LegacyPlaceholderListDatabase.PartialFolderValue));
                         }
                         else
                         {

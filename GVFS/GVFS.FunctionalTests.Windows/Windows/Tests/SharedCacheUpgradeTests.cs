@@ -79,17 +79,17 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
 
             majorVersion
                 .ShouldBeAnInt("Disk layout version should always be an int")
-                .ShouldEqual(DiskLayoutUpgradeTests.CurrentDiskLayoutMajorVersion, "Disk layout version should be upgraded to the latest");
+                .ShouldEqual(WindowsDiskLayoutUpgradeTests.CurrentDiskLayoutMajorVersion, "Disk layout version should be upgraded to the latest");
 
             minorVersion
                 .ShouldBeAnInt("Disk layout version should always be an int")
-                .ShouldEqual(DiskLayoutUpgradeTests.CurrentDiskLayoutMinorVersion, "Disk layout version should be upgraded to the latest");
+                .ShouldEqual(WindowsDiskLayoutUpgradeTests.CurrentDiskLayoutMinorVersion, "Disk layout version should be upgraded to the latest");
 
-            string newBlobSizesRoot = Path.Combine(Path.GetDirectoryName(gitObjectsRoot), DiskLayoutUpgradeTests.BlobSizesCacheName);
+            string newBlobSizesRoot = Path.Combine(Path.GetDirectoryName(gitObjectsRoot), WindowsDiskLayoutUpgradeTests.BlobSizesCacheName);
             GVFSHelpers.GetPersistedBlobSizesRoot(enlistment.DotGVFSRoot)
                 .ShouldEqual(newBlobSizesRoot);
 
-            string blobSizesDbPath = Path.Combine(newBlobSizesRoot, DiskLayoutUpgradeTests.BlobSizesDBFileName);
+            string blobSizesDbPath = Path.Combine(newBlobSizesRoot, WindowsDiskLayoutUpgradeTests.BlobSizesDBFileName);
             newBlobSizesRoot.ShouldBeADirectory(this.fileSystem);
             blobSizesDbPath.ShouldBeAFile(this.fileSystem);
 

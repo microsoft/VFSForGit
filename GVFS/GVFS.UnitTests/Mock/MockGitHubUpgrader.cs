@@ -95,16 +95,16 @@ namespace GVFS.UnitTests.Mock.Upgrader
             this.FakeUpgradeRelease = release;
         }
 
-        public override bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
+        public override bool TrySetupUpgradeApplicationDirectory(out string upgradeApplicationPath, out string error)
         {
             if (this.failActionTypes.HasFlag(ActionType.CopyTools))
             {
-                upgraderToolPath = null;
+                upgradeApplicationPath = null;
                 error = "Unable to copy upgrader tools";
                 return false;
             }
 
-            upgraderToolPath = @"mock:\ProgramData\GVFS\GVFS.Upgrade\Tools\GVFS.Upgrader.exe";
+            upgradeApplicationPath = @"mock:\ProgramData\GVFS\GVFS.Upgrade\Tools\GVFS.Upgrader.exe";
             error = null;
             return true;
         }

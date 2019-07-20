@@ -139,20 +139,22 @@ namespace GVFS.Service
                                 return;
                             }
                         }
+                        else
+                        {
+                            errorMessage = string.Format(
+                                "{0}.{1}: Configured Product Upgrader does not support anonymous version queries.",
+                                nameof(ProductUpgradeTimer),
+                                nameof(this.TimerCallback),
+                                errorMessage);
 
-                        errorMessage = string.Format(
-                            "{0}.{1}: Configured Product Upgrader does not support anonymous version queries.",
-                            nameof(ProductUpgradeTimer),
-                            nameof(this.TimerCallback),
-                            errorMessage);
+                            activity.RelatedWarning(
+                                metadata: new EventMetadata(),
+                                message: errorMessage,
+                                keywords: Keywords.Telemetry);
 
-                        activity.RelatedWarning(
-                            metadata: new EventMetadata(),
-                            message: errorMessage,
-                            keywords: Keywords.Telemetry);
-
-                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
-                        return;
+                            info.RecordHighestAvailableVersion(highestAvailableVersion: null);
+                            return;
+                        }
                     }
 
                     InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);

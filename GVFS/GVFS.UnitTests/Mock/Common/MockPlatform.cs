@@ -30,6 +30,8 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string Name { get => "Mock"; }
 
+        public override string GVFSConfigPath { get => Path.Combine("mock:", LocalGVFSConfig.FileName); }
+
         public override GVFSPlatformConstants Constants { get; } = new MockPlatformConstants();
 
         public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
@@ -102,6 +104,21 @@ namespace GVFS.UnitTests.Mock.Common
             return new Dictionary<string, string>();
         }
 
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return this.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
+        }
+
+        public override string GetUpgradeLogDirectoryParentDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
         public override void InitializeEnlistmentACLs(string enlistmentPath)
         {
             throw new NotSupportedException();
@@ -137,7 +154,12 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotImplementedException();
         }
 
-        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
+        public override void StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void PrepareProcessToRunInBackground()
         {
             throw new NotSupportedException();
         }
@@ -150,6 +172,13 @@ namespace GVFS.UnitTests.Mock.Common
         public override FileBasedLock CreateFileBasedLock(PhysicalFileSystem fileSystem, ITracer tracer, string lockPath)
         {
             return new MockFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public override ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer)
+        {
+            return new MockProductUpgraderPlatformStrategy(fileSystem, tracer);
         }
 
         public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
@@ -195,6 +224,20 @@ namespace GVFS.UnitTests.Mock.Common
             {
                 get { return "MockGVFS" + this.ExecutableExtension; }
             }
+
+            public override string ProgramLocaterCommand
+            {
+                get { return "MockWhere"; }
+            }
+
+            public override HashSet<string> UpgradeBlockingProcesses
+            {
+                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "wish", "bash" }; }
+            }
+
+            public override bool SupportsUpgradeWhileRunning => false;
+
+            public override int MaxPipePathLength => 250;
 
             public override bool CaseSensitiveFileSystem => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         }

@@ -26,43 +26,38 @@ namespace GVFS.Common
 
         protected bool noVerify;
         protected bool dryRun;
+        protected ProductUpgraderPlatformStrategy productUpgraderPlatformStrategy;
 
-        private const string ToolsDirectory = "Tools";
-        private static readonly string UpgraderToolName = GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName;
-        private static readonly string UpgraderToolConfigFile = UpgraderToolName + ".config";
-        private static readonly string[] UpgraderToolAndLibs =
-            {
-                UpgraderToolName,
-                UpgraderToolConfigFile,
-                "GVFS.Common.dll",
-                "GVFS.Platform.Windows.dll",
-                "netstandard.dll",
-                "System.Net.Http.dll",
-                "Newtonsoft.Json.dll",
-                "CommandLine.dll",
-                "NuGet.Commands.dll",
-                "NuGet.Common.dll",
-                "NuGet.Configuration.dll",
-                "NuGet.Frameworks.dll",
-                "NuGet.Packaging.Core.dll",
-                "NuGet.Packaging.dll",
-                "NuGet.Protocol.dll",
-                "NuGet.Versioning.dll",
-                "System.IO.Compression.dll"
-            };
-
-        public ProductUpgrader(
+        protected ProductUpgrader(
             string currentVersion,
             ITracer tracer,
             bool dryRun,
             bool noVerify,
             PhysicalFileSystem fileSystem)
+            : this(
+                  currentVersion,
+                  tracer,
+                  dryRun,
+                  noVerify,
+                  fileSystem,
+                  GVFSPlatform.Instance.CreateProductUpgraderPlatformInteractions(fileSystem, tracer))
+        {
+        }
+
+        protected ProductUpgrader(
+            string currentVersion,
+            ITracer tracer,
+            bool dryRun,
+            bool noVerify,
+            PhysicalFileSystem fileSystem,
+            ProductUpgraderPlatformStrategy productUpgraderPlatformStrategy)
         {
             this.installedVersion = new Version(currentVersion);
             this.dryRun = dryRun;
             this.noVerify = noVerify;
             this.tracer = tracer;
             this.fileSystem = fileSystem;
+            this.productUpgraderPlatformStrategy = productUpgraderPlatformStrategy;
         }
 
         /// <summary>
@@ -170,67 +165,47 @@ namespace GVFS.Common
 
         public abstract bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error);
 
-        public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
+        public virtual bool TrySetupUpgradeApplicationDirectory(out string upgradeApplicationPath, out string error)
         {
-            string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
+            string upgradeApplicationDirectory = ProductUpgraderInfo.GetUpgradeApplicationDirectory();
 
-            Exception deleteDirectoryException;
-            if (this.fileSystem.DirectoryExists(toolsDirectoryPath) &&
-                !this.fileSystem.TryDeleteDirectory(toolsDirectoryPath, out deleteDirectoryException))
+            if (!this.productUpgraderPlatformStrategy.TryPrepareApplicationDirectory(out error))
             {
-                upgraderToolPath = null;
-                error = $"Failed to delete {toolsDirectoryPath} - {deleteDirectoryException.Message}";
-                this.TraceException(deleteDirectoryException, nameof(this.TrySetupToolsDirectory), $"Error deleting {toolsDirectoryPath}.");
-                return false;
-            }
-
-            if (!this.fileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissions(
-                    this.tracer,
-                    toolsDirectoryPath,
-                    out error))
-            {
-                upgraderToolPath = null;
+                upgradeApplicationPath = null;
                 return false;
             }
 
             string currentPath = ProcessHelper.GetCurrentProcessLocation();
             error = null;
-            foreach (string name in UpgraderToolAndLibs)
+            try
             {
-                string toolPath = Path.Combine(currentPath, name);
-                string destinationPath = Path.Combine(toolsDirectoryPath, name);
-                try
-                {
-                    this.fileSystem.CopyFile(toolPath, destinationPath, overwrite: true);
-                }
-                catch (UnauthorizedAccessException e)
-                {
-                    error = string.Join(
-                        Environment.NewLine,
-                        "File copy error - " + e.Message,
-                        $"Make sure you have write permissions to directory {toolsDirectoryPath} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
-                    this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
-                    break;
-                }
-                catch (IOException e)
-                {
-                    error = "File copy error - " + e.Message;
-                    this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
-                    break;
-                }
+                this.fileSystem.CopyDirectoryRecursive(currentPath, upgradeApplicationDirectory);
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                error = string.Join(
+                    Environment.NewLine,
+                    "File copy error - " + e.Message,
+                    $"Make sure you have write permissions to directory {upgradeApplicationDirectory} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
+            }
+            catch (IOException e)
+            {
+                error = "File copy error - " + e.Message;
+                this.TraceException(e, nameof(this.TrySetupUpgradeApplicationDirectory), $"Error copying {currentPath} to {upgradeApplicationDirectory}.");
             }
 
             if (string.IsNullOrEmpty(error))
             {
                 // There was no error - set upgradeToolPath and return success.
-                upgraderToolPath = Path.Combine(toolsDirectoryPath, UpgraderToolName);
+                upgradeApplicationPath = Path.Combine(
+                    upgradeApplicationDirectory,
+                    GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName);
                 return true;
             }
             else
             {
                 // Encountered error - do not set upgrade tool path and return failure.
-                upgraderToolPath = null;
+                upgradeApplicationPath = null;
                 return false;
             }
         }
@@ -256,10 +231,7 @@ namespace GVFS.Common
 
         protected virtual bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
         {
-            return this.fileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissions(
-                tracer,
-                ProductUpgraderInfo.GetAssetDownloadsPath(),
-                out error);
+            return this.productUpgraderPlatformStrategy.TryPrepareDownloadDirectory(out error);
         }
 
         protected virtual void RunInstaller(string path, string args, out int exitCode, out string error)

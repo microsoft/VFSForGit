@@ -452,7 +452,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(15)]
-        [Category(Categories.MacTODO.FailsOnBuildAgent)]
         public void FilterNonUTF8FileName()
         {
             string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";

@@ -20,38 +20,44 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
     [TestFixture]
     public class NuGetUpgraderTests
     {
-        private const string OlderVersion = "1.0.1185.0";
-        private const string CurrentVersion = "1.5.1185.0";
-        private const string NewerVersion = "1.6.1185.0";
-        private const string NewerVersion2 = "1.7.1185.0";
+        protected const string OlderVersion = "1.0.1185.0";
+        protected const string CurrentVersion = "1.5.1185.0";
+        protected const string NewerVersion = "1.6.1185.0";
+        protected const string NewerVersion2 = "1.7.1185.0";
 
-        private const string NuGetFeedUrl = "https://pkgs.dev.azure.com/contoso/packages";
-        private const string NuGetFeedName = "feedNameValue";
+        protected const string NuGetFeedUrl = "https://pkgs.dev.azure.com/contoso/packages";
+        protected const string NuGetFeedName = "feedNameValue";
 
-        private static Exception httpRequestAuthException = new System.Net.Http.HttpRequestException("Response status code does not indicate success: 401 (Unauthorized).");
-        private static Exception fatalProtocolAuthException = new FatalProtocolException("Unable to load the service index for source.", httpRequestAuthException);
+        protected static Exception httpRequestAuthException = new System.Net.Http.HttpRequestException("Response status code does not indicate success: 401 (Unauthorized).");
+        protected static Exception fatalProtocolAuthException = new FatalProtocolException("Unable to load the service index for source.", httpRequestAuthException);
 
-        private static Exception[] networkAuthFailures =
+        protected static Exception[] networkAuthFailures =
         {
             httpRequestAuthException,
             fatalProtocolAuthException
         };
 
-        private NuGetUpgrader upgrader;
-        private MockTracer tracer;
+        protected NuGetUpgrader upgrader;
+        protected MockTracer tracer;
 
-        private NuGetUpgrader.NuGetUpgraderConfig upgraderConfig;
+        protected NuGetUpgrader.NuGetUpgraderConfig upgraderConfig;
 
-        private Mock<NuGetFeed> mockNuGetFeed;
-        private MockFileSystem mockFileSystem;
-        private Mock<ICredentialStore> mockCredentialManager;
+        protected Mock<NuGetFeed> mockNuGetFeed;
+        protected MockFileSystem mockFileSystem;
+        protected Mock<ICredentialStore> mockCredentialManager;
+        protected ProductUpgraderPlatformStrategy productUpgraderPlatformStrategy;
 
-        private string downloadDirectoryPath = Path.Combine(
+        protected string downloadDirectoryPath = Path.Combine(
             $"mock:{Path.DirectorySeparatorChar}",
             ProductUpgraderInfo.UpgradeDirectoryName,
             ProductUpgraderInfo.DownloadDirectory);
 
-        private delegate void DownloadPackageAsyncCallback(PackageIdentity packageIdentity);
+        protected delegate void DownloadPackageAsyncCallback(PackageIdentity packageIdentity);
+
+        public virtual ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformStrategy()
+        {
+            return new MockProductUpgraderPlatformStrategy(this.mockFileSystem, this.tracer);
+        }
 
         [SetUp]
         public void SetUp()
@@ -65,6 +71,7 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 NuGetFeedName,
                 this.downloadDirectoryPath,
                 null,
+                GVFSPlatform.Instance.UnderConstruction.SupportsNuGetEncryption,
                 this.tracer);
             this.mockNuGetFeed.Setup(feed => feed.SetCredentials(It.IsAny<string>()));
 
@@ -79,6 +86,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
             string emptyString = string.Empty;
             this.mockCredentialManager.Setup(foo => foo.TryGetCredential(It.IsAny<ITracer>(), It.IsAny<string>(), out credentialManagerString, out credentialManagerString, out credentialManagerString)).Returns(true);
 
+            this.productUpgraderPlatformStrategy = this.CreateProductUpgraderPlatformStrategy();
+
             this.upgrader = new NuGetUpgrader(
                 CurrentVersion,
                 this.tracer,
@@ -87,7 +96,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 this.mockFileSystem,
                 this.upgraderConfig,
                 this.mockNuGetFeed.Object,
-                this.mockCredentialManager.Object);
+                this.mockCredentialManager.Object,
+                this.productUpgraderPlatformStrategy);
         }
 
         [TearDown]
@@ -215,34 +225,6 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         }
 
         [TestCase]
-        public void CanDownloadNewestVersionFailsIfDownloadDirectoryCreationFails()
-        {
-            Version actualNewestVersion;
-            string message;
-            List<IPackageSearchMetadata> availablePackages = new List<IPackageSearchMetadata>()
-            {
-                this.GeneratePackageSeachMetadata(new Version(CurrentVersion)),
-                this.GeneratePackageSeachMetadata(new Version(NewerVersion)),
-            };
-
-            string testDownloadPath = Path.Combine(this.downloadDirectoryPath, "testNuget.zip");
-            IPackageSearchMetadata newestAvailableVersion = availablePackages.Last();
-            this.mockNuGetFeed.Setup(foo => foo.QueryFeedAsync(NuGetFeedName)).ReturnsAsync(availablePackages);
-            this.mockNuGetFeed.Setup(foo => foo.DownloadPackageAsync(It.Is<PackageIdentity>(packageIdentity => packageIdentity == newestAvailableVersion.Identity))).ReturnsAsync(testDownloadPath);
-
-            bool success = this.upgrader.TryQueryNewestVersion(out actualNewestVersion, out message);
-
-            // Assert that no new version was returned
-            success.ShouldBeTrue($"Expecting TryQueryNewestVersion to have completed sucessfully. Error: {message}");
-            actualNewestVersion.ShouldEqual(newestAvailableVersion.Identity.Version.Version, "Actual new version does not match expected new version.");
-
-            this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = false;
-            bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
-            this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = true;
-            downloadSuccessful.ShouldBeFalse();
-        }
-
-        [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void DownloadNewestVersion_HandleException()
         {
@@ -302,7 +284,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 this.mockFileSystem,
                 nuGetUpgraderConfig,
                 this.mockNuGetFeed.Object,
-                this.mockCredentialManager.Object);
+                this.mockCredentialManager.Object,
+                this.productUpgraderPlatformStrategy);
 
             nuGetUpgrader.UpgradeAllowed(out _).ShouldBeTrue("NuGetUpgrader config is complete: upgrade should be allowed.");
 
@@ -318,7 +301,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 this.mockFileSystem,
                 nuGetUpgraderConfig,
                 this.mockNuGetFeed.Object,
-                this.mockCredentialManager.Object);
+                this.mockCredentialManager.Object,
+                this.productUpgraderPlatformStrategy);
 
             nuGetUpgrader.UpgradeAllowed(out string _).ShouldBeFalse("Upgrade without FeedURL configured should not be allowed.");
 
@@ -335,7 +319,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 this.mockFileSystem,
                 nuGetUpgraderConfig,
                 this.mockNuGetFeed.Object,
-                this.mockCredentialManager.Object);
+                this.mockCredentialManager.Object,
+                this.productUpgraderPlatformStrategy);
 
             nuGetUpgrader.UpgradeAllowed(out string _).ShouldBeFalse("Upgrade without FeedName configured should not be allowed.");
         }
@@ -379,19 +364,11 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         {
             string logDirectory = "mock:\\test_log_directory";
             string noTokenSourceString = "/arg no_token log_directory installation_id";
-            NuGetUpgrader.ReplaceArgTokens(noTokenSourceString, "unique_id", logDirectory).ShouldEqual(noTokenSourceString, "String with no tokens should not be modifed");
+            NuGetUpgrader.ReplaceArgTokens(noTokenSourceString, "unique_id", logDirectory, "installerBase").ShouldEqual(noTokenSourceString, "String with no tokens should not be modifed");
 
-            string sourceStringWithTokens = "/arg /log {log_directory}_{installation_id}";
-            string expectedProcessedString = "/arg /log " + logDirectory + "_" + "unique_id";
-            NuGetUpgrader.ReplaceArgTokens(sourceStringWithTokens, "unique_id", logDirectory).ShouldEqual(expectedProcessedString, "expected tokens have not been replaced");
-        }
-
-        [TestCase]
-        public void TrySetupToolsDirectoryFailsIfCreateToolsDirectoryFails()
-        {
-            this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = false;
-            this.upgrader.TrySetupToolsDirectory(out string upgraderToolsPath, out string error).ShouldBeFalse();
-            this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = true;
+            string sourceStringWithTokens = "/arg /log {log_directory}_{installation_id}_{installer_base_path}";
+            string expectedProcessedString = "/arg /log " + logDirectory + "_unique_id_installerBase";
+            NuGetUpgrader.ReplaceArgTokens(sourceStringWithTokens, "unique_id", logDirectory, "installerBase").ShouldEqual(expectedProcessedString, "expected tokens have not been replaced");
         }
 
         [TestCase]
@@ -439,7 +416,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 this.mockFileSystem,
                 nuGetUpgraderConfig,
                 this.mockNuGetFeed.Object,
-                this.mockCredentialManager.Object);
+                this.mockCredentialManager.Object,
+                this.productUpgraderPlatformStrategy);
 
             Version actualNewestVersion;
             string message;
@@ -465,7 +443,7 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
             downloadSuccessful.ShouldBeTrue("Should be able to download package with verification issues when noVerify is specified");
         }
 
-        private IPackageSearchMetadata GeneratePackageSeachMetadata(Version version)
+        protected IPackageSearchMetadata GeneratePackageSeachMetadata(Version version)
         {
             Mock<IPackageSearchMetadata> mockPackageSearchMetaData = new Mock<IPackageSearchMetadata>();
             NuGet.Versioning.NuGetVersion nuGetVersion = new NuGet.Versioning.NuGetVersion(version);

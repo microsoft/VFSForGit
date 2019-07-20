@@ -27,8 +27,8 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
             try
             {
                 string error;
-                PlaceholderListDatabase placeholders;
-                if (!PlaceholderListDatabase.TryCreate(
+                LegacyPlaceholderListDatabase placeholders;
+                if (!LegacyPlaceholderListDatabase.TryCreate(
                     tracer,
                     Path.Combine(dotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList),
                     new PhysicalFileSystem(),
@@ -47,7 +47,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     IEnumerable<IPlaceholderData> folderPlaceholderPaths =
                         GetFolderPlaceholdersFromDisk(tracer, new PhysicalFileSystem(), workingDirectoryRoot)
                         .Select(x => x.Substring(workingDirectoryRoot.Length + 1))
-                        .Select(x => new PlaceholderListDatabase.PlaceholderData(x, GVFSConstants.AllZeroSha));
+                        .Select(x => new LegacyPlaceholderListDatabase.PlaceholderData(x, GVFSConstants.AllZeroSha));
 
                     List<IPlaceholderData> placeholderEntries = placeholders.GetAllEntries();
                     placeholderEntries.AddRange(folderPlaceholderPaths);

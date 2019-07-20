@@ -61,6 +61,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Handlers\EnableAndAttachProjFSHandler.cs" />
+    <Compile Include="Handlers\INotificationHandler.cs" />
     <Compile Include="Handlers\MessageHandler.cs" />
     <Compile Include="Handlers\GetActiveRepoListHandler.cs" />
     <Compile Include="Handlers\NotificationHandler.Windows.cs" />

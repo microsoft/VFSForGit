@@ -9,7 +9,7 @@
 #include "../PrjFSKext/ProviderMessaging.hpp"
 #include "../PrjFSKext/public/PrjFSXattrs.h"
 #include "../PrjFSKext/kernel-header-wrappers/kauth.h"
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 #import <sys/stat.h>
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
@@ -21,13 +21,14 @@
 using std::make_tuple;
 using std::shared_ptr;
 using std::vector;
+using std::string;
 using KextMock::_;
 
 class PrjFSProviderUserClient
 {
 };
 
-@interface HandleFileOpOperationTests : XCTestCase
+@interface HandleFileOpOperationTests : PFSKextTestCase
 @end
 
 @implementation HandleFileOpOperationTests
@@ -58,6 +59,8 @@ class PrjFSProviderUserClient
 
 - (void) setUp
 {
+    [super setUp];
+
     kern_return_t initResult = VirtualizationRoots_Init();
     XCTAssertEqual(initResult, KERN_SUCCESS);
     context = vfs_context_create(NULL);
@@ -98,7 +101,6 @@ class PrjFSProviderUserClient
     ProvidermessageMock_ResetResultCount();
     ProviderMessageMock_SetDefaultRequestResult(true);
     ProviderMessageMock_SetSecondRequestResult(true);
-    ProviderMessageMock_SetCleanupRootsAfterRequest(false);
 }
 
 - (void) tearDownProviders
@@ -133,6 +135,8 @@ class PrjFSProviderUserClient
     MockVnodes_CheckAndClear();
     MockCalls::Clear();
     MockProcess_Reset();
+
+    [super tearDown];
 }
 
 - (void) testOpen {
@@ -187,6 +191,32 @@ class PrjFSProviderUserClient
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
         reinterpret_cast<uintptr_t>(filePath),
         KAUTH_FILEOP_CLOSE_MODIFIED,
+        0);
+    
+    XCTAssertTrue(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            MessageType_KtoU_NotifyFileModified,
+            testFileVnode.get(),
+            _,
+            filePath,
+            _,
+            _,
+            _,
+            _));
+}
+
+- (void) testCloseWithModifedWithBitChange {
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_CLOSE,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(filePath),
+        KAUTH_FILEOP_CLOSE_MODIFIED | 1<<2,
         0);
     
     XCTAssertTrue(
@@ -426,6 +456,26 @@ class PrjFSProviderUserClient
         self->otherRepoHandle,
         _,
         _));
+}
+
+- (void)testNoPendingRenameRecordedOnIneligibleFilesystem
+{
+    shared_ptr<mount> testMountNone = mount::Create("msdos", fsid_t{}, 0);
+    const string testMountPath = "/Volumes/USBSTICK";
+    shared_ptr<vnode> testMountRoot = testMountNone->CreateVnodeTree(testMountPath, VDIR);
+    const string filePath = testMountPath + "/file";
+    shared_ptr<vnode> testVnode = testMountNone->CreateVnodeTree(filePath);
+    const string renamedFilePath = filePath + "_renamed";
+
+    HandleFileOpOperation(
+        nullptr, // credential
+        nullptr, /* idata, unused */
+        KAUTH_FILEOP_WILL_RENAME,
+        reinterpret_cast<uintptr_t>(testVnode.get()),
+        reinterpret_cast<uintptr_t>(filePath.c_str()),
+        reinterpret_cast<uintptr_t>(renamedFilePath.c_str()),
+        0); // unused
+    XCTAssertEqual(0, s_pendingRenameCount);
 }
 
 @end

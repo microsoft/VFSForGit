@@ -5,6 +5,7 @@
 #include "../PrjFSKext/PerformanceTracing.hpp"
 #include "../PrjFSKext/VirtualizationRoots.hpp"
 #include "KauthHandler.hpp"
+#include "KauthHandlerPrivate.hpp"
 
 #ifndef __cplusplus
 #error None of the kext code is set up for being called from C or Objective-C; change the including file to C++ or Objective-C++
@@ -15,6 +16,9 @@
 #endif
 
 struct FsidInode;
+
+extern uint32_t s_maxPendingRenames;
+extern uint32_t s_pendingRenameCount;
 
 KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
@@ -64,3 +68,9 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     int* pid);
 KEXT_STATIC void UseMainForkIfNamedStream(vnode_t& vnode, bool& putVnodeWhenDone);
 KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser();
+KEXT_STATIC bool InitPendingRenames();
+KEXT_STATIC void CleanupPendingRenames();
+KEXT_STATIC void ResizePendingRenames(uint32_t newMaxPendingRenames);
+KEXT_STATIC void RecordPendingRenameOperation(vnode_t vnode);
+KEXT_STATIC bool DeleteOpIsForRename(vnode_t vnode);
+

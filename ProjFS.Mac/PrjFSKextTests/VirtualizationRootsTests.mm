@@ -10,7 +10,7 @@
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
 
-#import <XCTest/XCTest.h>
+#import "KextAssertIntegration.h"
 #include <vector>
 #include <string>
 #include <tuple>
@@ -40,7 +40,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     vnode->xattrs.insert(make_pair(PrjFSVirtualizationRootXAttrName, rootXattrData));
 }
 
-@interface VirtualizationRootsTests : XCTestCase
+@interface VirtualizationRootsTests : PFSKextTestCase
 
 @end
 
@@ -55,6 +55,8 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
 
 - (void)setUp
 {
+    [super setUp];
+
     srand(0);
     self->dummyClientPid = 100;
     
@@ -79,6 +81,8 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
 
     MockVnodes_CheckAndClear();
     MockCalls::Clear();
+
+    [super tearDown];
 }
 
 
@@ -160,9 +164,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl, _, 0));
     XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty, &self->dummyClient, _));
     
-    s_virtualizationRoots[result.root].providerUserClient = nullptr;
-    vnode_put(s_virtualizationRoots[result.root].rootVNode);
-
+    ActiveProvider_Disconnect(result.root, &self->dummyClient);
 }
 
 - (void)testRegisterProviderForPath_ProviderExists
@@ -218,8 +220,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
         XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
         XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
     
-        s_virtualizationRoots[result.root].providerUserClient = nullptr;
-        vnode_put(s_virtualizationRoots[result.root].rootVNode);
+        ActiveProvider_Disconnect(result.root, &self->dummyClient);
     }
 }
 
@@ -250,8 +251,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
         XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl, self->testMountPoint.get(), _));
         XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty, &self->dummyClient, _));
     
-        s_virtualizationRoots[result.root].providerUserClient = nullptr;
-        vnode_put(s_virtualizationRoots[result.root].rootVNode);
+        ActiveProvider_Disconnect(result.root, &self->dummyClient);
     }
 
     if (VirtualizationRoot_IsValidRootHandle(result2.root))
@@ -261,8 +261,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
         XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl, secondMountPoint.get(), 0));
         XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty, &dummyClient2, _));
     
-        s_virtualizationRoots[result2.root].providerUserClient = nullptr;
-        vnode_put(s_virtualizationRoots[result2.root].rootVNode);
+        ActiveProvider_Disconnect(result2.root, &dummyClient2);
     }
     
     XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
@@ -327,8 +326,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl, self->testMountPoint.get(), 0));
     XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
     
-    s_virtualizationRoots[result.root].providerUserClient = nullptr;
-    vnode_put(newVnode.get());
+    ActiveProvider_Disconnect(result.root, &self->dummyClient);
 }
 
 - (void)testVnodeIsOnAllowedFilesystem

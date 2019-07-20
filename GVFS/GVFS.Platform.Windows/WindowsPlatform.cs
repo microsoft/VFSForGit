@@ -36,6 +36,17 @@ namespace GVFS.Platform.Windows
         public override string Name { get => "Windows"; }
         public override GVFSPlatformConstants Constants { get; } = new WindowsPlatformConstants();
 
+        public override string GVFSConfigPath
+        {
+            get
+            {
+                string servicePath = GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName);
+                string gvfsDirectory = Path.GetDirectoryName(servicePath);
+
+                return Path.Combine(gvfsDirectory, LocalGVFSConfig.FileName);
+            }
+        }
+
         public static string GetStringFromRegistry(string key, string valueName)
         {
             object value = GetValueFromRegistry(RegistryHive.LocalMachine, key, valueName);
@@ -131,7 +142,7 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.GetDataRootForGVFSComponentImplementation(componentName);
         }
 
-        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
+        public override void StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args)
         {
             string programArguments = string.Empty;
             try
@@ -153,6 +164,11 @@ namespace GVFS.Platform.Windows
                 tracer.RelatedError(metadata, "Failed to start background process.");
                 throw;
             }
+        }
+
+        public override void PrepareProcessToRunInBackground()
+        {
+            // No additional work required
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
@@ -244,7 +260,7 @@ namespace GVFS.Platform.Windows
         {
             error = null;
             hooksVersion = null;
-            hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             if (hooksPath == null)
             {
                 error = "Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName;
@@ -321,6 +337,21 @@ namespace GVFS.Platform.Windows
             }
         }
 
+        public override string GetUpgradeLogDirectoryParentDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetUpgradeProtectedDataDirectory()
+        {
+            return GetUpgradeProtectedDataDirectoryImplementation();
+        }
+
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);
 
         public override bool IsConsoleOutputRedirectedToFile()
@@ -339,6 +370,13 @@ namespace GVFS.Platform.Windows
             string lockPath)
         {
             return new WindowsFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public override ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer)
+        {
+            return new WindowsProductUpgraderPlatformStrategy(fileSystem, tracer);
         }
 
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
@@ -411,6 +449,8 @@ namespace GVFS.Platform.Windows
                 get { return ".exe"; }
             }
 
+            public override bool SupportsUpgradeWhileRunning => false;
+
             public override string WorkingDirectoryBackingRootPath
             {
                 get { return GVFSConstants.WorkingDirectoryRootName; }
@@ -440,6 +480,19 @@ namespace GVFS.Platform.Windows
             {
                 get { return "GVFS" + this.ExecutableExtension; }
             }
+
+            public override string ProgramLocaterCommand
+            {
+                get { return "where"; }
+            }
+
+            public override HashSet<string> UpgradeBlockingProcesses
+            {
+                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "ssh-agent", "wish", "bash" }; }
+            }
+
+            // Tests show that 250 is the max supported pipe name length
+            public override int MaxPipePathLength => 250;
 
             public override bool CaseSensitiveFileSystem => false;
         }

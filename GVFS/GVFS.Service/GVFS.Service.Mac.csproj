@@ -23,6 +23,7 @@
     <Compile Include="Configuration.cs" />
     <Compile Include="GVFSMountProcess.Mac.cs" />
     <Compile Include="GVFSService.Mac.cs" />
+    <Compile Include="Handlers\INotificationHandler.cs" />
     <Compile Include="Handlers\NotificationHandler.Mac.cs" />
     <Compile Include="Handlers\RequestHandler.cs" />
     <Compile Include="Handlers\GetActiveRepoListHandler.cs" />

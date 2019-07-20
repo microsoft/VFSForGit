@@ -41,5 +41,10 @@ namespace GVFS.Hooks.HooksPlatform
         {
             return WindowsPlatform.GetDataRootForGVFSImplementation();
         }
+
+        public static string GetUpgradeHighestAvailableVersionDirectory()
+        {
+            return WindowsPlatform.GetUpgradeHighestAvailableVersionDirectoryImplementation();
+        }
     }
 }

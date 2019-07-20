@@ -180,6 +180,7 @@ namespace PrjFSLib.Mac
         private Result OnNotifyOperation(
             ulong commandId,
             string relativePath,
+            string relativeFromPath,
             byte[] providerId,
             byte[] contentId,
             int triggeringProcessId,
@@ -190,6 +191,7 @@ namespace PrjFSLib.Mac
             switch (notificationType)
             {
                 case NotificationType.PreDelete:
+                case NotificationType.PreDeleteFromRename:
                     return this.OnPreDelete(relativePath, isDirectory);
 
                 case NotificationType.FileModified:
@@ -205,7 +207,7 @@ namespace PrjFSLib.Mac
                     return Result.Success;
 
                 case NotificationType.HardLinkCreated:
-                    this.OnHardLinkCreated(relativePath);
+                    this.OnHardLinkCreated(relativeFromPath, relativePath);
                     return Result.Success;
 
                 case NotificationType.PreConvertToFull:

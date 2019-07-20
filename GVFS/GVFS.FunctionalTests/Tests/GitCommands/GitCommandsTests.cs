@@ -408,10 +408,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for CaseOnlyRenameFileAndChangeBranches\"");
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
-            this.FileShouldHaveCaseMatchingName(newFileName, oldFileName);
+            this.FileShouldHaveCaseMatchingName(oldFileName);
 
             this.ValidateGitCommand("checkout " + newBranchName);
-            this.FileShouldHaveCaseMatchingName(newFileName, newFileName);
+            this.FileShouldHaveCaseMatchingName(newFileName);
         }
 
         [TestCase]
@@ -987,7 +987,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.FailsOnBuildAgent)]
         public void EditFileNeedingUtf8Encoding()
         {
             this.ValidateGitCommand("checkout -b tests/functional/EditFileNeedingUtf8Encoding");

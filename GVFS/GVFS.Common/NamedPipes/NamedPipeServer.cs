@@ -22,10 +22,6 @@ namespace GVFS.Common.NamedPipes
     /// </summary>
     public class NamedPipeServer : IDisposable
     {
-        // TODO(Mac) the limit is much shorter on macOS
-        // Tests show that 250 is the max supported pipe name length
-        private const int MaxPipeNameLength = 250;
-
         private bool isStopping;
         private string pipeName;
         private Action<Connection> handleConnection;
@@ -43,9 +39,9 @@ namespace GVFS.Common.NamedPipes
 
         public static NamedPipeServer StartNewServer(string pipeName, ITracer tracer, Action<ITracer, string, Connection> handleRequest)
         {
-            if (pipeName.Length > MaxPipeNameLength)
+            if (pipeName.Length > GVFSPlatform.Instance.Constants.MaxPipePathLength)
             {
-                throw new PipeNameLengthException(string.Format("The pipe name ({0}) exceeds the max length allowed({1})", pipeName, MaxPipeNameLength));
+                throw new PipeNameLengthException(string.Format("The pipe name ({0}) exceeds the max length allowed({1})", pipeName, GVFSPlatform.Instance.Constants.MaxPipePathLength));
             }
 
             NamedPipeServer pipeServer = new NamedPipeServer(pipeName, tracer, connection => HandleConnection(tracer, connection, handleRequest));
