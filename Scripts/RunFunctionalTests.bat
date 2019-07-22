@@ -11,7 +11,7 @@ if not "%2"=="--test-gvfs-on-path" goto :startFunctionalTests
 REM Force GVFS.FunctionalTests.exe to use the installed version of GVFS
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests\bin\x64\%Configuration%\netcoreapp2.1\GitHooksLoader.exe
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests\bin\x64\%Configuration%\netcoreapp2.1\GVFS.exe
-del %VFS_OUTPUTDIR%\GVFS.FunctionalTests\bin\x64\%Configuration%\netcoreapp2.1\GVFS.Hooks.exe
+del %VFS_OUTPUTDIR%\GVFS.FunctionalTests\bin\x64\%Configuration%\netcoreapp2.1\GVFS.CommandHook.exe
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests\bin\x64\%Configuration%\netcoreapp2.1\GVFS.ReadObjectHook.exe
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests\bin\x64\%Configuration%\netcoreapp2.1\GVFS.VirtualFileSystemHook.exe
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests\bin\x64\%Configuration%\netcoreapp2.1\GVFS.PostIndexChangedHook.exe
@@ -22,7 +22,7 @@ del %VFS_OUTPUTDIR%\GVFS.FunctionalTests\bin\x64\%Configuration%\netcoreapp2.1\G
 REM Same for GVFS.FunctionalTests.Windows.exe
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests.Windows\bin\x64\%Configuration%\GitHooksLoader.exe
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests.Windows\bin\x64\%Configuration%\GVFS.exe
-del %VFS_OUTPUTDIR%\GVFS.FunctionalTests.Windows\bin\x64\%Configuration%\GVFS.Hooks.exe
+del %VFS_OUTPUTDIR%\GVFS.FunctionalTests.Windows\bin\x64\%Configuration%\GVFS.CommandHook.exe
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests.Windows\bin\x64\%Configuration%\GVFS.ReadObjectHook.exe
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests.Windows\bin\x64\%Configuration%\GVFS.VirtualFileSystemHook.exe
 del %VFS_OUTPUTDIR%\GVFS.FunctionalTests.Windows\bin\x64\%Configuration%\GVFS.PostIndexChangedHook.exe

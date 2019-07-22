@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
         die(PostIndexChangedErrorReturnCode::ErrorPostIndexChangedProtocol, "Invalid value for message");
     }
 
-    request[messageLength - 1] = 0x03;
+    request[messageLength - 1] = TerminatorChar;
     bool success = WriteToPipe(
         pipeHandle,
         request,

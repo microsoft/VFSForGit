@@ -52,7 +52,7 @@ PATH_STRING GetFinalPathName(const PATH_STRING& path)
     return finalPath;
 }
 
-PATH_STRING GetGVFSPipeName(const char *appName)
+bool GetPipeNameIfInsideGVFSRepo(PATH_STRING& pipeName)
 {
     // The pipe name is built using the path of the GVFS enlistment root.
     // Start in the current directory and walk up the directory tree
@@ -107,7 +107,7 @@ PATH_STRING GetGVFSPipeName(const char *appName)
 
         if (enlistmentRoot == lastslash)
         {
-            die(ReturnCode::NotInGVFSEnlistment, "%s must be run from inside a GVFS enlistment\n", appName);
+            return false;
         }
 
         *(lastslash + 1) = 0;
@@ -117,7 +117,19 @@ PATH_STRING GetGVFSPipeName(const char *appName)
 
     PATH_STRING namedPipe(CharUpperW(enlistmentRoot));
     std::replace(namedPipe.begin(), namedPipe.end(), L':', L'_');
-    return L"\\\\.\\pipe\\GVFS_" + namedPipe;
+    pipeName = L"\\\\.\\pipe\\GVFS_" + namedPipe;
+    return true;
+}
+
+PATH_STRING GetGVFSPipeName(const char *appName)
+{
+    PATH_STRING pipeName;
+    if (!GetPipeNameIfInsideGVFSRepo(/*out*/ pipeName))
+    {
+        die(ReturnCode::NotInGVFSEnlistment, "%s must be run from inside a GVFS enlistment\n", appName);
+    }
+
+    return pipeName;
 }
 
 PIPE_HANDLE CreatePipeToGVFS(const PATH_STRING& pipeName)

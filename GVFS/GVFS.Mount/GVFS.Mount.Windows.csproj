@@ -115,7 +115,7 @@
     <PostBuildEvent>xcopy /Y $(BuildOutputDir)\GVFS.ReadObjectHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
 xcopy /Y $(BuildOutputDir)\GVFS.VirtualFileSystemHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.VirtualFileSystemHook.* $(TargetDir)
 xcopy /Y $(BuildOutputDir)\GVFS.PostIndexChangedHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.PostIndexChangedHook.* $(TargetDir)
-xcopy /Y $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)</PostBuildEvent>
+xcopy /Y $(BuildOutputDir)\GVFS.CommandHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.CommandHook.* $(TargetDir)</PostBuildEvent>
   </PropertyGroup>
   <Import Project="..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.linux.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.linux.targets" Condition="Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.linux.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.linux.targets')" />
   <Import Project="..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.osx.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.osx.targets" Condition="Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.osx.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.osx.targets')" />

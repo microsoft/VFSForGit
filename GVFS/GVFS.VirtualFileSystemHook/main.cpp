@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
             messageLength -= 2;
         }
 
-        if (*(pMessage + messageLength - 1) == '\x3')
+        if (*(pMessage + messageLength - 1) == TerminatorChar)
         {
             finishedReading = true;
             messageLength -= 1;

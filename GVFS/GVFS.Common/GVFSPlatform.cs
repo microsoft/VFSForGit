@@ -172,7 +172,7 @@ namespace GVFS.Common
 
             public string GVFSHooksExecutableName
             {
-                get { return "GVFS.Hooks" + this.ExecutableExtension; }
+                get { return "GVFS.CommandHook" + this.ExecutableExtension; }
             }
 
             public string GVFSReadObjectHookExecutableName

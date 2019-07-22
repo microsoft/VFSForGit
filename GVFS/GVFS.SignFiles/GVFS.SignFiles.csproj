@@ -38,7 +38,7 @@
       $(BuildOutputDir)\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.exe;
       $(BuildOutputDir)\GVFS.Common\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Common.dll;
       $(BuildOutputDir)\GVFS.GVFlt\bin\$(Platform)\$(Configuration)\GVFS.GVFlt.dll;
-      $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\GVFS.Hooks.exe;
+      $(BuildOutputDir)\GVFS.CommandHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.CommandHook.exe;
       $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\GVFS.Mount.exe;
       $(BuildOutputDir)\GVFS.Platform.Windows\bin\$(Platform)\$(Configuration)\GVFS.Platform.Windows.dll;
       $(BuildOutputDir)\GVFS.ReadObjectHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.exe;

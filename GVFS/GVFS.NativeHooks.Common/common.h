@@ -31,9 +31,13 @@ enum ReturnCode
 	PipeReadFailed = 8,
 	FailureToDownload = 9,
 	PathNameError = 10,
+    InvalidCommand = 11,
+    InvalidResponse = 12,
 
 	LastError = PathNameError,	
 };
+
+const char TerminatorChar = '\x3';
 
 void die(int err, const char *fmt, ...) PRINTF_FMT(2,3);
 inline void die(int err, const char *fmt, ...)
@@ -42,11 +46,13 @@ inline void die(int err, const char *fmt, ...)
 	va_start(params, fmt);
 	vfprintf(stderr, fmt, params);
 	va_end(params);
+    fflush(stderr);
 	exit(err);
 }
 
 PATH_STRING GetFinalPathName(const PATH_STRING& path);
 PATH_STRING GetGVFSPipeName(const char *appName);
+bool GetPipeNameIfInsideGVFSRepo(PATH_STRING& pipeName);
 PIPE_HANDLE CreatePipeToGVFS(const PATH_STRING& pipeName);
 void DisableCRLFTranslationOnStdPipes();
 

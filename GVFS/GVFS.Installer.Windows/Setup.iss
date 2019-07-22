@@ -8,7 +8,7 @@
 #define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.2.0-build\lib\x64"
 #define GVFSDir BuildOutputDir + "\GVFS.Windows\bin\" + PlatformAndConfiguration
 #define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration + "\netstandard2.0"
-#define HooksDir BuildOutputDir + "\GVFS.Hooks.Windows\bin\" + PlatformAndConfiguration
+#define HooksDir BuildOutputDir + "\GVFS.CommandHook.Windows\bin\" + PlatformAndConfiguration
 #define HooksLoaderDir BuildOutputDir + "\GitHooksLoader\bin\" + PlatformAndConfiguration
 #define ServiceDir BuildOutputDir + "\GVFS.Service.Windows\bin\" + PlatformAndConfiguration
 #define ServiceUIDir BuildOutputDir + "\GVFS.Service.UI\bin\" + PlatformAndConfiguration
@@ -82,9 +82,8 @@ DestDir: "{app}\ProjFS"; Flags: ignoreversion; Source:"{#ProjFSNativeLibDir}\Pro
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\ProjectedFSLib.Managed.dll"
 
 ; GitHooks Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.exe"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.exe.config"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.CommandHook.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.CommandHook.exe"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderDir}\GitHooksLoader.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderDir}\GitHooksLoader.exe"
 
