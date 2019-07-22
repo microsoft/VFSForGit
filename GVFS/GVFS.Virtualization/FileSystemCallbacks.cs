@@ -421,7 +421,7 @@ namespace GVFS.Virtualization
         public void OnFolderCreated(string relativePath, out bool sparseFoldersUpdated)
         {
             sparseFoldersUpdated = false;
-            GitIndexProjection.PathSparseState pathProjectionState = this.GitIndexProjection.GetPathSparseState(relativePath);
+            GitIndexProjection.PathSparseState pathProjectionState = this.GitIndexProjection.GetFolderPathSparseState(relativePath);
             if (pathProjectionState == GitIndexProjection.PathSparseState.Excluded)
             {
                 if (this.GitIndexProjection.TryAddSparseFolder(relativePath))

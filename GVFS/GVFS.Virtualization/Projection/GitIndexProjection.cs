@@ -428,45 +428,29 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public virtual PathSparseState GetPathSparseState(string virtualPath)
+        public virtual PathSparseState GetFolderPathSparseState(string virtualPath)
         {
-            this.GetChildNameAndParentKey(virtualPath, out string fileName, out string parentKey);
-            FolderEntryData data = this.GetProjectedFolderEntryData(
-                blobSizesConnection: null,
-                childName: fileName,
-                parentKey: parentKey);
+            if (this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData))
+            {
+                return folderData.IsIncluded ? PathSparseState.Included : PathSparseState.Excluded;
+            }
 
-            if (data == null)
-            {
-                return PathSparseState.NotFound;
-            }
-            else if (data.IsIncluded)
-            {
-                return PathSparseState.Included;
-            }
-            else
-            {
-                return PathSparseState.Excluded;
-            }
+            return PathSparseState.NotFound;
         }
 
         public bool TryAddSparseFolder(string virtualPath)
         {
             try
             {
-                this.GetChildNameAndParentKey(virtualPath, out string fileName, out string parentKey);
-                FolderEntryData data = this.GetProjectedFolderEntryData(
-                    blobSizesConnection: null,
-                    childName: fileName,
-                    parentKey: parentKey);
-
-                if (data != null && !data.IsIncluded)
+                if (this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData) &&
+                    !folderData.IsIncluded)
                 {
-                    data.Include();
+                    folderData.Include();
                     this.sparseCollection.Add(virtualPath);
+                    return true;
                 }
 
-                return true;
+                return false;
             }
             catch (GVFSDatabaseException ex)
             {
@@ -485,7 +469,7 @@ namespace GVFS.Virtualization.Projection
                 childName: fileName,
                 parentKey: parentKey);
 
-            if (data != null && data.IsIncluded)
+            if (data != null)
             {
                 isFolder = data.IsFolder;
                 return true;
@@ -513,7 +497,7 @@ namespace GVFS.Virtualization.Projection
                 parentKey: parentKey,
                 gitCasedChildName: out gitCasedChildName);
 
-            if (data != null && data.IsIncluded)
+            if (data != null)
             {
                 if (data.IsFolder)
                 {
@@ -691,17 +675,18 @@ namespace GVFS.Virtualization.Projection
             {
                 childEntry = sortedFolderEntries[i];
 
-                if (childEntry.IsIncluded)
+                if (childEntry.IsFolder)
                 {
-                    if (childEntry.IsFolder)
+                    FolderData folderData = (FolderData)childEntry;
+                    if (folderData.IsIncluded)
                     {
                         childItems.Add(new ProjectedFileInfo(childEntry.Name.GetString(), size: 0, isFolder: true, sha: Sha1Id.None));
                     }
-                    else
-                    {
-                        FileData fileData = (FileData)childEntry;
-                        childItems.Add(new ProjectedFileInfo(fileData.Name.GetString(), fileData.Size, isFolder: false, sha: fileData.Sha));
-                    }
+                }
+                else
+                {
+                    FileData fileData = (FileData)childEntry;
+                    childItems.Add(new ProjectedFileInfo(fileData.Name.GetString(), fileData.Size, isFolder: false, sha: fileData.Sha));
                 }
             }
 
@@ -760,7 +745,7 @@ namespace GVFS.Virtualization.Projection
             this.projectionFolderCache.Clear();
             this.nonDefaultFileTypesAndModes.Clear();
             this.RefreshSparseFolders();
-            this.rootFolderData.ResetData(new LazyUTF8String("<root>"));
+            this.rootFolderData.ResetData(new LazyUTF8String("<root>"), isIncluded: true);
         }
 
         private void RefreshSparseFolders()
@@ -891,35 +876,7 @@ namespace GVFS.Virtualization.Projection
                     throw new InvalidDataException("Found a file (" + parentFolderName + ") where a folder was expected: " + gitPath);
                 }
 
-                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.BuildingProjection_PathParts[pathIndex]);
-
-                if (this.rootSparseFolder.Children.Count > 0)
-                {
-                    if (indexEntry.BuildingProjection_SparseFolderToCheck == null)
-                    {
-                        indexEntry.BuildingProjection_SparseFolderToCheck = this.rootSparseFolder;
-                    }
-
-                    if (!indexEntry.BuildingProjection_ShouldIncludeRecursive)
-                    {
-                        string folderName = indexEntry.BuildingProjection_PathParts[pathIndex].GetString();
-                        if (indexEntry.BuildingProjection_SparseFolderToCheck.Children.ContainsKey(folderName) &&
-                            indexEntry.BuildingProjection_SparseFolderToCheck.Children[folderName].Depth == pathIndex)
-                        {
-                            indexEntry.BuildingProjection_ShouldInclude = true;
-                            indexEntry.BuildingProjection_ShouldIncludeRecursive = indexEntry.BuildingProjection_SparseFolderToCheck.Children[folderName].IsRecursive;
-                            indexEntry.BuildingProjection_SparseFolderToCheck = indexEntry.BuildingProjection_SparseFolderToCheck.Children[folderName];
-                        }
-                        else
-                        {
-                            indexEntry.BuildingProjection_ShouldInclude = false;
-                            indexEntry.BuildingProjection_ShouldIncludeRecursive = false;
-                            indexEntry.BuildingProjection_SparseFolderToCheck = null;
-                        }
-                    }
-
-                    parentFolder.IsIncluded = indexEntry.BuildingProjection_ShouldInclude || indexEntry.BuildingProjection_ShouldIncludeRecursive;
-                }
+                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.BuildingProjection_PathParts, pathIndex, parentFolder.IsIncluded, this.rootSparseFolder);
             }
 
             parentFolder.AddChildFile(indexEntry.BuildingProjection_PathParts[indexEntry.BuildingProjection_NumParts - 1], indexEntry.Sha);
@@ -943,7 +900,7 @@ namespace GVFS.Virtualization.Projection
                 {
                     LazyUTF8String child = new LazyUTF8String(childName);
                     FolderEntryData childData;
-                    if (parentFolderData.ChildEntries.TryGetValue(child, out childData))
+                    if (parentFolderData.ChildEntries.TryGetValue(child, out childData) && (!childData.IsFolder || ((FolderData)childData).IsIncluded))
                     {
                         gitCasedChildName = childData.Name.GetString();
 
@@ -1008,51 +965,50 @@ namespace GVFS.Virtualization.Projection
         {
             if (!this.projectionFolderCache.TryGetValue(folderPath, out folderData))
             {
-                LazyUTF8String[] pathParts = folderPath
-                    .Split(new char[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => new LazyUTF8String(x))
-                    .ToArray();
-
-                FolderEntryData data;
-                if (!this.TryGetFolderEntryDataFromTree(pathParts, folderEntryData: out data))
+                if (!this.TryGetFolderDataFromTreeUsingPath(folderPath, out folderData) ||
+                    !folderData.IsIncluded)
                 {
-                    folderPath = null;
+                    folderData = null;
                     return false;
                 }
 
-                if (data.IsFolder)
-                {
-                    folderData = (FolderData)data;
-                    this.projectionFolderCache.TryAdd(folderPath, folderData);
-                }
-                else
-                {
-                    EventMetadata metadata = CreateEventMetadata();
-                    metadata.Add("folderPath", folderPath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, "Found file at path");
-                    this.context.Tracer.RelatedEvent(
-                        EventLevel.Informational,
-                        $"{nameof(this.TryGetOrAddFolderDataFromCache)}_FileAtPath",
-                        metadata);
-
-                    folderPath = null;
-                    return false;
-                }
+                this.projectionFolderCache.TryAdd(folderPath, folderData);
             }
 
             return true;
         }
 
-        /// <summary>
-        /// Finds the FolderEntryData for the path provided
-        /// </summary>
-        /// <param name="pathParts">Path to desired entry</param>
-        /// <param name="folderEntryData">Out: FolderEntryData for pathParts</param>
-        /// <returns>True if the path could be found in the tree, and false otherwise</returns>
-        /// <remarks>If the root folder is desired, the pathParts should be an empty array</remarks>
-        private bool TryGetFolderEntryDataFromTree(LazyUTF8String[] pathParts, out FolderEntryData folderEntryData)
+        private bool TryGetFolderDataFromTreeUsingPath(string folderPath, out FolderData folderData)
         {
-            return this.TryGetFolderEntryDataFromTree(pathParts, pathParts.Length, out folderEntryData);
+            folderData = null;
+            LazyUTF8String[] pathParts = folderPath
+                .Split(new char[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => new LazyUTF8String(x))
+                .ToArray();
+
+            FolderEntryData data;
+            if (!this.TryGetFolderEntryDataFromTree(pathParts, folderEntryData: out data))
+            {
+                return false;
+            }
+
+            if (data.IsFolder)
+            {
+                folderData = (FolderData)data;
+                return true;
+            }
+            else
+            {
+                EventMetadata metadata = CreateEventMetadata();
+                metadata.Add("folderPath", folderPath);
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, "Found file at path");
+                this.context.Tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    $"{nameof(this.TryGetOrAddFolderDataFromCache)}_FileAtPath",
+                    metadata);
+
+                return false;
+            }
         }
 
         /// <summary>
@@ -1062,14 +1018,13 @@ namespace GVFS.Virtualization.Projection
         /// childPathParts.
         /// </summary>
         /// <param name="pathParts">Path</param>
-        /// <param name="depth">Desired path depth, if depth is > pathParts.Length, pathParts.Length will be used</param>
         /// <param name="folderEntryData">Out: FolderEntryData for pathParts at the specified depth.  For example,
         /// if pathParts were { "A", "B", "C" } and depth was 2, FolderEntryData for "B" would be returned.</param>
         /// <returns>True if the specified path\depth could be found in the tree, and false otherwise</returns>
-        private bool TryGetFolderEntryDataFromTree(LazyUTF8String[] pathParts, int depth, out FolderEntryData folderEntryData)
+        private bool TryGetFolderEntryDataFromTree(LazyUTF8String[] pathParts, out FolderEntryData folderEntryData)
         {
             folderEntryData = null;
-            depth = Math.Min(depth, pathParts.Length);
+            int depth = pathParts.Length;
             FolderEntryData currentEntry = this.rootFolderData;
             for (int pathIndex = 0; pathIndex < depth; ++pathIndex)
             {
@@ -1501,7 +1456,7 @@ namespace GVFS.Virtualization.Projection
             HashSet<string> existingPlaceholders)
         {
             bool foundFolder = this.TryGetOrAddFolderDataFromCache(relativeFolderPath, out FolderData folderData);
-            if (!foundFolder || !folderData.IsIncluded)
+            if (!foundFolder)
             {
                 // Folder is no longer in the projection
                 existingPlaceholders.Remove(relativeFolderPath);
@@ -1520,7 +1475,7 @@ namespace GVFS.Virtualization.Projection
             for (int i = 0; i < folderData.ChildEntries.Count; i++)
             {
                 FolderEntryData childEntry = folderData.ChildEntries[i];
-                if (childEntry.IsIncluded)
+                if (!childEntry.IsFolder || ((FolderData)childEntry).IsIncluded)
                 {
                     string childRelativePath;
                     if (relativeFolderPath.Length == 0)
@@ -1612,7 +1567,7 @@ namespace GVFS.Virtualization.Projection
             string childName;
             string parentKey;
             this.GetChildNameAndParentKey(placeholder.Path, out childName, out parentKey);
-            PathSparseState sparseState = this.GetPathSparseState(placeholder.Path);
+            PathSparseState sparseState = this.GetFolderPathSparseState(parentKey);
 
             string projectedSha;
             if (sparseState != PathSparseState.Included || !this.TryGetSha(childName, parentKey, out projectedSha))

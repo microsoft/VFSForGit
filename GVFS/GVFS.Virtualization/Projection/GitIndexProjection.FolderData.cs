@@ -16,12 +16,13 @@ namespace GVFS.Virtualization.Projection
 
             public SortedFolderEntries ChildEntries { get; private set; }
             public bool ChildrenHaveSizes { get; private set; }
+            public bool IsIncluded { get; set; } = true;
 
-            public void ResetData(LazyUTF8String name)
+            public void ResetData(LazyUTF8String name, bool isIncluded)
             {
                 this.Name = name;
                 this.ChildrenHaveSizes = false;
-                this.IsIncluded = true;
+                this.IsIncluded = isIncluded;
                 if (this.ChildEntries == null)
                 {
                     this.ChildEntries = new SortedFolderEntries();
@@ -30,22 +31,21 @@ namespace GVFS.Virtualization.Projection
                 this.ChildEntries.Clear();
             }
 
-            public FolderData AddChildFolder(LazyUTF8String name)
-            {
-                return this.ChildEntries.AddFolder(name);
-            }
-
             public FileData AddChildFile(LazyUTF8String name, byte[] shaBytes)
             {
-                return this.ChildEntries.AddFile(name, shaBytes, this.IsIncluded);
+                return this.ChildEntries.AddFile(name, shaBytes);
             }
 
-            public override void Include()
+            public void Include()
             {
-                base.Include();
+                this.IsIncluded = true;
                 for (int i = 0; i < this.ChildEntries.Count; i++)
                 {
-                    this.ChildEntries[i].Include();
+                    FolderData childFolder = this.ChildEntries[i] as FolderData;
+                    if (childFolder != null)
+                    {
+                        childFolder.Include();
+                    }
                 }
             }
 
