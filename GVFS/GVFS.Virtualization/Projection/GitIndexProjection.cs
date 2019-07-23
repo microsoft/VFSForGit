@@ -771,7 +771,7 @@ namespace GVFS.Virtualization.Projection
                 Dictionary<string, SparseFolderData> parentFolder = this.rootSparseFolder.Children;
                 foreach (string directoryPath in this.sparseCollection.GetAll())
                 {
-                    string[] folders = directoryPath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                    string[] folders = directoryPath.Split(new[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
                     for (int i = 0; i < folders.Length; i++)
                     {
                         SparseFolderData folderData;

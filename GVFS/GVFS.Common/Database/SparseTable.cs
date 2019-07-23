@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
-using System.Text;
 
 namespace GVFS.Common.Database
 {
@@ -24,7 +23,7 @@ namespace GVFS.Common.Database
             }
         }
 
-        public void Add(string directory)
+        public void Add(string directoryPath)
         {
             try
             {
@@ -32,13 +31,13 @@ namespace GVFS.Common.Database
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     command.CommandText = "INSERT OR REPLACE INTO Sparse (path) VALUES (@path);";
-                    command.AddParameter("@path", DbType.String, directory);
+                    command.AddParameter("@path", DbType.String, NormalizePath(directoryPath));
                     command.ExecuteNonQuery();
                 }
             }
             catch (Exception ex)
             {
-                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.Add)}({directory}) Exception: {ex.ToString()}", ex);
+                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.Add)}({directoryPath}) Exception: {ex.ToString()}", ex);
             }
         }
 
@@ -68,7 +67,7 @@ namespace GVFS.Common.Database
             }
         }
 
-        public void Remove(string directory)
+        public void Remove(string directoryPath)
         {
             try
             {
@@ -76,14 +75,19 @@ namespace GVFS.Common.Database
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     command.CommandText = "DELETE FROM Sparse WHERE path = @path;";
-                    command.AddParameter("@path", DbType.String, directory);
+                    command.AddParameter("@path", DbType.String, NormalizePath(directoryPath));
                     command.ExecuteNonQuery();
                 }
             }
             catch (Exception ex)
             {
-                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.Remove)}({directory}) Exception: {ex.ToString()}", ex);
+                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.Remove)}({directoryPath}) Exception: {ex.ToString()}", ex);
             }
+        }
+
+        private static string NormalizePath(string path)
+        {
+            return path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim(Path.DirectorySeparatorChar);
         }
     }
 }
