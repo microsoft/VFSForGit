@@ -788,6 +788,7 @@ namespace GVFS.Virtualization.Projection
 
                         if (!folderData.IsRecursive)
                         {
+                            // The last folder needs to be recursive
                             folderData.IsRecursive = (i == folders.Length - 1);
                         }
 
