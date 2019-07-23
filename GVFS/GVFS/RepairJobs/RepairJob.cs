@@ -120,7 +120,7 @@ namespace GVFS.RepairJobs
                 repoMetadata: null,
                 fileSystemVirtualizer: null,
                 placeholderDatabase: null,
-                includedFolderCollection: null,
+                sparseCollection: null,
                 modifiedPaths: null))
             {
                 try

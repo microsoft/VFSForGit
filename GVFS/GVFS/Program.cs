@@ -22,7 +22,7 @@ namespace GVFS
                 typeof(DehydrateVerb),
                 typeof(DiagnoseVerb),
                 typeof(LogVerb),
-                typeof(IncludeVerb),
+                typeof(SparseVerb),
                 typeof(MountVerb),
                 typeof(PrefetchVerb),
                 typeof(RepairVerb),

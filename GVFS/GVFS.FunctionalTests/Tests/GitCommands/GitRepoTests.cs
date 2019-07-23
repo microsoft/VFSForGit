@@ -24,9 +24,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         protected string[] pathPrefixes;
 
-        // These are the folders for the include mode that are needed for the functional tests
+        // These are the folders for the sparse mode that are needed for the functional tests
         // because they are the folders that the tests rely on to be there.
-        private static readonly string[] IncludeModeFolders = new string[]
+        private static readonly string[] SparseModeFolders = new string[]
         {
             "a",
             "AddFileAfterFolderRename_Test",
@@ -72,7 +72,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         };
 
         // Add directory separator for matching paths since they should be directories
-        private static readonly string[] PathPrefixesForIncludeMode = IncludeModeFolders.Select(x => x + Path.DirectorySeparatorChar).ToArray();
+        private static readonly string[] PathPrefixesForSparseMode = SparseModeFolders.Select(x => x + Path.DirectorySeparatorChar).ToArray();
 
         private bool enlistmentPerTest;
         private Settings.ValidateWorkingTreeMode validateWorkingTree;
@@ -133,10 +133,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 this.CreateEnlistment();
             }
 
-            if (this.validateWorkingTree == Settings.ValidateWorkingTreeMode.IncludeMode)
+            if (this.validateWorkingTree == Settings.ValidateWorkingTreeMode.SparseMode)
             {
-                new GVFSProcess(this.Enlistment).AddIncludedFolders(IncludeModeFolders);
-                this.pathPrefixes = PathPrefixesForIncludeMode;
+                new GVFSProcess(this.Enlistment).AddSparseFolders(SparseModeFolders);
+                this.pathPrefixes = PathPrefixesForSparseMode;
             }
 
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);

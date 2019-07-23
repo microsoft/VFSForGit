@@ -49,20 +49,20 @@ namespace GVFS.FunctionalTests.Tools
             return this.IsEnlistmentMounted();
         }
 
-        public string AddIncludedFolders(params string[] folders)
+        public string AddSparseFolders(params string[] folders)
         {
-            return this.CallGVFS($"include {this.enlistmentRoot} -a {string.Join(";", folders)}");
+            return this.CallGVFS($"sparse {this.enlistmentRoot} -a {string.Join(";", folders)}");
         }
 
-        public string RemoveIncludedFolders(params string[] folders)
+        public string RemoveSparseFolders(params string[] folders)
         {
-            return this.CallGVFS($" include {this.enlistmentRoot} -r {string.Join(";", folders)}");
+            return this.CallGVFS($"sparse {this.enlistmentRoot} -r {string.Join(";", folders)}");
         }
 
-        public string[] GetIncludedFolders()
+        public string[] GetSparseFolders()
         {
-            string output = this.CallGVFS($" include {this.enlistmentRoot} -l");
-            if (output.StartsWith("No folders in included list."))
+            string output = this.CallGVFS($"sparse {this.enlistmentRoot} -l");
+            if (output.StartsWith("No folders in sparse list."))
             {
                 return new string[0];
             }

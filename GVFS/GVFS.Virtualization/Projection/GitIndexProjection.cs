@@ -58,8 +58,8 @@ namespace GVFS.Virtualization.Projection
 
         private BlobSizes blobSizes;
         private IPlaceholderCollection placeholderDatabase;
-        private IIncludedFolderCollection includedFolderCollection;
-        private IncludedFolderData rootIncludedFolder;
+        private ISparseCollection sparseCollection;
+        private SparseFolderData rootSparseFolder;
         private GVFSGitObjects gitObjects;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private ReaderWriterLockSlim projectionReadWriteLock;
@@ -95,7 +95,7 @@ namespace GVFS.Virtualization.Projection
             RepoMetadata repoMetadata,
             FileSystemVirtualizer fileSystemVirtualizer,
             IPlaceholderCollection placeholderDatabase,
-            IIncludedFolderCollection includedFolderCollection,
+            ISparseCollection sparseCollection,
             ModifiedPathsDatabase modifiedPaths)
         {
             this.context = context;
@@ -111,9 +111,9 @@ namespace GVFS.Virtualization.Projection
             this.projectionIndexBackupPath = Path.Combine(this.context.Enlistment.DotGVFSRoot, ProjectionIndexBackupName);
             this.indexPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index);
             this.placeholderDatabase = placeholderDatabase;
-            this.includedFolderCollection = includedFolderCollection;
+            this.sparseCollection = sparseCollection;
             this.modifiedPaths = modifiedPaths;
-            this.rootIncludedFolder = new IncludedFolderData();
+            this.rootSparseFolder = new SparseFolderData();
             this.ClearProjectionCaches();
         }
 
@@ -131,7 +131,7 @@ namespace GVFS.Virtualization.Projection
             GitLink,
         }
 
-        public enum PathProjectionState
+        public enum PathSparseState
         {
             NotFound,
             Included,
@@ -439,7 +439,7 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public virtual PathProjectionState GetPathProjectionState(string virtualPath)
+        public virtual PathSparseState GetPathSparseState(string virtualPath)
         {
             this.GetChildNameAndParentKey(virtualPath, out string fileName, out string parentKey);
             FolderEntryData data = this.GetProjectedFolderEntryData(
@@ -449,19 +449,19 @@ namespace GVFS.Virtualization.Projection
 
             if (data == null)
             {
-                return PathProjectionState.NotFound;
+                return PathSparseState.NotFound;
             }
             else if (data.IsIncluded)
             {
-                return PathProjectionState.Included;
+                return PathSparseState.Included;
             }
             else
             {
-                return PathProjectionState.Excluded;
+                return PathSparseState.Excluded;
             }
         }
 
-        public bool TryAddIncludedFolder(string virtualPath)
+        public bool TryAddSparseFolder(string virtualPath)
         {
             try
             {
@@ -474,14 +474,14 @@ namespace GVFS.Virtualization.Projection
                 if (data != null && !data.IsIncluded)
                 {
                     data.Include();
-                    this.includedFolderCollection.Add(virtualPath);
+                    this.sparseCollection.Add(virtualPath);
                 }
 
                 return true;
             }
             catch (GVFSDatabaseException ex)
             {
-                this.context.Tracer.RelatedWarning($"{nameof(this.TryAddIncludedFolder)} failed for {virtualPath}.  {ex.ToString()}");
+                this.context.Tracer.RelatedWarning($"{nameof(this.TryAddSparseFolder)} failed for {virtualPath}.  {ex.ToString()}");
                 return false;
             }
         }
@@ -765,25 +765,25 @@ namespace GVFS.Virtualization.Projection
             LazyUTF8String.FreePool();
             this.projectionFolderCache.Clear();
             this.nonDefaultFileTypesAndModes.Clear();
-            this.RefreshFoldersToInclude();
+            this.RefreshSparseFolders();
             this.rootFolderData.ResetData(new LazyUTF8String("<root>"));
         }
 
-        private void RefreshFoldersToInclude()
+        private void RefreshSparseFolders()
         {
-            this.rootIncludedFolder.Children.Clear();
-            if (this.includedFolderCollection != null)
+            this.rootSparseFolder.Children.Clear();
+            if (this.sparseCollection != null)
             {
-                Dictionary<string, IncludedFolderData> parentFolder = this.rootIncludedFolder.Children;
-                foreach (string directoryPath in this.includedFolderCollection.GetAll())
+                Dictionary<string, SparseFolderData> parentFolder = this.rootSparseFolder.Children;
+                foreach (string directoryPath in this.sparseCollection.GetAll())
                 {
                     string[] folders = directoryPath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
                     for (int i = 0; i < folders.Length; i++)
                     {
-                        IncludedFolderData folderData;
+                        SparseFolderData folderData;
                         if (!parentFolder.ContainsKey(folders[i]))
                         {
-                            folderData = new IncludedFolderData();
+                            folderData = new SparseFolderData();
                             folderData.Depth = i;
                             parentFolder.Add(folders[i], folderData);
                         }
@@ -800,7 +800,7 @@ namespace GVFS.Virtualization.Projection
                         parentFolder = folderData.Children;
                     }
 
-                    parentFolder = this.rootIncludedFolder.Children;
+                    parentFolder = this.rootSparseFolder.Children;
                 }
             }
         }
@@ -899,28 +899,28 @@ namespace GVFS.Virtualization.Projection
 
                 parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.BuildingProjection_PathParts[pathIndex]);
 
-                if (this.rootIncludedFolder.Children.Count > 0)
+                if (this.rootSparseFolder.Children.Count > 0)
                 {
-                    if (indexEntry.BuildingProjection_IncludedFolderToCheck == null)
+                    if (indexEntry.BuildingProjection_SparseFolderToCheck == null)
                     {
-                        indexEntry.BuildingProjection_IncludedFolderToCheck = this.rootIncludedFolder;
+                        indexEntry.BuildingProjection_SparseFolderToCheck = this.rootSparseFolder;
                     }
 
                     if (!indexEntry.BuildingProjection_ShouldIncludeRecursive)
                     {
                         string folderName = indexEntry.BuildingProjection_PathParts[pathIndex].GetString();
-                        if (indexEntry.BuildingProjection_IncludedFolderToCheck.Children.ContainsKey(folderName) &&
-                            indexEntry.BuildingProjection_IncludedFolderToCheck.Children[folderName].Depth == pathIndex)
+                        if (indexEntry.BuildingProjection_SparseFolderToCheck.Children.ContainsKey(folderName) &&
+                            indexEntry.BuildingProjection_SparseFolderToCheck.Children[folderName].Depth == pathIndex)
                         {
                             indexEntry.BuildingProjection_ShouldInclude = true;
-                            indexEntry.BuildingProjection_ShouldIncludeRecursive = indexEntry.BuildingProjection_IncludedFolderToCheck.Children[folderName].IsRecursive;
-                            indexEntry.BuildingProjection_IncludedFolderToCheck = indexEntry.BuildingProjection_IncludedFolderToCheck.Children[folderName];
+                            indexEntry.BuildingProjection_ShouldIncludeRecursive = indexEntry.BuildingProjection_SparseFolderToCheck.Children[folderName].IsRecursive;
+                            indexEntry.BuildingProjection_SparseFolderToCheck = indexEntry.BuildingProjection_SparseFolderToCheck.Children[folderName];
                         }
                         else
                         {
                             indexEntry.BuildingProjection_ShouldInclude = false;
                             indexEntry.BuildingProjection_ShouldIncludeRecursive = false;
-                            indexEntry.BuildingProjection_IncludedFolderToCheck = null;
+                            indexEntry.BuildingProjection_SparseFolderToCheck = null;
                         }
                     }
 
@@ -1618,10 +1618,10 @@ namespace GVFS.Virtualization.Projection
             string childName;
             string parentKey;
             this.GetChildNameAndParentKey(placeholder.Path, out childName, out parentKey);
-            PathProjectionState projectionState = this.GetPathProjectionState(placeholder.Path);
+            PathSparseState sparseState = this.GetPathSparseState(placeholder.Path);
 
             string projectedSha;
-            if (projectionState != PathProjectionState.Included || !this.TryGetSha(childName, parentKey, out projectedSha))
+            if (sparseState != PathSparseState.Included || !this.TryGetSha(childName, parentKey, out projectedSha))
             {
                 UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
                 FileSystemResult result = this.fileSystemVirtualizer.DeleteFile(placeholder.Path, FilePlaceholderUpdateFlags, out failureReason);

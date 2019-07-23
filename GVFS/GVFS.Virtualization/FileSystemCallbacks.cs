@@ -54,7 +54,7 @@ namespace GVFS.Virtualization
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
             IPlaceholderCollection placeholderDatabase,
-            IIncludedFolderCollection includedFolderCollection,
+            ISparseCollection sparseCollection,
             GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;
@@ -89,7 +89,7 @@ namespace GVFS.Virtualization
                 repoMetadata,
                 fileSystemVirtualizer,
                 this.placeholderDatabase,
-                includedFolderCollection,
+                sparseCollection,
                 this.modifiedPaths);
 
             if (backgroundFileSystemTaskRunner != null)
@@ -419,19 +419,19 @@ namespace GVFS.Virtualization
         /// Called to indicate a folder was created
         /// </summary>
         /// <param name="relativePath">The relative path to the newly created folder</param>
-        /// <param name="includedFoldersUpdated">
-        /// true when the folder is successfully added to the include list because it is in the projection but currently excluded.
-        /// false when the folder was not excluded or there was a failure adding to the included list.
+        /// <param name="sparseFoldersUpdated">
+        /// true when the folder is successfully added to the sparse list because it is in the projection but currently excluded.
+        /// false when the folder was not excluded or there was a failure adding to the sparse list.
         /// </param>
-        public void OnFolderCreated(string relativePath, out bool includedFoldersUpdated)
+        public void OnFolderCreated(string relativePath, out bool sparseFoldersUpdated)
         {
-            includedFoldersUpdated = false;
-            GitIndexProjection.PathProjectionState pathProjectionState = this.GitIndexProjection.GetPathProjectionState(relativePath);
-            if (pathProjectionState == GitIndexProjection.PathProjectionState.Excluded)
+            sparseFoldersUpdated = false;
+            GitIndexProjection.PathSparseState pathProjectionState = this.GitIndexProjection.GetPathSparseState(relativePath);
+            if (pathProjectionState == GitIndexProjection.PathSparseState.Excluded)
             {
-                if (this.GitIndexProjection.TryAddIncludedFolder(relativePath))
+                if (this.GitIndexProjection.TryAddSparseFolder(relativePath))
                 {
-                    includedFoldersUpdated = true;
+                    sparseFoldersUpdated = true;
                     return;
                 }
             }

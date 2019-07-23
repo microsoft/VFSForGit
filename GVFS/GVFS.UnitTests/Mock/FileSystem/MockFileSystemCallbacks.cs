@@ -20,8 +20,8 @@ namespace GVFS.UnitTests.Mock.FileSystem
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
             IPlaceholderCollection placeholderDatabase,
-            IIncludedFolderCollection includedFolderCollection)
-            : base(context, gitObjects, repoMetadata, blobSizes, gitIndexProjection, backgroundFileSystemTaskRunner, fileSystemVirtualizer, placeholderDatabase, includedFolderCollection)
+            ISparseCollection sparseCollection)
+            : base(context, gitObjects, repoMetadata, blobSizes, gitIndexProjection, backgroundFileSystemTaskRunner, fileSystemVirtualizer, placeholderDatabase, sparseCollection)
         {
         }
 

@@ -6,11 +6,11 @@ using System.Text;
 
 namespace GVFS.Common.Database
 {
-    public class IncludedFolderTable : IIncludedFolderCollection
+    public class SparseTable : ISparseCollection
     {
         private IGVFSConnectionPool connectionPool;
 
-        public IncludedFolderTable(IGVFSConnectionPool connectionPool)
+        public SparseTable(IGVFSConnectionPool connectionPool)
         {
             this.connectionPool = connectionPool;
         }
@@ -19,7 +19,7 @@ namespace GVFS.Common.Database
         {
             using (IDbCommand command = connection.CreateCommand())
             {
-                command.CommandText = "CREATE TABLE IF NOT EXISTS [IncludedFolder] (path TEXT PRIMARY KEY COLLATE NOCASE) WITHOUT ROWID;";
+                command.CommandText = "CREATE TABLE IF NOT EXISTS [Sparse] (path TEXT PRIMARY KEY COLLATE NOCASE) WITHOUT ROWID;";
                 command.ExecuteNonQuery();
             }
         }
@@ -31,14 +31,14 @@ namespace GVFS.Common.Database
                 using (IDbConnection connection = this.connectionPool.GetConnection())
                 using (IDbCommand command = connection.CreateCommand())
                 {
-                    command.CommandText = "INSERT OR REPLACE INTO IncludedFolder (path) VALUES (@path);";
+                    command.CommandText = "INSERT OR REPLACE INTO Sparse (path) VALUES (@path);";
                     command.AddParameter("@path", DbType.String, directory);
                     command.ExecuteNonQuery();
                 }
             }
             catch (Exception ex)
             {
-                throw new GVFSDatabaseException($"{nameof(IncludedFolderTable)}.{nameof(this.Add)}({directory}) Exception: {ex.ToString()}", ex);
+                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.Add)}({directory}) Exception: {ex.ToString()}", ex);
             }
         }
 
@@ -50,7 +50,7 @@ namespace GVFS.Common.Database
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     HashSet<string> directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    command.CommandText = $"SELECT path FROM IncludedFolder;";
+                    command.CommandText = $"SELECT path FROM Sparse;";
                     using (IDataReader reader = command.ExecuteReader())
                     {
                         while (reader.Read())
@@ -75,14 +75,14 @@ namespace GVFS.Common.Database
                 using (IDbConnection connection = this.connectionPool.GetConnection())
                 using (IDbCommand command = connection.CreateCommand())
                 {
-                    command.CommandText = "DELETE FROM IncludedFolder WHERE path = @path;";
+                    command.CommandText = "DELETE FROM Sparse WHERE path = @path;";
                     command.AddParameter("@path", DbType.String, directory);
                     command.ExecuteNonQuery();
                 }
             }
             catch (Exception ex)
             {
-                throw new GVFSDatabaseException($"{nameof(IncludedFolderTable)}.{nameof(this.Remove)}({directory}) Exception: {ex.ToString()}", ex);
+                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.Remove)}({directory}) Exception: {ex.ToString()}", ex);
             }
         }
     }
