@@ -76,6 +76,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
             directories = Directory.GetDirectories(Path.Combine(this.Enlistment.RepoRoot, this.mainSparseFolder));
+            directories.Length.ShouldBeAtLeast(2);
             directories.ShouldMatchInOrder(this.directoriesInMainFolder);
             this.ValidateSparseFolders(childPath, this.mainSparseFolder);
         }
