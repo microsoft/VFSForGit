@@ -524,10 +524,10 @@ namespace GVFS.Platform.Mac
                         }
                         else
                         {
-                            this.FileSystemCallbacks.OnFolderCreated(relativePath, out bool includedFoldersUpdated);
-                            if (includedFoldersUpdated)
+                            this.FileSystemCallbacks.OnFolderCreated(relativePath, out bool sparseFoldersUpdated);
+                            if (sparseFoldersUpdated)
                             {
-                                // When includedFoldersUpdated is true it means the folder was previously excluded from the projection and was
+                                // When sparseFoldersUpdated is true it means the folder was previously excluded from the projection and was
                                 // included so it needs to enumerate the directory to get and create placeholders
                                 // for all the directory items that are now included
                                 this.OnEnumerateDirectory(0, relativePath, -1, $"{nameof(this.OnNewFileCreated)}_FolderIncluded");

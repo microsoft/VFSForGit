@@ -4,7 +4,7 @@ using System.Text;
 
 namespace GVFS.Common.Database
 {
-    public interface IIncludedFolderCollection
+    public interface ISparseCollection
     {
         HashSet<string> GetAll();
 
