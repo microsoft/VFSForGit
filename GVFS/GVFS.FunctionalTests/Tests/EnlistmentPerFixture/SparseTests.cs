@@ -39,14 +39,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // Remove all sparse folders should make all folders appear again
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);
             directories.ShouldMatchInOrder(this.allRootDirectories);
-            this.ValidateSparseFolders(new string[0]);
+            this.ValidateFoldersInSparseList(new string[0]);
         }
 
         [TestCase, Order(1)]
         public void BasicTestsAddingSparseFolder()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
 
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);
             directories.Length.ShouldEqual(2);
@@ -72,47 +72,47 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] directories = Directory.GetDirectories(Path.Combine(this.Enlistment.RepoRoot, this.mainSparseFolder));
             directories.Length.ShouldEqual(1);
             directories[0].ShouldEqual(Path.Combine(this.Enlistment.RepoRoot, childPath));
-            this.ValidateSparseFolders(childPath);
+            this.ValidateFoldersInSparseList(childPath);
 
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
             directories = Directory.GetDirectories(Path.Combine(this.Enlistment.RepoRoot, this.mainSparseFolder));
             directories.Length.ShouldBeAtLeast(2);
             directories.ShouldMatchInOrder(this.directoriesInMainFolder);
-            this.ValidateSparseFolders(childPath, this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(childPath, this.mainSparseFolder);
         }
 
         [TestCase, Order(3)]
         public void AddingSiblingFolderShouldNotMakeParentRecursive()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
 
             // Add and remove sibling folder to main folder
             string siblingPath = Path.Combine("GVFS", "FastFetch");
             this.gvfsProcess.AddSparseFolders(siblingPath);
             string folder = this.Enlistment.GetVirtualPathTo(siblingPath);
             folder.ShouldBeADirectory(this.fileSystem);
-            this.ValidateSparseFolders(this.mainSparseFolder, siblingPath);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, siblingPath);
 
             this.gvfsProcess.RemoveSparseFolders(siblingPath);
             folder.ShouldNotExistOnDisk(this.fileSystem);
             folder = this.Enlistment.GetVirtualPathTo(this.mainSparseFolder);
             folder.ShouldBeADirectory(this.fileSystem);
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
         }
 
         [TestCase, Order(4)]
         public void AddingSubfolderShouldKeepParentRecursive()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
 
             // Add subfolder of main folder and make sure it stays recursive
             string subFolder = Path.Combine(this.mainSparseFolder, "Properties");
             this.gvfsProcess.AddSparseFolders(subFolder);
             string folder = this.Enlistment.GetVirtualPathTo(subFolder);
             folder.ShouldBeADirectory(this.fileSystem);
-            this.ValidateSparseFolders(this.mainSparseFolder, subFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, subFolder);
 
             folder = this.Enlistment.GetVirtualPathTo(this.mainSparseFolder, "CommandLine");
             folder.ShouldBeADirectory(this.fileSystem);
@@ -123,7 +123,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CreatingFolderShouldAddToSparseListAndStartProjecting()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
 
             string newFolderPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Common");
             newFolderPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -146,7 +146,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CreateFolderThenFileShouldAddToSparseListAndStartProjecting()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
 
             string newFolderPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Common");
             newFolderPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -174,7 +174,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.ReadAllText(fileToRead);
 
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
 
             string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
             folderPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -185,13 +185,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CreateNewFileWillPreventRemoveSparseFolder()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder, "Scripts");
-            this.ValidateSparseFolders(this.mainSparseFolder, "Scripts");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, "Scripts");
 
             string fileToCreate = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "newfile.txt");
             this.fileSystem.WriteAllText(fileToCreate, "New Contents");
 
             this.gvfsProcess.RemoveSparseFolders("Scripts");
-            this.ValidateSparseFolders(this.mainSparseFolder, "Scripts");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, "Scripts");
 
             string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
             folderPath.ShouldBeADirectory(this.fileSystem);
@@ -210,7 +210,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string output = this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
             output.ShouldContain("sparse was aborted");
-            this.ValidateSparseFolders(new string[0]);
+            this.ValidateFoldersInSparseList(new string[0]);
         }
 
         [TestCase, Order(9)]
@@ -222,7 +222,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
 
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
 
             string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
             folderPath.ShouldBeADirectory(this.fileSystem);
@@ -233,7 +233,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CreateNewFileAndCommitThenRemoveSparseFolderShouldKeepFileAndFolder()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder, "Scripts");
-            this.ValidateSparseFolders(this.mainSparseFolder, "Scripts");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, "Scripts");
 
             string fileToCreate = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "newfile.txt");
             this.fileSystem.WriteAllText(fileToCreate, "New Contents");
@@ -241,7 +241,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
 
             this.gvfsProcess.RemoveSparseFolders("Scripts");
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
 
             string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
             folderPath.ShouldBeADirectory(this.fileSystem);
@@ -255,7 +255,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CreateFolderAndFileThatAreExcluded()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
 
             // Create a file that should already be in the projection but excluded
             string newFolderPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Mount");
@@ -277,7 +277,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             projectedFile.ShouldBeAFile(this.fileSystem);
         }
 
-        private void ValidateSparseFolders(params string[] folders)
+        private void ValidateFoldersInSparseList(params string[] folders)
         {
             HashSet<string> actualSparseFolders = new HashSet<string>(this.gvfsProcess.GetSparseFolders());
             folders.Length.ShouldEqual(actualSparseFolders.Count);
