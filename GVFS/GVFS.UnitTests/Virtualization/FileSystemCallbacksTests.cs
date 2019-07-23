@@ -58,8 +58,8 @@ namespace GVFS.UnitTests.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
-            mockIncludeDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+            mockSparseDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -70,7 +70,7 @@ namespace GVFS.UnitTests.Virtualization
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: null,
                 placeholderDatabase: mockPlaceholderDb.Object,
-                includedFolderCollection: mockIncludeDb.Object))
+                sparseCollection: mockSparseDb.Object))
             {
                 fileSystemCallbacks.BackgroundOperationCount.ShouldEqual(backgroundTaskRunner.Count);
 
@@ -81,7 +81,7 @@ namespace GVFS.UnitTests.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -91,8 +91,8 @@ namespace GVFS.UnitTests.Virtualization
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(0);
             mockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(() => 0);
             mockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(() => 0);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
-            mockIncludeDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+            mockSparseDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -103,7 +103,7 @@ namespace GVFS.UnitTests.Virtualization
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: null,
                 placeholderDatabase: mockPlaceholderDb.Object,
-                includedFolderCollection: mockIncludeDb.Object))
+                sparseCollection: mockSparseDb.Object))
             {
                 EventMetadata metadata = fileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool writeToLogFile);
                 EventLevel eventLevel = writeToLogFile ? EventLevel.Informational : EventLevel.Verbose;
@@ -116,7 +116,7 @@ namespace GVFS.UnitTests.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -132,8 +132,8 @@ namespace GVFS.UnitTests.Virtualization
             mockPlaceholderDb.Setup(x => x.AddPartialFolder("foo")).Callback(() => ++folderPlaceholderCount);
             mockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(() => filePlaceholderCount);
             mockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(() => folderPlaceholderCount);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
-            mockIncludeDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+            mockSparseDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -144,7 +144,7 @@ namespace GVFS.UnitTests.Virtualization
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: null,
                 placeholderDatabase: mockPlaceholderDb.Object,
-                includedFolderCollection: mockIncludeDb.Object))
+                sparseCollection: mockSparseDb.Object))
             {
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "1111122222333334444455555666667777788888", "GVFS.UnitTests.exe");
 
@@ -199,7 +199,7 @@ namespace GVFS.UnitTests.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -207,7 +207,7 @@ namespace GVFS.UnitTests.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockFileSystemVirtualizer fileSystemVirtualizer = new MockFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects))
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -220,7 +220,7 @@ namespace GVFS.UnitTests.Virtualization
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: fileSystemVirtualizer,
                 placeholderDatabase: mockPlaceholderDb.Object,
-                includedFolderCollection: mockIncludeDb.Object))
+                sparseCollection: mockSparseDb.Object))
             {
                 string denyMessage;
                 fileSystemCallbacks.IsReadyForExternalAcquireLockRequests(
@@ -275,7 +275,7 @@ namespace GVFS.UnitTests.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -283,8 +283,8 @@ namespace GVFS.UnitTests.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
-            mockIncludeDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+            mockSparseDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -295,7 +295,7 @@ namespace GVFS.UnitTests.Virtualization
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: null,
                 placeholderDatabase: mockPlaceholderDb.Object,
-                includedFolderCollection: mockIncludeDb.Object))
+                sparseCollection: mockSparseDb.Object))
             {
                 this.CallbackSchedulesBackgroundTask(
                     backgroundTaskRunner,
@@ -362,7 +362,7 @@ namespace GVFS.UnitTests.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -370,7 +370,7 @@ namespace GVFS.UnitTests.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockFileSystemVirtualizer fileSystemVirtualizer = new MockFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects))
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -384,7 +384,7 @@ namespace GVFS.UnitTests.Virtualization
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: fileSystemVirtualizer,
                 placeholderDatabase: mockPlaceholderDb.Object,
-                includedFolderCollection: mockIncludeDb.Object,
+                sparseCollection: mockSparseDb.Object,
                 gitStatusCache: gitStatusCache))
             {
                 this.ValidateActionInvalidatesStatusCache(backgroundTaskRunner, gitStatusCache, fileSystemCallbacks.OnFileConvertedToFull, "OnFileConvertedToFull.txt", FileSystemTask.OperationType.OnFileConvertedToFull);
@@ -398,7 +398,7 @@ namespace GVFS.UnitTests.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         private void ValidateActionInvalidatesStatusCache(

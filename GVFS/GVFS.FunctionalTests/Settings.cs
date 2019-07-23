@@ -10,7 +10,7 @@ namespace GVFS.FunctionalTests.Properties
         {
             None = 0,
             Full = 1,
-            IncludeMode = 2,
+            SparseMode = 2,
         }
 
         public static class Default

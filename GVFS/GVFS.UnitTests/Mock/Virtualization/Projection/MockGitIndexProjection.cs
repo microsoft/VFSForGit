@@ -67,9 +67,9 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             return this.ProjectionParseComplete;
         }
 
-        public override PathProjectionState GetPathProjectionState(string virtualPath)
+        public override PathSparseState GetPathSparseState(string virtualPath)
         {
-            return PathProjectionState.Included;
+            return PathSparseState.Included;
         }
 
         public void BlockGetProjectedItems(bool willWaitForRequest)
