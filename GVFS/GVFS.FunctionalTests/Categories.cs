@@ -8,6 +8,8 @@
 
         public const string CaseInsensitiveFileSystemOnly = "CaseInsensitiveFileSystemOnly";
         public const string CaseSensitiveFileSystemOnly = "CaseSensitiveFileSystemOnly";
+        public const string FileSystemAllowsPartialFolderRenames = "FileSystemAllowsPartialFolderRenames";
+        public const string FileSystemDisallowsPartialFolderRenames = "FileSystemDisallowsPartialFolderRenames";
         public const string FileSystemSupportsFileMode = "FileSystemSupportsFileMode";
         public const string RepositoryMountsDifferentFileSystem = "RepositoryMountsDifferentFileSystem";
         public const string RepositoryMountsSameFileSystem = "RepositoryMountsSameFileSystem";

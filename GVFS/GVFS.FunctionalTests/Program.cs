@@ -88,6 +88,7 @@ namespace GVFS.FunctionalTests
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 excludeCategories.Add(Categories.CaseSensitiveFileSystemOnly);
+                excludeCategories.Add(Categories.FileSystemDisallowsPartialFolderRenames);
                 excludeCategories.Add(Categories.RepositoryMountsDifferentFileSystem);
 
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
@@ -105,6 +106,7 @@ namespace GVFS.FunctionalTests
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 excludeCategories.Add(Categories.CaseInsensitiveFileSystemOnly);
+                excludeCategories.Add(Categories.FileSystemAllowsPartialFolderRenames);
                 excludeCategories.Add(Categories.RepositoryMountsSameFileSystem);
 
                 excludeCategories.Add(Categories.LinuxTODO.NeedsContentionFreeFileLock);
@@ -124,6 +126,7 @@ namespace GVFS.FunctionalTests
             {
                 // Windows excludes.
                 excludeCategories.Add(Categories.CaseSensitiveFileSystemOnly);
+                excludeCategories.Add(Categories.FileSystemAllowsPartialFolderRenames);
                 excludeCategories.Add(Categories.FileSystemSupportsFileMode);
                 excludeCategories.Add(Categories.RepositoryMountsDifferentFileSystem);
 
