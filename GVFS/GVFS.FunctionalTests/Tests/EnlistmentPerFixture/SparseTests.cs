@@ -43,7 +43,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(1)]
-        public void BasicTestsAddingAndRemoving()
+        public void BasicTestsAddingSparseFolder()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
             this.ValidateSparseFolders(this.mainSparseFolder);
