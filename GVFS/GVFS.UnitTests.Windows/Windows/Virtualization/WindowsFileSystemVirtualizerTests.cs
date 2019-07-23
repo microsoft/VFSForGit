@@ -169,7 +169,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -183,7 +183,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -203,7 +203,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -211,7 +211,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test" }))
@@ -225,7 +225,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -244,7 +244,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -252,7 +252,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -266,7 +266,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -282,7 +282,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -290,7 +290,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -304,7 +304,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -323,7 +323,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -331,7 +331,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -345,7 +345,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -378,7 +378,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -386,7 +386,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -400,7 +400,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -427,7 +427,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -436,7 +436,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -450,7 +450,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -475,7 +475,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -483,7 +483,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -497,7 +497,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -527,7 +527,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -535,7 +535,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -549,7 +549,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -579,7 +579,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -587,7 +587,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -601,7 +601,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -661,7 +661,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -669,7 +669,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -683,7 +683,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -710,7 +710,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -718,7 +718,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -732,7 +732,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -773,7 +773,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -781,7 +781,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -795,7 +795,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -832,7 +832,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -841,7 +841,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -855,7 +855,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -893,7 +893,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -902,7 +902,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -916,7 +916,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -954,7 +954,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -963,7 +963,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -977,7 +977,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -1016,7 +1016,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -1025,7 +1025,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
             mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<IIncludedFolderCollection> mockIncludeDb = new Mock<IIncludedFolderCollection>(MockBehavior.Strict);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
@@ -1039,7 +1039,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 backgroundTaskRunner,
                 virtualizer,
                 mockPlaceholderDb.Object,
-                mockIncludeDb.Object))
+                mockSparseDb.Object))
             {
                 try
                 {
@@ -1080,7 +1080,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
 
             mockPlaceholderDb.VerifyAll();
-            mockIncludeDb.VerifyAll();
+            mockSparseDb.VerifyAll();
         }
     }
 }

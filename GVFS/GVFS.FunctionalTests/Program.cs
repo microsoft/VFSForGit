@@ -65,9 +65,9 @@ namespace GVFS.FunctionalTests
             {
                 Settings.ValidateWorkingTreeMode validateMode = Settings.ValidateWorkingTreeMode.Full;
 
-                if (runner.HasCustomArg("--include-mode"))
+                if (runner.HasCustomArg("--sparse-mode"))
                 {
-                    validateMode = Settings.ValidateWorkingTreeMode.IncludeMode;
+                    validateMode = Settings.ValidateWorkingTreeMode.SparseMode;
                     includeCategories.Add(Categories.GitCommands);
                 }
 

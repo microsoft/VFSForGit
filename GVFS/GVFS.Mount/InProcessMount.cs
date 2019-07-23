@@ -565,7 +565,7 @@ namespace GVFS.Mount
                         backgroundFileSystemTaskRunner: null,
                         fileSystemVirtualizer: virtualizer,
                         placeholderDatabase: new PlaceholderTable(this.gvfsDatabase),
-                        includedFolderCollection: new IncludedFolderTable(this.gvfsDatabase),
+                        sparseCollection: new SparseTable(this.gvfsDatabase),
                         gitStatusCache: gitStatusCache);
                 }, "Failed to create src folder callback listener");
             this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
