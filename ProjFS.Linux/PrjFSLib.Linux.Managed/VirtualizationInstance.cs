@@ -445,7 +445,7 @@ namespace PrjFSLib.Linux
 
         private int HandleNonProjEvent(ref ProjFS.Event ev, bool perm)
         {
-            if (this.projfs == null)
+            if (!this.ObtainProjFS(out ProjFS fs))
             {
                 return -Errno.Constants.ENODEV;
             }
@@ -456,7 +456,10 @@ namespace PrjFSLib.Linux
                 return perm ? (int)ProjFS.Constants.PROJFS_ALLOW : 0;
             }
 
+            bool isDirectory = (ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0;
             bool isLink = (ev.Mask & ProjFS.Constants.PROJFS_ONLINK) != 0;
+            string relativePath = PtrToStringUTF8(ev.Path);
+            string relativeDestinationPath = null;
             NotificationType nt;
 
             if ((ev.Mask & ProjFS.Constants.PROJFS_DELETE_PERM) != 0)
@@ -465,6 +468,15 @@ namespace PrjFSLib.Linux
             }
             else if ((ev.Mask & ProjFS.Constants.PROJFS_MOVE_PERM) != 0)
             {
+                if (isDirectory)
+                {
+                    if (fs.GetProjState(relativePath, out ProjectionState state) == Result.Success &&
+                        (state == ProjectionState.Empty || state == ProjectionState.Hydrated))
+                    {
+                        return -Errno.Constants.EOPNOTSUPP;  // same as ENOTSUP
+                    }
+                }
+
                 nt = NotificationType.PreRename;
             }
             else if ((ev.Mask & ProjFS.Constants.PROJFS_OPEN_PERM) != 0)
@@ -495,10 +507,6 @@ namespace PrjFSLib.Linux
             {
                 return 0;
             }
-
-            bool isDirectory = (ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0;
-            string relativePath = PtrToStringUTF8(ev.Path);
-            string relativeDestinationPath = null;
 
             if (nt == NotificationType.PreRename ||
                 nt == NotificationType.FileRenamed ||
