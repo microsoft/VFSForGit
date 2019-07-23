@@ -26,7 +26,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         private static string[] moveDirectoryNotSupportedMessage = new string[]
         {
-            "Function not implemented"
+            "Operation not supported"
         };
 
         private static string[] windowsPermissionDeniedMessage = new string[]

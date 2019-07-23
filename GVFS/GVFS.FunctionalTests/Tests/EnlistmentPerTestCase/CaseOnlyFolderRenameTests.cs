@@ -17,9 +17,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.fileSystem = new BashRunner();
         }
 
-        // MacOnly because renames of partial folders are blocked on Windows
+        // Mac only because renames of partial folders are blocked on Windows and Linux
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.FileSystemAllowsPartialFolderRenames)]
         public void CaseRenameFoldersAndRemountAndRenameAgain()
         {
             // Projected folder without a physical folder
