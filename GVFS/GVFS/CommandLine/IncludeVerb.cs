@@ -11,17 +11,22 @@ using System.Text;
 
 namespace GVFS.CommandLine
 {
-    [Verb(IncludeVerb.IncludeVerbName, HelpText = "List, add, or Remove from the list of folder that are included to project")]
+    [Verb(
+        IncludeVerb.IncludeVerbName,
+        HelpText = @"List, add, or remove from the list of folders that are included in VFS for Git's projection.
+Folders need to be relative to the repos root directory.")
+    ]
     public class IncludeVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string IncludeVerbName = "include";
+        private const string FolderListSeparator = ";";
 
         [Option(
             'a',
             "add",
             Required = false,
             Default = "",
-            HelpText = "A semicolon-delimited list of folders to include. Wildcards are not supported.")]
+            HelpText = "A semicolon-delimited list of repo root relative folders to include in the projection. Wildcards are not supported.")]
         public string Add { get; set; }
 
         [Option(
@@ -29,7 +34,7 @@ namespace GVFS.CommandLine
             "remove",
             Required = false,
             Default = "",
-            HelpText = "A semicolon-delimited list of folders to remove for being included. Wildcards are not supported.")]
+            HelpText = "A semicolon-delimited list of repo root relative folders to remove from the projection. Wildcards are not supported.")]
         public string Remove { get; set; }
 
         [Option(
@@ -37,7 +42,7 @@ namespace GVFS.CommandLine
             "list",
             Required = false,
             Default = false,
-            HelpText = "List of folders to for being included in projection.")]
+            HelpText = "List of folders included in the projection.")]
         public bool List { get; set; }
 
         protected override string VerbName => IncludeVerbName;
@@ -53,15 +58,17 @@ namespace GVFS.CommandLine
                         EventLevel.Informational,
                         Keywords.Any);
 
+                    bool needToChangeProjection = false;
                     using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase()))
                     {
                         IncludedFolderTable includedFolderTable = new IncludedFolderTable(database);
-                        bool haveFoldersToAdd = !string.IsNullOrEmpty(this.Add);
-                        bool haveFoldersToRemove = !string.IsNullOrEmpty(this.Remove);
+                        HashSet<string> directories = includedFolderTable.GetAll();
 
-                        if (this.List || (!haveFoldersToAdd && !haveFoldersToRemove))
+                        string[] foldersToRemove = this.ParseFolderList(this.Remove);
+                        string[] foldersToAdd = this.ParseFolderList(this.Add);
+
+                        if (this.List || (foldersToAdd.Length == 0 && foldersToRemove.Length == 0))
                         {
-                            List<string> directories = includedFolderTable.GetAll();
                             if (directories.Count == 0)
                             {
                                 this.Output.WriteLine("No folders in included list.");
@@ -77,33 +84,83 @@ namespace GVFS.CommandLine
                             return;
                         }
 
-                        // Make sure there is a clean git status before allowing inclusions to change
-                        this.CheckGitStatus(tracer, enlistment);
-
-                        if (haveFoldersToRemove)
+                        foreach (string folder in foldersToRemove)
                         {
-                            foreach (string directoryPath in this.Remove.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+                            if (directories.Contains(folder))
                             {
-                                includedFolderTable.Remove(directoryPath);
+                                needToChangeProjection = true;
+                                break;
                             }
                         }
 
-                        if (haveFoldersToAdd)
+                        if (!needToChangeProjection)
                         {
-                            foreach (string directoryPath in this.Add.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+                            foreach (string folder in foldersToAdd)
                             {
-                                includedFolderTable.Add(directoryPath);
+                                if (!directories.Contains(folder))
+                                {
+                                    needToChangeProjection = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (needToChangeProjection)
+                        {
+                            // Make sure there is a clean git status before allowing inclusions to change
+                            this.CheckGitStatus(tracer, enlistment);
+                            if (!this.ShowStatusWhileRunning(
+                                () =>
+                                {
+                                    foreach (string directoryPath in foldersToRemove)
+                                    {
+                                        tracer.RelatedInfo($"Removing '{directoryPath}' from included folders.");
+                                        includedFolderTable.Remove(directoryPath);
+                                    }
+
+                                    foreach (string directoryPath in foldersToAdd)
+                                    {
+                                        tracer.RelatedInfo($"Adding '{directoryPath}' to included folders.");
+                                        includedFolderTable.Add(directoryPath);
+                                    }
+
+                                    return true;
+                                },
+                                "Updating included folder set",
+                                suppressGvfsLogMessage: true))
+                            {
+                                this.ReportErrorAndExit(tracer, "Failed to update included folder set.");
                             }
                         }
                     }
 
-                    // Force a projection update to get the current inclusion set
-                    this.ForceProjectionChange(tracer, enlistment);
+                    if (needToChangeProjection)
+                    {
+                        // Force a projection update to get the current inclusion set
+                        this.ForceProjectionChange(tracer, enlistment);
+                        tracer.RelatedInfo("Projection updated after adding or removing folders.");
+                    }
+                    else
+                    {
+                        this.WriteMessage(tracer, "No folders to update in included set.");
+                    }
                 }
                 catch (Exception e)
                 {
-                    tracer.RelatedError(e.Message);
+                    this.ReportErrorAndExit(tracer, e.ToString());
                 }
+            }
+        }
+
+        private string[] ParseFolderList(string folders)
+        {
+            if (string.IsNullOrEmpty(folders))
+            {
+                return new string[0];
+            }
+            else
+            {
+                return folders.Split(new[] { FolderListSeparator }, StringSplitOptions.RemoveEmptyEntries);
             }
         }
 

@@ -6,7 +6,7 @@ namespace GVFS.Common.Database
 {
     public interface IIncludedFolderCollection
     {
-        List<string> GetAll();
+        HashSet<string> GetAll();
 
         void Add(string directory);
         void Remove(string directory);
