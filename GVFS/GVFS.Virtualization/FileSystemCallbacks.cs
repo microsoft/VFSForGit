@@ -419,24 +419,25 @@ namespace GVFS.Virtualization
         /// Called to indicate a folder was created
         /// </summary>
         /// <param name="relativePath">The relative path to the newly created folder</param>
-        /// <returns>
+        /// <param name="includedFoldersUpdated">
         /// true when the folder is successfully added to the include list because it is in the projection but currently excluded.
         /// false when the folder was not excluded or there was a failure adding to the included list.
-        /// </returns>
-        public bool OnFolderCreated(string relativePath)
+        /// </param>
+        public void OnFolderCreated(string relativePath, out bool includedFoldersUpdated)
         {
+            includedFoldersUpdated = false;
             GitIndexProjection.PathProjectionState pathProjectionState = this.GitIndexProjection.GetPathProjectionState(relativePath);
             if (pathProjectionState == GitIndexProjection.PathProjectionState.Excluded)
             {
                 if (this.GitIndexProjection.TryAddIncludedFolder(relativePath))
                 {
-                    return true;
+                    includedFoldersUpdated = true;
+                    return;
                 }
             }
 
             this.AddToNewlyCreatedList(relativePath, isFolder: true);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderCreated(relativePath));
-            return false;
         }
 
         public virtual void OnFolderRenamed(string oldRelativePath, string newRelativePath)

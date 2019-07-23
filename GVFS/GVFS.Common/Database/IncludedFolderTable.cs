@@ -42,14 +42,14 @@ namespace GVFS.Common.Database
             }
         }
 
-        public List<string> GetAll()
+        public HashSet<string> GetAll()
         {
             try
             {
                 using (IDbConnection connection = this.connectionPool.GetConnection())
                 using (IDbCommand command = connection.CreateCommand())
                 {
-                    List<string> directories = new List<string>();
+                    HashSet<string> directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     command.CommandText = $"SELECT path FROM IncludedFolder;";
                     using (IDataReader reader = command.ExecuteReader())
                     {

@@ -97,7 +97,6 @@ namespace GVFS.Virtualization.Projection
             IPlaceholderCollection placeholderDatabase,
             IIncludedFolderCollection includedFolderCollection,
             ModifiedPathsDatabase modifiedPaths)
-            : this()
         {
             this.context = context;
             this.gitObjects = gitObjects;
@@ -106,6 +105,9 @@ namespace GVFS.Virtualization.Projection
             this.fileSystemVirtualizer = fileSystemVirtualizer;
             this.indexParser = new GitIndexParser(this);
 
+            this.projectionReadWriteLock = new ReaderWriterLockSlim();
+            this.projectionParseComplete = new ManualResetEventSlim(initialState: false);
+            this.wakeUpIndexParsingThread = new AutoResetEvent(initialState: false);
             this.projectionIndexBackupPath = Path.Combine(this.context.Enlistment.DotGVFSRoot, ProjectionIndexBackupName);
             this.indexPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index);
             this.placeholderDatabase = placeholderDatabase;
@@ -115,12 +117,9 @@ namespace GVFS.Virtualization.Projection
             this.ClearProjectionCaches();
         }
 
+        // For Unit Testing
         protected GitIndexProjection()
         {
-            this.projectionReadWriteLock = new ReaderWriterLockSlim();
-            this.projectionParseComplete = new ManualResetEventSlim(initialState: false);
-            this.wakeUpIndexParsingThread = new AutoResetEvent(initialState: false);
-            this.rootFolderData.ResetData(new LazyUTF8String("<root>"));
         }
 
         public enum FileType : short
@@ -480,8 +479,9 @@ namespace GVFS.Virtualization.Projection
 
                 return true;
             }
-            catch (GVFSDatabaseException)
+            catch (GVFSDatabaseException ex)
             {
+                this.context.Tracer.RelatedWarning($"{nameof(this.TryAddIncludedFolder)} failed for {virtualPath}.  {ex.ToString()}");
                 return false;
             }
         }
@@ -901,26 +901,26 @@ namespace GVFS.Virtualization.Projection
 
                 if (this.rootIncludedFolder.Children.Count > 0)
                 {
-                    if (indexEntry.BuildingProjection_LastEntryIncludedFolder == null)
+                    if (indexEntry.BuildingProjection_IncludedFolderToCheck == null)
                     {
-                        indexEntry.BuildingProjection_LastEntryIncludedFolder = this.rootIncludedFolder;
+                        indexEntry.BuildingProjection_IncludedFolderToCheck = this.rootIncludedFolder;
                     }
 
                     if (!indexEntry.BuildingProjection_ShouldIncludeRecursive)
                     {
                         string folderName = indexEntry.BuildingProjection_PathParts[pathIndex].GetString();
-                        if (indexEntry.BuildingProjection_LastEntryIncludedFolder.Children.ContainsKey(folderName) &&
-                            indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName].Depth == pathIndex)
+                        if (indexEntry.BuildingProjection_IncludedFolderToCheck.Children.ContainsKey(folderName) &&
+                            indexEntry.BuildingProjection_IncludedFolderToCheck.Children[folderName].Depth == pathIndex)
                         {
                             indexEntry.BuildingProjection_ShouldInclude = true;
-                            indexEntry.BuildingProjection_ShouldIncludeRecursive = indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName].IsRecursive;
-                            indexEntry.BuildingProjection_LastEntryIncludedFolder = indexEntry.BuildingProjection_LastEntryIncludedFolder.Children[folderName];
+                            indexEntry.BuildingProjection_ShouldIncludeRecursive = indexEntry.BuildingProjection_IncludedFolderToCheck.Children[folderName].IsRecursive;
+                            indexEntry.BuildingProjection_IncludedFolderToCheck = indexEntry.BuildingProjection_IncludedFolderToCheck.Children[folderName];
                         }
                         else
                         {
                             indexEntry.BuildingProjection_ShouldInclude = false;
                             indexEntry.BuildingProjection_ShouldIncludeRecursive = false;
-                            indexEntry.BuildingProjection_LastEntryIncludedFolder = null;
+                            indexEntry.BuildingProjection_IncludedFolderToCheck = null;
                         }
                     }
 

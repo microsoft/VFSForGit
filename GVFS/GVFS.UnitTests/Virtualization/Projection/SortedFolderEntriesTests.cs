@@ -117,6 +117,18 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
+        public void AddItemWithIsIncludedFalse()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("IsIncludedFalse");
+            sfe.AddFile(name, new byte[20], isIncluded: false);
+            sfe.TryGetValue(name, out FolderEntryData folderEntryData).ShouldBeTrue();
+            folderEntryData.ShouldNotBeNull();
+            folderEntryData.IsFolder.ShouldBeFalse();
+            folderEntryData.IsIncluded.ShouldBeFalse();
+        }
+
+        [TestCase]
         public void Clear()
         {
             SortedFolderEntries sfe = SetupDefaultEntries();
@@ -167,6 +179,10 @@ namespace GVFS.UnitTests.Virtualization.Git
             {
                 LazyUTF8String entryString = ConstructLazyUTF8String(names[i]);
                 entries.AddFile(entryString, new byte[20], isIncluded: true);
+                entries.TryGetValue(entryString, out FolderEntryData folderEntryData).ShouldBeTrue();
+                folderEntryData.ShouldNotBeNull();
+                folderEntryData.IsIncluded.ShouldBeTrue();
+                folderEntryData.IsFolder.ShouldBeFalse();
             }
         }
 
@@ -176,6 +192,10 @@ namespace GVFS.UnitTests.Virtualization.Git
             {
                 LazyUTF8String entryString = ConstructLazyUTF8String(names[i]);
                 entries.AddFolder(entryString);
+                entries.TryGetValue(entryString, out FolderEntryData folderEntryData).ShouldBeTrue();
+                folderEntryData.ShouldNotBeNull();
+                folderEntryData.IsIncluded.ShouldBeTrue();
+                folderEntryData.IsFolder.ShouldBeTrue();
             }
         }
     }
