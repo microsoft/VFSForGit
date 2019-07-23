@@ -31,7 +31,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
 
-            foreach (string includedFolder in this.gvfsProcess.IncludedFoldersList())
+            foreach (string includedFolder in this.gvfsProcess.GetIncludedFolders())
             {
                 this.gvfsProcess.RemoveIncludedFolders(includedFolder);
             }
@@ -249,9 +249,36 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             fileToCreate.ShouldBeAFile(this.fileSystem);
         }
 
+        [TestCase, Order(11)]
+        [Category(Categories.MacOnly)]
+        public void CreateFolderAndFileThatAreExcluded()
+        {
+            this.gvfsProcess.AddIncludedFolders(this.mainIncludedFolder);
+            this.ValidateIncludedFolders(this.mainIncludedFolder);
+
+            // Create a file that should already be in the projection but excluded
+            string newFolderPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Mount");
+            newFolderPath.ShouldNotExistOnDisk(this.fileSystem);
+            Directory.CreateDirectory(newFolderPath);
+            string newFilePath = Path.Combine(newFolderPath, "Program.cs");
+            File.WriteAllText(newFilePath, "New file content");
+            newFolderPath.ShouldBeADirectory(this.fileSystem);
+            newFilePath.ShouldBeAFile(this.fileSystem);
+            string[] fileSystemEntries = Directory.GetFileSystemEntries(newFolderPath);
+            fileSystemEntries.Length.ShouldEqual(7);
+
+            string projectedFolder = Path.Combine(newFolderPath, "Properties");
+            projectedFolder.ShouldBeADirectory(this.fileSystem);
+            fileSystemEntries = Directory.GetFileSystemEntries(projectedFolder);
+            fileSystemEntries.Length.ShouldEqual(1);
+
+            string projectedFile = Path.Combine(newFolderPath, "MountVerb.cs");
+            projectedFile.ShouldBeAFile(this.fileSystem);
+        }
+
         private void ValidateIncludedFolders(params string[] folders)
         {
-            HashSet<string> actualIncludedFolders = new HashSet<string>(this.gvfsProcess.IncludedFoldersList());
+            HashSet<string> actualIncludedFolders = new HashSet<string>(this.gvfsProcess.GetIncludedFolders());
             folders.Length.ShouldEqual(actualIncludedFolders.Count);
             foreach (string expectedFolder in folders)
             {
