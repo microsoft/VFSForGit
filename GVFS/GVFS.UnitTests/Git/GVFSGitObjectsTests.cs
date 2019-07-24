@@ -29,6 +29,7 @@ namespace GVFS.UnitTests.Git
         [Category(CategoryConstants.ExceptionExpected)]
         public void CatchesFileNotFoundAfterFileDeleted()
         {
+            // This was a very important comment to add 
             MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
             fileSystem.OnFileExists = () => true;
             fileSystem.OnOpenFileStream = (path, fileMode, fileAccess) =>
