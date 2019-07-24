@@ -334,10 +334,7 @@ begin
       begin
         if Exec(ExpandConstant('SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
           begin
-            if Exec(ExpandConstant('SC.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-              begin
-                InstallSuccessful := True;
-              end;
+            InstallSuccessful := True;
           end;
       end;
 
@@ -720,6 +717,8 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: integer;
 begin
   case CurStep of
     ssInstall:
@@ -728,6 +727,11 @@ begin
       end;
     ssPostInstall:
       begin
+        // Use NET.exe to send start request and wait for service start. SC.exe sends start request only and does not wait status change.
+        if not Exec(ExpandConstant('NET.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+          begin
+            RaiseException('Fatal: Could not start GVFS.Service');
+          end;
         if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
           begin
             MountRepos();
