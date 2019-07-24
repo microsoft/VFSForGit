@@ -6,11 +6,28 @@ namespace GVFS.Common
 {
     public partial class GVFSEnlistment
     {
+        private static bool? isUnAttendedByDefault;
+        public static void SetIsUnattendedByDefault(bool defaultValue)
+        {
+            if (isUnAttendedByDefault.HasValue)
+            {
+                throw new InvalidOperationException("You can call this method only once");
+            }
+
+            isUnAttendedByDefault = defaultValue;
+        }
+
         public static bool IsUnattended(ITracer tracer)
         {
             try
             {
-                return Environment.GetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable) == "1";
+                string value = Environment.GetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable);
+                if (string.IsNullOrEmpty(value))
+                {
+                    return isUnAttendedByDefault.GetValueOrDefault(false);
+                }
+
+                return value.Equals("1");
             }
             catch (SecurityException e)
             {
