@@ -7,6 +7,10 @@ namespace GVFS.FunctionalTests.Tools
 {
     public class GVFSProcess
     {
+        private const int SuccessExitCode = 0;
+        private const int ExitCodeShouldNotBeZero = -1;
+        private const int DoNotCheckExitCode = -2;
+
         private readonly string pathToGVFS;
         private readonly string enlistmentRoot;
         private readonly string localCacheRoot;
@@ -32,7 +36,7 @@ namespace GVFS.FunctionalTests.Tools
                 branchToCheckout,
                 this.localCacheRoot,
                 skipPrefetch ? "--no-prefetch" : string.Empty);
-            this.CallGVFS(args, failOnError: true);
+            this.CallGVFS(args, expectedExitCode: SuccessExitCode);
         }
 
         public void Mount()
@@ -51,12 +55,28 @@ namespace GVFS.FunctionalTests.Tools
 
         public string AddSparseFolders(params string[] folders)
         {
-            return this.CallGVFS($"sparse {this.enlistmentRoot} -a {string.Join(";", folders)}");
+            return this.SparseCommand(addFolders: true, shouldSucceed: true, folders: folders);
+        }
+
+        public string AddSparseFolders(bool shouldSucceed, params string[] folders)
+        {
+            return this.SparseCommand(addFolders: true, shouldSucceed: shouldSucceed, folders: folders);
         }
 
         public string RemoveSparseFolders(params string[] folders)
         {
-            return this.CallGVFS($"sparse {this.enlistmentRoot} -r {string.Join(";", folders)}");
+            return this.SparseCommand(addFolders: false, shouldSucceed: true, folders: folders);
+        }
+
+        public string RemoveSparseFolders(bool shouldSucceed, params string[] folders)
+        {
+            return this.SparseCommand(addFolders: false, shouldSucceed: shouldSucceed, folders: folders);
+        }
+
+        public string SparseCommand(bool addFolders, bool shouldSucceed, params string[] folders)
+        {
+            string action = addFolders ? "-a" : "-r";
+            return this.CallGVFS($"sparse {this.enlistmentRoot} {action} {string.Join(";", folders)}", expectedExitCode: shouldSucceed ? SuccessExitCode : ExitCodeShouldNotBeZero);
         }
 
         public string[] GetSparseFolders()
@@ -72,7 +92,7 @@ namespace GVFS.FunctionalTests.Tools
 
         public string Prefetch(string args, bool failOnError, string standardInput = null)
         {
-            return this.CallGVFS("prefetch \"" + this.enlistmentRoot + "\" " + args, failOnError, standardInput: standardInput);
+            return this.CallGVFS("prefetch \"" + this.enlistmentRoot + "\" " + args, failOnError ? SuccessExitCode : DoNotCheckExitCode, standardInput: standardInput);
         }
 
         public void Repair(bool confirm)
@@ -80,14 +100,14 @@ namespace GVFS.FunctionalTests.Tools
             string confirmArg = confirm ? "--confirm " : string.Empty;
             this.CallGVFS(
                 "repair " + confirmArg + "\"" + this.enlistmentRoot + "\"",
-                failOnError: true);
+                expectedExitCode: SuccessExitCode);
         }
 
         public string LooseObjectStep()
         {
             return this.CallGVFS(
                 "dehydrate \"" + this.enlistmentRoot + "\"",
-                failOnError: true,
+                expectedExitCode: SuccessExitCode,
                 internalParameter: GVFSHelpers.GetInternalParameter("\\\"LooseObjects\\\""));
         }
 
@@ -97,7 +117,7 @@ namespace GVFS.FunctionalTests.Tools
             string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PackfileMaintenance\\\"", sizeString);
             return this.CallGVFS(
                 "dehydrate \"" + this.enlistmentRoot + "\"",
-                failOnError: true,
+                expectedExitCode: SuccessExitCode,
                 internalParameter: internalParameter);
         }
 
@@ -106,7 +126,7 @@ namespace GVFS.FunctionalTests.Tools
             string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PostFetch\\\"");
             return this.CallGVFS(
                 "dehydrate \"" + this.enlistmentRoot + "\"",
-                failOnError: true,
+                expectedExitCode: SuccessExitCode,
                 internalParameter: internalParameter);
         }
 
@@ -129,7 +149,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             if (this.IsEnlistmentMounted())
             {
-                string result = this.CallGVFS("unmount \"" + this.enlistmentRoot + "\"", failOnError: true);
+                string result = this.CallGVFS("unmount \"" + this.enlistmentRoot + "\"", expectedExitCode: SuccessExitCode);
                 this.IsEnlistmentMounted().ShouldEqual(false, "GVFS did not unmount: " + result);
             }
         }
@@ -142,25 +162,39 @@ namespace GVFS.FunctionalTests.Tools
 
         public string RunServiceVerb(string argument)
         {
-            return this.CallGVFS("service " + argument, failOnError: true);
+            return this.CallGVFS("service " + argument, expectedExitCode: SuccessExitCode);
         }
 
         public string ReadConfig(string key, bool failOnError)
         {
-            return this.CallGVFS($"config {key}", failOnError).TrimEnd('\r', '\n');
+            return this.CallGVFS($"config {key}", failOnError ? SuccessExitCode : DoNotCheckExitCode).TrimEnd('\r', '\n');
         }
 
         public void WriteConfig(string key, string value)
         {
-            this.CallGVFS($"config {key} {value}", failOnError: true);
+            this.CallGVFS($"config {key} {value}", expectedExitCode: SuccessExitCode);
         }
 
         public void DeleteConfig(string key)
         {
-            this.CallGVFS($"config --delete {key}", failOnError: true);
+            this.CallGVFS($"config --delete {key}", expectedExitCode: SuccessExitCode);
         }
 
-        private string CallGVFS(string args, bool failOnError = false, string trace = null, string standardInput = null, string internalParameter = null)
+        /// <summary>
+        /// Invokes a call to gvfs using the arguments specified
+        /// </summary>
+        /// <param name="args">The arguments to use when invoking gvfs</param>
+        /// <param name="expectedExitCode">
+        /// What the expected exit code should be.
+        /// >= than 0 to check the exit code explicitly
+        /// -1 = Fail if the exit code is 0
+        /// -2 = Do not check the exit code (Default)
+        /// </param>
+        /// <param name="trace">What to set the GIT_TRACE environment variable to</param>
+        /// <param name="standardInput">What to write to the standard input stream</param>
+        /// <param name="internalParameter">The internal parameter to set in the arguments</param>
+        /// <returns></returns>
+        private string CallGVFS(string args, int expectedExitCode = DoNotCheckExitCode, string trace = null, string standardInput = null, string internalParameter = null)
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
@@ -196,9 +230,13 @@ namespace GVFS.FunctionalTests.Tools
                 string result = process.StandardOutput.ReadToEnd();
                 process.WaitForExit();
 
-                if (failOnError)
+                if (expectedExitCode >= SuccessExitCode)
                 {
-                    process.ExitCode.ShouldEqual(0, result);
+                    process.ExitCode.ShouldEqual(expectedExitCode, result);
+                }
+                else if (expectedExitCode == ExitCodeShouldNotBeZero)
+                {
+                    process.ExitCode.ShouldNotEqual(SuccessExitCode, "Exit code should not be zero");
                 }
 
                 return result;
