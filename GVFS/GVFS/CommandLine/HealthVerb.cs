@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace GVFS.CommandLine
 {
-    [Verb(HealthVerb.HealthVerbName, HelpText = "Measure the health of the repository")]
+    [Verb(HealthVerb.HealthVerbName, HelpText = "EXPERIMENTAL FEATURE - Measure the health of the repository")]
     public class HealthVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string HealthVerbName = "health";
@@ -46,6 +46,8 @@ namespace GVFS.CommandLine
                     this.Directory = string.Empty;
                 }
             }
+
+            this.Output.WriteLine("\nGathering repository data...");
 
             this.Directory = this.Directory.Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
 

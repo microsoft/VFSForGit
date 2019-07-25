@@ -164,13 +164,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             int numberOfExpectedSubdirectories = topHydratedDirectories.Count;
 
-            this.ValidateTargetDirectory(healthOutputLines[0], directory);
-            this.ValidateTotalFileInfo(healthOutputLines[1], totalFiles, totalFilePercent);
-            this.ValidateFastFileInfo(healthOutputLines[2], fastFiles, fastFilePercent);
-            this.ValidateSlowFileInfo(healthOutputLines[3], slowFiles, slowFilePercent);
-            this.ValidateTotalHydration(healthOutputLines[4], totalPercent);
-            this.ValidateSubDirectoryHealth(healthOutputLines.GetRange(6, numberOfExpectedSubdirectories), topHydratedDirectories, directoryHydrationLevels);
-            this.ValidateEnlistmentStatus(healthOutputLines[6 + numberOfExpectedSubdirectories], enlistmentHealthStatus);
+            this.ValidateTargetDirectory(healthOutputLines[1], directory);
+            this.ValidateTotalFileInfo(healthOutputLines[2], totalFiles, totalFilePercent);
+            this.ValidateFastFileInfo(healthOutputLines[3], fastFiles, fastFilePercent);
+            this.ValidateSlowFileInfo(healthOutputLines[4], slowFiles, slowFilePercent);
+            this.ValidateTotalHydration(healthOutputLines[5], totalPercent);
+            this.ValidateSubDirectoryHealth(healthOutputLines.GetRange(7, numberOfExpectedSubdirectories), topHydratedDirectories, directoryHydrationLevels);
+            this.ValidateEnlistmentStatus(healthOutputLines[7 + numberOfExpectedSubdirectories], enlistmentHealthStatus);
         }
 
         private void ValidateTargetDirectory(string outputLine, string targetDirectory)
