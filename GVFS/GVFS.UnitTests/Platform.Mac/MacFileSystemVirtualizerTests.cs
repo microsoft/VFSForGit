@@ -480,7 +480,6 @@ namespace GVFS.UnitTests.Platform.Mac
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
-                byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                 byte[] placeholderVersion = MacFileSystemVirtualizer.PlaceholderVersionId;
 
                 mockVirtualization.WriteFileReturnResult = Result.Success;
@@ -489,7 +488,7 @@ namespace GVFS.UnitTests.Platform.Mac
                     commandId: 1,
                     relativePath: TestFileName,
                     providerId: placeholderVersion,
-                    contentId: contentId,
+                    contentId: CommonRepoSetup.DefaultContentId,
                     triggeringProcessId: 2,
                     triggeringProcessName: "UnitTest",
                     fileHandle: IntPtr.Zero).ShouldEqual(Result.Success);
@@ -529,7 +528,6 @@ namespace GVFS.UnitTests.Platform.Mac
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
-                byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                 byte[] placeholderVersion = MacFileSystemVirtualizer.PlaceholderVersionId;
 
                 mockVirtualization.WriteFileReturnResult = Result.EIOError;
@@ -538,7 +536,7 @@ namespace GVFS.UnitTests.Platform.Mac
                     commandId: 1,
                     relativePath: TestFileName,
                     providerId: placeholderVersion,
-                    contentId: contentId,
+                    contentId: CommonRepoSetup.DefaultContentId,
                     triggeringProcessId: 2,
                     triggeringProcessName: "UnitTest",
                     fileHandle: IntPtr.Zero).ShouldEqual(Result.EIOError);

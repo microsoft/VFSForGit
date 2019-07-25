@@ -506,7 +506,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Guid enumerationGuid = Guid.NewGuid();
 
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                     mockVirtualization.requiredCallbacks.GetFileDataCallback(
@@ -515,7 +514,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         byteOffset: 10,
                         length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
+                        contentId: CommonRepoSetup.DefaultContentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
                         triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.InternalError);
@@ -558,7 +557,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Guid enumerationGuid = Guid.NewGuid();
 
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] epochId = new byte[] { FileSystemVirtualizer.PlaceholderVersion + 1 };
 
                     mockVirtualization.requiredCallbacks.GetFileDataCallback(
@@ -567,7 +565,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         byteOffset: 0,
                         length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
+                        contentId: CommonRepoSetup.DefaultContentId,
                         providerId: epochId,
                         triggeringProcessId: 2,
                         triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.InternalError);
@@ -804,7 +802,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Guid enumerationGuid = Guid.NewGuid();
 
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                     mockVirtualization.WriteFileReturnResult = HResult.Ok;
@@ -815,7 +812,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         byteOffset: 0,
                         length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
+                        contentId: CommonRepoSetup.DefaultContentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
                         triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
@@ -861,7 +858,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Guid enumerationGuid = Guid.NewGuid();
 
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                     MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
@@ -876,7 +872,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         byteOffset: 0,
                         length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
+                        contentId: CommonRepoSetup.DefaultContentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
                         triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
@@ -920,7 +916,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                 Guid enumerationGuid = Guid.NewGuid();
 
-                byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                 byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                 MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
@@ -933,7 +928,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     byteOffset: 0,
                     length: MockGVFSGitObjects.DefaultFileLength,
                     dataStreamId: Guid.NewGuid(),
-                    contentId: contentId,
+                    contentId: CommonRepoSetup.DefaultContentId,
                     providerId: placeholderVersion,
                     triggeringProcessId: 2,
                     triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
@@ -979,7 +974,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Guid enumerationGuid = Guid.NewGuid();
 
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                     MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
@@ -991,7 +985,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         byteOffset: 0,
                         length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
+                        contentId: CommonRepoSetup.DefaultContentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
                         triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
@@ -1037,7 +1031,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Guid enumerationGuid = Guid.NewGuid();
 
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                     MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
@@ -1049,7 +1042,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         byteOffset: 0,
                         length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
+                        contentId: CommonRepoSetup.DefaultContentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
                         triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
