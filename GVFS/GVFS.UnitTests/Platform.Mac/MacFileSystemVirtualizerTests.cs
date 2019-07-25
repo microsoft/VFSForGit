@@ -483,9 +483,6 @@ namespace GVFS.UnitTests.Platform.Mac
                 byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                 byte[] placeholderVersion = MacFileSystemVirtualizer.PlaceholderVersionId;
 
-                uint fileLength = 100;
-                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                mockGVFSGitObjects.FileLength = fileLength;
                 mockVirtualization.WriteFileReturnResult = Result.Success;
 
                 mockVirtualization.OnGetFileStream(
@@ -497,7 +494,7 @@ namespace GVFS.UnitTests.Platform.Mac
                     triggeringProcessName: "UnitTest",
                     fileHandle: IntPtr.Zero).ShouldEqual(Result.Success);
 
-                mockVirtualization.BytesWritten.ShouldEqual(fileLength);
+                mockVirtualization.BytesWritten.ShouldEqual(MockGVFSGitObjects.DefaultFileLength);
 
                 fileSystemCallbacks.Stop();
             }
@@ -535,9 +532,6 @@ namespace GVFS.UnitTests.Platform.Mac
                 byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                 byte[] placeholderVersion = MacFileSystemVirtualizer.PlaceholderVersionId;
 
-                uint fileLength = 100;
-                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                mockGVFSGitObjects.FileLength = fileLength;
                 mockVirtualization.WriteFileReturnResult = Result.EIOError;
 
                 mockVirtualization.OnGetFileStream(

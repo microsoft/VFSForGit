@@ -10,6 +10,7 @@ namespace GVFS.UnitTests.Mock.Git
 {
     public class MockGVFSGitObjects : GVFSGitObjects
     {
+        public const uint DefaultFileLength = 100;
         private GVFSContext context;
 
         public MockGVFSGitObjects(GVFSContext context, GitObjectsHttpRequestor httpGitObjects)
@@ -19,7 +20,7 @@ namespace GVFS.UnitTests.Mock.Git
         }
 
         public bool CancelTryCopyBlobContentStream { get; set; }
-        public uint FileLength { get; set; }
+        public uint FileLength { get; set; } = DefaultFileLength;
 
         public override bool TryDownloadCommit(string objectSha)
         {

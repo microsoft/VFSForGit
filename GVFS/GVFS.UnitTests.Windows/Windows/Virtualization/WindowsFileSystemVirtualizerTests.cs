@@ -513,7 +513,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 10,
-                        length: 100,
+                        length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
@@ -565,7 +565,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
-                        length: 100,
+                        length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: epochId,
@@ -807,16 +807,13 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
-                    uint fileLength = 100;
-                    MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                    mockGVFSGitObjects.FileLength = fileLength;
                     mockVirtualization.WriteFileReturnResult = HResult.Ok;
 
                     mockVirtualization.requiredCallbacks.GetFileDataCallback(
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
-                        length: fileLength,
+                        length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
@@ -877,7 +874,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
-                        length: 100,
+                        length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
@@ -926,10 +923,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                 byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
-                uint fileLength = 100;
-                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                mockGVFSGitObjects.FileLength = fileLength;
-
                 MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
                 mockTracker.WaitRelatedEventName = "GetFileStreamHandlerAsyncHandler_OperationCancelled";
 
@@ -938,7 +931,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     commandId: 1,
                     relativePath: "test.txt",
                     byteOffset: 0,
-                    length: fileLength,
+                    length: MockGVFSGitObjects.DefaultFileLength,
                     dataStreamId: Guid.NewGuid(),
                     contentId: contentId,
                     providerId: placeholderVersion,
@@ -989,10 +982,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
-                    uint fileLength = 100;
-                    MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                    mockGVFSGitObjects.FileLength = fileLength;
-
                     MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
 
                     mockVirtualization.WriteFileReturnResult = HResult.InternalError;
@@ -1000,7 +989,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
-                        length: fileLength,
+                        length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
@@ -1051,10 +1040,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
-                    uint fileLength = 100;
-                    MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                    mockGVFSGitObjects.FileLength = fileLength;
-
                     MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
 
                     mockVirtualization.WriteFileReturnResult = HResult.Handle;
@@ -1062,7 +1047,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
-                        length: fileLength,
+                        length: MockGVFSGitObjects.DefaultFileLength,
                         dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
