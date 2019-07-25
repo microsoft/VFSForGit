@@ -480,14 +480,12 @@ namespace GVFS.UnitTests.Platform.Mac
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
-                byte[] placeholderVersion = MacFileSystemVirtualizer.PlaceholderVersionId;
-
                 mockVirtualization.WriteFileReturnResult = Result.Success;
 
                 mockVirtualization.OnGetFileStream(
                     commandId: 1,
                     relativePath: TestFileName,
-                    providerId: placeholderVersion,
+                    providerId: MacFileSystemVirtualizer.PlaceholderVersionId,
                     contentId: CommonRepoSetup.DefaultContentId,
                     triggeringProcessId: 2,
                     triggeringProcessName: "UnitTest",
@@ -528,14 +526,12 @@ namespace GVFS.UnitTests.Platform.Mac
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
-                byte[] placeholderVersion = MacFileSystemVirtualizer.PlaceholderVersionId;
-
                 mockVirtualization.WriteFileReturnResult = Result.EIOError;
 
                 mockVirtualization.OnGetFileStream(
                     commandId: 1,
                     relativePath: TestFileName,
-                    providerId: placeholderVersion,
+                    providerId: MacFileSystemVirtualizer.PlaceholderVersionId,
                     contentId: CommonRepoSetup.DefaultContentId,
                     triggeringProcessId: 2,
                     triggeringProcessName: "UnitTest",
