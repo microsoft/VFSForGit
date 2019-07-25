@@ -23,22 +23,23 @@ namespace GVFS.UnitTests.Windows.Mock
         public MockVirtualizationInstance MockVirtualization { get; private set; }
         public WindowsFileSystemVirtualizer WindowsVirtualizer { get; private set; }
 
-        public void GetFileDataCallbackResultShouldEqual(HResult expectedResult)
+        public void InvokeGetFileDataCallback(HResult expectedResult = HResult.Pending, byte[] providerId = null, ulong byteOffset = 0)
         {
-            this.MockVirtualization.WriteFileReturnResult = expectedResult;
+            if (providerId == null)
+            {
+                providerId = WindowsFileSystemVirtualizer.PlaceholderVersionId;
+            }
+
             this.MockVirtualization.requiredCallbacks.GetFileDataCallback(
                 commandId: 1,
                 relativePath: "test.txt",
-                byteOffset: 0,
+                byteOffset: byteOffset,
                 length: MockGVFSGitObjects.DefaultFileLength,
                 dataStreamId: Guid.NewGuid(),
                 contentId: CommonRepoSetup.DefaultContentId,
-                providerId: WindowsFileSystemVirtualizer.PlaceholderVersionId,
+                providerId: providerId,
                 triggeringProcessId: 2,
-                triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
-
-            HResult result = this.MockVirtualization.WaitForCompletionStatus();
-            result.ShouldEqual(this.MockVirtualization.WriteFileReturnResult);
+                triggeringProcessImageFileName: "UnitTest").ShouldEqual(expectedResult);
         }
 
         protected override FileSystemVirtualizer CreateVirtualizer(CommonRepoSetup repo)
