@@ -383,6 +383,11 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileConvertedToFull(relativePath));
         }
 
+        public void OnFailedFileHydration(string relativePath)
+        {
+            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFailedFileHydration(relativePath));
+        }
+
         public virtual void OnFileRenamed(string oldRelativePath, string newRelativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileRenamed(oldRelativePath, newRelativePath));
@@ -687,6 +692,7 @@ namespace GVFS.Virtualization
                 case FileSystemTask.OperationType.OnFileSuperseded:
                 case FileSystemTask.OperationType.OnFileConvertedToFull:
                 case FileSystemTask.OperationType.OnFailedPlaceholderUpdate:
+                case FileSystemTask.OperationType.OnFailedFileHydration:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.VirtualPath);
                     break;

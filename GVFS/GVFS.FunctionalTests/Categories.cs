@@ -29,9 +29,6 @@
             // Tests requires code updates so that we lock the file instead of looking for a .lock file
             public const string TestNeedsToLockFile = "TestNeedsToLockFile";
 
-            // Corrupt Objects are not redownloaded
-            public const string NeedsCorruptObjectFix = "NeedsCorruptObjectFix";
-
             // Tests that have been flaky on build servers and need additional logging and\or
             // investigation
             public const string FlakyTest = "MacFlakyTest";

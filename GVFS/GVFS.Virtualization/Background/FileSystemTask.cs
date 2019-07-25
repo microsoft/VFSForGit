@@ -33,6 +33,7 @@ namespace GVFS.Virtualization.Background
             OnFilePreDelete,
             OnFolderPreDelete,
             OnFileSymLinkCreated,
+            OnFailedFileHydration,
         }
 
         public OperationType Operation { get; }
@@ -93,6 +94,11 @@ namespace GVFS.Virtualization.Background
         public static FileSystemTask OnFailedPlaceholderUpdate(string virtualPath)
         {
             return new FileSystemTask(OperationType.OnFailedPlaceholderUpdate, virtualPath, oldVirtualPath: null);
+        }
+
+        public static FileSystemTask OnFailedFileHydration(string virtualPath)
+        {
+            return new FileSystemTask(OperationType.OnFailedFileHydration, virtualPath, oldVirtualPath: null);
         }
 
         public static FileSystemTask OnFolderCreated(string virtualPath)
