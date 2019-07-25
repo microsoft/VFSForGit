@@ -30,7 +30,7 @@ namespace GVFS.Platform.POSIX
 
         public void FlushFileBuffers(string path)
         {
-            // TODO(POSIX): Use native API to flush file
+            // TODO(#1057): Use native API to flush file
         }
 
         public void MoveAndOverwriteFile(string sourceFileName, string destinationFilename)
@@ -39,12 +39,6 @@ namespace GVFS.Platform.POSIX
             {
                 NativeMethods.ThrowLastWin32Exception($"Failed to rename {sourceFileName} to {destinationFilename}");
             }
-        }
-
-        public void CreateHardLink(string newFileName, string existingFileName)
-        {
-            // TODO(POSIX): Use native API to create a hardlink
-            File.Copy(existingFileName, newFileName);
         }
 
         public abstract void ChangeMode(string path, ushort mode);

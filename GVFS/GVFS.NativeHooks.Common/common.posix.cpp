@@ -13,7 +13,7 @@
 
 PATH_STRING GetFinalPathName(const PATH_STRING& path)
 {
-    // TODO(Mac): Implement
+    // TODO(#1358): Implement
     return path;
 }
 

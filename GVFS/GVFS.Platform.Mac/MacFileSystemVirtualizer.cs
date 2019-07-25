@@ -88,7 +88,7 @@ namespace GVFS.Platform.Mac
             long endOfFile,
             string sha)
         {
-            // TODO(Mac): Add functional tests that validate file mode is set correctly
+            // TODO(#223): Add functional tests that validate file mode is set correctly
             GitIndexProjection.FileType fileType;
             ushort fileMode;
             this.FileSystemCallbacks.GitIndexProjection.GetFileTypeAndMode(relativePath, out fileType, out fileMode);
@@ -151,7 +151,7 @@ namespace GVFS.Platform.Mac
         {
             UpdateFailureCause failureCause = UpdateFailureCause.NoFailure;
 
-            // TODO(Mac): Add functional tests that include:
+            // TODO(#223): Add functional tests that include:
             //     - Mode + content changes between commits
             //     - Mode only changes (without any change to content, see issue #223)
             GitIndexProjection.FileType fileType;
@@ -266,7 +266,7 @@ namespace GVFS.Platform.Mac
                         byte[] buffer = new byte[SymLinkTargetBufferSize];
                         uint bufferIndex = 0;
 
-                        // TODO(Mac): Find a better solution than reading from the stream one byte at at time
+                        // TODO(#1361): Find a better solution than reading from the stream one byte at at time
                         int nextByte = stream.ReadByte();
                         while (nextByte != -1)
                         {
@@ -364,7 +364,7 @@ namespace GVFS.Platform.Mac
                     activity.RelatedError(metadata, nameof(this.OnGetFileStream) + ": Unexpected placeholder version");
                     activity.Dispose();
 
-                    // TODO(Mac): Is this the correct Result to return?
+                    // TODO(#1362): Is this the correct Result to return?
                     return Result.EIOError;
                 }
 
@@ -376,7 +376,7 @@ namespace GVFS.Platform.Mac
                         GVFSGitObjects.RequestSource.FileStreamCallback,
                         (stream, blobLength) =>
                         {
-                            // TODO(Mac): Find a better solution than reading from the stream one byte at at time
+                            // TODO(#1361): Find a better solution than reading from the stream one byte at at time
                             byte[] buffer = new byte[4096];
                             uint bufferIndex = 0;
                             int nextByte = stream.ReadByte();
@@ -408,7 +408,7 @@ namespace GVFS.Platform.Mac
                     {
                         activity.RelatedError(metadata, $"{nameof(this.OnGetFileStream)}: TryCopyBlobContentStream failed");
 
-                        // TODO(Mac): Is this the correct Result to return?
+                        // TODO(#1362): Is this the correct Result to return?
                         return Result.EFileNotFound;
                     }
                 }

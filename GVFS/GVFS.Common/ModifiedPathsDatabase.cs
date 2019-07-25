@@ -226,7 +226,6 @@ namespace GVFS.Common
 
         private string NormalizeEntryString(string virtualPath, bool isFolder)
         {
-            // TODO(Mac) This can be optimized if needed
             return virtualPath.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator).Trim(GVFSConstants.GitPathSeparator) +
                 (isFolder ? GVFSConstants.GitPathSeparatorString : string.Empty);
         }
