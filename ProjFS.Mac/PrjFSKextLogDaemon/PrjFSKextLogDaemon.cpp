@@ -44,8 +44,8 @@ static void StartLoggingKextMessages(io_connect_t connection, io_service_t servi
 static void HandleSigterm(int sig, siginfo_t* info, void* uc);
 static void SetupExitSignalHandler();
 
-static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection);
-static bool TryFetchAndLogKextHealthData(io_connect_t connection);
+static dispatch_source_t StartPeriodicLoggingTimer(io_connect_t connection);
+static void FetchAndLogKextHealthData(io_connect_t connection);
 
 static void ReportDroppedKextMessages();
 
@@ -203,7 +203,7 @@ static void StartLoggingKextMessages(io_connect_t connection, io_service_t prjfs
     });
     dispatch_resume(logDataQueue->dispatchSource);
 
-    dispatch_source_t timer = StartKextHealthDataPolling(connection);
+    dispatch_source_t timer = StartPeriodicLoggingTimer(connection);
 
     PrjFSService_WatchForServiceTermination(
         prjfsService,
@@ -244,7 +244,7 @@ static void SetupExitSignalHandler()
     sigaction(SIGTERM, &newAction, &oldAction);
 }
 
-static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection)
+static dispatch_source_t StartPeriodicLoggingTimer(io_connect_t connection)
 {
     dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
     dispatch_source_set_timer(
@@ -255,22 +255,21 @@ static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection)
     dispatch_source_set_event_handler(timer, ^{
         // Every time the timer fires attempt to connect (if not already connected)
         CreatePipeToMessageListener();
-        TryFetchAndLogKextHealthData(connection);
+        FetchAndLogKextHealthData(connection);
         ReportDroppedKextMessages();
     });
     dispatch_resume(timer);
     return timer;
 }
 
-static bool TryFetchAndLogKextHealthData(io_connect_t connection)
+static void FetchAndLogKextHealthData(io_connect_t connection)
 {
     PrjFSVnodeCacheHealth healthData;
     size_t out_size = sizeof(healthData);
     IOReturn ret = IOConnectCallStructMethod(connection, LogSelector_FetchVnodeCacheHealth, nullptr, 0, &healthData, &out_size);
     if (ret == kIOReturnUnsupported)
     {
-        LogDaemonError("TryFetchAndLogKextHealthData: IOConnectCallStructMethod failed for LogSelector_FetchVnodeCacheHealth, ret: kIOReturnUnsupported");
-        return false;
+        LogDaemonError("FetchAndLogKextHealthData: IOConnectCallStructMethod failed for LogSelector_FetchVnodeCacheHealth, ret: kIOReturnUnsupported");
     }
     else if (ret == kIOReturnSuccess)
     {
@@ -279,16 +278,15 @@ static bool TryFetchAndLogKextHealthData(io_connect_t connection)
     else
     {
         ostringstream errorMessage;
-        errorMessage << "TryFetchAndLogKextHealthData: Fetching profiling data from kernel failed, ret: 0x" << hex << ret;
+        errorMessage << "FetchAndLogKextHealthData: Fetching profiling data from kernel failed, ret: 0x" << hex << ret;
         LogDaemonError(errorMessage.str());
-        return false;
     }
-    
-    return true;
 }
 
 static void ReportDroppedKextMessages()
 {
+    // We should only report the number of drops reported during the last time interval (i.e. since the last
+    // time ReportDroppedKextMessages was called).  Capture the current value of s_droppedMessageCount and reset it to 0.
     uint32_t droppedMessageCount = atomic_exchange(&s_droppedMessageCount, 0U);
     
     if (droppedMessageCount > 0)
