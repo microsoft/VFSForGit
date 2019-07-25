@@ -996,57 +996,12 @@ namespace GVFS.UnitTests.Windows.Virtualization
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesHResultHandleResult()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                    Guid enumerationGuid = Guid.NewGuid();
-
-                    MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
-
-                    mockVirtualization.WriteFileReturnResult = HResult.Handle;
-                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
-                        commandId: 1,
-                        relativePath: "test.txt",
-                        byteOffset: 0,
-                        length: MockGVFSGitObjects.DefaultFileLength,
-                        dataStreamId: Guid.NewGuid(),
-                        contentId: CommonRepoSetup.DefaultContentId,
-                        providerId: WindowsFileSystemVirtualizer.PlaceholderVersionId,
-                        triggeringProcessId: 2,
-                        triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
-
-                    HResult result = mockVirtualization.WaitForCompletionStatus();
-                    result.ShouldEqual(mockVirtualization.WriteFileReturnResult);
-                    mockTracker.RelatedErrorEvents.ShouldBeEmpty();
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                tester.GetFileDataCallbackResultShouldEqual(HResult.Handle);
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.RelatedErrorEvents.ShouldBeEmpty();
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
     }
 }
