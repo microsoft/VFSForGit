@@ -10,7 +10,7 @@ namespace GVFS.Common
     {
         private static string currentProcessVersion = null;
 
-        public static ProcessResult Run(string programName, string args, bool redirectOutput = true)
+        public static ProcessResult Run(string programName, string args, bool redirectOutput = true, bool isInteractive = true)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(programName);
             processInfo.UseShellExecute = false;
@@ -20,6 +20,8 @@ namespace GVFS.Common
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.CreateNoWindow = redirectOutput;
             processInfo.Arguments = args;
+
+            processInfo.EnvironmentVariables[GVFSConstants.UnattendedEnvironmentVariable] = isInteractive ? "0" : "1";
 
             return Run(processInfo);
         }

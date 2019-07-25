@@ -673,7 +673,7 @@ namespace GVFS.Common.Git
                 }
             }
 
-            processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
+            processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = GVFSEnlistment.IsUnattended(null) ? "1" : "0";
             processInfo.EnvironmentVariables["GCM_VALIDATE"] = "0";
             processInfo.EnvironmentVariables["PATH"] =
                 string.Join(

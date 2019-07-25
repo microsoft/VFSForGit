@@ -1,4 +1,5 @@
 ﻿using CommandLine;
+using GVFS.Common;
 using GVFS.PlatformLoader;
 using System;
 
@@ -8,6 +9,7 @@ namespace GVFS.Mount
     {
         public static void Main(string[] args)
         {
+            GVFSEnlistment.SetIsUnattendedByDefault(true);
             GVFSPlatformLoader.Initialize();
             try
             {

@@ -91,7 +91,7 @@ namespace GVFS.Hooks
             {
                 case "fetch":
                 case "pull":
-                    ProcessHelper.Run("gvfs", "prefetch --commits", redirectOutput: false);
+                    ProcessHelper.Run("gvfs", "prefetch --commits", redirectOutput: false, isInteractive: false);
                     break;
             }
         }

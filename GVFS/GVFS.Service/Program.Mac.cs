@@ -13,6 +13,7 @@ namespace GVFS.Service
     {
         public static void Main(string[] args)
         {
+            GVFSEnlistment.SetIsUnattendedByDefault(false);
             GVFSPlatformLoader.Initialize();
 
             AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionHandler;
