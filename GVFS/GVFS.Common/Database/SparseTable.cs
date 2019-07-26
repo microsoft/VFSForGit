@@ -68,7 +68,7 @@ namespace GVFS.Common.Database
             }
             catch (Exception ex)
             {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetAll)} Exception: {ex.ToString()}", ex);
+                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.GetAll)} Exception: {ex.ToString()}", ex);
             }
         }
 
