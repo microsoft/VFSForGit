@@ -7,6 +7,7 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace GVFS.CommandLine
@@ -160,7 +161,9 @@ Folders need to be relative to the repos root directory.")
             }
             else
             {
-                return folders.Split(new[] { FolderListSeparator }, StringSplitOptions.RemoveEmptyEntries);
+                return folders.Split(new[] { FolderListSeparator }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => SparseTable.NormalizePath(x))
+                    .ToArray();
             }
         }
 

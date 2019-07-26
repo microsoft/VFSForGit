@@ -135,10 +135,12 @@ namespace GVFS.UnitTests.Common.Database
 
             mockCommand.Verify(x => x.Dispose(), Times.Once);
             mockCommand2.Verify(x => x.Dispose(), Times.Once);
+            mockCommand3.Verify(x => x.Dispose(), Times.Once);
             mockConnections.ForEach(connection => connection.Verify(x => x.Dispose(), Times.Once));
 
             mockCommand.VerifyAll();
             mockCommand2.VerifyAll();
+            mockCommand3.VerifyAll();
             mockConnections.ForEach(connection => connection.VerifyAll());
             mockConnectionFactory.VerifyAll();
         }
