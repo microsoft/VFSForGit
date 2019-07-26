@@ -113,7 +113,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.Prefetch("--files *").ShouldContain("Nothing new to prefetch.");
         }
 
-        // TODO(Mac): Handle that lock files are not deleted on Mac, they are simply unlocked
+        // TODO(#1219): Handle that lock files are not deleted on Mac, they are simply unlocked
         [TestCase, Order(11)]
         [Category(Categories.MacTODO.TestNeedsToLockFile)]
         public void PrefetchCleansUpStalePrefetchLock()

@@ -673,7 +673,7 @@ KEXT_STATIC int HandleFileOpOperation(
         // arg0 is the (const char *) fromPath (or the file being linked to)
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
-        // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
+        // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
@@ -740,7 +740,7 @@ KEXT_STATIC int HandleFileOpOperation(
         const char* fromPath = reinterpret_cast<const char*>(arg0);
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
-        // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
+        // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
@@ -757,7 +757,6 @@ KEXT_STATIC int HandleFileOpOperation(
         bool isDirectory = (0 != vnode_isdir(currentVnode));
         if (isDirectory)
         {
-            // TODO(Mac): Handle hard-linked directories?
             KextLog_Info("HandleFileOpOperation: KAUTH_FILEOP_LINK event for hardlinked directory currently not handled. ('%s' -> '%s')", fromPath, newPath);
             goto CleanupAndReturn;
         }
@@ -1127,7 +1126,7 @@ static bool TryGetVirtualizationRoot(
     ActiveProviderProperties provider = VirtualizationRoot_GetActiveProvider(*root);
     if (!provider.isOnline)
     {
-        // TODO(Mac): Protect files in the worktree from modification (and prevent
+        // TODO(#182): Protect files in the worktree from modification (and prevent
         // the creation of new files) when the provider is offline
         
         perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_ProviderOffline);
@@ -1238,7 +1237,7 @@ static VirtualizationRootHandle FindRootForVnodeWithFileOpEvent(
     }
     else
     {
-        // TODO(Mac): Once all hardlink paths are delivered to the appropriate root(s)
+        // TODO(#1188): Once all hardlink paths are delivered to the appropriate root(s)
         // check if the KAUTH_FILEOP_LINK case can be removed.  For now the check is required to make
         // sure we're looking up the most up-to-date parent information for the vnode on the next
         // access to the vnode cache
@@ -1383,9 +1382,8 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
     errno_t err = GetVNodeAttributes(vn, context, &attributes);
     if (0 != err)
     {
-        // TODO(Mac): May fail on some file system types? Perhaps we should early-out depending on mount point anyway.
-        // We should also consider:
-        //   - Logging this error
+        // May fail on some file system types? Perhaps we should early-out depending on mount point anyway.
+        // If we see failures we should also consider:
         //   - Falling back on vnode lookup (or custom cache) to determine if file is in the root
         //   - Assuming files are empty if we can't read the flags
         KextLog_FileError(vn, "ReadVNodeFileFlags: GetVNodeAttributes failed with error %d; vnode type: %d, recycled: %s", err, vnode_vtype(vn), vnode_isrecycled(vn) ? "yes" : "no");

@@ -4,7 +4,7 @@
     {
         public static bool TryGetNormalizedPathImplementation(string path, out string normalizedPath, out string errorMessage)
         {
-            // TODO(POSIX): Properly determine normalized paths (e.g. across links)
+            // TODO(#1358): Properly determine normalized paths (e.g. across links)
             errorMessage = null;
             normalizedPath = path;
             return true;

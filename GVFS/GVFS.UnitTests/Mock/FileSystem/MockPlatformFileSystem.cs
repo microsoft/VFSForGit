@@ -18,11 +18,6 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public void CreateHardLink(string newFileName, string existingFileName)
-        {
-            throw new NotSupportedException();
-        }
-
         public void ChangeMode(string path, ushort mode)
         {
             throw new NotSupportedException();

@@ -47,7 +47,7 @@ namespace GVFS.Platform.POSIX
                 hooksPaths = binPath;
             }
 
-            // TODO(POSIX): Get the hooks version rather than the GVFS version (and share that code with the Windows platform)
+            // TODO(#1044): Get the hooks version rather than the GVFS version (and share that code with the Windows platform)
             hooksVersion = ProcessHelper.GetCurrentProcessVersion();
             error = null;
             return true;
@@ -183,7 +183,7 @@ namespace GVFS.Platform.POSIX
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
-            // TODO(POSIX): Collect disk information
+            // TODO(#1356): Collect disk information
             Dictionary<string, string> result = new Dictionary<string, string>();
             result.Add("GetPhysicalDiskInfo", "Not yet implemented on POSIX");
             return result;
@@ -248,7 +248,7 @@ namespace GVFS.Platform.POSIX
 
         public override bool IsGitStatusCacheSupported()
         {
-            // TODO(POSIX): support git status cache
+            // Git status cache is only supported on Windows
             return false;
         }
 

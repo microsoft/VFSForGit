@@ -664,14 +664,9 @@ namespace GVFS.Virtualization.Projection
 
             if (GVFSPlatform.Instance.FileSystem.SupportsFileMode)
             {
-                // TODO(Mac): Test if performance could be improved by eliminating the SupportsFileMode check
-                // (e.g. by defaulting FileMode to Regular 644 and eliminating the SupportsFileMode check)
                 if (indexEntry.TypeAndMode.Type != FileType.Regular ||
                     indexEntry.TypeAndMode.Mode != FileMode644)
                 {
-                    // TODO(Mac): The line below causes a conversion from LazyUTF8String to .NET string.
-                    // Measure the perf and memory overhead of performing this conversion, and determine if we need
-                    // a way to keep the path as LazyUTF8String
                     this.nonDefaultFileTypesAndModes.Add(indexEntry.BuildingProjection_GetGitRelativePath(), indexEntry.TypeAndMode);
                 }
             }
@@ -1379,7 +1374,7 @@ namespace GVFS.Virtualization.Projection
                 return;
             }
 
-            // TODO(Mac): Issue #255, batch file sizes up-front for the new placeholders written by ReExpandFolder
+            // TODO(#255): Batch file sizes up-front for the new placeholders written by ReExpandFolder
             folderData.PopulateSizes(
                 this.context.Tracer,
                 this.gitObjects,
@@ -1436,7 +1431,7 @@ namespace GVFS.Virtualization.Projection
                             return;
 
                         default:
-                            // TODO(Mac): Issue #245, handle failures of WritePlaceholderDirectory and WritePlaceholderFile
+                            // TODO(#245): Handle failures of WritePlaceholderDirectory and WritePlaceholderFile
                             break;
                     }
                 }

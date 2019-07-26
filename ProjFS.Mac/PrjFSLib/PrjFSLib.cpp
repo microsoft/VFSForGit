@@ -275,7 +275,7 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
         return PrjFS_Result_EInvalidArgs;
     }
     
-    // TODO(Mac): walk entire parent chain to root and all child directories to leaf nodes, to make sure we find no other virtualization roots.
+    // TODO(#1373): walk entire parent chain to root and all child directories to leaf nodes, to make sure we find no other virtualization roots.
     // It is not allowed to have nested virtualization roots.
 
     if (IsBitSetInFileFlags(virtualizationRootFullPath, FileFlags_IsInVirtualizationRoot) ||
@@ -319,7 +319,7 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     {
         switch(errno)
         {
-            // TODO(Mac): Return more specific error codes for other failure scenarios
+            // TODO(#1371): Return more specific error codes for other failure scenarios
             case ENOENT: // A component of the path prefix does not exist or path is an empty string
                 result = PrjFS_Result_EPathNotFound;
                 break;
@@ -340,7 +340,7 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     return PrjFS_Result_Success;
     
 CleanupAndFail:
-    // TODO(Mac): cleanup the directory on disk if needed
+    // TODO(#1371): cleanup the directory on disk if needed
     return result;
 }
 
@@ -380,7 +380,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     {
         switch(errno)
         {
-            // TODO(Mac): Return more specific error codes for other failure scenarios
+            // TODO(#1371): Return more specific error codes for other failure scenarios
             case ENOENT: // A directory component in fullPath does not exist or is a dangling symbolic link.
                 result = PrjFS_Result_EPathNotFound;
                 break;
@@ -408,7 +408,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         goto CleanupAndFail;
     }
     
-    // TODO(Mac): Only call chmod if fileMode is different than the default file mode
+    // TODO(#1370): Only call chmod if fileMode is different than the default file mode
     if (chmod(fullPath, fileMode))
     {
         result = PrjFS_Result_EIOError;
@@ -420,9 +420,8 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
 CleanupAndFail:
     if (nullptr != file)
     {
-        // TODO(Mac) #234: we now have a partially created placeholder file. Should we delete it?
+        // TODO(#234): we now have a partially created placeholder file. Should we delete it?
         // A better pattern would likely be to create the file in a tmp location, fully initialize its state, then move it into the requested path
-        
         fclose(file);
         file = nullptr;
     }
@@ -454,7 +453,7 @@ PrjFS_Result PrjFS_WriteSymLink(
         goto CleanupAndFail;
     }
     
-    // TODO(Mac) #391: Handles failures of SetBitInFileFlags
+    // TODO(#391): Handles failures of SetBitInFileFlags
     SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
 
     return PrjFS_Result_Success;
@@ -485,7 +484,7 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
         << hex << updateFlags << dec << ")" << endl;
 #endif
     
-    // TODO(Mac): Check if the contentId or fileMode have changed before proceeding
+    // TODO(#1372): Check if the contentId or fileMode have changed before proceeding
     // with the update
     
     PrjFS_Result result = PrjFS_DeleteFile(relativePath, updateFlags, failureCause);
@@ -494,7 +493,7 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
        return result;
     }
 
-    // TODO(Mac): Ensure that races with hydration are handled properly
+    // TODO(#1372): Ensure that races with hydration are handled properly
     return PrjFS_WritePlaceholderFile(relativePath, providerId, contentId, fileSize, fileMode);
 }
 
@@ -540,7 +539,7 @@ PrjFS_Result PrjFS_DeleteFile(
         return PrjFS_Result_EInvalidArgs;
     }
 
-    // TODO(Mac): Ensure that races with hydration are handled properly
+    // TODO(#1372): Ensure that races with hydration are handled properly
     
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
@@ -568,7 +567,7 @@ PrjFS_Result PrjFS_DeleteFile(
     
     if (S_ISREG(path_stat.st_mode))
     {
-        // TODO(Mac): Determine if we need a similar check for directories as well
+        // TODO(#1372): Determine if we need a similar check for directories as well
         PrjFSFileXAttrData xattrData = {};
         if (!TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
         {
@@ -681,7 +680,6 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
 
         if (pathSize < 0)
         {
-            // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
             ostringstream ss;
             ss
                 << "MessageType: " << requestHeader->messageType << " "
@@ -877,7 +875,7 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
         {
             if (!SetBitInFileFlags(absolutePath, FileFlags_IsEmpty, false))
             {
-                // TODO(Mac): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
+                // TODO(#1374): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
                 // update placeholder metadata?
                 result = PrjFS_Result_EIOError;
             }
@@ -1017,21 +1015,19 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             request->procname,
             &fileHandle);
         
-        // TODO(Mac): once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
-        
         fflush(fileHandle.file);
         
         // Don't block on closing the file to avoid deadlock with some Antivirus software
         dispatch_async(s_kernelRequestHandlingConcurrentQueue, ^{
             if (fclose(fileHandle.file))
             {
-                // TODO(Mac): under what conditions can fclose fail? How do we recover?
+                // TODO(#1374): under what conditions can fclose fail? How do we recover?
             }
         });
         
         if (PrjFS_Result_Success == result)
         {
-            // TODO(Mac): validate that the total bytes written match the size that was reported on the placeholder in the first place
+            // TODO(#1374): validate that the total bytes written match the size that was reported on the placeholder in the first place
             // Potential bugs if we don't:
             //  * The provider writes fewer bytes than expected. The hydrated is left with extra padding up to the original reported size.
             //  * The provider writes more bytes than expected. The write succeeds, but whatever tool originally opened the file may have already
@@ -1039,7 +1035,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             
             if (!SetBitInFileFlags(absolutePath, FileFlags_IsEmpty, false))
             {
-                // TODO(Mac): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
+                // TODO(#1374): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
                 // update placeholder metadata?
                 result = PrjFS_Result_EIOError;
             }
@@ -1083,7 +1079,7 @@ static PrjFS_Result HandleNewFileInRootNotification(
         isDirectory,
         notificationType);
     
-    // TODO(Mac) #391: Handle SetBitInFileFlags failures
+    // TODO(#391): Handle SetBitInFileFlags failures
     SetBitInFileFlags(absolutePath, FileFlags_IsInVirtualizationRoot, true);
     
     return result;
@@ -1132,11 +1128,11 @@ static PrjFS_Result HandleFileNotification(
         (PrjFS_NotificationType_PreConvertToFull == notificationType || PrjFS_NotificationType_PreDeleteFromRename == notificationType))
     {
         errno_t result = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
-        if (0 != result)
+        if (0 != result && ENOATTR != result)
         {
-            // TODO(Mac) #395: Log error
-            // Note that it's expected that RemoveXAttrWithoutFollowingLinks return ENOATTR if
+            // It's expected that RemoveXAttrWithoutFollowingLinks return ENOATTR if
             // another thread has removed the attribute
+            LogError("HandleFileNotification: RemoveXAttrWithoutFollowingLinks failed for '%s', error: %d", absolutePath, result);
         }
     }
     
@@ -1178,7 +1174,7 @@ static void FindNewFoldersInRootAndNotifyProvider(const MessageHeader* request, 
             true, // isDirectory
             PrjFS_NotificationType_NewFileCreated);
         
-        // TODO(Mac) #391: Handle SetBitInFileFlags failures
+        // TODO(#391): Handle SetBitInFileFlags failures
         SetBitInFileFlags(parentFolderPath.second.c_str(), FileFlags_IsInVirtualizationRoot, true);
         
         newFolderPaths.pop();
@@ -1217,7 +1213,7 @@ static bool InitializeEmptyPlaceholder(const char* fullPath, TPlaceholder* data,
         }
         else
         {
-            // TODO(Mac) #395: Log result
+            LogError("InitializeEmptyPlaceholder: AddXAttr failed for '%s', error: %d", fullPath, result);
         }
     }
     
@@ -1294,7 +1290,7 @@ static bool TryGetXAttr(const char* fullPath, const char* name, size_t expectedS
         return false;
     }
     
-    // TODO(Mac): also validate the magic number and format version.
+    // TODO(#1369): also validate the magic number and format version.
     // It's easy to check their expected values, but we will need to decide what to do if they are incorrect.
     
     return true;
@@ -1509,7 +1505,6 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     size_t pathLength = strlen(fullPath);
     if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
     {
-        // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
         LogError("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
         return nullptr;
     }
@@ -1521,7 +1516,6 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     }
     else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
     {
-        // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
         LogError("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
         return nullptr;
     }
