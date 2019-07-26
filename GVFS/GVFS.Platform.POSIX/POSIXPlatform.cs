@@ -47,7 +47,7 @@ namespace GVFS.Platform.POSIX
                 hooksPaths = binPath;
             }
 
-            // TODO(#1359): Get the hooks version rather than the GVFS version (and share that code with the Windows platform)
+            // TODO(#1044): Get the hooks version rather than the GVFS version (and share that code with the Windows platform)
             hooksVersion = ProcessHelper.GetCurrentProcessVersion();
             error = null;
             return true;
