@@ -117,7 +117,7 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
-        public void AddFolderNoIncludeChildrenShouldBeIncluded()
+        public void FoldersShouldBeIncludedWhenSparseFolderDataIsEmpty()
         {
             SortedFolderEntries sfe = SetupDefaultEntries();
             LazyUTF8String name = ConstructLazyUTF8String("IsIncludedFalse");
@@ -156,6 +156,44 @@ namespace GVFS.UnitTests.Virtualization.Git
             sparseFolderData.Children.Add("Child", new SparseFolderData());
             sfe.GetOrAddFolder(new[] { name }, partIndex: 0, parentIsIncluded: true, rootSparseFolderData: sparseFolderData);
             ValidateFolder(sfe, name, isIncludedValue: false);
+        }
+
+        [TestCase]
+        public void AddFolderWhereParentIsRecursive()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("Child");
+            LazyUTF8String name2 = ConstructLazyUTF8String("GrandChild");
+            SparseFolderData sparseFolderData = new SparseFolderData() { IsRecursive = true };
+            sparseFolderData.Children.Add("Child", new SparseFolderData());
+            sfe.GetOrAddFolder(new[] { name, name2 }, partIndex: 1, parentIsIncluded: true, rootSparseFolderData: sparseFolderData);
+            ValidateFolder(sfe, name2, isIncludedValue: true);
+        }
+
+        [TestCase]
+        public void AddFolderBelowTopLevelNotIncluded()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("Child");
+            LazyUTF8String name2 = ConstructLazyUTF8String("GrandChild");
+            SparseFolderData sparseFolderData = new SparseFolderData();
+            sparseFolderData.Children.Add("Child", new SparseFolderData());
+            sfe.GetOrAddFolder(new[] { name, name2 }, partIndex: 1, parentIsIncluded: true, rootSparseFolderData: sparseFolderData);
+            ValidateFolder(sfe, name2, isIncludedValue: false);
+        }
+
+        [TestCase]
+        public void AddFolderBelowTopLevelIsIncluded()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("Child");
+            LazyUTF8String name2 = ConstructLazyUTF8String("GrandChild");
+            SparseFolderData sparseFolderData = new SparseFolderData();
+            SparseFolderData childSparseFolderData = new SparseFolderData();
+            childSparseFolderData.Children.Add("GrandChild", new SparseFolderData());
+            sparseFolderData.Children.Add("Child", childSparseFolderData);
+            sfe.GetOrAddFolder(new[] { name, name2 }, partIndex: 1, parentIsIncluded: true, rootSparseFolderData: sparseFolderData);
+            ValidateFolder(sfe, name2, isIncludedValue: true);
         }
 
         [TestCase]
