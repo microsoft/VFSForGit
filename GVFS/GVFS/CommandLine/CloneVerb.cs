@@ -664,7 +664,7 @@ namespace GVFS.CommandLine
             return new Result(true);
         }
 
-        // TODO(#1364): either adjust to "git" or remove entirely
+        // TODO(#1364): Don't call this method on POSIX platforms (or have it no-op on them)
         private void CreateGitScript(GVFSEnlistment enlistment)
         {
             FileInfo gitCmd = new FileInfo(Path.Combine(enlistment.EnlistmentRoot, "git.cmd"));
