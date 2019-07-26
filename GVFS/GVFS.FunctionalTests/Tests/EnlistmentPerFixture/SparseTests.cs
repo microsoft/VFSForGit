@@ -76,6 +76,31 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(2)]
+        public void AddAndRemoveVariousPathsTests()
+        {
+            // Paths to validate [0] = path to pass to sparse [1] = expected path saved
+            string[][] paths = new[]
+            {
+                // AltDirectorySeparatorChar should get converted to DirectorySeparatorChar
+                new[] { string.Join(Path.AltDirectorySeparatorChar.ToString(), "GVFS", "GVFS"), this.mainSparseFolder },
+
+                // AltDirectorySeparatorChar should get trimmed
+                new[] { $"{Path.AltDirectorySeparatorChar}{string.Join(Path.AltDirectorySeparatorChar.ToString(), "GVFS", "Test")}{Path.AltDirectorySeparatorChar}", Path.Combine("GVFS", "Test") },
+
+                // DirectorySeparatorChar should get trimmed
+                new[] { $"{Path.DirectorySeparatorChar}{Path.Combine("GVFS", "More")}{Path.DirectorySeparatorChar}", Path.Combine("GVFS", "More") },
+
+                // spaces should get trimmed
+                new[] { $" {string.Join(Path.AltDirectorySeparatorChar.ToString(), "GVFS", "Other")} ", Path.Combine("GVFS", "Other") },
+            };
+
+            foreach (string[] pathToValidate in paths)
+            {
+                this.ValidatePathAddsAndRemoves(pathToValidate[0], pathToValidate[1]);
+            }
+        }
+
+        [TestCase, Order(3)]
         public void AddingParentDirectoryShouldMakeItRecursive()
         {
             string childPath = Path.Combine(this.mainSparseFolder, "CommandLine");
@@ -92,7 +117,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateFoldersInSparseList(childPath, this.mainSparseFolder);
         }
 
-        [TestCase, Order(3)]
+        [TestCase, Order(4)]
         public void AddingSiblingFolderShouldNotMakeParentRecursive()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
@@ -112,7 +137,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateFoldersInSparseList(this.mainSparseFolder);
         }
 
-        [TestCase, Order(4)]
+        [TestCase, Order(5)]
         public void AddingSubfolderShouldKeepParentRecursive()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
@@ -129,7 +154,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             folder.ShouldBeADirectory(this.fileSystem);
         }
 
-        [TestCase, Order(5)]
+        [TestCase, Order(6)]
         [Category(Categories.WindowsOnly)]
         public void CreatingFolderShouldAddToSparseListAndStartProjecting()
         {
@@ -153,7 +178,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             projectedFile.ShouldBeAFile(this.fileSystem);
         }
 
-        [TestCase, Order(5)]
+        [TestCase, Order(7)]
         [Category(Categories.MacOnly)]
         public void CreateFolderThenFileShouldAddToSparseListAndStartProjecting()
         {
@@ -180,7 +205,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             projectedFile.ShouldBeAFile(this.fileSystem);
         }
 
-        [TestCase, Order(6)]
+        [TestCase, Order(7)]
         public void ReadFileThenChangingSparseFoldersShouldRemoveFileAndFolder()
         {
             string fileToRead = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunFunctionalTests.bat");
@@ -194,7 +219,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             fileToRead.ShouldNotExistOnDisk(this.fileSystem);
         }
 
-        [TestCase, Order(7)]
+        [TestCase, Order(8)]
         public void CreateNewFileWillPreventRemoveSparseFolder()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder, "Scripts");
@@ -216,7 +241,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteFile(fileToCreate);
         }
 
-        [TestCase, Order(8)]
+        [TestCase, Order(9)]
         public void ModifiedFileShouldNotAllowSparseFolderChange()
         {
             string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunFunctionalTests.bat");
@@ -227,7 +252,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateFoldersInSparseList(new string[0]);
         }
 
-        [TestCase, Order(9)]
+        [TestCase, Order(10)]
         public void ModifiedFileAndCommitThenChangingSparseFoldersShouldKeepFileAndFolder()
         {
             string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts", "RunFunctionalTests.bat");
@@ -243,7 +268,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             modifiedPath.ShouldBeAFile(this.fileSystem);
         }
 
-        [TestCase, Order(10)]
+        [TestCase, Order(11)]
         public void DeleteFileAndCommitThenChangingSparseFoldersShouldKeepFolderAndFile()
         {
             string deletePath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Tests", "packages.config");
@@ -265,7 +290,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             deletePath.ShouldBeAFile(this.fileSystem);
         }
 
-        [TestCase, Order(11)]
+        [TestCase, Order(12)]
         public void CreateNewFileAndCommitThenRemoveSparseFolderShouldKeepFileAndFolder()
         {
             string folderToCreateFileIn = Path.Combine("GVFS", "GVFS.Hooks");
@@ -287,7 +312,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             fileToCreate.ShouldBeAFile(this.fileSystem);
         }
 
-        [TestCase, Order(12)]
+        [TestCase, Order(13)]
         [Category(Categories.MacOnly)]
         public void CreateFolderAndFileThatAreExcluded()
         {
@@ -312,6 +337,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string projectedFile = Path.Combine(newFolderPath, "MountVerb.cs");
             projectedFile.ShouldBeAFile(this.fileSystem);
+        }
+
+        private void ValidatePathAddsAndRemoves(string path, string expectedSparsePath)
+        {
+            this.gvfsProcess.AddSparseFolders(path);
+            this.ValidateFoldersInSparseList(expectedSparsePath);
+            this.gvfsProcess.RemoveSparseFolders(path);
+            this.ValidateFoldersInSparseList(new string[0]);
+            this.gvfsProcess.AddSparseFolders(path);
+            this.ValidateFoldersInSparseList(expectedSparsePath);
+            this.gvfsProcess.RemoveSparseFolders(expectedSparsePath);
+            this.ValidateFoldersInSparseList(new string[0]);
         }
 
         private void ValidateFoldersInSparseList(params string[] folders)

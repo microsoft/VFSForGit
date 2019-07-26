@@ -14,6 +14,11 @@ namespace GVFS.Common.Database
             this.connectionPool = connectionPool;
         }
 
+        public static string NormalizePath(string path)
+        {
+            return path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim().Trim(Path.DirectorySeparatorChar);
+        }
+
         public static void CreateTable(IDbConnection connection)
         {
             using (IDbCommand command = connection.CreateCommand())
@@ -83,11 +88,6 @@ namespace GVFS.Common.Database
             {
                 throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.Remove)}({directoryPath}) Exception: {ex.ToString()}", ex);
             }
-        }
-
-        private static string NormalizePath(string path)
-        {
-            return path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim(Path.DirectorySeparatorChar);
         }
     }
 }

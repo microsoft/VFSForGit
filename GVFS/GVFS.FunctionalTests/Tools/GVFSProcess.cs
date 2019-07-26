@@ -76,7 +76,13 @@ namespace GVFS.FunctionalTests.Tools
         public string SparseCommand(bool addFolders, bool shouldSucceed, params string[] folders)
         {
             string action = addFolders ? "-a" : "-r";
-            return this.CallGVFS($"sparse {this.enlistmentRoot} {action} {string.Join(";", folders)}", expectedExitCode: shouldSucceed ? SuccessExitCode : ExitCodeShouldNotBeZero);
+            string folderList = string.Join(";", folders);
+            if (folderList.Contains(" "))
+            {
+                folderList = $"\"{folderList}\"";
+            }
+
+            return this.CallGVFS($"sparse {this.enlistmentRoot} {action} {folderList}", expectedExitCode: shouldSucceed ? SuccessExitCode : ExitCodeShouldNotBeZero);
         }
 
         public string[] GetSparseFolders()
