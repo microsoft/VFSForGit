@@ -20,8 +20,8 @@ namespace GVFS.UnitTests.Maintenance
 
         private string MultiPackIndexWriteCommand => $"-c core.multiPackIndex=true multi-pack-index write --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\"";
         private string MultiPackIndexVerifyCommand => $"-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\"";
-        private string CommitGraphWriteCommand => $"commit-graph write --stdin-packs --append --object-dir \"{this.context.Enlistment.GitObjectsRoot}\"";
-        private string CommitGraphVerifyCommand => $"commit-graph verify --object-dir \"{this.context.Enlistment.GitObjectsRoot}\"";
+        private string CommitGraphWriteCommand => $"commit-graph write --stdin-packs --split --size-multiple=4 --object-dir \"{this.context.Enlistment.GitObjectsRoot}\"";
+        private string CommitGraphVerifyCommand => $"commit-graph verify --shallow --object-dir \"{this.context.Enlistment.GitObjectsRoot}\"";
 
         [TestCase]
         public void WriteMultiPackIndexNoGraphOnEmptyPacks()
@@ -75,13 +75,11 @@ namespace GVFS.UnitTests.Maintenance
 
             List<string> commands = this.gitProcess.CommandsRun;
 
-            // Turning off Commit Graph Verify while we address performance issues
-            // commands.Count.ShouldEqual(4);
-            commands.Count.ShouldEqual(3);
+            commands.Count.ShouldEqual(4);
             commands[0].ShouldEqual(this.MultiPackIndexWriteCommand);
             commands[1].ShouldEqual(this.MultiPackIndexVerifyCommand);
             commands[2].ShouldEqual(this.CommitGraphWriteCommand);
-            //// commands[3].ShouldEqual(this.CommitGraphVerifyCommand);
+            commands[3].ShouldEqual(this.CommitGraphVerifyCommand);
         }
 
         [TestCase]
@@ -110,18 +108,15 @@ namespace GVFS.UnitTests.Maintenance
 
             List<string> commands = this.gitProcess.CommandsRun;
 
-            // Turning off Commit Graph Verify, while we address performance issues
-            // commands.Count.ShouldEqual(5);
-            commands.Count.ShouldEqual(4);
+            commands.Count.ShouldEqual(5);
             commands[0].ShouldEqual(this.MultiPackIndexWriteCommand);
             commands[1].ShouldEqual(this.MultiPackIndexVerifyCommand);
             commands[2].ShouldEqual(this.MultiPackIndexWriteCommand);
             commands[3].ShouldEqual(this.CommitGraphWriteCommand);
-            //// commands[4].ShouldEqual(this.CommitGraphVerifyCommand);
+            commands[4].ShouldEqual(this.CommitGraphVerifyCommand);
         }
 
         [TestCase]
-        [Ignore("Turn off Commit Graph Verify, while we address performance issues")]
         public void RewriteCommitGraphOnBadVerify()
         {
             this.TestSetup();

@@ -24,6 +24,8 @@ namespace GVFS.CommandLine
         private InstallerPreRunChecker prerunChecker;
         private ProcessLauncher processLauncher;
 
+        private ProductUpgraderPlatformStrategy productUpgraderPlatformStrategy;
+
         public UpgradeVerb(
             ProductUpgrader upgrader,
             ITracer tracer,
@@ -38,6 +40,7 @@ namespace GVFS.CommandLine
             this.prerunChecker = prerunChecker;
             this.processLauncher = processWrapper;
             this.Output = output;
+            this.productUpgraderPlatformStrategy = GVFSPlatform.Instance.CreateProductUpgraderPlatformInteractions(fileSystem, tracer);
         }
 
         public UpgradeVerb()
@@ -95,16 +98,9 @@ namespace GVFS.CommandLine
                 error = null;
                 if (this.upgrader == null)
                 {
-                    // Under normal circumstances ProductUpgraderInfo.GetLogDirectoryPath will have already been created by GVFS.Service.  If for some reason it
-                    // does not (e.g. the service failed to start), we need to create ProductUpgraderInfo.GetLogDirectoryPath() explicity to ensure that
-                    // it has the correct ACLs (so that both admin and non-admin users can create log files).
-                    // If the logs directory does not already exist, this call could fail when running as a non-elevated user.
-                    string createDirectoryError;
-                    if (!this.fileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(ProductUpgraderInfo.GetLogDirectoryPath(), out createDirectoryError))
+                    this.productUpgraderPlatformStrategy = GVFSPlatform.Instance.CreateProductUpgraderPlatformInteractions(this.fileSystem, tracer: null);
+                    if (!this.productUpgraderPlatformStrategy.TryPrepareLogDirectory(out error))
                     {
-                        error = $"ERROR: Unable to create directory `{ProductUpgraderInfo.GetLogDirectoryPath()}`";
-                        error += $"\n{createDirectoryError}";
-                        error += $"\n\nTry running {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} from an elevated command prompt.";
                         return false;
                     }
 
@@ -248,6 +244,7 @@ namespace GVFS.CommandLine
         {
             string upgraderPath = null;
             string errorMessage = null;
+            bool supportsInlineUpgrade = GVFSPlatform.Instance.Constants.SupportsUpgradeWhileRunning;
 
             this.ReportInfoToConsole("Launching upgrade tool...");
 
@@ -256,12 +253,24 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            if (!this.TryLaunchUpgradeTool(upgraderPath, out errorMessage))
+            if (!this.TryLaunchUpgradeTool(
+                    upgraderPath,
+                    runUpgradeInline: supportsInlineUpgrade,
+                    consoleError: out errorMessage))
             {
                 return false;
             }
 
-            this.ReportInfoToConsole($"{Environment.NewLine}Installer launched in a new window. Do not run any git or gvfs commands until the installer has completed.");
+            if (supportsInlineUpgrade)
+            {
+                this.processLauncher.WaitForExit();
+                this.ReportInfoToConsole($"{Environment.NewLine}Upgrade completed.");
+            }
+            else
+            {
+                this.ReportInfoToConsole($"{Environment.NewLine}Installer launched in a new window. Do not run any git or gvfs commands until the installer has completed.");
+            }
+
             consoleError = null;
             return true;
         }
@@ -272,7 +281,7 @@ namespace GVFS.CommandLine
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCopyUpgradeTool), EventLevel.Informational))
             {
-                if (!this.upgrader.TrySetupToolsDirectory(out upgraderExePath, out consoleError))
+                if (!this.upgrader.TrySetupUpgradeApplicationDirectory(out upgraderExePath, out consoleError))
                 {
                     return false;
                 }
@@ -283,13 +292,16 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryLaunchUpgradeTool(string path, out string consoleError)
+        private bool TryLaunchUpgradeTool(string path, bool runUpgradeInline, out string consoleError)
         {
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryLaunchUpgradeTool), EventLevel.Informational))
             {
                 Exception exception;
                 string args = string.Empty + (this.DryRun ? $" {DryRunOption}" : string.Empty) + (this.NoVerify ? $" {NoVerifyOption}" : string.Empty);
-                if (!this.processLauncher.TryStart(path, args, out exception))
+
+                // If the upgrade application is being run "inline" with the current process, then do not run the installer via the
+                // shell - we want the upgrade process to inherit the current terminal's stdin / stdout / sterr
+                if (!this.processLauncher.TryStart(path, args, !runUpgradeInline, out exception))
                 {
                     if (exception != null)
                     {
@@ -389,11 +401,16 @@ namespace GVFS.CommandLine
                 get { return this.Process.ExitCode; }
             }
 
-            public virtual bool TryStart(string path, string args, out Exception exception)
+            public virtual void WaitForExit()
+            {
+                this.Process.WaitForExit();
+            }
+
+            public virtual bool TryStart(string path, string args, bool useShellExecute, out Exception exception)
             {
                 this.Process.StartInfo = new ProcessStartInfo(path)
                 {
-                    UseShellExecute = true,
+                    UseShellExecute = useShellExecute,
                     WorkingDirectory = Environment.SystemDirectory,
                     WindowStyle = ProcessWindowStyle.Normal,
                     Arguments = args

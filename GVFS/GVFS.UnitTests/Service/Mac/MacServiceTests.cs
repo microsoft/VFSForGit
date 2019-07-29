@@ -83,7 +83,8 @@ namespace GVFS.UnitTests.Service.Mac
                 this.tracer,
                 this.fileSystem,
                 ServiceDataLocation,
-                repoMounterMock.Object);
+                repoMounterMock.Object,
+                null);
 
             repoRegistry.AutoMountRepos(ExpectedActiveUserId.ToString(), ExpectedSessionId);
 

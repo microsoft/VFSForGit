@@ -2,7 +2,10 @@
 #include <sys/kauth.h>
 #include <sys/proc.h>
 #include <kern/assert.h>
+#include <libkern/version.h>
+#include <kern/thread.h>
 
+#include "KauthHandlerPrivate.hpp"
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSPerfCounter.h"
 #include "public/PrjFSXattrs.h"
@@ -19,15 +22,28 @@
 #include "ProviderMessaging.hpp"
 #include "VnodeCache.hpp"
 #include "Memory.hpp"
+#include "ArrayUtilities.hpp"
 
 #ifdef KEXT_UNIT_TESTING
 #include "KauthHandlerTestable.hpp"
 #endif
 
+template <typename T, typename MIN_T, typename MAX_T>
+    auto clamp(const T& value, const MIN_T& min, const MAX_T& max)
+{
+    return value < min ? min : (value > max ? max : value);
+}
+
 enum ProviderCallbackPolicy
 {
     CallbackPolicy_AllowAny,
     CallbackPolicy_UserInitiatedOnly,
+};
+
+struct PendingRenameOperation
+{
+    vnode_t vnode;
+    thread_t thread;
 };
 
 // Function prototypes
@@ -101,11 +117,19 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     VirtualizationRootHandle* root,
     int* pid);
 
+KEXT_STATIC bool InitPendingRenames();
+KEXT_STATIC void CleanupPendingRenames();
+KEXT_STATIC void ResizePendingRenames(uint32_t newMaxPendingRenames);
+
 // State
 static kauth_listener_t s_vnodeListener = nullptr;
 static kauth_listener_t s_fileopListener = nullptr;
 
 static atomic_int s_numActiveKauthEvents;
+static SpinLock s_renameLock;
+static PendingRenameOperation* s_pendingRenames = nullptr;
+KEXT_STATIC uint32_t s_pendingRenameCount = 0;
+KEXT_STATIC uint32_t s_maxPendingRenames = 0;
 
 // Public functions
 kern_return_t KauthHandler_Init()
@@ -130,6 +154,11 @@ kern_return_t KauthHandler_Init()
         goto CleanupAndFail;
     }
     
+    if (!InitPendingRenames())
+    {
+        goto CleanupAndFail;
+    }
+
     s_vnodeListener = kauth_listen_scope(KAUTH_SCOPE_VNODE, HandleVnodeOperation, nullptr);
     if (nullptr == s_vnodeListener)
     {
@@ -178,6 +207,8 @@ kern_return_t KauthHandler_Cleanup()
     
     WaitForListenerCompletion();
 
+    CleanupPendingRenames();
+    
     if (VnodeCache_Cleanup())
     {
         result = KERN_FAILURE;
@@ -216,6 +247,162 @@ KEXT_STATIC void UseMainForkIfNamedStream(
     }
 }
 
+KEXT_STATIC bool InitPendingRenames()
+{
+    if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave) // Only need to track renames on Mojave and newer
+    {
+        s_renameLock = SpinLock_Alloc();
+        s_maxPendingRenames = 8; // Arbitrary choice, should be maximum number of expected concurrent threads performing renames, but array will resize on demand
+        s_pendingRenameCount = 0;
+        s_pendingRenames = Memory_AllocArray<PendingRenameOperation>(s_maxPendingRenames);
+        if (!SpinLock_IsValid(s_renameLock) || s_pendingRenames == nullptr)
+        {
+            return false;
+        }
+
+        Array_DefaultInit(s_pendingRenames, s_maxPendingRenames);
+    }
+    
+    return true;
+}
+
+KEXT_STATIC void CleanupPendingRenames()
+{
+    if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+    {
+        if (SpinLock_IsValid(s_renameLock))
+        {
+            SpinLock_FreeMemory(&s_renameLock);
+        }
+
+        if (s_pendingRenames != nullptr)
+        {
+            assert(s_pendingRenameCount == 0);
+            Memory_FreeArray(s_pendingRenames, s_maxPendingRenames);
+            s_pendingRenames = nullptr;
+            s_maxPendingRenames = 0;
+        }
+    }
+}
+
+KEXT_STATIC void ResizePendingRenames(uint32_t newMaxPendingRenames)
+{
+    PendingRenameOperation* newArray = Memory_AllocArray<PendingRenameOperation>(newMaxPendingRenames);
+    assert(newArray != nullptr);
+    PendingRenameOperation* arrayToFree = nullptr;
+    uint32_t arrayToFreeLength = 0;
+    
+    SpinLock_Acquire(s_renameLock);
+    {
+        if (newMaxPendingRenames > s_maxPendingRenames)
+        {
+            Array_CopyElements(newArray, s_pendingRenames, s_maxPendingRenames);
+            Array_DefaultInit(newArray + s_maxPendingRenames, newMaxPendingRenames - s_maxPendingRenames);
+            
+            arrayToFree = s_pendingRenames;
+            arrayToFreeLength = s_maxPendingRenames;
+            
+            s_pendingRenames = newArray;
+            s_maxPendingRenames = newMaxPendingRenames;
+        }
+        else
+        {
+            arrayToFree = newArray;
+            arrayToFreeLength = newMaxPendingRenames;
+        }
+    }
+    SpinLock_Release(s_renameLock);
+    
+    if (arrayToFree != nullptr)
+    {
+        assert(arrayToFreeLength > 0);
+        Memory_FreeArray(arrayToFree, arrayToFreeLength);
+    }
+}
+
+KEXT_STATIC void RecordPendingRenameOperation(vnode_t vnode)
+{
+    assertf(version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave, "This function should only be called from the KAUTH_FILEOP_WILL_RENAME handler, which is only supported by Darwin 18 (macOS 10.14 Mojave) and newer (version_major = %u)", version_major);
+    thread_t myThread = current_thread();
+    
+    bool resizeTable;
+    do
+    {
+        resizeTable = false;
+        uint32_t resizeTableLength = 0;
+        
+        SpinLock_Acquire(s_renameLock);
+        {
+            if (s_pendingRenameCount < s_maxPendingRenames)
+            {
+                s_pendingRenames[s_pendingRenameCount].thread = myThread;
+                s_pendingRenames[s_pendingRenameCount].vnode = vnode;
+                ++s_pendingRenameCount;
+            }
+            else
+            {
+                for (uint32_t i = 0; i < s_pendingRenameCount; ++i)
+                {
+                    assert(s_pendingRenames[i].thread != myThread);
+                }
+
+                resizeTable = true;
+                
+                resizeTableLength = static_cast<uint32_t>(clamp(s_maxPendingRenames * UINT64_C(2), 1u, UINT32_MAX));
+                assert(resizeTableLength > s_maxPendingRenames);
+            }
+        }
+        SpinLock_Release(s_renameLock);
+        
+        if (resizeTable)
+        {
+            if (resizeTableLength > 16)
+            {
+                KextLog_Error("Warning: RecordPendingRenameOperation is causing pending rename array resize to %u items.", resizeTableLength);
+            }
+            ResizePendingRenames(resizeTableLength);
+        }
+    } while (resizeTable);
+}
+
+KEXT_STATIC bool DeleteOpIsForRename(vnode_t vnode)
+{
+    if (version_major < PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+    {
+        // High Sierra and earlier do not support WILL_RENAME notification, so we have to assume any delete may be caused by a rename
+        assert(s_pendingRenameCount == 0);
+        assert(s_maxPendingRenames == 0);
+        return true;
+    }
+    
+    bool isRename = false;
+    
+    thread_t myThread = current_thread();
+    
+    SpinLock_Acquire(s_renameLock);
+    {
+        for (uint32_t i = 0; i < s_pendingRenameCount; ++i)
+        {
+            if (s_pendingRenames[i].thread == myThread)
+            {
+                isRename = true;
+                assert(s_pendingRenames[i].vnode == vnode);
+                --s_pendingRenameCount;
+                if (i != s_pendingRenameCount)
+                {
+                    s_pendingRenames[i] = s_pendingRenames[s_pendingRenameCount];
+                }
+                
+                s_pendingRenames[s_pendingRenameCount] = PendingRenameOperation{};
+                break;
+            }
+        }
+    }
+    SpinLock_Release(s_renameLock);
+
+    return isRename;
+}
+
 // Private functions
 KEXT_STATIC int HandleVnodeOperation(
     kauth_cred_t    credential,
@@ -247,6 +434,24 @@ KEXT_STATIC int HandleVnodeOperation(
     char procname[MAXCOMLEN + 1] = "";
     bool isDeleteAction = false;
     bool isDirectory = false;
+    bool isRename = false;
+
+    {
+        PerfSample considerVnodeSample(&perfTracer, PrjFSPerfCounter_VnodeOp_BasicVnodeChecks);
+        if (!VnodeIsEligibleForEventHandling(currentVnode))
+        {
+            goto CleanupAndReturn;
+        }
+    }
+
+    isDeleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
+    if (isDeleteAction)
+    {
+        // This removes a matching entry from the array, so must run under the same
+        // conditions as the original RecordPendingRenameOperation call - hence early
+        // in the callback.
+        isRename = DeleteOpIsForRename(currentVnode);
+    }
 
     if (!ShouldHandleVnodeOpEvent(
             &perfTracer,
@@ -262,22 +467,21 @@ KEXT_STATIC int HandleVnodeOperation(
         goto CleanupAndReturn;
     }
     
-    isDeleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
     isDirectory = vnode_isdir(currentVnode);
     
     if (isDirectory)
     {
-        if (ActionBitIsSet(
+        if (isRename ||
+            ActionBitIsSet(
                 action,
                 KAUTH_VNODE_LIST_DIRECTORY |
                 KAUTH_VNODE_SEARCH |
                 KAUTH_VNODE_READ_SECURITY |
                 KAUTH_VNODE_READ_ATTRIBUTES |
-                KAUTH_VNODE_READ_EXTATTRIBUTES |
-                KAUTH_VNODE_DELETE))
+                KAUTH_VNODE_READ_EXTATTRIBUTES))
         {
-            // Recursively expand directory on delete to ensure child placeholders are created before rename operations
-            if (isDeleteAction)
+            // Recursively expand directory on rename as user will expect the moved directory to have the same contents as in its original location
+            if (isRename)
             {
                 // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
                 if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
@@ -331,7 +535,8 @@ KEXT_STATIC int HandleVnodeOperation(
     }
     else
     {
-        if (ActionBitIsSet(
+        if (isRename || // Hydrate before a file is moved as the user will not expect an empty file at the new location
+            ActionBitIsSet(
                 action,
                 KAUTH_VNODE_READ_ATTRIBUTES |
                 KAUTH_VNODE_WRITE_ATTRIBUTES |
@@ -340,7 +545,6 @@ KEXT_STATIC int HandleVnodeOperation(
                 KAUTH_VNODE_READ_DATA |
                 KAUTH_VNODE_WRITE_DATA |
                 KAUTH_VNODE_EXECUTE |
-                KAUTH_VNODE_DELETE | // Hydrate on delete to ensure files are hydrated before rename operations
                 KAUTH_VNODE_APPEND_DATA))
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
@@ -419,7 +623,7 @@ KEXT_STATIC int HandleVnodeOperation(
                 root,
                 isDirectory ?
                 MessageType_KtoU_NotifyDirectoryPreDelete :
-                MessageType_KtoU_NotifyFilePreDelete,
+                isRename ? MessageType_KtoU_NotifyFilePreDeleteFromRename : MessageType_KtoU_NotifyFilePreDelete,
                 currentVnode,
                 vnodeFsidInode,
                 nullptr, // path not needed, use fsid/inode
@@ -469,7 +673,7 @@ KEXT_STATIC int HandleFileOpOperation(
         // arg0 is the (const char *) fromPath (or the file being linked to)
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
-        // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
+        // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
@@ -536,7 +740,7 @@ KEXT_STATIC int HandleFileOpOperation(
         const char* fromPath = reinterpret_cast<const char*>(arg0);
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
-        // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
+        // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
@@ -553,7 +757,6 @@ KEXT_STATIC int HandleFileOpOperation(
         bool isDirectory = (0 != vnode_isdir(currentVnode));
         if (isDirectory)
         {
-            // TODO(Mac): Handle hard-linked directories?
             KextLog_Info("HandleFileOpOperation: KAUTH_FILEOP_LINK event for hardlinked directory currently not handled. ('%s' -> '%s')", fromPath, newPath);
             goto CleanupAndReturn;
         }
@@ -757,6 +960,15 @@ KEXT_STATIC int HandleFileOpOperation(
             goto CleanupAndReturn;
         }
     }
+    else if (KAUTH_FILEOP_WILL_RENAME == action)
+    {
+        currentVnode = reinterpret_cast<vnode_t>(arg0);
+        if (VnodeIsEligibleForEventHandling(currentVnode))
+        {
+            // Records thread/vnode as rename() operation in progress, enabling optimisation in subsequent DELETE vnode listener handler
+            RecordPendingRenameOperation(currentVnode);
+        }
+    }
     
 CleanupAndReturn:    
     if (NULLVP != currentVnode && putCurrentVnode)
@@ -818,15 +1030,6 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
             //    request in progress is advisory, rather than authoritative.  Listeners
             //    performing consequential work (i.e. not strictly checking authorisation)
             //    may test this flag to avoid performing unnecessary work."
-            *kauthResult = KAUTH_RESULT_DEFER;
-            return false;
-        }
-    }
-    
-    {
-        PerfSample considerVnodeSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_BasicVnodeChecks);
-        if (!VnodeIsEligibleForEventHandling(vnode))
-        {
             *kauthResult = KAUTH_RESULT_DEFER;
             return false;
         }
@@ -923,7 +1126,7 @@ static bool TryGetVirtualizationRoot(
     ActiveProviderProperties provider = VirtualizationRoot_GetActiveProvider(*root);
     if (!provider.isOnline)
     {
-        // TODO(Mac): Protect files in the worktree from modification (and prevent
+        // TODO(#182): Protect files in the worktree from modification (and prevent
         // the creation of new files) when the provider is offline
         
         perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_ProviderOffline);
@@ -1034,7 +1237,7 @@ static VirtualizationRootHandle FindRootForVnodeWithFileOpEvent(
     }
     else
     {
-        // TODO(Mac): Once all hardlink paths are delivered to the appropriate root(s)
+        // TODO(#1188): Once all hardlink paths are delivered to the appropriate root(s)
         // check if the KAUTH_FILEOP_LINK case can be removed.  For now the check is required to make
         // sure we're looking up the most up-to-date parent information for the vnode on the next
         // access to the vnode cache
@@ -1179,9 +1382,8 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
     errno_t err = GetVNodeAttributes(vn, context, &attributes);
     if (0 != err)
     {
-        // TODO(Mac): May fail on some file system types? Perhaps we should early-out depending on mount point anyway.
-        // We should also consider:
-        //   - Logging this error
+        // May fail on some file system types? Perhaps we should early-out depending on mount point anyway.
+        // If we see failures we should also consider:
         //   - Falling back on vnode lookup (or custom cache) to determine if file is in the root
         //   - Assuming files are empty if we can't read the flags
         KextLog_FileError(vn, "ReadVNodeFileFlags: GetVNodeAttributes failed with error %d; vnode type: %d, recycled: %s", err, vnode_vtype(vn), vnode_isrecycled(vn) ? "yes" : "no");

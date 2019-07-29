@@ -46,7 +46,9 @@ namespace GVFS.FunctionalTests.Properties
                 }
                 else
                 {
-                    string root = "/GVFS.FT";
+                    string root = Path.Combine(
+                        Environment.GetEnvironmentVariable("HOME"),
+                        "GVFS.FT");
                     EnlistmentRoot = Path.Combine(root, "test");
                     ControlGitRepoRoot = Path.Combine(root, "control");
                     FastFetchBaseRoot = Path.Combine(root, "FastFetch");

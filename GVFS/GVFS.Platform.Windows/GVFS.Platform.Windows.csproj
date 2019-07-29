@@ -92,6 +92,7 @@
     <Compile Include="WindowsPhysicalDiskInfo.cs" />
     <Compile Include="WindowsPlatform.cs" />
     <Compile Include="WindowsPlatform.Shared.cs" />
+    <Compile Include="WindowsProductUpgraderPlatformStrategy.cs" />
     <Compile Include="WindowsFileSystem.cs" />
   </ItemGroup>
   <ItemGroup>

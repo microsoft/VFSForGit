@@ -80,6 +80,10 @@ namespace GVFS.CommandLine
                                     batchSize: this.PackfileMaintenanceBatchSize ?? PackfileMaintenanceStep.DefaultBatchSize)).Execute();
                                 return;
 
+                            case "PostFetch":
+                                (new PostFetchStep(context, new System.Collections.Generic.List<string>(), requireObjectCacheLock: false)).Execute();
+                                return;
+
                             default:
                                 this.ReportErrorAndExit($"Unknown maintenance job requested: {this.MaintenanceJob}");
                                 break;
@@ -186,7 +190,7 @@ of your enlistment's src folder.
                         isMounted = true;
 
                         GitProcess git = new GitProcess(enlistment);
-                        statusResult = git.Status(allowObjectDownloads: false, useStatusCache: false);
+                        statusResult = git.Status(allowObjectDownloads: false, useStatusCache: false, showUntracked: true);
                         if (statusResult.ExitCodeIsFailure)
                         {
                             return false;

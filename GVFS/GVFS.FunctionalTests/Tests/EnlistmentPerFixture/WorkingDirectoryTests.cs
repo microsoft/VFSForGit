@@ -452,7 +452,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(15)]
-        [Category(Categories.MacTODO.FailsOnBuildAgent)]
         public void FilterNonUTF8FileName()
         {
             string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
@@ -499,7 +498,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (badObject as FileInfo).ShouldNotBeNull().Length.ShouldEqual(objectFileInfo.Length);
         }
 
-        // TODO(Mac): Figure out why git for Mac is not requesting a redownload of the truncated object
+        // TODO(#1218): Figure out why git for Mac is not requesting a redownload of the truncated object
         [TestCase, Order(17)]
         [Category(Categories.MacTODO.NeedsCorruptObjectFix)]
         public void TruncatedObjectRedownloaded()
@@ -631,7 +630,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                //// TODO(Mac): Add a version of PlaceHolderHasVersionInfo that works on Mac
+                // TODO(#1360): Add a version of PlaceHolderHasVersionInfo that works on Mac
                 return true;
             }
             else

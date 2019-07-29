@@ -11,6 +11,7 @@
 #include "VnodeCacheEntriesWrapper.hpp"
 
 using std::shared_ptr;
+using std::string;
 
 @interface KauthHandlerTests : PFSKextTestCase
 @end
@@ -37,6 +38,7 @@ using std::shared_ptr;
     self->cacheWrapper.FreeCache();
     MockVnodes_CheckAndClear();
     VirtualizationRoots_Cleanup();
+    MockCalls::Clear();
     [super tearDown];
 }
 
@@ -342,6 +344,57 @@ using std::shared_ptr;
     XCTAssertTrue(putVnodeWhenDone);
     XCTAssertTrue(testVnode == testFileVnode->GetParentVnode().get());
     vnode_put(testVnode);
+}
+
+- (void)testResizePendingRenamesRace
+{
+    InitPendingRenames();
+    XCTAssertLessThan(s_maxPendingRenames, 16);
+    ResizePendingRenames(16);
+    ResizePendingRenames(16);
+    XCTAssertEqual(s_maxPendingRenames, 16);
+    CleanupPendingRenames();
+}
+
+- (void)testResizePendingRenamesLogsLargeArrayError
+{
+    shared_ptr<mount> testMount = mount::Create();
+    string filePath = "/Users/test/code/Repo/file";
+    shared_ptr<vnode> testFile = testMount->CreateVnodeTree(filePath);
+
+    InitPendingRenames();
+    ResizePendingRenames(16);
+    s_pendingRenameCount = 16; // pretend we're full
+    XCTAssertFalse(MockCalls::DidCallFunction(KextMessageLogged, KEXTLOG_ERROR));
+    RecordPendingRenameOperation(testFile.get());
+    XCTAssertTrue(MockCalls::DidCallFunction(KextMessageLogged, KEXTLOG_ERROR));
+    XCTAssertEqual(s_pendingRenameCount, 17);
+    XCTAssertGreaterThan(s_maxPendingRenames, 16);
+    XCTAssertTrue(DeleteOpIsForRename(testFile.get()));
+    XCTAssertEqual(s_pendingRenameCount, 16);
+    s_pendingRenameCount = 0;
+    CleanupPendingRenames();
+}
+
+- (void)testPendingRenamesOutOfOrderInsertAndRemoval
+{
+    shared_ptr<mount> testMount = mount::Create();
+    string file1Path = "/Users/test/code/Repo/file1";
+    string file2Path = "/Users/test/code/Repo/file2";
+    shared_ptr<vnode> testFile1 = testMount->CreateVnodeTree(file1Path);
+    shared_ptr<vnode> testFile2 = testMount->CreateVnodeTree(file2Path);
+
+    InitPendingRenames();
+    RecordPendingRenameOperation(testFile1.get());
+    MockProcess_SetCurrentThreadIndex(1);
+    RecordPendingRenameOperation(testFile2.get());
+    MockProcess_SetCurrentThreadIndex(0);
+    XCTAssertTrue(DeleteOpIsForRename(testFile1.get()));
+    MockProcess_SetCurrentThreadIndex(1);
+    XCTAssertTrue(DeleteOpIsForRename(testFile2.get()));
+    MockProcess_SetCurrentThreadIndex(0);
+    XCTAssertEqual(s_pendingRenameCount, 0);
+    CleanupPendingRenames();
 }
 
 @end

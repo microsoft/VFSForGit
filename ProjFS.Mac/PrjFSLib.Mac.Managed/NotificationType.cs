@@ -10,6 +10,7 @@ namespace PrjFSLib.Mac
         None                = 0x00000001,
         NewFileCreated      = 0x00000004,
         PreDelete           = 0x00000010,
+        PreDeleteFromRename = 0x00000011,
         FileRenamed         = 0x00000080,
         HardLinkCreated     = 0x00000100,
         PreConvertToFull    = 0x00001000,

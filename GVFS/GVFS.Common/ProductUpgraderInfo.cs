@@ -21,19 +21,40 @@ namespace GVFS.Common
             return ProcessHelper.GetCurrentProcessVersion();
         }
 
-        public static string GetUpgradesDirectoryPath()
+        public static string GetUpgradeProtectedDataDirectory()
         {
-            return GVFSPlatform.Instance.GetDataRootForGVFSComponent(UpgradeDirectoryName);
+            return GVFSPlatform.Instance.GetUpgradeProtectedDataDirectory();
+        }
+
+        public static string GetUpgradeApplicationDirectory()
+        {
+            return Path.Combine(
+                GetUpgradeProtectedDataDirectory(),
+                ProductUpgraderInfo.ApplicationDirectory);
+        }
+
+        public static string GetParentLogDirectoryPath()
+        {
+            return GVFSPlatform.Instance.GetUpgradeLogDirectoryParentDirectory();
         }
 
         public static string GetLogDirectoryPath()
         {
-            return Path.Combine(GetUpgradesDirectoryPath(), LogDirectory);
+            return Path.Combine(
+                GVFSPlatform.Instance.GetUpgradeLogDirectoryParentDirectory(),
+                ProductUpgraderInfo.LogDirectory);
         }
 
         public static string GetAssetDownloadsPath()
         {
-            return Path.Combine(GetUpgradesDirectoryPath(), DownloadDirectory);
+            return Path.Combine(
+                GVFSPlatform.Instance.GetUpgradeProtectedDataDirectory(),
+                ProductUpgraderInfo.DownloadDirectory);
+        }
+
+        public static string GetHighestAvailableVersionDirectory()
+        {
+            return GVFSPlatform.Instance.GetUpgradeHighestAvailableVersionDirectory();
         }
 
         public void DeleteAllInstallerDownloads()
@@ -53,7 +74,7 @@ namespace GVFS.Common
 
         public void RecordHighestAvailableVersion(Version highestAvailableVersion)
         {
-            string highestAvailableVersionFile = GetHighestAvailableVersionFilePath(GetUpgradesDirectoryPath());
+            string highestAvailableVersionFile = GetHighestAvailableVersionFilePath(GetHighestAvailableVersionDirectory());
 
             if (highestAvailableVersion == null)
             {

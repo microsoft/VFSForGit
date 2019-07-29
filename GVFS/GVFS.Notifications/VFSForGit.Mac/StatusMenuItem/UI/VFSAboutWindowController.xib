@@ -7,7 +7,7 @@
         <capability name="system font weights other than Regular or Bold" minToolsVersion="7.0"/>
     </dependencies>
     <objects>
-        <customObject id="-2" userLabel="File's Owner" customClass="AboutWindowController">
+        <customObject id="-2" userLabel="File's Owner" customClass="VFSAboutWindowController">
             <connections>
                 <outlet property="window" destination="F0z-JX-Cv5" id="gIp-Ho-8D9"/>
             </connections>
@@ -43,7 +43,7 @@
                                         <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                                     </textFieldCell>
                                     <connections>
-                                        <binding destination="-2" name="value" keyPath="GitVersion" id="E9O-km-WQh"/>
+                                        <binding destination="-2" name="value" keyPath="gitVersion" id="cD3-Y6-vdy"/>
                                     </connections>
                                 </textField>
                                 <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="pGO-kl-sTg">
@@ -73,7 +73,7 @@
                                         <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                                     </textFieldCell>
                                     <connections>
-                                        <binding destination="-2" name="value" keyPath="VFSForGitVersion" id="eUZ-7o-Pwf"/>
+                                        <binding destination="-2" name="value" keyPath="vfsforgitVersion" id="6Wp-ud-281"/>
                                     </connections>
                                 </textField>
                             </subviews>

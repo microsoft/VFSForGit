@@ -131,21 +131,21 @@ namespace GVFS.CommandLine
                         {
                             // upgrader
                             this.CopyAllFiles(
-                                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                                ProductUpgraderInfo.GetParentLogDirectoryPath(),
                                 archiveFolderPath,
                                 DeprecatedUpgradeLogsDirectory,
                                 copySubFolders: true,
                                 targetFolderName: Path.Combine(ProductUpgraderInfo.UpgradeDirectoryName, DeprecatedUpgradeLogsDirectory));
 
                             this.CopyAllFiles(
-                                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                                ProductUpgraderInfo.GetParentLogDirectoryPath(),
                                 archiveFolderPath,
                                 ProductUpgraderInfo.LogDirectory,
                                 copySubFolders: true,
                                 targetFolderName: Path.Combine(ProductUpgraderInfo.UpgradeDirectoryName, ProductUpgraderInfo.LogDirectory));
 
                             this.LogDirectoryEnumeration(
-                                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                                ProductUpgraderInfo.GetUpgradeProtectedDataDirectory(),
                                 Path.Combine(archiveFolderPath, ProductUpgraderInfo.UpgradeDirectoryName),
                                 ProductUpgraderInfo.DownloadDirectory,
                                 "downloaded-assets.txt");
@@ -328,6 +328,9 @@ namespace GVFS.CommandLine
                 {
                     this.LogDirectoryEnumeration(gitObjectsRoot, localCacheArchivePath, GVFSConstants.DotGit.Objects.Pack.Name, "packs-cached.txt");
                     this.LogLooseObjectCount(gitObjectsRoot, localCacheArchivePath, string.Empty, "objects-cached.txt");
+
+                    // Store all commit-graph files
+                    this.CopyAllFiles(gitObjectsRoot, localCacheArchivePath, GVFSConstants.DotGit.Objects.Info.Root, copySubFolders: true);
                 }
             }
             catch (Exception e)

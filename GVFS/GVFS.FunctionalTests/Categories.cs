@@ -11,10 +11,6 @@
 
         public static class MacTODO
         {
-            // The FailsOnBuildAgent category is for tests that pass on dev
-            // machines but not on the build agents
-            public const string FailsOnBuildAgent = "FailsOnBuildAgent";
-
             // Tests that require #360 (detecting/handling new empty folders)
             public const string NeedsNewFolderCreateNotification = "NeedsNewFolderCreateNotification";
 

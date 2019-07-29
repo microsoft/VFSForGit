@@ -39,3 +39,25 @@ void RWLock_FreeMemory(RWLock* rwLock)
     delete rwLock->p;
     rwLock->p = nullptr;
 }
+
+void SpinLock_Acquire(SpinLock lock)
+{
+}
+
+void SpinLock_Release(SpinLock lock)
+{
+}
+
+SpinLock SpinLock_Alloc()
+{
+    return SpinLock{};
+}
+
+void SpinLock_FreeMemory(SpinLock* lock)
+{
+}
+
+bool SpinLock_IsValid(SpinLock lock)
+{
+    return true;
+}

@@ -92,11 +92,6 @@ namespace GVFS.Platform.Windows
                 NativeMethods.MoveFileFlags.MoveFileReplaceExisting);
         }
 
-        public void CreateHardLink(string newFileName, string existingFileName)
-        {
-            NativeMethods.CreateHardLink(newFileName, existingFileName);
-        }
-
         public void ChangeMode(string path, ushort mode)
         {
         }

@@ -62,9 +62,9 @@ namespace GVFS.Common
             return currentVersion.Major == 0;
         }
 
-        public static string WhereDirectory(string processName)
+        public static string GetProgramLocation(string programLocaterCommand, string processName)
         {
-            ProcessResult result = ProcessHelper.Run("where", processName);
+            ProcessResult result = ProcessHelper.Run(programLocaterCommand, processName);
             if (result.ExitCode != 0)
             {
                 return null;

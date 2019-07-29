@@ -36,14 +36,12 @@ namespace GVFS.Platform.POSIX
 
         public static bool IsConsoleOutputRedirectedToFileImplementation()
         {
-            // TODO(POSIX): Implement proper check
+            // TODO(#1355): Implement proper check
             return false;
         }
 
         public static bool TryGetGVFSEnlistmentRootImplementation(string directory, string dotGVFSRoot, out string enlistmentRoot, out string errorMessage)
         {
-            // TODO(POSIX): Merge this code with the implementation in WindowsPlatform
-
             enlistmentRoot = null;
 
             string finalDirectory;

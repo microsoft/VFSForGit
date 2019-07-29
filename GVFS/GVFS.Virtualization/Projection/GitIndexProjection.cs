@@ -664,14 +664,9 @@ namespace GVFS.Virtualization.Projection
 
             if (GVFSPlatform.Instance.FileSystem.SupportsFileMode)
             {
-                // TODO(Mac): Test if performance could be improved by eliminating the SupportsFileMode check
-                // (e.g. by defaulting FileMode to Regular 644 and eliminating the SupportsFileMode check)
                 if (indexEntry.TypeAndMode.Type != FileType.Regular ||
                     indexEntry.TypeAndMode.Mode != FileMode644)
                 {
-                    // TODO(Mac): The line below causes a conversion from LazyUTF8String to .NET string.
-                    // Measure the perf and memory overhead of performing this conversion, and determine if we need
-                    // a way to keep the path as LazyUTF8String
                     this.nonDefaultFileTypesAndModes.Add(indexEntry.BuildingProjection_GetGitRelativePath(), indexEntry.TypeAndMode);
                 }
             }
@@ -1117,6 +1112,8 @@ namespace GVFS.Virtualization.Projection
                 this.blobSizes.Flush();
 
                 int deleteFolderPlaceholderAttempted = 0;
+                int folderPlaceholdersDeleted = 0;
+                int folderPlaceholdersPathNotFound = 0;
                 using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
                 {
                     // A hash of the placeholders is only required if the platform expands directories
@@ -1157,7 +1154,18 @@ namespace GVFS.Virtualization.Projection
                                 !isFolder ||
                                 folderPlaceholder.IsPossibleTombstoneFolder)
                             {
-                                keepFolder = !this.RemoveFolderPlaceholderIfEmpty(folderPlaceholder);
+                                FSResult result = this.RemoveFolderPlaceholderIfEmpty(folderPlaceholder);
+                                if (result == FSResult.Ok)
+                                {
+                                    ++folderPlaceholdersDeleted;
+                                    keepFolder = false;
+                                }
+                                else if (result == FSResult.FileOrPathNotFound)
+                                {
+                                    ++folderPlaceholdersPathNotFound;
+                                    keepFolder = false;
+                                }
+
                                 ++deleteFolderPlaceholderAttempted;
                             }
 
@@ -1200,7 +1208,9 @@ namespace GVFS.Virtualization.Projection
                     millisecondsUpdatingFilePlaceholders,
                     millisecondsUpdatingFolderPlaceholders,
                     millisecondsWriteAndFlush,
-                    deleteFolderPlaceholderAttempted);
+                    deleteFolderPlaceholderAttempted,
+                    folderPlaceholdersDeleted,
+                    folderPlaceholdersPathNotFound);
             }
         }
 
@@ -1364,7 +1374,7 @@ namespace GVFS.Virtualization.Projection
                 return;
             }
 
-            // TODO(Mac): Issue #255, batch file sizes up-front for the new placeholders written by ReExpandFolder
+            // TODO(#255): Batch file sizes up-front for the new placeholders written by ReExpandFolder
             folderData.PopulateSizes(
                 this.context.Tracer,
                 this.gitObjects,
@@ -1421,7 +1431,7 @@ namespace GVFS.Virtualization.Projection
                             return;
 
                         default:
-                            // TODO(Mac): Issue #245, handle failures of WritePlaceholderDirectory and WritePlaceholderFile
+                            // TODO(#245): Handle failures of WritePlaceholderDirectory and WritePlaceholderFile
                             break;
                     }
                 }
@@ -1431,11 +1441,9 @@ namespace GVFS.Virtualization.Projection
         /// <summary>
         /// Removes the folder placeholder from disk if it's empty.
         /// </summary>
-        /// <returns>
-        /// <c>true</c>If the folder placeholder was deleted
-        /// <c>false</c>If RemoveFolderPlaceholderIfEmpty failed attempting to remove the folder placeholder
+        /// <returns> Result of trying to delete the PlaceHolder
         /// </returns>
-        private bool RemoveFolderPlaceholderIfEmpty(IPlaceholderData placeholder)
+        private FSResult RemoveFolderPlaceholderIfEmpty(IPlaceholderData placeholder)
         {
             UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
             FileSystemResult result = this.fileSystemVirtualizer.DeleteFile(placeholder.Path, FolderPlaceholderDeleteFlags, out failureReason);
@@ -1443,10 +1451,8 @@ namespace GVFS.Virtualization.Projection
             {
                 case FSResult.Ok:
                 case FSResult.FileOrPathNotFound:
-                    return true;
-
                 case FSResult.DirectoryNotEmpty:
-                    return false;
+                    return result.Result;
 
                 default:
                     EventMetadata metadata = CreateEventMetadata();
@@ -1455,7 +1461,7 @@ namespace GVFS.Virtualization.Projection
                     metadata.Add("result.RawResult", result.RawResult);
                     metadata.Add("UpdateFailureCause", failureReason.ToString());
                     this.context.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.RemoveFolderPlaceholderIfEmpty) + "_DeleteFileFailure", metadata);
-                    return false;
+                    return result.Result;
             }
         }
 
