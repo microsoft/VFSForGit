@@ -109,7 +109,7 @@ namespace GVFS.Hooks
             int reminderFrequency = 10;
             int randomValue = random.Next(0, 100);
 
-            if (randomValue <= reminderFrequency &&
+            if ((IsUpgradeMessageDeterministic() || randomValue <= reminderFrequency) &&
                 ProductUpgraderInfo.IsLocalUpgradeAvailable(tracer: null, highestAvailableVersionDirectory: GVFSHooksPlatform.GetUpgradeHighestAvailableVersionDirectory()))
             {
                 Console.WriteLine(Environment.NewLine + GVFSConstants.UpgradeVerbMessages.ReminderNotification);
@@ -420,6 +420,18 @@ namespace GVFS.Hooks
             catch (Exception)
             {
                 return string.Empty;
+            }
+        }
+
+        private static bool IsUpgradeMessageDeterministic()
+        {
+            try
+            {
+                return Environment.GetEnvironmentVariable("GVFS_UPGRADE_DETERMINISTIC", EnvironmentVariableTarget.Process) != null;
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
     }
