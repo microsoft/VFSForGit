@@ -9,7 +9,7 @@ namespace GVFS.Mount
     {
         public static void Main(string[] args)
         {
-            GVFSEnlistment.SetIsUnattendedByDefault(true);
+            GVFSEnlistment.SetIsInteractiveByDefault(false);
             GVFSPlatformLoader.Initialize();
             try
             {

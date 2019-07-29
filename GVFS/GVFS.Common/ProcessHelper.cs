@@ -21,7 +21,7 @@ namespace GVFS.Common
             processInfo.CreateNoWindow = redirectOutput;
             processInfo.Arguments = args;
 
-            processInfo.EnvironmentVariables[GVFSConstants.UnattendedEnvironmentVariable] = isInteractive ? "0" : "1";
+            processInfo.EnvironmentVariables[GVFSConstants.InteractiveEnvironmentVariable] = isInteractive ? "1" : "0";
 
             return Run(processInfo);
         }
