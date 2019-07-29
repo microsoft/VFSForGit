@@ -764,7 +764,14 @@ namespace GVFS.Common.Git
 
                             if (this.LowerPriority)
                             {
-                                this.executingProcess.PriorityClass = ProcessPriorityClass.BelowNormal;
+                                try
+                                {
+                                    this.executingProcess.PriorityClass = ProcessPriorityClass.BelowNormal;
+                                }
+                                catch (InvalidOperationException)
+                                {
+                                    // This is thrown if the process completes before we can set its priority.
+                                }
                             }
                         }
 
