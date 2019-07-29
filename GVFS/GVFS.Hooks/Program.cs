@@ -233,7 +233,7 @@ namespace GVFS.Hooks
                 {
                     if (response == null || response.ResponseData == null)
                     {
-                        Console.WriteLine("\nError communicating with GVFS: Run 'git status' to check the status of your repo");
+                        Console.WriteLine("\nError communicating with GVFS: Run 'gvfs status' to check the status of your repo");
                     }
                     else if (response.ResponseData.HasFailures)
                     {
