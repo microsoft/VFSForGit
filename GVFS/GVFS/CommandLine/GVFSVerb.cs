@@ -239,13 +239,14 @@ namespace GVFS.CommandLine
         protected bool ShowStatusWhileRunning(
             Func<bool> action,
             string message,
-            string gvfsLogEnlistmentRoot)
+            string gvfsLogEnlistmentRoot,
+            bool showSpinner = true)
         {
             return ConsoleHelper.ShowStatusWhileRunning(
                 action,
                 message,
                 this.Output,
-                showSpinner: !this.Unattended && this.Output == Console.Out && !GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
+                showSpinner: showSpinner && !this.Unattended && this.Output == Console.Out && !GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
                 gvfsLogEnlistmentRoot: gvfsLogEnlistmentRoot,
                 initialDelayMs: 0);
         }
@@ -272,7 +273,8 @@ namespace GVFS.CommandLine
             bool result = this.ShowStatusWhileRunning(
                 () => enlistment.Authentication.TryInitialize(tracer, enlistment, out authError),
                 "Authenticating",
-                enlistment.EnlistmentRoot);
+                enlistment.EnlistmentRoot,
+                showSpinner: false);
 
             authErrorMessage = authError;
             return result;
