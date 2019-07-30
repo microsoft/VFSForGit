@@ -54,6 +54,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Runners))]
+        [Category(Categories.LinuxTODO.NeedsConsistentBufferedWrites)]
         public void FilesAreBufferedAndCanBeFlushed(FileSystemRunner fileSystem, string parentFolder)
         {
             string filename = Path.Combine(parentFolder, "FilesAreBufferedAndCanBeFlushed");
@@ -820,6 +821,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         // file rename rather than a pre-delete event, so we check this
         // separately from the DeleteIndexFileFails() test case
         // This test is failing on Windows because the CmdRunner succeeds in moving the index file
+        // TODO(Linux): Convert this to POSIXOnly
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         [Category(Categories.POSIXOnly)]
         public void MoveIndexFileFails(FileSystemRunner fileSystem)

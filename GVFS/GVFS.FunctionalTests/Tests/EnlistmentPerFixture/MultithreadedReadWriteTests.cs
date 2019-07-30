@@ -110,6 +110,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        [Category(Categories.LinuxTODO.NeedsConsistentBufferedWrites)]
         [Order(3)]
         public void CanReadWriteAFileInParallel(FileSystemRunner fileSystem)
         {
