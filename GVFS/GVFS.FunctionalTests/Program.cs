@@ -106,6 +106,7 @@ namespace GVFS.FunctionalTests
                 excludeCategories.Add(Categories.RepositoryMountsSameFileSystem);
 
                 excludeCategories.Add(Categories.LinuxTODO.NeedsContentionFreeFileLock);
+                excludeCategories.Add(Categories.LinuxTODO.NeedsConsistentBufferedWrites);
 
                 // TODO(Linux): determine which are really generic POSIX TODOs
                 excludeCategories.Add(Categories.MacTODO.FailsOnBuildAgent);
