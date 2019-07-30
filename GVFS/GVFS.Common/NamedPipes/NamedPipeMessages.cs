@@ -71,6 +71,7 @@ namespace GVFS.Common.NamedPipes
             public const string ListRequest = "MPL";
             public const string InvalidVersion = "InvalidVersion";
             public const string SuccessResult = "S";
+            public const string CurrentVersion = "1";
 
             public class Request
             {

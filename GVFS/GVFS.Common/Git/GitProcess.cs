@@ -582,12 +582,20 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder("cat-file -t " + objectId);
         }
 
-        public Result LsTree(string treeish, Action<string> parseStdOutLine, bool recursive, bool showAllTrees = false)
+        public Result LsTree(string treeish, Action<string> parseStdOutLine, bool recursive, bool showAllTrees = false, bool showDirectories = false)
         {
             return this.InvokeGitAgainstDotGitFolder(
-                "ls-tree " + (recursive ? "-r " : string.Empty) + (showAllTrees ? "-t " : string.Empty) + treeish,
+                "ls-tree " + (recursive ? "-r " : string.Empty) + (showAllTrees ? "-t " : string.Empty) + (showDirectories ? "-d " : string.Empty) + treeish,
                 null,
                 parseStdOutLine);
+        }
+
+        public Result LsFiles(Action<string> parseStdOutLine)
+        {
+            return this.InvokeGitInWorkingDirectoryRoot(
+                "ls-files -v",
+                useReadObjectHook: false,
+                parseStdOutLine: parseStdOutLine);
         }
 
         public Result SetUpstream(string branchName, string upstream)
@@ -859,7 +867,8 @@ namespace GVFS.Common.Git
         private Result InvokeGitInWorkingDirectoryRoot(
             string command,
             bool useReadObjectHook,
-            Action<StreamWriter> writeStdIn = null)
+            Action<StreamWriter> writeStdIn = null,
+            Action<string> parseStdOutLine = null)
         {
             return this.InvokeGitImpl(
                 command,
@@ -867,7 +876,7 @@ namespace GVFS.Common.Git
                 dotGitDirectory: null,
                 useReadObjectHook: useReadObjectHook,
                 writeStdIn: writeStdIn,
-                parseStdOutLine: null,
+                parseStdOutLine: parseStdOutLine,
                 timeoutMs: -1);
         }
 
