@@ -96,11 +96,11 @@ namespace GVFS.FunctionalTests.Tools
         {
             if (string.IsNullOrEmpty(directory))
             {
-                return this.CallGVFS("health " + this.enlistmentRoot);
+                return this.CallGVFS("health \"" + this.enlistmentRoot + '"');
             }
             else
             {
-                return this.CallGVFS("health -d " + directory + " " + this.enlistmentRoot);
+                return this.CallGVFS("health -d \"" + directory + "\" \"" + this.enlistmentRoot + '"');
             }
         }
 
