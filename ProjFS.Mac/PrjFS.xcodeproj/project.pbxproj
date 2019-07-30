@@ -822,6 +822,7 @@
 			);
 			inputPaths = (
 				"${BUILD_ROOT}/../../PrjFSVersion.h",
+				"${BUILD_ROOT}/../../PrjFSConfig.xcconfig",
 			);
 			outputPaths = (
 			);
