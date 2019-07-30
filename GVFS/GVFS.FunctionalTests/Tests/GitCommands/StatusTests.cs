@@ -43,6 +43,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.LinuxTODO.NeedsConsistentBufferedWrites)]
         public void CreateFileWithoutClose()
         {
             string srcPath = @"CreateFileWithoutClose.md";
@@ -51,6 +52,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.LinuxTODO.NeedsConsistentBufferedWrites)]
         public void WriteWithoutClose()
         {
             string srcPath = @"Readme.md";

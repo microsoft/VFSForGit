@@ -52,6 +52,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Runners))]
+        [Category(Categories.LinuxTODO.NeedsConsistentBufferedWrites)]
         public void FilesAreBufferedAndCanBeFlushed(FileSystemRunner fileSystem, string parentFolder)
         {
             string filename = Path.Combine(parentFolder, "FilesAreBufferedAndCanBeFlushed");
