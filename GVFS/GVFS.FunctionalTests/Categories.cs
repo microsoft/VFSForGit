@@ -21,6 +21,9 @@
         {
             // Tests that fail due to flock() contention with libprojfs
             public const string NeedsContentionFreeFileLock = "NeedsNonContendedFileLock";
+
+            // Tests that fail due to FUSE passthrough write buffering behavior
+            public const string NeedsConsistentBufferedWrites = "NeedsConsistentBufferedWrites";
         }
 
         public static class MacTODO
