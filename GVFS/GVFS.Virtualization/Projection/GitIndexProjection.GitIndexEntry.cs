@@ -67,30 +67,6 @@ namespace GVFS.Virtualization.Projection
                get; private set;
             }
 
-            public bool BuildingProjection_ShouldInclude
-            {
-                get; set;
-            }
-
-            /// <summary>
-            /// This property is for when using sparse folder mode to indicate whether
-            /// all children should be being included so it is including entries recursively
-            /// </summary>
-            public bool BuildingProjection_ShouldIncludeRecursive
-            {
-                get; set;
-            }
-
-            /// <summary>
-            /// This property is for when using sparse folder mode to have the included folder data
-            /// to check if an index entry should be included. This get set to the root when a folder
-            /// is not found in the Children of the included folder or index path parts gets reset.
-            /// </summary>
-            public SparseFolderData BuildingProjection_SparseFolderToCheck
-            {
-                get; set;
-            }
-
             /// <summary>
             /// Parses the path using LazyUTF8Strings. It should only be called when building a new projection.
             /// </summary>
@@ -235,9 +211,6 @@ namespace GVFS.Virtualization.Projection
             {
                 this.buildingProjectionPreviousFinalSeparatorIndex = int.MaxValue;
                 this.BuildingProjection_HasSameParentAsLastEntry = false;
-                this.BuildingProjection_ShouldInclude = false;
-                this.BuildingProjection_ShouldIncludeRecursive = false;
-                this.BuildingProjection_SparseFolderToCheck = null;
                 this.BuildingProjection_LastParent = null;
             }
 

@@ -89,7 +89,7 @@ namespace GVFS.UnitTests.Virtualization.Git
         {
             SortedFolderEntries sfe = SetupDefaultEntries();
             LazyUTF8String name = ConstructLazyUTF8String("{{shouldbeattheend");
-            sfe.AddFolder(name);
+            sfe.AddFile(name, new byte[20]);
             sfe[defaultFiles.Length + defaultFolders.Length].Name.ShouldEqual(name, "Item added at incorrect index.");
         }
 
@@ -98,7 +98,7 @@ namespace GVFS.UnitTests.Virtualization.Git
         {
             SortedFolderEntries sfe = SetupDefaultEntries();
             LazyUTF8String name = ConstructLazyUTF8String("((shouldbeatthestart");
-            sfe.AddFolder(name);
+            sfe.AddFile(name, new byte[20]);
             sfe[0].Name.ShouldEqual(name, "Item added at incorrect index.");
         }
 
@@ -117,15 +117,83 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
-        public void AddItemWithIsIncludedFalse()
+        public void FoldersShouldBeIncludedWhenSparseFolderDataIsEmpty()
         {
             SortedFolderEntries sfe = SetupDefaultEntries();
             LazyUTF8String name = ConstructLazyUTF8String("IsIncludedFalse");
-            sfe.AddFile(name, new byte[20], isIncluded: false);
-            sfe.TryGetValue(name, out FolderEntryData folderEntryData).ShouldBeTrue();
-            folderEntryData.ShouldNotBeNull();
-            folderEntryData.IsFolder.ShouldBeFalse();
-            folderEntryData.IsIncluded.ShouldBeFalse();
+            sfe.GetOrAddFolder(new[] { name }, partIndex: 0, parentIsIncluded: false, rootSparseFolderData: new SparseFolderData());
+            ValidateFolder(sfe, name, isIncludedValue: true);
+        }
+
+        [TestCase]
+        public void AddFolderWhereParentIncludedIsFalseAndIncluded()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("Child");
+            SparseFolderData sparseFolderData = new SparseFolderData();
+            sparseFolderData.Children.Add("Child", new SparseFolderData());
+            sfe.GetOrAddFolder(new[] { name }, partIndex: 0, parentIsIncluded: false, rootSparseFolderData: sparseFolderData);
+            ValidateFolder(sfe, name, isIncludedValue: false);
+        }
+
+        [TestCase]
+        public void AddFolderWhereParentIncludedIsTrueAndChildIsIncluded()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("Child");
+            SparseFolderData sparseFolderData = new SparseFolderData();
+            sparseFolderData.Children.Add("Child", new SparseFolderData());
+            sfe.GetOrAddFolder(new[] { name }, partIndex: 0, parentIsIncluded: true, rootSparseFolderData: sparseFolderData);
+            ValidateFolder(sfe, name, isIncludedValue: true);
+        }
+
+        [TestCase]
+        public void AddFolderWhereParentIncludedIsTrueAndChildIsNotIncluded()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("ChildNotIncluded");
+            SparseFolderData sparseFolderData = new SparseFolderData();
+            sparseFolderData.Children.Add("Child", new SparseFolderData());
+            sfe.GetOrAddFolder(new[] { name }, partIndex: 0, parentIsIncluded: true, rootSparseFolderData: sparseFolderData);
+            ValidateFolder(sfe, name, isIncludedValue: false);
+        }
+
+        [TestCase]
+        public void AddFolderWhereParentIsRecursive()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("Child");
+            LazyUTF8String name2 = ConstructLazyUTF8String("GrandChild");
+            SparseFolderData sparseFolderData = new SparseFolderData() { IsRecursive = true };
+            sparseFolderData.Children.Add("Child", new SparseFolderData());
+            sfe.GetOrAddFolder(new[] { name, name2 }, partIndex: 1, parentIsIncluded: true, rootSparseFolderData: sparseFolderData);
+            ValidateFolder(sfe, name2, isIncludedValue: true);
+        }
+
+        [TestCase]
+        public void AddFolderBelowTopLevelNotIncluded()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("Child");
+            LazyUTF8String name2 = ConstructLazyUTF8String("GrandChild");
+            SparseFolderData sparseFolderData = new SparseFolderData();
+            sparseFolderData.Children.Add("Child", new SparseFolderData());
+            sfe.GetOrAddFolder(new[] { name, name2 }, partIndex: 1, parentIsIncluded: true, rootSparseFolderData: sparseFolderData);
+            ValidateFolder(sfe, name2, isIncludedValue: false);
+        }
+
+        [TestCase]
+        public void AddFolderBelowTopLevelIsIncluded()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String name = ConstructLazyUTF8String("Child");
+            LazyUTF8String name2 = ConstructLazyUTF8String("GrandChild");
+            SparseFolderData sparseFolderData = new SparseFolderData();
+            SparseFolderData childSparseFolderData = new SparseFolderData();
+            childSparseFolderData.Children.Add("GrandChild", new SparseFolderData());
+            sparseFolderData.Children.Add("Child", childSparseFolderData);
+            sfe.GetOrAddFolder(new[] { name, name2 }, partIndex: 1, parentIsIncluded: true, rootSparseFolderData: sparseFolderData);
+            ValidateFolder(sfe, name2, isIncludedValue: true);
         }
 
         [TestCase]
@@ -178,10 +246,9 @@ namespace GVFS.UnitTests.Virtualization.Git
             for (int i = 0; i < names.Length; i++)
             {
                 LazyUTF8String entryString = ConstructLazyUTF8String(names[i]);
-                entries.AddFile(entryString, new byte[20], isIncluded: true);
+                entries.AddFile(entryString, new byte[20]);
                 entries.TryGetValue(entryString, out FolderEntryData folderEntryData).ShouldBeTrue();
                 folderEntryData.ShouldNotBeNull();
-                folderEntryData.IsIncluded.ShouldBeTrue();
                 folderEntryData.IsFolder.ShouldBeFalse();
             }
         }
@@ -191,12 +258,20 @@ namespace GVFS.UnitTests.Virtualization.Git
             for (int i = 0; i < names.Length; i++)
             {
                 LazyUTF8String entryString = ConstructLazyUTF8String(names[i]);
-                entries.AddFolder(entryString);
-                entries.TryGetValue(entryString, out FolderEntryData folderEntryData).ShouldBeTrue();
-                folderEntryData.ShouldNotBeNull();
-                folderEntryData.IsIncluded.ShouldBeTrue();
-                folderEntryData.IsFolder.ShouldBeTrue();
+                entries.GetOrAddFolder(new[] { entryString }, partIndex: 0, parentIsIncluded: true, rootSparseFolderData: new SparseFolderData());
+                ValidateFolder(entries, entryString, isIncludedValue: true);
             }
+        }
+
+        private static void ValidateFolder(SortedFolderEntries entries, LazyUTF8String entryToValidate, bool isIncludedValue)
+        {
+            entries.TryGetValue(entryToValidate, out FolderEntryData folderEntryData).ShouldBeTrue();
+            folderEntryData.ShouldNotBeNull();
+            folderEntryData.IsFolder.ShouldBeTrue();
+
+            FolderData folderData = folderEntryData as FolderData;
+            folderData.ShouldNotBeNull();
+            folderData.IsIncluded.ShouldEqual(isIncludedValue, "IsIncluded does not match expected value.");
         }
     }
 }

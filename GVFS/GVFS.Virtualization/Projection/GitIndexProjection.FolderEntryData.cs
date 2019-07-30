@@ -9,12 +9,6 @@ namespace GVFS.Virtualization.Projection
         {
             public LazyUTF8String Name { get; protected set; }
             public abstract bool IsFolder { get; }
-            public bool IsIncluded { get; set; } = true;
-
-            public virtual void Include()
-            {
-                this.IsIncluded = true;
-            }
 
             protected static EventMetadata CreateEventMetadata(Exception e = null)
             {
