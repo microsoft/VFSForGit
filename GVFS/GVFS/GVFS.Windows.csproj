@@ -112,6 +112,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CommandLine\CacheServerVerb.cs" />
+    <Compile Include="CommandLine\HealthVerb.cs" />
     <Compile Include="CommandLine\CloneVerb.cs" />
     <Compile Include="CommandLine\ConfigVerb.cs" />
     <Compile Include="CommandLine\DehydrateVerb.cs" />
