@@ -430,6 +430,8 @@ namespace GVFS.Virtualization.Projection
 
         public virtual PathSparseState GetFolderPathSparseState(string virtualPath)
         {
+            // Have to use a call that will get excluded entries in order to return the Excluded state
+            // Excluded folders are not in the cache and GetProjectedFolderEntryData will not return them
             if (this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData))
             {
                 return folderData.IsIncluded ? PathSparseState.Included : PathSparseState.Excluded;
@@ -442,6 +444,8 @@ namespace GVFS.Virtualization.Projection
         {
             try
             {
+                // Have to use a call that will get excluded entries in order to return the Excluded state
+                // Excluded folders are not in the cache and GetProjectedFolderEntryData will not return them
                 if (this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData) &&
                     !folderData.IsIncluded)
                 {
@@ -464,6 +468,8 @@ namespace GVFS.Virtualization.Projection
             isFolder = false;
             string parentKey;
             this.GetChildNameAndParentKey(virtualPath, out fileName, out parentKey);
+
+            // GetProjectedFolderEntryData returns a null FolderEntryData when the path's parent folder IsIncluded is false
             FolderEntryData data = this.GetProjectedFolderEntryData(
                 blobSizesConnection: null,
                 childName: fileName,
@@ -489,6 +495,8 @@ namespace GVFS.Virtualization.Projection
             this.GetChildNameAndParentKey(virtualPath, out childName, out parentKey);
             parentFolderPath = parentKey;
             string gitCasedChildName;
+
+            // GetProjectedFolderEntryData returns a null FolderEntryData when the path's parent folder IsIncluded is false
             FolderEntryData data = this.GetProjectedFolderEntryData(
                 cancellationToken,
                 blobSizesConnection,
@@ -787,6 +795,8 @@ namespace GVFS.Virtualization.Projection
         private bool TryGetSha(string childName, string parentKey, out string sha)
         {
             sha = string.Empty;
+
+            // GetProjectedFolderEntryData returns a null FolderEntryData when the path's parent folder IsIncluded is false
             FileData data = this.GetProjectedFolderEntryData(
                 blobSizesConnection: null,
                 childName: childName,
@@ -936,7 +946,10 @@ namespace GVFS.Virtualization.Projection
         /// </param>
         /// <param name="childName">Child name (i.e. file name)</param>
         /// <param name="parentKey">Parent key (parent folder path)</param>
-        /// <returns>FolderEntryData for the specified childName and parentKey or null if no FolderEntryData exists for them in the projection</returns>
+        /// <returns>
+        /// FolderEntryData for the specified childName and parentKey or null if no FolderEntryData exists for them in the projection.
+        /// This will not return entries where IsIncluded is false
+        /// </returns>
         /// <remarks><see cref="GetChildNameAndParentKey"/> can be used for getting child name and parent key from a file path</remarks>
         private FolderEntryData GetProjectedFolderEntryData(
             BlobSizes.BlobSizesConnection blobSizesConnection,
@@ -978,6 +991,12 @@ namespace GVFS.Virtualization.Projection
             return true;
         }
 
+        /// <summary>
+        /// Takes a path and get the FolderData object fo that path if it exist and is a folder
+        /// </summary>
+        /// <param name="folderPath">The path to the folder to lookup</param>
+        /// <param name="folderData">out paramenter - the FolderData to return if found</param>
+        /// <returns>true if the FolderData was found and set in the out parameter otherwise false</returns>
         private bool TryGetFolderDataFromTreeUsingPath(string folderPath, out FolderData folderData)
         {
             folderData = null;
@@ -1012,15 +1031,11 @@ namespace GVFS.Virtualization.Projection
         }
 
         /// <summary>
-        /// Finds the FolderEntryData at the specified depth of the path provided.  If depth == pathParts.Length
-        /// TryGetFolderEntryDataFromTree will find the FolderEntryData specified in pathParts.  If
-        /// depth is less than pathParts.Length, then TryGetFolderEntryDataFromTree will return an ancestor folder of
-        /// childPathParts.
+        /// Finds the FolderEntryData for the path provided will find the FolderEntryData specified in pathParts.
         /// </summary>
         /// <param name="pathParts">Path</param>
-        /// <param name="folderEntryData">Out: FolderEntryData for pathParts at the specified depth.  For example,
-        /// if pathParts were { "A", "B", "C" } and depth was 2, FolderEntryData for "B" would be returned.</param>
-        /// <returns>True if the specified path\depth could be found in the tree, and false otherwise</returns>
+        /// <param name="folderEntryData">Out: FolderEntryData for pathParts</param>
+        /// <returns>True if the specified path could be found in the tree, and false otherwise</returns>
         private bool TryGetFolderEntryDataFromTree(LazyUTF8String[] pathParts, out FolderEntryData folderEntryData)
         {
             folderEntryData = null;
