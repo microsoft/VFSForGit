@@ -206,18 +206,15 @@ namespace GVFS.Common
             public UnderConstructionFlags(
                 bool supportsGVFSUpgrade = true,
                 bool supportsGVFSConfig = true,
-                bool requiresDeprecatedGitHooksLoader = false,
                 bool supportsNuGetEncryption = true)
             {
                 this.SupportsGVFSUpgrade = supportsGVFSUpgrade;
                 this.SupportsGVFSConfig = supportsGVFSConfig;
-                this.RequiresDeprecatedGitHooksLoader = requiresDeprecatedGitHooksLoader;
                 this.SupportsNuGetEncryption = supportsNuGetEncryption;
             }
 
             public bool SupportsGVFSUpgrade { get; }
             public bool SupportsGVFSConfig { get; }
-            public bool RequiresDeprecatedGitHooksLoader { get; }
             public bool SupportsNuGetEncryption { get; }
         }
     }

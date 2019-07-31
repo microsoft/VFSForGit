@@ -25,7 +25,7 @@ namespace GVFS.Platform.Windows
         private const string BuildLabRegistryValue = "BuildLab";
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
-        public WindowsPlatform() : base(underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
+        public WindowsPlatform() : base(underConstruction: new UnderConstructionFlags())
         {
         }
 
