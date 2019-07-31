@@ -99,7 +99,6 @@ namespace GVFS.Platform.Mac
                     relativePath,
                     PlaceholderVersionId,
                     ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
-                    (ulong)endOfFile,
                     fileMode);
 
                 return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
@@ -560,31 +559,19 @@ namespace GVFS.Platform.Mac
         {
             try
             {
-                Result result;
-                try
+                IEnumerable<ProjectedFileInfo> projectedItems;
+
+                // TODO: Pool these connections or schedule this work to run asynchronously using TryScheduleFileOrNetworkRequest
+                using (BlobSizes.BlobSizesConnection blobSizesConnection = this.FileSystemCallbacks.BlobSizes.CreateConnection())
                 {
-                    IEnumerable<ProjectedFileInfo> projectedItems;
-
-                    // TODO: Pool these connections or schedule this work to run asynchronously using TryScheduleFileOrNetworkRequest
-                    using (BlobSizes.BlobSizesConnection blobSizesConnection = this.FileSystemCallbacks.BlobSizes.CreateConnection())
-                    {
-                        projectedItems = this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(CancellationToken.None, blobSizesConnection, relativePath);
-                    }
-
-                    result = this.CreatePlaceholders(relativePath, projectedItems, triggeringProcessName);
-                }
-                catch (SizesUnavailableException e)
-                {
-                    // TODO: Is this the correct Result to return?
-                    result = Result.EIOError;
-
-                    EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
-                    this.Context.Tracer.RelatedError(metadata, nameof(this.OnEnumerateDirectory) + ": caught SizesUnavailableException");
+                    projectedItems = this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(
+                        CancellationToken.None,
+                        blobSizesConnection,
+                        relativePath,
+                        populateSizes: false);
                 }
 
-                return result;
+                return this.CreatePlaceholders(relativePath, projectedItems, triggeringProcessName);
             }
             catch (Exception e)
             {
@@ -612,7 +599,9 @@ namespace GVFS.Platform.Mac
                 else
                 {
                     sha = fileInfo.Sha.ToString();
-                    fileSystemResult = this.WritePlaceholderFile(childRelativePath, fileInfo.Size, sha);
+
+                    // Writing placeholders on Mac does not require a file size
+                    fileSystemResult = this.WritePlaceholderFile(childRelativePath, endOfFile: 0, sha: sha);
                 }
 
                 Result result = (Result)fileSystemResult.RawResult;

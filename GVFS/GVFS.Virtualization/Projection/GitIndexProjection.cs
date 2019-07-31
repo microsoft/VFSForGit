@@ -387,7 +387,8 @@ namespace GVFS.Virtualization.Projection
         public virtual List<ProjectedFileInfo> GetProjectedItems(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection,
-            string folderPath)
+            string folderPath,
+            bool populateSizes)
         {
             this.projectionReadWriteLock.EnterReadLock();
 
@@ -396,12 +397,15 @@ namespace GVFS.Virtualization.Projection
                 FolderData folderData;
                 if (this.TryGetOrAddFolderDataFromCache(folderPath, out folderData))
                 {
-                    folderData.PopulateSizes(
-                        this.context.Tracer,
-                        this.gitObjects,
-                        blobSizesConnection,
-                        availableSizes: null,
-                        cancellationToken: cancellationToken);
+                    if (populateSizes)
+                    {
+                        folderData.PopulateSizes(
+                            this.context.Tracer,
+                            this.gitObjects,
+                            blobSizesConnection,
+                            availableSizes: null,
+                            cancellationToken: cancellationToken);
+                    }
 
                     return ConvertToProjectedFileInfos(folderData.ChildEntries);
                 }

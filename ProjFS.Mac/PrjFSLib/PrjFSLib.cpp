@@ -348,7 +348,6 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     _In_    const char*                             relativePath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
-    _In_    unsigned long                           fileSize,
     _In_    uint16_t                                fileMode)
 {
 #ifdef DEBUG
@@ -357,7 +356,6 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         << relativePath << ", " 
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
-        << fileSize << ", "
         << oct << fileMode << dec << ")" << endl;
 #endif
     
@@ -494,7 +492,7 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     }
 
     // TODO(#1372): Ensure that races with hydration are handled properly
-    return PrjFS_WritePlaceholderFile(relativePath, providerId, contentId, fileSize, fileMode);
+    return PrjFS_WritePlaceholderFile(relativePath, providerId, contentId, fileMode);
 }
 
 PrjFS_Result PrjFS_ReplacePlaceholderFileWithSymLink(

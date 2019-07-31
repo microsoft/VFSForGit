@@ -665,7 +665,7 @@ namespace GVFS.Platform.Windows
             HResult result;
             try
             {
-                ActiveEnumeration activeEnumeration = new ActiveEnumeration(this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(cancellationToken, blobSizesConnection, virtualPath));
+                ActiveEnumeration activeEnumeration = new ActiveEnumeration(this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(cancellationToken, blobSizesConnection, virtualPath, populateSizes: true));
 
                 if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
                 {
