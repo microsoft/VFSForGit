@@ -32,7 +32,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             get { return this.exitCode; }
         }
 
-        public override bool TryStart(string path, string args, out Exception exception)
+        public override bool TryStart(string path, string args, bool useShellExecute, out Exception exception)
         {
             this.LaunchPath = path;
             this.IsLaunched = true;

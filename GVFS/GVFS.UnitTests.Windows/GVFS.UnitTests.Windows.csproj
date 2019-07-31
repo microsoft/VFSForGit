@@ -114,6 +114,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Windows\Upgrader\WindowsNuGetUpgraderTests.cs" />
     <Compile Include="Windows\Mock\MockProcessLauncher.cs" />
     <Compile Include="Windows\Mock\MockVirtualizationInstance.cs" />
     <Compile Include="Windows\Mock\MockWriteBuffer.cs" />

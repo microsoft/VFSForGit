@@ -9,15 +9,20 @@ namespace GVFS.Common
         public const string UpgradeDirectoryName = "GVFS.Upgrade";
         public const string LogDirectory = "UpgraderLogs";
         public const string DownloadDirectory = "Downloads";
+
+        /// <summary>
+        /// This is the name of the directory that the Upgrader Application is copied to
+        /// when running upgrade. It is called "Tools", as this is what the directory was
+        /// originally named, but has since been renamed in code to be more descriptive.
+        /// </summary>
+        public const string ApplicationDirectory = "Tools";
         public const string HighestAvailableVersionFileName = "HighestAvailableVersion";
 
-        public static bool IsLocalUpgradeAvailable(ITracer tracer, string gvfsDataRoot)
+        public static bool IsLocalUpgradeAvailable(ITracer tracer, string highestAvailableVersionDirectory)
         {
             try
             {
-                string upgradesDirectory = Path.Combine(gvfsDataRoot, UpgradeDirectoryName);
-
-                return File.Exists(GetHighestAvailableVersionFilePath(upgradesDirectory));
+                return File.Exists(GetHighestAvailableVersionFilePath(highestAvailableVersionDirectory));
             }
             catch (Exception ex) when (
                 ex is IOException ||
@@ -35,9 +40,9 @@ namespace GVFS.Common
             return false;
         }
 
-        private static string GetHighestAvailableVersionFilePath(string upgradesDirectory)
+        private static string GetHighestAvailableVersionFilePath(string highestAvailableVersionDirectory)
         {
-            return Path.Combine(upgradesDirectory, HighestAvailableVersionFileName);
+            return Path.Combine(highestAvailableVersionDirectory, HighestAvailableVersionFileName);
         }
 
         private static EventMetadata CreateEventMetadata(Exception e)

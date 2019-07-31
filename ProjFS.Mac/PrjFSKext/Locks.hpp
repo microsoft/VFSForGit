@@ -49,6 +49,17 @@ void RWLock_ReleaseExclusive(RWLock& rwLock);
 void RWLock_DropExclusiveToShared(RWLock& rwLock);
 bool RWLock_AcquireSharedToExclusive(RWLock& rwLock);
 
+typedef struct __lck_spin_t__ lck_spin_t;
 
+struct SpinLock
+{
+    lck_spin_t* p;
+};
+
+SpinLock SpinLock_Alloc();
+void SpinLock_FreeMemory(SpinLock* lock);
+bool SpinLock_IsValid(SpinLock lock);
+void SpinLock_Acquire(SpinLock lock);
+void SpinLock_Release(SpinLock lock);
 
 #endif /* Locks_h */

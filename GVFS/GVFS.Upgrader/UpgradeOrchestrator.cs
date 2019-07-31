@@ -1,4 +1,3 @@
-using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -9,20 +8,20 @@ using System.Text;
 
 namespace GVFS.Upgrader
 {
-    [Verb("UpgradeOrchestrator", HelpText = "Checks for product upgrades, downloads and installs it.")]
-    public class UpgradeOrchestrator
+    public abstract class UpgradeOrchestrator
     {
+        protected InstallerPreRunChecker preRunChecker;
+        protected bool mount;
+        protected ITracer tracer;
+
         private const EventLevel DefaultEventLevel = EventLevel.Informational;
 
         private ProductUpgrader upgrader;
         private string logDirectory = ProductUpgraderInfo.GetLogDirectoryPath();
         private string installationId;
-        private ITracer tracer;
         private PhysicalFileSystem fileSystem;
-        private InstallerPreRunChecker preRunChecker;
         private TextWriter output;
         private TextReader input;
-        private bool mount;
 
         public UpgradeOrchestrator(
             ProductUpgrader upgrader,
@@ -43,6 +42,13 @@ namespace GVFS.Upgrader
             this.installationId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         }
 
+        public UpgradeOrchestrator(UpgradeOptions options)
+        : this()
+        {
+            this.DryRun = options.DryRun;
+            this.NoVerify = options.NoVerify;
+        }
+
         public UpgradeOrchestrator()
         {
             // CommandLine's Parser will create multiple instances of UpgradeOrchestrator, and we don't want
@@ -60,19 +66,9 @@ namespace GVFS.Upgrader
 
         public ReturnCode ExitCode { get; private set; }
 
-        [Option(
-            "dry-run",
-            Default = false,
-            Required = false,
-            HelpText = "Display progress and errors, but don't install GVFS")]
-        public bool DryRun { get; set; }
+        public bool DryRun { get; }
 
-        [Option(
-            "no-verify",
-            Default = false,
-            Required = false,
-            HelpText = "Don't verify authenticode signature of installers")]
-        public bool NoVerify { get; set; }
+        public bool NoVerify { get; }
 
         public void Execute()
         {
@@ -152,6 +148,18 @@ namespace GVFS.Upgrader
             Environment.ExitCode = (int)this.ExitCode;
         }
 
+        protected bool LaunchInsideSpinner(Func<bool> method, string message)
+        {
+            return ConsoleHelper.ShowStatusWhileRunning(
+                method,
+                message,
+                this.output,
+                this.output == Console.Out && !GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
+                null);
+        }
+
+        protected abstract bool TryMountRepositories(out string consoleError);
+
         private JsonTracer CreateTracer()
         {
             string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
@@ -167,16 +175,6 @@ namespace GVFS.Upgrader
                 Keywords.Any);
 
             return jsonTracer;
-        }
-
-        private bool LaunchInsideSpinner(Func<bool> method, string message)
-        {
-            return ConsoleHelper.ShowStatusWhileRunning(
-                method,
-                message,
-                this.output,
-                this.output == Console.Out && !GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
-                null);
         }
 
         private bool TryInitialize(out string errorMessage)
@@ -304,35 +302,6 @@ namespace GVFS.Upgrader
             }
 
             newVersion = newGVFSVersion;
-            consoleError = null;
-            return true;
-        }
-
-        private bool TryMountRepositories(out string consoleError)
-        {
-            string errorMessage = string.Empty;
-            if (this.mount && !this.LaunchInsideSpinner(
-                () =>
-                {
-                    string mountError;
-                    if (!this.preRunChecker.TryMountAllGVFSRepos(out mountError))
-                    {
-                        EventMetadata metadata = new EventMetadata();
-                        metadata.Add("Upgrade Step", nameof(this.TryMountRepositories));
-                        metadata.Add("Mount Error", mountError);
-                        this.tracer.RelatedError(metadata, $"{nameof(this.preRunChecker.TryMountAllGVFSRepos)} failed.");
-                        errorMessage += mountError;
-                        return false;
-                    }
-
-                    return true;
-                },
-                "Mounting repositories"))
-            {
-                consoleError = errorMessage;
-                return false;
-            }
-
             consoleError = null;
             return true;
         }

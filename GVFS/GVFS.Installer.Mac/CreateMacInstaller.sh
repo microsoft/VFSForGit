@@ -45,6 +45,7 @@ INSTALLERPACKAGENAME="VFSForGit.$PACKAGEVERSION"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
 UNINSTALLERPATH="${SOURCEDIRECTORY}/uninstall_vfsforgit.sh"
 SCRIPTSPATH="${SOURCEDIRECTORY}/scripts"
+COMPONENTSPLISTPATH="${SOURCEDIRECTORY}/vfsforgit_components.plist"
 DIST_FILE_NAME="Distribution.updated.xml"
 
 function CheckBuildIsAvailable()
@@ -117,6 +118,9 @@ function CopyBinariesToInstall()
     copyNotificationApp="cp -Rf \"${VFS_OUTPUTDIR}/GVFS.Notifications/VFSForGit.Mac/Build/Products/$CONFIGURATION/VFS For Git.app\" \"${STAGINGDIR}/${LIBRARYAPPSUPPORTDESTINATION}/.\""
     eval $copyNotificationApp || exit 1
     
+    copyNotificationPlist="cp -Rf \"${SOURCEDIRECTORY}/../GVFS.Notifications/VFSForGit.Mac/org.vfsforgit.usernotification.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
+    eval $copyNotificationPlist || exit 1
+    
     copyServicePlist="cp -Rf \"${SOURCEDIRECTORY}/../GVFS.Service/Mac/org.vfsforgit.service.plist\" \"${STAGINGDIR}/${AGENTPLISTDESTINATION}/.\""
     eval $copyServicePlist || exit 1
     
@@ -129,7 +133,7 @@ function CopyBinariesToInstall()
 
 function CreateVFSForGitInstaller()
 {
-    pkgBuildCommand="/usr/bin/pkgbuild --identifier $INSTALLERPACKAGEID --scripts \"${SCRIPTSPATH}\" --root \"${STAGINGDIR}\" \"${PACKAGESTAGINGDIR}/$INSTALLERPACKAGENAME.pkg\""
+    pkgBuildCommand="/usr/bin/pkgbuild --identifier $INSTALLERPACKAGEID --component-plist \"${COMPONENTSPLISTPATH}\" --scripts \"${SCRIPTSPATH}\" --root \"${STAGINGDIR}\" \"${PACKAGESTAGINGDIR}/$INSTALLERPACKAGENAME.pkg\""
     eval $pkgBuildCommand || exit 1
 }
 
@@ -175,49 +179,34 @@ function CreateVFSForGitDistribution()
 function CreateMetaDistribution()
 {
     GITVERSION="$($VFS_SCRIPTDIR/GetGitVersionNumber.sh)"
-    GITDMGPATH="$(find $VFS_PACKAGESDIR/gitformac.gvfs.installer/$GITVERSION -type f -name *.dmg)" || exit 1
-    GITDMGNAME="${GITDMGPATH##*/}"
-    GITINSTALLERNAME="${GITDMGNAME%.dmg}"
-    GITVERSIONSTRING=`echo $GITINSTALLERNAME | cut -d"-" -f2`
-    GITPKGNAME="$GITINSTALLERNAME.pkg"
-    
+    GITINSTALLERPKGPATH="$(find $VFS_PACKAGESDIR/gitformac.gvfs.installer/$GITVERSION -type f -name *.pkg)" || exit 1
+
+    GITPKGNAME="${GITINSTALLERPKGPATH##*/}"
+    GITINSTALLERPKGNAME="${GITPKGNAME%.pkg}"
+    GITVERSIONSTRING=`echo $GITINSTALLERPKGNAME | cut -d"-" -f2`
+
     if [[ -z "$GITVERSION" || -z "$GITVERSIONSTRING" ]]; then
         echo "Error creating metapackage: could not determine Git package version."
         exit 1
     fi
     
-    if [ ! -f "$GITDMGPATH" ]; then
-        echo "Error creating metapackage: could not find Git disk image."
-        exit 1
-    fi
-    
-    mountCmd="/usr/bin/hdiutil attach \"$GITDMGPATH\""
-    echo "$mountCmd"
-    eval $mountCmd || exit 1
-    
-    MOUNTEDVOLUME=`/usr/bin/find /Volumes -maxdepth 1 -type d -name "Git $GITVERSIONSTRING*"`
-    GITINSTALLERPATH=`/usr/bin/find "$MOUNTEDVOLUME" -type f -name "git-$GITVERSIONSTRING*.pkg"`
-    
-    if [ ! -f "$GITINSTALLERPATH" ]; then
+    if [ ! -f "$GITINSTALLERPKGPATH" ]; then
         echo "Error creating metapackage: could not find Git installer package."
         exit 1
     fi
     
-    copyGitPkgCmd="/bin/cp -Rf \"${GITINSTALLERPATH}\" \"${PACKAGESTAGINGDIR}/.\""
-    eval $copyGitPkgCmd
+    copyGitInstallerPkgToStgCmd="/bin/cp -Rf \"${GITINSTALLERPKGPATH}\" \"${PACKAGESTAGINGDIR}/.\""
+    echo $copyGitInstallerPkgToStgCmd
+    eval $copyGitInstallerPkgToStgCmd || exit 1
 
     UpdateDistributionFile "$GITPKGNAME" "$GITVERSIONSTRING"
-    
+
     METAPACKAGENAME="$INSTALLERPACKAGENAME-Git.$GITVERSION.pkg"
     buildMetapkgCmd="/usr/bin/productbuild --distribution \"${BUILDOUTPUTDIR}/Distribution.updated.xml\" --package-path \"$PACKAGESTAGINGDIR\" \"${BUILDOUTPUTDIR}/$METAPACKAGENAME\""
     echo $buildMetapkgCmd
     eval $buildMetapkgCmd || exit 1
     
     /bin/rm -f "${BUILDOUTPUTDIR}/$DIST_FILE_NAME"
-    
-    unmountCmd="/usr/bin/hdiutil detach \"$MOUNTEDVOLUME\""
-    echo "$unmountCmd"
-    eval $unmountCmd || exit 1
 }
 
 function Run()

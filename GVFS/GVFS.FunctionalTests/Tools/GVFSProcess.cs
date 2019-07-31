@@ -73,6 +73,15 @@ namespace GVFS.FunctionalTests.Tools
                 internalParameter: internalParameter);
         }
 
+        public string PostFetchStep()
+        {
+            string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PostFetch\\\"");
+            return this.CallGVFS(
+                "dehydrate \"" + this.enlistmentRoot + "\"",
+                failOnError: true,
+                internalParameter: internalParameter);
+        }
+
         public string Diagnose()
         {
             return this.CallGVFS("diagnose \"" + this.enlistmentRoot + "\"");
@@ -81,6 +90,18 @@ namespace GVFS.FunctionalTests.Tools
         public string Status(string trace = null)
         {
             return this.CallGVFS("status " + this.enlistmentRoot, trace: trace);
+        }
+
+        public string Health(string directory = null)
+        {
+            if (string.IsNullOrEmpty(directory))
+            {
+                return this.CallGVFS("health \"" + this.enlistmentRoot + '"');
+            }
+            else
+            {
+                return this.CallGVFS("health -d \"" + directory + "\" \"" + this.enlistmentRoot + '"');
+            }
         }
 
         public string CacheServer(string args)

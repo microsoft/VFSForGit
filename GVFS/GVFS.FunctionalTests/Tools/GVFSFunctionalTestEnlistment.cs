@@ -154,18 +154,7 @@ namespace GVFS.FunctionalTests.Tools
         public void DeleteEnlistment()
         {
             TestResultsHelper.OutputGVFSLogs(this);
-
-            // TODO(Mac): Figure out why the call to DeleteDirectoryWithRetry is not returning.
-            // Once this is resolved, we can replace this duplicated code with RepositoryHelpers.DeleteTestDirectory
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                // Use cmd.exe to delete the enlistment as it properly handles tombstones and reparse points
-                CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.EnlistmentRoot);
-            }
-            else
-            {
-                // BashRunner.DeleteDirectoryWithUnlimitedRetries(this.EnlistmentRoot);
-            }
+            RepositoryHelpers.DeleteTestDirectory(this.EnlistmentRoot);
         }
 
         public void CloneAndMount(bool skipPrefetch)
@@ -232,9 +221,19 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.PackfileMaintenanceStep(batchSize);
         }
 
+        public string PostFetchStep()
+        {
+            return this.gvfsProcess.PostFetchStep();
+        }
+
         public string Status(string trace = null)
         {
             return this.gvfsProcess.Status(trace);
+        }
+
+        public string Health(string directory = null)
+        {
+            return this.gvfsProcess.Health(directory);
         }
 
         public bool WaitForBackgroundOperations(int maxWaitMilliseconds = DefaultMaxWaitMSForStatusCheck)

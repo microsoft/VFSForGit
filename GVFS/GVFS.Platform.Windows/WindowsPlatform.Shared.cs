@@ -111,6 +111,16 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
+        public static string GetUpgradeProtectedDataDirectoryImplementation()
+        {
+            return Path.Combine(GetDataRootForGVFSImplementation(), ProductUpgraderInfo.UpgradeDirectoryName);
+        }
+
+        public static string GetUpgradeHighestAvailableVersionDirectoryImplementation()
+        {
+            return GetUpgradeProtectedDataDirectoryImplementation();
+        }
+
         [DllImport("kernel32.dll")]
         private static extern IntPtr GetStdHandle(StdHandle std);
 

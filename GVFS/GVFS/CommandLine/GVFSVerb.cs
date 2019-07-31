@@ -523,7 +523,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             GitProcess git = new GitProcess(enlistment);
             GitProcess.Result result = git.LsTree(
                 GVFSConstants.DotGit.HeadName,
-                line => rootEntries.Add(DiffTreeResult.ParseFromLsTreeLine(line, repoRoot: string.Empty)),
+                line => rootEntries.Add(DiffTreeResult.ParseFromLsTreeLine(line)),
                 recursive: false);
 
             if (result.ExitCodeIsFailure)
@@ -1110,7 +1110,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     // the .git/hooks folder, and once Windows does the same, this hooksPath can be removed (from here
                     // and all the classes that handle it on the way to GitProcess)
 
-                    hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+                    hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
                     if (hooksPath == null)
                     {
                         this.ReportErrorAndExit("Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);

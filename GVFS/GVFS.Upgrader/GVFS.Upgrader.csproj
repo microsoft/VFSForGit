@@ -26,6 +26,7 @@
     <When Condition="'$(OS)' == 'Windows_NT'">
       <PropertyGroup>
         <TargetFrameworks>net461;netcoreapp2.1</TargetFrameworks>
+	<DefineConstants>$(DefineConstants);WINDOWS_BUILD</DefineConstants>
       </PropertyGroup>
       <ItemGroup>
         <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
@@ -38,6 +39,7 @@
       <PropertyGroup>
         <TargetFrameworks>netcoreapp2.1</TargetFrameworks>
         <RuntimeIdentifiers>osx-x64</RuntimeIdentifiers>
+	<DefineConstants>$(DefineConstants);MACOS_BUILD</DefineConstants>
       </PropertyGroup>
       <ItemGroup>
         <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />

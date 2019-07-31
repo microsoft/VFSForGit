@@ -12,8 +12,6 @@ namespace GVFS.Upgrader
 {
     public class InstallerPreRunChecker
     {
-        private static readonly HashSet<string> BlockingProcessSet = new HashSet<string> { "GVFS", "GVFS.Mount", "git", "ssh-agent", "bash", "wish", "git-bash" };
-
         private ITracer tracer;
 
         public InstallerPreRunChecker(ITracer tracer, string commandToRerun)
@@ -139,7 +137,7 @@ namespace GVFS.Upgrader
 
             foreach (Process process in allProcesses)
             {
-                if (process.Id == currentProcessId || !BlockingProcessSet.Contains(process.ProcessName))
+                if (process.Id == currentProcessId || !GVFSPlatform.Instance.Constants.UpgradeBlockingProcesses.Contains(process.ProcessName))
                 {
                     continue;
                 }
@@ -153,7 +151,7 @@ namespace GVFS.Upgrader
 
         protected virtual bool TryRunGVFSWithArgs(string args, out string consoleError)
         {
-            string gvfsDirectory = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSExecutableName);
+            string gvfsDirectory = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSExecutableName);
             if (!string.IsNullOrEmpty(gvfsDirectory))
             {
                 string gvfsPath = Path.Combine(gvfsDirectory, GVFSPlatform.Instance.Constants.GVFSExecutableName);

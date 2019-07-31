@@ -1,12 +1,7 @@
 #include "Message_Kernel.hpp"
+#include "ArrayUtilities.hpp"
 #include <kern/debug.h>
 #include <kern/assert.h>
-
-template<typename T, size_t size>
-    constexpr size_t Array_Size(T (&array)[size])
-{
-    return size;
-}
 
 void Message_Init(
     Message* spec,

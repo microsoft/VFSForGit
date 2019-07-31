@@ -208,19 +208,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private bool ReminderMessagingEnabled()
         {
-            for (int count = 0; count < 50; count++)
-            {
-                ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "status",
-                removeWaitingMessages:true,
-                removeUpgradeMessages:false);
+            Dictionary<string, string> environmentVariables = new Dictionary<string, string>();
+            environmentVariables["GVFS_UPGRADE_DETERMINISTIC"] = "true";
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
+                                                    this.Enlistment.RepoRoot,
+                                                    "status",
+                                                    environmentVariables,
+                                                    removeWaitingMessages: true,
+                                                    removeUpgradeMessages: false);
 
-                if (!string.IsNullOrEmpty(result.Errors) &&
-                    result.Errors.Contains("A new version of GVFS is available."))
-                {
-                    return true;
-                }
+            if (!string.IsNullOrEmpty(result.Errors) &&
+                result.Errors.Contains("A new version of GVFS is available."))
+            {
+                return true;
             }
 
             return false;

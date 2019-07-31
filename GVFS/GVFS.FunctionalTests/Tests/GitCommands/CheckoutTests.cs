@@ -716,13 +716,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // Confirm that no other test has caused "GVFlt_MultiThreadTest" to be added to the modified paths database
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, folderName);
 
-            this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
+            this.FolderShouldHaveCaseMatchingName(folderName);
             this.DeleteFolder(folderName);
 
             // 4141dc6023b853740795db41a06b278ebdee0192 is the commit prior to deleting GVFLT_MultiThreadTest
             // and re-adding it as as GVFlt_MultiThreadTest
             this.ValidateGitCommand("checkout 4141dc6023b853740795db41a06b278ebdee0192");
-            this.FolderShouldHaveCaseMatchingName(folderName, "GVFLT_MultiThreadTest");
+            this.FolderShouldHaveCaseMatchingName("GVFLT_MultiThreadTest");
         }
 
         [TestCase]

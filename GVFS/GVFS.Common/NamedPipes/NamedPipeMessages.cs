@@ -71,6 +71,7 @@ namespace GVFS.Common.NamedPipes
             public const string ListRequest = "MPL";
             public const string InvalidVersion = "InvalidVersion";
             public const string SuccessResult = "S";
+            public const string CurrentVersion = "1";
 
             public class Request
             {
@@ -231,9 +232,22 @@ namespace GVFS.Common.NamedPipes
             {
                 public const string Header = nameof(Notification);
 
+                public enum Identifier
+                {
+                    AutomountStart,
+                    MountSuccess,
+                    MountFailure
+                }
+
+                public Identifier Id { get; set; }
+
                 public string Title { get; set; }
 
                 public string Message { get; set; }
+
+                public string Enlistment { get; set; }
+
+                public int EnlistmentCount { get; set; }
 
                 public static Request FromMessage(Message message)
                 {

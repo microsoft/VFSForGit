@@ -59,7 +59,8 @@ while read line; do
 	 # PrjFSKext exclusions
 	 [[ $line != *"AllArrayElementsInitialized"* ]] &&              #Function is used for compile time checks only
 	 [[ $line != *"KauthHandler_Init"* ]] && 
-	 [[ $line != *"KauthHandler_Cleanup"* ]] && 
+	 [[ $line != *"KauthHandler_Cleanup"* ]] &&
+	 [[ $line != *"InitPendingRenames"* ]] &&
 	 [[ $line != *"HandleFileOpOperation"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"TryGetVirtualizationRoot"* ]] &&                  #SHOULD ADD COVERAGE
 	 [[ $line != *"WaitForListenerCompletion"* ]] && 

@@ -15,10 +15,7 @@ namespace GVFS.Common
 
         public LocalGVFSConfig()
         {
-            string servicePath = GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName);
-            string gvfsDirectory = Path.GetDirectoryName(servicePath);
-
-            this.configFile = Path.Combine(gvfsDirectory, FileName);
+            this.configFile = GVFSPlatform.Instance.GVFSConfigPath;
             this.fileSystem = new PhysicalFileSystem();
         }
 

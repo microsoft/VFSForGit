@@ -48,9 +48,6 @@ namespace GVFS.Common
             : base(currentVersion, tracer, dryRun, noVerify, fileSystem)
         {
             this.Config = upgraderConfig;
-
-            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            this.fileSystem.CreateDirectory(upgradesDirectoryPath);
         }
 
         public GitHubUpgraderConfig Config { get; private set; }

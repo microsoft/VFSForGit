@@ -143,9 +143,10 @@ namespace GVFS.UnitTests.Maintenance
             this.TestSetup(DateTime.UtcNow.AddDays(-7));
 
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
-            int count = step.CountLooseObjects();
+            step.CountLooseObjects(out int count, out long size);
 
             count.ShouldEqual(3);
+            size.ShouldEqual("one".Length + "two".Length + "three".Length);
         }
 
         [TestCase]
@@ -212,7 +213,7 @@ namespace GVFS.UnitTests.Maintenance
                 null,
                 new List<MockFile>()
                 {
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "AA", "1156f4f2b850673090c285289ea8475d629fe1"), string.Empty)
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "AA", "1156f4f2b850673090c285289ea8475d629fe1"), "one")
                 });
 
             // Create Hex Folder 2 with 2 Files
@@ -221,8 +222,8 @@ namespace GVFS.UnitTests.Maintenance
                 null,
                 new List<MockFile>()
                 {
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "1156f4f2b850673090c285289ea8475d629fe2"), string.Empty),
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "1156f4f2b850673090c285289ea8475d629fe3"), string.Empty)
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "1156f4f2b850673090c285289ea8475d629fe2"), "two"),
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "1156f4f2b850673090c285289ea8475d629fe3"), "three")
                 });
 
             // Create NonHex Folder with 4 Files
@@ -231,14 +232,19 @@ namespace GVFS.UnitTests.Maintenance
                 null,
                 new List<MockFile>()
                 {
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe4"), string.Empty),
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe5"), string.Empty),
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe6"), string.Empty),
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe7"), string.Empty)
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe4"), "4"),
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe5"), "5"),
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe6"), "6"),
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe7"), "7")
                 });
 
+            MockDirectory pack = new MockDirectory(
+                enlistment.GitPackRoot,
+                null,
+                new List<MockFile>());
+
             // Create git objects directory
-            MockDirectory gitObjectsRoot = new MockDirectory(enlistment.GitObjectsRoot, new List<MockDirectory>() { infoRoot, hex1, hex2, nonhex }, null);
+            MockDirectory gitObjectsRoot = new MockDirectory(enlistment.GitObjectsRoot, new List<MockDirectory>() { infoRoot, hex1, hex2, nonhex, pack }, null);
 
             // Add object directory to file System
             List<MockDirectory> directories = new List<MockDirectory>() { gitObjectsRoot };

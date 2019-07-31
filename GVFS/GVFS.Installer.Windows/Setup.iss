@@ -22,7 +22,7 @@
 #define MyAppInstallerVersion GetFileVersion(GVFSDir + "\GVFS.exe")
 #define MyAppPublisher "Microsoft Corporation"
 #define MyAppPublisherURL "http://www.microsoft.com"
-#define MyAppURL "https://github.com/Microsoft/gvfs"
+#define MyAppURL "https://github.com/microsoft/VFSForGit"
 #define MyAppExeName "GVFS.exe"
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 #define FileSystemKey "SYSTEM\CurrentControlSet\Control\FileSystem"
