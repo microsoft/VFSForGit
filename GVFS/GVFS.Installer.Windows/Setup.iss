@@ -262,7 +262,7 @@ var
 begin
   Log('StopService: stopping: ' + ServiceName);
   // ErrorCode 1060 means service not installed, 1062 means service not started
-  if not Exec(ExpandConstant('SC.EXE'), 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) and (ResultCode <> 1062) then
+  if not Exec(ExpandConstant('{sys}\SC.EXE'), 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) and (ResultCode <> 1062) then
     begin
       RaiseException('Fatal: Could not stop service: ' + ServiceName);
     end;
@@ -272,7 +272,7 @@ procedure UninstallService(ServiceName: string; ShowProgress: boolean);
 var
   ResultCode: integer;
 begin
-  if Exec(ExpandConstant('SC.EXE'), 'query ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) then
+  if Exec(ExpandConstant('{sys}\SC.EXE'), 'query ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) then
     begin
       Log('UninstallService: uninstalling service: ' + ServiceName);
       if (ShowProgress) then
@@ -284,7 +284,7 @@ begin
       try
         StopService(ServiceName);
 
-        if not Exec(ExpandConstant('SC.EXE'), 'delete ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        if not Exec(ExpandConstant('{sys}\SC.EXE'), 'delete ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
           begin
             Log('UninstallService: Could not uninstall service: ' + ServiceName);
             RaiseException('Fatal: Could not uninstall service: ' + ServiceName);
@@ -330,11 +330,11 @@ begin
   WizardForm.ProgressGauge.Style := npbstMarquee;
   
   try
-    if Exec(ExpandConstant('SC.EXE'), ExpandConstant('create GVFS.Service binPath="{app}\GVFS.Service.exe" start=auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+    if Exec(ExpandConstant('{sys}\SC.EXE'), ExpandConstant('create GVFS.Service binPath="{app}\GVFS.Service.exe" start=auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
       begin
-        if Exec(ExpandConstant('SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+        if Exec(ExpandConstant('{sys}\SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
           begin
-            if Exec(ExpandConstant('SC.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+            if Exec(ExpandConstant('{sys}\SC.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
               begin
                 InstallSuccessful := True;
               end;
