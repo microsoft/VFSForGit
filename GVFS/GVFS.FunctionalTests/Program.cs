@@ -1,5 +1,4 @@
-﻿using GVFS.FunctionalTests.Tests;
-using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
 using System;
 using System.Collections.Generic;
@@ -108,7 +107,6 @@ namespace GVFS.FunctionalTests
 
             RunBeforeAnyTests();
             Environment.ExitCode = runner.RunTests(includeCategories, excludeCategories);
-            RunAfterAllTests();
 
             if (Debugger.IsAttached)
             {
@@ -139,28 +137,6 @@ namespace GVFS.FunctionalTests
                     File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
                 }
             }
-        }
-
-        private static void RunAfterAllTests()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                string serviceLogFolder = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                    "GVFS",
-                    GVFSServiceProcess.TestServiceName,
-                    "Logs");
-
-                Console.WriteLine("GVFS.Service logs at '{0}' attached below.\n\n", serviceLogFolder);
-                foreach (string filename in TestResultsHelper.GetAllFilesInDirectory(serviceLogFolder))
-                {
-                    TestResultsHelper.OutputFileContents(filename);
-                }
-
-                GVFSServiceProcess.UninstallService();
-            }
-
-            PrintTestCaseStats.PrintRunTimeStats();
         }
     }
 }
