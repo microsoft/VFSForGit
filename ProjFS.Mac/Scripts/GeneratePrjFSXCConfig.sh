@@ -3,12 +3,12 @@ if [ -z $VERSION ]; then
   VERSION="0.2.173.2"
 fi
 
-BUNDLE_VERSION="N/A"
 if [[ $VERSION =~ ([0-9])\.([0-9]*)\.([0-9]*)\.([0-9]*) ]]
 then
-  BUNDLE_VERSION="${BASH_REMATCH[3]}.${BASH_REMATCH[4]}"
+  BUNDLE_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
 else
-  echo "Failed to determine MAJOR_VEBUILD_NUMBERRSION from $VERSION"
+  echo "Failed to determine BUNDLE_VERSION from $VERSION"
+  exit 1
 fi
 
 # Generate PrjFSConfig.xcconfig
