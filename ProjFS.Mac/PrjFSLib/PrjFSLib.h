@@ -85,7 +85,6 @@ extern "C" PrjFS_Result PrjFS_WritePlaceholderFile(
     _In_    const char*                             relativePath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
-    _In_    unsigned long                           fileSize,
     _In_    uint16_t                                fileMode);
 
 extern "C" PrjFS_Result PrjFS_WriteSymLink(

@@ -18,6 +18,7 @@ namespace GVFS.Platform.Mac
         public static readonly byte[] PlaceholderVersionId = ToVersionIdByteArray(new byte[] { PlaceholderVersion });
 
         private const int SymLinkTargetBufferSize = 4096;
+        private const long DummyFileSize = -1;
 
         private const string ClassName = nameof(MacFileSystemVirtualizer);
 
@@ -83,6 +84,12 @@ namespace GVFS.Platform.Mac
             this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.Stop)}_StopRequested", metadata: null);
         }
 
+        /// <summary>
+        /// Writes a placeholder file.
+        /// </summary>
+        /// <param name="relativePath">Placeholder's path relative to the root of the repo</param>
+        /// <param name="endOfFile">Length of the file (ignored on this platform)</param>
+        /// <param name="sha">The SHA of the placeholder's contents, stored as the content ID in the placeholder</param>
         public override FileSystemResult WritePlaceholderFile(
             string relativePath,
             long endOfFile,
@@ -99,7 +106,6 @@ namespace GVFS.Platform.Mac
                     relativePath,
                     PlaceholderVersionId,
                     ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
-                    (ulong)endOfFile,
                     fileMode);
 
                 return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
@@ -560,31 +566,12 @@ namespace GVFS.Platform.Mac
         {
             try
             {
-                Result result;
-                try
-                {
-                    IEnumerable<ProjectedFileInfo> projectedItems;
+                IEnumerable<ProjectedFileInfo> projectedItems = this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(
+                        CancellationToken.None,
+                        blobSizesConnection: null,
+                        folderPath: relativePath);
 
-                    // TODO: Pool these connections or schedule this work to run asynchronously using TryScheduleFileOrNetworkRequest
-                    using (BlobSizes.BlobSizesConnection blobSizesConnection = this.FileSystemCallbacks.BlobSizes.CreateConnection())
-                    {
-                        projectedItems = this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(CancellationToken.None, blobSizesConnection, relativePath);
-                    }
-
-                    result = this.CreatePlaceholders(relativePath, projectedItems, triggeringProcessName);
-                }
-                catch (SizesUnavailableException e)
-                {
-                    // TODO: Is this the correct Result to return?
-                    result = Result.EIOError;
-
-                    EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
-                    this.Context.Tracer.RelatedError(metadata, nameof(this.OnEnumerateDirectory) + ": caught SizesUnavailableException");
-                }
-
-                return result;
+                return this.CreatePlaceholders(relativePath, projectedItems, triggeringProcessName);
             }
             catch (Exception e)
             {
@@ -612,7 +599,9 @@ namespace GVFS.Platform.Mac
                 else
                 {
                     sha = fileInfo.Sha.ToString();
-                    fileSystemResult = this.WritePlaceholderFile(childRelativePath, fileInfo.Size, sha);
+
+                    // Writing placeholders on Mac does not require a file size
+                    fileSystemResult = this.WritePlaceholderFile(childRelativePath, DummyFileSize, sha);
                 }
 
                 Result result = (Result)fileSystemResult.RawResult;

@@ -29,7 +29,6 @@ namespace PrjFSLib.Mac.Interop
             byte[] providerId,
             [MarshalAs(UnmanagedType.LPArray, SizeConst = PlaceholderIdLength)]
             byte[] contentId,
-            ulong fileSize,
             ushort fileMode);
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WriteSymLink")]

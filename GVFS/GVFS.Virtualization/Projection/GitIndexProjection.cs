@@ -384,6 +384,14 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
+        /// <summary>
+        /// Gets the projected items within the specified folder.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <param name="blobSizesConnection">
+        /// BlobSizes database connection, if null file sizes will not be populated
+        /// </param>
+        /// <param name="folderPath">Path of the folder relative to the repo's root</param>
         public virtual List<ProjectedFileInfo> GetProjectedItems(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection,
@@ -396,12 +404,15 @@ namespace GVFS.Virtualization.Projection
                 FolderData folderData;
                 if (this.TryGetOrAddFolderDataFromCache(folderPath, out folderData))
                 {
-                    folderData.PopulateSizes(
-                        this.context.Tracer,
-                        this.gitObjects,
-                        blobSizesConnection,
-                        availableSizes: null,
-                        cancellationToken: cancellationToken);
+                    if (blobSizesConnection != null)
+                    {
+                        folderData.PopulateSizes(
+                            this.context.Tracer,
+                            this.gitObjects,
+                            blobSizesConnection,
+                            availableSizes: null,
+                            cancellationToken: cancellationToken);
+                    }
 
                     return ConvertToProjectedFileInfos(folderData.ChildEntries);
                 }

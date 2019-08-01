@@ -107,7 +107,6 @@ namespace MirrorProvider.Mac
                             Path.Combine(relativePath, child.Name),
                             providerId: ToVersionIdByteArray(1),
                             contentId: ToVersionIdByteArray(0),
-                            fileSize: (ulong)child.Size,
                             fileMode: fileMode);
                         if (result != Result.Success)
                         {

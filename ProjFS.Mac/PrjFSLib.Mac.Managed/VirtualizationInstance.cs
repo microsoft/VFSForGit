@@ -94,7 +94,6 @@ namespace PrjFSLib.Mac
             string relativePath,
             byte[] providerId,
             byte[] contentId,
-            ulong fileSize,
             ushort fileMode)
         {
             if (providerId.Length != Interop.PrjFSLib.PlaceholderIdLength ||
@@ -107,7 +106,6 @@ namespace PrjFSLib.Mac
                 relativePath,
                 providerId,
                 contentId,
-                fileSize,
                 fileMode);
         }
 
