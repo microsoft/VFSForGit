@@ -37,6 +37,14 @@ namespace GVFS.Common
         {
             if (!TryParseOrg(packageFeedUrl, out string org))
             {
+                if (!IsAzureUrl(packageFeedUrl))
+                {
+                    // If this is not an azure nuget feed, then just return the original URL
+                    error = null;
+                    azureDevOpsUrl = packageFeedUrl;
+                    return true;
+                }
+
                 azureDevOpsUrl = null;
                 error = $"Input URL {packageFeedUrl} did not match expected format for an Azure DevOps Package Feed URL";
                 return false;
@@ -46,6 +54,15 @@ namespace GVFS.Common
             error = null;
 
             return true;
+        }
+
+        private static bool IsAzureUrl(string url)
+        {
+            Regex packageUrlRegex = new Regex(
+                @"^https?://[0-9a-z-.]*azure.com/(?<org>.+?)/",
+                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+            return packageUrlRegex.IsMatch(url);
         }
     }
 }

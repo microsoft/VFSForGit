@@ -11,6 +11,8 @@ namespace GVFS.UnitTests.Common
         [TestCase("https://PKGS.DEV.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", "https://test-pat.visualstudio.com")]
         [TestCase("https://dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", null)]
         [TestCase("http://pkgs.dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", null)]
+        [TestCase("https://feeds.contoso.org/newget/v42/home.json", "https://feeds.contoso.org/newget/v42/home.json")]
+        [TestCase("http://unsecure-feeds.contoso.org/newget/v42/home.json", "http://unsecure-feeds.contoso.org/newget/v42/home.json")]
         public void CanConstructAzureDevOpsUrlFromPackageFeedUrl(string packageFeedUrl, string expectedAzureDevOpsUrl)
         {
             bool success = AzDevOpsOrgFromNuGetFeed.TryCreateCredentialQueryUrl(
