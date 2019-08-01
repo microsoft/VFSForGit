@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Platform.POSIX;
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace GVFS.Platform.Mac
@@ -27,6 +28,32 @@ namespace GVFS.Platform.Mac
         {
             NativeStat.StatBuffer statBuffer = this.StatFile(fileName);
             return NativeStat.IsSock(statBuffer.Mode);
+        }
+
+        public override bool IsFileSystemSupported(string path, out string error)
+        {
+            string lowerCaseFile = Guid.NewGuid().ToString().ToLower();
+            string upperCaseFile = lowerCaseFile.ToUpper();
+            error = null;
+
+            try
+            {
+                File.Create(Path.Combine(path, lowerCaseFile));
+                if (File.Exists(Path.Combine(path, upperCaseFile)))
+                {
+                    File.Delete(lowerCaseFile);
+                    return true;
+                }
+
+                File.Delete(lowerCaseFile);
+                error = "VFS for Git does not support case sensitive filesystems";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                error = $"Exception when performing {nameof(MacFileSystem)}.{nameof(this.IsFileSystemSupported)}: {ex.ToString()}";
+                return false;
+            }
         }
 
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]

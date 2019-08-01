@@ -379,6 +379,13 @@ namespace GVFS.CommandLine
                         return new Result(error);
                     }
 
+                    if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(enlistment.EnlistmentRoot, out string fsError))
+                    {
+                        string error = $"FileSystem unsupported: {fsError}";
+                        tracer.RelatedError(error);
+                        return new Result(error);
+                    }
+
                     string localCacheError;
                     if (!this.TryDetermineLocalCacheAndInitializePaths(tracer, enlistment, serverGVFSConfig, cacheServer, resolvedLocalCacheRoot, out localCacheError))
                     {
