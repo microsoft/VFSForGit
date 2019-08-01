@@ -191,6 +191,12 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
+        public bool IsFileSystemSupported(string path, out string error)
+        {
+            error = null;
+            return true;
+        }
+
         private class NativeFileReader
         {
             private const uint GenericRead = 0x80000000;

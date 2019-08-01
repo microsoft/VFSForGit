@@ -70,6 +70,12 @@ namespace GVFS.Platform.POSIX
             throw new NotImplementedException();
         }
 
+        public virtual bool IsFileSystemSupported(string path, out string error)
+        {
+            error = null;
+            return true;
+        }
+
         [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
         private static extern int Rename(string oldPath, string newPath);
     }
