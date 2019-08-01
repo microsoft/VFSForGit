@@ -23,5 +23,10 @@ namespace GVFS.Hooks.HooksPlatform
         {
             return MacPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
         }
+
+        public static string GetGitGuiBlockedMessage()
+        {
+            return "git gui is not supported in VFS for Git repos on Mac";
+        }
     }
 }
