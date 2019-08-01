@@ -1210,14 +1210,9 @@ namespace GVFS.Virtualization.Projection
                 folderPlaceholdersToKeep.Add(string.Empty);
 
                 stopwatch.Restart();
-                this.ProcessListOnThreads(
-                    numThreads,
-                    placeholderFilesListCopy,
-                    (placeholderBatch, start, end, blobSizesConnection, availableSizes) =>
-                        this.BatchPopulateMissingSizesFromRemote(blobSizesConnection, placeholderBatch, start, end, availableSizes),
-                    (placeholder, blobSizesConnection, availableSizes) =>
-                        this.UpdateOrDeleteFilePlaceholder(blobSizesConnection, placeholder, folderPlaceholdersToKeep, availableSizes));
+                this.MultiThreadedPlaceholderUpdatesAndDeletes(numThreads, placeholderFilesListCopy, folderPlaceholdersToKeep);
                 stopwatch.Stop();
+
                 long millisecondsUpdatingFilePlaceholders = stopwatch.ElapsedMilliseconds;
 
                 stopwatch.Restart();
@@ -1226,81 +1221,79 @@ namespace GVFS.Virtualization.Projection
                 int deleteFolderPlaceholderAttempted = 0;
                 int folderPlaceholdersDeleted = 0;
                 int folderPlaceholdersPathNotFound = 0;
-                using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
+
+                // A hash of the placeholders is only required if the platform expands directories
+                // This is using a in memory HashSet for speed in processing
+                // ~1 million placeholders was taking over 10 seconds to check for existence where the
+                // HashSet was only taking a a few milliseconds
+                HashSet<string> existingPlaceholders = null;
+                if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
                 {
-                    // A hash of the placeholders is only required if the platform expands directories
-                    // This is using a in memory HashSet for speed in processing
-                    // ~1 million placeholders was taking over 10 seconds to check for existence where the
-                    // HashSet was only taking a a few milliseconds
-                    HashSet<string> existingPlaceholders = null;
-                    if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
-                    {
-                        // Since only the file placeholders have been processed we can still use the folder placeholder list
-                        // that was returned by GetAllEntries but we need to get the file paths that are now in the database.
-                        // This is to avoid the extra time and processing to get all the placeholders when there are many
-                        // folder placeholders and only a few file placeholders.
-                        IEnumerable<string> allPlaceholders = placeholderFoldersListCopy
-                            .Select(x => x.Path)
-                            .Union(this.placeholderDatabase.GetAllFilePaths());
-                        existingPlaceholders = new HashSet<string>(allPlaceholders, StringComparer.OrdinalIgnoreCase);
-                    }
+                    // Since only the file placeholders have been processed we can still use the folder placeholder list
+                    // that was returned by GetAllEntries but we need to get the file paths that are now in the database.
+                    // This is to avoid the extra time and processing to get all the placeholders when there are many
+                    // folder placeholders and only a few file placeholders.
+                    IEnumerable<string> allPlaceholders = placeholderFoldersListCopy
+                        .Select(x => x.Path)
+                        .Union(this.placeholderDatabase.GetAllFilePaths());
+                    existingPlaceholders = new HashSet<string>(allPlaceholders, StringComparer.OrdinalIgnoreCase);
+                }
 
-                    // Order the folders in decscending order so that we walk the tree from bottom up.
-                    // Traversing the folders in this order:
-                    //  1. Ensures child folders are deleted before their parents
-                    //  2. Ensures that folders that have been deleted by git (but are still in the projection) are found before their
-                    //     parent folder is re-expanded (only applies on platforms where EnumerationExpandsDirectories is true)
-                    foreach (IPlaceholderData folderPlaceholder in placeholderFoldersListCopy.OrderByDescending(x => x.Path))
+                // Order the folders in decscending order so that we walk the tree from bottom up.
+                // Traversing the folders in this order:
+                //  1. Ensures child folders are deleted before their parents
+                //  2. Ensures that folders that have been deleted by git (but are still in the projection) are found before their
+                //     parent folder is re-expanded (only applies on platforms where EnumerationExpandsDirectories is true)
+                foreach (IPlaceholderData folderPlaceholder in placeholderFoldersListCopy.OrderByDescending(x => x.Path))
+                {
+                    bool keepFolder = true;
+                    if (!folderPlaceholdersToKeep.Contains(folderPlaceholder.Path))
                     {
-                        bool keepFolder = true;
-                        if (!folderPlaceholdersToKeep.Contains(folderPlaceholder.Path))
+                        bool isProjected = this.IsPathProjected(folderPlaceholder.Path, out string fileName, out bool isFolder);
+
+                        // Check the projection for the folder to determine if the folder needs to be deleted
+                        // The delete will be attempted if one of the following is true
+                        // 1. not in the projection anymore
+                        // 2. in the projection but is not a folder in the projection
+                        // 3. Folder placeholder is a possible tombstone
+                        if (!isProjected ||
+                            !isFolder ||
+                            folderPlaceholder.IsPossibleTombstoneFolder)
                         {
-                            bool isProjected = this.IsPathProjected(folderPlaceholder.Path, out string fileName, out bool isFolder);
-
-                            // Check the projection for the folder to determine if the folder needs to be deleted
-                            // The delete will be attempted if one of the following is true
-                            // 1. not in the projection anymore
-                            // 2. in the projection but is not a folder in the projection
-                            // 3. Folder placeholder is a possible tombstone
-                            if (!isProjected ||
-                                !isFolder ||
-                                folderPlaceholder.IsPossibleTombstoneFolder)
+                            FSResult result = this.RemoveFolderPlaceholderIfEmpty(folderPlaceholder);
+                            if (result == FSResult.Ok)
                             {
-                                FSResult result = this.RemoveFolderPlaceholderIfEmpty(folderPlaceholder);
-                                if (result == FSResult.Ok)
-                                {
-                                    ++folderPlaceholdersDeleted;
-                                    keepFolder = false;
-                                }
-                                else if (result == FSResult.FileOrPathNotFound)
-                                {
-                                    ++folderPlaceholdersPathNotFound;
-                                    keepFolder = false;
-                                }
-
-                                ++deleteFolderPlaceholderAttempted;
+                                ++folderPlaceholdersDeleted;
+                                keepFolder = false;
+                            }
+                            else if (result == FSResult.FileOrPathNotFound)
+                            {
+                                ++folderPlaceholdersPathNotFound;
+                                keepFolder = false;
                             }
 
-                            if (keepFolder)
-                            {
-                                this.AddParentFoldersToListToKeep(folderPlaceholder.Path, folderPlaceholdersToKeep);
-                            }
+                            ++deleteFolderPlaceholderAttempted;
                         }
 
                         if (keepFolder)
                         {
-                            // Remove folder placeholders before re-expansion to ensure that projection changes that convert a folder to a file work
-                            // properly
-                            if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories && folderPlaceholder.IsExpandedFolder)
-                            {
-                                this.ReExpandFolder(blobSizesConnection, folderPlaceholder.Path, existingPlaceholders);
-                            }
+                            this.AddParentFoldersToListToKeep(folderPlaceholder.Path, folderPlaceholdersToKeep);
                         }
-                        else
+                    }
+
+                    if (keepFolder)
+                    {
+                        // Remove folder placeholders before re-expansion to ensure that projection changes that convert a folder to a file work
+                        // properly
+                        if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories && folderPlaceholder.IsExpandedFolder)
                         {
-                            existingPlaceholders?.Remove(folderPlaceholder.Path);
-                            this.placeholderDatabase.Remove(folderPlaceholder.Path);
+                            this.ReExpandFolder(folderPlaceholder.Path, existingPlaceholders);
                         }
+                    }
+                    else
+                    {
+                        existingPlaceholders?.Remove(folderPlaceholder.Path);
+                        this.placeholderDatabase.Remove(folderPlaceholder.Path);
                     }
                 }
 
@@ -1326,21 +1319,20 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        private void ProcessListOnThreads<T>(
+        private void MultiThreadedPlaceholderUpdatesAndDeletes(
             int numThreads,
-            List<T> list,
-            Action<List<T>, int, int, BlobSizes.BlobSizesConnection, Dictionary<string, long>> preProcessBatch,
-            Action<T, BlobSizes.BlobSizesConnection, Dictionary<string, long>> processItem)
+            List<IPlaceholderData> placeholderList,
+            ConcurrentHashSet<string> folderPlaceholdersToKeep)
         {
             if (numThreads > 1)
             {
                 Thread[] processThreads = new Thread[numThreads];
-                int itemsPerThread = list.Count / numThreads;
+                int itemsPerThread = placeholderList.Count / numThreads;
 
                 for (int i = 0; i < numThreads; i++)
                 {
                     int start = i * itemsPerThread;
-                    int end = (i + 1) == numThreads ? list.Count : (i + 1) * itemsPerThread;
+                    int end = (i + 1) == numThreads ? placeholderList.Count : (i + 1) * itemsPerThread;
 
                     processThreads[i] = new Thread(
                         () =>
@@ -1348,11 +1340,11 @@ namespace GVFS.Virtualization.Projection
                             // We have a top-level try\catch for any unhandled exceptions thrown in the newly created thread
                             try
                             {
-                                this.ProcessListThreadCallback(preProcessBatch, processItem, list, start, end);
+                                this.UpdateAndDeletePlaceholdersThreadCallback(placeholderList, start, end, folderPlaceholdersToKeep);
                             }
                             catch (Exception e)
                             {
-                                this.LogErrorAndExit(nameof(this.ProcessListOnThreads) + " background thread caught unhandled exception, exiting process", e);
+                                this.LogErrorAndExit(nameof(this.MultiThreadedPlaceholderUpdatesAndDeletes) + " background thread caught unhandled exception, exiting process", e);
                             }
                         });
 
@@ -1366,29 +1358,43 @@ namespace GVFS.Virtualization.Projection
             }
             else
             {
-                this.ProcessListThreadCallback(preProcessBatch, processItem, list, 0, list.Count);
+                this.UpdateAndDeletePlaceholdersThreadCallback(placeholderList, 0, placeholderList.Count, folderPlaceholdersToKeep);
             }
         }
 
-        private void ProcessListThreadCallback<T>(
-            Action<List<T>, int, int, BlobSizes.BlobSizesConnection, Dictionary<string, long>> preProcessBatch,
-            Action<T, BlobSizes.BlobSizesConnection, Dictionary<string, long>> processItem,
-            List<T> placeholderList,
+        private void UpdateAndDeletePlaceholdersThreadCallback(
+            List<IPlaceholderData> placeholderList,
             int start,
-            int end)
+            int end,
+            ConcurrentHashSet<string> folderPlaceholdersToKeep)
         {
-            using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
+            if (GVFSPlatform.Instance.KernelDriver.EmptyPlaceholdersRequireFileSize)
             {
-                Dictionary<string, long> availableSizes = new Dictionary<string, long>();
-
-                if (preProcessBatch != null)
+                using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
                 {
-                    preProcessBatch(placeholderList, start, end, blobSizesConnection, availableSizes);
-                }
+                    Dictionary<string, long> availableSizes = new Dictionary<string, long>();
 
+                    this.BatchPopulateMissingSizesFromRemote(blobSizesConnection, placeholderList, start, end, availableSizes);
+
+                    for (int j = start; j < end; ++j)
+                    {
+                        this.UpdateOrDeleteFilePlaceholder(
+                            blobSizesConnection,
+                            placeholderList[j],
+                            folderPlaceholdersToKeep,
+                            availableSizes);
+                    }
+                }
+            }
+            else
+            {
                 for (int j = start; j < end; ++j)
                 {
-                    processItem(placeholderList[j], blobSizesConnection, availableSizes);
+                    this.UpdateOrDeleteFilePlaceholder(
+                        blobSizesConnection: null,
+                        placeholder: placeholderList[j],
+                        folderPlaceholdersToKeep: folderPlaceholdersToKeep,
+                        availableSizes: null);
                 }
             }
         }
@@ -1473,7 +1479,6 @@ namespace GVFS.Virtualization.Projection
         }
 
         private void ReExpandFolder(
-            BlobSizes.BlobSizesConnection blobSizesConnection,
             string relativeFolderPath,
             HashSet<string> existingPlaceholders)
         {
@@ -1486,13 +1491,18 @@ namespace GVFS.Virtualization.Projection
                 return;
             }
 
-            // TODO(#255): Batch file sizes up-front for the new placeholders written by ReExpandFolder
-            folderData.PopulateSizes(
-                this.context.Tracer,
-                this.gitObjects,
-                blobSizesConnection,
-                availableSizes: null,
-                cancellationToken: CancellationToken.None);
+            if (GVFSPlatform.Instance.KernelDriver.EmptyPlaceholdersRequireFileSize)
+            {
+                using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
+                {
+                    folderData.PopulateSizes(
+                    this.context.Tracer,
+                    this.gitObjects,
+                    blobSizesConnection,
+                    availableSizes: null,
+                    cancellationToken: CancellationToken.None);
+                }
+            }
 
             for (int i = 0; i < folderData.ChildEntries.Count; i++)
             {

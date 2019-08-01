@@ -120,7 +120,6 @@ namespace PrjFSLib.Mac
             string relativePath,
             byte[] providerId,
             byte[] contentId,
-            ulong fileSize,
             ushort fileMode,
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
@@ -136,7 +135,6 @@ namespace PrjFSLib.Mac
                 relativePath,
                 providerId,
                 contentId,
-                fileSize,
                 fileMode,
                 updateFlags,
                 ref updateFailureCause);

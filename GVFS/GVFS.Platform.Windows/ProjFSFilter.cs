@@ -48,6 +48,7 @@ namespace GVFS.Platform.Windows
         }
 
         public bool EnumerationExpandsDirectories { get; } = false;
+        public bool EmptyPlaceholdersRequireFileSize { get; } = true;
 
         public string LogsFolderPath
         {
