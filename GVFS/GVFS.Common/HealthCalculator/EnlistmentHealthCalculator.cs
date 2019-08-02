@@ -158,5 +158,19 @@ namespace GVFS.Common
 
             return (decimal)hydratedFileCount / (decimal)totalFileCount;
         }
+
+        public class SubDirectoryInfo
+        {
+            public SubDirectoryInfo(string name, int hydratedFileCount, int totalFileCount)
+            {
+                this.Name = name;
+                this.HydratedFileCount = hydratedFileCount;
+                this.TotalFileCount = totalFileCount;
+            }
+
+            public string Name { get; private set; }
+            public int HydratedFileCount { get; private set; }
+            public int TotalFileCount { get; private set; }
+        }
     }
 }
