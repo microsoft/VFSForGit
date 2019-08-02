@@ -245,6 +245,7 @@ namespace GVFS.Virtualization.Projection
                 // control returns to the user, the projection is in a consistent state
 
                 this.context.Tracer.RelatedEvent(EventLevel.Informational, "ReleaseExternalLockRequested", null);
+                this.context.Repository.GVFSLock.Stats.RecordSparseFolderCount(this.sparseCollection.GetCount());
                 this.context.Repository.GVFSLock.Stats.RecordReleaseExternalLockRequested();
 
                 this.ClearNegativePathCacheIfPollutedByGit();

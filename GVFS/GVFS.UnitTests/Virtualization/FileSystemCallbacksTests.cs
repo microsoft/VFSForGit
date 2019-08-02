@@ -93,6 +93,7 @@ namespace GVFS.UnitTests.Virtualization
             mockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(() => 0);
             Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             mockSparseDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
+            mockSparseDb.Setup(x => x.GetCount()).Returns(2);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -112,6 +113,7 @@ namespace GVFS.UnitTests.Virtualization
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 0);
+                metadata.ShouldContain("SparseFolderCount", 2);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
             }
 
@@ -134,6 +136,7 @@ namespace GVFS.UnitTests.Virtualization
             mockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(() => folderPlaceholderCount);
             Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             mockSparseDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
+            mockSparseDb.Setup(x => x.GetCount()).Returns(2);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -153,7 +156,7 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
-                metadata.Count.ShouldEqual(8);
+                metadata.Count.ShouldEqual(9);
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
                 metadata.TryGetValue("FilePlaceholderCreation", out object fileNestedMetadata);
                 JsonConvert.SerializeObject(fileNestedMetadata).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe\"");
@@ -161,6 +164,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 1);
                 metadata.ShouldContain("FolderPlaceholderCount", 0);
+                metadata.ShouldContain("SparseFolderCount", 2);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
 
@@ -176,7 +180,7 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel = writeToLogFile2 ? EventLevel.Informational : EventLevel.Verbose;
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
-                metadata.Count.ShouldEqual(8);
+                metadata.Count.ShouldEqual(9);
 
                 // Only processes that have created placeholders since the last heartbeat should be named
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
@@ -194,6 +198,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 3);
                 metadata.ShouldContain("FolderPlaceholderCount", 1);
+                metadata.ShouldContain("SparseFolderCount", 2);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
             }

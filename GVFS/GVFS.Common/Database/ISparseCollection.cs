@@ -6,6 +6,8 @@ namespace GVFS.Common.Database
 {
     public interface ISparseCollection
     {
+        int GetCount();
+
         HashSet<string> GetAll();
 
         void Add(string directory);

@@ -33,6 +33,7 @@ namespace GVFS.Virtualization
 
         private GVFSContext context;
         private IPlaceholderCollection placeholderDatabase;
+        private ISparseCollection sparseCollection;
         private ModifiedPathsDatabase modifiedPaths;
         private ConcurrentHashSet<string> newlyCreatedFileAndFolderPaths;
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> filePlaceHolderCreationCount;
@@ -82,6 +83,7 @@ namespace GVFS.Virtualization
             this.BlobSizes.Initialize();
 
             this.placeholderDatabase = placeholderDatabase;
+            this.sparseCollection = sparseCollection;
             this.GitIndexProjection = gitIndexProjection ?? new GitIndexProjection(
                 context,
                 gitObjects,
@@ -280,6 +282,7 @@ namespace GVFS.Virtualization
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
             metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
             metadata.Add("FolderPlaceholderCount", this.placeholderDatabase.GetFolderPlaceholdersCount());
+            metadata.Add("SparseFolderCount", this.sparseCollection.GetCount());
 
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {

@@ -272,6 +272,7 @@ namespace GVFS.Common
             private int folderPlaceholdersPathNotFound;
             private long parseGitIndexTimeMs;
             private long projectionWriteLockHeldMs;
+            private int sparseFolderCount;
 
             private int numBlobs;
             private long blobDownloadTimeMs;
@@ -290,6 +291,11 @@ namespace GVFS.Common
             public void RecordReleaseExternalLockRequested()
             {
                 this.lockHeldExternallyTimeMs = this.lockAcquiredTime.ElapsedMilliseconds;
+            }
+
+            public void RecordSparseFolderCount(int sparseFolderCount)
+            {
+                this.sparseFolderCount = sparseFolderCount;
             }
 
             public void RecordUpdatePlaceholders(
@@ -362,6 +368,8 @@ namespace GVFS.Common
 
                 metadata.Add("SizeQueries", this.numSizeQueries);
                 metadata.Add("SizeQueryTimeMS", this.sizeQueryTimeMs);
+
+                metadata.Add("SparseFolderCount", this.sparseFolderCount);
             }
         }
 

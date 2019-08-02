@@ -35,6 +35,33 @@ namespace GVFS.UnitTests.Common.Database
         protected override string CreateTableCommandString => "CREATE TABLE IF NOT EXISTS [Sparse] (path TEXT PRIMARY KEY COLLATE NOCASE) WITHOUT ROWID;";
 
         [TestCase]
+        public void GetCountTest()
+        {
+            this.TestTable(
+                (placeholders, mockCommand) =>
+                {
+                    mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Sparse;");
+                    mockCommand.Setup(x => x.ExecuteScalar()).Returns(123);
+                    placeholders.GetCount().ShouldEqual(123);
+                });
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void GetCountThrowsGVFSDatabaseException()
+        {
+            this.TestTable(
+                (placeholders, mockCommand) =>
+                {
+                    mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Sparse;");
+                    mockCommand.Setup(x => x.ExecuteScalar()).Throws(new Exception(DefaultExceptionMessage));
+                    GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.GetCount());
+                    ex.Message.ShouldEqual("SparseTable.GetCount Exception");
+                    ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
+                });
+        }
+
+        [TestCase]
         public void GetAllWithNoResults()
         {
             this.TestTableWithReader((sparseTable, mockCommand, mockReader) =>

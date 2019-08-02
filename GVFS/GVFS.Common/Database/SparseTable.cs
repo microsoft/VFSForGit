@@ -28,6 +28,23 @@ namespace GVFS.Common.Database
             }
         }
 
+        public int GetCount()
+        {
+            try
+            {
+                using (IDbConnection connection = this.connectionPool.GetConnection())
+                using (IDbCommand command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT count(path) FROM Sparse;";
+                    return Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.GetCount)} Exception", ex);
+            }
+        }
+
         public void Add(string directoryPath)
         {
             try
