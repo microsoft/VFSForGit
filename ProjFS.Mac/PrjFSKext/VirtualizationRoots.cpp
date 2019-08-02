@@ -27,11 +27,10 @@ static RWLock s_virtualizationRootsLock = {};
 KEXT_STATIC uint16_t s_maxVirtualizationRoots = 0;
 KEXT_STATIC VirtualizationRoot* s_virtualizationRoots = nullptr;
 
+static constexpr uint32_t MaxOfflineIOPIDs = 128;
 // Also protected by the lock
-static uint32_t s_maxOfflineIOPIDs = 0;
 static uint32_t s_offlineIOPIDCount = 0;
-static pid_t*   s_offlineIOPIDs = nullptr;
-static const uint32_t OfflineIOPIDsLimit = UINT32_MAX / sizeof(s_offlineIOPIDs[0]);
+static pid_t    s_offlineIOPIDs[MaxOfflineIOPIDs] = {};
 
 // Looks up the vnode/vid and fsid/inode pairs among the known roots
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId);
@@ -122,14 +121,7 @@ kern_return_t VirtualizationRoots_Cleanup()
         s_maxVirtualizationRoots = 0;
     }
 
-    if (s_offlineIOPIDs != nullptr)
-    {
-        assert(s_offlineIOPIDCount == 0);
-        
-        Memory_FreeArray(s_offlineIOPIDs, s_maxOfflineIOPIDs);
-        s_offlineIOPIDs = nullptr;
-        s_maxOfflineIOPIDs = 0;
-    }
+    assert(s_offlineIOPIDCount == 0);
 
     if (RWLock_IsValid(s_virtualizationRootsLock))
     {
@@ -694,50 +686,9 @@ bool VirtualizationRoots_AddOfflineIOProcess(pid_t pid)
 {
     bool success = false;
     
-    // Note: lock may temporarily be dropped within
     RWLock_AcquireExclusive(s_virtualizationRootsLock);
     {
-        while (s_offlineIOPIDCount >= s_maxOfflineIOPIDs && s_maxOfflineIOPIDs < OfflineIOPIDsLimit)
-        {
-            // Array must be resized
-            uint32_t resizeArrayLength;
-            bool overflow = __builtin_umul_overflow(s_maxOfflineIOPIDs, 2u, &resizeArrayLength);
-            assertf(!overflow, "Array growth should never overflow as array length limit (%u) is well below UINT32_MAX byte limit; s_maxOfflineIOPIDs = %u", OfflineIOPIDsLimit, s_maxOfflineIOPIDs);
-            resizeArrayLength = clamp(resizeArrayLength, 1u, OfflineIOPIDsLimit);
-            
-            // Allocations should be made outside of lock
-            RWLock_ReleaseExclusive(s_virtualizationRootsLock);
-            
-            pid_t* resizedArrayMemory = Memory_AllocArray<pid_t>(resizeArrayLength);
-            
-            RWLock_AcquireExclusive(s_virtualizationRootsLock);
-            
-            if (resizedArrayMemory == nullptr)
-            {
-                // Alloc failed; allow the operation to fail if no space has appeared in the array while we were unlocked.
-                break;
-            }
-            else if (resizeArrayLength > s_maxOfflineIOPIDs)
-            {
-                // Apply allocated memory and finish the resize operation
-                if (s_maxOfflineIOPIDs > 0)
-                {
-                    assert(s_offlineIOPIDs != nullptr);
-                    Array_CopyElements(resizedArrayMemory, s_offlineIOPIDs, s_offlineIOPIDCount);
-                    Memory_FreeArray(s_offlineIOPIDs, s_maxOfflineIOPIDs);
-                }
-            
-                s_offlineIOPIDs = resizedArrayMemory;
-                s_maxOfflineIOPIDs = resizeArrayLength;
-            }
-            else
-            {
-                // Array was resized by another thread
-                Memory_FreeArray(resizedArrayMemory, resizeArrayLength);
-            }
-        }
-        
-        if (s_offlineIOPIDCount < s_maxOfflineIOPIDs)
+        if (s_offlineIOPIDCount < MaxOfflineIOPIDs)
         {
             s_offlineIOPIDs[s_offlineIOPIDCount] = pid;
             ++s_offlineIOPIDCount;
