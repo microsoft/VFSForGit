@@ -193,7 +193,8 @@ static void HandleSecurityEvent(
 					    || 0 == strcmp("mds", processFilename))
 					{
 						//printf("Denying crawler process %u (%s) access to empty file '%s'\n", audit_token_to_pid(message->proc.audit_token), processFilename, eventPath);
-						es_respond_flags_result(client, message, 0x0, false /* don't cache */);
+						es_respond_result_t result = es_respond_flags_result(client, message, 0x0, false /* don't cache */);
+						assert(result == ES_RESPOND_RESULT_SUCCESS);
 						unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
 						if (count != 1)
 						{
@@ -209,7 +210,8 @@ static void HandleSecurityEvent(
 				else
 				{
 					fprintf(stderr, "File tagged as empty found outside target directory: '%s'\n", eventPath);
-					es_respond_flags_result(client, message, 0x0, false /* don't cache */);
+					es_respond_result_t result = es_respond_flags_result(client, message, 0x0, false /* don't cache */);
+					assert(result == ES_RESPOND_RESULT_SUCCESS);
 					unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
 					if (count != 1)
 					{
@@ -229,7 +231,8 @@ static void HandleSecurityEvent(
 			{
 				printf("In-flight authorisation requests pending: %u\n", count - 1);
 			}
-			es_respond_flags_result(client, message, 0x7fffffff, false /* don't cache */);
+			es_respond_result_t result = es_respond_flags_result(client, message, 0x7fffffff, false /* don't cache */);
+			assert(result == ES_RESPOND_RESULT_SUCCESS);
 		}
         else
         {
@@ -270,7 +273,8 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 				{
 					printf("In-flight authorisation requests pending: %u\n", count - 1);
 				}
-				es_respond_flags_result(client, messageCopy, 0x7fffffff, false /* don't cache */);
+				es_respond_result_t result = es_respond_flags_result(client, messageCopy, 0x7fffffff, false /* don't cache */);
+				assert(result == ES_RESPOND_RESULT_SUCCESS);
 				return;
 			}
 
@@ -301,7 +305,8 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 			{
 				printf("In-flight authorisation requests pending: %u\n", count - 1);
 			}
-			es_respond_flags_result(client, messageCopy, responseFlags, false /* don't cache */);
+			es_respond_result_t response_result = es_respond_flags_result(client, messageCopy, responseFlags, false /* don't cache */);
+			assert(response_result == ES_RESPOND_RESULT_SUCCESS);
 			uint64_t responseMachTime = mach_absolute_time();
 			uint64_t responseMachDuration = responseMachTime - messageCopy->mach_time;
 			int64_t responseMachDeadlineDelta = responseMachTime - messageCopy->deadline;
@@ -330,7 +335,8 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 				es_message_t* waitingMessage = waitingMessages.back();
 				waitingMessages.pop_back();
 				
-				es_respond_flags_result(client, waitingMessage, responseFlags, false /* don't cache */);
+				es_respond_result_t response_result = es_respond_flags_result(client, waitingMessage, responseFlags, false /* don't cache */);
+				assert(response_result == ES_RESPOND_RESULT_SUCCESS);
 				free(waitingMessage);
 				unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
 				if (count != 1)
