@@ -95,6 +95,8 @@ namespace GVFS.Common
 
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
 
+        public abstract bool TryCopyPanicLogs(string copyToDir, out string error);
+
         public abstract bool TryGetGVFSHooksVersion(out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 

@@ -156,6 +156,11 @@ namespace GVFS.CommandLine
                             this.CopyFile(GVFSPlatform.Instance.GetDataRootForGVFS(), archiveFolderPath, LocalGVFSConfig.FileName);
                         }
 
+                        if (!GVFSPlatform.Instance.TryCopyPanicLogs(archiveFolderPath, out string errorMessage))
+                        {
+                            this.WriteMessage(errorMessage);
+                        }
+
                         return true;
                     },
                     "Copying logs");
