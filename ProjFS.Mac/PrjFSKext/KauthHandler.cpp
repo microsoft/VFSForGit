@@ -592,7 +592,7 @@ KEXT_STATIC int HandleVnodeOperation(
                         // Prevent system services from hydrating files as this tends to cause deadlocks with the kauth listeners for Antivirus software
                         CallbackPolicy_UserInitiatedOnly,
                         // Prevent write access to empty files in offline roots. For now allow reads, and always allow the user to delete files.
-                        isWriteOperation,
+                        isWriteOperation || (isRename && s_osSupportsRenameDetection),
                         &root,
                         &vnodeFsidInode,
                         &kauthResult,

@@ -1335,50 +1335,70 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     // to let them happen as we can't distinguish them from file deletions
     // before it's already happened.
 
-    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
-
     ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
 
-    TestForAllSupportedDarwinVersions(^{
-        InitPendingRenames();
-
-        if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+    // Check the behaviour works for both empty and full files, and empty files are not hydrated.
+    vector<uint32_t> vnode_flags { FileFlags_IsInVirtualizationRoot, FileFlags_IsInVirtualizationRoot | FileFlags_IsEmpty };
+    
+    std::for_each(vnode_flags.begin(), vnode_flags.end(),
+        [self](uint32_t flags)
         {
-            string renamedFilePath = self->filePath + "_renamed";
-            HandleFileOpOperation(
-                nullptr, // credential
-                nullptr, /* idata, unused */
-                KAUTH_FILEOP_WILL_RENAME,
-                reinterpret_cast<uintptr_t>(self->testFileVnode.get()),
-                reinterpret_cast<uintptr_t>(self->filePath.c_str()),
-                reinterpret_cast<uintptr_t>(renamedFilePath.c_str()),
-                0); // unused
-        }
+            testFileVnode->attrValues.va_flags = flags;
 
-        int deleteAuthResult =
-            HandleVnodeOperation(
-                nullptr,
-                nullptr,
-                KAUTH_VNODE_DELETE,
-                reinterpret_cast<uintptr_t>(self->context),
-                reinterpret_cast<uintptr_t>(self->testFileVnode.get()),
-                0,
-                0);
+            TestForAllSupportedDarwinVersions(^{
+                InitPendingRenames();
 
-        if (version_major <= PrjFSDarwinMajorVersion::MacOS10_13_HighSierra)
-        {
-            XCTAssertEqual(deleteAuthResult, KAUTH_RESULT_DEFER);
-        }
-        else
-        {
-            // On Mojave+, renames should be blocked:
-            XCTAssertEqual(deleteAuthResult, KAUTH_RESULT_DENY);
-        }
-        
-        MockCalls::Clear();
-        CleanupPendingRenames();
-    });
+                if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+                {
+                    string renamedFilePath = self->filePath + "_renamed";
+                    HandleFileOpOperation(
+                        nullptr, // credential
+                        nullptr, /* idata, unused */
+                        KAUTH_FILEOP_WILL_RENAME,
+                        reinterpret_cast<uintptr_t>(self->testFileVnode.get()),
+                        reinterpret_cast<uintptr_t>(self->filePath.c_str()),
+                        reinterpret_cast<uintptr_t>(renamedFilePath.c_str()),
+                        0); // unused
+                }
 
+                int deleteAuthResult =
+                    HandleVnodeOperation(
+                        nullptr,
+                        nullptr,
+                        KAUTH_VNODE_DELETE,
+                        reinterpret_cast<uintptr_t>(self->context),
+                        reinterpret_cast<uintptr_t>(self->testFileVnode.get()),
+                        0,
+                        0);
+
+                if (version_major <= PrjFSDarwinMajorVersion::MacOS10_13_HighSierra)
+                {
+                    XCTAssertEqual(deleteAuthResult, KAUTH_RESULT_DEFER);
+                }
+                else
+                {
+                    // On Mojave+, renames should be blocked:
+                    XCTAssertEqual(deleteAuthResult, KAUTH_RESULT_DENY, "flags = 0x%x", flags);
+                }
+
+                XCTAssertFalse(
+                    MockCalls::DidCallFunction(
+                        ProviderMessaging_TrySendRequestAndWaitForResponse,
+                        _,
+                        MessageType_KtoU_HydrateFile,
+                        self->testFileVnode.get(),
+                        _,
+                        _,
+                        _,
+                        _,
+                        _,
+                        _,
+                        nullptr));
+
+                MockCalls::Clear();
+                CleanupPendingRenames();
+            });
+        });
 }
 
 - (void) testOfflineRootAllowsRegisteredProcessAccessToEmptyFile
