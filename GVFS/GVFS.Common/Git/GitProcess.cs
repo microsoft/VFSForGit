@@ -32,7 +32,6 @@ namespace GVFS.Common.Git
         private string gitBinPath;
         private string workingDirectoryRoot;
         private string dotGitRoot;
-        private string gvfsHooksRoot;
         private Process executingProcess;
         private bool stopping;
 
@@ -62,11 +61,11 @@ namespace GVFS.Common.Git
         }
 
         public GitProcess(Enlistment enlistment)
-            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, enlistment.GVFSHooksRoot)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot)
         {
         }
 
-        public GitProcess(string gitBinPath, string workingDirectoryRoot, string gvfsHooksRoot)
+        public GitProcess(string gitBinPath, string workingDirectoryRoot)
         {
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
@@ -75,7 +74,6 @@ namespace GVFS.Common.Git
 
             this.gitBinPath = gitBinPath;
             this.workingDirectoryRoot = workingDirectoryRoot;
-            this.gvfsHooksRoot = gvfsHooksRoot;
 
             if (this.workingDirectoryRoot != null)
             {
@@ -93,27 +91,27 @@ namespace GVFS.Common.Git
         public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)
         {
             return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName),
+                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName),
                 settingName);
         }
 
         public static ConfigResult GetFromSystemConfig(string gitBinPath, string settingName)
         {
             return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName),
+                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName),
                 settingName);
         }
 
         public static ConfigResult GetFromFileConfig(string gitBinPath, string configFile, string settingName)
         {
             return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName),
+                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName),
                 settingName);
         }
 
         public static bool TryGetVersion(string gitBinPath, out GitVersion gitVersion, out string error)
         {
-            GitProcess gitProcess = new GitProcess(gitBinPath, null, null);
+            GitProcess gitProcess = new GitProcess(gitBinPath, null);
             Result result = gitProcess.InvokeGitOutsideEnlistment("--version");
             string version = result.Output;
 
@@ -683,11 +681,6 @@ namespace GVFS.Common.Git
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
             processInfo.EnvironmentVariables["GCM_VALIDATE"] = "0";
-            processInfo.EnvironmentVariables["PATH"] =
-                string.Join(
-                    ";",
-                    this.gitBinPath,
-                    this.gvfsHooksRoot ?? string.Empty);
 
             if (gitObjectsDirectory != null)
             {

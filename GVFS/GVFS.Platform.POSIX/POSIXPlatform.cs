@@ -38,15 +38,8 @@ namespace GVFS.Platform.POSIX
         {
         }
 
-        public override bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error)
+        public override bool TryGetGVFSHooksVersion(out string hooksVersion, out string error)
         {
-            hooksPaths = string.Empty;
-            string binPath = Path.Combine(this.Constants.GVFSBinDirectoryPath, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-            if (File.Exists(binPath))
-            {
-                hooksPaths = binPath;
-            }
-
             // TODO(#1044): Get the hooks version rather than the GVFS version (and share that code with the Windows platform)
             hooksVersion = ProcessHelper.GetCurrentProcessVersion();
             error = null;

@@ -307,7 +307,7 @@ namespace GVFS.CommandLine
                 return new Result(GVFSConstants.GitIsNotInstalledError);
             }
 
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
+            this.CheckGVFSHooksVersion(tracer: null, hooksVersion: out _);
 
             try
             {
@@ -315,7 +315,6 @@ namespace GVFS.CommandLine
                     normalizedEnlistementRootPath,
                     this.RepositoryURL,
                     gitBinPath,
-                    hooksPath,
                     authentication: null);
             }
             catch (InvalidRepoException e)

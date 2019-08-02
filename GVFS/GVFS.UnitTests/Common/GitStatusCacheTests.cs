@@ -44,7 +44,7 @@ namespace GVFS.UnitTests.Common
 
             this.gitProcess = new MockGitProcess();
             this.gitProcess.SetExpectedCommandResult($"--no-optional-locks status \"--serialize={statusCachePath}", () => new GitProcess.Result(string.Empty, string.Empty, 0), true);
-            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", null, this.gitProcess);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", this.gitProcess);
             enlistment.InitializeCachePathsFromKey("fake:\\gvfsSharedCache", "fakeCacheKey");
 
             this.gitParentPath = enlistment.WorkingDirectoryBackingRoot;

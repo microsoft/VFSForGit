@@ -371,7 +371,7 @@ namespace GVFS.CommandLine
             this.CheckGitVersion(tracer, enlistment, out string gitVersion);
             enlistment.SetGitVersion(gitVersion);
 
-            this.GetGVFSHooksPathAndCheckVersion(tracer, out string hooksVersion);
+            this.CheckGVFSHooksVersion(tracer, out string hooksVersion);
             enlistment.SetGVFSHooksVersion(hooksVersion);
             this.CheckFileSystemSupportsRequiredFeatures(tracer, enlistment);
 
@@ -416,11 +416,10 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        protected string GetGVFSHooksPathAndCheckVersion(ITracer tracer, out string hooksVersion)
+        protected void CheckGVFSHooksVersion(ITracer tracer, out string hooksVersion)
         {
             string error;
-            string hooksPath;
-            if (!GVFSPlatform.Instance.TryGetGVFSHooksPathAndVersion(out hooksPath, out hooksVersion, out error))
+            if (!GVFSPlatform.Instance.TryGetGVFSHooksVersion(out hooksVersion, out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
@@ -430,8 +429,6 @@ namespace GVFS.CommandLine
             {
                 this.ReportErrorAndExit(tracer, "GVFS.Hooks version ({0}) does not match GVFS version ({1}).", hooksVersion, gvfsVersion);
             }
-
-            return hooksPath;
         }
 
         protected void BlockEmptyCacheServerUrl(string userInput)
@@ -1101,29 +1098,12 @@ You can specify a URL, a name of a configured cache server, or the special names
                     this.ReportErrorAndExit("Error: " + GVFSConstants.GitIsNotInstalledError);
                 }
 
-                string hooksPath = null;
-                if (GVFSPlatform.Instance.UnderConstruction.RequiresDeprecatedGitHooksLoader)
-                {
-                    // On Windows, the soon-to-be deprecated GitHooksLoader tries to call out to the hooks process without
-                    // its full path, so we have to pass the path along to our background git processes via the PATH
-                    // environment variable. On Mac this is not needed because we just copy our own hook directly into
-                    // the .git/hooks folder, and once Windows does the same, this hooksPath can be removed (from here
-                    // and all the classes that handle it on the way to GitProcess)
-
-                    hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-                    if (hooksPath == null)
-                    {
-                        this.ReportErrorAndExit("Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-                    }
-                }
-
                 GVFSEnlistment enlistment = null;
                 try
                 {
                     enlistment = GVFSEnlistment.CreateFromDirectory(
                         enlistmentRootPath,
                         gitBinPath,
-                        hooksPath,
                         authentication,
                         createWithoutRepoURL: !this.validateOriginURL);
                 }

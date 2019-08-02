@@ -188,7 +188,7 @@ namespace GVFS.Upgrader
                     return false;
                 }
 
-                ICredentialStore credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null);
+                ICredentialStore credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null);
 
                 ProductUpgrader upgrader;
                 if (!ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, new LocalGVFSConfig(), credentialStore, this.DryRun, this.NoVerify, out upgrader, out errorMessage))

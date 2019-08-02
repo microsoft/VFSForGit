@@ -52,7 +52,6 @@ namespace GVFS.RepairJobs
                 GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
                     this.Enlistment.EnlistmentRoot,
                     this.Enlistment.GitBinPath,
-                    this.Enlistment.GVFSHooksRoot,
                     authentication: null);
 
                 string authError;

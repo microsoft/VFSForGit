@@ -95,7 +95,7 @@ namespace GVFS.Common
 
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
 
-        public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
+        public abstract bool TryGetGVFSHooksVersion(out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
         public abstract bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error);
@@ -206,18 +206,15 @@ namespace GVFS.Common
             public UnderConstructionFlags(
                 bool supportsGVFSUpgrade = true,
                 bool supportsGVFSConfig = true,
-                bool requiresDeprecatedGitHooksLoader = false,
                 bool supportsNuGetEncryption = true)
             {
                 this.SupportsGVFSUpgrade = supportsGVFSUpgrade;
                 this.SupportsGVFSConfig = supportsGVFSConfig;
-                this.RequiresDeprecatedGitHooksLoader = requiresDeprecatedGitHooksLoader;
                 this.SupportsNuGetEncryption = supportsNuGetEncryption;
             }
 
             public bool SupportsGVFSUpgrade { get; }
             public bool SupportsGVFSConfig { get; }
-            public bool RequiresDeprecatedGitHooksLoader { get; }
             public bool SupportsNuGetEncryption { get; }
         }
     }
