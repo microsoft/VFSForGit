@@ -90,7 +90,6 @@ namespace GVFS.FunctionalTests
                 excludeCategories.Add(Categories.MacTODO.NeedsDehydrate);
                 excludeCategories.Add(Categories.MacTODO.NeedsServiceVerb);
                 excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
-                excludeCategories.Add(Categories.MacTODO.NeedsCorruptObjectFix);
                 excludeCategories.Add(Categories.MacTODO.TestNeedsToLockFile);
                 excludeCategories.Add(Categories.WindowsOnly);
             }

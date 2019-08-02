@@ -498,9 +498,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (badObject as FileInfo).ShouldNotBeNull().Length.ShouldEqual(objectFileInfo.Length);
         }
 
-        // TODO(#1218): Figure out why git for Mac is not requesting a redownload of the truncated object
         [TestCase, Order(17)]
-        [Category(Categories.MacTODO.NeedsCorruptObjectFix)]
         public void TruncatedObjectRedownloaded()
         {
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
@@ -521,6 +519,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded_copy.txt").Output.Trim().ShouldEqual(sha);
             string testFileContents = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded_copy.txt").ShouldBeAFile(this.fileSystem).WithContents();
             objectPath.ShouldBeAFile(this.fileSystem);
+            string modifedFile = "Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded.txt";
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, modifedFile);
 
             // Truncate the contents of objectPath
             string tempTruncatedObjectPath = objectPath + "truncated";
@@ -541,11 +541,29 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             objectPath.ShouldBeAFile(this.fileSystem);
             new FileInfo(objectPath).Length.ShouldEqual(objectLength - 16);
 
-            // Read the original path and verify its contents are correct
-            this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                // Mac can't correct corrupt objects, but it should detect them and add to ModifiedPaths.dat
+                this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem);
 
-            // Confirm there's a new item in the corrupt objects folder
-            corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().Count().ShouldEqual(initialCorruptObjectCount + 1);
+                GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, modifedFile);
+                GitHelpers.CheckGitCommandAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    "status",
+                    $"modified:   {modifedFile}");
+            }
+            else
+            {
+                // Windows should correct a corrupt obect
+                // Read the original path and verify its contents are correct
+                this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
+
+                // Confirm there's a new item in the corrupt objects folder
+                corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().Count().ShouldEqual(initialCorruptObjectCount + 1);
+
+                // File should not be in ModifiedPaths.dat
+                GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, "Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded.txt");
+            }
         }
 
         [TestCase, Order(18)]

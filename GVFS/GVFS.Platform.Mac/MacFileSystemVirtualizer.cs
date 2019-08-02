@@ -386,6 +386,7 @@ namespace GVFS.Platform.Mac
                             byte[] buffer = new byte[4096];
                             uint bufferIndex = 0;
                             int nextByte = stream.ReadByte();
+                            int bytesWritten = 0;
                             while (nextByte != -1)
                             {
                                 while (bufferIndex < buffer.Length && nextByte != -1)
@@ -408,7 +409,18 @@ namespace GVFS.Platform.Mac
                                 if (bufferIndex == buffer.Length)
                                 {
                                     bufferIndex = 0;
+                                    bytesWritten += buffer.Length;
                                 }
+                            }
+                            bytesWritten += Convert.ToInt32(bufferIndex);
+
+                            if (bytesWritten != blobLength)
+                            {
+                                // If the read size does not match the expected size print an error and add the file to ModifiedPaths.dat
+                                // This allows the user to see that something went wrong with file hydration
+                                // Unfortunitely we must do this check *after* the file is hydrated since the header isn't corrupt for trunctated objects on mac
+                                this.Context.Tracer.RelatedError($"Read {relativePath} to {bytesWritten}, not expected size of {blobLength}");
+                                this.FileSystemCallbacks.OnFailedFileHydration(relativePath);
                             }
                         }))
                     {
