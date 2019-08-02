@@ -111,6 +111,8 @@ namespace GVFS.Virtualization.FileSystem
             UpdatePlaceholderType updateFlags,
             out UpdateFailureReason failureReason);
 
+        public abstract FileSystemResult DehydrateFolder(string relativePath);
+
         public void Dispose()
         {
             if (this.fileAndNetworkRequests != null)

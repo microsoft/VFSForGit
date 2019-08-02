@@ -9,6 +9,7 @@ using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
 using GVFS.Virtualization.Projection;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -184,16 +185,25 @@ of your enlistment's src folder.
 
         private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string[] folders)
         {
+            List<string> foldersToDehydrate = new List<string>();
             foreach (string folder in folders)
             {
                 PhysicalFileSystem fileSystem = new PhysicalFileSystem();
                 string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
-                fileSystem.DeleteDirectory(fullPath, recursive: true);
+                if (fileSystem.DirectoryExists(fullPath))
+                {
+                    fileSystem.DeleteDirectory(fullPath, recursive: true);
+                    foldersToDehydrate.Add(folder);
+                }
+                else
+                {
+                    this.WriteMessage(tracer, $"{folder} did not exist to dehydrate.");
+                }
             }
 
             this.Mount(tracer);
 
-            this.SendDehydrateMessage(tracer, enlistment, folders);
+            this.SendDehydrateMessage(tracer, enlistment, foldersToDehydrate.ToArray());
         }
 
         private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, string[] folders)
@@ -213,12 +223,12 @@ of your enlistment's src folder.
 
                     foreach (string folder in response.SuccessfulFolders)
                     {
-                        this.WriteMessage(tracer, $"{folder} successfully dehydrated.");
+                        this.WriteMessage(tracer, $"{folder} folder successfully dehydrated.");
                     }
 
                     foreach (string folder in response.FailedFolders)
                     {
-                        this.WriteMessage(tracer, $"{folder} dehydration failed.");
+                        this.WriteMessage(tracer, $"{folder} folder dehydration failed.");
                     }
                 }
                 catch (BrokenPipeException e)

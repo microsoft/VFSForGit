@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 
 namespace GVFS.Common.Database
 {
@@ -25,6 +26,11 @@ namespace GVFS.Common.Database
                 command.CommandText = $"CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY{collateConstraint}, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;";
                 command.ExecuteNonQuery();
             }
+        }
+
+        public static string NormalizePath(string path)
+        {
+            return path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim().Trim(Path.DirectorySeparatorChar);
         }
 
         public int GetCount()
@@ -161,6 +167,9 @@ namespace GVFS.Common.Database
 
         public void RemoveStartingWith(string path)
         {
+            // Normalize the path to match what will be in the database
+            path = NormalizePath(path);
+
             try
             {
                 using (IDbConnection connection = this.connectionPool.GetConnection())

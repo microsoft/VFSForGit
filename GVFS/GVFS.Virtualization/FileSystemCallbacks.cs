@@ -298,13 +298,13 @@ namespace GVFS.Virtualization
 
         public bool DehydrateFolder(string relativePath)
         {
-            // Remove all modified paths that start with the path
-            this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
-
             // Remove all placeholders that start with the path
             this.placeholderDatabase.RemoveStartingWith(relativePath);
 
-            FileSystemResult result = this.fileSystemVirtualizer.WritePlaceholderDirectory(relativePath);
+            // Remove all modified paths that start with the path
+            this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
+
+            FileSystemResult result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
             return result.Result == FSResult.Ok;
         }
 
