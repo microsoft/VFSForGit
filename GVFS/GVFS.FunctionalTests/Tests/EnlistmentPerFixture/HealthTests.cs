@@ -240,10 +240,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 // Regex to extract the most hydrated subdirectory names and their hydration percentage
                 // "  <hydrated-file-count> | <directory-name>" listed several times for different directories
-                Match lineMatch = Regex.Match(outputLines[i], @"^\s*([\d,]+)\s*\|\s*(\S.*\S)\s*$");
+                Match lineMatch = Regex.Match(outputLines[i], @"^\s*([\d,]+)\s*/\s*([\d,]+)\s*\|\s*(\S.*\S)\s*$");
 
                 int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedHealthScore).ShouldBeTrue();
-                string outputtedSubdirectory = lineMatch.Groups[2].Value;
+                string outputtedSubdirectory = lineMatch.Groups[3].Value;
 
                 outputtedHealthScore.ShouldEqual(healthScores[i]);
                 outputtedSubdirectory.ShouldEqual(subdirectories[i]);
