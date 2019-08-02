@@ -47,7 +47,7 @@ namespace GVFS.Common
             modifiedPathsCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFolderPaths, hydratedFilesDirectoryTally, parentDirectory);
             modifiedPathsCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFilePaths, hydratedFilesDirectoryTally, parentDirectory);
 
-            Dictionary<string, int> mostHydratedDirectories = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, SubDirectoryInfo> mostHydratedDirectories = new Dictionary<string, SubDirectoryInfo>(StringComparer.OrdinalIgnoreCase);
 
             // Map directory names to the corresponding health data from gitTrackedItemsDirectoryTally and hydratedFilesDirectoryTally
             foreach (KeyValuePair<string, int> pair in gitTrackedItemsDirectoryTally)
@@ -56,11 +56,11 @@ namespace GVFS.Common
                 {
                     // In-lining this for now until a better "health" calculation is created
                     // Another possibility is the ability to pass a function to use for health (might not be applicable)
-                    mostHydratedDirectories.Add(pair.Key, hydratedFiles);
+                    mostHydratedDirectories.Add(pair.Key, new SubDirectoryInfo(pair.Key, hydratedFiles, pair.Value));
                 }
                 else
                 {
-                    mostHydratedDirectories.Add(pair.Key, 0);
+                    mostHydratedDirectories.Add(pair.Key, new SubDirectoryInfo(pair.Key, 0, pair.Value));
                 }
             }
 
@@ -70,7 +70,7 @@ namespace GVFS.Common
                 placeholderCount,
                 modifiedPathsCount,
                 this.CalculateHealthMetric(placeholderCount + modifiedPathsCount, gitTrackedItemsCount),
-                mostHydratedDirectories.OrderByDescending(kp => kp.Value).ToList());
+                mostHydratedDirectories.OrderByDescending(kp => kp.Value.HydratedFileCount).ToList());
         }
 
         /// <summary>
