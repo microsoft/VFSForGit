@@ -1328,6 +1328,59 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     }
 }
 
+- (void) testOfflineRootDeniesRename
+{
+    // Where we can detect renames (Mojave and newer), file/directory renames
+    // should be prevented when the provider is offline. On High Sierra we have
+    // to let them happen as we can't distinguish them from file deletions
+    // before it's already happened.
+
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+
+    TestForAllSupportedDarwinVersions(^{
+        InitPendingRenames();
+
+        if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+        {
+            string renamedFilePath = self->filePath + "_renamed";
+            HandleFileOpOperation(
+                nullptr, // credential
+                nullptr, /* idata, unused */
+                KAUTH_FILEOP_WILL_RENAME,
+                reinterpret_cast<uintptr_t>(self->testFileVnode.get()),
+                reinterpret_cast<uintptr_t>(self->filePath.c_str()),
+                reinterpret_cast<uintptr_t>(renamedFilePath.c_str()),
+                0); // unused
+        }
+
+        int deleteAuthResult =
+            HandleVnodeOperation(
+                nullptr,
+                nullptr,
+                KAUTH_VNODE_DELETE,
+                reinterpret_cast<uintptr_t>(self->context),
+                reinterpret_cast<uintptr_t>(self->testFileVnode.get()),
+                0,
+                0);
+
+        if (version_major <= PrjFSDarwinMajorVersion::MacOS10_13_HighSierra)
+        {
+            XCTAssertEqual(deleteAuthResult, KAUTH_RESULT_DEFER);
+        }
+        else
+        {
+            // On Mojave+, renames should be blocked:
+            XCTAssertEqual(deleteAuthResult, KAUTH_RESULT_DENY);
+        }
+        
+        MockCalls::Clear();
+        CleanupPendingRenames();
+    });
+
+}
+
 - (void) testOfflineRootAllowsRegisteredProcessAccessToEmptyFile
 {
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
