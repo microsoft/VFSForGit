@@ -548,10 +548,11 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             objectPath.ShouldBeAFile(this.fileSystem);
             new FileInfo(objectPath).Length.ShouldEqual(objectLength - 16);
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                // Mac can't correct corrupt objects, but it should detect them and add to ModifiedPaths.dat
-                this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem);
+                // Mac/Linux can't correct corrupt objects, but should detect them and add to ModifiedPaths.dat
+                this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents();
 
                 GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, modifedFile);
                 GitHelpers.CheckGitCommandAgainstGVFSRepo(
