@@ -542,7 +542,14 @@ namespace GVFS.Platform.Mac
                         }
                         else
                         {
-                            this.FileSystemCallbacks.OnFolderCreated(relativePath);
+                            this.FileSystemCallbacks.OnFolderCreated(relativePath, out bool sparseFoldersUpdated);
+                            if (sparseFoldersUpdated)
+                            {
+                                // When sparseFoldersUpdated is true it means the folder was previously excluded from the projection and was
+                                // included so it needs to enumerate the directory to get and create placeholders
+                                // for all the directory items that are now included
+                                this.OnEnumerateDirectory(0, relativePath, -1, $"{nameof(this.OnNewFileCreated)}_FolderIncluded");
+                            }
                         }
                     }
                     else
@@ -623,10 +630,22 @@ namespace GVFS.Platform.Mac
                     metadata.Add("fileInfo.Name", fileInfo.Name);
                     metadata.Add("fileInfo.Size", fileInfo.Size);
                     metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
+                    metadata.Add(nameof(result), result.ToString());
                     metadata.Add(nameof(sha), sha);
                     this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholders)}: Write placeholder failed");
 
-                    return result;
+                    if (result == Result.EIOError)
+                    {
+                        // If there is an IO error writing the placeholder then the file might already exist and it needs to
+                        // be added to the modified paths so that git will show any differences or errors when interacting with the file
+                        // This will happen in the include mode when the user creates a file that is already in the files that
+                        // should be projected but we are trying to create the placeholder after it has already been created
+                        this.FileSystemCallbacks.OnFileConvertedToFull(childRelativePath);
+                    }
+                    else
+                    {
+                        return result;
+                    }
                 }
                 else
                 {

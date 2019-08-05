@@ -1,10 +1,10 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
-using NUnit.Framework.Interfaces;
-using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -22,10 +22,62 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         protected const string DeepDirectoryWithOneFile = "FunctionalTests/20181010_DeepFolderOneFile";
         protected const string DeepDirectoryWithOneDifferentFile = "FunctionalTests/20181010_DeepFolderOneDifferentFile";
 
-        private bool enlistmentPerTest;
-        private bool validateWorkingTree;
+        protected string[] pathPrefixes;
 
-        public GitRepoTests(bool enlistmentPerTest, bool validateWorkingTree)
+        // These are the folders for the sparse mode that are needed for the functional tests
+        // because they are the folders that the tests rely on to be there.
+        private static readonly string[] SparseModeFolders = new string[]
+        {
+            "a",
+            "AddFileAfterFolderRename_Test",
+            "AddFileAfterFolderRename_TestRenamed",
+            "AddFoldersAndFilesAndRenameFolder_Test",
+            "AddFoldersAndFilesAndRenameFolder_TestRenamed",
+            "c",
+            "CheckoutNewBranchFromStartingPointTest",
+            "CheckoutOrhpanBranchFromStartingPointTest",
+            "d",
+            "DeleteFileWithNameAheadOfDotAndSwitchCommits",
+            "EnumerateAndReadTestFiles",
+            "ErrorWhenPathTreatsFileAsFolderMatchesNTFS",
+            "file.txt", // Changes to a folder in one test
+            "foo.cpp", // Changes to a folder in one test
+            "FilenameEncoding",
+            "GitCommandsTests",
+            "GVFlt_BugRegressionTest",
+            "GVFlt_DeleteFileTest",
+            "GVFlt_DeleteFolderTest",
+            "GVFlt_EnumTest",
+            "GVFlt_FileAttributeTest",
+            "GVFlt_FileEATest",
+            "GVFlt_FileOperationTest",
+            "GVFlt_MoveFileTest",
+            "GVFlt_MoveFolderTest",
+            "GVFlt_MultiThreadTest",
+            "GVFlt_SetLinkTest",
+            Path.Combine("GVFS", "GVFS"),
+            Path.Combine("GVFS", "GVFS.Common"),
+            GitCommandsTests.TopLevelFolderToCreate,
+            "ResetTwice_OnlyDeletes_Test",
+            "ResetTwice_OnlyEdits_Test",
+            "Test_ConflictTests",
+            "Test_EPF_GitCommandsTestOnlyFileFolder",
+            "Test_EPF_MoveRenameFileTests",
+            "Test_EPF_MoveRenameFileTests_2",
+            "Test_EPF_MoveRenameFolderTests",
+            "Test_EPF_UpdatePlaceholderTests",
+            "Test_EPF_WorkingDirectoryTests",
+            "test_folder",
+            "TrailingSlashTests",
+        };
+
+        // Add directory separator for matching paths since they should be directories
+        private static readonly string[] PathPrefixesForSparseMode = SparseModeFolders.Select(x => x + Path.DirectorySeparatorChar).ToArray();
+
+        private bool enlistmentPerTest;
+        private Settings.ValidateWorkingTreeMode validateWorkingTree;
+
+        public GitRepoTests(bool enlistmentPerTest, Settings.ValidateWorkingTreeMode validateWorkingTree)
         {
             this.enlistmentPerTest = enlistmentPerTest;
             this.validateWorkingTree = validateWorkingTree;
@@ -81,14 +133,20 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 this.CreateEnlistment();
             }
 
+            if (this.validateWorkingTree == Settings.ValidateWorkingTreeMode.SparseMode)
+            {
+                new GVFSProcess(this.Enlistment).AddSparseFolders(SparseModeFolders);
+                this.pathPrefixes = PathPrefixesForSparseMode;
+            }
+
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
 
             this.CheckHeadCommitTree();
 
-            if (this.validateWorkingTree)
+            if (this.validateWorkingTree != Settings.ValidateWorkingTreeMode.None)
             {
                 this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
             }
 
             this.ValidateGitCommand("status");
@@ -106,10 +164,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             {
                 this.CheckHeadCommitTree();
 
-                if (this.validateWorkingTree)
+                if (this.validateWorkingTree != Settings.ValidateWorkingTreeMode.None)
                 {
                     this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                        .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+                        .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase, withinPrefixes: this.pathPrefixes);
                 }
 
                 this.RunGitCommand("reset --hard -q HEAD");
@@ -120,10 +178,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
                 // If enlistmentPerTest is true we can always validate the working tree because
                 // this is the last place we'll use it
-                if (this.validateWorkingTree || this.enlistmentPerTest)
+                if ((this.validateWorkingTree != Settings.ValidateWorkingTreeMode.None) || this.enlistmentPerTest)
                 {
                     this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                        .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+                        .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase, withinPrefixes: this.pathPrefixes);
                 }
             }
             finally

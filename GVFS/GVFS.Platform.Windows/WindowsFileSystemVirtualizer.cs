@@ -1005,29 +1005,17 @@ namespace GVFS.Platform.Windows
                         GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
                         if (gitCommand.IsValidGitCommand)
                         {
-                            string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
-                            HResult hr = this.virtualizationInstance.MarkDirectoryAsPlaceholder(
-                                directoryPath,
-                                FolderContentId,
-                                PlaceholderVersionId);
-
-                            if (hr == HResult.Ok)
-                            {
-                                this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath, triggeringProcessImageFileName);
-                            }
-                            else
-                            {
-                                EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                                metadata.Add("isDirectory", isDirectory);
-                                metadata.Add("triggeringProcessId", triggeringProcessId);
-                                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                                metadata.Add("HResult", hr.ToString());
-                                this.Context.Tracer.RelatedError(metadata, nameof(this.NotifyNewFileCreatedHandler) + "_" + nameof(this.virtualizationInstance.MarkDirectoryAsPlaceholder) + " error");
-                            }
+                            this.MarkDirectoryAsPlaceholder(virtualPath, triggeringProcessId, triggeringProcessImageFileName);
                         }
                         else
                         {
-                            this.FileSystemCallbacks.OnFolderCreated(virtualPath);
+                            this.FileSystemCallbacks.OnFolderCreated(virtualPath, out bool sparseFoldersUpdated);
+                            if (sparseFoldersUpdated)
+                            {
+                                // When sparseFoldersUpdated is true it means the folder was previously excluded from the projection and was
+                                // included so it needs to be marked as a placeholder so that it will start projecting items in the folder
+                                this.MarkDirectoryAsPlaceholder(virtualPath, triggeringProcessId, triggeringProcessImageFileName);
+                            }
                         }
                     }
                     else
@@ -1043,6 +1031,32 @@ namespace GVFS.Platform.Windows
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 this.LogUnhandledExceptionAndExit(nameof(this.NotifyNewFileCreatedHandler), metadata);
+            }
+        }
+
+        private void MarkDirectoryAsPlaceholder(
+            string virtualPath,
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName)
+        {
+            string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
+            HResult hr = this.virtualizationInstance.MarkDirectoryAsPlaceholder(
+                directoryPath,
+                FolderContentId,
+                PlaceholderVersionId);
+
+            if (hr == HResult.Ok)
+            {
+                this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath, triggeringProcessImageFileName);
+            }
+            else
+            {
+                EventMetadata metadata = this.CreateEventMetadata(virtualPath);
+                metadata.Add("isDirectory", true);
+                metadata.Add("triggeringProcessId", triggeringProcessId);
+                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                metadata.Add("HResult", hr.ToString());
+                this.Context.Tracer.RelatedError(metadata, nameof(this.MarkDirectoryAsPlaceholder) + " error");
             }
         }
 

@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Should;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
@@ -9,7 +10,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     {
         private const string ResetHardCommand = "reset --hard";
 
-        public ResetHardTests(bool validateWorkingTree)
+        public ResetHardTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
@@ -22,7 +23,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("reset --hard HEAD~1");
             this.ShouldNotExistOnDisk("Test_EPF_GitCommandsTestOnlyFileFolder");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
         }
 
         [TestCase]

@@ -87,6 +87,7 @@ namespace GVFS.PerfProfiling
                 backgroundFileSystemTaskRunner: null,
                 fileSystemVirtualizer: null,
                 placeholderDatabase: new PlaceholderTable(this.gvfsDatabase),
+                sparseCollection: new SparseTable(this.gvfsDatabase),
                 gitStatusCache : null);
         }
     }

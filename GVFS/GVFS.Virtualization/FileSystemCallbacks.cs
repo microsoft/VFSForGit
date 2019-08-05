@@ -54,6 +54,7 @@ namespace GVFS.Virtualization
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
             IPlaceholderCollection placeholderDatabase,
+            ISparseCollection sparseCollection,
             GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;
@@ -88,6 +89,7 @@ namespace GVFS.Virtualization
                 repoMetadata,
                 fileSystemVirtualizer,
                 this.placeholderDatabase,
+                sparseCollection,
                 this.modifiedPaths);
 
             if (backgroundFileSystemTaskRunner != null)
@@ -413,8 +415,27 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFilePreDelete(relativePath));
         }
 
-        public void OnFolderCreated(string relativePath)
+        /// <summary>
+        /// Called to indicate a folder was created
+        /// </summary>
+        /// <param name="relativePath">The relative path to the newly created folder</param>
+        /// <param name="sparseFoldersUpdated">
+        /// true when the folder is successfully added to the sparse list because it is in the projection but currently excluded.
+        /// false when the folder was not excluded or there was a failure adding to the sparse list.
+        /// </param>
+        public void OnFolderCreated(string relativePath, out bool sparseFoldersUpdated)
         {
+            sparseFoldersUpdated = false;
+            GitIndexProjection.PathSparseState pathProjectionState = this.GitIndexProjection.GetFolderPathSparseState(relativePath);
+            if (pathProjectionState == GitIndexProjection.PathSparseState.Excluded)
+            {
+                if (this.GitIndexProjection.TryAddSparseFolder(relativePath))
+                {
+                    sparseFoldersUpdated = true;
+                    return;
+                }
+            }
+
             this.AddToNewlyCreatedList(relativePath, isFolder: true);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderCreated(relativePath));
         }
@@ -700,6 +721,7 @@ namespace GVFS.Virtualization
                 case FileSystemTask.OperationType.OnFolderCreated:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     result = this.TryAddModifiedPath(gitUpdate.VirtualPath, isFolder: true);
+
                     break;
 
                 case FileSystemTask.OperationType.OnFolderRenamed:

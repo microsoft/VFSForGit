@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Tools;
+using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
 using System;
 using System.Collections.Generic;
@@ -42,7 +43,13 @@ namespace GVFS.FunctionalTests
             {
                 Console.WriteLine("Running the full suite of tests");
 
-                GVFSTestConfig.GitRepoTestsValidateWorkTree = DataSources.AllBools;
+                List<object[]> modes = new List<object[]>();
+                foreach (Settings.ValidateWorkingTreeMode mode in Enum.GetValues(typeof(Settings.ValidateWorkingTreeMode)))
+                {
+                    modes.Add(new object[] { mode });
+                }
+
+                GVFSTestConfig.GitRepoTestsValidateWorkTree = modes.ToArray();
 
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
@@ -55,10 +62,20 @@ namespace GVFS.FunctionalTests
             }
             else
             {
+                Settings.ValidateWorkingTreeMode validateMode = Settings.ValidateWorkingTreeMode.Full;
+
+                if (runner.HasCustomArg("--sparse-mode"))
+                {
+                    validateMode = Settings.ValidateWorkingTreeMode.SparseMode;
+
+                    // Only test the git commands in sparse mode for splitting out tests in builds
+                    includeCategories.Add(Categories.GitCommands);
+                }
+
                 GVFSTestConfig.GitRepoTestsValidateWorkTree =
                     new object[]
                     {
-                        new object[] { true }
+                        new object[] { validateMode },
                     };
 
                 if (runner.HasCustomArg("--extra-only"))

@@ -88,27 +88,57 @@ namespace GVFS.Virtualization.Projection
                 this.sortedEntries.Clear();
             }
 
-            public FolderData AddFolder(LazyUTF8String name)
-            {
-                int insertionIndex = this.GetInsertionIndex(name);
-                return this.InsertFolder(name, insertionIndex);
-            }
-
             public FileData AddFile(LazyUTF8String name, byte[] shaBytes)
             {
                 int insertionIndex = this.GetInsertionIndex(name);
                 return this.InsertFile(name, shaBytes, insertionIndex);
             }
 
-            public FolderData GetOrAddFolder(LazyUTF8String name)
+            public FolderData GetOrAddFolder(
+                LazyUTF8String[] pathParts,
+                int partIndex,
+                bool parentIsIncluded,
+                SparseFolderData rootSparseFolderData)
             {
-                int index = this.GetSortedEntriesIndexOfName(name);
+                int index = this.GetSortedEntriesIndexOfName(pathParts[partIndex]);
                 if (index >= 0)
                 {
                     return (FolderData)this.sortedEntries[index];
                 }
 
-                return this.InsertFolder(name, ~index);
+                bool isIncluded = true;
+                if (rootSparseFolderData.Children.Count > 0)
+                {
+                    if (parentIsIncluded)
+                    {
+                        // Need to check if this child folder should be included
+                        SparseFolderData folderData = rootSparseFolderData;
+                        for (int i = 0; i <= partIndex; i++)
+                        {
+                            if (folderData.IsRecursive)
+                            {
+                                break;
+                            }
+
+                            string childFolderName = pathParts[i].GetString();
+                            if (!folderData.Children.ContainsKey(childFolderName))
+                            {
+                                isIncluded = false;
+                                break;
+                            }
+                            else
+                            {
+                                folderData = folderData.Children[childFolderName];
+                            }
+                        }
+                    }
+                    else
+                    {
+                        isIncluded = false;
+                    }
+                }
+
+                return this.InsertFolder(pathParts[partIndex], ~index, isIncluded: isIncluded);
             }
 
             public bool TryGetValue(LazyUTF8String name, out FolderEntryData value)
@@ -143,10 +173,10 @@ namespace GVFS.Virtualization.Projection
                 return insertionIndex;
             }
 
-            private FolderData InsertFolder(LazyUTF8String name, int insertionIndex)
+            private FolderData InsertFolder(LazyUTF8String name, int insertionIndex, bool isIncluded)
             {
                 FolderData data = folderPool.GetNew();
-                data.ResetData(name);
+                data.ResetData(name, isIncluded);
                 this.sortedEntries.Insert(insertionIndex, data);
                 return data;
             }
