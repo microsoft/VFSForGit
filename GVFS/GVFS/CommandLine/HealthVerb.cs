@@ -67,23 +67,42 @@ namespace GVFS.CommandLine
 
         private void PrintOutput(EnlistmentHealthData enlistmentHealthData)
         {
-            string trackedFilesCountFormatted = enlistmentHealthData.GitTrackedItemsCount.ToString("N0");
-            string placeholderCountFormatted = enlistmentHealthData.PlaceholderCount.ToString("N0");
-            string modifiedPathsCountFormatted = enlistmentHealthData.ModifiedPathsCount.ToString("N0");
+            // Get the appropriate number of sub directories to display
+            List<KeyValuePair<string, EnlistmentHealthCalculator.SubDirectoryInfo>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
 
-            // Calculate spacing for the numbers of total files
-            int longest = Math.Max(trackedFilesCountFormatted.Length, placeholderCountFormatted.Length);
-            longest = Math.Max(longest, modifiedPathsCountFormatted.Length);
+            string targetDirectoryLabel = "Health of directory: " + enlistmentHealthData.TargetDirectory;
+            string totalFilesLabel = "Total files in HEAD commit:";
+            string placeholderLabel = "Files managed by VFS for Git (faster):";
+            string modifiedPathsLabel = "Files managed by Git:";
 
-            // Sort the dictionary to find the most hydrated directories by health score
-            List<EnlistmentHealthCalculator.SubDirectoryInfo> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
+            string fileLabel = "File";
+            string directoryLabel = "Dir";
+            string totalLabel = "Sum";
 
-            this.Output.WriteLine("\nHealth of directory: " + enlistmentHealthData.TargetDirectory);
-            this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
-            this.Output.WriteLine("Files managed by VFS for Git (fast):  " + placeholderCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthData.PlaceholderPercentage));
-            this.Output.WriteLine("Files managed by Git:                 " + modifiedPathsCountFormatted.PadLeft(longest) + " | " + this.FormatPercent(enlistmentHealthData.ModifiedPathsPercentage));
+            int labelWidth = Math.Max(Math.Max(targetDirectoryLabel.Length, totalFilesLabel.Length), Math.Max(placeholderLabel.Length, modifiedPathsLabel.Length)) + 1;
+            int fileWidth = Math.Max(enlistmentHealthData.GitTrackedFileCount.ToString("N0").Length, fileLabel.Length);
+            int directoryWidth = Math.Max(enlistmentHealthData.GitTrackedFolderCount.ToString("N0").Length, directoryLabel.Length);
+            int totalWidth = Math.Max(enlistmentHealthData.GitTrackedItemsCount.ToString("N0").Length, totalLabel.Length);
 
-            this.Output.WriteLine("\nTotal hydration percentage:           " + this.FormatPercent(enlistmentHealthData.PlaceholderPercentage + enlistmentHealthData.ModifiedPathsPercentage).PadLeft(longest + 7));
+            string formattedTrackedFiles = enlistmentHealthData.GitTrackedFileCount.ToString("N0").PadLeft(fileWidth);
+            string formattedTrackedFolders = enlistmentHealthData.GitTrackedFolderCount.ToString("N0").PadLeft(directoryWidth);
+            string formattedTrackedTotal = enlistmentHealthData.GitTrackedItemsCount.ToString("N0").PadLeft(totalWidth);
+            string formattedPlaceholderFiles = enlistmentHealthData.PlaceholderFileCount.ToString("N0").PadLeft(fileWidth);
+            string formattedPlaceholderFolders = enlistmentHealthData.PlaceholderFolderCount.ToString("N0").PadLeft(directoryWidth);
+            string formattedPlaceholderTotal = enlistmentHealthData.PlaceholderCount.ToString("N0").PadLeft(totalWidth);
+            string formattedPlaceholderPercentage = this.FormatPercent(enlistmentHealthData.PlaceholderPercentage);
+            string formattedModifiedPathFiles = enlistmentHealthData.ModifiedPathsFileCount.ToString("N0").PadLeft(fileWidth);
+            string formattedModifiedPathFolders = enlistmentHealthData.ModifiedPathsFolderCount.ToString("N0").PadLeft(directoryWidth);
+            string formattedModifiedPathTotal = enlistmentHealthData.ModifiedPathsCount.ToString("N0").PadLeft(totalWidth);
+            string formattedModifiedPathPercentage = this.FormatPercent(enlistmentHealthData.ModifiedPathsPercentage);
+
+            this.Output.WriteLine("\n" + targetDirectoryLabel.PadRight(labelWidth));
+            this.Output.WriteLine(string.Empty.PadRight(labelWidth) + fileLabel.PadLeft(fileWidth) + "   " + directoryLabel.PadLeft(directoryWidth) + "   " + totalLabel.PadLeft(totalWidth));
+            this.Output.WriteLine(totalFilesLabel.PadRight(labelWidth) + formattedTrackedFiles + " | " + formattedTrackedFolders + " | " + formattedTrackedTotal + " | 100%");
+            this.Output.WriteLine(placeholderLabel.PadRight(labelWidth) + formattedPlaceholderFiles + " | " + formattedPlaceholderFolders + " | " + formattedPlaceholderTotal + " | " + formattedPlaceholderPercentage);
+            this.Output.WriteLine(modifiedPathsLabel.PadRight(labelWidth) + formattedModifiedPathFiles + " | " + formattedModifiedPathFolders + " | " + formattedModifiedPathTotal + " | " + formattedModifiedPathPercentage);
+
+            this.Output.WriteLine("\n" + "Total hydration percentage:".PadRight(labelWidth + fileWidth + directoryWidth + totalWidth + 9) + this.FormatPercent(enlistmentHealthData.PlaceholderPercentage + enlistmentHealthData.ModifiedPathsPercentage));
 
             this.Output.WriteLine("\nMost hydrated top level directories:");
 

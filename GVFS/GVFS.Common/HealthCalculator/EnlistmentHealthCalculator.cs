@@ -23,9 +23,13 @@ namespace GVFS.Common
 
         public EnlistmentHealthData CalculateStatistics(string parentDirectory)
         {
-            int gitTrackedItemsCount = 0;
-            int placeholderCount = 0;
-            int modifiedPathsCount = 0;
+            int gitTrackedFileCount = 0;
+            int gitTrackedDirectoryCount = 0;
+            int placeholderFileCount = 0;
+            int placeholderDirectoryCount = 0;
+            int modifiedPathsFileCount = 0;
+            int modifiedPathsDirectoryCount = 0;
+
             Dictionary<string, int> gitTrackedItemsDirectoryTally = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, int> hydratedFilesDirectoryTally = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
@@ -40,12 +44,12 @@ namespace GVFS.Common
                 parentDirectory = parentDirectory.TrimStart(GVFSConstants.GitPathSeparator);
             }
 
-            gitTrackedItemsCount += this.CategorizePaths(this.enlistmentPathData.GitFolderPaths, gitTrackedItemsDirectoryTally, parentDirectory);
-            gitTrackedItemsCount += this.CategorizePaths(this.enlistmentPathData.GitFilePaths, gitTrackedItemsDirectoryTally, parentDirectory);
-            placeholderCount += this.CategorizePaths(this.enlistmentPathData.PlaceholderFolderPaths, hydratedFilesDirectoryTally, parentDirectory);
-            placeholderCount += this.CategorizePaths(this.enlistmentPathData.PlaceholderFilePaths, hydratedFilesDirectoryTally, parentDirectory);
-            modifiedPathsCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFolderPaths, hydratedFilesDirectoryTally, parentDirectory);
-            modifiedPathsCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFilePaths, hydratedFilesDirectoryTally, parentDirectory);
+            gitTrackedDirectoryCount += this.CategorizePaths(this.enlistmentPathData.GitFolderPaths, gitTrackedItemsDirectoryTally, parentDirectory);
+            gitTrackedFileCount += this.CategorizePaths(this.enlistmentPathData.GitFilePaths, gitTrackedItemsDirectoryTally, parentDirectory);
+            placeholderDirectoryCount += this.CategorizePaths(this.enlistmentPathData.PlaceholderFolderPaths, hydratedFilesDirectoryTally, parentDirectory);
+            placeholderFileCount += this.CategorizePaths(this.enlistmentPathData.PlaceholderFilePaths, hydratedFilesDirectoryTally, parentDirectory);
+            modifiedPathsDirectoryCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFolderPaths, hydratedFilesDirectoryTally, parentDirectory);
+            modifiedPathsFileCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFilePaths, hydratedFilesDirectoryTally, parentDirectory);
 
             Dictionary<string, SubDirectoryInfo> mostHydratedDirectories = new Dictionary<string, SubDirectoryInfo>(StringComparer.OrdinalIgnoreCase);
 
@@ -66,11 +70,14 @@ namespace GVFS.Common
 
             return new EnlistmentHealthData(
                 parentDirectory,
-                gitTrackedItemsCount,
-                placeholderCount,
-                modifiedPathsCount,
-                this.CalculateHealthMetric(placeholderCount + modifiedPathsCount, gitTrackedItemsCount),
-                mostHydratedDirectories.OrderByDescending(kp => kp.Value.HydratedFileCount).Select(item => item.Value).ToList());
+                gitTrackedDirectoryCount,
+                gitTrackedFileCount,
+                placeholderDirectoryCount,
+                placeholderFileCount,
+                modifiedPathsDirectoryCount,
+                modifiedPathsFileCount,
+                this.CalculateHealthMetric(placeholderDirectoryCount + placeholderFileCount + modifiedPathsDirectoryCount + modifiedPathsFileCount, gitTrackedDirectoryCount + gitTrackedFileCount),
+                mostHydratedDirectories.OrderByDescending(kp => kp.Value.HydratedFileCount).ToList());
         }
 
         /// <summary>

@@ -201,7 +201,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             // Regex to extract the total number of fast files and percentage they represent
             // "Files managed by VFS for Git (fast):    <count> | <percentage>%"
-            Match lineMatch = Regex.Match(outputLine, @"^Files managed by VFS for Git \(fast\):\s*([\d,]+)\s*\|\s*(\d+)%$");
+            Match lineMatch = Regex.Match(outputLine, @"^Files managed by VFS for Git \(faster\):\s*([\d,]+)\s*\|\s*(\d+)%$");
 
             int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedFastFiles).ShouldBeTrue();
             int.TryParse(lineMatch.Groups[2].Value, out int outputtedFastFilesPercent).ShouldBeTrue();
