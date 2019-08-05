@@ -10,7 +10,7 @@ namespace GVFS.Common
             int placeholderCount,
             int modifiedPathsCount,
             decimal healthMetric,
-            List<KeyValuePair<string, EnlistmentHealthCalculator.SubDirectoryInfo>> directoryHydrationLevels)
+            List<EnlistmentHealthCalculator.SubDirectoryInfo> directoryHydrationLevels)
         {
             this.TargetDirectory = targetDirectory;
             this.GitTrackedItemsCount = gitItemsCount;
@@ -24,7 +24,7 @@ namespace GVFS.Common
         public int GitTrackedItemsCount { get; private set; }
         public int PlaceholderCount { get; private set; }
         public int ModifiedPathsCount { get; private set; }
-        public List<KeyValuePair<string, EnlistmentHealthCalculator.SubDirectoryInfo>> DirectoryHydrationLevels { get; private set; }
+        public List<EnlistmentHealthCalculator.SubDirectoryInfo> DirectoryHydrationLevels { get; private set; }
         public decimal HealthMetric { get; private set; }
         public decimal PlaceholderPercentage
         {
