@@ -7,6 +7,12 @@ namespace GVFS.Common.FileSystem
     public interface IKernelDriver
     {
         bool EnumerationExpandsDirectories { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether file sizes required to write/update placeholders
+        /// </summary>
+        bool EmptyPlaceholdersRequireFileSize { get; }
+
         string LogsFolderPath { get; }
         bool IsSupported(string normalizedEnlistmentRootPath, out string warning, out string error);
         bool TryFlushLogs(out string errors);

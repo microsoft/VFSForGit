@@ -143,6 +143,7 @@ namespace GVFS.Platform.Mac
             return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
         }
 
+        /// <param name="endOfFile">Length of the file, not required on the Mac platform</param>
         public override FileSystemResult UpdatePlaceholderIfNeeded(
             string relativePath,
             DateTime creationTime,
@@ -170,7 +171,6 @@ namespace GVFS.Platform.Mac
                     relativePath,
                     PlaceholderVersionId,
                     ToVersionIdByteArray(ConvertShaToContentId(shaContentId)),
-                    (ulong)endOfFile,
                     fileMode,
                     (UpdateType)updateFlags,
                     out failureCause);

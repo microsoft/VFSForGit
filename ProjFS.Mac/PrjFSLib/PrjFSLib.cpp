@@ -466,7 +466,6 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     _In_    const char*                             relativePath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
-    _In_    unsigned long                           fileSize,
     _In_    uint16_t                                fileMode,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
@@ -477,7 +476,6 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
         << relativePath << ", "
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
-        << fileSize << ", "
         << oct << fileMode << dec << ", "
         << hex << updateFlags << dec << ")" << endl;
 #endif

@@ -3,7 +3,6 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using PrjFSLib.Mac;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -19,6 +18,7 @@ namespace GVFS.Platform.Mac
         private const int LoadKext_ExitCode_NotApproved = 27;
 
         public bool EnumerationExpandsDirectories { get; } = true;
+        public bool EmptyPlaceholdersRequireFileSize { get; } = false;
 
         public string LogsFolderPath
         {
