@@ -371,10 +371,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 folderErrors.AppendLine($"{extraFolder} unexpected in folder list");
             }
 
-            if (folderErrors.Length > 0)
-            {
-                Assert.Fail(folderErrors.ToString());
-            }
+            folderErrors.Length.ShouldEqual(0, folderErrors.ToString());
         }
     }
 }

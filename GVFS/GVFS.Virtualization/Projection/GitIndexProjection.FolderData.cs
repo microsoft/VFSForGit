@@ -41,10 +41,10 @@ namespace GVFS.Virtualization.Projection
                 this.IsIncluded = true;
                 for (int i = 0; i < this.ChildEntries.Count; i++)
                 {
-                    FolderData childFolder = this.ChildEntries[i] as FolderData;
-                    if (childFolder != null)
+                    if (this.ChildEntries[i].IsFolder)
                     {
-                        childFolder.Include();
+                        FolderData folderData = (FolderData)this.ChildEntries[i];
+                        folderData.Include();
                     }
                 }
             }

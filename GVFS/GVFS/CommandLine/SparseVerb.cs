@@ -14,7 +14,7 @@ namespace GVFS.CommandLine
 {
     [Verb(
         SparseVerb.SparseVerbName,
-        HelpText = @"List, add, or remove from the list of folders that are included in VFS for Git's projection.
+        HelpText = @"EXPERIMENTAL: List, add, or remove from the list of folders that are included in VFS for Git's projection.
 Folders need to be relative to the repos root directory.")
     ]
     public class SparseVerb : GVFSVerb.ForExistingEnlistment

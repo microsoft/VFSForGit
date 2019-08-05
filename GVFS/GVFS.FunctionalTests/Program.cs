@@ -67,6 +67,8 @@ namespace GVFS.FunctionalTests
                 if (runner.HasCustomArg("--sparse-mode"))
                 {
                     validateMode = Settings.ValidateWorkingTreeMode.SparseMode;
+
+                    // Only test the git commands in sparse mode for splitting out tests in builds
                     includeCategories.Add(Categories.GitCommands);
                 }
 

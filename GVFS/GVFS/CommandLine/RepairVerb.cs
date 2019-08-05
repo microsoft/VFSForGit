@@ -135,7 +135,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                 // Repair databases
                 jobs.Add(new BackgroundOperationDatabaseRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new RepoMetadataDatabaseRepairJob(tracer, this.Output, enlistment));
-                jobs.Add(new PlaceholderDatabaseRepairJob(tracer, this.Output, enlistment));
+                jobs.Add(new VFSForGitDatabaseRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new BlobSizeDatabaseRepairJob(tracer, this.Output, enlistment));
 
                 // Repair .git folder files

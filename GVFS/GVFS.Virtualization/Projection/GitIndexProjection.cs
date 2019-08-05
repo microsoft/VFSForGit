@@ -999,7 +999,7 @@ namespace GVFS.Virtualization.Projection
         }
 
         /// <summary>
-        /// Takes a path and get the FolderData object fo that path if it exist and is a folder
+        /// Takes a path and gets the FolderData object for that path if it exists and is a folder
         /// </summary>
         /// <param name="folderPath">The path to the folder to lookup</param>
         /// <param name="folderData">out paramenter - the FolderData to return if found</param>
@@ -1030,7 +1030,7 @@ namespace GVFS.Virtualization.Projection
                 metadata.Add(TracingConstants.MessageKey.InfoMessage, "Found file at path");
                 this.context.Tracer.RelatedEvent(
                     EventLevel.Informational,
-                    $"{nameof(this.TryGetOrAddFolderDataFromCache)}_FileAtPath",
+                    $"{nameof(this.TryGetFolderDataFromTreeUsingPath)}_FileAtPath",
                     metadata);
 
                 return false;

@@ -1056,7 +1056,7 @@ namespace GVFS.Platform.Windows
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 metadata.Add("HResult", hr.ToString());
-                this.Context.Tracer.RelatedError(metadata, nameof(this.NotifyNewFileCreatedHandler) + "_" + nameof(this.virtualizationInstance.MarkDirectoryAsPlaceholder) + " error");
+                this.Context.Tracer.RelatedError(metadata, nameof(this.MarkDirectoryAsPlaceholder) + " error");
             }
         }
 
