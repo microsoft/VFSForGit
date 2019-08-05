@@ -1199,18 +1199,13 @@ namespace GVFS.Virtualization.Projection
 
             using (ITracer activity = this.context.Tracer.StartActivity("UpdatePlaceholders", EventLevel.Informational, metadata))
             {
-                int minItemsPerThread = 10;
-                int numThreads = Math.Max(8, Environment.ProcessorCount);
-                numThreads = Math.Min(numThreads, placeholderFilesListCopy.Count / minItemsPerThread);
-                numThreads = Math.Max(numThreads, 1);
-
                 // folderPlaceholdersToKeep always contains the empty path so as to avoid unnecessary attempts
                 // to remove the repository's root folder.
                 ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
                 folderPlaceholdersToKeep.Add(string.Empty);
 
                 stopwatch.Restart();
-                this.MultiThreadedPlaceholderUpdatesAndDeletes(numThreads, placeholderFilesListCopy, folderPlaceholdersToKeep);
+                this.MultiThreadedPlaceholderUpdatesAndDeletes(placeholderFilesListCopy, folderPlaceholdersToKeep);
                 stopwatch.Stop();
 
                 long millisecondsUpdatingFilePlaceholders = stopwatch.ElapsedMilliseconds;
@@ -1320,10 +1315,14 @@ namespace GVFS.Virtualization.Projection
         }
 
         private void MultiThreadedPlaceholderUpdatesAndDeletes(
-            int numThreads,
             List<IPlaceholderData> placeholderList,
             ConcurrentHashSet<string> folderPlaceholdersToKeep)
         {
+            int minItemsPerThread = 10;
+            int numThreads = Math.Max(8, Environment.ProcessorCount);
+            numThreads = Math.Min(numThreads, placeholderList.Count / minItemsPerThread);
+            numThreads = Math.Max(numThreads, 1);
+
             if (numThreads > 1)
             {
                 Thread[] processThreads = new Thread[numThreads];
