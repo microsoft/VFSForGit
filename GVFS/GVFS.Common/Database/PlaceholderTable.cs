@@ -54,36 +54,27 @@ namespace GVFS.Common.Database
         {
             try
             {
-                filePlaceholders = new List<IPlaceholderData>();
-                folderPlaceholders = new List<IPlaceholderData>();
+                List<IPlaceholderData> tempFilePlaceholders = new List<IPlaceholderData>();
+                List<IPlaceholderData> tempFolderPlaceholders = new List<IPlaceholderData>();
                 using (IDbConnection connection = this.connectionPool.GetConnection())
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     command.CommandText = "SELECT path, pathType, sha FROM Placeholder;";
-                    using (IDataReader reader = command.ExecuteReader())
+                    ReadPlaceholders(command, data =>
                     {
-                        while (reader.Read())
+                        if (data.PathType == PlaceholderData.PlaceholderType.File)
                         {
-                            PlaceholderData data = new PlaceholderData();
-                            data.Path = reader.GetString(0);
-                            data.PathType = (PlaceholderData.PlaceholderType)reader.GetByte(1);
-
-                            if (!reader.IsDBNull(2))
-                            {
-                                data.Sha = reader.GetString(2);
-                            }
-
-                            if (data.PathType == PlaceholderData.PlaceholderType.File)
-                            {
-                                filePlaceholders.Add(data);
-                            }
-                            else
-                            {
-                                folderPlaceholders.Add(data);
-                            }
+                            tempFilePlaceholders.Add(data);
                         }
-                    }
+                        else
+                        {
+                            tempFolderPlaceholders.Add(data);
+                        }
+                    });
                 }
+
+                filePlaceholders = tempFilePlaceholders;
+                folderPlaceholders = tempFolderPlaceholders;
             }
             catch (Exception ex)
             {
@@ -165,7 +156,7 @@ namespace GVFS.Common.Database
             this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PossibleTombstoneFolder });
         }
 
-        public void RemoveStartingWith(string path)
+        public List<IPlaceholderData> RemoveStartingWith(string path)
         {
             // Normalize the path to match what will be in the database
             path = NormalizePath(path);
@@ -175,9 +166,19 @@ namespace GVFS.Common.Database
                 using (IDbConnection connection = this.connectionPool.GetConnection())
                 using (IDbCommand command = connection.CreateCommand())
                 {
-                    command.CommandText = "DELETE FROM Placeholder WHERE path LIKE @path;";
+                    List<IPlaceholderData> removedPlaceholders = new List<IPlaceholderData>();
+                    command.CommandText = "SELECT path, pathType, sha FROM Placeholder WHERE path LIKE @path";
                     command.AddParameter("@path", DbType.String, $"{path}%");
-                    command.ExecuteNonQuery();
+                    ReadPlaceholders(command, data => removedPlaceholders.Add(data));
+
+                    command.CommandText = "DELETE FROM Placeholder WHERE path LIKE @path;";
+
+                    lock (this.writerLock)
+                    {
+                        command.ExecuteNonQuery();
+                    }
+
+                    return removedPlaceholders;
                 }
             }
             catch (Exception ex)
@@ -239,6 +240,26 @@ namespace GVFS.Common.Database
             catch (Exception ex)
             {
                 throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetCount)} Exception", ex);
+            }
+        }
+
+        private static void ReadPlaceholders(IDbCommand command, Action<PlaceholderData> dataHandler)
+        {
+            using (IDataReader reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    PlaceholderData data = new PlaceholderData();
+                    data.Path = reader.GetString(0);
+                    data.PathType = (PlaceholderData.PlaceholderType)reader.GetByte(1);
+
+                    if (!reader.IsDBNull(2))
+                    {
+                        data.Sha = reader.GetString(2);
+                    }
+
+                    dataHandler(data);
+                }
             }
         }
 

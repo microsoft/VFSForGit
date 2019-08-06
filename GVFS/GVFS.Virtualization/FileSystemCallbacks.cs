@@ -298,14 +298,44 @@ namespace GVFS.Virtualization
 
         public bool DehydrateFolder(string relativePath)
         {
-            // Remove all placeholders that start with the path
-            this.placeholderDatabase.RemoveStartingWith(relativePath);
+            List<IPlaceholderData> removedPlaceholders;
+            List<string> removedModifiedPaths;
+            bool successful = false;
 
-            // Remove all modified paths that start with the path
-            this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
+            try
+            {
+                removedPlaceholders = this.placeholderDatabase.RemoveStartingWith(relativePath);
+                removedModifiedPaths = this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
+                FileSystemResult result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
+                successful = result.Result == FSResult.Ok;
+            }
+            catch (Exception ex)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativePath, ex);
+                this.context.Tracer.RelatedError(metadata, $"{nameof(this.DehydrateFolder)} threw and exception");
+                return false;
+            }
 
-            FileSystemResult result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
-            return result.Result == FSResult.Ok;
+            if (!successful)
+            {
+                if (removedPlaceholders != null)
+                {
+                    foreach (IPlaceholderData data in removedPlaceholders)
+                    {
+                        this.placeholderDatabase.AddPlaceholderData(data);
+                    }
+                }
+
+                if (removedModifiedPaths != null)
+                {
+                    foreach (string modifiedPath in removedModifiedPaths)
+                    {
+                        this.modifiedPaths.TryAdd(modifiedPath, isFolder: modifiedPath.EndsWith(GVFSConstants.GitPathSeparatorString), isRetryable: out bool isRetryable);
+                    }
+                }
+            }
+
+            return successful;
         }
 
         public void ForceIndexProjectionUpdate(bool invalidateProjection, bool invalidateModifiedPaths)

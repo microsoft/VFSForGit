@@ -122,7 +122,7 @@ of your enlistment's src folder.
                     return;
                 }
 
-                this.CheckGitStatus(tracer, enlistment);
+                bool cleanStatus = this.CheckGitStatus(tracer, enlistment);
 
                 string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 this.Output.WriteLine();
@@ -133,7 +133,7 @@ of your enlistment's src folder.
                 }
                 else
                 {
-                    this.WriteMessage(tracer, "Starting dehydration. Files for folders specified will be backed up in " + backupRoot);
+                    this.WriteMessage(tracer, "Starting dehydration. Folders specified will be backed up in " + backupRoot);
                 }
 
                 this.WriteMessage(tracer, "WARNING: If you abort the dehydrate after this point, the repo may become corrupt");
@@ -173,7 +173,14 @@ of your enlistment's src folder.
 
                     if (folders.Length > 0)
                     {
-                        this.DehydrateFolders(tracer, enlistment, folders);
+                        if (cleanStatus)
+                        {
+                            this.DehydrateFolders(tracer, enlistment, backupRoot, folders);
+                        }
+                        else
+                        {
+                            this.ReportErrorAndExit("Must have a clean git status to dehydrate folders.");
+                        }
                     }
                     else
                     {
@@ -183,57 +190,82 @@ of your enlistment's src folder.
             }
         }
 
-        private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string[] folders)
+        private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string backupRoot, string[] folders)
         {
             List<string> foldersToDehydrate = new List<string>();
-            foreach (string folder in folders)
+
+            if (!this.ShowStatusWhileRunning(
+                () =>
+                {
+                    string ioError;
+                    foreach (string folder in folders)
+                    {
+                        PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                        string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
+                        string backupPath = Path.Combine(backupRoot, folder);
+                        if (fileSystem.DirectoryExists(fullPath))
+                        {
+                            if (!this.TryIO(tracer, () => fileSystem.CopyDirectoryRecursive(fullPath, backupPath), $"Backing up {folder} to {backupPath}", out ioError) ||
+                                !this.TryIO(tracer, () => fileSystem.DeleteDirectory(fullPath), $"Deleting {fullPath}", out ioError))
+                            {
+                                this.WriteMessage(tracer, $"Backup failed for {folder}. {ioError}");
+                            }
+                            else
+                            {
+                                foldersToDehydrate.Add(folder);
+                            }
+                        }
+                        else
+                        {
+                            this.WriteMessage(tracer, $"{folder} did not exist to dehydrate.");
+                        }
+                    }
+
+                    return true;
+                },
+                "Backing up folders"))
             {
-                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-                string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
-                if (fileSystem.DirectoryExists(fullPath))
-                {
-                    fileSystem.DeleteDirectory(fullPath, recursive: true);
-                    foldersToDehydrate.Add(folder);
-                }
-                else
-                {
-                    this.WriteMessage(tracer, $"{folder} did not exist to dehydrate.");
-                }
+                this.ReportErrorAndExit(tracer, "Dehydrate for folders failed.");
             }
 
             this.Mount(tracer);
 
-            this.SendDehydrateMessage(tracer, enlistment, foldersToDehydrate.ToArray());
+            this.SendDehydrateMessage(tracer, enlistment, backupRoot, foldersToDehydrate.ToArray());
         }
 
-        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, string[] folders)
+        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, string backupRoot, string[] folders)
         {
-            using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
-            {
-                if (!pipeClient.Connect())
-                {
-                    this.ReportErrorAndExit("Unable to connect to GVFS.  Try running 'gvfs mount'");
-                }
+            NamedPipeMessages.DehydrateFolders.Response response = null;
 
-                try
+            try
+            {
+                using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
                 {
+                    if (!pipeClient.Connect())
+                    {
+                        this.ReportErrorAndExit("Unable to connect to GVFS.  Try running 'gvfs mount'");
+                    }
+
                     NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(string.Join(";", folders));
                     pipeClient.SendRequest(request.CreateMessage());
-                    NamedPipeMessages.DehydrateFolders.Response response = NamedPipeMessages.DehydrateFolders.Response.FromMessage(NamedPipeMessages.Message.FromString(pipeClient.ReadRawResponse()));
-
-                    foreach (string folder in response.SuccessfulFolders)
-                    {
-                        this.WriteMessage(tracer, $"{folder} folder successfully dehydrated.");
-                    }
-
-                    foreach (string folder in response.FailedFolders)
-                    {
-                        this.WriteMessage(tracer, $"{folder} folder dehydration failed.");
-                    }
+                    response = NamedPipeMessages.DehydrateFolders.Response.FromMessage(NamedPipeMessages.Message.FromString(pipeClient.ReadRawResponse()));
                 }
-                catch (BrokenPipeException e)
+            }
+            catch (BrokenPipeException e)
+            {
+                this.ReportErrorAndExit("Unable to communicate with GVFS: " + e.ToString());
+            }
+
+            if (response != null)
+            {
+                foreach (string folder in response.SuccessfulFolders)
                 {
-                    this.ReportErrorAndExit("Unable to communicate with GVFS: " + e.ToString());
+                    this.WriteMessage(tracer, $"{folder} folder successfully dehydrated.");
+                }
+
+                foreach (string folder in response.FailedFolders)
+                {
+                    this.WriteMessage(tracer, $"{folder} folder dehydration failed.");
                 }
             }
         }
@@ -263,7 +295,7 @@ of your enlistment's src folder.
             }
         }
 
-        private void CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment)
+        private bool CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment)
         {
             if (!this.NoStatus)
             {
@@ -319,8 +351,15 @@ of your enlistment's src folder.
                     }
 
                     this.ReportErrorAndExit(tracer, "Dehydrate was aborted");
+                    return false;
+                }
+                else
+                {
+                    return true;
                 }
             }
+
+            return false;
         }
 
         private void Unmount(ITracer tracer)

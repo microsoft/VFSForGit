@@ -21,6 +21,7 @@ namespace GVFS.Common.Database
         void AddFile(string path, string sha);
 
         void Remove(string path);
-        void RemoveStartingWith(string path);
+        List<IPlaceholderData> RemoveStartingWith(string path);
+        void AddPlaceholderData(IPlaceholderData data);
     }
 }

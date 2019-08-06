@@ -27,6 +27,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem = new SystemIORunner();
         }
 
+        [TearDown]
+        public void TearDown()
+        {
+            string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
+            if (this.fileSystem.DirectoryExists(backupFolder))
+            {
+                this.fileSystem.DeleteDirectory(backupFolder);
+            }
+        }
+
         [TestCase]
         public void DehydrateShouldExitWithoutConfirm()
         {
