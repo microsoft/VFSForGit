@@ -171,8 +171,8 @@
     <PostBuildEvent>xcopy /Y $(BuildOutputDir)\GVFS.ReadObjectHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
 xcopy /Y $(BuildOutputDir)\GVFS.VirtualFileSystemHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.VirtualFileSystemHook.* $(TargetDir)
 xcopy /Y $(BuildOutputDir)\GVFS.PostIndexChangedHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.PostIndexChangedHook.* $(TargetDir)
-xcopy /Y $(BuildOutputDir)\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.* $(TargetDir)
-xcopy /Y $(BuildOutputDir)\GVFS.CommandHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.CommandHook.* $(TargetDir)</PostBuildEvent>
+xcopy /Y $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)
+xcopy /Y $(BuildOutputDir)\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.* $(TargetDir)</PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>
     <PreBuildEvent>
