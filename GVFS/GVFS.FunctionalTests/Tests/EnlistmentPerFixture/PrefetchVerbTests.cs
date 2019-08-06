@@ -15,7 +15,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class PrefetchVerbTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
-        private const string MultiPackIndexLock = "multi-pack-index.lock";
         private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
 
         private FileSystemRunner fileSystem;
@@ -137,27 +136,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             prefetchCommitsLockFile.ShouldNotExistOnDisk(this.fileSystem);
         }
 
-        [TestCase, Order(11)]
-        [Category(Categories.MacTODO.TestNeedsToLockFile)]  // PostFetchStepShouldComplete waits for a lock file
-        public void PrefetchCleansUpPackDir()
-        {
-            string multiPackIndexLockFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), MultiPackIndexLock);
-            string oldGitTempFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), "tmp_midx_XXXX");
-            string oldKeepFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), "prefetch-00000000-HASH.keep");
-
-            this.fileSystem.WriteAllText(multiPackIndexLockFile, this.Enlistment.EnlistmentRoot);
-            this.fileSystem.WriteAllText(oldGitTempFile, this.Enlistment.EnlistmentRoot);
-            this.fileSystem.WriteAllText(oldKeepFile, this.Enlistment.EnlistmentRoot);
-
-            this.Enlistment.Prefetch("--commits");
-            this.Enlistment.PostFetchStep();
-            oldGitTempFile.ShouldNotExistOnDisk(this.fileSystem);
-            oldKeepFile.ShouldNotExistOnDisk(this.fileSystem);
-
-            this.PostFetchStepShouldComplete();
-            multiPackIndexLockFile.ShouldNotExistOnDisk(this.fileSystem);
-        }
-
         [TestCase, Order(12)]
         public void PrefetchFilesFromFileListFile()
         {
@@ -235,9 +213,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 Thread.Sleep(500);
             }
             while (this.fileSystem.FileExists(objectCacheLock));
-
-            ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "multi-pack-index verify --object-dir=\"" + objectDir + "\"");
-            midxResult.ExitCode.ShouldEqual(0);
 
             // A commit graph is not always generated, but if it is, then we want to ensure it is in a good state
             if (this.fileSystem.FileExists(Path.Combine(objectDir, "info", "commit-graphs", "commit-graph-chain")))

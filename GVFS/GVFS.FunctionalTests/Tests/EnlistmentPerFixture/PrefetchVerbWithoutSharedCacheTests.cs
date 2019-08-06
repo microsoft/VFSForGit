@@ -71,12 +71,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteFile(idxPath);
             idxPath.ShouldNotExistOnDisk(this.fileSystem);
 
-            // Remove midx that contains references to the pack
-            string midxPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack", "multi-pack-index");
-            File.SetAttributes(midxPath, FileAttributes.Normal);
-            this.fileSystem.DeleteFile(midxPath);
-            midxPath.ShouldNotExistOnDisk(this.fileSystem);
-
             // Prefetch should rebuild the missing idx
             this.Enlistment.Prefetch("--commits");
             this.PostFetchJobShouldComplete();
@@ -296,13 +290,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(9)]
         public void PrefetchCleansUpOphanedLockFiles()
         {
-            // Multi-pack-index write happens even if the prefetch downloads nothing, while
             // the commit-graph write happens only when the prefetch downloads at least one pack
 
             string graphPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "info", "commit-graphs", "commit-graph-chain");
             string graphLockPath = graphPath + ".lock";
-            string midxPath = Path.Combine(this.PackRoot, "multi-pack-index");
-            string midxLockPath = midxPath + ".lock";
 
             this.fileSystem.CreateEmptyFile(graphLockPath);
 
@@ -312,7 +303,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // Force deleting the prefetch packs to make the prefetch non-trivial.
             this.fileSystem.DeleteDirectory(this.PackRoot);
             this.fileSystem.CreateDirectory(this.PackRoot);
-            this.fileSystem.CreateEmptyFile(midxLockPath);
 
             // Re-mount so the post-fetch job runs
             this.Enlistment.MountGVFS();
@@ -321,9 +311,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.PostFetchJobShouldComplete();
 
             this.fileSystem.FileExists(graphLockPath).ShouldBeFalse(nameof(graphLockPath));
-            this.fileSystem.FileExists(midxLockPath).ShouldBeFalse(nameof(midxLockPath));
             this.fileSystem.FileExists(graphPath).ShouldBeTrue(nameof(graphPath));
-            this.fileSystem.FileExists(midxPath).ShouldBeTrue(nameof(midxPath));
         }
 
         private void PackShouldHaveIdxFile(string pathPath)
@@ -405,9 +393,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 Thread.Sleep(500);
             }
-
-            ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "multi-pack-index verify --object-dir=\"" + objectDir + "\"");
-            midxResult.ExitCode.ShouldEqual(0);
 
             ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph verify --shallow --object-dir=\"" + objectDir + "\"");
             graphResult.ExitCode.ShouldEqual(0);
