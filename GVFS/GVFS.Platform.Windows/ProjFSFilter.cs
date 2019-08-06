@@ -466,6 +466,11 @@ namespace GVFS.Platform.Windows
                 TryAttach(enlistmentRoot, out error);
         }
 
+        public bool RegisterForOfflineIO()
+        {
+            return true;
+        }
+
         private static bool IsInboxAndEnabled()
         {
             ProcessResult getOptionalFeatureResult = GetProjFSOptionalFeatureStatus();

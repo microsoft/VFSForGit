@@ -179,14 +179,15 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     {
         if (0 != sendError)
         {
-            // TODO: appropriately handle unresponsive providers
-            *kauthResult = KAUTH_RESULT_DEFER;
+            // If message delivery fails, block the operation to avoid missed messages in the provider.
+            *kauthResult = KAUTH_RESULT_DENY;
         }
         else
         {
             while (!message.receivedResult &&
                    !s_isShuttingDown)
             {
+                // TODO: appropriately handle unresponsive providers
                 Mutex_Sleep(5, &message, &s_outstandingMessagesMutex);
             }
         

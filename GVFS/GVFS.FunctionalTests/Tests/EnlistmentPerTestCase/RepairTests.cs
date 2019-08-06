@@ -4,6 +4,7 @@ using NUnit.Framework;
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
@@ -12,6 +13,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
     [Category(Categories.ExtraCoverage)]
     public class RepairTests : TestsWithEnlistmentPerTestCase
     {
+        private const string PrjFSLibPath = "libPrjFSLib.dylib";
+
+        [OneTimeSetUp]
+        public void TurnOfflineIOOn()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                 RegisterForOfflineIO();
+            }
+        }
+
+        [OneTimeTearDown]
+        public void TurnOfflineIOOff()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                UnregisterForOfflineIO();
+            }
+        }
+
         [TestCase]
         public void NoFixesNeeded()
         {
@@ -153,6 +174,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             result.ExitCode.ShouldEqual(0, result.Errors);
             this.Enlistment.MountGVFS();
         }
+
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_RegisterForOfflineIO")]
+        private static extern uint RegisterForOfflineIO();
+
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_UnregisterForOfflineIO")]
+        private static extern uint UnregisterForOfflineIO();
 
         private void CreateCorruptIndexAndRename(string indexPath, Action<FileStream, FileStream> corruptionAction)
         {

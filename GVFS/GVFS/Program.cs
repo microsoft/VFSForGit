@@ -13,6 +13,7 @@ namespace GVFS
         public static void Main(string[] args)
         {
             GVFSPlatformLoader.Initialize();
+            GVFSPlatform.Instance.KernelDriver.RegisterForOfflineIO();
 
             Type[] verbTypes = new Type[]
             {
