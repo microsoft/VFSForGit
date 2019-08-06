@@ -193,10 +193,8 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug.Mac|x64 = Debug.Mac|x64
 		Debug.Windows|x64 = Debug.Windows|x64
-		Debug|x64 = Debug|x64
 		Release.Mac|x64 = Release.Mac|x64
 		Release.Windows|x64 = Release.Windows|x64
-		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{1118B427-7063-422F-83B9-5023C8EC5A7A}.Debug.Mac|x64.ActiveCfg = Debug|x64
