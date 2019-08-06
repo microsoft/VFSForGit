@@ -730,7 +730,7 @@ KEXT_STATIC int HandleVnodeOperation(
                 root,
                 isDirectory ?
                 MessageType_KtoU_NotifyDirectoryPreDelete :
-                isRename ? MessageType_KtoU_NotifyFilePreDeleteFromRename : MessageType_KtoU_NotifyFilePreDelete,
+                (isRename && s_osSupportsRenameDetection) ? MessageType_KtoU_NotifyFilePreDeleteFromRename : MessageType_KtoU_NotifyFilePreDelete,
                 currentVnode,
                 vnodeFsidInode,
                 nullptr, // path not needed, use fsid/inode
