@@ -1287,15 +1287,14 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
 
     kauth_action_t actions[] =
     {
-        // TODO(Mac): Also deny read access to empty files. (#182)
-//        KAUTH_VNODE_READ_ATTRIBUTES,
         KAUTH_VNODE_WRITE_ATTRIBUTES,
-//        KAUTH_VNODE_READ_EXTATTRIBUTES,
         KAUTH_VNODE_WRITE_EXTATTRIBUTES,
-//        KAUTH_VNODE_READ_DATA,
         KAUTH_VNODE_WRITE_DATA,
-//        KAUTH_VNODE_EXECUTE,
         KAUTH_VNODE_APPEND_DATA,
+        KAUTH_VNODE_READ_DATA,
+        KAUTH_VNODE_READ_ATTRIBUTES,
+        KAUTH_VNODE_EXECUTE,
+        KAUTH_VNODE_READ_EXTATTRIBUTES,
     };
     const size_t actionCount = extent<decltype(actions)>::value;
     
