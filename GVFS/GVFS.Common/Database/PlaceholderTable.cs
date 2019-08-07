@@ -10,6 +10,7 @@ namespace GVFS.Common.Database
     public class PlaceholderTable : IPlaceholderCollection
     {
         private IGVFSConnectionPool connectionPool;
+        private object writerLock = new object();
 
         public PlaceholderTable(IGVFSConnectionPool connectionPool)
         {
@@ -166,7 +167,11 @@ namespace GVFS.Common.Database
                 {
                     command.CommandText = "DELETE FROM Placeholder WHERE path = @path;";
                     command.AddParameter("@path", DbType.String, path);
-                    command.ExecuteNonQuery();
+
+                    lock (this.writerLock)
+                    {
+                        command.ExecuteNonQuery();
+                    }
                 }
             }
             catch (Exception ex)
@@ -229,7 +234,10 @@ namespace GVFS.Common.Database
                         command.AddParameter("@sha", DbType.String, placeholder.Sha);
                     }
 
-                    command.ExecuteNonQuery();
+                    lock (this.writerLock)
+                    {
+                        command.ExecuteNonQuery();
+                    }
                 }
             }
             catch (Exception ex)
