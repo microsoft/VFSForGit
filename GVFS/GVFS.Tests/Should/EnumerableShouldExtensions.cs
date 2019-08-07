@@ -114,6 +114,11 @@ namespace GVFS.Tests.Should
                 errorMessage.AppendLine(string.Format("Missing: {0}", groupMissingItem));
             }
 
+            if (!Enumerable.SequenceEqual(group, expectedValues, comparer))
+            {
+                errorMessage.AppendLine(string.Format("Items are not in the same order: '{0}' vs. '{1}'", string.Join(",", group), string.Join(",", expectedValues)));
+            }
+
             if (errorMessage.Length > 0)
             {
                 Assert.Fail("{0}\r\n{1}", message, errorMessage);

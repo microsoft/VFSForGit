@@ -4,8 +4,10 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -31,7 +33,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsDehydrate)]  // Dehydrate is not successful
         public void DehydrateShouldSucceedInCommonCase()
         {
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: false);
@@ -46,16 +47,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsDehydrate)]  // Call CmdRunner which is windows specific
         public void DehydrateShouldSucceedEvenIfObjectCacheIsDeleted()
         {
             this.Enlistment.UnmountGVFS();
-            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.Enlistment.GetObjectRoot(this.fileSystem));
+            RepositoryHelpers.DeleteTestDirectory(this.Enlistment.GetObjectRoot(this.fileSystem));
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: true);
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsDehydrate)]  // .git / .gvfs are not copied to backup folder on Mac
         public void DehydrateShouldBackupFiles()
         {
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: false);
@@ -130,7 +129,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsDehydrate)]  // Error messages on mac are different, DehydrateShouldFail fails on message checking
         public void DehydrateShouldFailOnWrongDiskLayoutVersion()
         {
             this.Enlistment.UnmountGVFS();
@@ -157,12 +155,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void DirectoryShouldContain(string directory, params string[] fileOrFolders)
         {
-            string[] folderItems = this.fileSystem.EnumerateDirectory(directory).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            folderItems.Length.ShouldEqual(fileOrFolders.Length);
-            for (int i = 0; i < fileOrFolders.Length; i++)
-            {
-                Path.GetFileName(folderItems[i]).ShouldEqual(fileOrFolders[i]);
-            }
+            IEnumerable<string> onDiskItems =
+                this.fileSystem.EnumerateDirectory(directory)
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(path => Path.GetFileName(path))
+                .OrderByDescending(x => x);
+
+            onDiskItems.ShouldMatchInOrder(fileOrFolders.OrderByDescending(x => x));
         }
 
         private void DehydrateShouldSucceed(string expectedOutput, bool confirm, bool noStatus)
