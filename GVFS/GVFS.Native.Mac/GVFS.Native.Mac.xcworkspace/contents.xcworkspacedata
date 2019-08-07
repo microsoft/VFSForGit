@@ -2,12 +2,15 @@
 <Workspace
    version = "1.0">
    <FileRef
+      location = "group:../GVFS.Hooks/GVFS.Hooks.xcodeproj">
+   </FileRef>
+   <FileRef
       location = "container:../GVFS.VirtualFileSystemHook/GVFS.VirtualFileSystemHook.Mac.xcodeproj">
    </FileRef>
-  <FileRef
-     location = "container:../GVFS.PostIndexChangedHook/GVFS.PostIndexChangedHook.Mac.xcodeproj">
-  </FileRef>
-  <FileRef
+   <FileRef
+      location = "container:../GVFS.PostIndexChangedHook/GVFS.PostIndexChangedHook.Mac.xcodeproj">
+   </FileRef>
+   <FileRef
       location = "container:../GVFS.ReadObjectHook/GVFS.ReadObjectHook.Mac.xcodeproj">
    </FileRef>
 </Workspace>

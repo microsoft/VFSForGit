@@ -48,6 +48,20 @@
                ReferencedContainer = "container:../GVFS.PostIndexChangedHook/GVFS.PostIndexChangedHook.Mac.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "26D6F29E22FB922200CB11E4"
+               BuildableName = "GVFS.Hooks"
+               BlueprintName = "GVFS.Hooks"
+               ReferencedContainer = "container:../GVFS.Hooks/GVFS.Hooks.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
