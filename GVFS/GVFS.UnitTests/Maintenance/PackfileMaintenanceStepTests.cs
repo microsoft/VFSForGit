@@ -39,11 +39,12 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(4);
-            commands[0].ShouldEqual(this.ExpireCommand);
-            commands[1].ShouldEqual(this.VerifyCommand);
-            commands[2].ShouldEqual(this.RepackCommand);
-            commands[3].ShouldEqual(this.VerifyCommand);
+            commands.Count.ShouldEqual(5);
+            commands[0].ShouldEqual(this.WriteCommand);
+            commands[1].ShouldEqual(this.ExpireCommand);
+            commands[2].ShouldEqual(this.VerifyCommand);
+            commands[3].ShouldEqual(this.RepackCommand);
+            commands[4].ShouldEqual(this.VerifyCommand);
         }
 
         [TestCase]
@@ -82,11 +83,12 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(4);
-            commands[0].ShouldEqual(this.ExpireCommand);
-            commands[1].ShouldEqual(this.VerifyCommand);
-            commands[2].ShouldEqual(this.RepackCommand);
-            commands[3].ShouldEqual(this.VerifyCommand);
+            commands.Count.ShouldEqual(5);
+            commands[0].ShouldEqual(this.WriteCommand);
+            commands[1].ShouldEqual(this.ExpireCommand);
+            commands[2].ShouldEqual(this.VerifyCommand);
+            commands[3].ShouldEqual(this.RepackCommand);
+            commands[4].ShouldEqual(this.VerifyCommand);
         }
 
         [TestCase]
@@ -130,13 +132,14 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(2);
 
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(6);
-            commands[0].ShouldEqual(this.ExpireCommand);
-            commands[1].ShouldEqual(this.VerifyCommand);
-            commands[2].ShouldEqual(this.WriteCommand);
-            commands[3].ShouldEqual(this.RepackCommand);
-            commands[4].ShouldEqual(this.VerifyCommand);
-            commands[5].ShouldEqual(this.WriteCommand);
+            commands.Count.ShouldEqual(7);
+            commands[0].ShouldEqual(this.WriteCommand);
+            commands[1].ShouldEqual(this.ExpireCommand);
+            commands[2].ShouldEqual(this.VerifyCommand);
+            commands[3].ShouldEqual(this.WriteCommand);
+            commands[4].ShouldEqual(this.RepackCommand);
+            commands[5].ShouldEqual(this.VerifyCommand);
+            commands[6].ShouldEqual(this.WriteCommand);
         }
 
         [TestCase]
@@ -224,6 +227,9 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer = new MockTracer();
             this.context = new GVFSContext(this.tracer, fileSystem, repository, enlistment);
 
+            this.gitProcess.SetExpectedCommandResult(
+                this.WriteCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
             this.gitProcess.SetExpectedCommandResult(
                 this.ExpireCommand,
                 () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));

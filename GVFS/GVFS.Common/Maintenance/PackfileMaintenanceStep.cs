@@ -28,6 +28,7 @@ namespace GVFS.Common.Maintenance
     {
         public const string PackfileLastRunFileName = "pack-maintenance.time";
         public const string DefaultBatchSize = "2g";
+        private const string MultiPackIndexLock = "multi-pack-index.lock";
         private readonly bool forceRun;
         private readonly string batchSize;
 
@@ -114,6 +115,11 @@ namespace GVFS.Common.Maintenance
                     activity.RelatedWarning(this.CreateEventMetadata(), "Skipping pack maintenance due to no .keep file.");
                     return;
                 }
+
+                string multiPackIndexLockPath = Path.Combine(this.Context.Enlistment.GitPackRoot, MultiPackIndexLock);
+                this.Context.FileSystem.TryDeleteFile(multiPackIndexLockPath);
+
+                this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.WriteMultiPackIndex));
 
                 // If a LibGit2Repo is active, then it may hold handles to the .idx and .pack files we want
                 // to delete during the 'git multi-pack-index expire' step. If one starts during the step,
