@@ -78,6 +78,13 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             return this.RunProcess(string.Format("-Command \"& {{ Move-Item {0} {1} -force }}\"", sourcePath, targetPath));
         }
 
+        public override void ReplaceFile_AccessShouldBeDenied(string sourcePath, string targetPath)
+        {
+            this.ReplaceFile(sourcePath, targetPath).ShouldContain(permissionDeniedMessage);
+            this.FileExists(sourcePath).ShouldBeTrue($"{sourcePath} does not exist when it should");
+            this.FileExists(targetPath).ShouldBeFalse($"{targetPath} exists when it should not");
+        }
+
         public override string DeleteFile(string path)
         {
             return this.RunProcess(string.Format("-Command \"& {{ Remove-Item {0} }}\"", path));

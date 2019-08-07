@@ -140,6 +140,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             return this.RunProcess(string.Format("-c \"mv -f '{0}' '{1}'\"", sourceBashPath, targetBashPath));
         }
 
+        public override void ReplaceFile_AccessShouldBeDenied(string sourcePath, string targetPath)
+        {
+            // bash does not report any error messages when access is denied, so just confirm the file still exists
+            this.ReplaceFile(sourcePath, targetPath);
+            this.FileExists(sourcePath).ShouldBeTrue($"{sourcePath} does not exist when it should");
+            this.FileExists(targetPath).ShouldBeFalse($"{targetPath} exists when it should not");
+        }
+
         public override string DeleteFile(string path)
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
