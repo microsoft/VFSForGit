@@ -93,6 +93,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             return this.RunProcess(string.Format("/C move /Y \"{0}\" \"{1}\"", sourcePath, targetPath));
         }
 
+        public override void ReplaceFile_AccessShouldBeDenied(string sourcePath, string targetPath)
+        {
+            // CMD does not report any error messages when access is denied, so just confirm the file still exists
+            this.ReplaceFile(sourcePath, targetPath);
+            this.FileExists(sourcePath).ShouldEqual(true);
+            this.FileExists(targetPath).ShouldEqual(false);
+        }
+
         public override string DeleteFile(string path)
         {
             return this.RunProcess(string.Format("/C del \"{0}\"", path));

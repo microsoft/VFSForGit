@@ -819,6 +819,21 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             indexFilePath.ShouldBeAFile(fileSystem);
         }
 
+        // On some platforms, a pre-rename event may be delivered prior to a
+        // file rename rather than a pre-delete event, so we check this
+        // separately from the DeleteIndexFileFails() test case
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        public void MoveIndexFileFails(FileSystemRunner fileSystem)
+        {
+            string indexFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index"));
+            string indexTargetFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index_target"));
+            indexFilePath.ShouldBeAFile(fileSystem);
+            indexTargetFilePath.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.ReplaceFile_AccessShouldBeDenied(indexFilePath, indexTargetFilePath);
+            indexFilePath.ShouldBeAFile(fileSystem);
+            indexTargetFilePath.ShouldNotExistOnDisk(fileSystem);
+        }
+
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Runners))]
         public void MoveVirtualNTFSFolderIntoInvalidFolder(FileSystemRunner fileSystem, string parentFolder)
         {
