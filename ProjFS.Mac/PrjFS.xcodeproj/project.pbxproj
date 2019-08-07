@@ -310,6 +310,7 @@
 		4A82C45B228086F800276002 /* MessageTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MessageTests.mm; sourceTree = "<group>"; };
 		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTests.exp; sourceTree = "<group>"; };
+		4AA7063422FAF34200899607 /* KextSelfDiagnostics.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = KextSelfDiagnostics.md; sourceTree = "<group>"; };
 		4AAE3FC922832340002673FA /* HandleFileOpOperationTests.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = HandleFileOpOperationTests.mm; sourceTree = "<group>"; };
 		D9C087F122384670009C1110 /* MemoryTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MemoryTests.mm; sourceTree = "<group>"; };
 		F5151F7F226F9083004B92C9 /* ProviderMessagingMock.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ProviderMessagingMock.hpp; sourceTree = "<group>"; };
@@ -416,6 +417,7 @@
 		4391F87521E4278C0008103C = {
 			isa = PBXGroup;
 			children = (
+				4AA7063422FAF34200899607 /* KextSelfDiagnostics.md */,
 				26BBD24B22E282EA007273D9 /* PrjFSConfig.xcconfig */,
 				4391F8C221E4306D0008103C /* PrjFSLib */,
 				4391F88D21E42AA70008103C /* PrjFSKext */,
