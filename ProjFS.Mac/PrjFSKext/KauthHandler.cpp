@@ -561,6 +561,24 @@ KEXT_STATIC int HandleVnodeOperation(
                 }
             }
         }
+        else if (ActionBitIsSet(action, KAUTH_VNODE_ADD_FILE | KAUTH_VNODE_ADD_SUBDIRECTORY))
+        {
+            if (!TryGetVirtualizationRoot(
+                    &perfTracer,
+                    context,
+                    currentVnode,
+                    pid,
+                    CallbackPolicy_AllowAny,
+                    // Block creating new files in offline roots.
+                    true,
+                    &root,
+                    &vnodeFsidInode,
+                    &kauthResult,
+                    kauthError))
+            {
+                goto CleanupAndReturn;
+            }
+        }
     }
     else
     {

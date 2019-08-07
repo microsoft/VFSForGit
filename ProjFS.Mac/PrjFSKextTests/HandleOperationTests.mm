@@ -1327,6 +1327,40 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     }
 }
 
+- (void) testOfflineRootDeniesFileAndDirectoryCreation
+{
+    self->testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(self->testDirVnode);
+
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+
+    kauth_action_t actions[] =
+    {
+        KAUTH_VNODE_ADD_SUBDIRECTORY,
+        KAUTH_VNODE_ADD_FILE
+    };
+    const size_t actionCount = extent<decltype(actions)>::value;
+    
+    for (size_t i = 0; i < actionCount; i++)
+    {
+        XCTAssertEqual(
+            KAUTH_RESULT_DENY,
+            HandleVnodeOperation(
+                nullptr,
+                nullptr,
+                actions[i],
+                reinterpret_cast<uintptr_t>(self->context),
+                reinterpret_cast<uintptr_t>(self->testDirVnode.get()),
+                0,
+                0));
+        XCTAssertFalse(
+            MockCalls::DidCallFunction(
+                ProviderMessaging_TrySendRequestAndWaitForResponse));
+        MockCalls::Clear();
+    }
+}
+
+
 - (void) testOfflineRootDeniesRename
 {
     // Where we can detect renames (Mojave and newer), file/directory renames
