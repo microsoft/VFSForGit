@@ -1501,22 +1501,37 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
         return "";
     }
     
-    size_t rootLength = strlen(root);
-    size_t pathLength = strlen(fullPath);
-    if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
+    const char removePart[] = "/System/Volumes/Data/";
+    const int removePartLength = sizeof(removePart) - 1;
+    const char* realFullPath;
+    if (strncmp(fullPath, removePart, removePartLength) == 0
+        && strncmp(root, removePart, removePartLength) != 0)
     {
-        LogError("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
+        // If fullPath contains "/System/Volumes/Data/", but the root does not remove it for comparison
+        // "/System/Volumes/Data/Users/account" is effectively "/Users/account" and should be compared as such
+		realFullPath = fullPath + removePartLength - 1;
+    }
+    else
+    {
+		realFullPath = fullPath;
+    }
+
+    size_t rootLength = strlen(root);
+    size_t pathLength = strlen(realFullPath);
+    if (pathLength < rootLength || 0 != memcmp(realFullPath, root, rootLength))
+    {
+        LogError("GetRelativePath: root path '%s' is not a prefix of path:'%s' originalPath:'%s'\n", root, realFullPath, fullPath);
         return nullptr;
     }
     
-    const char* relativePath = fullPath + rootLength;
+    const char* relativePath = realFullPath + rootLength;
     if (relativePath[0] == '/')
     {
         relativePath++;
     }
     else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
     {
-        LogError("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
+        LogError("GetRelativePath: root path '%s' is not a parent directory of path:'%s' originalPath:%s (just a string prefix)\n", root, realFullPath, fullPath);
         return nullptr;
     }
     
