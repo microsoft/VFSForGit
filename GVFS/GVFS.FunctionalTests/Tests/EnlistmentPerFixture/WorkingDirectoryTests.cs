@@ -434,19 +434,20 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             Path.Combine(folder, "MoveUnhydratedFileToDotGitFolder", "Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
         }
 
+        // Case-insensitive filesystems only
         [TestCase, Order(15)]
-        public void FilterNonUTF8FileName()
+        [Category(Categories.CaseInsensitiveFileSystemOnly)]
+        public void FilterNonUTF8FileNameOnCaseInsensitiveFileSystem()
         {
-            string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
-            string folderVirtualPath = this.Enlistment.GetVirtualPathTo("FilenameEncoding");
+            this.FilterNonUTF8FileName(false);
+        }
 
-            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, null);
-            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt");
-            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك*");
-            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبر*.TXT");
-
-            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("test*");
-            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("ريلٌأكتوب.TXT");
+        // Case-sensitive filesystems only
+        [TestCase, Order(15)]
+        [Category(Categories.CaseSensitiveFileSystemOnly)]
+        public void FilterNonUTF8FileNameOnCaseSensitiveFileSystem()
+        {
+            this.FilterNonUTF8FileName(true);
         }
 
         [TestCase, Order(16)]
@@ -582,23 +583,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             fileSize.ShouldEqual(536);
         }
 
-        private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)
-        {
-            IEnumerable<FileSystemInfo> folderEntries;
-            if (string.IsNullOrEmpty(searchPatten))
-            {
-                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems();
-            }
-            else
-            {
-                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems(searchPatten);
-            }
-
-            folderEntries.Count().ShouldEqual(1);
-            FileSystemInfo singleEntry = folderEntries.First();
-            singleEntry.Name.ShouldEqual(expectedEntryName, $"Actual name: {singleEntry.Name} does not equal expected name {expectedEntryName}");
-        }
-
         private void EnumerateAndReadShouldNotChangeEnumerationOrder(string folderRelativePath)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -703,6 +687,39 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             string testFolderName = caseSensitiveFileSystem ? "GVFLT_MultiThreadTest" : folderName;
             this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForReadsSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
             this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForWritesSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
+        }
+
+        private void FilterNonUTF8FileName(bool caseSensitiveFileSystem)
+        {
+            string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
+            string folderVirtualPath = this.Enlistment.GetVirtualPathTo("FilenameEncoding");
+
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, null);
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt");
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك*");
+            string testEntryExt = caseSensitiveFileSystem ? "txt" : "TXT";
+            string testEntryName = "ريلٌأكتوبر*." + testEntryExt;
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, testEntryName);
+
+            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("test*");
+            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("ريلٌأكتوب.TXT");
+        }
+
+        private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)
+        {
+            IEnumerable<FileSystemInfo> folderEntries;
+            if (string.IsNullOrEmpty(searchPatten))
+            {
+                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems();
+            }
+            else
+            {
+                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems(searchPatten);
+            }
+
+            folderEntries.Count().ShouldEqual(1);
+            FileSystemInfo singleEntry = folderEntries.First();
+            singleEntry.Name.ShouldEqual(expectedEntryName, $"Actual name: {singleEntry.Name} does not equal expected name {expectedEntryName}");
         }
 
         private class NativeTests
