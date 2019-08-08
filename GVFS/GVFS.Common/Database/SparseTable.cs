@@ -8,6 +8,7 @@ namespace GVFS.Common.Database
     public class SparseTable : ISparseCollection
     {
         private IGVFSConnectionPool connectionPool;
+        private object writerLock = new object();
 
         public SparseTable(IGVFSConnectionPool connectionPool)
         {
@@ -37,7 +38,11 @@ namespace GVFS.Common.Database
                 {
                     command.CommandText = "INSERT OR REPLACE INTO Sparse (path) VALUES (@path);";
                     command.AddParameter("@path", DbType.String, NormalizePath(directoryPath));
-                    command.ExecuteNonQuery();
+
+                    lock (this.writerLock)
+                    {
+                        command.ExecuteNonQuery();
+                    }
                 }
             }
             catch (Exception ex)
@@ -81,7 +86,11 @@ namespace GVFS.Common.Database
                 {
                     command.CommandText = "DELETE FROM Sparse WHERE path = @path;";
                     command.AddParameter("@path", DbType.String, NormalizePath(directoryPath));
-                    command.ExecuteNonQuery();
+
+                    lock (this.writerLock)
+                    {
+                        command.ExecuteNonQuery();
+                    }
                 }
             }
             catch (Exception ex)
