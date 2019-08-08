@@ -25,12 +25,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
-                totalFiles: 1211,
-                totalFilePercent: 100,
+                totalFiles: 873,
+                totalFolders: 338,
+                totalItems: 1211,
+                totalItemPercent: 100,
                 fastFiles: 1,
-                fastFilePercent: 0,
+                fastFolders: 0,
+                fastItems: 1,
+                fastItemPercent: 0,
                 slowFiles: 1,
-                slowFilePercent: 0,
+                slowFolders: 0,
+                slowItems: 1,
+                slowItemPercent: 0,
                 totalPercent: 0,
                 topHydratedDirectories: topHydratedDirectories,
                 directoryHydrationLevels: directoryHydrationLevels,
@@ -53,12 +59,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
-                totalFiles: 1211,
-                totalFilePercent: 100,
-                fastFiles: 7,
-                fastFilePercent: 1,
+                totalFiles: 873,
+                totalFolders: 338,
+                totalItems: 1211,
+                totalItemPercent: 100,
+                fastFiles: 6,
+                fastFolders: 1,
+                fastItems: 7,
+                fastItemPercent: 1,
                 slowFiles: 1,
-                slowFilePercent: 0,
+                slowFolders: 0,
+                slowItems: 1,
+                slowItemPercent: 0,
                 totalPercent:1,
                 topHydratedDirectories: topHydratedDirectories,
                 directoryHydrationLevels: directoryHydrationLevels,
@@ -78,12 +90,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
-                totalFiles: 1211,
-                totalFilePercent: 100,
-                fastFiles: 8,
-                fastFilePercent: 1,
+                totalFiles: 873,
+                totalFolders: 338,
+                totalItems: 1211,
+                totalItemPercent: 100,
+                fastFiles: 6,
+                fastFolders: 2,
+                fastItems: 8,
+                fastItemPercent: 1,
                 slowFiles: 3,
-                slowFilePercent: 0,
+                slowFolders: 0,
+                slowItems: 3,
+                slowItemPercent: 0,
                 totalPercent: 1,
                 topHydratedDirectories: topHydratedDirectories,
                 directoryHydrationLevels: directoryHydrationLevels,
@@ -105,12 +123,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
-                totalFiles: 1211,
-                totalFilePercent: 100,
-                fastFiles: 3,
-                fastFilePercent: 0,
+                totalFiles: 873,
+                totalFolders: 338,
+                totalItems: 1211,
+                totalItemPercent: 100,
+                fastFiles: 1,
+                fastFolders: 2,
+                fastItems: 3,
+                fastItemPercent: 0,
                 slowFiles: 8,
-                slowFilePercent: 1,
+                slowFolders: 0,
+                slowItems: 8,
+                slowItemPercent: 1,
                 totalPercent: 1,
                 topHydratedDirectories: topHydratedDirectories,
                 directoryHydrationLevels: directoryHydrationLevels,
@@ -126,11 +150,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateHealthOutputValues(
                 directory: "Scripts/",
                 totalFiles: 5,
-                totalFilePercent: 100,
+                totalFolders: 0,
+                totalItems: 5,
+                totalItemPercent: 100,
                 fastFiles: 0,
-                fastFilePercent: 0,
+                fastFolders: 0,
+                fastItems: 0,
+                fastItemPercent: 0,
                 slowFiles: 5,
-                slowFilePercent: 100,
+                slowFolders: 0,
+                slowItems: 5,
+                slowItemPercent: 100,
                 totalPercent: 100,
                 topHydratedDirectories: topHydratedDirectories,
                 directoryHydrationLevels: directoryHydrationLevels,
@@ -150,11 +180,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void ValidateHealthOutputValues(
             string directory,
             int totalFiles,
-            int totalFilePercent,
+            int totalFolders,
+            int totalItems,
+            int totalItemPercent,
             int fastFiles,
-            int fastFilePercent,
+            int fastFolders,
+            int fastItems,
+            int fastItemPercent,
             int slowFiles,
-            int slowFilePercent,
+            int slowFolders,
+            int slowItems,
+            int slowItemPercent,
             int totalPercent,
             List<string> topHydratedDirectories,
             List<int> directoryHydrationLevels,
@@ -165,62 +201,74 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             int numberOfExpectedSubdirectories = topHydratedDirectories.Count;
 
             this.ValidateTargetDirectory(healthOutputLines[1], directory);
-            this.ValidateTotalFileInfo(healthOutputLines[2], totalFiles, totalFilePercent);
-            this.ValidateFastFileInfo(healthOutputLines[3], fastFiles, fastFilePercent);
-            this.ValidateSlowFileInfo(healthOutputLines[4], slowFiles, slowFilePercent);
-            this.ValidateTotalHydration(healthOutputLines[5], totalPercent);
-            this.ValidateSubDirectoryHealth(healthOutputLines.GetRange(7, numberOfExpectedSubdirectories), topHydratedDirectories, directoryHydrationLevels);
-            this.ValidateEnlistmentStatus(healthOutputLines[7 + numberOfExpectedSubdirectories], enlistmentHealthStatus);
+            this.ValidateTotalFileInfo(healthOutputLines[3], totalFiles, totalFolders, totalItems, totalItemPercent);
+            this.ValidateFastFileInfo(healthOutputLines[4], fastFiles, fastFolders, fastItems, fastItemPercent);
+            this.ValidateSlowFileInfo(healthOutputLines[5], slowFiles, slowFolders, slowItems, slowItemPercent);
+            this.ValidateTotalHydration(healthOutputLines[6], totalPercent);
+            this.ValidateSubDirectoryHealth(healthOutputLines.GetRange(8, numberOfExpectedSubdirectories), topHydratedDirectories, directoryHydrationLevels);
+            this.ValidateEnlistmentStatus(healthOutputLines[8 + numberOfExpectedSubdirectories], enlistmentHealthStatus);
         }
 
         private void ValidateTargetDirectory(string outputLine, string targetDirectory)
         {
             // Regex to extract the target directory
             // "Health of directory: <directory>"
-            Match lineMatch = Regex.Match(outputLine, @"^Health of directory:\s*(.*)$");
+            Match lineMatch = Regex.Match(outputLine, @"^Health of directory:\s*(\S.*\S)\s*$");
 
             string outputtedTargetDirectory = lineMatch.Groups[1].Value;
 
             outputtedTargetDirectory.ShouldEqual(targetDirectory);
         }
 
-        private void ValidateTotalFileInfo(string outputLine, int totalFiles, int totalFilePercent)
+        private void ValidateTotalFileInfo(string outputLine, int totalFiles, int totalFolders, int totalItems, int totalItemPercent)
         {
             // Regex to extract the total number of files and percentage they represent (should always be 100)
             // "Total files in HEAD commit:           <count> | <percentage>%"
-            Match lineMatch = Regex.Match(outputLine, @"^Total files in HEAD commit:\s*([\d,]+)\s*\|\s*(\d+)%$");
+            Match lineMatch = Regex.Match(outputLine, @"^Total files in HEAD commit:\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*(\d+)%$");
 
             int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedTotalFiles).ShouldBeTrue();
-            int.TryParse(lineMatch.Groups[2].Value, out int outputtedTotalFilePercent).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[2].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedTotalFolders).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[3].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedTotalItems).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[4].Value, out int outputtedTotalItemPercent).ShouldBeTrue();
 
             outputtedTotalFiles.ShouldEqual(totalFiles);
-            outputtedTotalFilePercent.ShouldEqual(totalFilePercent);
+            outputtedTotalFolders.ShouldEqual(totalFolders);
+            outputtedTotalItems.ShouldEqual(totalItems);
+            outputtedTotalItemPercent.ShouldEqual(totalItemPercent);
         }
 
-        private void ValidateFastFileInfo(string outputLine, int fastFiles, int fastFilesPercent)
+        private void ValidateFastFileInfo(string outputLine, int fastFiles, int fastFolders, int fastItems, int fastItemPercent)
         {
             // Regex to extract the total number of fast files and percentage they represent
             // "Files managed by VFS for Git (fast):    <count> | <percentage>%"
-            Match lineMatch = Regex.Match(outputLine, @"^Files managed by VFS for Git \(faster\):\s*([\d,]+)\s*\|\s*(\d+)%$");
+            Match lineMatch = Regex.Match(outputLine, @"^Files managed by VFS for Git \(faster\):\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*(\d+)%$");
 
             int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedFastFiles).ShouldBeTrue();
-            int.TryParse(lineMatch.Groups[2].Value, out int outputtedFastFilesPercent).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[2].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedFastFolders).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[3].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedFastItems).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[4].Value, out int outputtedFastItemPercent).ShouldBeTrue();
 
             outputtedFastFiles.ShouldEqual(fastFiles);
-            outputtedFastFilesPercent.ShouldEqual(fastFilesPercent);
+            outputtedFastFolders.ShouldEqual(fastFolders);
+            outputtedFastItems.ShouldEqual(fastItems);
+            outputtedFastItemPercent.ShouldEqual(fastItemPercent);
         }
 
-        private void ValidateSlowFileInfo(string outputLine, int slowFiles, int slowFilesPercent)
+        private void ValidateSlowFileInfo(string outputLine, int slowFiles, int slowFolders, int slowItems, int slowItemPercent)
         {
             // Regex to extract the total number of slow files and percentage they represent
             // "Files managed by git (slow):                <count> | <percentage>%"
-            Match lineMatch = Regex.Match(outputLine, @"^Files managed by Git:\s*([\d,]+)\s*\|\s*(\d+)%$");
+            Match lineMatch = Regex.Match(outputLine, @"^Files managed by Git:\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*(\d+)%$");
 
             int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedSlowFiles).ShouldBeTrue();
-            int.TryParse(lineMatch.Groups[2].Value, out int outputtedSlowFilesPercent).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[2].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedSlowFolders).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[3].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedSlowItems).ShouldBeTrue();
+            int.TryParse(lineMatch.Groups[4].Value, out int outputtedSlowItemPercent).ShouldBeTrue();
 
             outputtedSlowFiles.ShouldEqual(slowFiles);
-            outputtedSlowFilesPercent.ShouldEqual(slowFilesPercent);
+            outputtedSlowFolders.ShouldEqual(slowFolders);
+            outputtedSlowItems.ShouldEqual(slowItems);
+            outputtedSlowItemPercent.ShouldEqual(slowItemPercent);
         }
 
         private void ValidateTotalHydration(string outputLine, int totalHydration)

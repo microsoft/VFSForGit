@@ -96,7 +96,7 @@ namespace GVFS.CommandLine
             string formattedModifiedPathTotal = enlistmentHealthData.ModifiedPathsCount.ToString("N0").PadLeft(totalWidth);
             string formattedModifiedPathPercentage = this.FormatPercent(enlistmentHealthData.ModifiedPathsPercentage);
 
-            this.Output.WriteLine("\n" + targetDirectoryLabel.PadRight(labelWidth));
+            this.Output.WriteLine("\n" + targetDirectoryLabel);
             this.Output.WriteLine(string.Empty.PadRight(labelWidth) + fileLabel.PadLeft(fileWidth) + "   " + directoryLabel.PadLeft(directoryWidth) + "   " + totalLabel.PadLeft(totalWidth));
             this.Output.WriteLine(totalFilesLabel.PadRight(labelWidth) + formattedTrackedFiles + " | " + formattedTrackedFolders + " | " + formattedTrackedTotal + " | 100%");
             this.Output.WriteLine(placeholderLabel.PadRight(labelWidth) + formattedPlaceholderFiles + " | " + formattedPlaceholderFolders + " | " + formattedPlaceholderTotal + " | " + formattedPlaceholderPercentage);
