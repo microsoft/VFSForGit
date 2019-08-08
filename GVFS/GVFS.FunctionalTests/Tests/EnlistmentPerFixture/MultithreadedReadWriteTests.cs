@@ -219,6 +219,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                         catch (Exception e)
                         {
                             readException = e;
+                            retry = false;
                         }
                         finally
                         {
