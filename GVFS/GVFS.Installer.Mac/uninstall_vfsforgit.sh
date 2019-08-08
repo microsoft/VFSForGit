@@ -6,6 +6,7 @@ PRJFSKEXTDIRECTORY="/Library/Extensions"
 LAUNCHDAEMONDIRECTORY="/Library/LaunchDaemons"
 LAUNCHAGENTDIRECTORY="/Library/LaunchAgents"
 LIBRARYAPPSUPPORTDIRECTORY="/Library/Application Support/VFS For Git"
+SERVICEAPPDIRECTORY="${HOME}/Library/Application Support/GVFS"
 LOGDAEMONLAUNCHDFILENAME="org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist"
 SERVICEAGENTLAUNCHDFILENAME="org.vfsforgit.service.plist"
 GVFSCOMMANDPATH="/usr/local/bin/gvfs"
@@ -81,6 +82,12 @@ function UnInstallVFSForGit()
         rmCmd="sudo /bin/rm -Rf \"${LIBRARYAPPSUPPORTDIRECTORY}\""
         echo "$rmCmd..."
         eval $rmCmd || { echo "Error: Could not delete ${LIBRARYAPPSUPPORTDIRECTORY}. Delete it manually."; exit 1; }
+    fi
+
+    if [ -d "${SERVICEAPPDIRECTORY}" ]; then
+        rmCmd="sudo /bin/rm -Rf \"${SERVICEAPPDIRECTORY}\""
+        echo "$rmCmd..."
+        eval $rmCmd || { echo "Error: Could not delete ${SERVICEAPPDIRECTORY}. Delete it manually."; exit 1; }
     fi
     
     if [ -d "${VFSFORDIRECTORY}" ]; then
