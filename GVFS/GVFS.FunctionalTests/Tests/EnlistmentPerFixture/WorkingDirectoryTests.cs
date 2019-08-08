@@ -386,30 +386,22 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.PlaceholderHasVersionInfo(virtualFilePath, CurrentPlaceholderVersion, string.Empty).ShouldEqual(true);
         }
 
+        // Case-insensitive filesystems only
         [TestCase, Order(13)]
         [Category(Categories.GitCommands)]
+        [Category(Categories.CaseInsensitiveFileSystemOnly)]
         [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
-        public void FolderContentsProjectedAfterFolderCreateAndCheckout()
+        public void FolderContentsProjectedAfterFolderCreateAndCheckoutOnCaseInsensitiveFileSystem()
         {
-            string folderName = "GVFlt_MultiThreadTest";
+            this.FolderContentsProjectedAfterFolderCreateAndCheckout(false);
+        }
 
-            // 54ea499de78eafb4dfd30b90e0bd4bcec26c4349 did not have the folder GVFlt_MultiThreadTest
-            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 54ea499de78eafb4dfd30b90e0bd4bcec26c4349");
-
-            // Confirm that no other test has created GVFlt_MultiThreadTest or put it in the modified files
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, folderName);
-
-            string virtualFolderPath = this.Enlistment.GetVirtualPathTo(folderName);
-            virtualFolderPath.ShouldNotExistOnDisk(this.fileSystem);
-            this.fileSystem.CreateDirectory(virtualFolderPath);
-
-            // b3ddcf43b997cba3fbf9d2341b297e22bf48601a was the commit prior to deleting GVFLT_MultiThreadTest
-            // 692765: Note that test also validates case insensitivity as GVFlt_MultiThreadTest is named GVFLT_MultiThreadTest
-            //         in this commit
-            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout b3ddcf43b997cba3fbf9d2341b297e22bf48601a");
-
-            this.Enlistment.GetVirtualPathTo(folderName + "\\OpenForReadsSameTime\\test").ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
-            this.Enlistment.GetVirtualPathTo(folderName + "\\OpenForWritesSameTime\\test").ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
+        // Case-sensitive filesystems only
+        [TestCase, Order(13)]
+        [Category(Categories.CaseSensitiveFileSystemOnly)]
+        public void FolderContentsProjectedAfterFolderCreateAndCheckoutOnCaseSensitiveFileSystem()
+        {
+            this.FolderContentsProjectedAfterFolderCreateAndCheckout(true);
         }
 
         [TestCase, Order(14)]
@@ -687,6 +679,30 @@ BOOL APIENTRY DllMain( HMODULE hModule,
                 Assert.Fail("Unsupported platform");
                 return false;
             }
+        }
+
+        private void FolderContentsProjectedAfterFolderCreateAndCheckout(bool caseSensitiveFileSystem)
+        {
+            string folderName = "GVFlt_MultiThreadTest";
+
+            // 54ea499de78eafb4dfd30b90e0bd4bcec26c4349 did not have the folder GVFlt_MultiThreadTest
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 54ea499de78eafb4dfd30b90e0bd4bcec26c4349");
+
+            // Confirm that no other test has created GVFlt_MultiThreadTest or put it in the modified files
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, folderName);
+
+            string virtualFolderPath = this.Enlistment.GetVirtualPathTo(folderName);
+            virtualFolderPath.ShouldNotExistOnDisk(this.fileSystem);
+            this.fileSystem.CreateDirectory(virtualFolderPath);
+
+            // b3ddcf43b997cba3fbf9d2341b297e22bf48601a was the commit prior to deleting GVFLT_MultiThreadTest
+            // 692765: Note that test also validates case insensitivity as GVFlt_MultiThreadTest is named GVFLT_MultiThreadTest
+            //         in this commit; on case-sensitive filesystems, case sensitivity is validated instead
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout b3ddcf43b997cba3fbf9d2341b297e22bf48601a");
+
+            string testFolderName = caseSensitiveFileSystem ? "GVFLT_MultiThreadTest" : folderName;
+            this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForReadsSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
+            this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForWritesSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
         }
 
         private class NativeTests
