@@ -195,6 +195,11 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
+        public bool IsMounted()
+        {
+            return this.gvfsProcess.IsEnlistmentMounted();
+        }
+
         public void MountGVFS()
         {
             this.gvfsProcess.Mount();

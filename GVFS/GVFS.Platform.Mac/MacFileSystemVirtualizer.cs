@@ -214,8 +214,15 @@ namespace GVFS.Platform.Mac
 
         public override FileSystemResult DehydrateFolder(string relativePath)
         {
-            FileSystemResult result = this.WritePlaceholderDirectory(relativePath);
-            this.FileSystemCallbacks.OnPlaceholderFolderCreated(relativePath, string.Empty);
+            FileSystemResult result = new FileSystemResult(FSResult.Ok, 0);
+            GitIndexProjection.PathSparseState sparseState = this.FileSystemCallbacks.GitIndexProjection.GetFolderPathSparseState(relativePath);
+
+            if (sparseState == GitIndexProjection.PathSparseState.Included)
+            {
+                result = this.WritePlaceholderDirectory(relativePath);
+                this.FileSystemCallbacks.OnPlaceholderFolderCreated(relativePath, string.Empty);
+            }
+
             return result;
         }
 

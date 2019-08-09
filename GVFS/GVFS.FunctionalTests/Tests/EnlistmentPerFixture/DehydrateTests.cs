@@ -35,6 +35,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 this.fileSystem.DeleteDirectory(backupFolder);
             }
+
+            if (!this.Enlistment.IsMounted())
+            {
+                this.Enlistment.MountGVFS();
+            }
         }
 
         [TestCase]
@@ -54,7 +59,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.Enlistment.UnmountGVFS();
             this.DehydrateShouldFail("Failed to run git status because the repo is not mounted", noStatus: false);
-            this.Enlistment.MountGVFS();
         }
 
         [TestCase]
@@ -109,8 +113,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.fileSystem.DeleteFile(metadataPath);
             this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
-
-            this.Enlistment.MountGVFS();
         }
 
         [TestCase]
@@ -135,8 +137,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.fileSystem.DeleteFile(metadataPath);
             this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
-
-            this.Enlistment.MountGVFS();
         }
 
         [TestCase]
@@ -160,8 +160,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.DehydrateShouldFail("Changes to GVFS disk layout do not allow mounting after downgrade.", noStatus: true);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersionNum.ToString(), minorVersionNum.ToString());
-
-            this.Enlistment.MountGVFS();
         }
 
         [TestCase]
@@ -184,7 +182,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
 
             subFolderToEnumerate.ShouldNotExistOnDisk(this.fileSystem);
-            this.Enlistment.MountGVFS();
         }
 
         [TestCase]
@@ -208,7 +205,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
 
             fileToRead.ShouldNotExistOnDisk(this.fileSystem);
-            this.Enlistment.MountGVFS();
         }
 
         [TestCase]
@@ -232,7 +228,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
 
             fileToWriteTo.ShouldNotExistOnDisk(this.fileSystem);
-            this.Enlistment.MountGVFS();
         }
 
         [TestCase]
@@ -255,8 +250,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 pathToDelete.ShouldBeADirectory(this.fileSystem);
                 Path.Combine(pathToDelete, "RunUnitTests.bat").ShouldNotExistOnDisk(this.fileSystem);
             }
-
-            this.Enlistment.MountGVFS();
         }
 
         [TestCase]
