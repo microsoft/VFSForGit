@@ -36,7 +36,7 @@ class PrjFSProviderUserClient
     self->cacheWrapper.AllocateCache();
     self->context = vfs_context_create(nullptr);
     MockProcess_AddContext(self->context, 501 /*pid*/);
-    MockProcess_SetSelfPid(501);
+    MockProcess_SetSelfInfo(501, "Test");
     MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
     
     self->testMount = mount::Create();
@@ -191,7 +191,7 @@ class PrjFSProviderUserClient
     // Fail when pid matches provider pid
     MockProcess_Reset();
     MockProcess_AddContext(self->context, 0 /*pid*/);
-    MockProcess_SetSelfPid(0);
+    MockProcess_SetSelfInfo(0, "Test");
     MockProcess_AddProcess(0 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
     int pid;
     XCTAssertFalse(
