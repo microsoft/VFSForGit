@@ -253,6 +253,12 @@ namespace GVFS.Platform.POSIX
             return result.ExitCode == 0;
         }
 
+        public override bool TryCopyPanicLogs(string copyToDir, out string error)
+        {
+            error = null;
+            return true;
+        }
+
         [DllImport("libc", EntryPoint = "getuid", SetLastError = true)]
         private static extern uint Getuid();
 

@@ -15,6 +15,8 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform : POSIXPlatform
     {
         private const string UpgradeProtectedDataDirectory = "/usr/local/vfsforgit_upgrader";
+        private const string DiagnosticReportsDirectory = "/Library/Logs/DiagnosticReports";
+        private const string PanicFileNamePattern = "*panic";
 
         public MacPlatform() : base(
              underConstruction: new UnderConstructionFlags(
@@ -139,6 +141,48 @@ namespace GVFS.Platform.Mac
             MacDaemonController.DaemonInfo gvfsService = daemons.FirstOrDefault(sc => string.Equals(sc.Name, "org.vfsforgit.service"));
             installed = gvfsService != null;
             running = installed && gvfsService.IsRunning;
+        }
+
+        public override bool TryCopyPanicLogs(string copyToDir, out string error)
+        {
+            error = null;
+            try
+            {
+                if (!Directory.Exists(DiagnosticReportsDirectory))
+                {
+                    return true;
+                }
+
+                string copyToPanicDir = Path.Combine(copyToDir, ProjFSKext.DriverLogDirectory, "panic_logs");
+                Directory.CreateDirectory(copyToPanicDir);
+
+                foreach (string filePath in Directory.GetFiles(DiagnosticReportsDirectory, PanicFileNamePattern))
+                {
+                    try
+                    {
+                        // We only include panic logs caused by our kext
+                        // Panics caused by our kext will be in the form DriverName(Version)
+                        // We match the minimal requirement here
+                        if (File.ReadAllText(filePath).Contains(ProjFSKext.DriverName + "("))
+                        {
+                            File.Copy(filePath, Path.Combine(copyToPanicDir, Path.GetFileName(filePath)));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        error = error == null ? string.Empty : error + "\n";
+                        error += $"{nameof(this.TryCopyPanicLogs)}: Failed to handle log {filePath}: {ex.ToString()}";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                error = error == null ? string.Empty : error + "\n";
+                error += $"{nameof(this.TryCopyPanicLogs)}: Failed to copy panic logs: {ex.ToString()}";
+                return false;
+            }
+
+            return error == null;
         }
 
         public class MacPlatformConstants : POSIXPlatformConstants

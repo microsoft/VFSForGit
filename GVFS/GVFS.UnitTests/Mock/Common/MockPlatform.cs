@@ -187,6 +187,12 @@ namespace GVFS.UnitTests.Mock.Common
             return true;
         }
 
+        public override bool TryCopyPanicLogs(string copyToDir, out string error)
+        {
+            error = null;
+            return true;
+        }
+
         public class MockPlatformConstants : GVFSPlatformConstants
         {
             public override string ExecutableExtension

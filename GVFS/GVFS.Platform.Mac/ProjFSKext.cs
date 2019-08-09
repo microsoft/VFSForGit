@@ -10,7 +10,9 @@ namespace GVFS.Platform.Mac
 {
     public class ProjFSKext : IKernelDriver
     {
-        private const string DriverName = "org.vfsforgit.PrjFSKext";
+        public const string DriverName = "org.vfsforgit.PrjFSKext";
+        public const string DriverLogDirectory = "PrjFSKext";
+
         private const int LoadKext_ExitCode_Success = 0;
 
         // This exit code was found in the following article
@@ -24,7 +26,7 @@ namespace GVFS.Platform.Mac
         {
             get
             {
-                return Path.Combine(System.IO.Path.GetTempPath(), "PrjFSKext");
+                return Path.Combine(System.IO.Path.GetTempPath(), DriverLogDirectory);
             }
         }
 
