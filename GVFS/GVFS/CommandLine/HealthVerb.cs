@@ -68,16 +68,16 @@ namespace GVFS.CommandLine
         private void PrintOutput(EnlistmentHealthData enlistmentHealthData)
         {
             // Get the appropriate number of sub directories to display
-            List<KeyValuePair<string, EnlistmentHealthCalculator.SubDirectoryInfo>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
+            List<EnlistmentHealthCalculator.SubDirectoryInfo> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
 
             string targetDirectoryLabel = "Health of directory: " + enlistmentHealthData.TargetDirectory;
-            string totalFilesLabel = "Total files in HEAD commit:";
-            string placeholderLabel = "Files managed by VFS for Git (faster):";
-            string modifiedPathsLabel = "Files managed by Git:";
+            string totalFilesLabel = "Total items in HEAD commit:";
+            string placeholderLabel = "Items managed by VFS for Git (faster):";
+            string modifiedPathsLabel = "Items managed by Git:";
 
-            string fileLabel = "File";
-            string directoryLabel = "Dir";
-            string totalLabel = "Sum";
+            string fileLabel = "Files";
+            string directoryLabel = "Directories";
+            string totalLabel = "Total";
 
             int labelWidth = Math.Max(Math.Max(targetDirectoryLabel.Length, totalFilesLabel.Length), Math.Max(placeholderLabel.Length, modifiedPathsLabel.Length)) + 1;
             int fileWidth = Math.Max(enlistmentHealthData.GitTrackedFileCount.ToString("N0").Length, fileLabel.Length);

@@ -1,10 +1,8 @@
-﻿using GVFS.FunctionalTests.Tools;
-using GVFS.Tests.Should;
+﻿using GVFS.Tests.Should;
 using NUnit.Framework;
 using NUnit.Framework.Internal;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -71,7 +69,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 slowFolders: 0,
                 slowItems: 1,
                 slowItemPercent: 0,
-                totalPercent:1,
+                totalPercent: 1,
                 topHydratedDirectories: topHydratedDirectories,
                 directoryHydrationLevels: directoryHydrationLevels,
                 enlistmentHealthStatus: "OK");

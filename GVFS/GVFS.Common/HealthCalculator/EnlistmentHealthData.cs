@@ -48,7 +48,7 @@ namespace GVFS.Common
             get { return this.ModifiedPathsFileCount + this.ModifiedPathsFolderCount; }
         }
 
-        public List<KeyValuePair<string, EnlistmentHealthCalculator.SubDirectoryInfo>> DirectoryHydrationLevels { get; private set; }
+        public List<EnlistmentHealthCalculator.SubDirectoryInfo> DirectoryHydrationLevels { get; private set; }
         public decimal HealthMetric { get; private set; }
         public decimal PlaceholderPercentage
         {

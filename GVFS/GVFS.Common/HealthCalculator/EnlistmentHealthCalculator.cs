@@ -77,7 +77,7 @@ namespace GVFS.Common
                 modifiedPathsDirectoryCount,
                 modifiedPathsFileCount,
                 this.CalculateHealthMetric(placeholderDirectoryCount + placeholderFileCount + modifiedPathsDirectoryCount + modifiedPathsFileCount, gitTrackedDirectoryCount + gitTrackedFileCount),
-                mostHydratedDirectories.OrderByDescending(kp => kp.Value.HydratedFileCount).ToList());
+                mostHydratedDirectories.OrderByDescending(kp => kp.Value.HydratedFileCount).Select(kp => kp.Value).ToList());
         }
 
         /// <summary>
