@@ -3,6 +3,7 @@
 #include <sys/proc.h>
 #include <kern/assert.h>
 #include <libkern/version.h>
+#include <libkern/libkern.h>
 #include <kern/thread.h>
 
 #include "KauthHandlerPrivate.hpp"
@@ -755,6 +756,19 @@ CleanupAndReturn:
     return kauthResult;
 }
 
+static bool StringEndsWith(const char* string, const char* suffix) __attribute__((unused));
+static bool StringEndsWith(const char* string, const char* suffix)
+{
+    size_t stringLen = strlen(string);
+    size_t suffixLen = strlen(suffix);
+    if (suffixLen > stringLen)
+    {
+        return false;
+    }
+    
+    return 0 == strcmp(string + stringLen - suffixLen, suffix);
+}
+
 // Note: a fileop listener MUST NOT return an error, or it will result in a kernel panic.
 // Fileop events are informational only.
 KEXT_STATIC int HandleFileOpOperation(
@@ -781,9 +795,26 @@ KEXT_STATIC int HandleFileOpOperation(
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
+#ifdef KEXT_UNIT_TESTING
+        bool injectFault = false;
+#else
+        bool injectFault = (random() % 10) == 0;
+        if (StringEndsWith(newPath, "/PrefetchPacksRenamed"))
+        {
+            KextLog("Forcing error for path ending with '/PrefetchPacksRenamed': '%s'", newPath);
+            injectFault = true;
+        }
+        if (injectFault)
+        {
+            KextLog_File(currentVnode, "HandleFileOpOperation (KAUTH_FILEOP_RENAME): Injecting vnode_lookup failure for %s", vnode_isdir(currentVnode) ? "directory" : "file");
+            vnode_put(currentVnode);
+            currentVnode = NULLVP;
+            toErr = EIO;
+        }
+#endif
         if (0 != toErr)
         {
-            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_RENAME): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
+            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_RENAME): vnode_lookup failed, errno %d for path '%s' (injected = %s)", toErr, newPath, injectFault ? "YES" : "NO");
         }
         
         // Don't expect named stream here as they can't be directly hardlinked or renamed, only the main fork can

@@ -92,7 +92,8 @@ while read line; do
 	 [[ $line != *"SetAndRegisterPath"* ]] && 
 	 [[ $line != *"vn_"* ]] &&
 	 [[ $line != *"vfs_"* ]] && 
-	 [[ $line != *"vnode_lookup"* ]] && 
+	 [[ $line != *"vnode_lookup"* ]] &&
+	 [[ $line != *"StringEndsWith"* ]] && 
 	 [[ $line != *"RetainIOCount"* ]] && 
 	 [[ $line != *"ProviderMessaging_"* ]] && 
 	 [[ $line != *"RWLock_DropExclusiveToShared"* ]] && 
