@@ -868,21 +868,19 @@ KEXT_STATIC int HandleFileOpOperation(
         const char* fromPath = reinterpret_cast<const char*>(arg0);
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
-        // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
-        // it's possible that we'll miss notifications
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
         {
             KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_LINK): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
-            goto CleanupAndReturn;
         }
         
-        // Don't expect named stream here as they can't be directly hardlinked or renamed, only the main fork can
-        assert(!vnode_isnamedstream(currentVnode));
-        
+        // Don't expect named stream here as they can't be directly hardlinked, only the main fork can
+        assert(currentVnode == NULLVP || !vnode_isnamedstream(currentVnode));
+
         putCurrentVnode = true;
         
-        bool isDirectory = (0 != vnode_isdir(currentVnode));
+        // If we can't find the vnode, we'll have to guess it wasn't a directory and assume downstream code can handle it if it was
+        bool isDirectory = currentVnode != NULLVP && 0 != vnode_isdir(currentVnode);
         if (isDirectory)
         {
             KextLog_Info("HandleFileOpOperation: KAUTH_FILEOP_LINK event for hardlinked directory currently not handled. ('%s' -> '%s')", fromPath, newPath);
@@ -896,7 +894,7 @@ KEXT_STATIC int HandleFileOpOperation(
                 &perfTracer,
                 context,
                 currentVnode,
-                nullptr, // don't pass path for target provider
+                currentVnode == NULLVP ? newPath : nullptr, // use vnode for root lookup if available, otherwise use the path
                 action,
                 isDirectory,
                 &targetRoot,
@@ -917,7 +915,11 @@ KEXT_STATIC int HandleFileOpOperation(
             goto CleanupAndReturn;
         }
         
-        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(currentVnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
+        FsidInode vnodeFsidInode = {};
+        if (currentVnode != NULLVP)
+        {
+            vnodeFsidInode = Vnode_GetFsidAndInode(currentVnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
+        }
 
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
