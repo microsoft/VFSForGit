@@ -103,7 +103,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     self->dummyRepoHandle = result.root;
 
     MockProcess_AddContext(context, RunningMockProcessPID /*pid*/);
-    MockProcess_SetSelfPid(RunningMockProcessPID);
+    MockProcess_SetSelfInfo(RunningMockProcessPID, "Test");
     MockProcess_AddProcess(RunningMockProcessPID, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
     
     ProvidermessageMock_ResetResultCount();

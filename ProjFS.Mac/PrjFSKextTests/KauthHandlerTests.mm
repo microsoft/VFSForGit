@@ -29,7 +29,7 @@ using std::string;
     self->cacheWrapper.AllocateCache();
     context = vfs_context_create(nullptr);
     MockProcess_AddContext(context, 501 /*pid*/);
-    MockProcess_SetSelfPid(501);
+    MockProcess_SetSelfInfo(501, "Test");
     MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
 }
 
@@ -247,7 +247,7 @@ using std::string;
     // Test with file crawler trying to populate an empty file
     testVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
     MockProcess_Reset();
-    MockProcess_SetSelfPid(501);
+    MockProcess_SetSelfInfo(501, "Test");
     MockProcess_AddContext(context, 501 /*pid*/);
     MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "mds" /*name*/);
     XCTAssertFalse(
@@ -265,7 +265,7 @@ using std::string;
     
     // Test with finder trying to populate an empty file
     MockProcess_Reset();
-    MockProcess_SetSelfPid(501);
+    MockProcess_SetSelfInfo(501, "Test");
     MockProcess_AddContext(context, 501 /*pid*/);
     MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "Finder" /*name*/);
     XCTAssertTrue(
@@ -282,47 +282,55 @@ using std::string;
     XCTAssertEqual(kauthResult, KAUTH_RESULT_DEFER);
 }
 
-- (void)testCurrentProcessWasSpawnedByRegularUser {
+- (void)testCurrentProcessIsAllowedToHydrate {
     // Defaults should pass for all tests
-    XCTAssertTrue(CurrentProcessWasSpawnedByRegularUser());
+    XCTAssertTrue(CurrentProcessIsAllowedToHydrate());
     MockProcess_Reset();
 
-    // Process is a service user and does not have a parent
+    // Process and its parents are owned by a system user, and the executable is not a whitelisted service.
     MockProcess_AddContext(context, 500 /*pid*/);
-    MockProcess_SetSelfPid(500);
+    MockProcess_SetSelfInfo(500, "Test");
     MockProcess_AddCredential(1 /*credentialId*/, 1 /*UID*/);
     MockProcess_AddProcess(500 /*pid*/, 1 /*credentialId*/, 501 /*ppid*/, "test" /*name*/);
-    XCTAssertFalse(CurrentProcessWasSpawnedByRegularUser());
+    XCTAssertFalse(CurrentProcessIsAllowedToHydrate());
+    MockProcess_Reset();
+
+    // The service "amfid" and its parents are owned by system users, but the process name is whitelisted for hydration.
+    MockProcess_AddContext(context, 500 /*pid*/);
+    MockProcess_SetSelfInfo(500, "amfid");
+    MockProcess_AddCredential(1 /*credentialId*/, 1 /*UID*/);
+    MockProcess_AddProcess(500 /*pid*/, 1 /*credentialId*/, 501 /*ppid*/, "test" /*name*/);
+    XCTAssertTrue(CurrentProcessIsAllowedToHydrate());
     MockProcess_Reset();
 
     // Test a process with a service UID, valid parent pid, but proc_find fails to find parent pid
     MockCalls::Clear();
     MockProcess_AddContext(context, 500 /*pid*/);
-    MockProcess_SetSelfPid(500);
+    MockProcess_SetSelfInfo(500, "Test");
     MockProcess_AddCredential(1 /*credentialId*/, 1 /*UID*/);
     MockProcess_AddProcess(500 /*pid*/, 1 /*credentialId*/, 501 /*ppid*/, "test" /*name*/);
-    XCTAssertFalse(CurrentProcessWasSpawnedByRegularUser());
+    XCTAssertFalse(CurrentProcessIsAllowedToHydrate());
     XCTAssertTrue(MockCalls::DidCallFunction(KextMessageLogged, KEXTLOG_ERROR));
     MockProcess_Reset();
 
     // 'sudo' scenario: Root process with non-root parent
     MockProcess_AddContext(context, 502 /*pid*/);
-    MockProcess_SetSelfPid(502);
+    MockProcess_SetSelfInfo(502, "Test");
     MockProcess_AddCredential(1 /*credentialId*/, 1 /*UID*/);
     MockProcess_AddCredential(2 /*credentialId*/, 501 /*UID*/);
     MockProcess_AddProcess(502 /*pid*/, 1 /*credentialId*/, 501 /*ppid*/, "test" /*name*/);
     MockProcess_AddProcess(501 /*pid*/, 2 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
-    XCTAssertTrue(CurrentProcessWasSpawnedByRegularUser());
+    XCTAssertTrue(CurrentProcessIsAllowedToHydrate());
     MockProcess_Reset();
 
     // Process and it's parent are service users
     MockProcess_AddContext(context, 502 /*pid*/);
-    MockProcess_SetSelfPid(502);
+    MockProcess_SetSelfInfo(502, "Test");
     MockProcess_AddCredential(1 /*credentialId*/, 1 /*UID*/);
     MockProcess_AddCredential(2 /*credentialId*/, 2 /*UID*/);
     MockProcess_AddProcess(502 /*pid*/, 1 /*credentialId*/, 501 /*ppid*/, "test" /*name*/);
     MockProcess_AddProcess(501 /*pid*/, 2 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
-    XCTAssertFalse(CurrentProcessWasSpawnedByRegularUser());
+    XCTAssertFalse(CurrentProcessIsAllowedToHydrate());
 }
 
 - (void)testUseMainForkIfNamedStream {
