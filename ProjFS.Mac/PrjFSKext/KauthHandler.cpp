@@ -780,21 +780,19 @@ KEXT_STATIC int HandleFileOpOperation(
         // arg0 is the (const char *) fromPath (or the file being linked to)
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
-        // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
-        // it's possible that we'll miss notifications
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
         {
             KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_RENAME): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
-            goto CleanupAndReturn;
         }
         
         // Don't expect named stream here as they can't be directly hardlinked or renamed, only the main fork can
-        assert(!vnode_isnamedstream(currentVnode));
+        assert(currentVnode == NULLVP || !vnode_isnamedstream(currentVnode));
         
         putCurrentVnode = true;
         
-        bool isDirectory = (0 != vnode_isdir(currentVnode));
+        // If we can't find the vnode, tell ShouldHandleFileOpEvent it was a directory as this case requires stricter cache invalidation
+        bool isDirectory = currentVnode == NULLVP || 0 != vnode_isdir(currentVnode);
         
         VirtualizationRootHandle root = RootHandle_None;
         int pid;
@@ -802,7 +800,7 @@ KEXT_STATIC int HandleFileOpOperation(
                 &perfTracer,
                 context,
                 currentVnode,
-                nullptr, // use vnode for lookup, not path
+                currentVnode == NULLVP ? newPath : nullptr, // use vnode for root lookup if available, otherwise use the path
                 action,
                 isDirectory,
                 &root,
@@ -811,7 +809,11 @@ KEXT_STATIC int HandleFileOpOperation(
             goto CleanupAndReturn;
         }
         
-        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(currentVnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
+        FsidInode vnodeFsidInode = {};
+        if (currentVnode != NULLVP)
+        {
+            vnodeFsidInode = Vnode_GetFsidAndInode(currentVnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
+        }
 
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
@@ -839,6 +841,25 @@ KEXT_STATIC int HandleFileOpOperation(
                     &kauthError))
             {
                 goto CleanupAndReturn;
+            }
+            
+            if (currentVnode == NULLVP)
+            {
+                // If we don't know if it's a directory or file, send messages for both
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
+                        root,
+                        MessageType_KtoU_NotifyFileRenamed,
+                        currentVnode,
+                        vnodeFsidInode,
+                        newPath,
+                        nullptr, // fromPath
+                        pid,
+                        procname,
+                        &kauthResult,
+                        &kauthError))
+                {
+                    goto CleanupAndReturn;
+                }
             }
         }
     }
@@ -1419,7 +1440,7 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
 
     *root = RootHandle_None;
     
-    if (!VnodeIsEligibleForEventHandling(vnode))
+    if (vnode != NULLVP && !VnodeIsEligibleForEventHandling(vnode))
     {
         return false;
     }
@@ -1437,6 +1458,7 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     }
     else
     {
+        assert(vnode != NULLVP);
         PerfSample findRootSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_FindVirtualizationRoot);
 
         *root = FindRootForVnodeWithFileOpEvent(perfTracer, context, vnode, action, isDirectory);
