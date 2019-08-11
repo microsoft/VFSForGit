@@ -899,10 +899,15 @@ KEXT_STATIC int HandleFileOpOperation(
         const char* fromPath = reinterpret_cast<const char*>(arg0);
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
-        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
+#ifdef KEXT_UNIT_TESTING
+        bool injectFault = false;
+#else
+        bool injectFault = (random() % 10) == 0;
+#endif
+        errno_t toErr = injectFault ? EIO : vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
         {
-            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_LINK): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
+            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_LINK): vnode_lookup failed, errno %d for path '%s' (injected = %s)", toErr, newPath, injectFault ? "YES" : "NO");
         }
         
         // Don't expect named stream here as they can't be directly hardlinked, only the main fork can
