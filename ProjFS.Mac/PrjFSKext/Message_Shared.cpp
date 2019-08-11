@@ -16,3 +16,23 @@ uint32_t Message_EncodedSize(const MessageHeader* messageHeader)
     }
     return size;
 }
+
+const char* Message_MessageTypeString(MessageType messageType)
+{
+    switch(messageType)
+    {
+        case MessageType_KtoU_EnumerateDirectory:            return "EnumerateDirectory";
+        case MessageType_KtoU_RecursivelyEnumerateDirectory: return "RecursivelyEnumerateDirectory";
+        case MessageType_KtoU_HydrateFile:                   return "HydrateFile";
+        case MessageType_KtoU_NotifyFileModified:            return "NotifyFileModified";
+        case MessageType_KtoU_NotifyFilePreDelete:           return "NotifyFilePreDelete";
+        case MessageType_KtoU_NotifyFilePreDeleteFromRename: return "NotifyFilePreDeleteFromRename";
+        case MessageType_KtoU_NotifyDirectoryPreDelete:      return "NotifyDirectoryPreDelete";
+        case MessageType_KtoU_NotifyFileCreated:             return "NotifyFileCreated";
+        case MessageType_KtoU_NotifyFileRenamed:             return "NotifyFileRenamed";
+        case MessageType_KtoU_NotifyDirectoryRenamed:        return "NotifyDirectoryRenamed";
+        case MessageType_KtoU_NotifyFileHardLinkCreated:     return "NotifyFileHardLinkCreated";
+        case MessageType_KtoU_NotifyFilePreConvertToFull:    return "NotifyFilePreConvertToFull";
+        default:                                             return "Unknown";
+    };
+}

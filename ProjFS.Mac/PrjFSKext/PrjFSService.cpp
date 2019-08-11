@@ -4,8 +4,10 @@
 #include "PrjFSProviderUserClientPrivate.hpp"
 #include "PrjFSLogUserClient.hpp"
 #include "PrjFSOfflineIOUserClient.hpp"
+#include "PrjFSEventTraceUserClient.hpp"
 #include "KextLog.hpp"
 #include "VirtualizationRoots.hpp"
+#include "KauthHandler.hpp"
 
 #include <IOKit/IOLib.h>
 #include <kern/assert.h>
@@ -131,6 +133,16 @@ IOReturn PrjFSService::newUserClient(
             if (InitAttachAndStartUserClient(this, offline_io_client, owningTask, securityID, type, properties))
             {
                 *handler = offline_io_client;
+                result = kIOReturnSuccess;
+            }
+        }
+        break;
+    case UserClientType_EventTrace:
+        {
+            PrjFSEventTraceUserClient* eventTraceClient = new PrjFSEventTraceUserClient();
+            if (InitAttachAndStartUserClient(this, eventTraceClient, owningTask, securityID, type, properties))
+            {
+                *handler = eventTraceClient;
                 result = kIOReturnSuccess;
             }
         }

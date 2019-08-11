@@ -19,9 +19,9 @@ private:
     bool logMessageDropped;
     void cleanUp();
 public:
+    // IOUserClient methods:
     virtual bool initWithTask(task_t owningTask, void* securityToken, UInt32 type, OSDictionary* properties) override;
     
-    virtual void free() override;
     virtual IOReturn clientClose() override;
     virtual IOReturn clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory) override;
     virtual IOReturn registerNotificationPort(mach_port_t port, UInt32 type, io_user_reference_t refCon) override;
@@ -33,7 +33,10 @@ public:
         OSObject* target = nullptr,
         void* reference = nullptr) override;
 
-    
+    // OSObject methods:
+    virtual void free() override;
+
+
     static IOReturn fetchProfilingData(
         OSObject* target,
         void* reference,

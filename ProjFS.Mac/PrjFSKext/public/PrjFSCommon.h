@@ -14,6 +14,8 @@
 // Name of property on the main PrjFS IOService indicating the kext version, to be checked by user space
 #define PrjFSKextVersionKey "org.vfsforgit.PrjFSKext.Version"
 
+#define PrjFSEventTracingKey "org.vfsforgit.PrjFSKext.EventTracing"
+
 #define PrjFSProviderPathKey "org.vfsforgit.PrjFSKext.ProviderUserClient.Path"
 
 typedef enum
@@ -33,6 +35,7 @@ enum PrjFSServiceUserClientType
     UserClientType_Provider,
     UserClientType_Log,
     UserClientType_OfflineIO,
+    UserClientType_EventTrace,
 };
 
 // When building the kext in user space for unit testing, we want some functions
@@ -45,6 +48,8 @@ enum PrjFSServiceUserClientType
 #define KEXT_STATIC_INLINE static inline
 #endif
 
+#ifdef __cplusplus
+
 namespace PrjFSDarwinMajorVersion
 {
     enum
@@ -54,5 +59,7 @@ namespace PrjFSDarwinMajorVersion
         MacOS10_15_Catalina = 19,
     };
 }
+
+#endif
 
 #endif /* PrjFSCommon_h */

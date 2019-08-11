@@ -70,5 +70,6 @@ struct Message
 
 
 uint32_t Message_EncodedSize(const MessageHeader* messageHeader);
+const char* Message_MessageTypeString(MessageType messageType);
 
 #endif /* Message_h */

@@ -9,3 +9,5 @@ class PrjFSProviderUserClient;
 class PrjFSLogUserClient;
 #define PrjFSOfflineIOUserClient     org_vfsforgit_PrjFSOfflineIOUserClient
 class PrjFSOfflineIOUserClient;
+#define PrjFSEventTraceUserClient           org_vfsforgit_PrjFSEventTraceUserClient
+class PrjFSEventTraceUserClient;

@@ -11,6 +11,7 @@ using std::memory_order_relaxed;
 using std::atomic_store_explicit;
 using std::atomic_exchange_explicit;
 using std::atomic_fetch_add_explicit;
+using std::atomic_load;
 #else
 #include <stdatomic.h>
 #endif

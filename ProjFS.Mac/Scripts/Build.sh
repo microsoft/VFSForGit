@@ -95,7 +95,11 @@ while read line; do
 	 [[ $line != *"vnode_lookup"* ]] && 
 	 [[ $line != *"RetainIOCount"* ]] && 
 	 [[ $line != *"ProviderMessaging_"* ]] && 
-	 [[ $line != *"RWLock_DropExclusiveToShared"* ]] && 
+	 [[ $line != *"RWLock_DropExclusiveToShared"* ]] &&
+	 [[ $line != *"MessageTypeString"* ]] &&
+	 [[ $line != *"KauthHandler_EnableTraceListeners"* ]] &&
+	 [[ $line != *"NullTracer::"* ]] &&
+	 [[ $line != *"KextLogTracer::"* ]] &&
       # Not going down the "unexpected" code path in isKextAssertionFailureExpected, Assert & panic is good!
 	 [[ $line != *"PFSKextTestCase isKextAssertionFailureExpected"* ]] &&
 	 [[ $line != *"Assert"* ]] &&
