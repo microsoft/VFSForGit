@@ -21,6 +21,7 @@ extern "C"
     int proc_rele(proc_t p);
     int proc_selfpid(void);
     kernel_thread_t current_thread(void);
+    void proc_selfname(char* buf, int size);
 }
 
 struct proc {
@@ -30,7 +31,7 @@ struct proc {
     std::string name;
 };
 
-void MockProcess_SetSelfPid(int selfPid);
+void MockProcess_SetSelfInfo(int selfPid, const std::string& selfName);
 void MockProcess_AddCredential(uintptr_t credentialId, uid_t UID);
 void MockProcess_AddContext(vfs_context_t context, int pid);
 void MockProcess_AddProcess(int pid, uintptr_t credentialId, int ppid, std::string procName);

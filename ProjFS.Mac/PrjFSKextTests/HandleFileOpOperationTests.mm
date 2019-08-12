@@ -95,7 +95,7 @@ class PrjFSProviderUserClient
     self->otherRepoHandle = result.root;
 
     MockProcess_AddContext(context, 501 /*pid*/);
-    MockProcess_SetSelfPid(501);
+    MockProcess_SetSelfInfo(501, "Test");
     MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
     
     ProvidermessageMock_ResetResultCount();
@@ -402,7 +402,7 @@ class PrjFSProviderUserClient
 {
     MockProcess_Reset();
     MockProcess_AddContext(context, self->dummyClientPid /*pid*/);
-    MockProcess_SetSelfPid(self->dummyClientPid);
+    MockProcess_SetSelfInfo(self->dummyClientPid, "Test");
     MockProcess_AddProcess(self->dummyClientPid /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "GVFS.Mount" /*name*/);
 
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
@@ -432,7 +432,7 @@ class PrjFSProviderUserClient
 {
     MockProcess_Reset();
     MockProcess_AddContext(context, self->otherDummyClientPid /*pid*/);
-    MockProcess_SetSelfPid(self->otherDummyClientPid);
+    MockProcess_SetSelfInfo(self->otherDummyClientPid, "Test");
     MockProcess_AddProcess(self->otherDummyClientPid /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "GVFS.Mount" /*name*/);
 
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;

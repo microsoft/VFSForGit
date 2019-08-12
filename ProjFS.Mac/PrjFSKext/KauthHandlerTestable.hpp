@@ -67,7 +67,7 @@ KEXT_STATIC bool ShouldHandleFileOpEvent(
     VirtualizationRootHandle* root,
     int* pid);
 KEXT_STATIC void UseMainForkIfNamedStream(vnode_t& vnode, bool& putVnodeWhenDone);
-KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser();
+KEXT_STATIC bool CurrentProcessIsAllowedToHydrate();
 KEXT_STATIC bool InitPendingRenames();
 KEXT_STATIC void CleanupPendingRenames();
 KEXT_STATIC void ResizePendingRenames(uint32_t newMaxPendingRenames);

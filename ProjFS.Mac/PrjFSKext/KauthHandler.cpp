@@ -69,7 +69,7 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
 KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 KEXT_STATIC_INLINE bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
-KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser();
+KEXT_STATIC bool CurrentProcessIsAllowedToHydrate();
 KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 
 static void WaitForListenerCompletion();
@@ -1144,10 +1144,10 @@ static bool TryGetVirtualizationRoot(
         return false;
     }
     
-    if (callbackPolicy == CallbackPolicy_UserInitiatedOnly && !CurrentProcessWasSpawnedByRegularUser())
+    if (callbackPolicy == CallbackPolicy_UserInitiatedOnly && !CurrentProcessIsAllowedToHydrate())
     {
         // Prevent hydration etc. by system services
-        KextLog_Info("TryGetVirtualizationRoot: process %d restricted due to owner UID.", pidMakingRequest);
+        KextLog_Info("TryGetVirtualizationRoot: process %d is not allowed to hydrate.", pidMakingRequest);
         perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_UserRestriction);
         
         *kauthResult = KAUTH_RESULT_DENY;
@@ -1159,7 +1159,7 @@ static bool TryGetVirtualizationRoot(
     return true;
 }
 
-KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser()
+KEXT_STATIC bool CurrentProcessIsAllowedToHydrate()
 {
     bool nonServiceUser = false;
     
@@ -1188,7 +1188,7 @@ KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser()
         process = parentProcess;
         if (parentProcess == nullptr)
         {
-            KextLog_Error("CurrentProcessIsOwnedOrWasSpawnedByRegularUser: Failed to locate ancestor process %d for current process %d\n", parentPID, proc_selfpid());
+            KextLog_Error("CurrentProcessIsAllowedToHydrate: Failed to locate ancestor process %d for current process %d\n", parentPID, proc_selfpid());
             break;
         }
     }
@@ -1197,6 +1197,19 @@ KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser()
     if (process != nullptr)
     {
         proc_rele(process);
+    }
+    
+    if (!nonServiceUser)
+    {
+       // When amfid is invoked to check the code signature of a library which has not been hydrated,
+       // blocking hydration would cause the launch of an application which depends on the library to fail,
+       // so amfid should always be allowed to hydrate.
+       char buffer[MAXCOMLEN + 1] = "";
+       proc_selfname(buffer, sizeof(buffer));
+       if (0 == strcmp(buffer, "amfid"))
+       {
+          nonServiceUser = true;
+       }
     }
     
     return nonServiceUser;
