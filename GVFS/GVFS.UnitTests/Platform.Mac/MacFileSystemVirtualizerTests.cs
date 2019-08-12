@@ -504,44 +504,11 @@ namespace GVFS.UnitTests.Platform.Mac
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamReturnsErrorWhenWriteFileContentsFails()
         {
-            const string TestFileName = "test.txt";
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
-            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
             {
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                mockVirtualization.WriteFileReturnResult = Result.EIOError;
-
-                mockVirtualization.OnGetFileStream(
-                    commandId: 1,
-                    relativePath: TestFileName,
-                    providerId: MacFileSystemVirtualizer.PlaceholderVersionId,
-                    contentId: CommonRepoSetup.DefaultContentId,
-                    triggeringProcessId: 2,
-                    triggeringProcessName: "UnitTest",
-                    fileHandle: IntPtr.Zero).ShouldEqual(Result.EIOError);
-
-                fileSystemCallbacks.Stop();
+                tester.MockVirtualization.WriteFileReturnResult = Result.EIOError;
+                tester.InvokeOnGetFileStream(expectedResult: Result.EIOError);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         private static ushort ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType fileType, ushort fileMode)
