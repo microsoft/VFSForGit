@@ -181,13 +181,21 @@ typedef PrjFS_Result (PrjFS_NotifyOperationCallback)(
 typedef void (PrjFS_LogErrorCallback)(
     _In_    const char*                             errorMessage);
 
+typedef void (PrjFS_LogWarningCallback)(
+    _In_    const char*                             warningMessage);
+
+typedef void (PrjFS_LogInfoCallback)(
+    _In_    const char*                             infoMessage);
+
 typedef struct _PrjFS_Callbacks
 {
     _In_    PrjFS_EnumerateDirectoryCallback*       EnumerateDirectory;
     _In_    PrjFS_GetFileStreamCallback*            GetFileStream;
     _In_    PrjFS_NotifyOperationCallback*          NotifyOperation;
     _In_    PrjFS_LogErrorCallback*                 LogError;
-    
+    _In_    PrjFS_LogWarningCallback*               LogWarning;
+    _In_    PrjFS_LogInfoCallback*                  LogInfo;
+
 } PrjFS_Callbacks;
 
 PrjFS_Result PrjFS_CompleteCommand(

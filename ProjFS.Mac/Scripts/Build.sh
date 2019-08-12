@@ -127,6 +127,8 @@ while read line; do
 	 [[ $line != *"ReturnFileMutexIterator"* ]] &&                    #SHOULD ADD COVERAGE
 	 [[ $line != *"GetRelativePath"* ]] &&                            #SHOULD ADD COVERAGE
 	 [[ $line != *"LogError"* ]] &&                                   #SHOULD ADD COVERAGE
+	 [[ $line != *"LogWarning"* ]] &&                                 #SHOULD ADD COVERAGE
+	 [[ $line != *"LogInfo"* ]] &&                                    #SHOULD ADD COVERAGE
 	 [[ $line != *"PrjFSService_"* ]] &&                              #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
 	 [[ $line != *"ServiceMatched"* ]] &&                             #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
 	 [[ $line != *"ServiceTerminated"* ]] &&                          #TODO: DECIDE IF COVERAGE REQUIRED, IOKIT RELATED
