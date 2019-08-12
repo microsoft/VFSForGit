@@ -20,6 +20,7 @@ namespace GVFS.CommandLine
     public class DehydrateVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string DehydrateVerbName = "dehydrate";
+        private PhysicalFileSystem fileSystem = new PhysicalFileSystem();
 
         [Option(
             "confirm",
@@ -200,15 +201,15 @@ of your enlistment's src folder.
                     string ioError;
                     foreach (string folder in folders)
                     {
-                        PhysicalFileSystem fileSystem = new PhysicalFileSystem();
                         string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
                         string backupPath = Path.Combine(backupRoot, folder);
-                        if (fileSystem.DirectoryExists(fullPath))
+                        if (this.fileSystem.DirectoryExists(fullPath))
                         {
-                            if (!this.TryIO(tracer, () => fileSystem.CopyDirectoryRecursive(fullPath, backupPath), $"Backing up {folder} to {backupPath}", out ioError) ||
-                                !this.TryIO(tracer, () => fileSystem.DeleteDirectory(fullPath), $"Deleting {fullPath}", out ioError))
+                            if (!this.TryIO(tracer, () => this.fileSystem.CopyDirectoryRecursive(fullPath, backupPath), $"Backing up {folder} to {backupPath}", out ioError) ||
+                                !this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting {fullPath}", out ioError))
                             {
-                                this.WriteMessage(tracer, $"Backup failed for {folder}. {ioError}");
+                                this.WriteMessage(tracer, $"Backup failed for {folder} and will not be dehydrated. {ioError}");
+                                this.WriteMessage(tracer, $"Make sure there aren't any applications accessing the folder and try again.");
                             }
                             else
                             {
@@ -265,7 +266,7 @@ of your enlistment's src folder.
 
                 foreach (string folder in response.FailedFolders)
                 {
-                    this.WriteMessage(tracer, $"{folder} folder dehydration failed.");
+                    this.WriteMessage(tracer, $"{folder} folder failed to dehydrate. You may need to clean the working directory and retry the dehydrate.");
                 }
             }
         }
