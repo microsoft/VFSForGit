@@ -10,6 +10,7 @@ using GVFS.UnitTests.Mock.Virtualization.BlobSize;
 using GVFS.UnitTests.Mock.Virtualization.Projection;
 using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization;
+using GVFS.Virtualization.Background;
 using GVFS.Virtualization.FileSystem;
 using GVFS.Virtualization.Projection;
 using Moq;
@@ -18,6 +19,7 @@ using PrjFSLib.Mac;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace GVFS.UnitTests.Platform.Mac
 {
@@ -142,10 +144,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 tester.MockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
                 tester.MockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(WriteSymLinkFileName));
 
-                // Creating a symlink should schedule a background task
-                tester.BackgroundTaskRunner.Count.ShouldEqual(1);
-                tester.BackgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
-                tester.BackgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(WriteSymLinkFileName);
+                tester.BackgroundTaskShouldBeScheduled(WriteSymLinkFileName, FileSystemTask.OperationType.OnFileSymLinkCreated);
             }
         }
 
@@ -170,10 +169,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 tester.MockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
                 tester.MockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(PlaceholderToLinkFileName));
 
-                // Creating a symlink should schedule a background task
-                tester.BackgroundTaskRunner.Count.ShouldEqual(1);
-                tester.BackgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
-                tester.BackgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(PlaceholderToLinkFileName);
+                tester.BackgroundTaskShouldBeScheduled(PlaceholderToLinkFileName, FileSystemTask.OperationType.OnFileSymLinkCreated);
             }
         }
 
@@ -289,6 +285,87 @@ namespace GVFS.UnitTests.Platform.Mac
             {
                 tester.MockVirtualization.WriteFileReturnResult = Result.EIOError;
                 tester.InvokeOnGetFileStream(expectedResult: Result.EIOError);
+            }
+        }
+
+        [TestCase]
+        public void OnNewFileCreatedInsideDotGitDirectoryShouldNotScheduleBackgroundTask()
+        {
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.MockVirtualization.OnNewFileCreated(Path.Combine(".git", "testing.txt"), isDirectory: false);
+                tester.BackgroundTaskRunner.Count.ShouldEqual(0);
+            }
+        }
+
+        [TestCase]
+        public void OnNewFileCreatedFileShouldScheduleBackgroundTask()
+        {
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.MockVirtualization.OnNewFileCreated("testing.txt", isDirectory: false);
+                tester.BackgroundTaskShouldBeScheduled("testing.txt", FileSystemTask.OperationType.OnFileCreated);
+                tester.GitIndexProjection.SparseEntries.Count.ShouldEqual(0);
+            }
+        }
+
+        [TestCase]
+        public void OnNewFileCreatedDirectoryIncludedShouldScheduleBackgroundTask()
+        {
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.GitIndexProjection.GetFolderPathSparseStateValue = GitIndexProjection.PathSparseState.Included;
+                tester.MockVirtualization.OnNewFileCreated("testing", isDirectory: true);
+                tester.BackgroundTaskShouldBeScheduled("testing", FileSystemTask.OperationType.OnFolderCreated);
+                tester.GitIndexProjection.SparseEntries.Count.ShouldEqual(0);
+            }
+        }
+
+        [TestCase]
+        public void OnNewFileCreatedDirectoryExcludedShouldNotScheduleBackgroundTask()
+        {
+            const string TestFileName = "test.txt";
+            const string TestFolderName = "testFolder";
+            string testFilePath = Path.Combine(TestFolderName, TestFileName);
+
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.GitIndexProjection.MockFileTypesAndModes.TryAdd(
+                    testFilePath,
+                    ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode644));
+
+                tester.GitIndexProjection.GetFolderPathSparseStateValue = GitIndexProjection.PathSparseState.Excluded;
+                tester.MockVirtualization.OnNewFileCreated(TestFolderName, isDirectory: true);
+                tester.BackgroundTaskRunner.Count.ShouldEqual(0);
+                tester.GitIndexProjection.SparseEntries.Count.ShouldEqual(1);
+                tester.GitIndexProjection.SparseEntries.First().ShouldEqual(TestFolderName);
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
+                    kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
+            }
+        }
+
+        [TestCase]
+        public void OnNewFileCreatedDirectoryNotFoundShouldScheduleBackgroundTask()
+        {
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.GitIndexProjection.GetFolderPathSparseStateValue = GitIndexProjection.PathSparseState.NotFound;
+                tester.MockVirtualization.OnNewFileCreated("testing", isDirectory: true);
+                tester.BackgroundTaskShouldBeScheduled("testing", FileSystemTask.OperationType.OnFolderCreated);
+                tester.GitIndexProjection.SparseEntries.Count.ShouldEqual(0);
+            }
+        }
+
+        [TestCase]
+        public void OnNewFileCreatedDirectoryExcludedTryAddSparseFolderFailureShouldScheduleBackgroundTask()
+        {
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.GitIndexProjection.GetFolderPathSparseStateValue = GitIndexProjection.PathSparseState.Excluded;
+                tester.GitIndexProjection.TryAddSparseFolderReturnValue = false;
+                tester.MockVirtualization.OnNewFileCreated("testing", isDirectory: true);
+                tester.BackgroundTaskShouldBeScheduled("testing", FileSystemTask.OperationType.OnFolderCreated);
+                tester.GitIndexProjection.SparseEntries.Count.ShouldEqual(0);
             }
         }
 

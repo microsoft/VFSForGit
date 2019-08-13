@@ -37,6 +37,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             this.PlaceholdersCreated = new ConcurrentHashSet<string>();
             this.ExpandedFolders = new ConcurrentHashSet<string>();
             this.MockFileTypesAndModes = new ConcurrentDictionary<string, ushort>();
+            this.SparseEntries = new ConcurrentHashSet<string>();
 
             this.unblockGetProjectedItems = new ManualResetEvent(true);
             this.waitForGetProjectedItems = new ManualResetEvent(true);
@@ -58,9 +59,14 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
         public ConcurrentDictionary<string, ushort> MockFileTypesAndModes { get; }
 
+        public ConcurrentHashSet<string> SparseEntries { get; }
+
         public bool ThrowOperationCanceledExceptionOnProjectionRequest { get; set; }
 
         public bool ProjectionParseComplete { get; set; }
+
+        public PathSparseState GetFolderPathSparseStateValue { get; set; } = PathSparseState.Included;
+        public bool TryAddSparseFolderReturnValue { get; set; } = true;
 
         public override bool IsProjectionParseComplete()
         {
@@ -69,7 +75,17 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
         public override PathSparseState GetFolderPathSparseState(string virtualPath)
         {
-            return PathSparseState.Included;
+            return this.GetFolderPathSparseStateValue;
+        }
+
+        public override bool TryAddSparseFolder(string virtualPath)
+        {
+            if (this.TryAddSparseFolderReturnValue)
+            {
+                this.SparseEntries.Add(virtualPath);
+            }
+
+            return this.TryAddSparseFolderReturnValue;
         }
 
         public void BlockGetProjectedItems(bool willWaitForRequest)

@@ -5,6 +5,7 @@ using GVFS.UnitTests.Mock.Virtualization.Background;
 using GVFS.UnitTests.Mock.Virtualization.BlobSize;
 using GVFS.UnitTests.Mock.Virtualization.Projection;
 using GVFS.Virtualization;
+using GVFS.Virtualization.Background;
 using GVFS.Virtualization.FileSystem;
 using Moq;
 using System;
@@ -63,6 +64,13 @@ namespace GVFS.UnitTests.Virtual
             this.Virtualizer?.Dispose();
             this.GitIndexProjection?.Dispose();
             this.BackgroundTaskRunner?.Dispose();
+        }
+
+        public void BackgroundTaskShouldBeScheduled(string expectedPath, FileSystemTask.OperationType expectedOperationType)
+        {
+            this.BackgroundTaskRunner.Count.ShouldEqual(1);
+            this.BackgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(expectedOperationType);
+            this.BackgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(expectedPath);
         }
 
         protected abstract FileSystemVirtualizer CreateVirtualizer(CommonRepoSetup repo);

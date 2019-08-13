@@ -4,6 +4,7 @@ using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization.FileSystem;
 using PrjFSLib.Mac;
 using System;
+using System.IO;
 
 namespace GVFS.UnitTests.Mock.Mac
 {
