@@ -1,19 +1,12 @@
-﻿using GVFS.Common;
-using GVFS.Common.Database;
-using GVFS.Platform.Windows;
+﻿using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
-using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
-using GVFS.UnitTests.Mock.Virtualization.Background;
-using GVFS.UnitTests.Mock.Virtualization.BlobSize;
-using GVFS.UnitTests.Mock.Virtualization.Projection;
 using GVFS.UnitTests.Virtual;
 using GVFS.UnitTests.Windows.Mock;
 using GVFS.Virtualization.FileSystem;
 using Microsoft.Windows.ProjFS;
-using Moq;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -296,195 +289,111 @@ namespace GVFS.UnitTests.Windows.Virtualization
         [TestCase]
         public void MoveFileIntoDotGitDirectory()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (MockFileSystemCallbacks fileSystemCallbacks = new MockFileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    fileSystemCallbacks.TryStart(out string error).ShouldEqual(true);
-
-                    NotificationType notificationType = NotificationType.UseExistingMask;
-                    mockVirtualization.OnNotifyFileRenamed(
+                NotificationType notificationType = NotificationType.UseExistingMask;
+                tester.MockVirtualization.OnNotifyFileRenamed(
                         "test.txt",
                         Path.Combine(".git", "test.txt"),
                         isDirectory: false,
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.ResetCalls();
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.ResetCalls();
 
-                    // We don't expect something to rename something from outside the .gitdir to the .git\index, but this
-                    // verifies that we behave as expected in case that happens
-                    mockVirtualization.OnNotifyFileRenamed(
+                // We don't expect something to rename something from outside the .gitdir to the .git\index, but this
+                // verifies that we behave as expected in case that happens
+                tester.MockVirtualization.OnNotifyFileRenamed(
                         "test.txt",
                         Path.Combine(".git", "index"),
                         isDirectory: false,
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.ResetCalls();
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.ResetCalls();
 
-                    // We don't expect something to rename something from outside the .gitdir to the .git\logs\HEAD, but this
-                    // verifies that we behave as expected in case that happens
-                    mockVirtualization.OnNotifyFileRenamed(
+                // We don't expect something to rename something from outside the .gitdir to the .git\logs\HEAD, but this
+                // verifies that we behave as expected in case that happens
+                tester.MockVirtualization.OnNotifyFileRenamed(
                         "test.txt",
                         Path.Combine(".git", "logs\\HEAD"),
                         isDirectory: false,
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.ResetCalls();
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.ResetCalls();
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void MoveFileFromDotGitToSrc()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (MockFileSystemCallbacks fileSystemCallbacks = new MockFileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    fileSystemCallbacks.TryStart(out string error).ShouldEqual(true);
-
-                    NotificationType notificationType = NotificationType.UseExistingMask;
-                    mockVirtualization.OnNotifyFileRenamed(
+                NotificationType notificationType = NotificationType.UseExistingMask;
+                tester.MockVirtualization.OnNotifyFileRenamed(
                         Path.Combine(".git", "test.txt"),
                         "test2.txt",
                         isDirectory: false,
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void MoveFile()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (MockFileSystemCallbacks fileSystemCallbacks = new MockFileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    fileSystemCallbacks.TryStart(out string error).ShouldEqual(true);
+                NotificationType notificationType = NotificationType.UseExistingMask;
+                tester.MockVirtualization.OnNotifyFileRenamed(
+                    "test.txt",
+                    "test2.txt",
+                    isDirectory: false,
+                    triggeringProcessId: TriggeringProcessId,
+                    triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                    notificationMask: out notificationType);
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.ResetCalls();
 
-                    NotificationType notificationType = NotificationType.UseExistingMask;
-                    mockVirtualization.OnNotifyFileRenamed(
-                        "test.txt",
-                        "test2.txt",
-                        isDirectory: false,
-                        triggeringProcessId: TriggeringProcessId,
-                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
-                        notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.ResetCalls();
-
-                    mockVirtualization.OnNotifyFileRenamed(
-                        "test_folder_src",
-                        "test_folder_dst",
-                        isDirectory: true,
-                        triggeringProcessId: TriggeringProcessId,
-                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
-                        notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(1);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                tester.MockVirtualization.OnNotifyFileRenamed(
+                    "test_folder_src",
+                    "test_folder_dst",
+                    isDirectory: true,
+                    triggeringProcessId: TriggeringProcessId,
+                    triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                    notificationMask: out notificationType);
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(1);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]

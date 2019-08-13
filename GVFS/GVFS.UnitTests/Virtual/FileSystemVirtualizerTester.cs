@@ -1,16 +1,14 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Database;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Virtualization.Background;
 using GVFS.UnitTests.Mock.Virtualization.BlobSize;
 using GVFS.UnitTests.Mock.Virtualization.Projection;
-using GVFS.Virtualization;
 using GVFS.Virtualization.Background;
 using GVFS.Virtualization.FileSystem;
 using Moq;
 using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace GVFS.UnitTests.Virtual
 {
@@ -32,7 +30,7 @@ namespace GVFS.UnitTests.Virtual
             this.BackgroundTaskRunner = new MockBackgroundFileSystemTaskRunner();
             this.GitIndexProjection = new MockGitIndexProjection(projectedFiles);
             this.Virtualizer = this.CreateVirtualizer(repo);
-            this.FileSystemCallbacks = new FileSystemCallbacks(
+            this.FileSystemCallbacks = new MockFileSystemCallbacks(
                 repo.Context,
                 repo.GitObjects,
                 RepoMetadata.Instance,
@@ -53,7 +51,7 @@ namespace GVFS.UnitTests.Virtual
         public MockBackgroundFileSystemTaskRunner BackgroundTaskRunner { get; }
         public MockGitIndexProjection GitIndexProjection { get; }
         public FileSystemVirtualizer Virtualizer { get; }
-        public FileSystemCallbacks FileSystemCallbacks { get; }
+        public MockFileSystemCallbacks FileSystemCallbacks { get; }
 
         public virtual void Dispose()
         {
