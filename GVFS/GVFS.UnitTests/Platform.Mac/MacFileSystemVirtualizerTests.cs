@@ -88,206 +88,93 @@ namespace GVFS.UnitTests.Platform.Mac
         public void UpdatePlaceholderIfNeeded()
         {
             const string UpdatePlaceholderFileName = "testUpdatePlaceholder.txt";
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { UpdatePlaceholderFileName }))
-            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo, new[] { UpdatePlaceholderFileName }))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(
+                tester.GitIndexProjection.MockFileTypesAndModes.TryAdd(
                     UpdatePlaceholderFileName,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode644));
 
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+                tester.MockVirtualization.UpdatePlaceholderIfNeededResult = Result.Success;
+                tester.MockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
+                tester.InvokeUpdatePlaceholderIfNeeded(
+                    UpdatePlaceholderFileName,
+                    expectedResult: new FileSystemResult(FSResult.Ok, (int)Result.Success),
+                    expectedFailureCause: UpdateFailureCause.NoFailure);
 
-                UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
+                tester.MockVirtualization.UpdatedPlaceholders.ShouldContain(path => path.Key.Equals(UpdatePlaceholderFileName) && path.Value == GitIndexProjection.FileMode644);
+                tester.MockVirtualization.UpdatedPlaceholders.Clear();
 
-                mockVirtualization.UpdatePlaceholderIfNeededResult = Result.Success;
-                mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
-                virtualizer
-                    .UpdatePlaceholderIfNeeded(
-                        UpdatePlaceholderFileName,
-                        DateTime.Now,
-                        DateTime.Now,
-                        DateTime.Now,
-                        DateTime.Now,
-                        0,
-                        15,
-                        string.Empty,
-                        UpdatePlaceholderType.AllowReadOnly,
-                        out failureReason)
-                    .ShouldEqual(new FileSystemResult(FSResult.Ok, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
-                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
-                mockVirtualization.UpdatedPlaceholders.ShouldContain(path => path.Key.Equals(UpdatePlaceholderFileName) && path.Value == GitIndexProjection.FileMode644);
-                mockVirtualization.UpdatedPlaceholders.Clear();
-
-                mockVirtualization.UpdatePlaceholderIfNeededResult = Result.EFileNotFound;
-                mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
-                virtualizer
-                    .UpdatePlaceholderIfNeeded(
-                        UpdatePlaceholderFileName,
-                        DateTime.Now,
-                        DateTime.Now,
-                        DateTime.Now,
-                        DateTime.Now,
-                        0,
-                        15,
-                        string.Empty,
-                        UpdatePlaceholderType.AllowReadOnly,
-                        out failureReason)
-                    .ShouldEqual(new FileSystemResult(FSResult.FileOrPathNotFound, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
-                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
+                tester.MockVirtualization.UpdatePlaceholderIfNeededResult = Result.EFileNotFound;
+                tester.MockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
+                tester.InvokeUpdatePlaceholderIfNeeded(
+                    UpdatePlaceholderFileName,
+                    expectedResult: new FileSystemResult(FSResult.FileOrPathNotFound, (int)Result.EFileNotFound),
+                    expectedFailureCause: UpdateFailureCause.NoFailure);
 
                 // TODO: What will the result be when the UpdateFailureCause is DirtyData
-                mockVirtualization.UpdatePlaceholderIfNeededResult = Result.EInvalidOperation;
-                mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.DirtyData;
+                tester.MockVirtualization.UpdatePlaceholderIfNeededResult = Result.EInvalidOperation;
+                tester.MockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.DirtyData;
 
                 // TODO: The result should probably be VirtualizationInvalidOperation but for now it's IOError
-                virtualizer
-                    .UpdatePlaceholderIfNeeded(
-                        UpdatePlaceholderFileName,
-                        DateTime.Now,
-                        DateTime.Now,
-                        DateTime.Now,
-                        DateTime.Now,
-                        0,
-                        15,
-                        string.Empty,
-                        UpdatePlaceholderType.AllowReadOnly,
-                        out failureReason)
-                    .ShouldEqual(new FileSystemResult(FSResult.IOError, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
-                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
-                fileSystemCallbacks.Stop();
+                tester.InvokeUpdatePlaceholderIfNeeded(
+                    UpdatePlaceholderFileName,
+                    expectedResult: new FileSystemResult(FSResult.IOError, (int)Result.EInvalidOperation),
+                    expectedFailureCause: UpdateFailureCause.DirtyData);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void WritePlaceholderForSymLink()
         {
             const string WriteSymLinkFileName = "testWriteSymLink.txt";
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { WriteSymLinkFileName }))
-            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo, new[] { WriteSymLinkFileName }))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(
+                tester.GitIndexProjection.MockFileTypesAndModes.TryAdd(
                     WriteSymLinkFileName,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.SymLink, fileMode: 0));
 
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                virtualizer.WritePlaceholderFile(
+                tester.Virtualizer.WritePlaceholderFile(
                     WriteSymLinkFileName,
                     endOfFile: 0,
                     sha: string.Empty).ShouldEqual(new FileSystemResult(FSResult.Ok, (int)Result.Success));
 
-                mockVirtualization.CreatedPlaceholders.ShouldBeEmpty();
-                mockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
-                mockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(WriteSymLinkFileName));
+                tester.MockVirtualization.CreatedPlaceholders.ShouldBeEmpty();
+                tester.MockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
+                tester.MockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(WriteSymLinkFileName));
 
                 // Creating a symlink should schedule a background task
-                backgroundTaskRunner.Count.ShouldEqual(1);
-                backgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
-                backgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(WriteSymLinkFileName);
-
-                fileSystemCallbacks.Stop();
+                tester.BackgroundTaskRunner.Count.ShouldEqual(1);
+                tester.BackgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
+                tester.BackgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(WriteSymLinkFileName);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void UpdatePlaceholderToSymLink()
         {
             const string PlaceholderToLinkFileName = "testUpdatePlaceholderToLink.txt";
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { PlaceholderToLinkFileName }))
-            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo, new[] { PlaceholderToLinkFileName }))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(
+                tester.GitIndexProjection.MockFileTypesAndModes.TryAdd(
                     PlaceholderToLinkFileName,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.SymLink, fileMode: 0));
 
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+                tester.MockVirtualization.UpdatePlaceholderIfNeededResult = Result.Success;
+                tester.MockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
+                tester.InvokeUpdatePlaceholderIfNeeded(
+                    PlaceholderToLinkFileName,
+                    expectedResult: new FileSystemResult(FSResult.Ok, (int)Result.Success),
+                    expectedFailureCause: UpdateFailureCause.NoFailure);
 
-                UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
-
-                mockVirtualization.UpdatePlaceholderIfNeededResult = Result.Success;
-                mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
-                virtualizer
-                    .UpdatePlaceholderIfNeeded(
-                        PlaceholderToLinkFileName,
-                        DateTime.Now,
-                        DateTime.Now,
-                        DateTime.Now,
-                        DateTime.Now,
-                        0,
-                        15,
-                        string.Empty,
-                        UpdatePlaceholderType.AllowReadOnly,
-                        out failureReason)
-                    .ShouldEqual(new FileSystemResult(FSResult.Ok, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
-                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
-                mockVirtualization.UpdatedPlaceholders.Count.ShouldEqual(0, "UpdatePlaceholderIfNeeded should not be called when converting a placeholder to a link");
-                mockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
-                mockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(PlaceholderToLinkFileName));
+                tester.MockVirtualization.UpdatedPlaceholders.Count.ShouldEqual(0, "UpdatePlaceholderIfNeeded should not be called when converting a placeholder to a link");
+                tester.MockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
+                tester.MockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(PlaceholderToLinkFileName));
 
                 // Creating a symlink should schedule a background task
-                backgroundTaskRunner.Count.ShouldEqual(1);
-                backgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
-                backgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(PlaceholderToLinkFileName);
-
-                fileSystemCallbacks.Stop();
+                tester.BackgroundTaskRunner.Count.ShouldEqual(1);
+                tester.BackgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
+                tester.BackgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(PlaceholderToLinkFileName);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -308,44 +195,20 @@ namespace GVFS.UnitTests.Platform.Mac
             const string TestFileName = "test.txt";
             const string TestFolderName = "testFolder";
             string testFilePath = Path.Combine(TestFolderName, TestFileName);
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
 
             // Don't include TestFolderName as MockGitIndexProjection returns the same list of files regardless of what folder name
             // it is passed
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
-            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(
+                tester.GitIndexProjection.MockFileTypesAndModes.TryAdd(
                     testFilePath,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode644));
 
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                Guid enumerationGuid = Guid.NewGuid();
-                gitIndexProjection.EnumerationInMemory = false;
-                mockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
-                mockVirtualization.CreatedPlaceholders.ShouldContain(
+                tester.GitIndexProjection.EnumerationInMemory = false;
+                tester.MockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
                     kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
-                fileSystemCallbacks.Stop();
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -354,45 +217,21 @@ namespace GVFS.UnitTests.Platform.Mac
             const string TestFileName = "test.txt";
             const string TestFolderName = "testFolder";
             string testFilePath = Path.Combine(TestFolderName, TestFileName);
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
 
             // Don't include TestFolderName as MockGitIndexProjection returns the same list of files regardless of what folder name
             // it is passed
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
-            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(
+                tester.GitIndexProjection.MockFileTypesAndModes.TryAdd(
                     testFilePath,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode644));
 
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                Guid enumerationGuid = Guid.NewGuid();
-                gitIndexProjection.EnumerationInMemory = true;
-                mockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
-                mockVirtualization.CreatedPlaceholders.ShouldContain(
+                tester.GitIndexProjection.EnumerationInMemory = true;
+                tester.MockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
                     kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
-                gitIndexProjection.ExpandedFolders.ShouldMatchInOrder(TestFolderName);
-                fileSystemCallbacks.Stop();
+                tester.GitIndexProjection.ExpandedFolders.ShouldMatchInOrder(TestFolderName);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
@@ -405,99 +244,41 @@ namespace GVFS.UnitTests.Platform.Mac
             string testFile644Path = Path.Combine(TestFolderName, TestFile644Name);
             string testFile664Path = Path.Combine(TestFolderName, TestFile664Name);
             string testFile755Path = Path.Combine(TestFolderName, TestFile755Name);
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
 
             // Don't include TestFolderName as MockGitIndexProjection returns the same list of files regardless of what folder name
             // it is passed
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFile644Name, TestFile664Name, TestFile755Name }))
-            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo, new[] { TestFile644Name, TestFile664Name, TestFile755Name }))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(
+                tester.GitIndexProjection.MockFileTypesAndModes.TryAdd(
                     testFile644Path,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode644));
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(
+                tester.GitIndexProjection.MockFileTypesAndModes.TryAdd(
                     testFile664Path,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode664));
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(
+                tester.GitIndexProjection.MockFileTypesAndModes.TryAdd(
                     testFile755Path,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode755));
 
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                Guid enumerationGuid = Guid.NewGuid();
-                gitIndexProjection.EnumerationInMemory = true;
-                mockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
-                mockVirtualization.CreatedPlaceholders.ShouldContain(
+                tester.GitIndexProjection.EnumerationInMemory = true;
+                tester.MockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
                     kvp => kvp.Key.Equals(testFile644Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
-                mockVirtualization.CreatedPlaceholders.ShouldContain(
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
                     kvp => kvp.Key.Equals(testFile664Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode664);
-                mockVirtualization.CreatedPlaceholders.ShouldContain(
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
                     kvp => kvp.Key.Equals(testFile755Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode755);
-                fileSystemCallbacks.Stop();
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void OnGetFileStreamReturnsSuccessWhenFileStreamAvailable()
         {
-            const string TestFileName = "test.txt";
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
-            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (MacFileSystemVirtualizerTester tester = new MacFileSystemVirtualizerTester(this.Repo))
             {
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                mockVirtualization.WriteFileReturnResult = Result.Success;
-
-                mockVirtualization.OnGetFileStream(
-                    commandId: 1,
-                    relativePath: TestFileName,
-                    providerId: MacFileSystemVirtualizer.PlaceholderVersionId,
-                    contentId: CommonRepoSetup.DefaultContentId,
-                    triggeringProcessId: 2,
-                    triggeringProcessName: "UnitTest",
-                    fileHandle: IntPtr.Zero).ShouldEqual(Result.Success);
-
-                mockVirtualization.BytesWritten.ShouldEqual(MockGVFSGitObjects.DefaultFileLength);
-
-                fileSystemCallbacks.Stop();
+                tester.MockVirtualization.WriteFileReturnResult = Result.Success;
+                tester.InvokeOnGetFileStream(expectedResult: Result.Success);
+                tester.MockVirtualization.BytesWritten.ShouldEqual(MockGVFSGitObjects.DefaultFileLength);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]

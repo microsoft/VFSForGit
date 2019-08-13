@@ -39,6 +39,24 @@ namespace GVFS.UnitTests.Mock.Mac
                 fileHandle: IntPtr.Zero).ShouldEqual(expectedResult);
         }
 
+        public void InvokeUpdatePlaceholderIfNeeded(string fileName, FileSystemResult expectedResult, UpdateFailureCause expectedFailureCause)
+        {
+            UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
+            this.MacVirtualizer.UpdatePlaceholderIfNeeded(
+                    fileName,
+                    DateTime.Now,
+                    DateTime.Now,
+                    DateTime.Now,
+                    DateTime.Now,
+                    0,
+                    15,
+                    string.Empty,
+                    UpdatePlaceholderType.AllowReadOnly,
+                    out failureReason)
+                .ShouldEqual(expectedResult);
+            failureReason.ShouldEqual((UpdateFailureReason)expectedFailureCause);
+        }
+
         protected override FileSystemVirtualizer CreateVirtualizer(CommonRepoSetup repo)
         {
             this.MockVirtualization = new MockVirtualizationInstance();
