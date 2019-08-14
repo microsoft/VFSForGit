@@ -20,7 +20,7 @@ namespace GVFS.Common.Git
             {
                 string reason = Native.GetLastError();
                 string message = "Couldn't open repo at " + repoPath + ": " + reason;
-                tracer.RelatedError(message);
+                tracer.RelatedWarning(message);
 
                 Native.Shutdown();
                 throw new InvalidDataException(message);
