@@ -28,6 +28,27 @@ namespace GVFS.Common.Maintenance
         protected bool RequireObjectCacheLock { get; }
         protected GitProcessChecker GitProcessChecker { get; }
 
+        public static bool EnlistmentRootReady(GVFSContext context)
+        {
+            // If a user locks their drive or disconnects an external drive while the mount process
+            // is running, then it will appear as if the directories below do not exist or throw
+            // a "Device is not ready" error.
+            try
+            {
+                return context.FileSystem.DirectoryExists(context.Enlistment.EnlistmentRoot)
+                         && context.FileSystem.DirectoryExists(context.Enlistment.GitObjectsRoot);
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+        }
+
+        public bool EnlistmentRootReady()
+        {
+            return EnlistmentRootReady(this.Context);
+        }
+
         public void Execute()
         {
             try
@@ -62,10 +83,20 @@ namespace GVFS.Common.Maintenance
             }
             catch (Exception e)
             {
-                this.Context.Tracer.RelatedError(
-                    metadata: this.CreateEventMetadata(e),
-                    message: "Exception while running action: " + e.Message,
-                    keywords: Keywords.Telemetry);
+                if (this.EnlistmentRootReady())
+                {
+                    this.Context.Tracer.RelatedError(
+                        metadata: this.CreateEventMetadata(e),
+                        message: "Exception while running action: " + e.Message,
+                        keywords: Keywords.Telemetry);
+                }
+                else
+                {
+                    this.Context.Tracer.RelatedWarning(
+                        metadata: this.CreateEventMetadata(e),
+                        message: "Exception while running action inside a repo that's not ready: " + e.Message);
+                }
+
                 Environment.Exit((int)ReturnCode.GenericError);
             }
         }
