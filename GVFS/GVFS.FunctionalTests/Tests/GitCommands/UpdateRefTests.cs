@@ -1,6 +1,6 @@
 ﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
-using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -30,7 +30,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         public override void TearDownForTest()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            if (FileSystemHelpers.CaseSensitiveFileSystem)
             {
                 this.TestValidationAndCleanup();
             }

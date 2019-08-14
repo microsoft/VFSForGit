@@ -323,7 +323,7 @@ namespace GVFS.FunctionalTests.Tests
             {
                 // Ignore case differences on case-insensitive filesystems
                 this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                    .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, ignoreCase: !RuntimeInformation.IsOSPlatform(OSPlatform.Linux));
+                    .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, ignoreCase: !FileSystemHelpers.CaseSensitiveFileSystem);
             }
             finally
             {

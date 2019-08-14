@@ -25,7 +25,7 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        private static bool CaseSensitiveFileSystem
+        public static bool CaseSensitiveFileSystem
         {
             get
             {
