@@ -1,20 +1,12 @@
-﻿using GVFS.Common;
-using GVFS.Common.Database;
-using GVFS.Platform.Windows;
+﻿using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
-using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
-using GVFS.UnitTests.Mock.Virtualization.Background;
-using GVFS.UnitTests.Mock.Virtualization.BlobSize;
-using GVFS.UnitTests.Mock.Virtualization.Projection;
 using GVFS.UnitTests.Virtual;
 using GVFS.UnitTests.Windows.Mock;
-using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
 using Microsoft.Windows.ProjFS;
-using Moq;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -167,920 +159,319 @@ namespace GVFS.UnitTests.Windows.Virtualization
         [TestCase]
         public void OnStartDirectoryEnumerationReturnsPendingWhenResultsNotInMemory()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                    Guid enumerationGuid = Guid.NewGuid();
-                    gitIndexProjection.EnumerationInMemory = false;
-                    mockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
-                    mockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
-                    mockVirtualization.requiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                Guid enumerationGuid = Guid.NewGuid();
+                tester.GitIndexProjection.EnumerationInMemory = false;
+                tester.MockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.requiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void OnStartDirectoryEnumerationReturnsSuccessWhenResultsInMemory()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test" }))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                    Guid enumerationGuid = Guid.NewGuid();
-                    gitIndexProjection.EnumerationInMemory = true;
-                    mockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
-                    mockVirtualization.requiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                Guid enumerationGuid = Guid.NewGuid();
+                tester.GitIndexProjection.EnumerationInMemory = true;
+                tester.MockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.requiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void GetPlaceholderInformationHandlerPathNotProjected()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "doesNotExist", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.FileNotFound);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "doesNotExist", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.FileNotFound);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void GetPlaceholderInformationHandlerPathProjected()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
-                    mockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
-                    mockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
-                    gitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
+                tester.GitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void GetPlaceholderInformationHandlerCancelledBeforeSchedulingAsync()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
+                tester.GitIndexProjection.BlockIsPathProjected(willWaitForRequest: true);
+
+                Task.Run(() =>
                 {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+                    // Wait for OnGetPlaceholderInformation to call IsPathProjected and then while it's blocked there
+                    // call OnCancelCommand
+                    tester.GitIndexProjection.WaitForIsPathProjected();
+                    tester.MockVirtualization.OnCancelCommand(1);
+                    tester.GitIndexProjection.UnblockIsPathProjected();
+                });
 
-                    gitIndexProjection.BlockIsPathProjected(willWaitForRequest: true);
+                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
 
-                    Task.Run(() =>
-                    {
-                        // Wait for OnGetPlaceholderInformation to call IsPathProjected and then while it's blocked there
-                        // call OnCancelCommand
-                        gitIndexProjection.WaitForIsPathProjected();
-                        mockVirtualization.OnCancelCommand(1);
-                        gitIndexProjection.UnblockIsPathProjected();
-                    });
-
-                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
-
-                    // Cancelling before GetPlaceholderInformation has registered the command results in placeholders being created
-                    mockVirtualization.WaitForPlaceholderCreate();
-                    gitIndexProjection.WaitForPlaceholderCreate();
-                    mockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
-                    gitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                // Cancelling before GetPlaceholderInformation has registered the command results in placeholders being created
+                tester.MockVirtualization.WaitForPlaceholderCreate();
+                tester.GitIndexProjection.WaitForPlaceholderCreate();
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
+                tester.GitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void GetPlaceholderInformationHandlerCancelledDuringAsyncCallback()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+                tester.GitIndexProjection.BlockGetProjectedFileInfo(willWaitForRequest: true);
+                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
+                tester.GitIndexProjection.WaitForGetProjectedFileInfo();
+                tester.MockVirtualization.OnCancelCommand(1);
+                tester.GitIndexProjection.UnblockGetProjectedFileInfo();
 
-                    gitIndexProjection.BlockGetProjectedFileInfo(willWaitForRequest: true);
-                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
-                    gitIndexProjection.WaitForGetProjectedFileInfo();
-                    mockVirtualization.OnCancelCommand(1);
-                    gitIndexProjection.UnblockGetProjectedFileInfo();
-
-                    // Cancelling in the middle of GetPlaceholderInformation still allows it to create placeholders when the cancellation does not
-                    // interrupt network requests
-                    mockVirtualization.WaitForPlaceholderCreate();
-                    gitIndexProjection.WaitForPlaceholderCreate();
-                    mockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
-                    gitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                // Cancelling in the middle of GetPlaceholderInformation still allows it to create placeholders when the cancellation does not
+                // interrupt network requests
+                tester.MockVirtualization.WaitForPlaceholderCreate();
+                tester.GitIndexProjection.WaitForPlaceholderCreate();
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
+                tester.GitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void GetPlaceholderInformationHandlerCancelledDuringNetworkRequest()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.WaitRelatedEventName = "GetPlaceholderInformationAsyncHandler_GetProjectedFileInfo_Cancelled";
+                tester.GitIndexProjection.ThrowOperationCanceledExceptionOnProjectionRequest = true;
+                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
 
-                    MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
-                    mockTracker.WaitRelatedEventName = "GetPlaceholderInformationAsyncHandler_GetProjectedFileInfo_Cancelled";
-                    gitIndexProjection.ThrowOperationCanceledExceptionOnProjectionRequest = true;
-                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
-
-                    // Cancelling in the middle of GetPlaceholderInformation in the middle of a network request should not result in placeholder
-                    // getting created
-                    mockTracker.WaitForRelatedEvent();
-                    mockVirtualization.CreatedPlaceholders.ShouldNotContain(entry => entry == "test.txt");
-                    gitIndexProjection.PlaceholdersCreated.ShouldNotContain(entry => entry == "test.txt");
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                // Cancelling in the middle of GetPlaceholderInformation in the middle of a network request should not result in placeholder
+                // getting created
+                mockTracker.WaitForRelatedEvent();
+                tester.MockVirtualization.CreatedPlaceholders.ShouldNotContain(entry => entry == "test.txt");
+                tester.GitIndexProjection.PlaceholdersCreated.ShouldNotContain(entry => entry == "test.txt");
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void OnGetFileStreamReturnsInternalErrorWhenOffsetNonZero()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                    Guid enumerationGuid = Guid.NewGuid();
-
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
-
-                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
-                        commandId: 1,
-                        relativePath: "test.txt",
-                        byteOffset: 10,
-                        length: 100,
-                        dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
-                        providerId: placeholderVersion,
-                        triggeringProcessId: 2,
-                        triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.InternalError);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.InternalError, byteOffset: 10);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void OnGetFileStreamReturnsInternalErrorWhenPlaceholderVersionDoesNotMatchExpected()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                    Guid enumerationGuid = Guid.NewGuid();
-
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] epochId = new byte[] { FileSystemVirtualizer.PlaceholderVersion + 1 };
-
-                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
-                        commandId: 1,
-                        relativePath: "test.txt",
-                        byteOffset: 0,
-                        length: 100,
-                        dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
-                        providerId: epochId,
-                        triggeringProcessId: 2,
-                        triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.InternalError);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                byte[] epochId = new byte[] { FileSystemVirtualizer.PlaceholderVersion + 1 };
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.InternalError, providerId: epochId);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void MoveFileIntoDotGitDirectory()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (MockFileSystemCallbacks fileSystemCallbacks = new MockFileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    fileSystemCallbacks.TryStart(out string error).ShouldEqual(true);
-
-                    NotificationType notificationType = NotificationType.UseExistingMask;
-                    mockVirtualization.OnNotifyFileRenamed(
+                NotificationType notificationType = NotificationType.UseExistingMask;
+                tester.MockVirtualization.OnNotifyFileRenamed(
                         "test.txt",
                         Path.Combine(".git", "test.txt"),
                         isDirectory: false,
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.ResetCalls();
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.ResetCalls();
 
-                    // We don't expect something to rename something from outside the .gitdir to the .git\index, but this
-                    // verifies that we behave as expected in case that happens
-                    mockVirtualization.OnNotifyFileRenamed(
+                // We don't expect something to rename something from outside the .gitdir to the .git\index, but this
+                // verifies that we behave as expected in case that happens
+                tester.MockVirtualization.OnNotifyFileRenamed(
                         "test.txt",
                         Path.Combine(".git", "index"),
                         isDirectory: false,
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.ResetCalls();
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.ResetCalls();
 
-                    // We don't expect something to rename something from outside the .gitdir to the .git\logs\HEAD, but this
-                    // verifies that we behave as expected in case that happens
-                    mockVirtualization.OnNotifyFileRenamed(
+                // We don't expect something to rename something from outside the .gitdir to the .git\logs\HEAD, but this
+                // verifies that we behave as expected in case that happens
+                tester.MockVirtualization.OnNotifyFileRenamed(
                         "test.txt",
                         Path.Combine(".git", "logs\\HEAD"),
                         isDirectory: false,
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.ResetCalls();
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.ResetCalls();
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void MoveFileFromDotGitToSrc()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (MockFileSystemCallbacks fileSystemCallbacks = new MockFileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    fileSystemCallbacks.TryStart(out string error).ShouldEqual(true);
-
-                    NotificationType notificationType = NotificationType.UseExistingMask;
-                    mockVirtualization.OnNotifyFileRenamed(
+                NotificationType notificationType = NotificationType.UseExistingMask;
+                tester.MockVirtualization.OnNotifyFileRenamed(
                         Path.Combine(".git", "test.txt"),
                         "test2.txt",
                         isDirectory: false,
                         triggeringProcessId: TriggeringProcessId,
                         triggeringProcessImageFileName: TriggeringProcessImageFileName,
                         notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void MoveFile()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (MockFileSystemCallbacks fileSystemCallbacks = new MockFileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    fileSystemCallbacks.TryStart(out string error).ShouldEqual(true);
+                NotificationType notificationType = NotificationType.UseExistingMask;
+                tester.MockVirtualization.OnNotifyFileRenamed(
+                    "test.txt",
+                    "test2.txt",
+                    isDirectory: false,
+                    triggeringProcessId: TriggeringProcessId,
+                    triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                    notificationMask: out notificationType);
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.ResetCalls();
 
-                    NotificationType notificationType = NotificationType.UseExistingMask;
-                    mockVirtualization.OnNotifyFileRenamed(
-                        "test.txt",
-                        "test2.txt",
-                        isDirectory: false,
-                        triggeringProcessId: TriggeringProcessId,
-                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
-                        notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.ResetCalls();
-
-                    mockVirtualization.OnNotifyFileRenamed(
-                        "test_folder_src",
-                        "test_folder_dst",
-                        isDirectory: true,
-                        triggeringProcessId: TriggeringProcessId,
-                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
-                        notificationMask: out notificationType);
-                    notificationType.ShouldEqual(NotificationType.UseExistingMask);
-                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(0);
-                    fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(1);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                tester.MockVirtualization.OnNotifyFileRenamed(
+                    "test_folder_src",
+                    "test_folder_dst",
+                    isDirectory: true,
+                    triggeringProcessId: TriggeringProcessId,
+                    triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                    notificationMask: out notificationType);
+                notificationType.ShouldEqual(NotificationType.UseExistingMask);
+                tester.FileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(0);
+                tester.FileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(1);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         public void OnGetFileStreamReturnsPendingAndCompletesWithSuccessWhenNoFailures()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+                tester.MockVirtualization.WriteFileReturnResult = HResult.Ok;
 
-                    Guid enumerationGuid = Guid.NewGuid();
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
 
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
-
-                    uint fileLength = 100;
-                    MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                    mockGVFSGitObjects.FileLength = fileLength;
-                    mockVirtualization.WriteFileReturnResult = HResult.Ok;
-
-                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
-                        commandId: 1,
-                        relativePath: "test.txt",
-                        byteOffset: 0,
-                        length: fileLength,
-                        dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
-                        providerId: placeholderVersion,
-                        triggeringProcessId: 2,
-                        triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
-
-                    mockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesTryCopyBlobContentStreamThrowingOperationCanceled()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.WaitRelatedEventName = "GetFileStreamHandlerAsyncHandler_OperationCancelled";
+                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
+                mockGVFSGitObjects.CancelTryCopyBlobContentStream = true;
 
-                    Guid enumerationGuid = Guid.NewGuid();
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
 
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
-
-                    MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-
-                    MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
-                    mockTracker.WaitRelatedEventName = "GetFileStreamHandlerAsyncHandler_OperationCancelled";
-                    mockGVFSGitObjects.CancelTryCopyBlobContentStream = true;
-
-                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
-                        commandId: 1,
-                        relativePath: "test.txt",
-                        byteOffset: 0,
-                        length: 100,
-                        dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
-                        providerId: placeholderVersion,
-                        triggeringProcessId: 2,
-                        triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
-
-                    mockTracker.WaitForRelatedEvent();
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                mockTracker.WaitForRelatedEvent();
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesCancellationDuringWriteAction()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
-
-                Guid enumerationGuid = Guid.NewGuid();
-
-                byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
-
-                uint fileLength = 100;
-                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                mockGVFSGitObjects.FileLength = fileLength;
-
                 MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
                 mockTracker.WaitRelatedEventName = "GetFileStreamHandlerAsyncHandler_OperationCancelled";
 
-                mockVirtualization.BlockCreateWriteBuffer(willWaitForRequest: true);
-                mockVirtualization.requiredCallbacks.GetFileDataCallback(
-                    commandId: 1,
-                    relativePath: "test.txt",
-                    byteOffset: 0,
-                    length: fileLength,
-                    dataStreamId: Guid.NewGuid(),
-                    contentId: contentId,
-                    providerId: placeholderVersion,
-                    triggeringProcessId: 2,
-                    triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.BlockCreateWriteBuffer(willWaitForRequest: true);
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
 
-                mockVirtualization.WaitForCreateWriteBuffer();
-                mockVirtualization.OnCancelCommand(1);
-                mockVirtualization.UnblockCreateWriteBuffer();
+                tester.MockVirtualization.WaitForCreateWriteBuffer();
+                tester.MockVirtualization.OnCancelCommand(1);
+                tester.MockVirtualization.UnblockCreateWriteBuffer();
                 mockTracker.WaitForRelatedEvent();
-
-                fileSystemCallbacks.Stop();
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
-        [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesWriteFailure()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+                tester.MockVirtualization.WriteFileReturnResult = HResult.InternalError;
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
 
-                    Guid enumerationGuid = Guid.NewGuid();
-
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
-
-                    uint fileLength = 100;
-                    MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                    mockGVFSGitObjects.FileLength = fileLength;
-
-                    MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
-
-                    mockVirtualization.WriteFileReturnResult = HResult.InternalError;
-                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
-                        commandId: 1,
-                        relativePath: "test.txt",
-                        byteOffset: 0,
-                        length: fileLength,
-                        dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
-                        providerId: placeholderVersion,
-                        triggeringProcessId: 2,
-                        triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
-
-                    mockVirtualization.WaitForCompletionStatus().ShouldEqual(mockVirtualization.WriteFileReturnResult);
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                HResult result = tester.MockVirtualization.WaitForCompletionStatus();
+                result.ShouldEqual(tester.MockVirtualization.WriteFileReturnResult);
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesHResultHandleResult()
         {
-            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
-            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
-            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection,
-                backgroundTaskRunner,
-                virtualizer,
-                mockPlaceholderDb.Object,
-                mockSparseDb.Object))
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                try
-                {
-                    string error;
-                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+                tester.MockVirtualization.WriteFileReturnResult = HResult.Handle;
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
 
-                    Guid enumerationGuid = Guid.NewGuid();
-
-                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
-
-                    uint fileLength = 100;
-                    MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
-                    mockGVFSGitObjects.FileLength = fileLength;
-
-                    MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
-
-                    mockVirtualization.WriteFileReturnResult = HResult.Handle;
-                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
-                        commandId: 1,
-                        relativePath: "test.txt",
-                        byteOffset: 0,
-                        length: fileLength,
-                        dataStreamId: Guid.NewGuid(),
-                        contentId: contentId,
-                        providerId: placeholderVersion,
-                        triggeringProcessId: 2,
-                        triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
-
-                    HResult result = mockVirtualization.WaitForCompletionStatus();
-                    result.ShouldEqual(mockVirtualization.WriteFileReturnResult);
-                    mockTracker.RelatedErrorEvents.ShouldBeEmpty();
-                }
-                finally
-                {
-                    fileSystemCallbacks.Stop();
-                }
+                HResult result = tester.MockVirtualization.WaitForCompletionStatus();
+                result.ShouldEqual(tester.MockVirtualization.WriteFileReturnResult);
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.RelatedErrorEvents.ShouldBeEmpty();
             }
-
-            mockPlaceholderDb.VerifyAll();
-            mockSparseDb.VerifyAll();
         }
     }
 }

@@ -451,7 +451,7 @@ namespace GVFS.Virtualization.Projection
             return PathSparseState.NotFound;
         }
 
-        public bool TryAddSparseFolder(string virtualPath)
+        public virtual bool TryAddSparseFolder(string virtualPath)
         {
             try
             {
