@@ -268,7 +268,33 @@ namespace GVFS.Virtualization.Projection
                 }
             }
 
-            this.context.Tracer.RelatedError("GitIndexProjection: Received a release request from a process that does not own the lock (PID={0})", pid);
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("LockStatus", this.context.Repository.GVFSLock.GetStatus());
+            metadata.Add("ReleaseCallerPID", pid);
+
+            try
+            {
+                using (Process process = Process.GetProcessById(pid))
+                {
+                    metadata.Add("ReleaseCallerName", process.ProcessName);
+                    metadata.Add("ReleaseCallerArgs", process.StartInfo.Arguments);
+                }
+            }
+            catch (Exception)
+            {
+            }
+
+            if (externalHolder != null)
+            {
+                metadata.Add("ExternalHolder", externalHolder.ParsedCommand);
+                metadata.Add("ExternalHolderPID", externalHolder.PID);
+            }
+            else
+            {
+                metadata.Add("ExternalHolder", string.Empty);
+            }
+
+            this.context.Tracer.RelatedError(metadata, "GitIndexProjection: Received a release request from a process that does not own the lock");
             return new NamedPipeMessages.ReleaseLock.Response(NamedPipeMessages.ReleaseLock.FailureResult);
         }
 
