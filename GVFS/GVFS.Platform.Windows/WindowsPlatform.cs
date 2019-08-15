@@ -499,6 +499,26 @@ namespace GVFS.Platform.Windows
 
             // Tests show that 250 is the max supported pipe name length
             public override int MaxPipePathLength => 250;
+
+            public override string UpgradeInstallAdviceMessage
+            {
+                get { return $"When ready, run {this.UpgradeConfirmCommandMessage} from an elevated command prompt."; }
+            }
+
+            public override string UpgradeConfirmCommandMessage
+            {
+                get { return UpgradeConfirmMessage; }
+            }
+
+            public override string StartServiceCommandMessage
+            {
+                get { return $"`sc start GVFS.Service`";  }
+            }
+
+            public override string RunUpdateMessage
+            {
+                get { return $"Run {UpgradeConfirmMessage} from an elevated command prompt."; }
+            }
         }
     }
 }

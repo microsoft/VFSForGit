@@ -28,5 +28,10 @@ namespace GVFS.Hooks.HooksPlatform
         {
             return "git gui is not supported in VFS for Git repos on Mac";
         }
+
+        public static string GetUpgradeReminderNotification()
+        {
+            return MacPlatform.GetUpgradeReminderNotificationImplementation();
+        }
     }
 }

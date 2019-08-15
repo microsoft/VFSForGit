@@ -47,7 +47,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "New GVFS version " + NewerThanLocalVersion + " available in ring Slow",
-                    "When ready, run `gvfs upgrade --confirm` from an elevated command prompt."
+                    "MockUpgradeInstallAdvice"
                 },
                 expectedErrors: null);
         }
@@ -166,7 +166,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "GVFS Service is not running.",
-                    "Run `sc start GVFS.Service` and run `gvfs upgrade --confirm` again from an elevated command prompt."
+                    "To install, run MockStartServiceCommand and run MockUpgradeConfirmCommand."
                 },
                 expectedErrors: null,
                 expectedWarnings: new List<string>
@@ -188,13 +188,13 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "The installer needs to be run from an elevated command prompt.",
-                    "Run `gvfs upgrade --confirm` again from an elevated command prompt."
+                    "The installer needs to be run with elevated permissions.",
+                    "MockRunUpdateMessage"
                 },
                 expectedErrors: null,
                 expectedWarnings: new List<string>
                 {
-                    "The installer needs to be run from an elevated command prompt."
+                    "The installer needs to be run with elevated permissions."
                 });
         }
 

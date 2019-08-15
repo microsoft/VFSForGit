@@ -8,6 +8,7 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform
     {
         public const string DotGVFSRoot = ".gvfs";
+        public const string UpgradeConfirmMessage = "`sudo gvfs upgrade --confirm`";
 
         public static string GetDataRootForGVFSImplementation()
         {
@@ -41,6 +42,11 @@ namespace GVFS.Platform.Mac
         public static string GetNamedPipeNameImplementation(string enlistmentRoot)
         {
             return POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot, DotGVFSRoot);
+        }
+
+        public static string GetUpgradeReminderNotificationImplementation()
+        {
+            return $"A new version of VFS for Git is available. Run {UpgradeConfirmMessage} to upgrade.";
         }
 
         private string GetUpgradeNonProtectedDataDirectory()

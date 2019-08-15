@@ -149,6 +149,10 @@ namespace GVFS.Common
             /// the upgrade verb is running.
             /// </summary>
             public abstract bool SupportsUpgradeWhileRunning { get; }
+            public abstract string UpgradeInstallAdviceMessage { get; }
+            public abstract string RunUpdateMessage { get; }
+            public abstract string UpgradeConfirmCommandMessage { get; }
+            public abstract string StartServiceCommandMessage { get; }
             public abstract string WorkingDirectoryBackingRootPath { get; }
             public abstract string DotGVFSRoot { get; }
 

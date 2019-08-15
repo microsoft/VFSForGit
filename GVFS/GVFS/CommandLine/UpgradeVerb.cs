@@ -111,7 +111,7 @@ namespace GVFS.CommandLine
                     jsonTracer.AddLogFileEventListener(logFilePath, EventLevel.Informational, Keywords.Any);
 
                     this.tracer = jsonTracer;
-                    this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
+                    this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSPlatform.Instance.Constants.UpgradeConfirmCommandMessage : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
 
                     string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
                     if (string.IsNullOrEmpty(gitBinPath))
@@ -210,7 +210,7 @@ namespace GVFS.CommandLine
                 string advisoryMessage = string.Join(
                         Environment.NewLine,
                         GVFSConstants.UpgradeVerbMessages.UnmountRepoWarning,
-                        GVFSConstants.UpgradeVerbMessages.UpgradeInstallAdvice);
+                        GVFSPlatform.Instance.Constants.UpgradeInstallAdviceMessage);
                 this.ReportInfoToConsole(message + Environment.NewLine + Environment.NewLine + advisoryMessage + Environment.NewLine);
             }
 
