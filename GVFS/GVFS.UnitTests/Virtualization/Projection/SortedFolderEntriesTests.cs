@@ -1,4 +1,5 @@
-﻿using GVFS.Tests.Should;
+﻿using GVFS.Common;
+using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
@@ -24,6 +25,12 @@ namespace GVFS.UnitTests.Virtualization.Git
             "01",
         };
 
+        private static string[] caseDifferingFiles = new string[]
+        {
+            "file1.txt",
+            "File1.txt",
+        };
+
         private static string[] defaultFolders = new string[]
         {
             "zf",
@@ -33,6 +40,12 @@ namespace GVFS.UnitTests.Virtualization.Git
             "_f",
             "(1f)",
             "folder",
+        };
+
+        private static string[] caseDifferingFolders = new string[]
+        {
+            "folder1",
+            "Folder1",
         };
 
         [OneTimeSetUp]
@@ -102,7 +115,7 @@ namespace GVFS.UnitTests.Virtualization.Git
             SortedFolderEntries sfe = SetupDefaultEntries();
             LazyUTF8String name = ConstructLazyUTF8String("{{shouldbeattheend");
             sfe.AddFile(name, new byte[20]);
-            sfe[defaultFiles.Length + defaultFolders.Length].Name.ShouldEqual(name, "Item added at incorrect index.");
+            sfe[GetDefaultEntriesLength()].Name.ShouldEqual(name, "Item added at incorrect index.");
         }
 
         [TestCase]
@@ -135,9 +148,11 @@ namespace GVFS.UnitTests.Virtualization.Git
         {
             List<string> allEntries = new List<string>(defaultFiles);
             allEntries.AddRange(defaultFolders);
+            allEntries.AddRange(caseDifferingFiles);
+            allEntries.AddRange(caseDifferingFolders);
             allEntries.Sort(CaseSensitiveStringCompare);
             SortedFolderEntries sfe = SetupDefaultEntries();
-            sfe.Count.ShouldEqual(14);
+            sfe.Count.ShouldEqual(18);
             for (int i = 0; i < allEntries.Count; i++)
             {
                 sfe[i].Name.GetString().ShouldEqual(allEntries[i]);
@@ -261,8 +276,25 @@ namespace GVFS.UnitTests.Virtualization.Git
             SortedFolderEntries sfe = new SortedFolderEntries();
             AddFiles(sfe, defaultFiles);
             AddFolders(sfe, defaultFolders);
-            sfe.Count.ShouldEqual(defaultFiles.Length + defaultFolders.Length);
+            if (GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem)
+            {
+                AddFiles(sfe, caseDifferingFiles);
+                AddFolders(sfe, caseDifferingFolders);
+            }
+
+            sfe.Count.ShouldEqual(GetDefaultEntriesLength());
             return sfe;
+        }
+
+        private static int GetDefaultEntriesLength()
+        {
+            int length = defaultFiles.Length + defaultFolders.Length;
+            if (GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem)
+            {
+                length += caseDifferingFiles.Length + caseDifferingFolders.Length;
+            }
+
+            return length;
         }
 
         private static unsafe LazyUTF8String ConstructLazyUTF8String(string name)
