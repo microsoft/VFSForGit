@@ -17,7 +17,7 @@ namespace GVFS.RepairJobs
 
         public override string Name
         {
-            get { return @".git\HEAD"; }
+            get { return GVFSConstants.DotGit.Head; }
         }
 
         public override IssueType HasIssue(List<string> messages)
@@ -126,7 +126,7 @@ namespace GVFS.RepairJobs
             }
             catch (IOException ex)
             {
-                messages.Add("IOException while reading .git\\HEAD: " + ex.Message);
+                messages.Add($"IOException while reading {GVFSConstants.DotGit.Head}: " + ex.Message);
                 return false;
             }
 
