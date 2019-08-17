@@ -97,8 +97,8 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             // CMD does not report any error messages when access is denied, so just confirm the file still exists
             this.ReplaceFile(sourcePath, targetPath);
-            this.FileExists(sourcePath).ShouldEqual(true);
-            this.FileExists(targetPath).ShouldEqual(false);
+            this.FileExists(sourcePath).ShouldBeTrue($"{sourcePath} does not exist when it should");
+            this.FileExists(targetPath).ShouldBeFalse($"{targetPath} exists when it should not");
         }
 
         public override string DeleteFile(string path)
@@ -214,7 +214,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             // CMD does not report any error messages when access is denied, so just confirm the file still exists
             this.DeleteFile(path);
-            this.FileExists(path).ShouldEqual(true);
+            this.FileExists(path).ShouldBeTrue($"{path} does not exist when it should");
         }
 
         public override void ReadAllText_FileShouldNotBeFound(string path)
