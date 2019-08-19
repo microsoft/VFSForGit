@@ -1,5 +1,6 @@
 #include <kern/debug.h>
 #include <kern/assert.h>
+#include <sys/proc.h>
 
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSXattrs.h"
@@ -658,20 +659,42 @@ VirtualizationRootHandle ActiveProvider_FindForPath(const char* _Nonnull path)
     return matchingHandle;
 }
 
+/// Tests whether pid or its parent, grandparent, etc. process is registered for offline I/O
 bool VirtualizationRoots_ProcessMayAccessOfflineRoots(pid_t pid)
 {
     bool result = false;
     
     RWLock_AcquireShared(s_virtualizationRootsLock);
     {
-        for (uint32_t i = 0; i < s_offlineIOPIDCount; ++i)
+        while (true)
         {
-            if (s_offlineIOPIDs[i] == pid)
+            for (uint32_t i = 0; i < s_offlineIOPIDCount; ++i)
             {
-                result = true;
+                if (s_offlineIOPIDs[i] == pid)
+                {
+                    result = true;
+                    goto done;
+                }
+            }
+
+            // Walk up the process hierarchy
+            proc_t process = proc_find(pid);
+            if (process == nullptr)
+            {
+                // Process exited since last proc_ppid call.
+                break;
+            }
+            
+            pid = proc_ppid(process);
+            proc_rele(process);
+            
+            // Stop when we hit the launchd root process
+            if (pid <= 1)
+            {
                 break;
             }
         }
+        done: {}
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
 

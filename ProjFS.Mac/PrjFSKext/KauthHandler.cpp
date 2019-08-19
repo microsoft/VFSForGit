@@ -561,6 +561,24 @@ KEXT_STATIC int HandleVnodeOperation(
                 }
             }
         }
+        else if (ActionBitIsSet(action, KAUTH_VNODE_ADD_FILE | KAUTH_VNODE_ADD_SUBDIRECTORY))
+        {
+            if (!TryGetVirtualizationRoot(
+                    &perfTracer,
+                    context,
+                    currentVnode,
+                    pid,
+                    CallbackPolicy_AllowAny,
+                    // Block creating new files in offline roots.
+                    true,
+                    &root,
+                    &vnodeFsidInode,
+                    &kauthResult,
+                    kauthError))
+            {
+                goto CleanupAndReturn;
+            }
+        }
     }
     else
     {
@@ -578,12 +596,21 @@ KEXT_STATIC int HandleVnodeOperation(
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
-                bool isWriteOperation = ActionBitIsSet(
-                    action,
-                    KAUTH_VNODE_WRITE_ATTRIBUTES |
-                    KAUTH_VNODE_WRITE_EXTATTRIBUTES |
-                    KAUTH_VNODE_WRITE_DATA |
-                    KAUTH_VNODE_APPEND_DATA);
+                // Prevent access to empty files in offline roots, except always allow the user to delete files.
+                bool shouldBlockIfOffline =
+                    (isRename && s_osSupportsRenameDetection) ||
+                    ActionBitIsSet(
+                        action,
+                        // Writes would get overwritten by subsequent hydration
+                        KAUTH_VNODE_WRITE_ATTRIBUTES |
+                        KAUTH_VNODE_WRITE_EXTATTRIBUTES |
+                        KAUTH_VNODE_WRITE_DATA |
+                        KAUTH_VNODE_APPEND_DATA |
+                        // Reads would yield bad (null) data
+                        KAUTH_VNODE_READ_DATA |
+                        KAUTH_VNODE_READ_ATTRIBUTES |
+                        KAUTH_VNODE_EXECUTE |
+                        KAUTH_VNODE_READ_EXTATTRIBUTES);
                 if (!TryGetVirtualizationRoot(
                         &perfTracer,
                         context,
@@ -591,8 +618,7 @@ KEXT_STATIC int HandleVnodeOperation(
                         pid,
                         // Prevent system services from hydrating files as this tends to cause deadlocks with the kauth listeners for Antivirus software
                         CallbackPolicy_UserInitiatedOnly,
-                        // Prevent write access to empty files in offline roots. For now allow reads, and always allow the user to delete files.
-                        isWriteOperation || (isRename && s_osSupportsRenameDetection),
+                        shouldBlockIfOffline,
                         &root,
                         &vnodeFsidInode,
                         &kauthResult,

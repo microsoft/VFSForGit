@@ -147,6 +147,9 @@ static string s_virtualizationRootFullPath;
 static PrjFS_Callbacks s_callbacks;
 static dispatch_queue_t s_messageQueueDispatchQueue;
 static dispatch_queue_t s_kernelRequestHandlingConcurrentQueue;
+
+static mutex s_kernelServiceOfflineClientMutex;
+static uint32_t s_kernelServiceOfflineClientCount = 0;
 static io_connect_t s_kernelServiceOfflineWriterConnection = IO_OBJECT_NULL;
 
 
@@ -162,21 +165,41 @@ static mutex s_fileLocksMutex;
 
 PrjFS_Result PrjFS_RegisterForOfflineIO()
 {
-    s_kernelServiceOfflineWriterConnection = PrjFSService_ConnectToDriver(UserClientType_OfflineIO);
-    if (s_kernelServiceOfflineWriterConnection == IO_OBJECT_NULL)
+    mutex_lock lock(s_kernelServiceOfflineClientMutex);
+    
+    // Reference counting offline I/O registrations so that each process only
+    // maintains a single user client connection to the kext even if multiple
+    // registration calls are made.
+    if (s_kernelServiceOfflineClientCount == 0)
     {
-        return PrjFS_Result_EDriverNotLoaded;
+        assert(s_kernelServiceOfflineWriterConnection == IO_OBJECT_NULL);
+        s_kernelServiceOfflineWriterConnection = PrjFSService_ConnectToDriver(UserClientType_OfflineIO);
+        if (s_kernelServiceOfflineWriterConnection == IO_OBJECT_NULL)
+        {
+            return PrjFS_Result_EDriverNotLoaded;
+        }
     }
+    
+    ++s_kernelServiceOfflineClientCount;
 
     return PrjFS_Result_Success;
 }
 
 PrjFS_Result PrjFS_UnregisterForOfflineIO()
 {
+    mutex_lock lock(s_kernelServiceOfflineClientMutex);
+    
+    // If these assertions fail, the calling code has called Unregister
+    // more times than Register succeeded, indicating a bug.
+    assert(s_kernelServiceOfflineClientCount > 0);
     assert(s_kernelServiceOfflineWriterConnection != IO_OBJECT_NULL);
-
-    IOServiceClose(s_kernelServiceOfflineWriterConnection);
-    s_kernelServiceOfflineWriterConnection = IO_OBJECT_NULL;
+    --s_kernelServiceOfflineClientCount;
+    if (s_kernelServiceOfflineClientCount == 0)
+    {
+        IOServiceClose(s_kernelServiceOfflineWriterConnection);
+        s_kernelServiceOfflineWriterConnection = IO_OBJECT_NULL;
+    }
+    
     return PrjFS_Result_Success;
 }
 

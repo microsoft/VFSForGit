@@ -1287,15 +1287,14 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
 
     kauth_action_t actions[] =
     {
-        // TODO(Mac): Also deny read access to empty files. (#182)
-//        KAUTH_VNODE_READ_ATTRIBUTES,
         KAUTH_VNODE_WRITE_ATTRIBUTES,
-//        KAUTH_VNODE_READ_EXTATTRIBUTES,
         KAUTH_VNODE_WRITE_EXTATTRIBUTES,
-//        KAUTH_VNODE_READ_DATA,
         KAUTH_VNODE_WRITE_DATA,
-//        KAUTH_VNODE_EXECUTE,
         KAUTH_VNODE_APPEND_DATA,
+        KAUTH_VNODE_READ_DATA,
+        KAUTH_VNODE_READ_ATTRIBUTES,
+        KAUTH_VNODE_EXECUTE,
+        KAUTH_VNODE_READ_EXTATTRIBUTES,
     };
     const size_t actionCount = extent<decltype(actions)>::value;
     
@@ -1327,6 +1326,40 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
         MockCalls::Clear();
     }
 }
+
+- (void) testOfflineRootDeniesFileAndDirectoryCreation
+{
+    self->testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(self->testDirVnode);
+
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+
+    kauth_action_t actions[] =
+    {
+        KAUTH_VNODE_ADD_SUBDIRECTORY,
+        KAUTH_VNODE_ADD_FILE
+    };
+    const size_t actionCount = extent<decltype(actions)>::value;
+    
+    for (size_t i = 0; i < actionCount; i++)
+    {
+        XCTAssertEqual(
+            KAUTH_RESULT_DENY,
+            HandleVnodeOperation(
+                nullptr,
+                nullptr,
+                actions[i],
+                reinterpret_cast<uintptr_t>(self->context),
+                reinterpret_cast<uintptr_t>(self->testDirVnode.get()),
+                0,
+                0));
+        XCTAssertFalse(
+            MockCalls::DidCallFunction(
+                ProviderMessaging_TrySendRequestAndWaitForResponse));
+        MockCalls::Clear();
+    }
+}
+
 
 - (void) testOfflineRootDeniesRename
 {
