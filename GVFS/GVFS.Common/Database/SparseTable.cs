@@ -38,7 +38,7 @@ namespace GVFS.Common.Database
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     command.CommandText = "INSERT OR REPLACE INTO Sparse (path) VALUES (@path);";
-                    command.AddParameter("@path", DbType.String, NormalizePath(directoryPath));
+                    command.AddParameter("@path", DbType.String, GVFSDatabase.NormalizePath(directoryPath));
 
                     lock (this.writerLock)
                     {
@@ -86,7 +86,7 @@ namespace GVFS.Common.Database
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     command.CommandText = "DELETE FROM Sparse WHERE path = @path;";
-                    command.AddParameter("@path", DbType.String, NormalizePath(directoryPath));
+                    command.AddParameter("@path", DbType.String, GVFSDatabase.NormalizePath(directoryPath));
 
                     lock (this.writerLock)
                     {

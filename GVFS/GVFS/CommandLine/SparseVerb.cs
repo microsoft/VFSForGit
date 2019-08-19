@@ -162,7 +162,7 @@ Folders need to be relative to the repos root directory.")
             else
             {
                 return folders.Split(new[] { FolderListSeparator }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => SparseTable.NormalizePath(x))
+                    .Select(x => GVFSDatabase.NormalizePath(x))
                     .ToArray();
             }
         }

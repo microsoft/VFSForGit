@@ -28,11 +28,6 @@ namespace GVFS.Common.Database
             }
         }
 
-        public static string NormalizePath(string path)
-        {
-            return path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim().Trim(Path.DirectorySeparatorChar);
-        }
-
         public int GetCount()
         {
             try
@@ -159,7 +154,7 @@ namespace GVFS.Common.Database
         public List<IPlaceholderData> RemoveStartingWith(string path)
         {
             // Normalize the path to match what will be in the database
-            path = NormalizePath(path);
+            path = GVFSDatabase.NormalizePath(path);
 
             try
             {
