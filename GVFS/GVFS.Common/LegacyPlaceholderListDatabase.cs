@@ -273,11 +273,6 @@ namespace GVFS.Common
             }
         }
 
-        public void RemoveStartingWith(string path)
-        {
-            throw new NotImplementedException();
-        }
-
         List<IPlaceholderData> IPlaceholderCollection.RemoveStartingWith(string path)
         {
             throw new NotImplementedException();
