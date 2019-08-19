@@ -310,7 +310,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     "modified:   Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test.txt",
                     "modified:   Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test2.txt",
                     "modified:   Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test3.txt",
-                    "Untracked files:\n  (use \"git add <file>...\" to include in what will be committed)\n\n\tTest_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete.txt\n\tTest_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete2.txt\n\tTest_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete3.txt",
+                    "Untracked files:\n  (use \"git add <file>...\" to include in what will be committed)\n\tTest_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete.txt\n\tTest_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete2.txt\n\tTest_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete3.txt",
                     "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n");
             }
 
