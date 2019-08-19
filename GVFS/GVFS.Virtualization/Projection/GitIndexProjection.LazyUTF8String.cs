@@ -131,17 +131,34 @@ namespace GVFS.Virtualization.Projection
                 byte* thisPtr = bytePool.RawPointer + this.startIndex;
                 byte* otherPtr = bytePool.RawPointer + other.startIndex;
                 int count = 0;
+
+                // Case-sensitive comparison; always returns and never proceeds to case-insensitive comparison
+                if (caseSensitive)
+                {
+                    while (count < minLength)
+                    {
+                        if (*thisPtr != *otherPtr)
+                        {
+                            byte thisC = *thisPtr;
+                            byte otherC = *otherPtr;
+                            return thisC - otherC;
+                        }
+
+                        ++thisPtr;
+                        ++otherPtr;
+                        ++count;
+                    }
+
+                    return this.length - other.length;
+                }
+
+                // Case-insensitive comparison
                 while (count < minLength)
                 {
                     if (*thisPtr != *otherPtr)
                     {
                         byte thisC = *thisPtr;
                         byte otherC = *otherPtr;
-
-                        if (caseSensitive)
-                        {
-                            return thisC - otherC;
-                        }
 
                         // The more intuitive approach to checking IsLower() is to do two comparisons to see if c is within the range 'a'-'z'.
                         // However since byte is unsigned, we can rely on underflow to satisfy both conditions with one comparison.
@@ -190,12 +207,12 @@ namespace GVFS.Virtualization.Projection
 
             public unsafe int CaseInsensitiveCompare(LazyUTF8String other)
             {
-                return this.Compare(other, false);
+                return this.Compare(other, caseSensitive: false);
             }
 
             public unsafe int CaseSensitiveCompare(LazyUTF8String other)
             {
-                return this.Compare(other, true);
+                return this.Compare(other, caseSensitive: true);
             }
 
             public bool CaseInsensitiveEquals(LazyUTF8String other)
