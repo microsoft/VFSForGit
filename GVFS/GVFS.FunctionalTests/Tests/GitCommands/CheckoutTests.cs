@@ -511,7 +511,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
 
             this.Enlistment.UnmountGVFS();
-            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "index");
             CopyIndexAndRename(gitIndexPath);
             this.Enlistment.MountGVFS();
 
