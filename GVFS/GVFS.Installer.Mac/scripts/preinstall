@@ -17,3 +17,10 @@ if [ "$isKextLoaded" -gt 0 ]; then
     echo $unloadCmd
     eval $unloadCmd || exit 1
 fi
+
+GVFSBINPATH="/usr/local/vfsforgit/gvfs"
+if [ -f "${GVFSBINPATH}" ]; then
+    unmountCmd="${GVFSBINPATH} service --unmount-all"
+    echo $unmountCmd
+    eval $unmountCmd || exit 1
+fi
