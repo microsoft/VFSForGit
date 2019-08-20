@@ -6,6 +6,7 @@
 // TODO: Issue #584, update xattr names
 #define PrjFSVirtualizationRootXAttrName "org.vfsforgit.xattr.virtualizationroot"
 #define PrjFSFileXAttrName "org.vfsforgit.xattr.file"
+#define PrjFSDirectoryXAttrName "org.vfsforgit.xattr.directory"
 
 #define PrjFS_PlaceholderIdLength 128
 
@@ -29,4 +30,11 @@ struct PrjFSFileXAttrData
     
     unsigned char providerId[PrjFS_PlaceholderIdLength];
     unsigned char contentId[PrjFS_PlaceholderIdLength];
+};
+
+struct PrjFSDirectoryXAttrData
+{
+    PrjFSXattrHeader header;
+
+    unsigned char providerId[PrjFS_PlaceholderIdLength];
 };

@@ -89,9 +89,15 @@ namespace PrjFSLib.Mac
         }
 
         public virtual Result WritePlaceholderDirectory(
-            string relativePath)
+            string relativePath,
+            byte[] providerId)
         {
-            return Interop.PrjFSLib.WritePlaceholderDirectory(relativePath);
+            if (providerId.Length != Interop.PrjFSLib.PlaceholderIdLength)
+            {
+                throw new ArgumentException();
+            }
+
+            return Interop.PrjFSLib.WritePlaceholderDirectory(relativePath, providerId);
         }
 
         public virtual Result WritePlaceholderFile(

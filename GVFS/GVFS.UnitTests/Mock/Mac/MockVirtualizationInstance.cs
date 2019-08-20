@@ -68,7 +68,8 @@ namespace GVFS.UnitTests.Mock.Mac
         }
 
         public override Result WritePlaceholderDirectory(
-            string relativePath)
+            string relativePath,
+            byte[] providerId)
         {
             throw new NotImplementedException();
         }

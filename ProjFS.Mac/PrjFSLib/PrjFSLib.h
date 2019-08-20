@@ -79,7 +79,8 @@ PrjFS_Result PrjFS_ConvertDirectoryToPlaceholder(
     _In_    const char*                             relativePath);
 
 extern "C" PrjFS_Result PrjFS_WritePlaceholderDirectory(
-    _In_    const char*                             relativePath);
+    _In_    const char*                             relativePath,
+    _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength]);
 
 extern "C" PrjFS_Result PrjFS_WritePlaceholderFile(
     _In_    const char*                             relativePath,

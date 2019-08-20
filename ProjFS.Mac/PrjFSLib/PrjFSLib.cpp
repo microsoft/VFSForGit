@@ -364,7 +364,8 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
 }
 
 PrjFS_Result PrjFS_WritePlaceholderDirectory(
-    _In_    const char*                             relativePath)
+    _In_    const char*                             relativePath,
+    _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength])
 {
 #ifdef DEBUG
     cout
@@ -398,11 +399,15 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
         
         goto CleanupAndFail;
     }
-    
-    if (!InitializeEmptyPlaceholder(fullPath))
+
     {
-        result = PrjFS_Result_EIOError;
-        goto CleanupAndFail;
+        PrjFSDirectoryXAttrData directoryXattrData = {};
+        memcpy(directoryXattrData.providerId, providerId, sizeof(directoryXattrData.providerId));
+        if (!InitializeEmptyPlaceholder(fullPath, &directoryXattrData, PrjFSDirectoryXAttrName))
+        {
+            result = PrjFS_Result_EIOError;
+            goto CleanupAndFail;
+        }
     }
     
     return PrjFS_Result_Success;

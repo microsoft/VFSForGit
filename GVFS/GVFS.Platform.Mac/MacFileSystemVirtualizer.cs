@@ -139,7 +139,7 @@ namespace GVFS.Platform.Mac
 
         public override FileSystemResult WritePlaceholderDirectory(string relativePath)
         {
-            Result result = this.virtualizationInstance.WritePlaceholderDirectory(relativePath);
+            Result result = this.virtualizationInstance.WritePlaceholderDirectory(relativePath, PlaceholderVersionId);
             return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
         }
 

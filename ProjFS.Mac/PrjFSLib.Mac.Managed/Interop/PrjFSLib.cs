@@ -20,7 +20,9 @@ namespace PrjFSLib.Mac.Interop
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WritePlaceholderDirectory")]
         public static extern Result WritePlaceholderDirectory(
-            string relativePath);
+            string relativePath,
+            [MarshalAs(UnmanagedType.LPArray, SizeConst = PlaceholderIdLength)]
+            byte[] providerId);
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WritePlaceholderFile")]
         public static extern Result WritePlaceholderFile(

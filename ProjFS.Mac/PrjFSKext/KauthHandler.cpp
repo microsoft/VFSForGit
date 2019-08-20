@@ -486,7 +486,9 @@ KEXT_STATIC int HandleVnodeOperation(
                 KAUTH_VNODE_READ_ATTRIBUTES |
                 KAUTH_VNODE_READ_EXTATTRIBUTES))
         {
-            // Recursively expand directory on rename as user will expect the moved directory to have the same contents as in its original location
+            // Depending on OS version:
+            // - (Mojave+) Block projected directories from being renamed
+            // - (High Sierra) Recursively expand directory on rename as user will expect the moved directory to have the same contents as in its original location
             if (isRename)
             {
                 if (!TryGetVirtualizationRoot(
@@ -506,6 +508,26 @@ KEXT_STATIC int HandleVnodeOperation(
                         kauthError))
                 {
                     goto CleanupAndReturn;
+                }
+                
+                if (s_osSupportsRenameDetection)
+                {
+                    PrjFSDirectoryXAttrData directoryXattr = {};
+                    SizeOrError xattrResult = Vnode_ReadXattr(currentVnode, PrjFSDirectoryXAttrName, &directoryXattr, sizeof(directoryXattr));
+                    if (xattrResult.error == 0)
+                    {
+                        if (xattrResult.size == sizeof(directoryXattr))
+                        {
+                            // This is a projected directory, disallow renames.
+                            kauthResult = KAUTH_RESULT_DENY;
+                            *kauthError = ENOTSUP;
+                            goto CleanupAndReturn;
+                        }
+                        else
+                        {
+                            KextLog_FileError(currentVnode, "Unexpected xattr '" PrjFSDirectoryXAttrName "' size of %lu bytes on directory, expected %lu bytes", xattrResult.size, sizeof(directoryXattr));
+                        }
+                    }
                 }
 
                 PerfSample recursivelyEnumerateSample(&perfTracer, PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory);

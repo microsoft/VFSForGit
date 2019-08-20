@@ -70,7 +70,7 @@ namespace MirrorProvider.Mac
                     if (child.Type == ProjectedFileInfo.FileType.Directory)
                     {
                         Result result = this.virtualizationInstance.WritePlaceholderDirectory(
-                            Path.Combine(relativePath, child.Name));
+                            Path.Combine(relativePath, child.Name), ToVersionIdByteArray(1));
 
                         if (result != Result.Success)
                         {

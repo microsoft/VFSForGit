@@ -23,6 +23,7 @@ using std::shared_ptr;
 using std::vector;
 using std::string;
 using std::extent;
+using std::min;
 using KextMock::_;
 
 // Darwin version of running kernel
@@ -36,10 +37,27 @@ class PrjFSProviderUserClient
 
 static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 {
+    assert(vnode->GetVnodeType() != VDIR);
     PrjFSFileXAttrData rootXattr = {};
     vector<uint8_t> rootXattrData(sizeof(rootXattr), 0x00);
     memcpy(rootXattrData.data(), &rootXattr, rootXattrData.size());
     vnode->xattrs.insert(make_pair(PrjFSFileXAttrName, rootXattrData));
+}
+
+static void ClearPrjFSDirectoryXattrData(const shared_ptr<vnode>& vnode)
+{
+    assert(vnode->GetVnodeType() == VDIR);
+    vnode->xattrs.erase(PrjFSDirectoryXAttrName);
+}
+
+static void SetPrjFSDirectoryXattrData(const shared_ptr<vnode>& vnode, size_t xattrSize = sizeof(PrjFSDirectoryXAttrData))
+{
+    assert(vnode->GetVnodeType() == VDIR);
+    ClearPrjFSDirectoryXattrData(vnode);
+    PrjFSDirectoryXAttrData dirXattr = {};
+    vector<uint8_t> dirXattrData(xattrSize, 0x00);
+    memcpy(dirXattrData.data(), &dirXattr, min(dirXattrData.size(), xattrSize));
+    vnode->xattrs.insert(make_pair(PrjFSDirectoryXAttrName, dirXattrData));
 }
 
 static void TestForDarwinVersionRange(int versionMin, int versionMax, void(^testBlock)(void))
@@ -595,56 +613,92 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
 }
 
 
-- (void) testHydrationOnDeleteWhenRenamingDirectory
+- (void) testHydrationOrBlockOnDeleteWhenRenamingDirectory
 {
     testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
 
-    // Hydration on delete only occurs if deletion is caused by rename
-    string renamedDirPath = self->dirPath + "_renamed";
-    HandleFileOpOperation(
-        nullptr, // credential
-        nullptr, /* idata, unused */
-        KAUTH_FILEOP_WILL_RENAME,
-        reinterpret_cast<uintptr_t>(self->testDirVnode.get()),
-        reinterpret_cast<uintptr_t>(self->dirPath.c_str()),
-        reinterpret_cast<uintptr_t>(renamedDirPath.c_str()),
-        0); // unused
+    // Hydration on delete only occurs if deletion is caused by rename on High Sierra or if xattr is missing or damaged on Mojave+
+    TestForAllSupportedDarwinVersions(^{
+        for (unsigned xattrVariant = 0; xattrVariant < 3; ++xattrVariant)
+        {
+            InitPendingRenames();
+            switch (xattrVariant)
+            {
+            case 0:
+                ClearPrjFSDirectoryXattrData(self->testDirVnode);
+                break;
+            case 1:
+                SetPrjFSDirectoryXattrData(self->testDirVnode, sizeof(PrjFSDirectoryXAttrData) - 1);
+                break;
+            case 2:
+                SetPrjFSDirectoryXattrData(self->testDirVnode);
+                break;
+            }
+            
+            string renamedDirPath = self->dirPath + "_renamed";
+            if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+            {
+                HandleFileOpOperation(
+                    nullptr, // credential
+                    nullptr, /* idata, unused */
+                    KAUTH_FILEOP_WILL_RENAME,
+                    reinterpret_cast<uintptr_t>(self->testDirVnode.get()),
+                    reinterpret_cast<uintptr_t>(self->dirPath.c_str()),
+                    reinterpret_cast<uintptr_t>(renamedDirPath.c_str()),
+                    0); // unused
+            }
 
-    XCTAssertTrue(HandleVnodeOperation(
-        nullptr,
-        nullptr,
-        KAUTH_VNODE_DELETE,
-        reinterpret_cast<uintptr_t>(context),
-        reinterpret_cast<uintptr_t>(testDirVnode.get()),
-        0,
-        0) == KAUTH_RESULT_DEFER);
-    XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
-        ProviderMessaging_TrySendRequestAndWaitForResponse,
-        make_tuple(
-            _,
-            MessageType_KtoU_RecursivelyEnumerateDirectory,
-            testDirVnode.get(),
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-            nullptr),
-        ProviderMessaging_TrySendRequestAndWaitForResponse,
-        make_tuple(
-            _,
-            MessageType_KtoU_NotifyDirectoryPreDelete,
-            testDirVnode.get(),
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-            nullptr))
-    );
-    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
+            errno_t kauthError = EACCES;
+            int vnodeHandlerResult = HandleVnodeOperation(
+                nullptr,
+                nullptr,
+                KAUTH_VNODE_DELETE,
+                reinterpret_cast<uintptr_t>(self->context),
+                reinterpret_cast<uintptr_t>(self->testDirVnode.get()),
+                0,
+                reinterpret_cast<uintptr_t>(&kauthError));
+            if (version_major <= PrjFSDarwinMajorVersion::MacOS10_13_HighSierra || xattrVariant < 2)
+            {
+                XCTAssertEqual(vnodeHandlerResult, KAUTH_RESULT_DEFER);
+                XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
+                    ProviderMessaging_TrySendRequestAndWaitForResponse,
+                    make_tuple(
+                        _,
+                        MessageType_KtoU_RecursivelyEnumerateDirectory,
+                        self->testDirVnode.get(),
+                        _,
+                        _,
+                        _,
+                        _,
+                        _,
+                        _,
+                        _),
+                    ProviderMessaging_TrySendRequestAndWaitForResponse,
+                    make_tuple(
+                        _,
+                        MessageType_KtoU_NotifyDirectoryPreDelete,
+                        self->testDirVnode.get(),
+                        _,
+                        _,
+                        _,
+                        _,
+                        _,
+                        _,
+                        _))
+                );
+                XCTAssertEqual(2, MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse));
+            }
+            else
+            {
+                XCTAssertEqual(vnodeHandlerResult, KAUTH_RESULT_DENY);
+                XCTAssertEqual(kauthError, ENOTSUP);
+                XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+            }
+            
+            CleanupPendingRenames();
+            MockCalls::Clear();
+        }
+    });
 }
 
 - (void) testDeleteDirNonRenamed
@@ -1330,7 +1384,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
 - (void) testOfflineRootDeniesFileAndDirectoryCreation
 {
     self->testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
-    SetPrjFSFileXattrData(self->testDirVnode);
+    SetPrjFSDirectoryXattrData(self->testDirVnode);
 
     ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
 
