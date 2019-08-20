@@ -41,6 +41,8 @@ namespace GVFS.Common
             Reset       = 1 << 5,
             Status      = 1 << 6,
             UpdateIndex = 1 << 7,
+            Restore     = 1 << 8,
+            Switch      = 1 << 9,
         }
 
         public bool IsValidGitCommand
@@ -105,6 +107,11 @@ namespace GVFS.Common
                 //    git checkout --patch (we currently have no need to optimize this scenario)
             }
 
+            if (this.IsVerb(Verbs.Restore))
+            {
+                return true;
+            }
+
             return false;
         }
 
@@ -127,8 +134,10 @@ namespace GVFS.Common
                 case "commit": return Verbs.Commit;
                 case "mv": return Verbs.Move;
                 case "reset": return Verbs.Reset;
+                case "restore": return Verbs.Restore;
                 case "stage": return Verbs.AddOrStage;
                 case "status": return Verbs.Status;
+                case "switch": return Verbs.Switch;
                 case "update-index": return Verbs.UpdateIndex;
                 default: return Verbs.Other;
             }
