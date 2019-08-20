@@ -220,6 +220,8 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
             this.virtualizationInstance.OnLogError = this.OnLogError;
+            this.virtualizationInstance.OnLogWarning = this.OnLogWarning;
+            this.virtualizationInstance.OnLogInfo = this.OnLogInfo;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
@@ -453,6 +455,16 @@ namespace GVFS.Platform.Mac
         private void OnLogError(string errorMessage)
         {
             this.Context.Tracer.RelatedError($"{nameof(MacFileSystemVirtualizer)}::{nameof(this.OnLogError)}: {errorMessage}");
+        }
+
+        private void OnLogWarning(string warningMessage)
+        {
+            this.Context.Tracer.RelatedWarning($"{nameof(MacFileSystemVirtualizer)}::{nameof(this.OnLogWarning)}: {warningMessage}");
+        }
+
+        private void OnLogInfo(string infoMessage)
+        {
+            this.Context.Tracer.RelatedInfo($"{nameof(MacFileSystemVirtualizer)}::{nameof(this.OnLogInfo)}: {infoMessage}");
         }
 
         private void OnFileModified(string relativePath)
