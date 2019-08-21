@@ -219,8 +219,18 @@ namespace GVFS.Platform.Mac
 
             if (sparseState == GitIndexProjection.PathSparseState.Included)
             {
+                // When the folder is included we need to create the placeholder to make sure it is on disk for enumeration
                 result = this.WritePlaceholderDirectory(relativePath);
-                this.FileSystemCallbacks.OnPlaceholderFolderCreated(relativePath, string.Empty);
+                if (result.Result == FSResult.Ok)
+                {
+                    this.FileSystemCallbacks.OnPlaceholderFolderCreated(relativePath, string.Empty);
+                }
+                else
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(relativePath);
+                    metadata.Add(nameof(result), result.ToString());
+                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.DehydrateFolder)}: Write placeholder failed");
+                }
             }
 
             return result;
