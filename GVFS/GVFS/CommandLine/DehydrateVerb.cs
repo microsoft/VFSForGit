@@ -33,7 +33,7 @@ namespace GVFS.CommandLine
             "no-status",
             Default = false,
             Required = false,
-            HelpText = "Skip 'git status' before dehydrating")]
+            HelpText = "Skip 'git status' before dehydrating only valid when not using folders option")]
         public bool NoStatus { get; set; }
 
         [Option(
@@ -135,19 +135,20 @@ will be moved to the backup.
 Before you dehydrate, you will have to commit any working directory changes 
 you want to keep and have a clean 'git status'.
 
-To actually execute the dehydrate, run 'gvfs dehydrate --confirm --folders <folder list>' from the parent 
-of your enlistment's src folder.
+To actually execute the dehydrate, run 'gvfs dehydrate --confirm --folders <folder list>'
+from a parent of the folders list.
 ");
 
                     return;
                 }
 
-                bool cleanStatus = this.CheckGitStatus(tracer, enlistment);
+                bool fullDehydrate = string.IsNullOrEmpty(this.Folders);
+                bool cleanStatus = this.CheckGitStatus(tracer, enlistment, fullDehydrate);
 
                 string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 this.Output.WriteLine();
 
-                if (string.IsNullOrEmpty(this.Folders))
+                if (fullDehydrate)
                 {
                     this.WriteMessage(tracer, "Starting dehydration. All of your existing files will be backed up in " + backupRoot);
                 }
@@ -233,10 +234,11 @@ of your enlistment's src folder.
                         string ioError;
                         foreach (string folder in folders)
                         {
-                            // Need to check if parent folder is in the modified paths because dehydrated will not do any good then
+                            // Need to check if parent folder is in the modified paths because
+                            // dehydration will not do any good with a parent folder there
                             if (modifiedPaths.ContainsParentFolder(folder))
                             {
-                                this.WriteMessage(tracer, $"Parent folder in modified paths.  Unable to dehydrate {folder}.");
+                                this.WriteMessage(tracer, $"Unable to dehydrate {folder}. Parent folder in modified paths that must be dehydrated.");
                             }
                             else
                             {
@@ -337,12 +339,16 @@ of your enlistment's src folder.
             }
         }
 
-        private bool CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment)
+        private bool CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment, bool fullDehydrate)
         {
             if (!this.NoStatus)
             {
                 this.WriteMessage(tracer, "Running git status before dehydrating to make sure you don't have any pending changes.");
-                this.WriteMessage(tracer, "If this takes too long, you can abort and run dehydrate with --no-status to skip this safety check.");
+                if (fullDehydrate)
+                {
+                    this.WriteMessage(tracer, "If this takes too long, you can abort and run dehydrate with --no-status to skip this safety check.");
+                }
+
                 this.Output.WriteLine();
 
                 bool isMounted = false;
@@ -379,7 +385,10 @@ of your enlistment's src folder.
                     if (!isMounted)
                     {
                         this.WriteMessage(tracer, "Failed to run git status because the repo is not mounted");
-                        this.WriteMessage(tracer, "Either mount first, or run with --no-status");
+                        if (fullDehydrate)
+                        {
+                            this.WriteMessage(tracer, "Either mount first, or run with --no-status");
+                        }
                     }
                     else if (statusResult.ExitCodeIsFailure)
                     {
@@ -389,7 +398,14 @@ of your enlistment's src folder.
                     {
                         this.WriteMessage(tracer, statusResult.Output);
                         this.WriteMessage(tracer, "git status reported that you have dirty files");
-                        this.WriteMessage(tracer, "Either commit your changes or run dehydrate with --no-status");
+                        if (fullDehydrate)
+                        {
+                            this.WriteMessage(tracer, "Either commit your changes or run dehydrate with --no-status");
+                        }
+                        else
+                        {
+                            this.WriteMessage(tracer, "Either commit your changes or run dehydrate with --no-status");
+                        }
                     }
 
                     this.ReportErrorAndExit(tracer, "Dehydrate was aborted");
