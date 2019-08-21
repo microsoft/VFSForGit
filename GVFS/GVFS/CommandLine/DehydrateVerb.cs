@@ -246,15 +246,22 @@ from a parent of the folders list.
                                 string backupPath = Path.Combine(backupRoot, folder);
                                 if (this.fileSystem.DirectoryExists(fullPath))
                                 {
-                                    if (!this.TryIO(tracer, () => this.fileSystem.CopyDirectoryRecursive(fullPath, backupPath), $"Backing up {folder} to {backupPath}", out ioError) ||
-                                        !this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting {fullPath}", out ioError))
+                                    if (!this.TryIO(tracer, () => this.fileSystem.CopyDirectoryRecursive(fullPath, backupPath), $"Backing up {folder} to {backupPath}", out ioError))
                                     {
-                                        this.WriteMessage(tracer, $"Backup failed for {folder} and will not be dehydrated. {ioError}");
+                                        this.WriteMessage(tracer, $"Copying files to backup location failed for {folder} and will not be dehydrated. {ioError}");
                                         this.WriteMessage(tracer, $"Make sure there aren't any applications accessing the folder and try again.");
                                     }
                                     else
                                     {
-                                        foldersToDehydrate.Add(folder);
+                                        if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting {fullPath}", out ioError))
+                                        {
+                                            this.WriteMessage(tracer, $"Removing {folder} failed and will not be dehydrated. {ioError}");
+                                            this.WriteMessage(tracer, $"Make sure there aren't any applications accessing the folder and try again.");
+                                        }
+                                        else
+                                        {
+                                            foldersToDehydrate.Add(folder);
+                                        }
                                     }
                                 }
                                 else
