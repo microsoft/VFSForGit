@@ -5,7 +5,7 @@
 	<key>LSApplicationCategoryType</key>
 	<string></string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>`$(PRODUCT_NAME)` uses `Terminal` app to run `gvfs upgrade` and `gvfs mount` commands.</string>
+	<string>`$(PRODUCT_NAME)` uses `Terminal` app to run `gvfs` commands.</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
