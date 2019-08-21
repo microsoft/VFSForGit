@@ -316,7 +316,7 @@ from a parent of the folders list.
 
                 foreach (string folder in response.FailedFolders)
                 {
-                    this.WriteMessage(tracer, $"{folder} folder failed to dehydrate. You may need to reset the working directory by running `git reset --hard` and retry the dehydrate.");
+                    this.WriteMessage(tracer, $"{folder} folder failed to dehydrate. You may need to reset the working directory by deleting {folder} running `git reset --hard` and retry the dehydrate.");
                 }
             }
         }

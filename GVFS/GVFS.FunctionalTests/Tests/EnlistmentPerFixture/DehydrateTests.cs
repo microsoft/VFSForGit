@@ -310,7 +310,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
             this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
 
-            this.DehydrateShouldSucceed($"Parent folder in modified paths.  Unable to dehydrate {folderToDehydrate}.", confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed($"Unable to dehydrate {folderToDehydrate}. Parent folder in modified paths that must be dehydrated.", confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]
@@ -327,7 +327,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
             this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
 
-            this.DehydrateShouldSucceed($"Parent folder in modified paths.  Unable to dehydrate {folderToDehydrate}.", confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed($"Unable to dehydrate {folderToDehydrate}. Parent folder in modified paths that must be dehydrated.", confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]
