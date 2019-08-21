@@ -273,7 +273,7 @@ namespace GVFS.Common
             }
         }
 
-        List<IPlaceholderData> IPlaceholderCollection.RemoveStartingWith(string path)
+        List<IPlaceholderData> IPlaceholderCollection.RemoveAllEntriesForFolder(string path)
         {
             throw new NotImplementedException();
         }

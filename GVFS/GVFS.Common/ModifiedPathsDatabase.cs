@@ -83,6 +83,12 @@ namespace GVFS.Common
             return this.modifiedPaths.Contains(entry);
         }
 
+        public bool ContainsParentFolder(string path)
+        {
+            string entry = this.NormalizeEntryString(path, isFolder: false);
+            return this.ContainsParentDirectory(entry);
+        }
+
         public IEnumerable<string> GetAllModifiedPaths()
         {
             return this.modifiedPaths;

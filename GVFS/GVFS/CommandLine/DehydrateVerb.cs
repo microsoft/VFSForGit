@@ -65,6 +65,7 @@ namespace GVFS.CommandLine
                         { "Confirmed", this.Confirmed },
                         { "NoStatus", this.NoStatus },
                         { "NamedPipeName", enlistment.NamedPipeName },
+                        { "Folders", this.Folders },
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
 
@@ -100,7 +101,7 @@ namespace GVFS.CommandLine
                     }
                 }
 
-                if (!this.Confirmed)
+                if (!this.Confirmed && string.IsNullOrEmpty(this.Folders))
                 {
                     this.Output.WriteLine(
 @"WARNING: THIS IS AN EXPERIMENTAL FEATURE
@@ -117,6 +118,24 @@ in the backup folder, but it will be harder to find them because 'git status'
 will not work in the backup.
 
 To actually execute the dehydrate, run 'gvfs dehydrate --confirm' from the parent 
+of your enlistment's src folder.
+");
+
+                    return;
+                }
+                else if (!this.Confirmed)
+                {
+                    this.Output.WriteLine(
+@"WARNING: THIS IS AN EXPERIMENTAL FEATURE
+
+All of your downloaded objects, branches, and siblings of the src folder
+will be preserved. Your modified working directory files in the folders specified
+will be moved to the backup.
+
+Before you dehydrate, you will have to commit any working directory changes 
+you want to keep and have a clean 'git status'.
+
+To actually execute the dehydrate, run 'gvfs dehydrate --confirm --folders <folder list>' from the parent 
 of your enlistment's src folder.
 ");
 
@@ -198,27 +217,49 @@ of your enlistment's src folder.
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
-                    string ioError;
-                    foreach (string folder in folders)
+                    if (!ModifiedPathsDatabase.TryLoadOrCreate(
+                            tracer,
+                            Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.ModifiedPaths),
+                            this.fileSystem,
+                            out ModifiedPathsDatabase modifiedPaths,
+                            out string error))
                     {
-                        string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
-                        string backupPath = Path.Combine(backupRoot, folder);
-                        if (this.fileSystem.DirectoryExists(fullPath))
+                        this.WriteMessage(tracer, $"Unable to open modified paths database: {error}");
+                        return false;
+                    }
+
+                    using (modifiedPaths)
+                    {
+                        string ioError;
+                        foreach (string folder in folders)
                         {
-                            if (!this.TryIO(tracer, () => this.fileSystem.CopyDirectoryRecursive(fullPath, backupPath), $"Backing up {folder} to {backupPath}", out ioError) ||
-                                !this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting {fullPath}", out ioError))
+                            // Need to check if parent folder is in the modified paths because dehydrated will not do any good then
+                            if (modifiedPaths.ContainsParentFolder(folder))
                             {
-                                this.WriteMessage(tracer, $"Backup failed for {folder} and will not be dehydrated. {ioError}");
-                                this.WriteMessage(tracer, $"Make sure there aren't any applications accessing the folder and try again.");
+                                this.WriteMessage(tracer, $"Parent folder in modified paths.  Unable to dehydrate {folder}.");
                             }
                             else
                             {
-                                foldersToDehydrate.Add(folder);
+                                string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
+                                string backupPath = Path.Combine(backupRoot, folder);
+                                if (this.fileSystem.DirectoryExists(fullPath))
+                                {
+                                    if (!this.TryIO(tracer, () => this.fileSystem.CopyDirectoryRecursive(fullPath, backupPath), $"Backing up {folder} to {backupPath}", out ioError) ||
+                                        !this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting {fullPath}", out ioError))
+                                    {
+                                        this.WriteMessage(tracer, $"Backup failed for {folder} and will not be dehydrated. {ioError}");
+                                        this.WriteMessage(tracer, $"Make sure there aren't any applications accessing the folder and try again.");
+                                    }
+                                    else
+                                    {
+                                        foldersToDehydrate.Add(folder);
+                                    }
+                                }
+                                else
+                                {
+                                    this.WriteMessage(tracer, $"{folder} did not exist to dehydrate.");
+                                }
                             }
-                        }
-                        else
-                        {
-                            this.WriteMessage(tracer, $"{folder} did not exist to dehydrate.");
                         }
                     }
 

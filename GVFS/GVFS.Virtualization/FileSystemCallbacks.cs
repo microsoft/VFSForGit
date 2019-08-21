@@ -301,23 +301,27 @@ namespace GVFS.Virtualization
             List<IPlaceholderData> removedPlaceholders;
             List<string> removedModifiedPaths;
             bool successful = false;
+            FileSystemResult result;
 
             try
             {
-                removedPlaceholders = this.placeholderDatabase.RemoveStartingWith(relativePath);
+                relativePath = relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim().Trim(Path.DirectorySeparatorChar);
+                removedPlaceholders = this.placeholderDatabase.RemoveAllEntriesForFolder(relativePath);
                 removedModifiedPaths = this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
-                FileSystemResult result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
+                result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
                 successful = result.Result == FSResult.Ok;
             }
             catch (Exception ex)
             {
                 EventMetadata metadata = this.CreateEventMetadata(relativePath, ex);
-                this.context.Tracer.RelatedError(metadata, $"{nameof(this.DehydrateFolder)} threw and exception");
+                this.context.Tracer.RelatedError(metadata, $"{nameof(this.DehydrateFolder)} threw an exception");
                 return false;
             }
 
             if (!successful)
             {
+                this.context.Tracer.RelatedError($"{nameof(this.DehydrateFolder)} failed with {result.Result}");
+
                 if (removedPlaceholders != null)
                 {
                     foreach (IPlaceholderData data in removedPlaceholders)

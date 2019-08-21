@@ -151,7 +151,7 @@ namespace GVFS.Common.Database
             this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PossibleTombstoneFolder });
         }
 
-        public List<IPlaceholderData> RemoveStartingWith(string path)
+        public List<IPlaceholderData> RemoveAllEntriesForFolder(string path)
         {
             // Normalize the path to match what will be in the database
             path = GVFSDatabase.NormalizePath(path);
@@ -162,11 +162,12 @@ namespace GVFS.Common.Database
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     List<IPlaceholderData> removedPlaceholders = new List<IPlaceholderData>();
-                    command.CommandText = "SELECT path, pathType, sha FROM Placeholder WHERE path LIKE @path";
-                    command.AddParameter("@path", DbType.String, $"{path}%");
+                    command.CommandText = "SELECT path, pathType, sha FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirecotrySeparator;";
+                    command.AddParameter("@path", DbType.String, $"{path}");
+                    command.AddParameter("@pathWithDirecotrySeparator", DbType.String, $"{path + Path.DirectorySeparatorChar}%");
                     ReadPlaceholders(command, data => removedPlaceholders.Add(data));
 
-                    command.CommandText = "DELETE FROM Placeholder WHERE path LIKE @path;";
+                    command.CommandText = "DELETE FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirecotrySeparator;";
 
                     lock (this.writerLock)
                     {

@@ -163,7 +163,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void FolderDehydrateThatWasEnumerated()
+        public void FolderDehydrateFolderThatWasEnumerated()
         {
             string pathToEnumerate = this.Enlistment.GetVirtualPathTo("GVFS");
             this.fileSystem.EnumerateDirectory(pathToEnumerate);
@@ -185,7 +185,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void FolderDehydrateWithFilesThatWereRead()
+        public void FolderDehydrateFolderWithFilesThatWereRead()
         {
             string pathToReadFiles = this.Enlistment.GetVirtualPathTo("GVFS");
             string fileToRead = Path.Combine(pathToReadFiles, "GVFS", "Program.cs");
@@ -208,7 +208,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void FolderDehydrateWithFilesThatWereWrittenTo()
+        public void FolderDehydrateFolderWithFilesThatWereWrittenTo()
         {
             string pathToWriteFiles = this.Enlistment.GetVirtualPathTo("GVFS");
             string fileToWriteTo = Path.Combine(pathToWriteFiles, "GVFS", "Program.cs");
@@ -231,13 +231,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void FolderDehydrateThatWasDeleted()
+        public void FolderDehydrateFolderThatWasDeleted()
         {
             string pathToDelete = this.Enlistment.GetVirtualPathTo("Scripts");
             this.fileSystem.DeleteDirectory(pathToDelete);
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "add .");
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout HEAD~1");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout -- Scripts");
 
             this.DehydrateShouldSucceed("Scripts folder successfully dehydrated.", confirm: true, noStatus: false, foldersToDehydrate: "Scripts");
             this.Enlistment.UnmountGVFS();
@@ -253,7 +251,87 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void FolderDehydrateThatDoesNotExist()
+        public void FolderDehydrateFolderThatIsSubstringOfExistingFolder()
+        {
+            string folderToDehydrate = Path.Combine("GVFS", "GVFS");
+            string fileToRead = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate, "Program.cs"));
+            string fileToWrite = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate, "App.config"));
+            this.fileSystem.ReadAllText(fileToRead);
+            this.fileSystem.AppendAllText(this.Enlistment.GetVirtualPathTo(fileToWrite), "Append content");
+
+            string folderNotDehydrated = Path.Combine("GVFS", "GVFS.Common");
+            string fileNotDehydrated = this.Enlistment.GetVirtualPathTo(Path.Combine(folderNotDehydrated, "GVFSLock.cs"));
+            string fileNotDehydrated2 = this.Enlistment.GetVirtualPathTo(Path.Combine(folderNotDehydrated, "Enlistment.cs"));
+            this.fileSystem.ReadAllText(fileNotDehydrated);
+            this.fileSystem.AppendAllText(fileNotDehydrated2, "Append content");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, $"reset --hard");
+
+            this.DehydrateShouldSucceed($"{folderToDehydrate} folder successfully dehydrated.", confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+
+            this.PlaceholdersShouldNotContain(folderToDehydrate, Path.Combine(folderToDehydrate, "Program.cs"));
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, Path.Combine(folderToDehydrate, "App.config").Replace(Path.DirectorySeparatorChar, TestConstants.GitPathSeparator));
+
+            this.PlaceholderShouldContain(folderNotDehydrated, Path.Combine(folderNotDehydrated, "GVFSLock.cs"));
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, Path.Combine(folderNotDehydrated, "Enlistment.cs").Replace(Path.DirectorySeparatorChar, TestConstants.GitPathSeparator));
+
+            this.Enlistment.UnmountGVFS();
+
+            fileToRead.ShouldNotExistOnDisk(this.fileSystem);
+            fileToWrite.ShouldNotExistOnDisk(this.fileSystem);
+            fileNotDehydrated.ShouldBeAFile(this.fileSystem);
+            fileNotDehydrated2.ShouldBeAFile(this.fileSystem);
+        }
+
+        [TestCase]
+        public void FolderDehydrateNestedFolders()
+        {
+            string folderToDehydrate1 = Path.Combine("GVFS", "GVFS.Mount");
+            string folderToDehydrate2 = "GVFS";
+            string fileToRead1 = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate1, "Program.cs"));
+            string fileToRead2 = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate2, "GVFS.UnitTests", "Program.cs"));
+            this.fileSystem.ReadAllText(fileToRead1);
+            this.fileSystem.ReadAllText(fileToRead2);
+
+            this.DehydrateShouldSucceed($"{folderToDehydrate1} folder successfully dehydrated.", confirm: true, noStatus: false, foldersToDehydrate: string.Join(";", folderToDehydrate1, folderToDehydrate2));
+
+            this.Enlistment.UnmountGVFS();
+
+            fileToRead1.ShouldNotExistOnDisk(this.fileSystem);
+            fileToRead2.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCase]
+        public void FolderDehydrateParentFolderInModifiedPathsShouldFail()
+        {
+            string pathToDelete = this.Enlistment.GetVirtualPathTo("GitCommandsTests");
+            this.fileSystem.DeleteDirectory(pathToDelete);
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
+
+            string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
+            this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
+
+            this.DehydrateShouldSucceed($"Parent folder in modified paths.  Unable to dehydrate {folderToDehydrate}.", confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+        }
+
+        [TestCase]
+        public void FolderDehydrateCreatedDirectoryParentFolderInModifiedPathsShouldFail()
+        {
+            string pathToDelete = this.Enlistment.GetVirtualPathTo("GitCommandsTests");
+            this.fileSystem.DeleteDirectory(pathToDelete);
+
+            // If git creates the directory then it will be a partial folder
+            // Need it to be a full folder for this test
+            this.fileSystem.CreateDirectory(pathToDelete);
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
+
+            string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
+            this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
+
+            this.DehydrateShouldSucceed($"Parent folder in modified paths.  Unable to dehydrate {folderToDehydrate}.", confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+        }
+
+        [TestCase]
+        public void FolderDehydrateFolderThatDoesNotExist()
         {
             this.DehydrateShouldSucceed("DoesNotExist did not exist to dehydrate.", confirm: true, noStatus: false, foldersToDehydrate: "DoesNotExist");
         }
@@ -280,6 +358,30 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 directoryToCreate.ShouldBeADirectory(this.fileSystem);
             }
+        }
+
+        private void PlaceholderShouldContain(params string[] paths)
+        {
+            string[] placeholderLines = this.GetPlaceholderDatabaseLines();
+            foreach (string path in paths)
+            {
+                placeholderLines.ShouldContain(x => x.StartsWith(path + GVFSHelpers.PlaceholderFieldDelimiter));
+            }
+        }
+
+        private void PlaceholdersShouldNotContain(params string[] paths)
+        {
+            string[] placeholderLines = this.GetPlaceholderDatabaseLines();
+            foreach (string path in paths)
+            {
+                placeholderLines.ShouldNotContain(x => x.StartsWith(path + Path.DirectorySeparatorChar) || x.Equals(path, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        private string[] GetPlaceholderDatabaseLines()
+        {
+            string placeholderDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "VFSForGit.sqlite");
+            return GVFSHelpers.GetAllSQLitePlaceholdersAsString(placeholderDatabase).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         }
 
         private void DirectoryShouldContain(string directory, params string[] fileOrFolders)
