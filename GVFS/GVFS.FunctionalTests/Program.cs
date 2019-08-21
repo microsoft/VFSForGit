@@ -15,6 +15,7 @@ namespace GVFS.FunctionalTests
         {
             Properties.Settings.Default.Initialize();
             NUnitRunner runner = new NUnitRunner(args);
+            runner.AddGlobalSetupIfNeeded("GVFS.FunctionalTests.GlobalSetup");
 
             if (runner.HasCustomArg("--no-shared-gvfs-cache"))
             {
