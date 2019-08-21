@@ -11,6 +11,7 @@ namespace GVFS.UnitTests
         public static void Main(string[] args)
         {
             NUnitRunner runner = new NUnitRunner(args);
+            runner.AddGlobalSetupIfNeeded("GVFS.UnitTests.Setup");
 
             List<string> excludeCategories = new List<string>();
 
