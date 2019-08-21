@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 
@@ -236,7 +236,8 @@ namespace GVFS.Common.NamedPipes
                 {
                     AutomountStart,
                     MountSuccess,
-                    MountFailure
+                    MountFailure,
+                    UpgradeAvailable
                 }
 
                 public Identifier Id { get; set; }
@@ -248,6 +249,8 @@ namespace GVFS.Common.NamedPipes
                 public string Enlistment { get; set; }
 
                 public int EnlistmentCount { get; set; }
+
+                public string NewVersion { get; set; }
 
                 public static Request FromMessage(Message message)
                 {

@@ -1,5 +1,6 @@
 #import "VFSAboutWindowController.h"
 #import "VFSAppDelegate.h"
+#import "VFSCommandRunner.h"
 #import "VFSMessageListener.h"
 #import "VFSNotificationDisplay.h"
 #import "VFSForGitNotification.h"
@@ -12,6 +13,7 @@
 @property (weak) IBOutlet NSWindow *Window;
 @property (strong) VFSStatusBarItem *StatusDisplay;
 @property (strong) VFSMessageListener *messageListener;
+@property (strong) VFSNotificationDisplay *notificationDisplay;
 
 - (void)displayNotification:(NSDictionary *_Nonnull)messageInfo;
 
@@ -42,6 +44,9 @@
                            initWithProductInfoFetcher:productInfoFetcher]];
     
     [self.StatusDisplay load];
+    
+    self.notificationDisplay = [[VFSNotificationDisplay alloc]
+                                initWithCommandRunner:[[VFSCommandRunner alloc] init]];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification
@@ -63,10 +68,6 @@
         return;
     }
     
-    VFSNotificationDisplay *notificationDisplay =
-    [[VFSNotificationDisplay alloc] initWithTitle:notification.title
-                                          message:notification.message];
-    
-    [notificationDisplay display];
+    [self.notificationDisplay display:notification];
 }
 @end

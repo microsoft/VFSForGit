@@ -9,14 +9,18 @@ typedef NS_ENUM(NSInteger, Identifier)
     AutomountStart,
     MountSuccess,
     MountFailure,
+    UpgradeAvailable,
     UnknownMessage
 };
 
-@interface VFSForGitNotification : NSObject
+@interface VFSForGitNotification : NSObject <NSCoding>
 
 @property (assign, readonly) Identifier identifier;
 @property (copy, readonly) NSString *title;
+@property (copy, readonly) NSString *actionTitle;
 @property (copy, readonly) NSString *message;
+@property (copy, readonly) NSString *gvfsCommand;
+@property (assign, readonly) BOOL actionable;
 
 + (BOOL)tryValidateMessage:(NSDictionary *)jsonMessage
          buildNotification:(VFSForGitNotification *_Nullable *_Nonnull)notification
