@@ -53,6 +53,7 @@ using std::string;
 - (void)testIsFileSystemCrawler {
     XCTAssertTrue(IsFileSystemCrawler("mds"));
     XCTAssertTrue(IsFileSystemCrawler("mdworker"));
+    XCTAssertTrue(IsFileSystemCrawler("mdworker_shared"));
     XCTAssertTrue(IsFileSystemCrawler("mds_stores"));
     XCTAssertTrue(IsFileSystemCrawler("fseventsd"));
     XCTAssertTrue(IsFileSystemCrawler("Spotlight"));
