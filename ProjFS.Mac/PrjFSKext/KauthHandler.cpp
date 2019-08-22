@@ -1584,6 +1584,7 @@ KEXT_STATIC bool IsFileSystemCrawler(const char* procname)
     // These process will crawl the file system and force a full hydration
     if (!strcmp(procname, "mds") ||
         !strcmp(procname, "mdworker") ||
+        !strcmp(procname, "mdworker_shared") ||
         !strcmp(procname, "mds_stores") ||
         !strcmp(procname, "fseventsd") ||
         !strcmp(procname, "Spotlight"))
