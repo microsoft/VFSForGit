@@ -449,7 +449,26 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string filePath = Path.Combine(filePathPaths);
             string virtualFilePath = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filePath);
-            virtualFilePath.ShouldBeAFile(this.FileSystem).WithContents(controlFilePath.ShouldBeAFile(this.FileSystem).WithContents());
+            bool virtualExists = File.Exists(virtualFilePath);
+            bool controlExists = File.Exists(controlFilePath);
+
+            if (virtualExists)
+            {
+                if (controlExists)
+                {
+                    virtualFilePath.ShouldBeAFile(this.FileSystem)
+                                   .WithContents(controlFilePath.ShouldBeAFile(this.FileSystem)
+                                                                .WithContents());
+                }
+                else
+                {
+                    virtualExists.ShouldEqual(controlExists, $"{virtualExists} exists, but {controlExists} does not");
+                }
+            }
+            else if (controlExists)
+            {
+                virtualExists.ShouldEqual(controlExists, $"{virtualExists} does not exist, but {controlExists} does");
+            }
         }
 
         protected void FileShouldHaveCaseMatchingName(string caseSensitiveFilePath)
