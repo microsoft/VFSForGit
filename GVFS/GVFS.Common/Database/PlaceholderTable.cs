@@ -153,6 +153,8 @@ namespace GVFS.Common.Database
 
         public List<IPlaceholderData> RemoveAllEntriesForFolder(string path)
         {
+            const string fromWhereClause = "FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;";
+
             // Normalize the path to match what will be in the database
             path = GVFSDatabase.NormalizePath(path);
 
@@ -162,12 +164,12 @@ namespace GVFS.Common.Database
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     List<IPlaceholderData> removedPlaceholders = new List<IPlaceholderData>();
-                    command.CommandText = "SELECT path, pathType, sha FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirecotrySeparator;";
+                    command.CommandText = $"SELECT path, pathType, sha {fromWhereClause}";
                     command.AddParameter("@path", DbType.String, $"{path}");
-                    command.AddParameter("@pathWithDirecotrySeparator", DbType.String, $"{path + Path.DirectorySeparatorChar}%");
+                    command.AddParameter("@pathWithDirectorySeparator", DbType.String, $"{path + Path.DirectorySeparatorChar}%");
                     ReadPlaceholders(command, data => removedPlaceholders.Add(data));
 
-                    command.CommandText = "DELETE FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirecotrySeparator;";
+                    command.CommandText = $"DELETE {fromWhereClause}";
 
                     lock (this.writerLock)
                     {
@@ -179,7 +181,7 @@ namespace GVFS.Common.Database
             }
             catch (Exception ex)
             {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.Remove)}({path}) Exception", ex);
+                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.RemoveAllEntriesForFolder)}({path}) Exception", ex);
             }
         }
 

@@ -6,6 +6,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
 
 namespace GVFS.UnitTests.Common.Database
@@ -486,6 +487,60 @@ namespace GVFS.UnitTests.Common.Database
 
                     GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.Remove(DefaultPath));
                     ex.Message.ShouldEqual($"PlaceholderTable.Remove({DefaultPath}) Exception");
+                    ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
+                });
+        }
+
+        [TestCase]
+        public void RemoveAllEntriesForFolderTest()
+        {
+            List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
+            this.TestTableWithReader(
+                (placeholders, mockCommand, mockReader) =>
+                {
+                    this.SetupMockReader(mockReader, expectedPlacholders);
+
+                    mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;");
+
+                    Mock<IDbDataParameter> mockParameter = new Mock<IDbDataParameter>(MockBehavior.Strict);
+                    mockParameter.SetupSet(x => x.ParameterName = "@path");
+                    mockParameter.SetupSet(x => x.DbType = DbType.String);
+                    mockParameter.SetupSet(x => x.Value = DefaultPath);
+
+                    Mock<IDbDataParameter> mockParameter2 = new Mock<IDbDataParameter>(MockBehavior.Strict);
+                    mockParameter2.SetupSet(x => x.ParameterName = "@pathWithDirectorySeparator");
+                    mockParameter2.SetupSet(x => x.DbType = DbType.String);
+                    mockParameter2.SetupSet(x => x.Value = DefaultPath + Path.DirectorySeparatorChar + "%");
+
+                    Mock<IDataParameterCollection> mockParameters = new Mock<IDataParameterCollection>(MockBehavior.Strict);
+                    mockParameters.Setup(x => x.Add(mockParameter.Object)).Returns(0);
+                    mockParameters.Setup(x => x.Add(mockParameter2.Object)).Returns(0);
+
+                    mockCommand.SetupSet(x => x.CommandText = "DELETE FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;");
+                    mockCommand.SetupSequence(x => x.CreateParameter())
+                        .Returns(mockParameter.Object)
+                        .Returns(mockParameter2.Object);
+                    mockCommand.SetupGet(x => x.Parameters).Returns(mockParameters.Object);
+                    mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
+
+                    placeholders.RemoveAllEntriesForFolder(DefaultPath);
+
+                    mockParameters.VerifyAll();
+                    mockParameter.VerifyAll();
+                });
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void RemoveAllEntriesForFolderThrowsGVFSDatabaseException()
+        {
+            this.TestTable(
+                (placeholders, mockCommand) =>
+                {
+                    mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;").Throws(new Exception(DefaultExceptionMessage));
+
+                    GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.RemoveAllEntriesForFolder(DefaultPath));
+                    ex.Message.ShouldEqual($"PlaceholderTable.RemoveAllEntriesForFolder({DefaultPath}) Exception");
                     ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
                 });
         }
