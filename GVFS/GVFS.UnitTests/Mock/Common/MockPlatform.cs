@@ -243,6 +243,26 @@ namespace GVFS.UnitTests.Mock.Common
             public override bool SupportsUpgradeWhileRunning => false;
 
             public override int MaxPipePathLength => 250;
+
+            public override string UpgradeInstallAdviceMessage
+            {
+                get { return "MockUpgradeInstallAdvice"; }
+            }
+
+            public override string UpgradeConfirmCommandMessage
+            {
+                get { return "MockUpgradeConfirmCommand"; }
+            }
+
+            public override string StartServiceCommandMessage
+            {
+                get { return "MockStartServiceCommand"; }
+            }
+
+            public override string RunUpdateMessage
+            {
+                get { return "MockRunUpdateMessage"; }
+            }
         }
     }
 }

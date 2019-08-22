@@ -177,14 +177,14 @@ namespace GVFS.Upgrader
 
         private bool IsGVFSUpgradeAllowed(out string consoleError)
         {
-            bool isConfirmed = string.Equals(this.CommandToRerun, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm, StringComparison.OrdinalIgnoreCase);
+            bool isConfirmed = string.Equals(this.CommandToRerun, GVFSPlatform.Instance.Constants.UpgradeConfirmCommandMessage, StringComparison.OrdinalIgnoreCase);
             string adviceText = null;
             if (!this.IsElevated())
             {
-                adviceText = isConfirmed ? $"Run {this.CommandToRerun} again from an elevated command prompt." : $"To install, run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} from an elevated command prompt.";
+                adviceText = GVFSPlatform.Instance.Constants.RunUpdateMessage;
                 consoleError = string.Join(
                     Environment.NewLine,
-                    "The installer needs to be run from an elevated command prompt.",
+                    "The installer needs to be run with elevated permissions.",
                     adviceText);
                 this.tracer.RelatedWarning($"{nameof(this.IsGVFSUpgradeAllowed)}: Upgrade is not installable. {consoleError}");
                 return false;
@@ -202,7 +202,7 @@ namespace GVFS.Upgrader
 
             if (this.IsServiceInstalledAndNotRunning())
             {
-                adviceText = isConfirmed ? $"Run `sc start GVFS.Service` and run {this.CommandToRerun} again from an elevated command prompt." : $"To install, run `sc start GVFS.Service` and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} from an elevated command prompt.";
+                adviceText = $"To install, run {GVFSPlatform.Instance.Constants.StartServiceCommandMessage} and run {GVFSPlatform.Instance.Constants.UpgradeConfirmCommandMessage}.";
                 consoleError = string.Join(
                     Environment.NewLine,
                     "GVFS Service is not running.",

@@ -214,6 +214,26 @@ namespace GVFS.Platform.Mac
 
             // Documented here (in the addressing section): https://www.unix.com/man-page/mojave/4/unix/
             public override int MaxPipePathLength => 104;
+
+            public override string UpgradeInstallAdviceMessage
+            {
+                get { return $"When ready, run {this.UpgradeConfirmCommandMessage} to upgrade."; }
+            }
+
+            public override string UpgradeConfirmCommandMessage
+            {
+                get { return UpgradeConfirmMessage; }
+            }
+
+            public override string StartServiceCommandMessage
+            {
+                get { return "`launchctl load /Library/LaunchAgents/org.vfsforgit.service.plist`"; }
+            }
+
+            public override string RunUpdateMessage
+            {
+                get { return $"Run {UpgradeConfirmMessage}."; }
+            }
         }
     }
 }

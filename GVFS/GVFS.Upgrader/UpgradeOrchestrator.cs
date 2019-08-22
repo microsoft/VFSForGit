@@ -83,7 +83,7 @@ namespace GVFS.Upgrader
 
             if (this.preRunChecker == null)
             {
-                this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
+                this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSPlatform.Instance.Constants.UpgradeConfirmCommandMessage);
             }
 
             try
