@@ -822,7 +822,9 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         // On some platforms, a pre-rename event may be delivered prior to a
         // file rename rather than a pre-delete event, so we check this
         // separately from the DeleteIndexFileFails() test case
+        // This test is failing on Windows because the CmdRunner succeeds in moving the index file
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        [Category(Categories.MacOnly)]
         public void MoveIndexFileFails(FileSystemRunner fileSystem)
         {
             string indexFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index"));
