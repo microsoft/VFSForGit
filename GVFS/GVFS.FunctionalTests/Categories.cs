@@ -20,9 +20,6 @@
             // Tests that require Config to be built
             public const string NeedsGVFSConfig = "NeedsConfig";
 
-            // Tests that require VFS Service
-            public const string NeedsServiceVerb = "NeedsServiceVerb";
-
             // Tests requires code updates so that we lock the file instead of looking for a .lock file
             public const string TestNeedsToLockFile = "TestNeedsToLockFile";
         }

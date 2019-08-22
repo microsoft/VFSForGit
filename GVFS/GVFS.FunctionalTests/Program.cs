@@ -105,7 +105,6 @@ namespace GVFS.FunctionalTests
             {
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
                 excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
-                excludeCategories.Add(Categories.MacTODO.NeedsServiceVerb);
                 excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
                 excludeCategories.Add(Categories.MacTODO.TestNeedsToLockFile);
                 excludeCategories.Add(Categories.WindowsOnly);
