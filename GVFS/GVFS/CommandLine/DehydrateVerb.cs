@@ -101,7 +101,9 @@ namespace GVFS.CommandLine
                     }
                 }
 
-                if (!this.Confirmed && string.IsNullOrEmpty(this.Folders))
+                bool fullDehydrate = string.IsNullOrEmpty(this.Folders);
+
+                if (!this.Confirmed && fullDehydrate)
                 {
                     this.Output.WriteLine(
 @"WARNING: THIS IS AN EXPERIMENTAL FEATURE
@@ -142,7 +144,6 @@ from a parent of the folders list.
                     return;
                 }
 
-                bool fullDehydrate = string.IsNullOrEmpty(this.Folders);
                 bool cleanStatus = this.CheckGitStatus(tracer, enlistment, fullDehydrate);
 
                 string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
@@ -316,7 +317,7 @@ from a parent of the folders list.
 
                 foreach (string folder in response.FailedFolders)
                 {
-                    this.WriteMessage(tracer, $"{folder} folder failed to dehydrate. You may need to reset the working directory by deleting {folder} running `git reset --hard` and retry the dehydrate.");
+                    this.WriteMessage(tracer, $"{folder} folder failed to dehydrate. You may need to reset the working directory by deleting {folder}, running `git reset --hard`, and retry the dehydrate.");
                 }
             }
         }
@@ -411,7 +412,7 @@ from a parent of the folders list.
                         }
                         else
                         {
-                            this.WriteMessage(tracer, "Either commit your changes or run dehydrate with --no-status");
+                            this.WriteMessage(tracer, "Either commit your changes or reset and clean your working directory.");
                         }
                     }
 
