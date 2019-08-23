@@ -51,6 +51,6 @@ const char* Vnode_GetTypeAsString(vnode_t _Nullable vnode)
         case VBAD:  return "VBAD";
         case VSTR:  return "VSTR";
         case VCPLX: return "VCPLX";
-        default:    return "[???]";
     }
+    return "[???]";
 }
