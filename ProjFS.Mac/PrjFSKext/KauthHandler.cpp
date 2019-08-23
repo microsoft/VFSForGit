@@ -811,7 +811,9 @@ KEXT_STATIC int HandleFileOpOperation(
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
         {
-            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_RENAME): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
+            VirtualizationRootHandle providerHandle = ActiveProvider_FindForPath(newPath);
+            // TODO(#1480): Drop log level to KEXTLOG_DEFAULT when providerHandle is 'none' once these failures become rare
+            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_RENAME): vnode_lookup failed, errno %d for path '%s'; path lies within root %d%s", toErr, newPath, providerHandle, providerHandle == RootHandle_None ? "" : " with active provider");
             goto CleanupAndReturn;
         }
         
@@ -878,7 +880,9 @@ KEXT_STATIC int HandleFileOpOperation(
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
         {
-            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_LINK): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
+            VirtualizationRootHandle providerHandle = ActiveProvider_FindForPath(newPath);
+            // TODO(#1480): Drop log level to KEXTLOG_DEFAULT when providerHandle is 'none' once these failures become rare
+            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_LINK): vnode_lookup failed, errno %d for path '%s'; path lies within root %d%s", toErr, newPath, providerHandle, providerHandle == RootHandle_None ? "" : " with active provider");
             goto CleanupAndReturn;
         }
         

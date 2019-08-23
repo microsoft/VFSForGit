@@ -6,6 +6,7 @@
 
 extern "C" int mac_vnop_getxattr(struct vnode *, const char *, char *, size_t, size_t *);
 
+#ifndef KEXT_UNIT_TESTING // Kext testing environment has mock versions of these functions
 FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t _Nonnull context, bool useLinkIDForInode)
 {
     vnode_attr attrs;
@@ -28,4 +29,28 @@ SizeOrError Vnode_ReadXattr(vnode_t vnode, const char* xattrName, void* buffer, 
     size_t actualSize = bufferSize;
     errno_t error = mac_vnop_getxattr(vnode, xattrName, static_cast<char*>(buffer), bufferSize, &actualSize);
     return SizeOrError { actualSize, error };
+}
+#endif
+
+const char* Vnode_GetTypeAsString(vnode_t _Nullable vnode)
+{
+    if (vnode == NULLVP)
+    {
+        return "[NULL]";
+    }
+    switch (vnode_vtype(vnode))
+    {
+        case VNON:  return "VNON";
+        case VREG:  return "VREG";
+        case VDIR:  return "VDIR";
+        case VBLK:  return "VBLK";
+        case VCHR:  return "VCHR";
+        case VLNK:  return "VLNK";
+        case VSOCK: return "VSOCK";
+        case VFIFO: return "VFIFO";
+        case VBAD:  return "VBAD";
+        case VSTR:  return "VSTR";
+        case VCPLX: return "VCPLX";
+        default:    return "[???]";
+    }
 }
