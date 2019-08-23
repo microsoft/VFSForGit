@@ -199,7 +199,7 @@ static void LogPanics()
                if (panicLogTime == 0)
                {
                    // Record error if we can't determine timestamp
-                   os_log(s_daemonLogger, "Unable to run stat on panic at %s errno=%d strerror=%s\n", fullFileName.c_str(), errno, strerror(errno));
+                   os_log(s_daemonLogger, "Unable to run stat on panic at %{public}s errno=%d strerror=%{public}s\n", fullFileName.c_str(), errno, strerror(errno));
                    continue;
                }
 
@@ -229,7 +229,7 @@ static void LogPanics()
                   }
                   else
                   {
-                      os_log(s_daemonLogger, "Unable open %s errno=%d strerror=%s\n", fullFileName.c_str(), errno, strerror(errno));
+                      os_log(s_daemonLogger, "Unable open %{public}s errno=%d strerror=%{public}s\n", fullFileName.c_str(), errno, strerror(errno));
                       continue;
                   }
               }
@@ -252,7 +252,7 @@ static void LogPanics()
     }
     else
     {
-        os_log(s_daemonLogger, "Unable to save panic timestamp file %s errno=%d strerror=%s\n", PanicLogTimestampFile, errno, strerror(errno));
+        os_log(s_daemonLogger, "Unable to save panic timestamp file %{public}s errno=%d strerror=%{public}s\n", PanicLogTimestampFile, errno, strerror(errno));
     }
 }
 
