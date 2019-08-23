@@ -808,7 +808,7 @@ KEXT_STATIC int HandleFileOpOperation(
         
         // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
-        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
+        errno_t toErr = vnode_lookup(newPath, /* flags: */ VNODE_LOOKUP_NOFOLLOW, &currentVnode, context);
         if (0 != toErr)
         {
             VirtualizationRootHandle providerHandle = ActiveProvider_FindForPath(newPath);
@@ -877,7 +877,7 @@ KEXT_STATIC int HandleFileOpOperation(
         
         // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
-        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
+        errno_t toErr = vnode_lookup(newPath, /* flags: */ VNODE_LOOKUP_NOFOLLOW, &currentVnode, context);
         if (0 != toErr)
         {
             VirtualizationRootHandle providerHandle = ActiveProvider_FindForPath(newPath);
