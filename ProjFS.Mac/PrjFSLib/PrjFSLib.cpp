@@ -976,14 +976,14 @@ static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHead
         
         CombinePaths(s_virtualizationRootFullPath.c_str(), directoryRelativePath.c_str(), path);
     
-        PrjFS_Result result = HandleEnumerateDirectoryRequest(request, path, directoryRelativePath.c_str());
+        result = HandleEnumerateDirectoryRequest(request, path, directoryRelativePath.c_str());
         if (result != PrjFS_Result_Success)
         {
             LogWarning("HandleRecursivelyEnumerateDirectoryRequest: HandleEnumerateDirectoryRequest failed on %s %d", path, result);
             goto CleanupAndReturn;
         }
         
-        DIR* directory = opendir(path);
+        directory = opendir(path);
         if (nullptr == directory)
         {
             LogWarning("HandleRecursivelyEnumerateDirectoryRequest: failed to open dir %s errno=%d strerror=%s", path, errno, strerror(errno));
@@ -1004,6 +1004,7 @@ static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHead
         }
         
         closedir(directory);
+        directory = nullptr;
     }
     
 CleanupAndReturn:
@@ -1469,7 +1470,7 @@ static PrjFS_Result RecursivelyMarkAllChildrenAsInRoot(const char* fullDirectory
         directoryRelativePaths.pop();
         
         CombinePaths(fullDirectoryPath, directoryRelativePath.c_str(), fullPath);
-        DIR* directory = opendir(fullPath);
+        directory = opendir(fullPath);
         if (nullptr == directory)
         {
             LogWarning("RecursivelyMarkAllChildrenAsInRoot: failed to open %s errno=%d, strerror=%s", fullPath, errno, strerror(errno));
@@ -1502,6 +1503,7 @@ static PrjFS_Result RecursivelyMarkAllChildrenAsInRoot(const char* fullDirectory
         }
         
         closedir(directory);
+        directory = nullptr;
     }
     
 CleanupAndReturn:
