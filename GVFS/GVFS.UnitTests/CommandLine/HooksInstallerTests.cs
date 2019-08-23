@@ -5,7 +5,9 @@ using GVFS.UnitTests.Category;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 
 namespace GVFS.UnitTests.CommandLine
 {
@@ -33,7 +35,8 @@ namespace GVFS.UnitTests.CommandLine
                 .Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
                 .Where(line => !line.StartsWith("#"));
 
-            resultLines.Single().ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            resultLines.Single().ShouldContain(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
+            resultLines.Single().ShouldContain(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
         }
 
         [TestCase]
@@ -47,7 +50,7 @@ namespace GVFS.UnitTests.CommandLine
             resultLines.Count().ShouldEqual(3);
             resultLines.ElementAt(0).ShouldEqual("first");
             resultLines.ElementAt(1).ShouldEqual("second");
-            resultLines.ElementAt(2).ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            resultLines.ElementAt(2).ShouldContain(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
         }
 
         [TestCase]
@@ -59,7 +62,7 @@ namespace GVFS.UnitTests.CommandLine
                 .Where(line => !line.StartsWith("#"));
 
             resultLines.Count().ShouldEqual(3);
-            resultLines.ElementAt(0).ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            resultLines.ElementAt(0).ShouldContain(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             resultLines.ElementAt(1).ShouldEqual("first");
             resultLines.ElementAt(2).ShouldEqual("second");
         }
@@ -75,7 +78,7 @@ namespace GVFS.UnitTests.CommandLine
             resultLines.Count().ShouldEqual(3);
             resultLines.ElementAt(0).ShouldEqual("first");
             resultLines.ElementAt(1).ShouldEqual("second");
-            resultLines.ElementAt(2).ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            resultLines.ElementAt(2).ShouldContain(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
         }
     }
 }
