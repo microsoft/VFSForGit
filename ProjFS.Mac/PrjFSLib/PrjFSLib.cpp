@@ -1197,12 +1197,12 @@ static PrjFS_Result HandleFileNotification(
         placeholderFile &&
         (PrjFS_NotificationType_PreConvertToFull == notificationType || PrjFS_NotificationType_PreDeleteFromRename == notificationType))
     {
-        errno_t result = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
-        if (0 != result && ENOATTR != result)
+        errno_t error = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
+        if (0 != error && ENOATTR != error)
         {
             // It's expected that RemoveXAttrWithoutFollowingLinks return ENOATTR if
             // another thread has removed the attribute
-            LogError("HandleFileNotification: RemoveXAttrWithoutFollowingLinks failed for '%s', error=%d strerror=%s", absolutePath, result, strerror(errno));
+            LogError("HandleFileNotification: RemoveXAttrWithoutFollowingLinks failed for '%s', error=%d strerror=%s", absolutePath, error, strerror(error));
         }
     }
     
