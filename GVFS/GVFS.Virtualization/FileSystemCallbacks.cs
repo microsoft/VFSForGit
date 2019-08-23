@@ -62,10 +62,10 @@ namespace GVFS.Virtualization
             this.context = context;
             this.fileSystemVirtualizer = fileSystemVirtualizer;
 
-            this.filePlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
-            this.folderPlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
-            this.fileHydrationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
-            this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
+            this.filePlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
+            this.folderPlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
+            this.fileHydrationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
+            this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
             string error;
             if (!ModifiedPathsDatabase.TryLoadOrCreate(
@@ -151,7 +151,7 @@ namespace GVFS.Virtualization
         /// </summary>
         public static bool IsPathInsideDotGit(string relativePath)
         {
-            return relativePath.StartsWith(GVFSConstants.DotGit.Root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            return relativePath.StartsWith(GVFSConstants.DotGit.Root + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison);
         }
 
         public bool TryStart(out string error)
@@ -567,7 +567,7 @@ namespace GVFS.Virtualization
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> GetAndResetProcessCountMetadata(ref ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData)
         {
             ConcurrentDictionary<string, PlaceHolderCreateCounter> localData = collectedData;
-            collectedData = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            collectedData = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
             return localData;
         }
 

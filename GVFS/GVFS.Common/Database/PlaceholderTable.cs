@@ -17,11 +17,12 @@ namespace GVFS.Common.Database
             this.connectionPool = connectionPool;
         }
 
-        public static void CreateTable(IDbConnection connection)
+        public static void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem)
         {
             using (IDbCommand command = connection.CreateCommand())
             {
-                command.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY COLLATE NOCASE, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;";
+                string collateConstraint = caseSensitiveFileSystem ? string.Empty : " COLLATE NOCASE";
+                command.CommandText = $"CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY{collateConstraint}, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;";
                 command.ExecuteNonQuery();
             }
         }

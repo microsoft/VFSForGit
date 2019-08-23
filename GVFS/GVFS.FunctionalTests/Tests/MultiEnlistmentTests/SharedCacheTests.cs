@@ -318,7 +318,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             string dotGitRoot = Path.Combine(enlistment.RepoRoot, ".git") + Path.DirectorySeparatorChar;
             for (int i = 0; i < allFiles.Count; ++i)
             {
-                if (!allFiles[i].StartsWith(dotGitRoot, StringComparison.OrdinalIgnoreCase))
+                if (!allFiles[i].StartsWith(dotGitRoot, FileSystemHelpers.PathComparison))
                 {
                     File.ReadAllText(allFiles[i]);
                 }

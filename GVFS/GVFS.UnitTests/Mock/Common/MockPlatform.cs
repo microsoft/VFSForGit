@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 
 namespace GVFS.UnitTests.Mock.Common
 {
@@ -237,7 +238,7 @@ namespace GVFS.UnitTests.Mock.Common
 
             public override HashSet<string> UpgradeBlockingProcesses
             {
-                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "wish", "bash" }; }
+                get { return new HashSet<string>(this.PathComparer) { "GVFS", "GVFS.Mount", "git", "wish", "bash" }; }
             }
 
             public override bool SupportsUpgradeWhileRunning => false;
@@ -263,6 +264,8 @@ namespace GVFS.UnitTests.Mock.Common
             {
                 get { return "MockRunUpdateMessage"; }
             }
+
+            public override bool CaseSensitiveFileSystem => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         }
     }
 }

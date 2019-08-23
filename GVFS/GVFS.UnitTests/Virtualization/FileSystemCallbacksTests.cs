@@ -3,6 +3,7 @@ using GVFS.Common.Database;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Virtualization.Background;
 using GVFS.UnitTests.Mock.Virtualization.BlobSize;
@@ -33,10 +34,16 @@ namespace GVFS.UnitTests.Virtualization
         public void IsPathInsideDotGitIsTrueForDotGitPath()
         {
             FileSystemCallbacks.IsPathInsideDotGit(@".git" + Path.DirectorySeparatorChar).ShouldEqual(true);
-            FileSystemCallbacks.IsPathInsideDotGit(@".GIT" + Path.DirectorySeparatorChar).ShouldEqual(true);
             FileSystemCallbacks.IsPathInsideDotGit(Path.Combine(".git", "test_file.txt")).ShouldEqual(true);
-            FileSystemCallbacks.IsPathInsideDotGit(Path.Combine(".GIT", "test_file.txt")).ShouldEqual(true);
             FileSystemCallbacks.IsPathInsideDotGit(Path.Combine(".git", "test_folder", "test_file.txt")).ShouldEqual(true);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
+        public void IsPathInsideDotGitIsTrueForDifferentCaseDotGitPath()
+        {
+            FileSystemCallbacks.IsPathInsideDotGit(@".GIT" + Path.DirectorySeparatorChar).ShouldEqual(true);
+            FileSystemCallbacks.IsPathInsideDotGit(Path.Combine(".GIT", "test_file.txt")).ShouldEqual(true);
             FileSystemCallbacks.IsPathInsideDotGit(Path.Combine(".GIT", "test_folder", "test_file.txt")).ShouldEqual(true);
         }
 

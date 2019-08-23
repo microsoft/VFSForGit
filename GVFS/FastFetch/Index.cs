@@ -377,7 +377,7 @@ namespace FastFetch
 
             this.tracer.RelatedEvent(EventLevel.Informational, "IndexData", new EventMetadata() { { "Index", this.updatedIndexPath }, { "Version", this.IndexVersion }, { "entryCount", this.entryCount } }, Keywords.Telemetry);
 
-            this.indexEntryOffsets = new Dictionary<string, long>((int)this.entryCount, StringComparer.OrdinalIgnoreCase);
+            this.indexEntryOffsets = new Dictionary<string, long>((int)this.entryCount, GVFSPlatform.Instance.Constants.PathComparer);
 
             int previousPathLength = 0;
             byte[] pathBuffer = new byte[MaxPathBufferSize];

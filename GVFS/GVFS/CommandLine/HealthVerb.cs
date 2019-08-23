@@ -36,7 +36,7 @@ namespace GVFS.CommandLine
             // Now default to the current working directory when running the verb without a specified path
             if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
             {
-                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, StringComparison.OrdinalIgnoreCase))
+                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
                 }

@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Database;
+﻿using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.FileSystem;
@@ -74,8 +75,9 @@ namespace GVFS.UnitTests.Common.Database
             mockCommand.Setup(x => x.ExecuteScalar()).Returns(1);
             mockCommand.Setup(x => x.Dispose());
 
+            string collateConstraint = GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem ? string.Empty : " COLLATE NOCASE";
             Mock<IDbCommand> mockCommand2 = new Mock<IDbCommand>(MockBehavior.Strict);
-            mockCommand2.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY COLLATE NOCASE, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
+            mockCommand2.SetupSet(x => x.CommandText = $"CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY{collateConstraint}, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
             if (throwException)
             {
                 mockCommand2.Setup(x => x.ExecuteNonQuery()).Throws(new Exception("Error"));
@@ -88,7 +90,7 @@ namespace GVFS.UnitTests.Common.Database
             mockCommand2.Setup(x => x.Dispose());
 
             Mock<IDbCommand> mockCommand3 = new Mock<IDbCommand>(MockBehavior.Strict);
-            mockCommand3.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Sparse] (path TEXT PRIMARY KEY COLLATE NOCASE) WITHOUT ROWID;");
+            mockCommand3.SetupSet(x => x.CommandText = $"CREATE TABLE IF NOT EXISTS [Sparse] (path TEXT PRIMARY KEY{collateConstraint}) WITHOUT ROWID;");
             if (throwException)
             {
                 mockCommand3.Setup(x => x.ExecuteNonQuery()).Throws(new Exception("Error"));

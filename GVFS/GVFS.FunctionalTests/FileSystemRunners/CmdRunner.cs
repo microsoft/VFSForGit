@@ -1,3 +1,4 @@
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using System;
 using System.Diagnostics;
@@ -151,7 +152,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
             foreach (string directory in directories)
             {
-                if (directory.Equals(targetName, StringComparison.OrdinalIgnoreCase))
+                if (directory.Equals(targetName, FileSystemHelpers.PathComparison))
                 {
                     return true;
                 }

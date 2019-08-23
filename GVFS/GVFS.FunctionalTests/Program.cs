@@ -111,6 +111,7 @@ namespace GVFS.FunctionalTests
             }
             else
             {
+                // Windows excludes.
                 excludeCategories.Add(Categories.MacOnly);
             }
 

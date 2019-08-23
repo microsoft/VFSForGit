@@ -127,9 +127,9 @@ namespace GVFS.UnitTests.Common.Database
             return new SparseTable(pool);
         }
 
-        protected override void CreateTable(IDbConnection connection)
+        protected override void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem)
         {
-            SparseTable.CreateTable(connection);
+            SparseTable.CreateTable(connection, caseSensitiveFileSystem);
         }
 
         private static string CombineAltForTrim(char character, params string[] folders)

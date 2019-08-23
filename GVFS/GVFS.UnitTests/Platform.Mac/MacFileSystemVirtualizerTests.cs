@@ -1,4 +1,5 @@
-﻿using GVFS.Platform.Mac;
+﻿using GVFS.Common;
+using GVFS.Platform.Mac;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Git;
@@ -196,7 +197,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 tester.GitIndexProjection.EnumerationInMemory = false;
                 tester.MockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
+                    kvp => kvp.Key.Equals(testFilePath, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode644);
             }
         }
 
@@ -218,7 +219,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 tester.GitIndexProjection.EnumerationInMemory = true;
                 tester.MockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
+                    kvp => kvp.Key.Equals(testFilePath, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode644);
                 tester.GitIndexProjection.ExpandedFolders.ShouldMatchInOrder(TestFolderName);
             }
         }
@@ -251,11 +252,11 @@ namespace GVFS.UnitTests.Platform.Mac
                 tester.GitIndexProjection.EnumerationInMemory = true;
                 tester.MockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFile644Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
+                    kvp => kvp.Key.Equals(testFile644Path, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode644);
                 tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFile664Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode664);
+                    kvp => kvp.Key.Equals(testFile664Path, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode664);
                 tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFile755Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode755);
+                    kvp => kvp.Key.Equals(testFile755Path, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode755);
             }
         }
 
@@ -333,7 +334,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 tester.GitIndexProjection.SparseEntries.Count.ShouldEqual(1);
                 tester.GitIndexProjection.SparseEntries.First().ShouldEqual(TestFolderName);
                 tester.MockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == GitIndexProjection.FileMode644);
+                    kvp => kvp.Key.Equals(testFilePath, GVFSPlatform.Instance.Constants.PathComparison) && kvp.Value == GitIndexProjection.FileMode644);
             }
         }
 

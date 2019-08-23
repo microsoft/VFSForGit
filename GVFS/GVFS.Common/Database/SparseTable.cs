@@ -20,11 +20,12 @@ namespace GVFS.Common.Database
             return path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim().Trim(Path.DirectorySeparatorChar);
         }
 
-        public static void CreateTable(IDbConnection connection)
+        public static void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem)
         {
             using (IDbCommand command = connection.CreateCommand())
             {
-                command.CommandText = "CREATE TABLE IF NOT EXISTS [Sparse] (path TEXT PRIMARY KEY COLLATE NOCASE) WITHOUT ROWID;";
+                string collateConstraint = caseSensitiveFileSystem ? string.Empty : " COLLATE NOCASE";
+                command.CommandText = $"CREATE TABLE IF NOT EXISTS [Sparse] (path TEXT PRIMARY KEY{collateConstraint}) WITHOUT ROWID;";
                 command.ExecuteNonQuery();
             }
         }
@@ -58,7 +59,7 @@ namespace GVFS.Common.Database
                 using (IDbConnection connection = this.connectionPool.GetConnection())
                 using (IDbCommand command = connection.CreateCommand())
                 {
-                    HashSet<string> directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    HashSet<string> directories = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
                     command.CommandText = $"SELECT path FROM Sparse;";
                     using (IDataReader reader = command.ExecuteReader())
                     {

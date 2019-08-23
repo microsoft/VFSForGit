@@ -109,7 +109,7 @@ namespace GVFS.Platform.Windows
         public bool IsExecutable(string fileName)
         {
             string fileExtension = Path.GetExtension(fileName);
-            return string.Equals(fileExtension, ".exe", StringComparison.OrdinalIgnoreCase);
+            return string.Equals(fileExtension, ".exe", GVFSPlatform.Instance.Constants.PathComparison);
         }
 
         public bool IsSocket(string fileName)

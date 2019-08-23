@@ -1,4 +1,6 @@
-﻿using GVFS.Tests.Should;
+﻿using GVFS.Common;
+using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
@@ -23,6 +25,12 @@ namespace GVFS.UnitTests.Virtualization.Git
             "01",
         };
 
+        private static string[] caseDifferingFiles = new string[]
+        {
+            "file1.txt",
+            "File1.txt",
+        };
+
         private static string[] defaultFolders = new string[]
         {
             "zf",
@@ -32,6 +40,12 @@ namespace GVFS.UnitTests.Virtualization.Git
             "_f",
             "(1f)",
             "folder",
+        };
+
+        private static string[] caseDifferingFolders = new string[]
+        {
+            "folder1",
+            "Folder1",
         };
 
         [OneTimeSetUp]
@@ -76,6 +90,7 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
         public void EntryFoundDifferentCase()
         {
             SortedFolderEntries sfe = SetupDefaultEntries();
@@ -85,12 +100,22 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
+        [Category(CategoryConstants.CaseSensitiveFileSystemOnly)]
+        public void EntryNotFoundDifferentCase()
+        {
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            LazyUTF8String findName = ConstructLazyUTF8String("Folder");
+            sfe.TryGetValue(findName, out FolderEntryData folderEntryData).ShouldBeFalse();
+            folderEntryData.ShouldBeNull();
+        }
+
+        [TestCase]
         public void AddItemAtEnd()
         {
             SortedFolderEntries sfe = SetupDefaultEntries();
             LazyUTF8String name = ConstructLazyUTF8String("{{shouldbeattheend");
             sfe.AddFile(name, new byte[20]);
-            sfe[defaultFiles.Length + defaultFolders.Length].Name.ShouldEqual(name, "Item added at incorrect index.");
+            sfe[GetDefaultEntriesLength()].Name.ShouldEqual(name, "Item added at incorrect index.");
         }
 
         [TestCase]
@@ -103,13 +128,31 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
-        public void ValidateOrderOfDefaultEntries()
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
+        public void ValidateCaseInsensitiveOrderOfDefaultEntries()
         {
             List<string> allEntries = new List<string>(defaultFiles);
             allEntries.AddRange(defaultFolders);
             allEntries.Sort(CaseInsensitiveStringCompare);
             SortedFolderEntries sfe = SetupDefaultEntries();
             sfe.Count.ShouldEqual(14);
+            for (int i = 0; i < allEntries.Count; i++)
+            {
+                sfe[i].Name.GetString().ShouldEqual(allEntries[i]);
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.CaseSensitiveFileSystemOnly)]
+        public void ValidateCaseSensitiveOrderOfDefaultEntries()
+        {
+            List<string> allEntries = new List<string>(defaultFiles);
+            allEntries.AddRange(defaultFolders);
+            allEntries.AddRange(caseDifferingFiles);
+            allEntries.AddRange(caseDifferingFolders);
+            allEntries.Sort(CaseSensitiveStringCompare);
+            SortedFolderEntries sfe = SetupDefaultEntries();
+            sfe.Count.ShouldEqual(18);
             for (int i = 0; i < allEntries.Count; i++)
             {
                 sfe[i].Name.GetString().ShouldEqual(allEntries[i]);
@@ -223,13 +266,35 @@ namespace GVFS.UnitTests.Virtualization.Git
             return string.Compare(x, y, StringComparison.OrdinalIgnoreCase);
         }
 
+        private static int CaseSensitiveStringCompare(string x, string y)
+        {
+            return string.Compare(x, y, StringComparison.Ordinal);
+        }
+
         private static SortedFolderEntries SetupDefaultEntries()
         {
             SortedFolderEntries sfe = new SortedFolderEntries();
             AddFiles(sfe, defaultFiles);
             AddFolders(sfe, defaultFolders);
-            sfe.Count.ShouldEqual(defaultFiles.Length + defaultFolders.Length);
+            if (GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem)
+            {
+                AddFiles(sfe, caseDifferingFiles);
+                AddFolders(sfe, caseDifferingFolders);
+            }
+
+            sfe.Count.ShouldEqual(GetDefaultEntriesLength());
             return sfe;
+        }
+
+        private static int GetDefaultEntriesLength()
+        {
+            int length = defaultFiles.Length + defaultFolders.Length;
+            if (GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem)
+            {
+                length += caseDifferingFiles.Length + caseDifferingFolders.Length;
+            }
+
+            return length;
         }
 
         private static unsafe LazyUTF8String ConstructLazyUTF8String(string name)

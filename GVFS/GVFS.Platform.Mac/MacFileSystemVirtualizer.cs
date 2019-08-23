@@ -495,7 +495,7 @@ namespace GVFS.Platform.Mac
                 bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
                 if (pathInsideDotGit)
                 {
-                    if (relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
+                    if (relativePath.Equals(GVFSConstants.DotGit.Index, GVFSPlatform.Instance.Constants.PathComparison))
                     {
                         string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
                         if (string.IsNullOrEmpty(lockedGitCommand))

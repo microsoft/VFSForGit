@@ -494,7 +494,7 @@ namespace GVFS.Platform.Windows
 
             public override HashSet<string> UpgradeBlockingProcesses
             {
-                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "ssh-agent", "wish", "bash" }; }
+                get { return new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer) { "GVFS", "GVFS.Mount", "git", "ssh-agent", "wish", "bash" }; }
             }
 
             // Tests show that 250 is the max supported pipe name length
@@ -519,6 +519,8 @@ namespace GVFS.Platform.Windows
             {
                 get { return $"Run {UpgradeConfirmMessage} from an elevated command prompt."; }
             }
+
+            public override bool CaseSensitiveFileSystem => false;
         }
     }
 }

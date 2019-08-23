@@ -495,9 +495,9 @@ namespace GVFS.UnitTests.Common.Database
             return new PlaceholderTable(pool);
         }
 
-        protected override void CreateTable(IDbConnection connection)
+        protected override void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem)
         {
-            PlaceholderTable.CreateTable(connection);
+            PlaceholderTable.CreateTable(connection, caseSensitiveFileSystem);
         }
 
         private void TestPlaceholdersInsert(Action<PlaceholderTable> testCode, string path, int pathType, string sha, bool throwException = false)
