@@ -33,7 +33,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
             if (this.fileSystem.DirectoryExists(backupFolder))
             {
-                this.fileSystem.DeleteDirectory(backupFolder);
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    // Mac gets permission denied when using the System.IO DeleteDirectory
+                    BashRunner runner = new BashRunner();
+                    runner.DeleteDirectory(backupFolder);
+                }
+                else
+                {
+                    this.fileSystem.DeleteDirectory(backupFolder);
+                }
             }
 
             if (!this.Enlistment.IsMounted())
