@@ -303,36 +303,46 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems();
         }
 
-        // Case-insensitive filesystems only
         [TestCase, Order(7)]
-        [Category(Categories.CaseInsensitiveFileSystemOnly)]
-        public void HydratingFileUsesNameCaseFromRepoOnCaseInsensitiveFileSystem()
+        public void HydratingFileUsesNameCaseFromRepo()
         {
-            this.HydratingFileUsesNameCaseFromRepo(false);
+            string fileName = "Readme.md";
+            string parentFolderPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(fileName));
+            parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
+
+            // Hydrate file with a request using different file name case except on case-sensitive filesystems
+            string testFileName = FileSystemHelpers.CaseSensitiveFileSystem ? fileName : fileName.ToUpper();
+            string testFilePath = this.Enlistment.GetVirtualPathTo(testFileName);
+            string fileContents = testFilePath.ShouldBeAFile(this.fileSystem).WithContents();
+
+            // File on disk should have original case projected from repo
+            parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
         }
 
-        // Case-sensitive filesystems only
-        [TestCase, Order(7)]
-        [Category(Categories.CaseSensitiveFileSystemOnly)]
-        public void HydratingFileUsesNameCaseFromRepoOnCaseSensitiveFileSystem()
-        {
-            this.HydratingFileUsesNameCaseFromRepo(true);
-        }
-
-        // Case-insensitive filesystems only
         [TestCase, Order(8)]
-        [Category(Categories.CaseInsensitiveFileSystemOnly)]
-        public void HydratingNestedFileUsesNameCaseFromRepoOnCaseInsensitiveFileSystem()
+        public void HydratingNestedFileUsesNameCaseFromRepo()
         {
-            this.HydratingNestedFileUsesNameCaseFromRepo(false);
-        }
+            string filePath = Path.Combine("GVFS", "FastFetch", "Properties", "AssemblyInfo.cs");
+            string testFilePath = FileSystemHelpers.CaseSensitiveFileSystem ? filePath : filePath.ToUpper();
+            string testParentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(testFilePath));
+            testParentFolderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
 
-        // Case-sensitive filesystems only
-        [TestCase, Order(8)]
-        [Category(Categories.CaseSensitiveFileSystemOnly)]
-        public void HydratingNestedFileUsesNameCaseFromRepoOnCaseSensitiveFileSystem()
-        {
-            this.HydratingNestedFileUsesNameCaseFromRepo(true);
+            // Hydrate file with a request using different file name case except on case-sensitive filesystems
+            testFilePath = this.Enlistment.GetVirtualPathTo(testFilePath);
+            string fileContents = testFilePath.ShouldBeAFile(this.fileSystem).WithContents();
+
+            // File on disk should have original case projected from repo
+            string parentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(filePath));
+            parentFolderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
+
+            // Confirm all folders up to root have the correct case
+            string parentFolderPath = Path.GetDirectoryName(filePath);
+            while (!string.IsNullOrWhiteSpace(parentFolderPath))
+            {
+                string folderName = Path.GetFileName(parentFolderPath);
+                parentFolderPath = Path.GetDirectoryName(parentFolderPath);
+                this.Enlistment.GetVirtualPathTo(parentFolderPath).ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(folderName, StringComparison.Ordinal));
+            }
         }
 
         [TestCase, Order(9)]
@@ -386,22 +396,31 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.PlaceholderHasVersionInfo(virtualFilePath, CurrentPlaceholderVersion, string.Empty).ShouldEqual(true);
         }
 
-        // Case-insensitive filesystems only
         [TestCase, Order(13)]
         [Category(Categories.GitCommands)]
-        [Category(Categories.CaseInsensitiveFileSystemOnly)]
         [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
-        public void FolderContentsProjectedAfterFolderCreateAndCheckoutOnCaseInsensitiveFileSystem()
+        public void FolderContentsProjectedAfterFolderCreateAndCheckout()
         {
-            this.FolderContentsProjectedAfterFolderCreateAndCheckout(false);
-        }
+            string folderName = "GVFlt_MultiThreadTest";
 
-        // Case-sensitive filesystems only
-        [TestCase, Order(13)]
-        [Category(Categories.CaseSensitiveFileSystemOnly)]
-        public void FolderContentsProjectedAfterFolderCreateAndCheckoutOnCaseSensitiveFileSystem()
-        {
-            this.FolderContentsProjectedAfterFolderCreateAndCheckout(true);
+            // 54ea499de78eafb4dfd30b90e0bd4bcec26c4349 did not have the folder GVFlt_MultiThreadTest
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 54ea499de78eafb4dfd30b90e0bd4bcec26c4349");
+
+            // Confirm that no other test has created GVFlt_MultiThreadTest or put it in the modified files
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, folderName);
+
+            string virtualFolderPath = this.Enlistment.GetVirtualPathTo(folderName);
+            virtualFolderPath.ShouldNotExistOnDisk(this.fileSystem);
+            this.fileSystem.CreateDirectory(virtualFolderPath);
+
+            // b3ddcf43b997cba3fbf9d2341b297e22bf48601a was the commit prior to deleting GVFLT_MultiThreadTest
+            // 692765: Note that test also validates case insensitivity as GVFlt_MultiThreadTest is named GVFLT_MultiThreadTest
+            //         in this commit; on case-sensitive filesystems, case sensitivity is validated instead
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout b3ddcf43b997cba3fbf9d2341b297e22bf48601a");
+
+            string testFolderName = FileSystemHelpers.CaseSensitiveFileSystem ? "GVFLT_MultiThreadTest" : folderName;
+            this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForReadsSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
+            this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForWritesSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
         }
 
         [TestCase, Order(14)]
@@ -434,20 +453,21 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             Path.Combine(folder, "MoveUnhydratedFileToDotGitFolder", "Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
         }
 
-        // Case-insensitive filesystems only
         [TestCase, Order(15)]
-        [Category(Categories.CaseInsensitiveFileSystemOnly)]
-        public void FilterNonUTF8FileNameOnCaseInsensitiveFileSystem()
+        public void FilterNonUTF8FileName()
         {
-            this.FilterNonUTF8FileName(false);
-        }
+            string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
+            string folderVirtualPath = this.Enlistment.GetVirtualPathTo("FilenameEncoding");
 
-        // Case-sensitive filesystems only
-        [TestCase, Order(15)]
-        [Category(Categories.CaseSensitiveFileSystemOnly)]
-        public void FilterNonUTF8FileNameOnCaseSensitiveFileSystem()
-        {
-            this.FilterNonUTF8FileName(true);
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, null);
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt");
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك*");
+            string testEntryExt = FileSystemHelpers.CaseSensitiveFileSystem ? "txt" : "TXT";
+            string testEntryName = "ريلٌأكتوبر*." + testEntryExt;
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, testEntryName);
+
+            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("test*");
+            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("ريلٌأكتوب.TXT");
         }
 
         [TestCase, Order(16)]
@@ -459,7 +479,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             sha.Length.ShouldEqual(40);
 
             // Ensure SHA path is lowercase for case-sensitive filesystems
-            string objectPathSha = sha.ToLower();
+            string objectPathSha = FileSystemHelpers.CaseSensitiveFileSystem ? sha.ToLower() : sha;
             string objectPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), objectPathSha.Substring(0, 2), objectPathSha.Substring(2, 38));
             objectPath.ShouldNotExistOnDisk(this.fileSystem);
 
@@ -586,6 +606,23 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             fileSize.ShouldEqual(536);
         }
 
+        private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)
+        {
+            IEnumerable<FileSystemInfo> folderEntries;
+            if (string.IsNullOrEmpty(searchPatten))
+            {
+                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems();
+            }
+            else
+            {
+                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems(searchPatten);
+            }
+
+            folderEntries.Count().ShouldEqual(1);
+            FileSystemInfo singleEntry = folderEntries.First();
+            singleEntry.Name.ShouldEqual(expectedEntryName, $"Actual name: {singleEntry.Name} does not equal expected name {expectedEntryName}");
+        }
+
         private void EnumerateAndReadShouldNotChangeEnumerationOrder(string folderRelativePath)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -610,46 +647,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             }
         }
 
-        private void HydratingFileUsesNameCaseFromRepo(bool caseSensitiveFileSystem)
-        {
-            string fileName = "Readme.md";
-            string parentFolderPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(fileName));
-            parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
-
-            // Hydrate file with a request using different file name case except on case-sensitive filesystems
-            string testFileName = caseSensitiveFileSystem ? fileName : fileName.ToUpper();
-            string testFilePath = this.Enlistment.GetVirtualPathTo(testFileName);
-            string fileContents = testFilePath.ShouldBeAFile(this.fileSystem).WithContents();
-
-            // File on disk should have original case projected from repo
-            parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
-        }
-
-        private void HydratingNestedFileUsesNameCaseFromRepo(bool caseSensitiveFileSystem)
-        {
-            string filePath = Path.Combine("GVFS", "FastFetch", "Properties", "AssemblyInfo.cs");
-            string testFilePath = caseSensitiveFileSystem ? filePath : filePath.ToUpper();
-            string testParentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(testFilePath));
-            testParentFolderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
-
-            // Hydrate file with a request using different file name case except on case-sensitive filesystems
-            testFilePath = this.Enlistment.GetVirtualPathTo(testFilePath);
-            string fileContents = testFilePath.ShouldBeAFile(this.fileSystem).WithContents();
-
-            // File on disk should have original case projected from repo
-            string parentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(filePath));
-            parentFolderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
-
-            // Confirm all folders up to root have the correct case
-            string parentFolderPath = Path.GetDirectoryName(filePath);
-            while (!string.IsNullOrWhiteSpace(parentFolderPath))
-            {
-                string folderName = Path.GetFileName(parentFolderPath);
-                parentFolderPath = Path.GetDirectoryName(parentFolderPath);
-                this.Enlistment.GetVirtualPathTo(parentFolderPath).ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(folderName, StringComparison.Ordinal));
-            }
-        }
-
         private bool PlaceholderHasVersionInfo(string relativePath, int version, string sha)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -666,63 +663,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
                 Assert.Fail("Unsupported platform");
                 return false;
             }
-        }
-
-        private void FolderContentsProjectedAfterFolderCreateAndCheckout(bool caseSensitiveFileSystem)
-        {
-            string folderName = "GVFlt_MultiThreadTest";
-
-            // 54ea499de78eafb4dfd30b90e0bd4bcec26c4349 did not have the folder GVFlt_MultiThreadTest
-            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 54ea499de78eafb4dfd30b90e0bd4bcec26c4349");
-
-            // Confirm that no other test has created GVFlt_MultiThreadTest or put it in the modified files
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, folderName);
-
-            string virtualFolderPath = this.Enlistment.GetVirtualPathTo(folderName);
-            virtualFolderPath.ShouldNotExistOnDisk(this.fileSystem);
-            this.fileSystem.CreateDirectory(virtualFolderPath);
-
-            // b3ddcf43b997cba3fbf9d2341b297e22bf48601a was the commit prior to deleting GVFLT_MultiThreadTest
-            // 692765: Note that test also validates case insensitivity as GVFlt_MultiThreadTest is named GVFLT_MultiThreadTest
-            //         in this commit; on case-sensitive filesystems, case sensitivity is validated instead
-            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout b3ddcf43b997cba3fbf9d2341b297e22bf48601a");
-
-            string testFolderName = caseSensitiveFileSystem ? "GVFLT_MultiThreadTest" : folderName;
-            this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForReadsSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
-            this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForWritesSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
-        }
-
-        private void FilterNonUTF8FileName(bool caseSensitiveFileSystem)
-        {
-            string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
-            string folderVirtualPath = this.Enlistment.GetVirtualPathTo("FilenameEncoding");
-
-            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, null);
-            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt");
-            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك*");
-            string testEntryExt = caseSensitiveFileSystem ? "txt" : "TXT";
-            string testEntryName = "ريلٌأكتوبر*." + testEntryExt;
-            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, testEntryName);
-
-            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("test*");
-            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("ريلٌأكتوب.TXT");
-        }
-
-        private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)
-        {
-            IEnumerable<FileSystemInfo> folderEntries;
-            if (string.IsNullOrEmpty(searchPatten))
-            {
-                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems();
-            }
-            else
-            {
-                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems(searchPatten);
-            }
-
-            folderEntries.Count().ShouldEqual(1);
-            FileSystemInfo singleEntry = folderEntries.First();
-            singleEntry.Name.ShouldEqual(expectedEntryName, $"Actual name: {singleEntry.Name} does not equal expected name {expectedEntryName}");
         }
 
         private class NativeTests
