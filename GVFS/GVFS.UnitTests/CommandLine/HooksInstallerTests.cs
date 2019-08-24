@@ -5,7 +5,9 @@ using GVFS.UnitTests.Category;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 
 namespace GVFS.UnitTests.CommandLine
 {
@@ -13,6 +15,10 @@ namespace GVFS.UnitTests.CommandLine
     public class HooksInstallerTests
     {
         private const string Filename = "hooksfile";
+        private readonly string expectedAbsoluteGvfsHookPath =
+            Path.Combine(
+                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
+                GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
@@ -22,7 +28,7 @@ namespace GVFS.UnitTests.CommandLine
                 () => HooksInstaller.MergeHooksData(
                     new string[] { "first", GVFSPlatform.Instance.Constants.GVFSHooksExecutableName },
                     Filename,
-                    GVFSConstants.DotGit.Hooks.PreCommandHookName));
+                    this.expectedAbsoluteGvfsHookPath));
         }
 
         [TestCase]
@@ -33,7 +39,7 @@ namespace GVFS.UnitTests.CommandLine
                 .Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
                 .Where(line => !line.StartsWith("#"));
 
-            resultLines.Single().ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            resultLines.Single().ShouldEqual(this.expectedAbsoluteGvfsHookPath);
         }
 
         [TestCase]
@@ -47,7 +53,7 @@ namespace GVFS.UnitTests.CommandLine
             resultLines.Count().ShouldEqual(3);
             resultLines.ElementAt(0).ShouldEqual("first");
             resultLines.ElementAt(1).ShouldEqual("second");
-            resultLines.ElementAt(2).ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            resultLines.ElementAt(2).ShouldEqual(this.expectedAbsoluteGvfsHookPath);
         }
 
         [TestCase]
@@ -59,7 +65,7 @@ namespace GVFS.UnitTests.CommandLine
                 .Where(line => !line.StartsWith("#"));
 
             resultLines.Count().ShouldEqual(3);
-            resultLines.ElementAt(0).ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            resultLines.ElementAt(0).ShouldEqual(this.expectedAbsoluteGvfsHookPath);
             resultLines.ElementAt(1).ShouldEqual("first");
             resultLines.ElementAt(2).ShouldEqual("second");
         }
@@ -75,7 +81,7 @@ namespace GVFS.UnitTests.CommandLine
             resultLines.Count().ShouldEqual(3);
             resultLines.ElementAt(0).ShouldEqual("first");
             resultLines.ElementAt(1).ShouldEqual("second");
-            resultLines.ElementAt(2).ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            resultLines.ElementAt(2).ShouldEqual(this.expectedAbsoluteGvfsHookPath);
         }
     }
 }
