@@ -70,9 +70,13 @@ static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t
     
     uint64_t prjfsServiceEntryID = 0;
     IORegistryEntryGetRegistryEntryID(prjfsService, &prjfsServiceEntryID);
-    uint64_t timeOffsetMS = NanosecondsFromAbsoluteTime(mach_absolute_time() - s_machStartTime) / NSEC_PER_MSEC;
-    printf("(0x%x: %5d: %5llu.%03llu) START: Processing log messages from service with ID 0x%llx\n",
-        connection, logState->lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, prjfsServiceEntryID);
+    
+    {
+        uint64_t timeOffsetMS = NanosecondsFromAbsoluteTime(mach_absolute_time() - s_machStartTime) / NSEC_PER_MSEC;
+        printf("(0x%x: %5d: %5llu.%03llu) START: Processing log messages from service with ID 0x%llx\n",
+            connection, logState->lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, prjfsServiceEntryID);
+    }
+    
     fflush(stdout);
     ++logState->lineCount;
     
