@@ -334,7 +334,10 @@ namespace GVFS.Virtualization
                 {
                     foreach (string modifiedPath in removedModifiedPaths)
                     {
-                        this.modifiedPaths.TryAdd(modifiedPath, isFolder: modifiedPath.EndsWith(GVFSConstants.GitPathSeparatorString), isRetryable: out bool isRetryable);
+                        if (!this.modifiedPaths.TryAdd(modifiedPath, isFolder: modifiedPath.EndsWith(GVFSConstants.GitPathSeparatorString), isRetryable: out bool isRetryable))
+                        {
+                            this.context.Tracer.RelatedError($"{nameof(FileSystemCallbacks)}.{nameof(this.DehydrateFolder)}: failed to add '{modifiedPath}' back into ModifiedPaths");
+                        }
                     }
                 }
             }
