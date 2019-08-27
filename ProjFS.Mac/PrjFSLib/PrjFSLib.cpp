@@ -599,7 +599,7 @@ PrjFS_Result PrjFS_DeleteFile(
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
     
     struct stat path_stat;
-    if (0 != stat(fullPath, &path_stat))
+    if (0 != lstat(fullPath, &path_stat))
     {
         switch(errno)
         {
@@ -1355,7 +1355,7 @@ static bool IsBitSetInFileFlags(const char* fullPath, uint32_t bit)
 
 static errno_t AddXAttr(const char* fullPath, const char* name, const void* value, size_t size)
 {
-    if (0 != setxattr(fullPath, name, value, size, 0, 0))
+    if (0 != setxattr(fullPath, name, value, size, 0, XATTR_NOFOLLOW))
     {
         // We do not log a warning here, since files in the .git folder are expected to fail this check
         return errno;
@@ -1366,7 +1366,7 @@ static errno_t AddXAttr(const char* fullPath, const char* name, const void* valu
 
 static bool TryGetXAttr(const char* fullPath, const char* name, size_t expectedSize, _Out_ void* value)
 {
-    if (expectedSize != getxattr(fullPath, name, value, expectedSize, 0, 0))
+    if (expectedSize != getxattr(fullPath, name, value, expectedSize, 0, XATTR_NOFOLLOW))
     {
         return false;
     }

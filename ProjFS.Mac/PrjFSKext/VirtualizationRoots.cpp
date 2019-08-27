@@ -450,7 +450,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
     vfs_context_t _Nonnull vfsContext = vfs_context_create(nullptr);
     
     VirtualizationRootHandle rootIndex = RootHandle_None;
-    errno_t err = vnode_lookup(virtualizationRootPath, 0 /* flags */, &virtualizationRootVNode, vfsContext);
+    errno_t err = vnode_lookup(virtualizationRootPath, /* flags: */ VNODE_LOOKUP_NOFOLLOW, &virtualizationRootVNode, vfsContext);
     if (0 == err)
     {
         if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(virtualizationRootVNode))

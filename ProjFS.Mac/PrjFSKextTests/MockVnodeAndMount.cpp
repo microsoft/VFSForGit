@@ -34,7 +34,7 @@ shared_ptr<mount> mount::Create(const char* fileSystemTypeName, fsid_t fsid, uin
 vnode::vnode(const shared_ptr<mount>& mount) :
     mountPoint(mount),
     name(nullptr),
-    inode(mount->nextInode++)
+    inode(mount != nullptr ? mount->nextInode++ : 0)
 {
 }
 
