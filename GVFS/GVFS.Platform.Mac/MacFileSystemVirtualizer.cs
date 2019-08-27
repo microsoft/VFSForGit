@@ -225,10 +225,16 @@ namespace GVFS.Platform.Mac
                 {
                     this.FileSystemCallbacks.OnPlaceholderFolderCreated(relativePath, string.Empty);
                 }
+                else if (result.Result == FSResult.FileOrPathNotFound)
+                {
+                    // This will happen when the parent folder is also in the dehydrate list and is no longer on disk.
+                    result = new FileSystemResult(FSResult.Ok, 0);
+                }
                 else
                 {
                     EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                    metadata.Add(nameof(result), result.ToString());
+                    metadata.Add(nameof(result.Result), result.Result);
+                    metadata.Add(nameof(result.RawResult), result.RawResult);
                     this.Context.Tracer.RelatedError(metadata, $"{nameof(this.DehydrateFolder)}: Write placeholder failed");
                 }
             }
