@@ -385,14 +385,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.UnmountGVFS();
             fileToCreate.ShouldNotExistOnDisk(this.fileSystem);
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                directoryToCreate.ShouldNotExistOnDisk(this.fileSystem);
-            }
-            else
-            {
-                directoryToCreate.ShouldBeADirectory(this.fileSystem);
-            }
+            directoryToCreate.ShouldNotExistOnDisk(this.fileSystem);
         }
 
         private void PlaceholderShouldContain(params string[] paths)
