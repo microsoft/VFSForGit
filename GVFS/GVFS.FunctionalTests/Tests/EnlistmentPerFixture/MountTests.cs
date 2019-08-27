@@ -68,21 +68,30 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void MountSetsCoreHooksPath()
         {
-            this.Enlistment.UnmountGVFS();
+            try
+            {
+                GVFSHelpers.RegisterForOfflineIO();
 
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "config --unset core.hookspath");
-            string.IsNullOrWhiteSpace(
-                GitProcess.Invoke(this.Enlistment.RepoRoot, "config core.hookspath"))
-                .ShouldBeTrue();
+                this.Enlistment.UnmountGVFS();
 
-            this.Enlistment.MountGVFS();
-            string expectedHooksPath = this.Enlistment.GetDotGitPath("hooks");
-            expectedHooksPath = GitHelpers.ConvertPathToGitFormat(expectedHooksPath);
+                GitProcess.Invoke(this.Enlistment.RepoRoot, "config --unset core.hookspath");
+                string.IsNullOrWhiteSpace(
+                    GitProcess.Invoke(this.Enlistment.RepoRoot, "config core.hookspath"))
+                    .ShouldBeTrue();
 
-            GitProcess.Invoke(
-                this.Enlistment.RepoRoot, "config core.hookspath")
-                .Trim('\n')
-                .ShouldEqual(expectedHooksPath);
+                this.Enlistment.MountGVFS();
+                string expectedHooksPath = this.Enlistment.GetDotGitPath("hooks");
+                expectedHooksPath = GitHelpers.ConvertPathToGitFormat(expectedHooksPath);
+
+                GitProcess.Invoke(
+                    this.Enlistment.RepoRoot, "config core.hookspath")
+                    .Trim('\n')
+                    .ShouldEqual(expectedHooksPath);
+            }
+            finally
+            {
+                GVFSHelpers.UnregisterForOfflineIO();
+            }
         }
 
         [TestCase]

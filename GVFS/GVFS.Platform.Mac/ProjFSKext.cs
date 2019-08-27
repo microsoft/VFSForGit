@@ -93,6 +93,11 @@ namespace GVFS.Platform.Mac
             return PrjFSLib.Mac.Managed.OfflineIO.RegisterForOfflineIO();
         }
 
+        public bool UnregisterForOfflineIO()
+        {
+            return PrjFSLib.Mac.Managed.OfflineIO.UnregisterForOfflineIO();
+        }
+
         private bool TryLoad(ITracer tracer, TextWriter output, out string errorMessage)
         {
             output?.WriteLine("Driver not loaded.  Attempting to load. You may be prompted for sudo password...");

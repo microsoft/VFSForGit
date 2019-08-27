@@ -20,5 +20,6 @@ namespace GVFS.Common.FileSystem
         bool IsReady(JsonTracer tracer, string enlistmentRoot, TextWriter output, out string error);
         bool IsGVFSUpgradeSupported();
         bool RegisterForOfflineIO();
+        bool UnregisterForOfflineIO();
     }
 }

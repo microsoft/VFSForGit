@@ -471,6 +471,11 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
+        public bool UnregisterForOfflineIO()
+        {
+            return true;
+        }
+
         private static bool IsInboxAndEnabled()
         {
             ProcessResult getOptionalFeatureResult = GetProjFSOptionalFeatureStatus();
