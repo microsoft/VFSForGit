@@ -16,9 +16,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class CheckoutTests : GitRepoTests
     {
-        private const string PrjFSLibPath = "libPrjFSLib.dylib";
-        private const int PrjFSResultSuccess = 1;
-
         public CheckoutTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
@@ -501,68 +498,64 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void CheckoutBranchWithOpenHandleBlockingProjectionDeleteAndRepoMetdataUpdate()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                uint result = RegisterForOfflineIO();
-                result.ShouldEqual<uint>(PrjFSResultSuccess, $"{nameof(RegisterForOfflineIO)} failed (result = {result})");
-            }
-
-            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
-            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
-
-            this.Enlistment.UnmountGVFS();
-            string gitIndexPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "index");
-            CopyIndexAndRename(gitIndexPath);
-            this.Enlistment.MountGVFS();
-
-            ManualResetEventSlim testReady = new ManualResetEventSlim(initialState: false);
-            ManualResetEventSlim fileLocked = new ManualResetEventSlim(initialState: false);
-            Task task = Task.Run(() =>
-            {
-                int attempts = 0;
-                while (attempts < 100)
-                {
-                    try
-                    {
-                        using (FileStream projectionStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_projection"), FileMode.Open, FileAccess.Read, FileShare.None))
-                        using (FileStream metadataStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "RepoMetadata.dat"), FileMode.Open, FileAccess.Read, FileShare.None))
-                        {
-                            fileLocked.Set();
-                            testReady.Set();
-                            Thread.Sleep(15000);
-                            return;
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        ++attempts;
-                        Thread.Sleep(50);
-                    }
-                }
-
-                testReady.Set();
-            });
-
-            // Wait for task to acquire the handle
-            testReady.Wait();
-            fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
-
             try
             {
-                this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
-            }
-            catch (Exception)
-            {
-                // If the test fails, we should wait for the Task to complete so that it does not keep a handle open
-                task.Wait();
-                throw;
+                GVFSHelpers.RegisterForOfflineIO();
+
+                this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+                this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+                this.Enlistment.UnmountGVFS();
+                string gitIndexPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "index");
+                CopyIndexAndRename(gitIndexPath);
+                this.Enlistment.MountGVFS();
+
+                ManualResetEventSlim testReady = new ManualResetEventSlim(initialState: false);
+                ManualResetEventSlim fileLocked = new ManualResetEventSlim(initialState: false);
+                Task task = Task.Run(() =>
+                {
+                    int attempts = 0;
+                    while (attempts < 100)
+                    {
+                        try
+                        {
+                            using (FileStream projectionStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_projection"), FileMode.Open, FileAccess.Read, FileShare.None))
+                            using (FileStream metadataStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "RepoMetadata.dat"), FileMode.Open, FileAccess.Read, FileShare.None))
+                            {
+                                fileLocked.Set();
+                                testReady.Set();
+                                Thread.Sleep(15000);
+                                return;
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            ++attempts;
+                            Thread.Sleep(50);
+                        }
+                    }
+
+                    testReady.Set();
+                });
+
+                // Wait for task to acquire the handle
+                testReady.Wait();
+                fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
+
+                try
+                {
+                    this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+                }
+                catch (Exception)
+                {
+                    // If the test fails, we should wait for the Task to complete so that it does not keep a handle open
+                    task.Wait();
+                    throw;
+                }
             }
             finally
             {
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                {
-                    UnregisterForOfflineIO();
-                }
+                GVFSHelpers.UnregisterForOfflineIO();
             }
         }
 
@@ -972,11 +965,5 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             [MarshalAs(UnmanagedType.U4)] FileMode creationDisposition,
             [MarshalAs(UnmanagedType.U4)] NativeFileAttributes flagsAndAttributes,
             [In] IntPtr templateFile);
-
-        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_RegisterForOfflineIO")]
-        private static extern uint RegisterForOfflineIO();
-
-        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_UnregisterForOfflineIO")]
-        private static extern uint UnregisterForOfflineIO();
     }
 }
