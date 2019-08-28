@@ -83,10 +83,10 @@ namespace GVFS.Common
             return this.modifiedPaths.Contains(entry);
         }
 
-        public bool ContainsParentFolder(string path)
+        public bool ContainsParentFolder(string path, out string parentFolder)
         {
             string entry = this.NormalizeEntryString(path, isFolder: false);
-            return this.ContainsParentDirectory(entry);
+            return this.ContainsParentDirectory(entry, out parentFolder);
         }
 
         public IEnumerable<string> GetAllModifiedPaths()
@@ -235,8 +235,13 @@ namespace GVFS.Common
 
         private bool ContainsParentDirectory(string modifiedPath)
         {
+            return this.ContainsParentDirectory(modifiedPath, out _);
+        }
+
+        private bool ContainsParentDirectory(string modifiedPath, out string parentFolder)
+        {
             string[] pathParts = modifiedPath.Split(new char[] { GVFSConstants.GitPathSeparator }, StringSplitOptions.RemoveEmptyEntries);
-            string parentFolder = string.Empty;
+            parentFolder = string.Empty;
             for (int i = 0; i < pathParts.Length - 1; i++)
             {
                 parentFolder += pathParts[i] + GVFSConstants.GitPathSeparatorString;

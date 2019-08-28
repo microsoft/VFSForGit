@@ -237,9 +237,9 @@ from a parent of the folders list.
                         {
                             // Need to check if parent folder is in the modified paths because
                             // dehydration will not do any good with a parent folder there
-                            if (modifiedPaths.ContainsParentFolder(folder))
+                            if (modifiedPaths.ContainsParentFolder(folder, out string parentFolder))
                             {
-                                this.WriteMessage(tracer, $"Unable to dehydrate {folder}. Parent folder in modified paths that must be dehydrated.");
+                                this.WriteMessage(tracer, $"Unable to dehydrate '{folder}'. Parent folder '{parentFolder}' must be dehydrated.");
                             }
                             else
                             {
@@ -249,14 +249,14 @@ from a parent of the folders list.
                                 {
                                     if (!this.TryIO(tracer, () => this.fileSystem.CopyDirectoryRecursive(fullPath, backupPath), $"Backing up {folder} to {backupPath}", out ioError))
                                     {
-                                        this.WriteMessage(tracer, $"Copying files to backup location failed for {folder} and will not be dehydrated. {ioError}");
+                                        this.WriteMessage(tracer, $"Copying files to backup location failed for '{folder}' and will not be dehydrated. {ioError}");
                                         this.WriteMessage(tracer, $"Make sure there aren't any applications accessing the folder and try again.");
                                     }
                                     else
                                     {
-                                        if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting {fullPath}", out ioError))
+                                        if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting '{fullPath}'", out ioError))
                                         {
-                                            this.WriteMessage(tracer, $"Removing {folder} failed and will not be dehydrated. {ioError}");
+                                            this.WriteMessage(tracer, $"Removing '{folder}' failed and will not be dehydrated. {ioError}");
                                             this.WriteMessage(tracer, $"Make sure there aren't any applications accessing the folder and try again.");
                                         }
                                         else
@@ -268,6 +268,9 @@ from a parent of the folders list.
                                 else
                                 {
                                     this.WriteMessage(tracer, $"{folder} did not exist to dehydrate.");
+
+                                    // Still add to foldersToDehydrate so that any placeholders or modified paths get cleaned up
+                                    foldersToDehydrate.Add(folder);
                                 }
                             }
                         }
