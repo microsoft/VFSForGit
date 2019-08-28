@@ -298,30 +298,32 @@ namespace GVFS.Virtualization
 
         public bool DehydrateFolder(string relativePath)
         {
-            List<IPlaceholderData> removedPlaceholders;
-            List<string> removedModifiedPaths;
+            List<IPlaceholderData> removedPlaceholders = null;
+            List<string> removedModifiedPaths = null;
             bool successful = false;
-            FileSystemResult result;
 
             try
             {
-                relativePath = relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim().Trim(Path.DirectorySeparatorChar);
+                relativePath = GVFSDatabase.NormalizePath(relativePath);
                 removedPlaceholders = this.placeholderDatabase.RemoveAllEntriesForFolder(relativePath);
                 removedModifiedPaths = this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
-                result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
+                FileSystemResult result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
                 successful = result.Result == FSResult.Ok;
+
+                if (!successful)
+                {
+                    this.context.Tracer.RelatedError($"{nameof(this.DehydrateFolder)} failed with {result.Result}");
+                }
             }
             catch (Exception ex)
             {
                 EventMetadata metadata = this.CreateEventMetadata(relativePath, ex);
                 this.context.Tracer.RelatedError(metadata, $"{nameof(this.DehydrateFolder)} threw an exception");
-                return false;
+                successful = false;
             }
 
             if (!successful)
             {
-                this.context.Tracer.RelatedError($"{nameof(this.DehydrateFolder)} failed with {result.Result}");
-
                 if (removedPlaceholders != null)
                 {
                     foreach (IPlaceholderData data in removedPlaceholders)
