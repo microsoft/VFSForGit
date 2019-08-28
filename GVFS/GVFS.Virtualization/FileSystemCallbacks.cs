@@ -169,7 +169,7 @@ namespace GVFS.Virtualization
 
             this.backgroundFileSystemTaskRunner.Start();
 
-            if (!this.fileSystemVirtualizer.TryStartWorkers(out error))
+            if (!this.fileSystemVirtualizer.TryStart(out error))
             {
                 return false;
             }

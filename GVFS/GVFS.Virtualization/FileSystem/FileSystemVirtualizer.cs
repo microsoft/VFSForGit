@@ -66,13 +66,10 @@ namespace GVFS.Virtualization.FileSystem
             return Encoding.Unicode.GetBytes(sha);
         }
 
-        public virtual void Initialize(FileSystemCallbacks fileSystemCallbacks)
+        public void Initialize(FileSystemCallbacks fileSystemCallbacks)
         {
             this.FileSystemCallbacks = fileSystemCallbacks;
-        }
 
-        public virtual bool TryStartWorkers(out string error)
-        {
             this.fileAndNetworkWorkerThreads = new Thread[this.numWorkerThreads];
             for (int i = 0; i < this.fileAndNetworkWorkerThreads.Length; ++i)
             {
@@ -80,8 +77,6 @@ namespace GVFS.Virtualization.FileSystem
                 this.fileAndNetworkWorkerThreads[i].IsBackground = true;
                 this.fileAndNetworkWorkerThreads[i].Start();
             }
-
-            return this.TryStart(out error);
         }
 
         public void PrepareToStop()
@@ -125,6 +120,8 @@ namespace GVFS.Virtualization.FileSystem
             }
         }
 
+        public abstract bool TryStart(out string error);
+
         protected static string GetShaFromContentId(byte[] contentId)
         {
             return Encoding.Unicode.GetString(contentId, 0, GVFSConstants.ShaStringLength * sizeof(char));
@@ -134,8 +131,6 @@ namespace GVFS.Virtualization.FileSystem
         {
             return providerId[0];
         }
-
-        protected abstract bool TryStart(out string error);
 
         /// <remarks>
         /// If a git-status or git-add is running, we don't want to fail placeholder creation because users will

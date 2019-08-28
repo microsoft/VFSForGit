@@ -551,7 +551,7 @@ namespace GVFS.Platform.Windows
             return HResult.Pending;
         }
 
-        protected override bool TryStart(out string error)
+        public override bool TryStart(out string error)
         {
             error = string.Empty;
 
