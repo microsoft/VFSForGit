@@ -267,7 +267,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             File.Delete(files[0]);
             GVFSHelpers.DeletePlaceholder(
                 Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit),
-                Path.GetRelativePath(this.Enlistment.RepoRoot, files[0]));
+                Path.GetFullPath(files[0]).Replace(Path.GetFullPath(this.Enlistment.RepoRoot), string.Empty).TrimStart(Path.DirectorySeparatorChar));
             GVFSHelpers.SetPlaceholderUpdatesRequired(this.Enlistment.DotGVFSRoot, true);
 
             this.Enlistment.MountGVFS();
