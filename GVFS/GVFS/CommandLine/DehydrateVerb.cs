@@ -185,7 +185,7 @@ from a parent of the folders list.
                 // Local cache and objects paths are required for TryDownloadGitObjects
                 this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig: null, cacheServer: null);
 
-                if (string.IsNullOrEmpty(this.Folders))
+                if (fullDehydrate)
                 {
                     this.RunFullDehydrate(tracer, enlistment, backupRoot, retryConfig);
                 }
