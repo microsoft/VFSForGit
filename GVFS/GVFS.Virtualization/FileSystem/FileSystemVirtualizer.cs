@@ -66,13 +66,10 @@ namespace GVFS.Virtualization.FileSystem
             return Encoding.Unicode.GetBytes(sha);
         }
 
-        public virtual void Initialize(FileSystemCallbacks fileSystemCallbacks)
+        public virtual bool TryStart(FileSystemCallbacks fileSystemCallbacks, out string error)
         {
             this.FileSystemCallbacks = fileSystemCallbacks;
-        }
 
-        public virtual bool TryStartWorkers(out string error)
-        {
             this.fileAndNetworkWorkerThreads = new Thread[this.numWorkerThreads];
             for (int i = 0; i < this.fileAndNetworkWorkerThreads.Length; ++i)
             {
