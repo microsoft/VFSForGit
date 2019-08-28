@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using GVFS.Common;
+using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
@@ -40,7 +41,7 @@ namespace GVFS.CommandLine
             "folders",
             Default = "",
             Required = false,
-            HelpText = "The folders to dehydrate separated by ;")]
+            HelpText = "The repo root relative folders to dehydrate separated by ;")]
         public string Folders { get; set; }
 
         protected override string VerbName
@@ -131,8 +132,8 @@ of your enlistment's src folder.
 @"WARNING: THIS IS AN EXPERIMENTAL FEATURE
 
 All of your downloaded objects, branches, and siblings of the src folder
-will be preserved. Your modified working directory files in the folders specified
-will be moved to the backup.
+will be preserved.  This will remove the folders specified and any working directory
+files and folders even if ignored by git similar to 'git clean -xdf <path>'.
 
 Before you dehydrate, you will have to commit any working directory changes 
 you want to keep and have a clean 'git status'.
@@ -144,6 +145,12 @@ from a parent of the folders list.
                     return;
                 }
 
+                if (this.NoStatus && !fullDehydrate)
+                {
+                    this.ReportErrorAndExit(tracer, "Dehydrate --no-status not valid with --folders");
+                    return;
+                }
+
                 bool cleanStatus = this.CheckGitStatus(tracer, enlistment, fullDehydrate);
 
                 string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
@@ -152,10 +159,6 @@ from a parent of the folders list.
                 if (fullDehydrate)
                 {
                     this.WriteMessage(tracer, "Starting dehydration. All of your existing files will be backed up in " + backupRoot);
-                }
-                else
-                {
-                    this.WriteMessage(tracer, "Starting dehydration. Folders specified will be backed up in " + backupRoot);
                 }
 
                 this.WriteMessage(tracer, "WARNING: If you abort the dehydrate after this point, the repo may become corrupt");
@@ -170,23 +173,23 @@ from a parent of the folders list.
                     this.ReportErrorAndExit(tracer, error);
                 }
 
-                RetryConfig retryConfig;
-                if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
-                {
-                    this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
-                }
-
-                string errorMessage;
-                if (!this.TryAuthenticate(tracer, enlistment, out errorMessage))
-                {
-                    this.ReportErrorAndExit(tracer, errorMessage);
-                }
-
-                // Local cache and objects paths are required for TryDownloadGitObjects
-                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig: null, cacheServer: null);
-
                 if (fullDehydrate)
                 {
+                    RetryConfig retryConfig;
+                    if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
+                    {
+                        this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
+                    }
+
+                    string errorMessage;
+                    if (!this.TryAuthenticate(tracer, enlistment, out errorMessage))
+                    {
+                        this.ReportErrorAndExit(tracer, errorMessage);
+                    }
+
+                    // Local cache and objects paths are required for TryDownloadGitObjects
+                    this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig: null, cacheServer: null);
+
                     this.RunFullDehydrate(tracer, enlistment, backupRoot, retryConfig);
                 }
                 else
@@ -197,7 +200,7 @@ from a parent of the folders list.
                     {
                         if (cleanStatus)
                         {
-                            this.DehydrateFolders(tracer, enlistment, backupRoot, folders);
+                            this.DehydrateFolders(tracer, enlistment, folders);
                         }
                         else
                         {
@@ -212,7 +215,7 @@ from a parent of the folders list.
             }
         }
 
-        private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string backupRoot, string[] folders)
+        private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string[] folders)
         {
             List<string> foldersToDehydrate = new List<string>();
 
@@ -235,24 +238,23 @@ from a parent of the folders list.
                         string ioError;
                         foreach (string folder in folders)
                         {
-                            // Need to check if parent folder is in the modified paths because
-                            // dehydration will not do any good with a parent folder there
-                            if (modifiedPaths.ContainsParentFolder(folder, out string parentFolder))
+                            string normalizedPath = GVFSDatabase.NormalizePath(folder);
+                            if (!this.IsFolderValid(normalizedPath))
                             {
-                                this.WriteMessage(tracer, $"Unable to dehydrate '{folder}'. Parent folder '{parentFolder}' must be dehydrated.");
+                                this.WriteMessage(tracer, $"Cannot dehydrate '{folder}' folder.  Invalid folder path.");
                             }
                             else
                             {
-                                string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
-                                string backupPath = Path.Combine(backupRoot, folder);
-                                if (this.fileSystem.DirectoryExists(fullPath))
+                                // Need to check if parent folder is in the modified paths because
+                                // dehydration will not do any good with a parent folder there
+                                if (modifiedPaths.ContainsParentFolder(folder, out string parentFolder))
                                 {
-                                    if (!this.TryIO(tracer, () => this.fileSystem.CopyDirectoryRecursive(fullPath, backupPath), $"Backing up {folder} to {backupPath}", out ioError))
-                                    {
-                                        this.WriteMessage(tracer, $"Copying files to backup location failed for '{folder}' and will not be dehydrated. {ioError}");
-                                        this.WriteMessage(tracer, $"Make sure there aren't any applications accessing the folder and try again.");
-                                    }
-                                    else
+                                    this.WriteMessage(tracer, $"Unable to dehydrate '{folder}'. Parent folder '{parentFolder}' must be dehydrated.");
+                                }
+                                else
+                                {
+                                    string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
+                                    if (this.fileSystem.DirectoryExists(fullPath))
                                     {
                                         if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting '{fullPath}'", out ioError))
                                         {
@@ -264,13 +266,13 @@ from a parent of the folders list.
                                             foldersToDehydrate.Add(folder);
                                         }
                                     }
-                                }
-                                else
-                                {
-                                    this.WriteMessage(tracer, $"{folder} did not exist to dehydrate.");
+                                    else
+                                    {
+                                        this.WriteMessage(tracer, $"{folder} did not exist to dehydrate.");
 
-                                    // Still add to foldersToDehydrate so that any placeholders or modified paths get cleaned up
-                                    foldersToDehydrate.Add(folder);
+                                        // Still add to foldersToDehydrate so that any placeholders or modified paths get cleaned up
+                                        foldersToDehydrate.Add(folder);
+                                    }
                                 }
                             }
                         }
@@ -278,17 +280,31 @@ from a parent of the folders list.
 
                     return true;
                 },
-                "Backing up folders"))
+                "Cleaning up folders"))
             {
                 this.ReportErrorAndExit(tracer, "Dehydrate for folders failed.");
             }
 
             this.Mount(tracer);
 
-            this.SendDehydrateMessage(tracer, enlistment, backupRoot, foldersToDehydrate.ToArray());
+            this.SendDehydrateMessage(tracer, enlistment, foldersToDehydrate.ToArray());
         }
 
-        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, string backupRoot, string[] folders)
+        private bool IsFolderValid(string folderPath)
+        {
+            if (folderPath == GVFSConstants.DotGit.Root ||
+                folderPath.StartsWith(GVFSConstants.DotGit.Root + Path.DirectorySeparatorChar) ||
+                folderPath.StartsWith(".." + Path.DirectorySeparatorChar) ||
+                folderPath.Contains(Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar) ||
+                Path.GetInvalidPathChars().Any(invalidChar => folderPath.Contains(invalidChar)))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, string[] folders)
         {
             NamedPipeMessages.DehydrateFolders.Response response = null;
 

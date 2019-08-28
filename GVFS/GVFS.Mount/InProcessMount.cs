@@ -300,6 +300,10 @@ namespace GVFS.Mount
                         response.FailedFolders.Add(folder);
                     }
                 }
+
+                // Since placeholders and modified paths could have changed with the dehydrate, the index needs to be rebuilt
+                GitProcess gitProcess = new GitProcess(this.enlistment);
+                gitProcess.ForceCheckout(GVFSConstants.DotGit.HeadName);
             }
             else
             {

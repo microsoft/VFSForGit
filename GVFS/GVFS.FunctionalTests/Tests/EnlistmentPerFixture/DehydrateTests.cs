@@ -67,7 +67,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void DehydrateShouldFailOnUnmountedRepoWithStatus()
         {
             this.Enlistment.UnmountGVFS();
-            this.DehydrateShouldFail("Failed to run git status because the repo is not mounted", noStatus: false);
+            this.DehydrateShouldFail(new[] { "Failed to run git status because the repo is not mounted" }, noStatus: false);
         }
 
         [TestCase]
@@ -118,7 +118,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
             GVFSHelpers.SaveGitObjectsRoot(this.Enlistment.DotGVFSRoot, objectsRoot);
 
-            this.DehydrateShouldFail("Failed to determine local cache path from repo metadata", noStatus: true);
+            this.DehydrateShouldFail(new[] { "Failed to determine local cache path from repo metadata" }, noStatus: true);
 
             this.fileSystem.DeleteFile(metadataPath);
             this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
@@ -142,7 +142,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
             GVFSHelpers.SaveLocalCacheRoot(this.Enlistment.DotGVFSRoot, localCacheRoot);
 
-            this.DehydrateShouldFail("Failed to determine git objects root from repo metadata", noStatus: true);
+            this.DehydrateShouldFail(new[] { "Failed to determine git objects root from repo metadata" }, noStatus: true);
 
             this.fileSystem.DeleteFile(metadataPath);
             this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
@@ -163,10 +163,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             int.TryParse(minorVersion.ShouldNotBeNull(), out minorVersionNum).ShouldEqual(true);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (majorVersionNum - 1).ToString(), "0");
-            this.DehydrateShouldFail("disk layout version doesn't match current version", noStatus: true);
+            this.DehydrateShouldFail(new[] { "disk layout version doesn't match current version" }, noStatus: true);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (majorVersionNum + 1).ToString(), "0");
-            this.DehydrateShouldFail("Changes to GVFS disk layout do not allow mounting after downgrade.", noStatus: true);
+            this.DehydrateShouldFail(new[] { "Changes to GVFS disk layout do not allow mounting after downgrade." }, noStatus: true);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersionNum.ToString(), minorVersionNum.ToString());
         }
@@ -191,6 +191,29 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
 
             subFolderToEnumerate.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCase]
+        public void FolderDehydrateFolderWithFilesThatWerePlaceholders()
+        {
+            string pathToReadFiles = this.Enlistment.GetVirtualPathTo("GVFS");
+            string fileToRead = Path.Combine(pathToReadFiles, "GVFS", "Program.cs");
+            using (File.OpenRead(fileToRead))
+            {
+            }
+
+            this.DehydrateShouldSucceed(new[] { "GVFS folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
+            this.Enlistment.UnmountGVFS();
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                pathToReadFiles.ShouldNotExistOnDisk(this.fileSystem);
+            }
+            else
+            {
+                pathToReadFiles.ShouldBeADirectory(this.fileSystem);
+            }
+
+            fileToRead.ShouldNotExistOnDisk(this.fileSystem);
         }
 
         [TestCase]
@@ -336,7 +359,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void FolderDehydrateParentFolderInModifiedPathsShouldFail()
+        public void FolderDehydrateParentFolderInModifiedPathsShouldOutputMessage()
         {
             string pathToDelete = this.Enlistment.GetVirtualPathTo("GitCommandsTests");
             this.fileSystem.DeleteDirectory(pathToDelete);
@@ -345,24 +368,103 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
             this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
 
-            this.DehydrateShouldSucceed(new[] { $"Unable to dehydrate {folderToDehydrate}. Parent folder in modified paths that must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"Unable to dehydrate '{folderToDehydrate}'. Parent folder 'GitCommandsTests/' must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]
-        public void FolderDehydrateCreatedDirectoryParentFolderInModifiedPathsShouldFail()
+        public void FolderDehydrateDirtyStatusShouldFail()
+        {
+            string fileToCreate = this.Enlistment.GetVirtualPathTo(Path.Combine("GVFS", $"{nameof(this.FolderDehydrateDirtyStatusShouldFail)}.txt"));
+            this.fileSystem.WriteAllText(fileToCreate, "new file contents");
+            fileToCreate.ShouldBeAFile(this.fileSystem);
+
+            this.DehydrateShouldFail(new[] { "Running git status...Failed", "Untracked files:", "git status reported that you have dirty files" }, noStatus: false, foldersToDehydrate: "GVFS");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
+        }
+
+        [TestCase]
+        public void FolderDehydrateDirtyStatusWithNoStatusShouldFail()
+        {
+            string fileToCreate = this.Enlistment.GetVirtualPathTo(Path.Combine("GVFS", $"{nameof(this.FolderDehydrateDirtyStatusWithNoStatusShouldFail)}.txt"));
+            this.fileSystem.WriteAllText(fileToCreate, "new file contents");
+            fileToCreate.ShouldBeAFile(this.fileSystem);
+
+            this.DehydrateShouldFail(new[] { "Dehydrate --no-status not valid with --folders" }, noStatus: true, foldersToDehydrate: "GVFS");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
+        }
+
+        [TestCase]
+        public void FolderDehydrateCannotDehydrateDotGitFolder()
+        {
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate '{TestConstants.DotGit.Root}' folder.  Invalid folder path." }, confirm: true, noStatus: false, foldersToDehydrate: TestConstants.DotGit.Root);
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate '{TestConstants.DotGit.Info.Root}' folder.  Invalid folder path." }, confirm: true, noStatus: false, foldersToDehydrate: TestConstants.DotGit.Info.Root);
+        }
+
+        [TestCase]
+        public void FolderDehydrateCreatedDirectoryParentFolderInModifiedPathsShouldOutputMessage()
         {
             string pathToDelete = this.Enlistment.GetVirtualPathTo("GitCommandsTests");
             this.fileSystem.DeleteDirectory(pathToDelete);
-
-            // If git creates the directory then it will be a partial folder
-            // Need it to be a full folder for this test
-            this.fileSystem.CreateDirectory(pathToDelete);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
 
             string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
             this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
 
-            this.DehydrateShouldSucceed(new[] { $"Unable to dehydrate {folderToDehydrate}. Parent folder in modified paths that must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"Unable to dehydrate '{folderToDehydrate}'. Parent folder 'GitCommandsTests/' must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+        }
+
+        [TestCase]
+        public void FolderDehydratePreviouslyDeletedFolder()
+        {
+            string pathToDelete = this.Enlistment.GetVirtualPathTo("TrailingSlashTests");
+            this.fileSystem.DeleteDirectory(pathToDelete);
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -a -m \"Delete a directory\"");
+
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout -f HEAD~1");
+
+            string folderToDehydrate = "TrailingSlashTests";
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+
+            pathToDelete.ShouldBeADirectory(this.fileSystem);
+        }
+
+        [TestCase]
+        public void FolderDehydrateTombstone()
+        {
+            string pathToDelete = this.Enlistment.GetVirtualPathTo("TrailingSlashTests");
+            this.fileSystem.DeleteDirectory(pathToDelete);
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -a -m \"Delete a directory\"");
+
+            string folderToDehydrate = "TrailingSlashTests";
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+
+            pathToDelete.ShouldNotExistOnDisk(this.fileSystem);
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout HEAD~1");
+            pathToDelete.ShouldBeADirectory(this.fileSystem);
+        }
+
+        [TestCase]
+        public void FolderDehydrateRelativePaths()
+        {
+            string[] foldersToDehydrate = new[]
+            {
+                Path.Combine("..", ".gvfs"),
+                Path.DirectorySeparatorChar + Path.Combine("..", ".gvfs"),
+                Path.Combine("GVFS", "..", "..", ".gvfs"),
+                Path.Combine("GVFS/../../.gvfs"),
+            };
+
+            List<string> errorMessages = new List<string>();
+            foreach (string path in foldersToDehydrate)
+            {
+                errorMessages.Add($"Cannot dehydrate '{path}' folder.  Invalid folder path.");
+            }
+
+            this.DehydrateShouldSucceed(
+                errorMessages.ToArray(),
+                confirm: true,
+                noStatus: false,
+                foldersToDehydrate: foldersToDehydrate);
         }
 
         [TestCase]
@@ -385,7 +487,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.UnmountGVFS();
             fileToCreate.ShouldNotExistOnDisk(this.fileSystem);
-            directoryToCreate.ShouldNotExistOnDisk(this.fileSystem);
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                directoryToCreate.ShouldNotExistOnDisk(this.fileSystem);
+            }
+            else
+            {
+                directoryToCreate.ShouldBeADirectory(this.fileSystem);
+            }
         }
 
         private void PlaceholderShouldContain(params string[] paths)
@@ -437,11 +547,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             result.Output.ShouldContain(expectedInOutput);
         }
 
-        private void DehydrateShouldFail(string expectedErrorMessage, bool noStatus)
+        private void DehydrateShouldFail(string[] expectedErrorMessages, bool noStatus, params string[] foldersToDehydrate)
         {
-            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus);
+            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus, foldersToDehydrate: foldersToDehydrate);
             result.ExitCode.ShouldEqual(GVFSGenericError, $"mount exit code was not {GVFSGenericError}");
-            result.Output.ShouldContain(expectedErrorMessage);
+            result.Output.ShouldContain(expectedErrorMessages);
         }
 
         private ProcessResult RunDehydrateProcess(bool confirm, bool noStatus, params string[] foldersToDehydrate)
