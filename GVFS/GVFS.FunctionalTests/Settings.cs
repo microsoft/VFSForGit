@@ -35,7 +35,7 @@ namespace GVFS.FunctionalTests.Properties
                 CurrentDirectory = Path.GetFullPath(Path.GetDirectoryName(Environment.GetCommandLineArgs()[0]));
 
                 RepoToClone = @"https://gvfs.visualstudio.com/ci/_git/ForTests";
-                Commitish = @"FunctionalTests/20180214";
+                Commitish = @"FunctionalTests/20190827";
 
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {

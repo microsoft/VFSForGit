@@ -6,6 +6,7 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -916,6 +917,31 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             targetDirPath.ShouldBeADirectory(FileSystemRunner.DefaultRunner).WithAttribute(FileAttributes.NoScrubData);
 
             FileSystemRunner.DefaultRunner.DeleteDirectory(parentDirectoryPath);
+        }
+
+        // This test confirms / exposes a current bug on Mac #1495
+        // Once the bug is fixed the test should be updated as described below
+        [TestCase]
+        [Category(Categories.MacOnly)]
+        public void RunPythonExecutable()
+        {
+            string pythonDirectory = Path.Combine(this.Enlistment.RepoRoot, "Test_Executable");
+            string pythonExecutable = Path.Combine(pythonDirectory, "python_wrapper.sh");
+
+            ProcessStartInfo startInfo = new ProcessStartInfo(pythonExecutable);
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+            startInfo.WorkingDirectory = pythonDirectory;
+
+            // The first call fails to recognize the python script as a python executable
+            // Once fixed the first call should have an Exit code of 0 and return 3.14
+            ProcessResult result = ProcessHelper.Run(startInfo);
+            result.ExitCode.ShouldEqual(2);
+
+            // Since the script is hydrated the second call should be successful
+            ProcessResult result2 = ProcessHelper.Run(startInfo);
+            result2.ExitCode.ShouldEqual(0);
+            result2.Output.ShouldContain("3.14");
         }
 
         private class FileRunnersAndFolders
