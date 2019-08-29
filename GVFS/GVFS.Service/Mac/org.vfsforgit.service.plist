@@ -24,6 +24,8 @@
     <string>/usr/local/vfsforgit</string>
     <key>ProcessType</key>
     <string>Interactive</string>
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
     <key>Disabled</key>
     <false/>
     <key>OnDemand</key>
