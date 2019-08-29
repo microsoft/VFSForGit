@@ -1,4 +1,4 @@
-using GVFS.Common;
+﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
@@ -165,7 +165,8 @@ namespace GVFS.Upgrader
             string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
                 this.logDirectory,
                 GVFSConstants.LogFileTypes.UpgradeProcess,
-                this.fileSystem);
+                logId: null,
+                fileSystem: this.fileSystem);
 
             JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeProcess");
 

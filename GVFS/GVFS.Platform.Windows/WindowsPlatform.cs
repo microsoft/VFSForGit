@@ -47,6 +47,19 @@ namespace GVFS.Platform.Windows
             }
         }
 
+        /// <summary>
+        /// On Windows VFSForGit does not need to use system wide logs to track
+        /// installer messages. VFSForGit is able to specifiy a custom installer
+        /// log file as a commandline argument to the installer.
+        /// </summary>
+        public override bool SupportsSystemInstallLog
+        {
+            get
+            {
+                return false;
+            }
+        }
+
         public static string GetStringFromRegistry(string key, string valueName)
         {
             object value = GetValueFromRegistry(RegistryHive.LocalMachine, key, valueName);
@@ -340,6 +353,11 @@ namespace GVFS.Platform.Windows
         public override string GetUpgradeLogDirectoryParentDirectory()
         {
             return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetSystemInstallerLogPath()
+        {
+            return null;
         }
 
         public override string GetUpgradeHighestAvailableVersionDirectory()

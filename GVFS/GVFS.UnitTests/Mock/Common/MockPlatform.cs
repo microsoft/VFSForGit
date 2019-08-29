@@ -31,6 +31,14 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string GVFSConfigPath { get => Path.Combine("mock:", LocalGVFSConfig.FileName); }
 
+        public override bool SupportsSystemInstallLog
+        {
+            get
+            {
+                return false;
+            }
+        }
+
         public override GVFSPlatformConstants Constants { get; } = new MockPlatformConstants();
 
         public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
@@ -111,6 +119,11 @@ namespace GVFS.UnitTests.Mock.Common
         public override string GetUpgradeLogDirectoryParentDirectory()
         {
             return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetSystemInstallerLogPath()
+        {
+            return "MockPath";
         }
 
         public override string GetUpgradeHighestAvailableVersionDirectory()
