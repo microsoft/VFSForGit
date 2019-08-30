@@ -56,7 +56,7 @@ declare -a launchAgents=(
     "org.vfsforgit.usernotification"
     "org.vfsforgit.service"
 )
-for uid in $(ps -Ac -o uid,command | grep -iw "loginwindow" | awk '{print $1}'); do
+for uid in $(ps -Ac -o uid,command | grep -iw "Finder" | awk '{print $1}'); do
     for nextLaunchAgent in "${launchAgents[@]}"; do
         startOrRestartService "gui/$uid" $nextLaunchAgent
     done

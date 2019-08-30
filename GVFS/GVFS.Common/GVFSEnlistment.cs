@@ -109,12 +109,13 @@ namespace GVFS.Common
         public static string GetNewGVFSLogFileName(
             string logsRoot,
             string logFileType,
+            string logId = null,
             PhysicalFileSystem fileSystem = null)
         {
             return Enlistment.GetNewLogFileName(
                 logsRoot,
                 "gvfs_" + logFileType,
-                logId: null,
+                logId: logId,
                 fileSystem: fileSystem);
         }
 

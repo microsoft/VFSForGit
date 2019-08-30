@@ -98,6 +98,7 @@ namespace GVFS.Common
             public const string Sparse = "sparse";
             public const string UpgradeVerb = UpgradePrefix + "_verb";
             public const string UpgradeProcess = UpgradePrefix + "_process";
+            public const string UpgradeSystemInstaller = UpgradePrefix + "_system_installer";
         }
 
         public static class DotGVFS

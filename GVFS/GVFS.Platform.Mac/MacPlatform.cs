@@ -17,6 +17,7 @@ namespace GVFS.Platform.Mac
         private const string UpgradeProtectedDataDirectory = "/usr/local/vfsforgit_upgrader";
         private const string DiagnosticReportsDirectory = "/Library/Logs/DiagnosticReports";
         private const string PanicFileNamePattern = "*panic";
+        private const string SystemInstallerLogPath = "/var/log/install.log";
 
         public MacPlatform() : base(
              underConstruction: new UnderConstructionFlags(
@@ -37,6 +38,19 @@ namespace GVFS.Platform.Mac
             get
             {
                 return Path.Combine(this.Constants.GVFSBinDirectoryPath, LocalGVFSConfig.FileName);
+            }
+        }
+
+        /// <summary>
+        /// On the Mac VFSForGit installer messages get captured in the system
+        /// wide installer log file. There is no customized log file specific
+        /// to VFSForGit installer.
+        /// </summary>
+        public override bool SupportsSystemInstallLog
+        {
+            get
+            {
+                return true;
             }
         }
 
@@ -92,6 +106,11 @@ namespace GVFS.Platform.Mac
         public override string GetUpgradeLogDirectoryParentDirectory()
         {
             return this.GetUpgradeNonProtectedDataDirectory();
+        }
+
+        public override string GetSystemInstallerLogPath()
+        {
+            return SystemInstallerLogPath;
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)

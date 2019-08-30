@@ -29,6 +29,11 @@ namespace GVFS.Common
 
         public abstract string GVFSConfigPath { get; }
 
+        /// <summary>
+        /// Returns true if the platform keeps a system-wide installer log.
+        /// </summary>
+        public abstract bool SupportsSystemInstallLog { get; }
+
         public static void Register(GVFSPlatform platform)
         {
             if (GVFSPlatform.Instance != null)
@@ -86,6 +91,7 @@ namespace GVFS.Common
         /// containing directory to place them in.
         /// </summary>
         public abstract string GetUpgradeLogDirectoryParentDirectory();
+        public abstract string GetSystemInstallerLogPath();
 
         /// <summary>
         /// Directory that contains the file indicating that a new

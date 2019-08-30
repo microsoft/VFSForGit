@@ -1,4 +1,4 @@
-using GVFS.Common;
+﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
@@ -432,6 +432,8 @@ namespace GVFS.Common.NuGetUpgrade
 
                 if (!installSuccessful)
                 {
+                    this.SaveSystemInstallerLogs();
+
                     string installActionName = string.IsNullOrEmpty(currentInstallAction?.Name) ?
                         "installer" :
                         currentInstallAction.Name;
@@ -637,6 +639,70 @@ namespace GVFS.Common.NuGetUpgrade
 
             error = null;
             return true;
+        }
+
+        /// <summary>
+        /// Saves a copy of installer log from platform native installer in the
+        /// upgrader diagnose logs directory. On the Mac, it is not possible to
+        /// specify custom log file path as command line arg to the installer.
+        /// </summary>
+        private void SaveSystemInstallerLogs()
+        {
+            if (GVFSPlatform.Instance.SupportsSystemInstallLog)
+            {
+                string systemInstallerLog = GVFSPlatform.Instance.GetSystemInstallerLogPath();
+                if (!string.IsNullOrEmpty(systemInstallerLog))
+                {
+                    string destinationPath = GVFSEnlistment.GetNewGVFSLogFileName(
+                        ProductUpgraderInfo.GetLogDirectoryPath(),
+                        GVFSConstants.LogFileTypes.UpgradeSystemInstaller,
+                        this.UpgradeInstanceId);
+
+                    try
+                    {
+                        using (Stream sourceStream = this.fileSystem.OpenFileStream(
+                            systemInstallerLog,
+                            FileMode.Open,
+                            FileAccess.Read,
+                            FileShare.ReadWrite,
+                            callFlushFileBuffers: false))
+                        using (Stream destStream = this.fileSystem.OpenFileStream(
+                            destinationPath,
+                            FileMode.Create,
+                            FileAccess.Write,
+                            FileShare.None,
+                            callFlushFileBuffers: false))
+                        {
+                            // Copy the last 100K from the system wide installer log.
+                            // System wide installer log (/var/log/install.log) holds
+                            // all messages from installd, including the ones that
+                            // it generated while installing VFSForGit. We don't
+                            // need to capture the whole file, which can be lengthy.
+                            // From my testing, the last 100K captured immediately
+                            // after upgrade, is found to be lengthy enough to
+                            // contain all of Git + GCM + Service + VFSForGit
+                            // installer log messages.
+                            long hundredKB = 100 * 1024;
+                            long copyFromOffset = sourceStream.Length > hundredKB ? sourceStream.Length - hundredKB : 0;
+
+                            sourceStream.Seek(copyFromOffset, SeekOrigin.Begin);
+                            sourceStream.CopyTo(destStream);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Exception", ex.ToString());
+                        this.tracer.RelatedError(
+                            metadata,
+                            $"{nameof(this.SaveSystemInstallerLogs)} - Error saving native installer log file.");
+                    }
+                }
+                else
+                {
+                    this.tracer.RelatedError($"{nameof(this.SaveSystemInstallerLogs)} - Error getting native installer log file path.");
+                }
+            }
         }
 
         public class NuGetUpgraderConfig
