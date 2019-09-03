@@ -198,6 +198,18 @@ namespace GVFS.CommandLine
                     return false;
                 }
 
+                // If we are on a platform that does not support nuget verification, and user has not
+                // specified the --no-verify flag, then print a helpful message here.
+                if (!GVFSPlatform.Instance.UnderConstruction.SupportsNuGetVerification && !this.NoVerify)
+                {
+                    string packageVerificationNotSupportedMessage = @"
+NuGet package verification is not supported on this platform. In order to run upgrade, you must run upgrade without NuGet package verification.
+To run upgrade without NuGet verification include the --no-verify option.
+";
+                    this.ReportInfoToConsole(packageVerificationNotSupportedMessage);
+                    return false;
+                }
+
                 if (!this.TryRunInstaller(out message))
                 {
                     this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not launch upgrade tool. {message}");
