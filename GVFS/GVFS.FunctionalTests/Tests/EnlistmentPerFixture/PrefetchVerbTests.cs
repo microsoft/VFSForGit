@@ -17,6 +17,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
         private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
 
+        // on case-insensitive filesystems, test case-blind matching in
+        // folder lists using "gvfs/" instead of "GVFS/"
+        private static readonly string PrefetchGVFSFolder = FileSystemHelpers.CaseSensitiveFileSystem ? "GVFS" : "gvfs";
+        private static readonly string PrefetchGVFSFolderPath = PrefetchGVFSFolder + "/";
+        private static readonly string[] PrefetchFolderList = new string[]
+        {
+            "# A comment",
+            " ",
+            PrefetchGVFSFolderPath, // "GVFS/" or "gvfs/"
+            PrefetchGVFSFolderPath + PrefetchGVFSFolder, // "GVFS/GVFS" or "gvfs/gvfs"
+            PrefetchGVFSFolderPath,
+        };
+
         private FileSystemRunner fileSystem;
 
         public PrefetchVerbTests()
@@ -82,17 +95,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void PrefetchFolderListFromFile()
         {
             string tempFilePath = Path.Combine(Path.GetTempPath(), "temp.file");
-            File.WriteAllLines(
-                tempFilePath,
-                new[]
-                {
-                    "# A comment",
-                    " ",
-                    "GVFS/",
-                    "GVFS/GVFS",
-                    "GVFS/"
-                });
-
+            File.WriteAllLines(tempFilePath, PrefetchFolderList);
             this.ExpectBlobCount(this.Enlistment.Prefetch("--folders-list \"" + tempFilePath + "\""), 279);
             File.Delete(tempFilePath);
         }
@@ -161,12 +164,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(13)]
         public void PrefetchFilesFromFileListStdIn()
         {
+            // on case-insensitive filesystems, test case-blind matching
+            // using "App.config" instead of "app.config"
             string input = string.Join(
                 Environment.NewLine,
                 new[]
                 {
                     Path.Combine("GVFS", "GVFS", "packages.config"),
-                    Path.Combine("GVFS", "GVFS.FunctionalTests", "app.config")
+                    Path.Combine("GVFS", "GVFS.FunctionalTests", FileSystemHelpers.CaseSensitiveFileSystem ? "app.config" : "App.config")
                 });
 
             this.ExpectBlobCount(this.Enlistment.Prefetch("--stdin-files-list", standardInput: input), 2);
@@ -175,17 +180,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(14)]
         public void PrefetchFolderListFromStdin()
         {
-            string input = string.Join(
-                Environment.NewLine,
-                new[]
-                {
-                    "# A comment",
-                    " ",
-                    "GVFS/",
-                    "GVFS/GVFS",
-                    "GVFS/"
-                });
-
+            string input = string.Join(Environment.NewLine, PrefetchFolderList);
             this.ExpectBlobCount(this.Enlistment.Prefetch("--stdin-folders-list", standardInput: input), 279);
         }
 
