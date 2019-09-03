@@ -255,7 +255,9 @@ namespace GVFS.Platform.Linux
             this.virtualizationInstance.OnLogInfo = this.OnLogInfo;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
+            this.virtualizationInstance.OnPreRename = this.OnPreRename;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
+            this.virtualizationInstance.OnFileDeleted = this.OnFileDeleted;
             this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
             this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
             this.virtualizationInstance.OnFilePreConvertToFull = this.NotifyFilePreConvertToFull;
@@ -553,27 +555,19 @@ namespace GVFS.Platform.Linux
             try
             {
                 bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
-                if (pathInsideDotGit)
+                if (pathInsideDotGit &&
+                    relativePath.Equals(GVFSConstants.DotGit.Index, GVFSPlatform.Instance.Constants.PathComparison))
                 {
-                    if (relativePath.Equals(GVFSConstants.DotGit.Index, GVFSPlatform.Instance.Constants.PathComparison))
+                    string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
+                    if (string.IsNullOrEmpty(lockedGitCommand))
                     {
-                        string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
-                        if (string.IsNullOrEmpty(lockedGitCommand))
-                        {
-                            EventMetadata metadata = new EventMetadata();
-                            metadata.Add("Area", this.EtwArea);
-                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index delete outside the lock");
-                            this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnPreDelete)}_BlockedIndexDelete", metadata);
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Area", this.EtwArea);
+                        metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index delete outside the lock");
+                        this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnPreDelete)}_BlockedIndexDelete", metadata);
 
-                            return Result.EAccessDenied;
-                        }
+                        return Result.EAccessDenied;
                     }
-
-                    this.OnDotGitFileOrFolderDeleted(relativePath);
-                }
-                else
-                {
-                    this.OnWorkingDirectoryFileOrFolderDeleteNotification(relativePath, isDirectory, isPreDelete: true);
                 }
             }
             catch (Exception e)
@@ -581,6 +575,38 @@ namespace GVFS.Platform.Linux
                 EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
                 metadata.Add("isDirectory", isDirectory);
                 this.LogUnhandledExceptionAndExit(nameof(this.OnPreDelete), metadata);
+            }
+
+            return Result.Success;
+        }
+
+        private Result OnPreRename(string relativePath, string relativeDestinationPath, bool isDirectory)
+        {
+            try
+            {
+                bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
+                if (pathInsideDotGit &&
+                    (relativePath.Equals(GVFSConstants.DotGit.Index, GVFSPlatform.Instance.Constants.PathComparison) ||
+                     relativeDestinationPath.Equals(GVFSConstants.DotGit.Index, GVFSPlatform.Instance.Constants.PathComparison)))
+                {
+                    string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
+                    if (string.IsNullOrEmpty(lockedGitCommand))
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Area", this.EtwArea);
+                        metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index rename outside the lock");
+                        this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnPreRename)}_BlockedIndexDelete", metadata);
+
+                        return Result.EAccessDenied;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
+                metadata.Add("destinationPath", relativeDestinationPath);
+                metadata.Add("isDirectory", isDirectory);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnPreRename), metadata);
             }
 
             return Result.Success;
@@ -638,21 +664,26 @@ namespace GVFS.Platform.Linux
             }
         }
 
-        private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
+        private void OnFileDeleted(string relativePath, bool isDirectory)
         {
-            // TODO(Linux): VFSForGit doesn't need the source path on Linux for correct behavior,
-            // but it is available if required in the future
-            this.OnFileRenamed(
-                relativeSourcePath: string.Empty,
-                relativeDestinationPath: relativeDestinationPath,
-                isDirectory: isDirectory);
-        }
-
-        private void OnHardLinkCreated(string relativeNewLinkPath)
-        {
-            this.OnHardLinkCreated(
-                relativeExistingFilePath: string.Empty,
-                relativeNewLinkPath: relativeNewLinkPath);
+            try
+            {
+                bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
+                if (pathInsideDotGit)
+                {
+                    this.OnDotGitFileOrFolderDeleted(relativePath);
+                }
+                else
+                {
+                    this.OnWorkingDirectoryFileOrFolderDeleteNotification(relativePath, isDirectory, isPreDelete: false);
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
+                metadata.Add("isDirectory", isDirectory);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnFileDeleted), metadata);
+            }
         }
 
         private Result OnEnumerateDirectory(

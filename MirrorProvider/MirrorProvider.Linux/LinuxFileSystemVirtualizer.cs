@@ -33,7 +33,9 @@ namespace MirrorProvider.Linux
             this.virtualizationInstance.OnLogInfo = this.OnLogInfo;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
+            this.virtualizationInstance.OnPreRename = this.OnPreRename;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
+            this.virtualizationInstance.OnFileDeleted = this.OnFileDeleted;
             this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
             this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
             this.virtualizationInstance.OnFilePreConvertToFull = this.OnFilePreConvertToFull;
@@ -226,19 +228,30 @@ namespace MirrorProvider.Linux
             return Result.Success;
         }
 
+        private Result OnPreRename(string relativePath, string relativeDestinationPath, bool isDirectory)
+        {
+            Console.WriteLine($"OnPreRename (isDirectory: {isDirectory}): {relativePath} destination: {relativeDestinationPath}");
+            return Result.Success;
+        }
+
         private void OnNewFileCreated(string relativePath, bool isDirectory)
         {
             Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
         }
 
-        private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
+        private void OnFileDeleted(string relativePath, bool isDirectory)
         {
-            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}) destination: {relativeDestinationPath}");
+            Console.WriteLine($"OnFileDeleted (isDirectory: {isDirectory}): {relativePath}");
         }
 
-        private void OnHardLinkCreated(string relativeNewLinkPath)
+        private void OnFileRenamed(string relativePath, string relativeDestinationPath, bool isDirectory)
         {
-            Console.WriteLine($"OnHardLinkCreated: {relativeNewLinkPath}");
+            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}): {relativePath} destination: {relativeDestinationPath}");
+        }
+
+        private void OnHardLinkCreated(string relativeExistingFilePath, string relativeNewLinkPath)
+        {
+            Console.WriteLine($"OnHardLinkCreated: {relativeExistingFilePath} link: {relativeNewLinkPath}");
         }
 
         private Result OnFilePreConvertToFull(string relativePath)
