@@ -11,9 +11,11 @@ namespace PrjFSLib.Linux.Interop
             public const ulong PROJFS_CLOSE_WRITE = 0x00000008;
             public const ulong PROJFS_MOVE = 0x000000C0;
             public const ulong PROJFS_CREATE = 0x00000100;
+            public const ulong PROJFS_DELETE = 0x00000200;
             public const ulong PROJFS_OPEN_PERM = 0x00010000;
             public const ulong PROJFS_ONDIR = 0x40000000;
-            public const ulong PROJFS_DELETE_PERM = 0x000100000000;
+            public const ulong PROJFS_DELETE_PERM = 0x000200000000;
+            public const ulong PROJFS_MOVE_PERM = 0x000400000000;
             public const ulong PROJFS_ONLINK = 0x100000000000;
         }
     }
