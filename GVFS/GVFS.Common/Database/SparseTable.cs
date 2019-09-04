@@ -15,11 +15,6 @@ namespace GVFS.Common.Database
             this.connectionPool = connectionPool;
         }
 
-        public static string NormalizePath(string path)
-        {
-            return path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim().Trim(Path.DirectorySeparatorChar);
-        }
-
         public static void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem)
         {
             using (IDbCommand command = connection.CreateCommand())
