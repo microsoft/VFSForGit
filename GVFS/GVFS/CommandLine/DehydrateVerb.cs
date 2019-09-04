@@ -34,14 +34,14 @@ namespace GVFS.CommandLine
             "no-status",
             Default = false,
             Required = false,
-            HelpText = "Skip 'git status' before dehydrating only valid when not using folders option")]
+            HelpText = "Do not require a clean git status when dehydrating. To prevent data loss, this option cannot be combined with --folders option.")]
         public bool NoStatus { get; set; }
 
         [Option(
             "folders",
             Default = "",
             Required = false,
-            HelpText = "The repo root relative folders to dehydrate separated by ;")]
+            HelpText = "A semicolon (;) delimited list of folders to dehydrate. Each folder must be relative to the repository root.")]
         public string Folders { get; set; }
 
         protected override string VerbName
@@ -204,7 +204,7 @@ from a parent of the folders list.
                         }
                         else
                         {
-                            this.ReportErrorAndExit("Must have a clean git status to dehydrate folders.");
+                            this.ReportErrorAndExit("Cannot dehydrate: must have a clean git status.");
                         }
                     }
                     else
@@ -241,7 +241,7 @@ from a parent of the folders list.
                             string normalizedPath = GVFSDatabase.NormalizePath(folder);
                             if (!this.IsFolderValid(normalizedPath))
                             {
-                                this.WriteMessage(tracer, $"Cannot dehydrate '{folder}' folder.  Invalid folder path.");
+                                this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}'.  Invalid folder path.");
                             }
                             else
                             {
@@ -249,7 +249,7 @@ from a parent of the folders list.
                                 // dehydration will not do any good with a parent folder there
                                 if (modifiedPaths.ContainsParentFolder(folder, out string parentFolder))
                                 {
-                                    this.WriteMessage(tracer, $"Unable to dehydrate '{folder}'. Parent folder '{parentFolder}' must be dehydrated.");
+                                    this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}'. Parent folder '{parentFolder}' must be dehydrated.");
                                 }
                                 else
                                 {
@@ -258,8 +258,9 @@ from a parent of the folders list.
                                     {
                                         if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting '{fullPath}'", out ioError))
                                         {
-                                            this.WriteMessage(tracer, $"Removing '{folder}' failed and will not be dehydrated. {ioError}");
-                                            this.WriteMessage(tracer, $"Make sure there aren't any applications accessing the folder and try again.");
+                                            this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': removing '{folder}' failed.");
+                                            this.WriteMessage(tracer, "Ensure no applications are accessing the folder and retry.");
+                                            this.WriteMessage(tracer, $"More details: {ioError}");
                                         }
                                         else
                                         {
@@ -268,7 +269,7 @@ from a parent of the folders list.
                                     }
                                     else
                                     {
-                                        this.WriteMessage(tracer, $"{folder} did not exist to dehydrate.");
+                                        this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': '{folder}' does not exist.");
 
                                         // Still add to foldersToDehydrate so that any placeholders or modified paths get cleaned up
                                         foldersToDehydrate.Add(folder);
