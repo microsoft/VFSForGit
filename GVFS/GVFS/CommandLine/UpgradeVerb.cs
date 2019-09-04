@@ -68,7 +68,7 @@ namespace GVFS.CommandLine
             "no-verify",
             Default = false,
             Required = false,
-            HelpText = "This parameter is reserved for internal use.")]
+            HelpText = "Do not verify NuGet packages after downloading them. Some platforms do not support NuGet verification.")]
         public bool NoVerify { get; set; }
 
         protected override string VerbName
