@@ -116,7 +116,8 @@ namespace GVFS.Common
                     fileSystem: this.fileSystem,
                     output: out config,
                     error: out error,
-                    keyComparer: StringComparer.OrdinalIgnoreCase))
+                    keyComparer: StringComparer.OrdinalIgnoreCase,
+                    createIfNotPresent: false))
                 {
                     this.allSettings = config;
                     return true;

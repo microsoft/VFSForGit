@@ -27,13 +27,20 @@ namespace GVFS.Common
             PhysicalFileSystem fileSystem,
             out FileBasedDictionary<TKey, TValue> output,
             out string error,
-            IEqualityComparer<TKey> keyComparer = null)
+            IEqualityComparer<TKey> keyComparer = null,
+            bool createIfNotPresent = true)
         {
             output = new FileBasedDictionary<TKey, TValue>(
                 tracer,
                 fileSystem,
                 dictionaryPath,
                 keyComparer ?? EqualityComparer<TKey>.Default);
+
+            if (!createIfNotPresent && !fileSystem.FileExists(dictionaryPath))
+            {
+                error = null;
+                return true;
+            }
 
             if (!output.TryLoadFromDisk<TKey, TValue>(
                 output.TryParseAddLine,
