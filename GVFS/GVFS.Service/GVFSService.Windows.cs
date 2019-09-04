@@ -211,12 +211,15 @@ namespace GVFS.Service
 
         protected override void Dispose(bool disposing)
         {
-            this.StopRunning();
-
-            if (this.tracer != null)
+            if (disposing)
             {
-                this.tracer.Dispose();
-                this.tracer = null;
+                this.StopRunning();
+
+                if (this.tracer != null)
+                {
+                    this.tracer.Dispose();
+                    this.tracer = null;
+                }
             }
 
             base.Dispose(disposing);
