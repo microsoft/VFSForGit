@@ -21,6 +21,8 @@ namespace GVFS.CommandLine
     public class DehydrateVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string DehydrateVerbName = "dehydrate";
+        private const string FolderListSeparator = ";";
+
         private PhysicalFileSystem fileSystem = new PhysicalFileSystem();
 
         [Option(
@@ -41,7 +43,7 @@ namespace GVFS.CommandLine
             "folders",
             Default = "",
             Required = false,
-            HelpText = "A semicolon (;) delimited list of folders to dehydrate. Each folder must be relative to the repository root.")]
+            HelpText = "A semicolon (" + FolderListSeparator + ") delimited list of folders to dehydrate. Each folder must be relative to the repository root.")]
         public string Folders { get; set; }
 
         protected override string VerbName
@@ -194,7 +196,7 @@ from a parent of the folders list.
                 }
                 else
                 {
-                    string[] folders = this.Folders.Split(new[] { ";" }, StringSplitOptions.RemoveEmptyEntries);
+                    string[] folders = this.Folders.Split(new[] { FolderListSeparator }, StringSplitOptions.RemoveEmptyEntries);
 
                     if (folders.Length > 0)
                     {
@@ -318,7 +320,7 @@ from a parent of the folders list.
                         this.ReportErrorAndExit("Unable to connect to GVFS.  Try running 'gvfs mount'");
                     }
 
-                    NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(string.Join(";", folders));
+                    NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(string.Join(FolderListSeparator, folders));
                     pipeClient.SendRequest(request.CreateMessage());
                     response = NamedPipeMessages.DehydrateFolders.Response.FromMessage(NamedPipeMessages.Message.FromString(pipeClient.ReadRawResponse()));
                 }

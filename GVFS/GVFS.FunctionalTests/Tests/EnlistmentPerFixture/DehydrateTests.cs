@@ -303,7 +303,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.PlaceholdersShouldNotContain(folderToDehydrate, Path.Combine(folderToDehydrate, "Program.cs"));
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, Path.Combine(folderToDehydrate, "App.config").Replace(Path.DirectorySeparatorChar, TestConstants.GitPathSeparator));
 
-            this.PlaceholderShouldContain(folderNotDehydrated, Path.Combine(folderNotDehydrated, "GVFSLock.cs"));
+            this.PlaceholdersShouldContain(folderNotDehydrated, Path.Combine(folderNotDehydrated, "GVFSLock.cs"));
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, Path.Combine(folderNotDehydrated, "Enlistment.cs").Replace(Path.DirectorySeparatorChar, TestConstants.GitPathSeparator));
 
             this.Enlistment.UnmountGVFS();
@@ -498,12 +498,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        private void PlaceholderShouldContain(params string[] paths)
+        private void PlaceholdersShouldContain(params string[] paths)
         {
             string[] placeholderLines = this.GetPlaceholderDatabaseLines();
             foreach (string path in paths)
             {
-                placeholderLines.ShouldContain(x => x.StartsWith(path + GVFSHelpers.PlaceholderFieldDelimiter));
+                placeholderLines.ShouldContain(x => x.StartsWith(path + GVFSHelpers.PlaceholderFieldDelimiter, StringComparison.OrdinalIgnoreCase));
             }
         }
 
@@ -512,7 +512,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] placeholderLines = this.GetPlaceholderDatabaseLines();
             foreach (string path in paths)
             {
-                placeholderLines.ShouldNotContain(x => x.StartsWith(path + Path.DirectorySeparatorChar) || x.Equals(path, StringComparison.OrdinalIgnoreCase));
+                placeholderLines.ShouldNotContain(x => x.StartsWith(path + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || x.Equals(path, StringComparison.OrdinalIgnoreCase));
             }
         }
 
