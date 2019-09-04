@@ -296,7 +296,7 @@ namespace GVFS.Virtualization
             return metadata;
         }
 
-        public bool DehydrateFolder(string relativePath)
+        public bool TryDehydrateFolder(string relativePath)
         {
             List<IPlaceholderData> removedPlaceholders = null;
             List<string> removedModifiedPaths = null;
@@ -312,13 +312,13 @@ namespace GVFS.Virtualization
 
                 if (!successful)
                 {
-                    this.context.Tracer.RelatedError($"{nameof(this.DehydrateFolder)} failed with {result.Result}");
+                    this.context.Tracer.RelatedError($"{nameof(this.TryDehydrateFolder)} failed with {result.Result}");
                 }
             }
             catch (Exception ex)
             {
                 EventMetadata metadata = this.CreateEventMetadata(relativePath, ex);
-                this.context.Tracer.RelatedError(metadata, $"{nameof(this.DehydrateFolder)} threw an exception");
+                this.context.Tracer.RelatedError(metadata, $"{nameof(this.TryDehydrateFolder)} threw an exception");
                 successful = false;
             }
 
@@ -328,7 +328,15 @@ namespace GVFS.Virtualization
                 {
                     foreach (IPlaceholderData data in removedPlaceholders)
                     {
-                        this.placeholderDatabase.AddPlaceholderData(data);
+                        try
+                        {
+                            this.placeholderDatabase.AddPlaceholderData(data);
+                        }
+                        catch (Exception ex)
+                        {
+                            EventMetadata metadata = this.CreateEventMetadata(data.Path, ex);
+                            this.context.Tracer.RelatedError(metadata, $"{nameof(FileSystemCallbacks)}.{nameof(this.TryDehydrateFolder)} failed to add '{data.Path}' back into PlaceholderDatabase");
+                        }
                     }
                 }
 
@@ -338,7 +346,7 @@ namespace GVFS.Virtualization
                     {
                         if (!this.modifiedPaths.TryAdd(modifiedPath, isFolder: modifiedPath.EndsWith(GVFSConstants.GitPathSeparatorString), isRetryable: out bool isRetryable))
                         {
-                            this.context.Tracer.RelatedError($"{nameof(FileSystemCallbacks)}.{nameof(this.DehydrateFolder)}: failed to add '{modifiedPath}' back into ModifiedPaths");
+                            this.context.Tracer.RelatedError($"{nameof(FileSystemCallbacks)}.{nameof(this.TryDehydrateFolder)}: failed to add '{modifiedPath}' back into ModifiedPaths");
                         }
                     }
                 }

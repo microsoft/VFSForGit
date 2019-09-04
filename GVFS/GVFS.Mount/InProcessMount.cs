@@ -291,7 +291,7 @@ namespace GVFS.Mount
                 string[] folders = request.Folders.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (string folder in folders)
                 {
-                    if (this.fileSystemCallbacks.DehydrateFolder(folder))
+                    if (this.fileSystemCallbacks.TryDehydrateFolder(folder))
                     {
                         response.SuccessfulFolders.Add(folder);
                     }
