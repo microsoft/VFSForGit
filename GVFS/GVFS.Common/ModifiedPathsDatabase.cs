@@ -64,7 +64,7 @@ namespace GVFS.Common
             {
                 foreach (string modifiedPath in this.modifiedPaths)
                 {
-                    if (this.ContainsParentDirectory(modifiedPath))
+                    if (this.ContainsParentFolderWithNormalizedPath(modifiedPath))
                     {
                         this.modifiedPaths.TryRemove(modifiedPath);
                     }
@@ -86,7 +86,7 @@ namespace GVFS.Common
         public bool ContainsParentFolder(string path, out string parentFolder)
         {
             string entry = this.NormalizeEntryString(path, isFolder: false);
-            return this.ContainsParentDirectory(entry, out parentFolder);
+            return this.ContainsParentFolderWithNormalizedPath(entry, out parentFolder);
         }
 
         public IEnumerable<string> GetAllModifiedPaths()
@@ -98,7 +98,7 @@ namespace GVFS.Common
         {
             isRetryable = true;
             string entry = this.NormalizeEntryString(path, isFolder);
-            if (!this.modifiedPaths.Contains(entry) && !this.ContainsParentDirectory(entry))
+            if (!this.modifiedPaths.Contains(entry) && !this.ContainsParentFolderWithNormalizedPath(entry))
             {
                 try
                 {
@@ -233,12 +233,12 @@ namespace GVFS.Common
             return true;
         }
 
-        private bool ContainsParentDirectory(string modifiedPath)
+        private bool ContainsParentFolderWithNormalizedPath(string modifiedPath)
         {
-            return this.ContainsParentDirectory(modifiedPath, out _);
+            return this.ContainsParentFolderWithNormalizedPath(modifiedPath, out _);
         }
 
-        private bool ContainsParentDirectory(string modifiedPath, out string parentFolder)
+        private bool ContainsParentFolderWithNormalizedPath(string modifiedPath, out string parentFolder)
         {
             string[] pathParts = modifiedPath.Split(new char[] { GVFSConstants.GitPathSeparator }, StringSplitOptions.RemoveEmptyEntries);
             parentFolder = string.Empty;
