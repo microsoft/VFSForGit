@@ -347,7 +347,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.ReadAllText(fileToRead2);
 
             this.DehydrateShouldSucceed(
-                new[] { $"{folderToDehydrate1} folder successfully dehydrated.", $"{folderToDehydrate2} did not exist to dehydrate." },
+                new[] { $"{folderToDehydrate1} folder successfully dehydrated.", $"Cannot dehydrate folder '{folderToDehydrate2}': '{folderToDehydrate2}' does not exist." },
                 confirm: true,
                 noStatus: false,
                 foldersToDehydrate: string.Join(";", folderToDehydrate1, folderToDehydrate2));
@@ -368,7 +368,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
             this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
 
-            this.DehydrateShouldSucceed(new[] { $"Unable to dehydrate '{folderToDehydrate}'. Parent folder 'GitCommandsTests/' must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': parent folder 'GitCommandsTests/' must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]
@@ -396,8 +396,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateCannotDehydrateDotGitFolder()
         {
-            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate '{TestConstants.DotGit.Root}' folder.  Invalid folder path." }, confirm: true, noStatus: false, foldersToDehydrate: TestConstants.DotGit.Root);
-            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate '{TestConstants.DotGit.Info.Root}' folder.  Invalid folder path." }, confirm: true, noStatus: false, foldersToDehydrate: TestConstants.DotGit.Info.Root);
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{TestConstants.DotGit.Root}': invalid folder path." }, confirm: true, noStatus: false, foldersToDehydrate: TestConstants.DotGit.Root);
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{TestConstants.DotGit.Info.Root}': invalid folder path." }, confirm: true, noStatus: false, foldersToDehydrate: TestConstants.DotGit.Info.Root);
         }
 
         [TestCase]
@@ -410,7 +410,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
             this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
 
-            this.DehydrateShouldSucceed(new[] { $"Unable to dehydrate '{folderToDehydrate}'. Parent folder 'GitCommandsTests/' must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': parent folder 'GitCommandsTests/' must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]
@@ -457,7 +457,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             List<string> errorMessages = new List<string>();
             foreach (string path in foldersToDehydrate)
             {
-                errorMessages.Add($"Cannot dehydrate '{path}' folder.  Invalid folder path.");
+                errorMessages.Add($"Cannot dehydrate folder '{path}': invalid folder path.");
             }
 
             this.DehydrateShouldSucceed(
@@ -470,7 +470,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateFolderThatDoesNotExist()
         {
-            this.DehydrateShouldSucceed(new[] { "DoesNotExist did not exist to dehydrate." }, confirm: true, noStatus: false, foldersToDehydrate: "DoesNotExist");
+            string folderToDehydrate = "DoesNotExist";
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': '{folderToDehydrate}' does not exist." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]

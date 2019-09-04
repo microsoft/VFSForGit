@@ -243,7 +243,7 @@ from a parent of the folders list.
                             string normalizedPath = GVFSDatabase.NormalizePath(folder);
                             if (!this.IsFolderValid(normalizedPath))
                             {
-                                this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}'.  Invalid folder path.");
+                                this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': invalid folder path.");
                             }
                             else
                             {
@@ -251,7 +251,7 @@ from a parent of the folders list.
                                 // dehydration will not do any good with a parent folder there
                                 if (modifiedPaths.ContainsParentFolder(folder, out string parentFolder))
                                 {
-                                    this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}'. Parent folder '{parentFolder}' must be dehydrated.");
+                                    this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': parent folder '{parentFolder}' must be dehydrated.");
                                 }
                                 else
                                 {
