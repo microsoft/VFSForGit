@@ -296,6 +296,65 @@ namespace GVFS.Virtualization
             return metadata;
         }
 
+        public bool TryDehydrateFolder(string relativePath)
+        {
+            List<IPlaceholderData> removedPlaceholders = null;
+            List<string> removedModifiedPaths = null;
+            bool successful = false;
+
+            try
+            {
+                relativePath = GVFSDatabase.NormalizePath(relativePath);
+                removedPlaceholders = this.placeholderDatabase.RemoveAllEntriesForFolder(relativePath);
+                removedModifiedPaths = this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
+                FileSystemResult result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
+                successful = result.Result == FSResult.Ok;
+
+                if (!successful)
+                {
+                    this.context.Tracer.RelatedError($"{nameof(this.TryDehydrateFolder)} failed with {result.Result}");
+                }
+            }
+            catch (Exception ex)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativePath, ex);
+                this.context.Tracer.RelatedError(metadata, $"{nameof(this.TryDehydrateFolder)} threw an exception");
+                successful = false;
+            }
+
+            if (!successful)
+            {
+                if (removedPlaceholders != null)
+                {
+                    foreach (IPlaceholderData data in removedPlaceholders)
+                    {
+                        try
+                        {
+                            this.placeholderDatabase.AddPlaceholderData(data);
+                        }
+                        catch (Exception ex)
+                        {
+                            EventMetadata metadata = this.CreateEventMetadata(data.Path, ex);
+                            this.context.Tracer.RelatedError(metadata, $"{nameof(FileSystemCallbacks)}.{nameof(this.TryDehydrateFolder)} failed to add '{data.Path}' back into PlaceholderDatabase");
+                        }
+                    }
+                }
+
+                if (removedModifiedPaths != null)
+                {
+                    foreach (string modifiedPath in removedModifiedPaths)
+                    {
+                        if (!this.modifiedPaths.TryAdd(modifiedPath, isFolder: modifiedPath.EndsWith(GVFSConstants.GitPathSeparatorString), isRetryable: out bool isRetryable))
+                        {
+                            this.context.Tracer.RelatedError($"{nameof(FileSystemCallbacks)}.{nameof(this.TryDehydrateFolder)}: failed to add '{modifiedPath}' back into ModifiedPaths");
+                        }
+                    }
+                }
+            }
+
+            return successful;
+        }
+
         public void ForceIndexProjectionUpdate(bool invalidateProjection, bool invalidateModifiedPaths)
         {
             this.InvalidateState(invalidateProjection, invalidateModifiedPaths);

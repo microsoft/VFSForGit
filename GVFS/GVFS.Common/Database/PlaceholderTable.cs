@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 
 namespace GVFS.Common.Database
 {
@@ -48,36 +49,27 @@ namespace GVFS.Common.Database
         {
             try
             {
-                filePlaceholders = new List<IPlaceholderData>();
-                folderPlaceholders = new List<IPlaceholderData>();
+                List<IPlaceholderData> tempFilePlaceholders = new List<IPlaceholderData>();
+                List<IPlaceholderData> tempFolderPlaceholders = new List<IPlaceholderData>();
                 using (IDbConnection connection = this.connectionPool.GetConnection())
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     command.CommandText = "SELECT path, pathType, sha FROM Placeholder;";
-                    using (IDataReader reader = command.ExecuteReader())
+                    ReadPlaceholders(command, data =>
                     {
-                        while (reader.Read())
+                        if (data.PathType == PlaceholderData.PlaceholderType.File)
                         {
-                            PlaceholderData data = new PlaceholderData();
-                            data.Path = reader.GetString(0);
-                            data.PathType = (PlaceholderData.PlaceholderType)reader.GetByte(1);
-
-                            if (!reader.IsDBNull(2))
-                            {
-                                data.Sha = reader.GetString(2);
-                            }
-
-                            if (data.PathType == PlaceholderData.PlaceholderType.File)
-                            {
-                                filePlaceholders.Add(data);
-                            }
-                            else
-                            {
-                                folderPlaceholders.Add(data);
-                            }
+                            tempFilePlaceholders.Add(data);
                         }
-                    }
+                        else
+                        {
+                            tempFolderPlaceholders.Add(data);
+                        }
+                    });
                 }
+
+                filePlaceholders = tempFilePlaceholders;
+                folderPlaceholders = tempFolderPlaceholders;
             }
             catch (Exception ex)
             {
@@ -159,6 +151,40 @@ namespace GVFS.Common.Database
             this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PossibleTombstoneFolder });
         }
 
+        public List<IPlaceholderData> RemoveAllEntriesForFolder(string path)
+        {
+            const string fromWhereClause = "FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;";
+
+            // Normalize the path to match what will be in the database
+            path = GVFSDatabase.NormalizePath(path);
+
+            try
+            {
+                using (IDbConnection connection = this.connectionPool.GetConnection())
+                using (IDbCommand command = connection.CreateCommand())
+                {
+                    List<IPlaceholderData> removedPlaceholders = new List<IPlaceholderData>();
+                    command.CommandText = $"SELECT path, pathType, sha {fromWhereClause}";
+                    command.AddParameter("@path", DbType.String, $"{path}");
+                    command.AddParameter("@pathWithDirectorySeparator", DbType.String, $"{path + Path.DirectorySeparatorChar}%");
+                    ReadPlaceholders(command, data => removedPlaceholders.Add(data));
+
+                    command.CommandText = $"DELETE {fromWhereClause}";
+
+                    lock (this.writerLock)
+                    {
+                        command.ExecuteNonQuery();
+                    }
+
+                    return removedPlaceholders;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.RemoveAllEntriesForFolder)}({path}) Exception", ex);
+            }
+        }
+
         public void Remove(string path)
         {
             try
@@ -212,6 +238,26 @@ namespace GVFS.Common.Database
             catch (Exception ex)
             {
                 throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetCount)} Exception", ex);
+            }
+        }
+
+        private static void ReadPlaceholders(IDbCommand command, Action<PlaceholderData> dataHandler)
+        {
+            using (IDataReader reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    PlaceholderData data = new PlaceholderData();
+                    data.Path = reader.GetString(0);
+                    data.PathType = (PlaceholderData.PlaceholderType)reader.GetByte(1);
+
+                    if (!reader.IsDBNull(2))
+                    {
+                        data.Sha = reader.GetString(2);
+                    }
+
+                    dataHandler(data);
+                }
             }
         }
 

@@ -15,11 +15,6 @@ namespace GVFS.Common.Database
             this.connectionPool = connectionPool;
         }
 
-        public static string NormalizePath(string path)
-        {
-            return path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim().Trim(Path.DirectorySeparatorChar);
-        }
-
         public static void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem)
         {
             using (IDbCommand command = connection.CreateCommand())
@@ -38,7 +33,7 @@ namespace GVFS.Common.Database
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     command.CommandText = "INSERT OR REPLACE INTO Sparse (path) VALUES (@path);";
-                    command.AddParameter("@path", DbType.String, NormalizePath(directoryPath));
+                    command.AddParameter("@path", DbType.String, GVFSDatabase.NormalizePath(directoryPath));
 
                     lock (this.writerLock)
                     {
@@ -86,7 +81,7 @@ namespace GVFS.Common.Database
                 using (IDbCommand command = connection.CreateCommand())
                 {
                     command.CommandText = "DELETE FROM Sparse WHERE path = @path;";
-                    command.AddParameter("@path", DbType.String, NormalizePath(directoryPath));
+                    command.AddParameter("@path", DbType.String, GVFSDatabase.NormalizePath(directoryPath));
 
                     lock (this.writerLock)
                     {

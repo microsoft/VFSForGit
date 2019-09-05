@@ -64,7 +64,7 @@ namespace GVFS.Common
             {
                 foreach (string modifiedPath in this.modifiedPaths)
                 {
-                    if (this.ContainsParentDirectory(modifiedPath))
+                    if (this.ContainsParentFolderWithNormalizedPath(modifiedPath))
                     {
                         this.modifiedPaths.TryRemove(modifiedPath);
                     }
@@ -83,6 +83,12 @@ namespace GVFS.Common
             return this.modifiedPaths.Contains(entry);
         }
 
+        public bool ContainsParentFolder(string path, out string parentFolder)
+        {
+            string entry = this.NormalizeEntryString(path, isFolder: false);
+            return this.ContainsParentFolderWithNormalizedPath(entry, out parentFolder);
+        }
+
         public IEnumerable<string> GetAllModifiedPaths()
         {
             return this.modifiedPaths;
@@ -92,7 +98,7 @@ namespace GVFS.Common
         {
             isRetryable = true;
             string entry = this.NormalizeEntryString(path, isFolder);
-            if (!this.modifiedPaths.Contains(entry) && !this.ContainsParentDirectory(entry))
+            if (!this.modifiedPaths.Contains(entry) && !this.ContainsParentFolderWithNormalizedPath(entry))
             {
                 try
                 {
@@ -112,6 +118,25 @@ namespace GVFS.Common
             }
 
             return true;
+        }
+
+        public List<string> RemoveAllEntriesForFolder(string path)
+        {
+            List<string> removedEntries = new List<string>();
+            string entry = this.NormalizeEntryString(path, isFolder: true);
+            foreach (string modifiedPath in this.modifiedPaths)
+            {
+                if (modifiedPath.StartsWith(entry, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (this.modifiedPaths.TryRemove(modifiedPath))
+                    {
+                        removedEntries.Add(modifiedPath);
+                    }
+                }
+            }
+
+            this.WriteAllEntriesAndFlush();
+            return removedEntries;
         }
 
         public bool TryRemove(string path, bool isFolder, out bool isRetryable)
@@ -208,10 +233,15 @@ namespace GVFS.Common
             return true;
         }
 
-        private bool ContainsParentDirectory(string modifiedPath)
+        private bool ContainsParentFolderWithNormalizedPath(string modifiedPath)
+        {
+            return this.ContainsParentFolderWithNormalizedPath(modifiedPath, out _);
+        }
+
+        private bool ContainsParentFolderWithNormalizedPath(string modifiedPath, out string parentFolder)
         {
             string[] pathParts = modifiedPath.Split(new char[] { GVFSConstants.GitPathSeparator }, StringSplitOptions.RemoveEmptyEntries);
-            string parentFolder = string.Empty;
+            parentFolder = string.Empty;
             for (int i = 0; i < pathParts.Length - 1; i++)
             {
                 parentFolder += pathParts[i] + GVFSConstants.GitPathSeparatorString;

@@ -196,6 +196,12 @@ namespace GVFS.Platform.Windows
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
 
+        public override FileSystemResult DehydrateFolder(string relativePath)
+        {
+            // Don't need to do anything here because the parent will reproject the folder.
+            return new FileSystemResult(FSResult.Ok, 0);
+        }
+
         // TODO: Need ProjFS 13150199 to be fixed so that GVFS doesn't leak memory if the enumeration cancelled.
         // Currently EndDirectoryEnumerationHandler must be called to remove the ActiveEnumeration from this.activeEnumerations
         public HResult StartDirectoryEnumerationCallback(int commandId, Guid enumerationId, string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)
