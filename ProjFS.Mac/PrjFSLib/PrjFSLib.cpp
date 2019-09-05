@@ -175,7 +175,9 @@ PrjFS_Result PrjFS_RegisterForOfflineIO()
     if (s_kernelServiceOfflineClientCount == 0)
     {
         assert(s_kernelServiceOfflineWriterConnection == IO_OBJECT_NULL);
-        s_kernelServiceOfflineWriterConnection = PrjFSService_ConnectToDriver(UserClientType_OfflineIO);
+        s_kernelServiceOfflineWriterConnection = PrjFSService_ConnectToDriver(
+            UserClientType_OfflineIO,
+            false); // Don't require user/kernel versions to match, as this type of user client does not have a version-sensitive API at this time.
         if (s_kernelServiceOfflineWriterConnection == IO_OBJECT_NULL)
         {
             return PrjFS_Result_EDriverNotLoaded;
