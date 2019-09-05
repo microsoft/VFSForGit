@@ -6,6 +6,7 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -917,6 +918,30 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 
             FileSystemRunner.DefaultRunner.DeleteDirectory(parentDirectoryPath);
         }
+
+        [TestCase]
+        [Category(Categories.MacOnly)]
+        public void RunPythonExecutable()
+        {
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout FunctionalTests/PythonExecutable");
+
+            // Found an issue on Mac where running a python executable that is a placeholder, fails
+            // The fix was to always hydrate executables (no placeholders for this mode)
+            // To repro this issue in the C# framework the python executable must be run via a wrapper
+            string pythonDirectory = Path.Combine(this.Enlistment.RepoRoot, "Test_Executable");
+            string pythonExecutable = Path.Combine(pythonDirectory, "python_wrapper.sh");
+
+            ProcessStartInfo startInfo = new ProcessStartInfo(pythonExecutable);
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+            startInfo.WorkingDirectory = pythonDirectory;
+
+            ProcessResult result = ProcessHelper.Run(startInfo);
+            result.ExitCode.ShouldEqual(0);
+            result.Output.ShouldContain("3.14");
+
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
+       }
 
         private class FileRunnersAndFolders
         {
