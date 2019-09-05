@@ -255,7 +255,7 @@ from a parent of the folders list.
                                 }
                                 else
                                 {
-                                    string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
+                                    string fullPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, folder);
                                     if (this.fileSystem.DirectoryExists(fullPath))
                                     {
                                         if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting '{fullPath}'", out ioError))
@@ -448,35 +448,6 @@ from a parent of the folders list.
             }
 
             return false;
-        }
-
-        private void Unmount(ITracer tracer)
-        {
-            if (!this.ShowStatusWhileRunning(
-                () =>
-                {
-                    return
-                        this.ExecuteGVFSVerb<StatusVerb>(tracer) != ReturnCode.Success ||
-                        this.ExecuteGVFSVerb<UnmountVerb>(tracer) == ReturnCode.Success;
-                },
-                "Unmounting",
-                suppressGvfsLogMessage: true))
-            {
-                this.ReportErrorAndExit(tracer, "Unable to unmount.");
-            }
-        }
-
-        private void Mount(ITracer tracer)
-        {
-            if (!this.ShowStatusWhileRunning(
-                () =>
-                {
-                    return this.ExecuteGVFSVerb<MountVerb>(tracer) == ReturnCode.Success;
-                },
-                "Mounting"))
-            {
-                this.ReportErrorAndExit(tracer, "Failed to mount after dehydrating.");
-            }
         }
 
         private void PrepareSrcFolder(ITracer tracer, GVFSEnlistment enlistment)
@@ -679,43 +650,6 @@ from a parent of the folders list.
                 {
                     { TracingConstants.MessageKey.InfoMessage, message }
                 });
-        }
-
-        private ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer)
-            where TVerb : GVFSVerb, new()
-        {
-            try
-            {
-                ReturnCode returnCode;
-                StringBuilder commandOutput = new StringBuilder();
-                using (StringWriter writer = new StringWriter(commandOutput))
-                {
-                    returnCode = this.Execute<TVerb>(this.EnlistmentRootPathParameter, verb => verb.Output = writer);
-                }
-
-                tracer.RelatedEvent(
-                    EventLevel.Informational,
-                    typeof(TVerb).Name,
-                    new EventMetadata
-                    {
-                        { "Output", commandOutput.ToString() },
-                        { "ReturnCode", returnCode }
-                    });
-
-                return returnCode;
-            }
-            catch (Exception e)
-            {
-                tracer.RelatedError(
-                    new EventMetadata
-                    {
-                        { "Verb", typeof(TVerb).Name },
-                        { "Exception", e.ToString() }
-                    },
-                    "ExecuteGVFSVerb: Caught exception");
-
-                return ReturnCode.GenericError;
-            }
         }
 
         private bool TryIO(ITracer tracer, Action action, string description, out string error)

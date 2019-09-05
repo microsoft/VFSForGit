@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security;
+using System.Text;
 
 namespace GVFS.CommandLine
 {
@@ -871,6 +872,78 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }
 
                 RepoMetadata.Shutdown();
+            }
+
+            protected ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer, Action<TVerb> configureVerb = null)
+                where TVerb : GVFSVerb, new()
+            {
+                try
+                {
+                    ReturnCode returnCode;
+                    StringBuilder commandOutput = new StringBuilder();
+                    using (StringWriter writer = new StringWriter(commandOutput))
+                    {
+                        returnCode = this.Execute<TVerb>(
+                            this.EnlistmentRootPathParameter,
+                            verb =>
+                            {
+                                verb.Output = writer;
+                                configureVerb?.Invoke(verb);
+                            });
+                    }
+
+                    tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        typeof(TVerb).Name,
+                        new EventMetadata
+                        {
+                        { "Output", commandOutput.ToString() },
+                        { "ReturnCode", returnCode }
+                        });
+
+                    return returnCode;
+                }
+                catch (Exception e)
+                {
+                    tracer.RelatedError(
+                        new EventMetadata
+                        {
+                        { "Verb", typeof(TVerb).Name },
+                        { "Exception", e.ToString() }
+                        },
+                        "ExecuteGVFSVerb: Caught exception");
+
+                    return ReturnCode.GenericError;
+                }
+            }
+
+            protected void Unmount(ITracer tracer)
+            {
+                if (!this.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        return
+                            this.ExecuteGVFSVerb<StatusVerb>(tracer) != ReturnCode.Success ||
+                            this.ExecuteGVFSVerb<UnmountVerb>(tracer) == ReturnCode.Success;
+                    },
+                    "Unmounting",
+                    suppressGvfsLogMessage: true))
+                {
+                    this.ReportErrorAndExit(tracer, "Unable to unmount.");
+                }
+            }
+
+            protected void Mount(ITracer tracer)
+            {
+                if (!this.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        return this.ExecuteGVFSVerb<MountVerb>(tracer) == ReturnCode.Success;
+                    },
+                    "Mounting"))
+                {
+                    this.ReportErrorAndExit(tracer, "Failed to mount.");
+                }
             }
 
             private void InitializeCachePathsFromRepoMetadata(
