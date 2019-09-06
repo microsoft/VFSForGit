@@ -70,7 +70,7 @@ Folders need to be relative to the repos root directory.")
                     {
                         if (directories.Count == 0)
                         {
-                            this.Output.WriteLine("No folders in sparse list.");
+                            this.Output.WriteLine("No folders in sparse list. When the sparse list is empty, all folders are projected.");
                         }
                         else
                         {
