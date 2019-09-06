@@ -51,15 +51,15 @@ using std::string;
 }
 
 - (void)testIsFileSystemCrawler {
-    XCTAssertTrue(IsFileSystemCrawler("mds"));
-    XCTAssertTrue(IsFileSystemCrawler("mdworker"));
-    XCTAssertTrue(IsFileSystemCrawler("mdworker_shared"));
-    XCTAssertTrue(IsFileSystemCrawler("mds_stores"));
-    XCTAssertTrue(IsFileSystemCrawler("fseventsd"));
-    XCTAssertTrue(IsFileSystemCrawler("Spotlight"));
-    XCTAssertFalse(IsFileSystemCrawler("mds_"));
-    XCTAssertFalse(IsFileSystemCrawler("spotlight"));
-    XCTAssertFalse(IsFileSystemCrawler("git"));
+    XCTAssertTrue(KauthHandler_IsFileSystemCrawler("mds"));
+    XCTAssertTrue(KauthHandler_IsFileSystemCrawler("mdworker"));
+    XCTAssertTrue(KauthHandler_IsFileSystemCrawler("mdworker_shared"));
+    XCTAssertTrue(KauthHandler_IsFileSystemCrawler("mds_stores"));
+    XCTAssertTrue(KauthHandler_IsFileSystemCrawler("fseventsd"));
+    XCTAssertTrue(KauthHandler_IsFileSystemCrawler("Spotlight"));
+    XCTAssertFalse(KauthHandler_IsFileSystemCrawler("mds_"));
+    XCTAssertFalse(KauthHandler_IsFileSystemCrawler("spotlight"));
+    XCTAssertFalse(KauthHandler_IsFileSystemCrawler("git"));
 }
 
 - (void)testFileFlagsBitIsSet {

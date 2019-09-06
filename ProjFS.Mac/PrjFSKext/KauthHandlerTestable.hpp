@@ -23,7 +23,6 @@ extern uint32_t s_pendingRenameCount;
 KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 KEXT_STATIC_INLINE bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context, bool* flaggedInRoot);
-KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 KEXT_STATIC bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 KEXT_STATIC int HandleVnodeOperation(
     kauth_cred_t    credential,

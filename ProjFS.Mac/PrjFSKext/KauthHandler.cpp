@@ -71,7 +71,6 @@ KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 KEXT_STATIC_INLINE bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 KEXT_STATIC bool CurrentProcessIsAllowedToHydrate();
-KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 
 static void WaitForListenerCompletion();
 KEXT_STATIC bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
@@ -1202,7 +1201,7 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
         // Once a vnode is hydrated, it's fine to allow crawlers to access those contents.
         
         PerfSample crawlerSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_CheckFileSystemCrawler);
-        if (IsFileSystemCrawler(procname))
+        if (KauthHandler_IsFileSystemCrawler(procname))
         {
             // We must DENY file system crawlers rather than DEFER.
             // If we allow the crawler's access to succeed without hydrating, the kauth result will be cached and we won't
@@ -1583,7 +1582,7 @@ KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mas
     return action & mask;
 }
 
-KEXT_STATIC bool IsFileSystemCrawler(const char* procname)
+bool KauthHandler_IsFileSystemCrawler(const char* procname)
 {
     // These process will crawl the file system and force a full hydration
     if (!strcmp(procname, "mds") ||
