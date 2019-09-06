@@ -2,6 +2,8 @@
 #include <cassert>
 #include <stddef.h>
 #include <sys/ioctl.h>
+#include <sys/mount.h>
+#include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/sys_domain.h>
 #include <sys/xattr.h>
@@ -87,6 +89,8 @@ struct MutexAndUseCount
 
 typedef map<FsidInode, MutexAndUseCount, FsidInodeCompare> FileMutexMap;
 
+static fsid_t s_virtualizationRoot_fsid;
+
 // Function prototypes
 static bool SetBitInFileFlags(const char* fullPath, uint32_t bit, bool value);
 static bool IsBitSetInFileFlags(const char* fullPath, uint32_t bit);
@@ -112,6 +116,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize);
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath);
 static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath);
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath);
+static PrjFS_Result HydrateFile(const char* absolutePath, const char* relativePath, FsidInode fsidInode, pid_t pid, const char* procname);
 static PrjFS_Result HandleNewFileInRootNotification(
     const MessageHeader* request,
     const char* relativePath,
@@ -270,6 +275,14 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
         LogError("PrjFS_StartVirtualizationInstance: Registering virtualization root failed: error=%d strerror=%s", error, strerror(error));
         return PrjFS_Result_EInvalidOperation;
     }
+    
+    struct statfs rootAttributes;
+    if (0 != statfs(virtualizationRootFullPath, &rootAttributes))
+    {
+        LogError("PrjFS_StartVirtualizationInstance: statfs failed on %s errno=%d, strerror=%s", virtualizationRootFullPath, errno, strerror(errno));
+        return PrjFS_Result_EInvalidOperation;
+    }
+    s_virtualizationRoot_fsid = rootAttributes.f_fsid;
     
     s_kernelRequestHandlingConcurrentQueue = dispatch_queue_create("PrjFS Kernel Request Handling", DISPATCH_QUEUE_CONCURRENT);
     
@@ -460,6 +473,28 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     {
         result = PrjFS_Result_EIOError;
         goto CleanupAndFail;
+    }
+    
+    if ((fileMode & (S_IXUSR|S_IXGRP|S_IXOTH)) != 0)
+    {
+        struct stat fileAttributes;
+        if (0 != lstat(fullPath, &fileAttributes))
+        {
+           LogWarning("PrjFS_WritePlaceholderFile: lstat failed on %s errno=%d, strerror=%s", fullPath, errno, strerror(errno));
+           result = PrjFS_Result_EIOError;
+           goto CleanupAndFail;
+        }
+
+        FsidInode fsidInode;
+        fsidInode.inode = fileAttributes.st_ino;
+        fsidInode.fsid = s_virtualizationRoot_fsid;
+
+        if (HydrateFile(fullPath, relativePath, fsidInode, 1, "placeholder") != PrjFS_Result_Success)
+        {
+           LogWarning("PrjFS_WritePlaceholderFile: failed to hydrate executable %s", fullPath);
+           result = PrjFS_Result_EIOError;
+           goto CleanupAndFail;
+        }
     }
     
     // TODO(#1370): Only call chmod if fileMode is different than the default file mode
@@ -1018,18 +1053,8 @@ CleanupAndReturn:
     return result;
 }
 
-static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath)
+static PrjFS_Result HydrateFile(const char* absolutePath, const char* relativePath, FsidInode fsidInode, pid_t pid, const char* procname)
 {
-#ifdef DEBUG
-    cout
-        << "PrjFSLib.HandleHydrateFileRequest: "
-        << absolutePath
-        << " (root-relative: " << relativePath << ")"
-        << " Process name: " << request->procname
-        << " Pid: " << request->pid
-        << endl;
-#endif
-        
     PrjFSFileXAttrData xattrData = {};
     if (!TryGetXAttr(absolutePath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
     {
@@ -1045,7 +1070,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     PrjFS_Result result;
     PrjFS_FileHandle fileHandle;
     
-    FileMutexMap::iterator mutexIterator = CheckoutFileMutexIterator(request->fsidInode);
+    FileMutexMap::iterator mutexIterator = CheckoutFileMutexIterator(fsidInode);
     
     {
         mutex_lock lock(*(mutexIterator->second.mutex));
@@ -1081,8 +1106,8 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             relativePath,
             xattrData.providerId,
             xattrData.contentId,
-            request->pid,
-            request->procname,
+            pid,
+            procname,
             &fileHandle);
         
         fflush(fileHandle.file);
@@ -1117,6 +1142,21 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
 CleanupAndReturn:
     ReturnFileMutexIterator(mutexIterator);
     return result;
+}
+
+static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath)
+{
+#ifdef DEBUG
+    cout
+        << "PrjFSLib.HandleHydrateFileRequest: "
+        << absolutePath
+        << " (root-relative: " << relativePath << ")"
+        << " Process name: " << request->procname
+        << " Pid: " << request->pid
+        << endl;
+#endif
+
+    return HydrateFile(absolutePath, relativePath, request->fsidInode, request->pid, request->procname);
 }
 
 static PrjFS_Result HandleNewFileInRootNotification(

@@ -112,6 +112,7 @@ while read line; do
 	 [[ $line != *"FindNewFoldersInRootAndNotifyProvider"* ]] &&      #SHOULD ADD COVERAGE
 	 [[ $line != *"IsDirEntChildDirectory"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"InitializeEmptyPlaceholder"* ]] &&                 #SHOULD ADD COVERAGE
+	 [[ $line != *"HydrateFile"* ]] &&                                #SHOULD ADD COVERAGE
 	 [[ $line != *"IsVirtualizationRoot"* ]] &&                       #SHOULD ADD COVERAGE
 	 [[ $line != *"CombinePaths"* ]] &&                               #SHOULD ADD COVERAGE
 	 [[ $line != *"SetBitInFileFlags"* ]] &&                          #SHOULD ADD COVERAGE
