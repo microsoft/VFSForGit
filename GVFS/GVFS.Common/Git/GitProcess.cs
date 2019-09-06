@@ -482,6 +482,12 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: allowObjectDownloads);
         }
 
+        public Result StatusPorcelain()
+        {
+            string command = "status -uall --porcelain -z";
+            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: false);
+        }
+
         public Result SerializeStatus(bool allowObjectDownloads, string serializePath)
         {
             // specify ignored=matching and --untracked-files=complete
