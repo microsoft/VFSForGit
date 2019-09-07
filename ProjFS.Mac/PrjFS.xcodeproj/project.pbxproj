@@ -288,6 +288,7 @@
 		4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist; sourceTree = "<group>"; };
 		4A08257121E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSKextLogDaemon.cpp; sourceTree = "<group>"; };
 		4A08257221E77BDD00E21AFD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4A0D4DA12323EDDE00589594 /* UserClientUtilities.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = UserClientUtilities.hpp; sourceTree = "<group>"; };
 		4A2A699B2295AA7800ACAAAF /* ArrayUtilities.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ArrayUtilities.hpp; sourceTree = "<group>"; };
 		4A2A699D2296BACE00ACAAAF /* KauthHandlerPrivate.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KauthHandlerPrivate.hpp; sourceTree = "<group>"; };
 		4A2A699F2297339A00ACAAAF /* KextAssertIntegration.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KextAssertIntegration.m; sourceTree = "<group>"; };
@@ -482,6 +483,7 @@
 				4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */,
 				4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */,
 				4391F89621E42AC40008103C /* public */,
+				4A0D4DA12323EDDE00589594 /* UserClientUtilities.hpp */,
 				4391F8A721E42AC50008103C /* VirtualizationRoots.cpp */,
 				4391F89421E42AC40008103C /* VirtualizationRoots.hpp */,
 				4A781DB722299C5300DB7733 /* VirtualizationRootsTestable.hpp */,

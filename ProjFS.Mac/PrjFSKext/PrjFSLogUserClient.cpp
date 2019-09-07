@@ -5,6 +5,7 @@
 #include "public/PrjFSVnodeCacheHealth.h"
 #include "PerformanceTracing.hpp"
 #include "VnodeCache.hpp"
+#include "UserClientUtilities.hpp"
 #include <IOKit/IOSharedDataQueue.h>
 
 
@@ -172,15 +173,7 @@ IOReturn PrjFSLogUserClient::externalMethod(
     void* reference)
 {
     IOExternalMethodDispatch local_dispatch = {};
-    if (selector < sizeof(LogUserClientDispatch) / sizeof(LogUserClientDispatch[0]))
-    {
-        if (nullptr != LogUserClientDispatch[selector].function)
-        {
-            local_dispatch = LogUserClientDispatch[selector];
-            dispatch = &local_dispatch;
-            target = this;
-        }
-    }
+    UserClient_ExternalMethodDispatch(this, LogUserClientDispatch, local_dispatch, selector, dispatch, target);
     return this->super::externalMethod(selector, arguments, dispatch, target, reference);
 }
 

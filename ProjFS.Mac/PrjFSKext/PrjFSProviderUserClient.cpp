@@ -4,6 +4,7 @@
 #include "public/Message.h"
 #include "ProviderMessaging.hpp"
 #include "VirtualizationRoots.hpp"
+#include "UserClientUtilities.hpp"
 
 #include <IOKit/IOSharedDataQueue.h>
 #include <sys/proc.h>
@@ -193,15 +194,7 @@ IOReturn PrjFSProviderUserClient::externalMethod(
     void* reference)
 {
     IOExternalMethodDispatch local_dispatch = {};
-    if (selector < sizeof(ProviderUserClientDispatch) / sizeof(ProviderUserClientDispatch[0]))
-    {
-        if (nullptr != ProviderUserClientDispatch[selector].function)
-        {
-            local_dispatch = ProviderUserClientDispatch[selector];
-            dispatch = &local_dispatch;
-            target = this;
-        }
-    }
+    UserClient_ExternalMethodDispatch(this, ProviderUserClientDispatch, local_dispatch, selector, dispatch, target);
     return this->super::externalMethod(selector, arguments, dispatch, target, reference);
 }
 
