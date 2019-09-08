@@ -88,7 +88,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             uint flags);
 
         [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
-        private static extern int MacRename(string oldPath, string newPath);
+        private static extern int POSIXRename(string oldPath, string newPath);
 
         private void OverwritingIndexShouldFail(string testFilePath)
         {
@@ -121,7 +121,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
             else
             {
-                return MacRename(oldPath, newPath) == 0;
+                return POSIXRename(oldPath, newPath) == 0;
             }
         }
     }
