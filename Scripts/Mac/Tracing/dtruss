@@ -833,12 +833,43 @@ proc::posix_spawn:*-failure
 	self->arg3 = 0;
  }
 
- /* print 4 args, arg1 as string */
+ /* print 4 args, arg0 as string, arg3 as decimal */
+ syscall::lstat64_extended:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(\"%S\", 0x%X, 0x%X, %u)\t\t = %d %s%d\n",probefunc,
+	    copyinstr(self->arg0), self->arg1,self->arg2,self->arg3,(int)arg0,
+	    self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg3 = 0;
+ }
+
+
+ /* print 4 args, arg0 as decimal FD, arg1 as string */
  syscall::openat:return,
  syscall::faccessat:return,
  syscall::fchmodat:return,
  syscall::readlinkat:return,
- syscall::fstatat:return
+ syscall::fstatat:return,
+ syscall::fstatat64:return
  /self->start/
  {
 	/* calculate elapsed time */
@@ -856,8 +887,8 @@ proc::posix_spawn:*-failure
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
 
 	/* print main data */
-	printf("%s(0x%X, \"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
-	    self->arg0, copyinstr(self->arg1),self->arg2,self->arg3,(int)arg0,
+	printf("%s(%d%s, \"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
+	    (int32_t)self->arg0, self->arg0 == -2 ? " (AT_FDCWD)" : "", copyinstr(self->arg1),self->arg2,self->arg3,(int)arg0,
 	    self->code,(int)errno);
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
