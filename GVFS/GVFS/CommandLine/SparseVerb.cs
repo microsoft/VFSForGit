@@ -52,103 +52,96 @@ Folders need to be relative to the repos root directory.")
         {
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, SparseVerbName))
             {
-                try
+                tracer.AddLogFileEventListener(
+                    GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Sparse),
+                    EventLevel.Informational,
+                    Keywords.Any);
+
+                bool needToChangeProjection = false;
+                using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase()))
                 {
-                    tracer.AddLogFileEventListener(
-                        GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Sparse),
-                        EventLevel.Informational,
-                        Keywords.Any);
+                    SparseTable sparseTable = new SparseTable(database);
+                    HashSet<string> directories = sparseTable.GetAll();
 
-                    bool needToChangeProjection = false;
-                    using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase()))
+                    string[] foldersToRemove = this.ParseFolderList(this.Remove);
+                    string[] foldersToAdd = this.ParseFolderList(this.Add);
+
+                    if (this.List || (foldersToAdd.Length == 0 && foldersToRemove.Length == 0))
                     {
-                        SparseTable sparseTable = new SparseTable(database);
-                        HashSet<string> directories = sparseTable.GetAll();
-
-                        string[] foldersToRemove = this.ParseFolderList(this.Remove);
-                        string[] foldersToAdd = this.ParseFolderList(this.Add);
-
-                        if (this.List || (foldersToAdd.Length == 0 && foldersToRemove.Length == 0))
+                        if (directories.Count == 0)
                         {
-                            if (directories.Count == 0)
+                            this.Output.WriteLine("No folders in sparse list. When the sparse list is empty, all folders are projected.");
+                        }
+                        else
+                        {
+                            foreach (string directory in directories)
                             {
-                                this.Output.WriteLine("No folders in sparse list.");
+                                this.Output.WriteLine(directory);
                             }
-                            else
-                            {
-                                foreach (string directory in directories)
-                                {
-                                    this.Output.WriteLine(directory);
-                                }
-                            }
-
-                            return;
                         }
 
-                        foreach (string folder in foldersToRemove)
+                        return;
+                    }
+
+                    foreach (string folder in foldersToRemove)
+                    {
+                        if (directories.Contains(folder))
                         {
-                            if (directories.Contains(folder))
+                            needToChangeProjection = true;
+                            break;
+                        }
+                    }
+
+                    if (!needToChangeProjection)
+                    {
+                        foreach (string folder in foldersToAdd)
+                        {
+                            if (!directories.Contains(folder))
                             {
                                 needToChangeProjection = true;
                                 break;
-                            }
-                        }
-
-                        if (!needToChangeProjection)
-                        {
-                            foreach (string folder in foldersToAdd)
-                            {
-                                if (!directories.Contains(folder))
-                                {
-                                    needToChangeProjection = true;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (needToChangeProjection)
-                        {
-                            // Make sure there is a clean git status before allowing sparse set to change
-                            this.CheckGitStatus(tracer, enlistment);
-                            if (!this.ShowStatusWhileRunning(
-                                () =>
-                                {
-                                    foreach (string directoryPath in foldersToRemove)
-                                    {
-                                        tracer.RelatedInfo($"Removing '{directoryPath}' from sparse folders.");
-                                        sparseTable.Remove(directoryPath);
-                                    }
-
-                                    foreach (string directoryPath in foldersToAdd)
-                                    {
-                                        tracer.RelatedInfo($"Adding '{directoryPath}' to sparse folders.");
-                                        sparseTable.Add(directoryPath);
-                                    }
-
-                                    return true;
-                                },
-                                "Updating sparse folder set",
-                                suppressGvfsLogMessage: true))
-                            {
-                                this.ReportErrorAndExit(tracer, "Failed to update sparse folder set.");
                             }
                         }
                     }
 
                     if (needToChangeProjection)
                     {
-                        // Force a projection update to get the current inclusion set
-                        this.ForceProjectionChange(tracer, enlistment);
-                        tracer.RelatedInfo("Projection updated after adding or removing folders.");
-                    }
-                    else
-                    {
-                        this.WriteMessage(tracer, "No folders to update in sparse set.");
+                        // Make sure there is a clean git status before allowing sparse set to change
+                        this.CheckGitStatus(tracer, enlistment);
+                        if (!this.ShowStatusWhileRunning(
+                            () =>
+                            {
+                                foreach (string directoryPath in foldersToRemove)
+                                {
+                                    tracer.RelatedInfo($"Removing '{directoryPath}' from sparse folders.");
+                                    sparseTable.Remove(directoryPath);
+                                }
+
+                                foreach (string directoryPath in foldersToAdd)
+                                {
+                                    tracer.RelatedInfo($"Adding '{directoryPath}' to sparse folders.");
+                                    sparseTable.Add(directoryPath);
+                                }
+
+                                return true;
+                            },
+                            "Updating sparse folder set",
+                            suppressGvfsLogMessage: true))
+                        {
+                            this.ReportErrorAndExit(tracer, "Failed to update sparse folder set.");
+                        }
                     }
                 }
-                catch (Exception e)
+
+                if (needToChangeProjection)
                 {
-                    this.ReportErrorAndExit(tracer, e.ToString());
+                    // Force a projection update to get the current inclusion set
+                    this.ForceProjectionChange(tracer, enlistment);
+                    tracer.RelatedInfo("Projection updated after adding or removing folders.");
+                }
+                else
+                {
+                    this.WriteMessage(tracer, "No folders to update in sparse set.");
                 }
             }
         }
