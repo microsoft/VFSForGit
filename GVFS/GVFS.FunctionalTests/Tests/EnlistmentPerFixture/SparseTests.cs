@@ -478,6 +478,49 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateFoldersInSparseList(new string[0]);
         }
 
+        [TestCase, Order(23)]
+        public void GitStatusShouldRunFilesChangedInSparseSet()
+        {
+            string pathToChangeFiles = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "CommandLine");
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+            this.fileSystem.WriteAllText(Path.Combine(pathToChangeFiles, "NewHelper.cs"), "New Contents");
+            this.fileSystem.DeleteFile(Path.Combine(pathToChangeFiles, "CloneHelper.cs"));
+            this.fileSystem.MoveFile(Path.Combine(pathToChangeFiles, "PrefetchHelper.cs"), Path.Combine(pathToChangeFiles, "PrefetchHelperRenamed.cs"));
+            this.fileSystem.DeleteDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Properties"));
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "add .");
+
+            this.fileSystem.WriteAllText(Path.Combine(pathToChangeFiles, "NewVerb.cs"), "New Contents");
+            this.fileSystem.WriteAllText(Path.Combine(pathToChangeFiles, "CloneVerb.cs"), "New Contents");
+            this.fileSystem.DeleteFile(Path.Combine(pathToChangeFiles, "DiagnoseVerb.cs"));
+            this.fileSystem.MoveFile(Path.Combine(pathToChangeFiles, "LogVerb.cs"), Path.Combine(pathToChangeFiles, "LogVerbRenamed.cs"));
+
+            string expecetedStatusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
+
+            string output = this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
+            output.ShouldContain("Running git status...Succeeded");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
+
+            output = this.gvfsProcess.AddSparseFolders(folders: "Scripts");
+            output.ShouldContain("Running git status...Succeeded");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, "Scripts");
+
+            output = this.gvfsProcess.RemoveSparseFolders(folders: "Scripts");
+            output.ShouldContain("Running git status...Succeeded");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
+
+            output = this.gvfsProcess.RemoveSparseFolders(folders: this.mainSparseFolder);
+            output.ShouldNotContain(ignoreCase: false, unexpectedSubstrings: "Running git status");
+            this.ValidateFoldersInSparseList(new string[0]);
+
+            output = this.gvfsProcess.AddSparseFolders(shouldPrune: false, shouldSucceed: false, folders: "Scripts");
+            output.ShouldContain("Running git status...Failed", "sparse was aborted");
+            this.ValidateFoldersInSparseList(new string[0]);
+
+            string statusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
+            statusOutput.ShouldEqual(expecetedStatusOutput, "Status output should not change.");
+        }
+
         private void ValidatePathAddsAndRemoves(string path, string expectedSparsePath)
         {
             this.gvfsProcess.AddSparseFolders(path);
