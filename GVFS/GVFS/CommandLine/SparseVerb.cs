@@ -3,6 +3,7 @@ using GVFS.Common;
 using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
@@ -21,6 +22,8 @@ Folders need to be relative to the repos root directory.")
     {
         private const string SparseVerbName = "sparse";
         private const string FolderListSeparator = ";";
+        private const char StatusPathSeparatorToken = '\0';
+        private const char StatusRenameToken = 'R';
 
         [Option(
             'a',
@@ -112,12 +115,12 @@ Folders need to be relative to the repos root directory.")
 
                     if (needToChangeProjection || this.Prune)
                     {
-                        // Make sure there is a clean git status before allowing sparse set to change
-                        this.CheckGitStatus(tracer, enlistment);
-                    }
+                        if (directories.Count > 0)
+                        {
+                            // Make sure there is a clean git status before allowing sparse set to change
+                            this.CheckGitStatus(tracer, enlistment, directories);
+                        }
 
-                    if (needToChangeProjection)
-                    {
                         this.UpdateSparseFolders(tracer, sparseTable, foldersToRemove, foldersToAdd);
                     }
                 }
@@ -239,11 +242,28 @@ Folders need to be relative to the repos root directory.")
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
-                    GitProcess git = new GitProcess(enlistment);
-                    GitProcess.Result checkoutResult = git.ForceCheckout("HEAD");
+                    NamedPipeMessages.PostIndexChanged.Response response = null;
 
-                    errorMessage = checkoutResult.Errors;
-                    return checkoutResult.ExitCodeIsSuccess;
+                    try
+                    {
+                        using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+                        {
+                            if (!pipeClient.Connect())
+                            {
+                                this.ReportErrorAndExit("Unable to connect to GVFS.  Try running 'gvfs mount'");
+                            }
+
+                            NamedPipeMessages.PostIndexChanged.Request request = new NamedPipeMessages.PostIndexChanged.Request(updatedWorkingDirectory: true, updatedSkipWorktreeBits: false);
+                            pipeClient.SendRequest(request.CreateMessage());
+                            response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.Message.FromString(pipeClient.ReadRawResponse()).Header);
+                            return response.Result == NamedPipeMessages.PostIndexChanged.SuccessResult;
+                        }
+                    }
+                    catch (BrokenPipeException e)
+                    {
+                        this.ReportErrorAndExit("Unable to communicate with GVFS: " + e.ToString());
+                        return false;
+                    }
                 },
                 "Forcing a projection change",
                 suppressGvfsLogMessage: true))
@@ -252,20 +272,20 @@ Folders need to be relative to the repos root directory.")
             }
         }
 
-        private void CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment)
+        private void CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment, HashSet<string> sparseFolders)
         {
             GitProcess.Result statusResult = null;
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
                     GitProcess git = new GitProcess(enlistment);
-                    statusResult = git.Status(allowObjectDownloads: false, useStatusCache: false, showUntracked: true);
+                    statusResult = git.StatusPorcelain();
                     if (statusResult.ExitCodeIsFailure)
                     {
                         return false;
                     }
 
-                    if (!statusResult.Output.Contains("nothing to commit, working tree clean"))
+                    if (this.ContainsPathNotCoveredBySparseFolders(statusResult.Output, sparseFolders))
                     {
                         return false;
                     }
@@ -290,6 +310,39 @@ Folders need to be relative to the repos root directory.")
 
                 this.ReportErrorAndExit(tracer, SparseVerbName + " was aborted");
             }
+        }
+
+        private bool ContainsPathNotCoveredBySparseFolders(string statusOutput, HashSet<string> sparseFolders)
+        {
+            int index = 0;
+            while (index < statusOutput.Length - 1)
+            {
+                bool isRename = statusOutput[index] == StatusRenameToken || statusOutput[index + 1] == StatusRenameToken;
+                index = index + 3;
+                if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders))
+                {
+                    return true;
+                }
+
+                if (isRename)
+                {
+                    if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private bool PathCoveredBySparseFolders(ref int index, string statusOutput, HashSet<string> sparseFolders)
+        {
+            int endOfPathIndex = statusOutput.IndexOf(StatusPathSeparatorToken, index);
+            string filePath = statusOutput.Substring(index, endOfPathIndex - index)
+                .Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+            index = endOfPathIndex + 1;
+            return sparseFolders.Any(x => filePath.StartsWith(x + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison));
         }
 
         private void WriteMessage(ITracer tracer, string message)

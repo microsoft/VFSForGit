@@ -414,6 +414,70 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             fileToCreate.ShouldNotExistOnDisk(this.fileSystem);
         }
 
+        [TestCase, Order(18)]
+        public void ModifiedFileInSparseSetShouldAllowSparseFolderAdd()
+        {
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+
+            string output = this.gvfsProcess.AddSparseFolders(folders: this.mainSparseFolder);
+            output.ShouldContain("Running git status...Succeeded");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
+        }
+
+        [TestCase, Order(19)]
+        public void ModifiedFileOutsideSparseSetShouldNotAllowSparseFolderAdd()
+        {
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+
+            string output = this.gvfsProcess.AddSparseFolders(shouldPrune: false, shouldSucceed: false, folders: "Scripts");
+            output.ShouldContain("Running git status...Failed", "sparse was aborted");
+            this.ValidateFoldersInSparseList(new string[0]);
+        }
+
+        [TestCase, Order(20)]
+        public void ModifiedFileInSparseSetShouldAllowSparseFolderRemove()
+        {
+            this.gvfsProcess.AddSparseFolders(this.mainSparseFolder, "Scripts");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, "Scripts");
+
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+
+            string output = this.gvfsProcess.RemoveSparseFolders(folders: "Scripts");
+            output.ShouldContain("Running git status...Succeeded");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
+        }
+
+        [TestCase, Order(21)]
+        public void ModifiedFileOldSparseSetShouldNotAllowSparseFolderRemove()
+        {
+            this.gvfsProcess.AddSparseFolders(this.mainSparseFolder, "Scripts");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, "Scripts");
+
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+
+            string output = this.gvfsProcess.RemoveSparseFolders(shouldPrune: false, shouldSucceed: false, folders: this.mainSparseFolder);
+            output.ShouldContain("Running git status...Failed", "sparse was aborted");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, "Scripts");
+        }
+
+        [TestCase, Order(22)]
+        public void GitStatusShouldNotRunWhenRemovingAllSparseFolders()
+        {
+            this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
+
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+
+            string output = this.gvfsProcess.RemoveSparseFolders(folders: this.mainSparseFolder);
+            output.ShouldNotContain(ignoreCase: false, unexpectedSubstrings: "Running git status");
+            this.ValidateFoldersInSparseList(new string[0]);
+        }
+
         private void ValidatePathAddsAndRemoves(string path, string expectedSparsePath)
         {
             this.gvfsProcess.AddSparseFolders(path);
