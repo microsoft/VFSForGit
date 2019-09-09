@@ -833,6 +833,35 @@ proc::posix_spawn:*-failure
 	self->arg3 = 0;
  }
 
+ /* print 4 args, arg0 as string, arg1 as string, arg2 as decimal, arg3 as hex */
+ syscall::listxattr:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(\"%S\", \"%S\", %u, 0x%X)\t\t = %d %s%d\n",probefunc,
+	    copyinstr(self->arg0), self->arg1 ? copyinstr(self->arg1) : "[NULL]", self->arg2, self->arg3, (int)arg0,
+	    self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg3 = 0;
+ }
+
  /* print 4 args, arg0 as string, arg3 as decimal */
  syscall::lstat64_extended:return
  /self->start/
