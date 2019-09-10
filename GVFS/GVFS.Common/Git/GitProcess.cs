@@ -562,12 +562,12 @@ namespace GVFS.Common.Git
         public Result WriteMultiPackIndex(string objectDir)
         {
             // We override the config settings so we keep writing the MIDX file even if it is disabled for reads.
-            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index write --object-dir=\"" + objectDir + "\"");
+            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index write --object-dir=\"" + objectDir + "\" --no-progress");
         }
 
         public Result VerifyMultiPackIndex(string objectDir)
         {
-            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"" + objectDir + "\"");
+            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"" + objectDir + "\" --no-progress");
         }
 
         public Result RemoteAdd(string remoteName, string url)
@@ -635,12 +635,12 @@ namespace GVFS.Common.Git
 
         public Result MultiPackIndexExpire(string gitObjectDirectory)
         {
-            return this.InvokeGitAgainstDotGitFolder($"multi-pack-index expire --object-dir=\"{gitObjectDirectory}\"");
+            return this.InvokeGitAgainstDotGitFolder($"multi-pack-index expire --object-dir=\"{gitObjectDirectory}\" --no-progress");
         }
 
         public Result MultiPackIndexRepack(string gitObjectDirectory, string batchSize)
         {
-            return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize}");
+            return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize} --no-progress");
         }
 
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory)

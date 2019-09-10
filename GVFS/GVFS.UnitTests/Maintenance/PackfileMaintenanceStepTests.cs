@@ -23,10 +23,10 @@ namespace GVFS.UnitTests.Maintenance
         private MockGitProcess gitProcess;
         private GVFSContext context;
 
-        private string ExpireCommand => $"multi-pack-index expire --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\"";
-        private string VerifyCommand => $"-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\"";
-        private string WriteCommand => $"-c core.multiPackIndex=true multi-pack-index write --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\"";
-        private string RepackCommand => $"-c pack.threads=1 multi-pack-index repack --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\" --batch-size=2g";
+        private string ExpireCommand => $"multi-pack-index expire --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\" --no-progress";
+        private string VerifyCommand => $"-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\" --no-progress";
+        private string WriteCommand => $"-c core.multiPackIndex=true multi-pack-index write --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\" --no-progress";
+        private string RepackCommand => $"-c pack.threads=1 multi-pack-index repack --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\" --batch-size=2g --no-progress";
 
         [TestCase]
         public void PackfileMaintenanceIgnoreTimeRestriction()
