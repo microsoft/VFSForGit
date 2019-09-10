@@ -88,10 +88,7 @@ Folders need to be relative to the repos root directory.")
                 return;
             }
 
-            if (!this.OptionsValid())
-            {
-                return;
-            }
+            this.CheckOptions();
 
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, SparseVerbName))
             {
@@ -281,15 +278,14 @@ Folders need to be relative to the repos root directory.")
             }
         }
 
-        private bool OptionsValid()
+        private void CheckOptions()
         {
             if (!string.IsNullOrEmpty(this.Set) && (
                 !string.IsNullOrEmpty(this.Add) ||
                 !string.IsNullOrEmpty(this.Remove) ||
                 !string.IsNullOrEmpty(this.File)))
             {
-                this.Output.WriteLine("--set not valid with other options.");
-                return false;
+                this.ReportErrorAndExit("--set not valid with other options.");
             }
 
             if (!string.IsNullOrEmpty(this.File) && (
@@ -297,11 +293,8 @@ Folders need to be relative to the repos root directory.")
                 !string.IsNullOrEmpty(this.Remove) ||
                 !string.IsNullOrEmpty(this.Set)))
             {
-                this.Output.WriteLine("--file not valid with other options.");
-                return false;
+                this.ReportErrorAndExit("--file not valid with other options.");
             }
-
-            return true;
         }
 
         private void ListSparseFolders(string enlistmentRoot)
