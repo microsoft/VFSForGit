@@ -28,6 +28,7 @@ namespace GVFS.FunctionalTests.Tools
         private const string DiskLayoutMinorVersionKey = "DiskLayoutMinorVersion";
         private const string LocalCacheRootKey = "LocalCacheRoot";
         private const string GitObjectsRootKey = "GitObjectsRoot";
+        private const string PlaceholdersNeedUpdate = "PlaceholdersNeedUpdate";
         private const string BlobSizesRootKey = "BlobSizesRoot";
 
         private const string PrjFSLibPath = "libPrjFSLib.dylib";
@@ -63,6 +64,11 @@ namespace GVFS.FunctionalTests.Tools
         public static void SaveGitObjectsRoot(string dotGVFSRoot, string value)
         {
             SavePersistedValue(dotGVFSRoot, GitObjectsRootKey, value);
+        }
+
+        public static void SetPlaceholderUpdatesRequired(string dotGVFSRoot, bool isUpdateRequired)
+        {
+            SavePersistedValue(dotGVFSRoot, PlaceholdersNeedUpdate, isUpdateRequired.ToString());
         }
 
         public static string GetPersistedGitObjectsRoot(string dotGVFSRoot)
@@ -130,6 +136,16 @@ namespace GVFS.FunctionalTests.Tools
                 command.CommandText = "INSERT OR REPLACE INTO Placeholder (path, pathType, sha) VALUES (@path, @pathType, NULL)";
                 command.Parameters.AddWithValue("@path", path);
                 command.Parameters.AddWithValue("@pathType", pathType);
+                return command.ExecuteNonQuery();
+            });
+        }
+
+        public static void DeletePlaceholder(string placeholdersDbPath, string path)
+        {
+            RunSqliteCommand(placeholdersDbPath, command =>
+            {
+                command.CommandText = "DELETE FROM Placeholder WHERE path = @path";
+                command.Parameters.AddWithValue("@path", path);
                 return command.ExecuteNonQuery();
             });
         }

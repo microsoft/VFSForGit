@@ -257,6 +257,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, deletedDirEntry);
         }
 
+        [TestCase]
+        public void MountingARepositoryThatRequiresPlaceholderUpdatesWorks()
+        {
+            string placeholderRelativePath = Path.Combine("EnumerateAndReadTestFiles", "a.txt");
+            string placeholderPath = this.Enlistment.GetVirtualPathTo(placeholderRelativePath);
+
+            // Ensure the placeholder is on disk and hydrated
+            placeholderPath.ShouldBeAFile(this.fileSystem).WithContents();
+
+            this.Enlistment.UnmountGVFS();
+
+            File.Delete(placeholderPath);
+            GVFSHelpers.DeletePlaceholder(
+                Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit),
+                placeholderRelativePath);
+            GVFSHelpers.SetPlaceholderUpdatesRequired(this.Enlistment.DotGVFSRoot, true);
+
+            this.Enlistment.MountGVFS();
+        }
+
         [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]
         public void MountFailsAfterBreakingDowngrade(string mountSubfolder)
         {

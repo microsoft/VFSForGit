@@ -156,6 +156,7 @@ namespace GVFS.Virtualization
 
         public bool TryStart(out string error)
         {
+            this.fileSystemVirtualizer.Initialize(this);
             this.modifiedPaths.RemoveEntriesWithParentFolderEntry(this.context.Tracer);
             this.modifiedPaths.WriteAllEntriesAndFlush();
 
@@ -168,7 +169,7 @@ namespace GVFS.Virtualization
 
             this.backgroundFileSystemTaskRunner.Start();
 
-            if (!this.fileSystemVirtualizer.TryStart(this, out error))
+            if (!this.fileSystemVirtualizer.TryStart(out error))
             {
                 return false;
             }
