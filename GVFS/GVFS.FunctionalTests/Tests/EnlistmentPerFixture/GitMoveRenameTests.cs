@@ -220,7 +220,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             result.Output.ShouldContain("deleted:    Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program.cs");
         }
 
+        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCase, Order(11)]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void GitStatusAfterRenameFolderIntoRepo()
         {
             string folderName = "GitStatusAfterRenameFolderIntoRepo";

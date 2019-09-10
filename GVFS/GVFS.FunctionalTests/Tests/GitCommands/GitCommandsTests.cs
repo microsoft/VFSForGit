@@ -415,7 +415,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileShouldHaveCaseMatchingName(newFileName);
         }
 
+        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFileFromOutsideRepoToInsideRepoAndAdd()
         {
             string testFileContents = "0123456789";
@@ -448,7 +450,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
         }
 
+        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFolderFromOutsideRepoToInsideRepoAndAdd()
         {
             string testFileContents = "0123456789";
@@ -485,7 +489,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
         }
 
+        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFileFromInsideRepoToOutsideRepoAndCommit()
         {
             string newBranchName = "tests/functional/MoveFileFromInsideRepoToOutsideRepoAndCommit";

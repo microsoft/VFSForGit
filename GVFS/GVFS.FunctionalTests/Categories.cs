@@ -6,6 +6,8 @@
         public const string FastFetch = "FastFetch";
         public const string GitCommands = "GitCommands";
 
+        public const string RepositoryMountsSameFileSystem = "RepositoryMountsSameFileSystem";
+
         public const string WindowsOnly = "WindowsOnly";
         public const string MacOnly = "MacOnly";
         public const string POSIXOnly = "POSIXOnly";
