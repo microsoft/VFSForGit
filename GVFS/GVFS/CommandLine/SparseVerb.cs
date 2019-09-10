@@ -73,6 +73,14 @@ Folders need to be relative to the repos root directory.")
             HelpText = "Remove any folders that are not in the list of sparse folders.")]
         public bool Prune { get; set; }
 
+        [Option(
+            'd',
+            "disable",
+            Required = false,
+            Default = false,
+            HelpText = "Disable the sparse feature.  This will remove all folders in the sparse list and start projecting all folders.")]
+        public bool Disable { get; set; }
+
         protected override string VerbName => SparseVerbName;
 
         protected override void Execute(GVFSEnlistment enlistment)
