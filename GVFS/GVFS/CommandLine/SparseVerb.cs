@@ -26,6 +26,22 @@ Folders need to be relative to the repos root directory.")
         private const char StatusRenameToken = 'R';
 
         [Option(
+            's',
+            "set",
+            Required = false,
+            Default = "",
+            HelpText = "A semicolon-delimited list of repo root relative folders to use as the sparse set for determining what to project. Wildcards are not supported.")]
+        public string Set { get; set; }
+
+        [Option(
+            'f',
+            "file",
+            Required = false,
+            Default = "",
+            HelpText = "Path to a file that will has repo root relative folders to use as the sparse set. One folder per line. Wildcards are not supported.")]
+        public string File { get; set; }
+
+        [Option(
             'a',
             "add",
             Required = false,
