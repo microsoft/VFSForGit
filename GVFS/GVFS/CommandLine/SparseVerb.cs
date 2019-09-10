@@ -46,6 +46,14 @@ Folders need to be relative to the repos root directory.")
             HelpText = "List of folders in the sparse set for determining what to project.")]
         public bool List { get; set; }
 
+        [Option(
+            'p',
+            "prune",
+            Required = false,
+            Default = false,
+            HelpText = "Remove any folders that are not in the list of sparse folders.")]
+        public bool Prune { get; set; }
+
         protected override string VerbName => SparseVerbName;
 
         protected override void Execute(GVFSEnlistment enlistment)
@@ -57,16 +65,17 @@ Folders need to be relative to the repos root directory.")
                     EventLevel.Informational,
                     Keywords.Any);
 
+                HashSet<string> directories;
                 bool needToChangeProjection = false;
                 using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase()))
                 {
                     SparseTable sparseTable = new SparseTable(database);
-                    HashSet<string> directories = sparseTable.GetAll();
+                    directories = sparseTable.GetAll();
 
                     string[] foldersToRemove = this.ParseFolderList(this.Remove);
                     string[] foldersToAdd = this.ParseFolderList(this.Add);
 
-                    if (this.List || (foldersToAdd.Length == 0 && foldersToRemove.Length == 0))
+                    if (this.List || (foldersToAdd.Length == 0 && foldersToRemove.Length == 0 && !this.Prune))
                     {
                         if (directories.Count == 0)
                         {
@@ -88,48 +97,28 @@ Folders need to be relative to the repos root directory.")
                         if (directories.Contains(folder))
                         {
                             needToChangeProjection = true;
-                            break;
+                            directories.Remove(folder);
                         }
                     }
 
-                    if (!needToChangeProjection)
+                    foreach (string folder in foldersToAdd)
                     {
-                        foreach (string folder in foldersToAdd)
+                        if (!directories.Contains(folder))
                         {
-                            if (!directories.Contains(folder))
-                            {
-                                needToChangeProjection = true;
-                                break;
-                            }
+                            needToChangeProjection = true;
+                            directories.Add(folder);
                         }
+                    }
+
+                    if (needToChangeProjection || this.Prune)
+                    {
+                        // Make sure there is a clean git status before allowing sparse set to change
+                        this.CheckGitStatus(tracer, enlistment);
                     }
 
                     if (needToChangeProjection)
                     {
-                        // Make sure there is a clean git status before allowing sparse set to change
-                        this.CheckGitStatus(tracer, enlistment);
-                        if (!this.ShowStatusWhileRunning(
-                            () =>
-                            {
-                                foreach (string directoryPath in foldersToRemove)
-                                {
-                                    tracer.RelatedInfo($"Removing '{directoryPath}' from sparse folders.");
-                                    sparseTable.Remove(directoryPath);
-                                }
-
-                                foreach (string directoryPath in foldersToAdd)
-                                {
-                                    tracer.RelatedInfo($"Adding '{directoryPath}' to sparse folders.");
-                                    sparseTable.Add(directoryPath);
-                                }
-
-                                return true;
-                            },
-                            "Updating sparse folder set",
-                            suppressGvfsLogMessage: true))
-                        {
-                            this.ReportErrorAndExit(tracer, "Failed to update sparse folder set.");
-                        }
+                        this.UpdateSparseFolders(tracer, sparseTable, foldersToRemove, foldersToAdd);
                     }
                 }
 
@@ -143,6 +132,89 @@ Folders need to be relative to the repos root directory.")
                 {
                     this.WriteMessage(tracer, "No folders to update in sparse set.");
                 }
+
+                if (this.Prune)
+                {
+                    this.PruneFoldersOutsideSparse(tracer, enlistment, directories);
+                }
+            }
+        }
+
+        private void PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, HashSet<string> sparseFolders)
+        {
+            string[] directoriesToDehydrate = this.GetDirectoriesOutsideSparse(enlistment.WorkingDirectoryBackingRoot, sparseFolders);
+            if (directoriesToDehydrate.Length > 0)
+            {
+                if (!this.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        ReturnCode verbReturnCode = this.ExecuteGVFSVerb<DehydrateVerb>(
+                            tracer,
+                            verb =>
+                            {
+                                verb.Confirmed = true;
+                                verb.Folders = string.Join(FolderListSeparator, directoriesToDehydrate);
+                            });
+
+                        return verbReturnCode == ReturnCode.Success;
+                    },
+                    "Pruning folders"))
+                {
+                    this.ReportErrorAndExit(tracer, "Failed to prune.");
+                }
+            }
+        }
+
+        private string[] GetDirectoriesOutsideSparse(string rootPath, HashSet<string> sparseFolders)
+        {
+            PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+            Queue<string> foldersToEnumerate = new Queue<string>();
+            foldersToEnumerate.Enqueue(rootPath);
+
+            List<string> foldersOutsideSparse = new List<string>();
+            while (foldersToEnumerate.Count > 0)
+            {
+                string folderToEnumerate = foldersToEnumerate.Dequeue();
+                foreach (string directory in fileSystem.EnumerateDirectories(folderToEnumerate))
+                {
+                    string enlistmentRootRelativeFolderPath = GVFSDatabase.NormalizePath(directory.Substring(rootPath.Length));
+                    if (sparseFolders.Any(x => x.StartsWith(enlistmentRootRelativeFolderPath + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison)))
+                    {
+                        foldersToEnumerate.Enqueue(directory);
+                    }
+                    else if (!sparseFolders.Contains(enlistmentRootRelativeFolderPath))
+                    {
+                        foldersOutsideSparse.Add(enlistmentRootRelativeFolderPath);
+                    }
+                }
+            }
+
+            return foldersOutsideSparse.ToArray();
+        }
+
+        private void UpdateSparseFolders(ITracer tracer, SparseTable sparseTable, string[] foldersToRemove, string[] foldersToAdd)
+        {
+            if (!this.ShowStatusWhileRunning(
+                () =>
+                {
+                    foreach (string directoryPath in foldersToRemove)
+                    {
+                        tracer.RelatedInfo($"Removing '{directoryPath}' from sparse folders.");
+                        sparseTable.Remove(directoryPath);
+                    }
+
+                    foreach (string directoryPath in foldersToAdd)
+                    {
+                        tracer.RelatedInfo($"Adding '{directoryPath}' to sparse folders.");
+                        sparseTable.Add(directoryPath);
+                    }
+
+                    return true;
+                },
+                "Updating sparse folder set",
+                suppressGvfsLogMessage: true))
+            {
+                this.ReportErrorAndExit(tracer, "Failed to update sparse folder set.");
             }
         }
 
