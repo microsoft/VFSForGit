@@ -77,6 +77,16 @@ Folders need to be relative to the repos root directory.")
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
+            if (this.List || (
+                string.IsNullOrEmpty(this.Add) &&
+                string.IsNullOrEmpty(this.Remove) &&
+                string.IsNullOrEmpty(this.Set) &&
+                string.IsNullOrEmpty(this.File)))
+            {
+                this.ListSparseFolders(enlistment.EnlistmentRoot);
+                return;
+            }
+
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, SparseVerbName))
             {
                 tracer.AddLogFileEventListener(
@@ -93,23 +103,7 @@ Folders need to be relative to the repos root directory.")
 
                     string[] foldersToRemove = this.ParseFolderList(this.Remove);
                     string[] foldersToAdd = this.ParseFolderList(this.Add);
-
-                    if (this.List || (foldersToAdd.Length == 0 && foldersToRemove.Length == 0 && !this.Prune))
-                    {
-                        if (directories.Count == 0)
-                        {
-                            this.Output.WriteLine("No folders in sparse list. When the sparse list is empty, all folders are projected.");
-                        }
-                        else
-                        {
-                            foreach (string directory in directories)
-                            {
-                                this.Output.WriteLine(directory);
-                            }
-                        }
-
-                        return;
-                    }
+                    string[] foldersToSet = this.ParseFolderList(this.Set);
 
                     foreach (string folder in foldersToRemove)
                     {
@@ -234,6 +228,26 @@ Folders need to be relative to the repos root directory.")
                 suppressGvfsLogMessage: true))
             {
                 this.ReportErrorAndExit(tracer, "Failed to update sparse folder set.");
+            }
+        }
+
+        private void ListSparseFolders(string enlistmentRoot)
+        {
+            using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistmentRoot, new SqliteDatabase()))
+            {
+                SparseTable sparseTable = new SparseTable(database);
+                HashSet<string> directories = sparseTable.GetAll();
+                if (directories.Count == 0)
+                {
+                    this.Output.WriteLine("No folders in sparse list. When the sparse list is empty, all folders are projected.");
+                }
+                else
+                {
+                    foreach (string directory in directories)
+                    {
+                        this.Output.WriteLine(directory);
+                    }
+                }
             }
         }
 
