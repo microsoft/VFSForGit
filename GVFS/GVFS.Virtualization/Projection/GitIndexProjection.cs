@@ -1554,6 +1554,17 @@ namespace GVFS.Virtualization.Projection
                             {
                                 this.placeholderDatabase.AddPartialFolder(childRelativePath);
                             }
+                            else if (result.Result == FSResult.IOError)
+                            {
+                                // When running in sparse mode there could be directories that were left on disk but are not in the
+                                // modified paths or in the placeholder list because they were not part of the projection
+                                // At this point they need to be re-expanded because they are on disk and part of the projection
+                                if (this.context.FileSystem.DirectoryExists(Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, childRelativePath)))
+                                {
+                                    this.ReExpandFolder(childRelativePath, existingPlaceholders);
+                                    this.placeholderDatabase.AddExpandedFolder(childRelativePath);
+                                }
+                            }
                         }
                         else
                         {

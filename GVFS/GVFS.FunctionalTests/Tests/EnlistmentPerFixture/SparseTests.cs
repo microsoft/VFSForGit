@@ -5,6 +5,7 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
@@ -22,7 +23,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void Setup()
         {
             this.gvfsProcess = new GVFSProcess(this.Enlistment);
-            this.allRootDirectories = Directory.GetDirectories(this.Enlistment.RepoRoot);
+            this.allRootDirectories = Directory.GetDirectories(this.Enlistment.RepoRoot, "*", SearchOption.AllDirectories)
+                .Where(x => !x.Contains(Path.DirectorySeparatorChar + ".git" + Path.DirectorySeparatorChar))
+                .ToArray();
             this.directoriesInMainFolder = Directory.GetDirectories(Path.Combine(this.Enlistment.RepoRoot, this.mainSparseFolder));
         }
 
@@ -38,7 +41,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
 
             // Remove all sparse folders should make all folders appear again
-            string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);
+            string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot, "*", SearchOption.AllDirectories)
+                .Where(x => !x.Contains(Path.DirectorySeparatorChar + ".git" + Path.DirectorySeparatorChar))
+                .ToArray();
             directories.ShouldMatchInOrder(this.allRootDirectories);
             this.ValidateFoldersInSparseList(new string[0]);
         }
@@ -479,7 +484,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(23)]
-        public void GitStatusShouldRunFilesChangedInSparseSet()
+        public void GitStatusShouldRunWithFilesChangedInSparseSet()
         {
             string pathToChangeFiles = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "CommandLine");
             string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
