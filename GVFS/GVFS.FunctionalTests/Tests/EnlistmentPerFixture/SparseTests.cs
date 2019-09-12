@@ -573,6 +573,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateFoldersInSparseList("Scripts", "GitCommandsTests");
         }
 
+        [TestCase, Order(30)]
+        public void DisableWithOtherOptionsFails()
+        {
+            string output = this.gvfsProcess.Sparse($"--disable --add test1", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+            output = this.gvfsProcess.Sparse($"--disable --remove test1", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+            output = this.gvfsProcess.Sparse($"--disable --set test1", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+            output = this.gvfsProcess.Sparse($"--disable --file test1", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+            output = this.gvfsProcess.Sparse($"--disable --prune", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+        }
+
         private void CheckMainSparseFolder()
         {
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);

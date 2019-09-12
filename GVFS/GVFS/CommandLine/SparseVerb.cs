@@ -87,6 +87,7 @@ Folders need to be relative to the repos root directory.")
         {
             if (this.List || (
                 !this.Prune &&
+                !this.Disable &&
                 string.IsNullOrEmpty(this.Add) &&
                 string.IsNullOrEmpty(this.Remove) &&
                 string.IsNullOrEmpty(this.Set) &&
@@ -288,6 +289,16 @@ Folders need to be relative to the repos root directory.")
 
         private void CheckOptions()
         {
+            if (this.Disable && (
+                this.Prune ||
+                !string.IsNullOrEmpty(this.Set) ||
+                !string.IsNullOrEmpty(this.Add) ||
+                !string.IsNullOrEmpty(this.Remove) ||
+                !string.IsNullOrEmpty(this.File)))
+            {
+                this.ReportErrorAndExit(ReturnCode.GenericError, "--disable not valid with other options.");
+            }
+
             if (!string.IsNullOrEmpty(this.Set) && (
                 !string.IsNullOrEmpty(this.Add) ||
                 !string.IsNullOrEmpty(this.Remove) ||
