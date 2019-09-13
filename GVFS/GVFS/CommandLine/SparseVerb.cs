@@ -116,11 +116,18 @@ Folders need to be relative to the repos root directory.")
                     List<string> foldersToRemove = new List<string>();
                     List<string> foldersToAdd = new List<string>();
 
-                    if (this.Disable && directories.Count > 0)
+                    if (this.Disable)
                     {
-                        needToChangeProjection = true;
-                        foldersToRemove.AddRange(directories);
-                        directories.Clear();
+                        if (directories.Count > 0)
+                        {
+                            needToChangeProjection = true;
+                            foldersToRemove.AddRange(directories);
+                            directories.Clear();
+                        }
+                        else
+                        {
+                            return;
+                        }
                     }
                     else if (!string.IsNullOrEmpty(this.Set) || !string.IsNullOrEmpty(this.File))
                     {

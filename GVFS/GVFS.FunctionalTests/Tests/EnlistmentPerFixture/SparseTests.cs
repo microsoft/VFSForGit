@@ -585,6 +585,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             output.ShouldContain("--disable not valid with other options.");
         }
 
+        [TestCase, Order(30)]
+        public void DisableWhenNotInSparseModeShouldBeNoop()
+        {
+            this.ValidateFoldersInSparseList(new string[0]);
+            string output = this.gvfsProcess.Sparse("--disable", shouldSucceed: true);
+            output.ShouldEqual(string.Empty);
+            this.ValidateFoldersInSparseList(new string[0]);
+        }
+
         private void CheckMainSparseFolder()
         {
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);
