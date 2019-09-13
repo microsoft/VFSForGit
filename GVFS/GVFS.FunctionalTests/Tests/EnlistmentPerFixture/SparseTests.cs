@@ -17,14 +17,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private FileSystemRunner fileSystem = new SystemIORunner();
         private GVFSProcess gvfsProcess;
         private string mainSparseFolder = Path.Combine("GVFS", "GVFS");
-        private string[] allRootDirectories;
+        private string[] allDirectories;
         private string[] directoriesInMainFolder;
 
         [OneTimeSetUp]
         public void Setup()
         {
             this.gvfsProcess = new GVFSProcess(this.Enlistment);
-            this.allRootDirectories = Directory.GetDirectories(this.Enlistment.RepoRoot, "*", SearchOption.AllDirectories)
+            this.allDirectories = Directory.GetDirectories(this.Enlistment.RepoRoot, "*", SearchOption.AllDirectories)
                 .Where(x => !x.Contains(Path.DirectorySeparatorChar + ".git" + Path.DirectorySeparatorChar))
                 .ToArray();
             this.directoriesInMainFolder = Directory.GetDirectories(Path.Combine(this.Enlistment.RepoRoot, this.mainSparseFolder));
@@ -36,16 +36,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
 
-            foreach (string sparseFolder in this.gvfsProcess.GetSparseFolders())
-            {
-                this.gvfsProcess.RemoveSparseFolders(sparseFolder);
-            }
+            this.gvfsProcess.Sparse("--disable", shouldSucceed: true);
 
             // Remove all sparse folders should make all folders appear again
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot, "*", SearchOption.AllDirectories)
                 .Where(x => !x.Contains(Path.DirectorySeparatorChar + ".git" + Path.DirectorySeparatorChar))
                 .ToArray();
-            directories.ShouldMatchInOrder(this.allRootDirectories);
+            directories.ShouldMatchInOrder(this.allDirectories);
             this.ValidateFoldersInSparseList(new string[0]);
         }
 

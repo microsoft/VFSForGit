@@ -116,7 +116,13 @@ Folders need to be relative to the repos root directory.")
                     List<string> foldersToRemove = new List<string>();
                     List<string> foldersToAdd = new List<string>();
 
-                    if (!string.IsNullOrEmpty(this.Set) || !string.IsNullOrEmpty(this.File))
+                    if (this.Disable && directories.Count > 0)
+                    {
+                        needToChangeProjection = true;
+                        foldersToRemove.AddRange(directories);
+                        directories.Clear();
+                    }
+                    else if (!string.IsNullOrEmpty(this.Set) || !string.IsNullOrEmpty(this.File))
                     {
                         IEnumerable<string> folders = null;
                         if (!string.IsNullOrEmpty(this.Set))
@@ -296,7 +302,7 @@ Folders need to be relative to the repos root directory.")
                 !string.IsNullOrEmpty(this.Remove) ||
                 !string.IsNullOrEmpty(this.File)))
             {
-                this.ReportErrorAndExit(ReturnCode.GenericError, "--disable not valid with other options.");
+                this.ReportErrorAndExit("--disable not valid with other options.");
             }
 
             if (!string.IsNullOrEmpty(this.Set) && (
