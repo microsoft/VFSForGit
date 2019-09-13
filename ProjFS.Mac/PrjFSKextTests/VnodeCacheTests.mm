@@ -108,9 +108,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 }
 
 - (void)testVnodeCache_FindRootForVnode_EmptyCache {
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(
-        nullptr /* no client */,
-        0,
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(
         self->repoRootVnode.get(),
         self->repoRootVnode->GetVid(),
         FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
@@ -139,9 +137,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 }
 
 - (void)testVnodeCache_FindRootForVnode_FullCache {
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(
-        nullptr /* no client */,
-        0,
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(
         self->repoRootVnode.get(),
         self->repoRootVnode->GetVid(),
         FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
@@ -177,9 +173,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 }
 
 - (void)testVnodeCache_FindRootForVnode_VnodeInCache {
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(
-        nullptr /* no client */,
-        0,
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(
         self->repoRootVnode.get(),
         self->repoRootVnode->GetVid(),
         FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
@@ -226,9 +220,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 }
 
 - (void)testVnodeCache_RefreshRootForVnode {
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(
-        nullptr /* no client */,
-        0,
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(
         self->repoRootVnode.get(),
         self->repoRootVnode->GetVid(),
         FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
@@ -286,9 +278,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 }
 
 - (void)testVnodeCache_InvalidateVnodeRootAndGetLatestRoot {
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(
-        nullptr /* no client */,
-        0,
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(
         self->repoRootVnode.get(),
         self->repoRootVnode->GetVid(),
         FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
@@ -446,9 +436,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 }
 
 - (void)testFindVnodeRootFromDiskAndUpdateCache_RefreshAndInvalidateEntry {
-    VirtualizationRootHandle onDiskRootHandle = InsertVirtualizationRoot_Locked(
-        nullptr /* no client */,
-        0,
+    VirtualizationRootHandle onDiskRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(
         self->repoRootVnode.get(),
         self->repoRootVnode->GetVid(),
         FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
@@ -526,9 +514,7 @@ static const VirtualizationRootHandle DummyRootHandleTwo = 52;
 }
 
 - (void)testFindVnodeRootFromDiskAndUpdateCache_FullCache {
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(
-        nullptr /* no client */,
-        0,
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(
         self->repoRootVnode.get(),
         self->repoRootVnode->GetVid(),
         FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },

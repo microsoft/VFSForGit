@@ -3,6 +3,7 @@
 #include "../PrjFSLib/Json/JsonWriter.hpp"
 #include "../PrjFSLib/PrjFSUser.hpp"
 #include <atomic>
+#include <dirent.h>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -10,7 +11,9 @@
 #include <IOKit/IOKitLib.h>
 #include <signal.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
+#include <unistd.h>
 
 using std::atomic_exchange;
 using std::atomic_uint32_t;
@@ -21,6 +24,9 @@ using std::ostringstream;
 using std::string;
 
 static const char PrjFSKextLogDaemon_OSLogSubsystem[] = "org.vfsforgit.prjfs.PrjFSKextLogDaemon";
+static const char PanicLogDirectory[] = "/Library/Logs/DiagnosticReports";
+static const char PanicLogTimestampDirectory[] = "/usr/local/vfsforgit/diagnostics";
+static const char PanicLogTimestampFile[] = "/usr/local/vfsforgit/diagnostics/LastRun.txt";
 static const int INVALID_SOCKET_FD = -1;
 
 static os_log_t s_daemonLogger, s_kextLogger;
@@ -40,6 +46,9 @@ static mutex s_messageListenerMutex;
 
 static atomic_uint32_t s_droppedMessageCount(0);
 
+static void LogPanics();
+static long GetFileModifiedTime(const char* path);
+static bool DoesPathExist(const char* path);
 static void StartLoggingKextMessages(io_connect_t connection, io_service_t service);
 static void HandleSigterm(int sig, siginfo_t* info, void* uc);
 static void SetupExitSignalHandler();
@@ -127,6 +136,7 @@ int main(int argc, const char* argv[])
 
     os_log(s_daemonLogger, "PrjFSKextLogDaemon running");
 
+    LogPanics();
     CFRunLoopRun();
 
     os_log(s_daemonLogger, "PrjFSKextLogDaemon shutting down");
@@ -153,6 +163,117 @@ static os_log_type_t KextLogLevelAsOSLogType(KextLog_Level level)
     default:
         return OS_LOG_TYPE_ERROR;
     }
+}
+
+static void LogPanics()
+{
+    DIR* dr = opendir(PanicLogDirectory);
+    if (dr == nullptr)
+    {
+        ostringstream errorMessage;
+        errorMessage << "Unable to open " << PanicLogDirectory << ", errno=" << errno << ", errorstr=" << strerror(errno);
+        LogDaemonError(errorMessage.str());
+        return;
+    }
+
+    // Look up the last run time
+    long lastRunTimestamp = GetFileModifiedTime(PanicLogTimestampFile);
+
+    struct dirent* dirEntry;
+    while ((dirEntry = readdir(dr)) != nullptr)
+    {
+        // Only check files
+        if(dirEntry->d_type == DT_REG)
+        {
+           // Check for .panic extension
+           const char* ext = strrchr(dirEntry->d_name,'.');
+           if(ext != nullptr && strcmp(ext, ".panic") == 0)
+           {
+               // Get the full name of the panic file
+               string fullFileName = PanicLogDirectory;
+               fullFileName += "/";
+               fullFileName += dirEntry->d_name;
+
+               // Verify it's after the last timestamp
+               long panicLogTime = GetFileModifiedTime(fullFileName.c_str());
+               if (panicLogTime == 0)
+               {
+                   // Record error if we can't determine timestamp
+                   os_log(s_daemonLogger, "Unable to run stat on panic at %{public}s errno=%d strerror=%{public}s\n", fullFileName.c_str(), errno, strerror(errno));
+                   continue;
+               }
+
+               if (panicLogTime >= lastRunTimestamp)
+               {
+                  // Check if 'org.vfsforgit.PrjFSKext(' occurs in the log
+                  // If it does, then PrjFSKext may have caused the panic and we should log an error
+                  FILE* fp = fopen(fullFileName.c_str(), "r");
+                  if (fp != nullptr)
+                  {
+                      char* line = nullptr;
+                      size_t len = 0;
+                      ssize_t read;
+                      while ((read = getline(&line, &len, fp)) != -1)
+                      {
+                          if (strstr(line, "org.vfsforgit.PrjFSKext(") != nullptr)
+                          {
+                              ostringstream errorMessage;
+                              errorMessage << "Found panic at " << fullFileName.c_str() << "\n";
+                              LogDaemonError(errorMessage.str());
+                              break;
+                          }
+                      }
+                      
+                      fclose(fp);
+                      free(line);
+                  }
+                  else
+                  {
+                      os_log(s_daemonLogger, "Unable open %{public}s errno=%d strerror=%{public}s\n", fullFileName.c_str(), errno, strerror(errno));
+                      continue;
+                  }
+              }
+           }
+        }
+    }
+    closedir(dr);
+
+    // Update timestamp file
+    if (!DoesPathExist(PanicLogTimestampDirectory))
+    {
+        mkdir(PanicLogTimestampDirectory, 0755);
+    }
+    
+    FILE* fp = fopen(PanicLogTimestampFile, "a");
+    if (fp != nullptr)
+    {
+       fprintf(fp, "Completed Panic Sweep for :%ld\n", lastRunTimestamp);
+       fclose(fp);
+    }
+    else
+    {
+        os_log(s_daemonLogger, "Unable to save panic timestamp file %{public}s errno=%d strerror=%{public}s\n", PanicLogTimestampFile, errno, strerror(errno));
+    }
+}
+
+static long GetFileModifiedTime(const char* path)
+{
+    struct stat attr;
+    if (stat(path, &attr) == -1)
+    {
+        return 0;
+    }
+    return attr.st_mtimespec.tv_sec;
+}
+
+static bool DoesPathExist(const char* path)
+{
+    struct stat attr;
+    if (stat(path, &attr) == -1)
+    {
+        return false;
+    }
+    return true;
 }
 
 static void StartLoggingKextMessages(io_connect_t connection, io_service_t prjfsService)

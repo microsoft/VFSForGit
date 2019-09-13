@@ -23,8 +23,8 @@ namespace GVFS.Tests.Should
         public static Dictionary<TKey, TValue> ShouldContain<TKey, TValue>(this Dictionary<TKey, TValue> dictionary, TKey key, TValue value)
         {
             TValue dictionaryValue;
-            dictionary.TryGetValue(key, out dictionaryValue).ShouldBeTrue();
-            dictionaryValue.ShouldEqual(value);
+            dictionary.TryGetValue(key, out dictionaryValue).ShouldBeTrue($"Dictionary {nameof(ShouldContain)} does not contain {key}");
+            dictionaryValue.ShouldEqual(value, $"Dictionary {nameof(ShouldContain)} does not match on key {key} expected: {value} actual: {dictionaryValue}");
 
             return dictionary;
         }
@@ -112,6 +112,11 @@ namespace GVFS.Tests.Should
             foreach (T groupMissingItem in groupMissingItems)
             {
                 errorMessage.AppendLine(string.Format("Missing: {0}", groupMissingItem));
+            }
+
+            if (!Enumerable.SequenceEqual(group, expectedValues, comparer))
+            {
+                errorMessage.AppendLine(string.Format("Items are not in the same order: '{0}' vs. '{1}'", string.Join(",", group), string.Join(",", expectedValues)));
             }
 
             if (errorMessage.Length > 0)

@@ -17,7 +17,7 @@ namespace GVFS.RepairJobs
 
         public override string Name
         {
-            get { return @".git\HEAD"; }
+            get { return GVFSConstants.DotGit.Head; }
         }
 
         public override IssueType HasIssue(List<string> messages)
@@ -52,7 +52,7 @@ namespace GVFS.RepairJobs
 
             try
             {
-                string refPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head);
+                string refPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Head);
                 File.WriteAllText(refPath, refLog.TargetSha);
             }
             catch (IOException ex)
@@ -82,7 +82,7 @@ namespace GVFS.RepairJobs
         /// <param name="fullSymbolicRef">A full symbolic ref name. eg. HEAD, refs/remotes/origin/HEAD, refs/heads/master</param>
         private static bool TryReadLastRefLogEntry(Enlistment enlistment, string fullSymbolicRef, out RefLogEntry refLog, out string error)
         {
-            string refLogPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Logs.Root, fullSymbolicRef);
+            string refLogPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Logs.Root, fullSymbolicRef);
             if (!File.Exists(refLogPath))
             {
                 refLog = null;
@@ -112,7 +112,7 @@ namespace GVFS.RepairJobs
 
         private static bool TryParseHead(Enlistment enlistment, List<string> messages)
         {
-            string refPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head);
+            string refPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Head);
             if (!File.Exists(refPath))
             {
                 messages.Add("Could not find ref file for '" + GVFSConstants.DotGit.Head + "'");
@@ -126,7 +126,7 @@ namespace GVFS.RepairJobs
             }
             catch (IOException ex)
             {
-                messages.Add("IOException while reading .git\\HEAD: " + ex.Message);
+                messages.Add($"IOException while reading {GVFSConstants.DotGit.Head}: " + ex.Message);
                 return false;
             }
 
@@ -145,35 +145,35 @@ namespace GVFS.RepairJobs
         {
             Func<string, string> createErrorMessage = operation => string.Format("Can't repair HEAD while a {0} operation is in progress", operation);
 
-            string rebasePath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.RebaseApply);
+            string rebasePath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.RebaseApply);
             if (Directory.Exists(rebasePath))
             {
                 messages.Add(createErrorMessage("rebase"));
                 return false;
             }
 
-            string mergeHeadPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.MergeHead);
+            string mergeHeadPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.MergeHead);
             if (File.Exists(mergeHeadPath))
             {
                 messages.Add(createErrorMessage("merge"));
                 return false;
             }
 
-            string bisectStartPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.BisectStart);
+            string bisectStartPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.BisectStart);
             if (File.Exists(bisectStartPath))
             {
                 messages.Add(createErrorMessage("bisect"));
                 return false;
             }
 
-            string cherrypickHeadPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.CherryPickHead);
+            string cherrypickHeadPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.CherryPickHead);
             if (File.Exists(cherrypickHeadPath))
             {
                 messages.Add(createErrorMessage("cherry-pick"));
                 return false;
             }
 
-            string revertHeadPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.RevertHead);
+            string revertHeadPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.RevertHead);
             if (File.Exists(revertHeadPath))
             {
                 messages.Add(createErrorMessage("revert"));

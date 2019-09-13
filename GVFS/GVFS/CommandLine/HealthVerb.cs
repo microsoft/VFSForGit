@@ -36,7 +36,7 @@ namespace GVFS.CommandLine
             // Now default to the current working directory when running the verb without a specified path
             if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
             {
-                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, StringComparison.OrdinalIgnoreCase))
+                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
                 }
@@ -76,7 +76,7 @@ namespace GVFS.CommandLine
             longest = Math.Max(longest, modifiedPathsCountFormatted.Length);
 
             // Sort the dictionary to find the most hydrated directories by health score
-            List<KeyValuePair<string, int>> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
+            List<EnlistmentHealthCalculator.SubDirectoryInfo> topLevelDirectoriesByHydration = enlistmentHealthData.DirectoryHydrationLevels.Take(this.DirectoryDisplayCount).ToList();
 
             this.Output.WriteLine("\nHealth of directory: " + enlistmentHealthData.TargetDirectory);
             this.Output.WriteLine("Total files in HEAD commit:           " + trackedFilesCountFormatted.PadLeft(longest) + " | 100%");
@@ -88,14 +88,16 @@ namespace GVFS.CommandLine
             this.Output.WriteLine("\nMost hydrated top level directories:");
 
             int maxCountLength = 0;
-            foreach (KeyValuePair<string, int> pair in topLevelDirectoriesByHydration)
+            int maxTotalLength = 0;
+            foreach (EnlistmentHealthCalculator.SubDirectoryInfo directoryInfo in topLevelDirectoriesByHydration)
             {
-                maxCountLength = Math.Max(maxCountLength, pair.Value.ToString("N0").Length);
+                maxCountLength = Math.Max(maxCountLength, directoryInfo.HydratedFileCount.ToString("N0").Length);
+                maxTotalLength = Math.Max(maxTotalLength, directoryInfo.TotalFileCount.ToString("N0").Length);
             }
 
-            foreach (KeyValuePair<string, int> pair in topLevelDirectoriesByHydration)
+            foreach (EnlistmentHealthCalculator.SubDirectoryInfo directoryInfo in topLevelDirectoriesByHydration)
             {
-                this.Output.WriteLine(" " + pair.Value.ToString("N0").PadLeft(maxCountLength) + " | " + pair.Key);
+                this.Output.WriteLine(" " + directoryInfo.HydratedFileCount.ToString("N0").PadLeft(maxCountLength) + " / " + directoryInfo.TotalFileCount.ToString("N0").PadRight(maxTotalLength) + " | " + directoryInfo.Name);
             }
 
             bool healthyRepo = (enlistmentHealthData.PlaceholderPercentage + enlistmentHealthData.ModifiedPathsPercentage) < MaximumHealthyHydration;

@@ -177,7 +177,6 @@ namespace GVFS.DiskLayoutUpgrades
                 enlistment = GVFSEnlistment.CreateFromDirectory(
                     enlistmentRoot,
                     GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
-                    ProcessHelper.GetCurrentProcessLocation(),
                     authentication: null);
             }
             catch (InvalidRepoException e)

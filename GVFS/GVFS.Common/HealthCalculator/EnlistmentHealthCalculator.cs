@@ -26,8 +26,8 @@ namespace GVFS.Common
             int gitTrackedItemsCount = 0;
             int placeholderCount = 0;
             int modifiedPathsCount = 0;
-            Dictionary<string, int> gitTrackedItemsDirectoryTally = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            Dictionary<string, int> hydratedFilesDirectoryTally = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, int> gitTrackedItemsDirectoryTally = new Dictionary<string, int>(GVFSPlatform.Instance.Constants.PathComparer);
+            Dictionary<string, int> hydratedFilesDirectoryTally = new Dictionary<string, int>(GVFSPlatform.Instance.Constants.PathComparer);
 
             // Parent directory is a path relative to the root of the repository which is already in git format
             if (!parentDirectory.EndsWith(GVFSConstants.GitPathSeparatorString) && parentDirectory.Length > 0)
@@ -47,7 +47,7 @@ namespace GVFS.Common
             modifiedPathsCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFolderPaths, hydratedFilesDirectoryTally, parentDirectory);
             modifiedPathsCount += this.CategorizePaths(this.enlistmentPathData.ModifiedFilePaths, hydratedFilesDirectoryTally, parentDirectory);
 
-            Dictionary<string, int> mostHydratedDirectories = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, SubDirectoryInfo> mostHydratedDirectories = new Dictionary<string, SubDirectoryInfo>(GVFSPlatform.Instance.Constants.PathComparer);
 
             // Map directory names to the corresponding health data from gitTrackedItemsDirectoryTally and hydratedFilesDirectoryTally
             foreach (KeyValuePair<string, int> pair in gitTrackedItemsDirectoryTally)
@@ -56,11 +56,11 @@ namespace GVFS.Common
                 {
                     // In-lining this for now until a better "health" calculation is created
                     // Another possibility is the ability to pass a function to use for health (might not be applicable)
-                    mostHydratedDirectories.Add(pair.Key, hydratedFiles);
+                    mostHydratedDirectories.Add(pair.Key, new SubDirectoryInfo(pair.Key, hydratedFiles, pair.Value));
                 }
                 else
                 {
-                    mostHydratedDirectories.Add(pair.Key, 0);
+                    mostHydratedDirectories.Add(pair.Key, new SubDirectoryInfo(pair.Key, 0, pair.Value));
                 }
             }
 
@@ -70,7 +70,7 @@ namespace GVFS.Common
                 placeholderCount,
                 modifiedPathsCount,
                 this.CalculateHealthMetric(placeholderCount + modifiedPathsCount, gitTrackedItemsCount),
-                mostHydratedDirectories.OrderByDescending(kp => kp.Value).ToList());
+                mostHydratedDirectories.OrderByDescending(kp => kp.Value.HydratedFileCount).Select(item => item.Value).ToList());
         }
 
         /// <summary>
@@ -107,12 +107,12 @@ namespace GVFS.Common
             foreach (string path in paths)
             {
                 // Only categorize if descendent of the parentDirectory
-                if (path.StartsWith(parentDirectory, StringComparison.OrdinalIgnoreCase))
+                if (path.StartsWith(parentDirectory, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     count++;
 
                     // If the path is to the parentDirectory, ignore it to avoid adding string.Empty to the data structures
-                    if (!parentDirectory.Equals(path, StringComparison.OrdinalIgnoreCase))
+                    if (!parentDirectory.Equals(path, GVFSPlatform.Instance.Constants.PathComparison))
                     {
                         // Trim the path to parent directory
                         string topDir = this.ParseTopDirectory(this.TrimDirectoryFromPath(path, parentDirectory));
@@ -157,6 +157,20 @@ namespace GVFS.Common
             }
 
             return (decimal)hydratedFileCount / (decimal)totalFileCount;
+        }
+
+        public class SubDirectoryInfo
+        {
+            public SubDirectoryInfo(string name, int hydratedFileCount, int totalFileCount)
+            {
+                this.Name = name;
+                this.HydratedFileCount = hydratedFileCount;
+                this.TotalFileCount = totalFileCount;
+            }
+
+            public string Name { get; private set; }
+            public int HydratedFileCount { get; private set; }
+            public int TotalFileCount { get; private set; }
         }
     }
 }

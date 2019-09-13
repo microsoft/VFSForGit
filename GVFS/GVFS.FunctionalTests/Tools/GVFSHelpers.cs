@@ -7,6 +7,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace GVFS.FunctionalTests.Tools
@@ -28,6 +29,9 @@ namespace GVFS.FunctionalTests.Tools
         private const string LocalCacheRootKey = "LocalCacheRoot";
         private const string GitObjectsRootKey = "GitObjectsRoot";
         private const string BlobSizesRootKey = "BlobSizesRoot";
+
+        private const string PrjFSLibPath = "libPrjFSLib.dylib";
+        private const int PrjFSResultSuccess = 1;
 
         public static string ConvertPathToGitFormat(string path)
         {
@@ -152,7 +156,7 @@ namespace GVFS.FunctionalTests.Tools
             string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
             foreach (string gitPath in gitPaths)
             {
-                modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLineAddPrefix + gitPath, StringComparison.OrdinalIgnoreCase));
+                modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLineAddPrefix + gitPath, FileSystemHelpers.PathComparison));
             }
         }
 
@@ -165,8 +169,8 @@ namespace GVFS.FunctionalTests.Tools
                 modifedPathLines.ShouldNotContain(
                     path =>
                     {
-                        return path.Equals(ModifedPathsLineAddPrefix + gitPath, StringComparison.OrdinalIgnoreCase) ||
-                               path.Equals(ModifedPathsLineDeletePrefix + gitPath, StringComparison.OrdinalIgnoreCase);
+                        return path.Equals(ModifedPathsLineAddPrefix + gitPath, FileSystemHelpers.PathComparison) ||
+                               path.Equals(ModifedPathsLineDeletePrefix + gitPath, FileSystemHelpers.PathComparison);
                     });
             }
         }
@@ -177,6 +181,24 @@ namespace GVFS.FunctionalTests.Tools
                     "\\\"StartedByService\\\":false," +
                     $"\\\"MaintenanceJob\\\":{maintenanceJob}," +
                     $"\\\"PackfileMaintenanceBatchSize\\\":{packfileMaintenanceBatchSize}}}\"";
+        }
+
+        public static void RegisterForOfflineIO()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                uint result = PrjFSRegisterForOfflineIO();
+                result.ShouldEqual<uint>(PrjFSResultSuccess, $"{nameof(RegisterForOfflineIO)} failed (result = {result})");
+            }
+        }
+
+        public static void UnregisterForOfflineIO()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                uint result = PrjFSUnregisterForOfflineIO();
+                result.ShouldEqual<uint>(PrjFSResultSuccess, $"{nameof(RegisterForOfflineIO)} failed (result = {result})");
+            }
         }
 
         private static string GetModifiedPathsContents(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem)
@@ -287,5 +309,11 @@ namespace GVFS.FunctionalTests.Tools
 
             File.WriteAllText(metadataPath, newRepoMetadataContents);
         }
+
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_RegisterForOfflineIO")]
+        private static extern uint PrjFSRegisterForOfflineIO();
+
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_UnregisterForOfflineIO")]
+        private static extern uint PrjFSUnregisterForOfflineIO();
     }
 }

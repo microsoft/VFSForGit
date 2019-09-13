@@ -18,3 +18,8 @@ struct VirtualizationRoot
     // Only contains a valid path for online roots (active provider)
     char                        path[PrjFSMaxPath];
 };
+
+#if defined(KEXT_UNIT_TESTING) && !defined(TESTABLE_KEXT_TARGET) // Building unit tests
+#include <type_traits>
+static_assert(std::is_trivially_copyable<VirtualizationRoot>::value, "The array of VirtualizationRoot objects is resized using memcpy");
+#endif

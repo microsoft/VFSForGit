@@ -196,6 +196,12 @@ namespace GVFS.Platform.Windows
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
 
+        public override FileSystemResult DehydrateFolder(string relativePath)
+        {
+            // Don't need to do anything here because the parent will reproject the folder.
+            return new FileSystemResult(FSResult.Ok, 0);
+        }
+
         // TODO: Need ProjFS 13150199 to be fixed so that GVFS doesn't leak memory if the enumeration cancelled.
         // Currently EndDirectoryEnumerationHandler must be called to remove the ActiveEnumeration from this.activeEnumerations
         public HResult StartDirectoryEnumerationCallback(int commandId, Guid enumerationId, string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)
@@ -1005,29 +1011,17 @@ namespace GVFS.Platform.Windows
                         GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
                         if (gitCommand.IsValidGitCommand)
                         {
-                            string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
-                            HResult hr = this.virtualizationInstance.MarkDirectoryAsPlaceholder(
-                                directoryPath,
-                                FolderContentId,
-                                PlaceholderVersionId);
-
-                            if (hr == HResult.Ok)
-                            {
-                                this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath, triggeringProcessImageFileName);
-                            }
-                            else
-                            {
-                                EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                                metadata.Add("isDirectory", isDirectory);
-                                metadata.Add("triggeringProcessId", triggeringProcessId);
-                                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                                metadata.Add("HResult", hr.ToString());
-                                this.Context.Tracer.RelatedError(metadata, nameof(this.NotifyNewFileCreatedHandler) + "_" + nameof(this.virtualizationInstance.MarkDirectoryAsPlaceholder) + " error");
-                            }
+                            this.MarkDirectoryAsPlaceholder(virtualPath, triggeringProcessId, triggeringProcessImageFileName);
                         }
                         else
                         {
-                            this.FileSystemCallbacks.OnFolderCreated(virtualPath);
+                            this.FileSystemCallbacks.OnFolderCreated(virtualPath, out bool sparseFoldersUpdated);
+                            if (sparseFoldersUpdated)
+                            {
+                                // When sparseFoldersUpdated is true it means the folder was previously excluded from the projection and was
+                                // included so it needs to be marked as a placeholder so that it will start projecting items in the folder
+                                this.MarkDirectoryAsPlaceholder(virtualPath, triggeringProcessId, triggeringProcessImageFileName);
+                            }
                         }
                     }
                     else
@@ -1043,6 +1037,32 @@ namespace GVFS.Platform.Windows
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 this.LogUnhandledExceptionAndExit(nameof(this.NotifyNewFileCreatedHandler), metadata);
+            }
+        }
+
+        private void MarkDirectoryAsPlaceholder(
+            string virtualPath,
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName)
+        {
+            string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
+            HResult hr = this.virtualizationInstance.MarkDirectoryAsPlaceholder(
+                directoryPath,
+                FolderContentId,
+                PlaceholderVersionId);
+
+            if (hr == HResult.Ok)
+            {
+                this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath, triggeringProcessImageFileName);
+            }
+            else
+            {
+                EventMetadata metadata = this.CreateEventMetadata(virtualPath);
+                metadata.Add("isDirectory", true);
+                metadata.Add("triggeringProcessId", triggeringProcessId);
+                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                metadata.Add("HResult", hr.ToString());
+                this.Context.Tracer.RelatedError(metadata, nameof(this.MarkDirectoryAsPlaceholder) + " error");
             }
         }
 
@@ -1076,7 +1096,7 @@ namespace GVFS.Platform.Windows
         {
             try
             {
-                if (destinationPath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
+                if (destinationPath.Equals(GVFSConstants.DotGit.Index, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
                     if (string.IsNullOrEmpty(lockedGitCommand))

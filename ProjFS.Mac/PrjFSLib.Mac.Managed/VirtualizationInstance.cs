@@ -14,6 +14,8 @@ namespace PrjFSLib.Mac
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
         public virtual LogErrorCallback OnLogError { get; set; }
+        public virtual LogWarningCallback OnLogWarning { get; set; }
+        public virtual LogInfoCallback OnLogInfo { get; set; }
 
         public virtual NotifyFileModified OnFileModified { get; set; }
         public virtual NotifyFilePreConvertToFullEvent OnFilePreConvertToFull { get; set; }
@@ -37,6 +39,8 @@ namespace PrjFSLib.Mac
                 OnGetFileStream = this.OnGetFileStream,
                 OnNotifyOperation = this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation),
                 OnLogError = this.OnLogError,
+                OnLogWarning = this.OnLogWarning,
+                OnLogInfo = this.OnLogInfo
             };
 
             return Interop.PrjFSLib.StartVirtualizationInstance(
@@ -94,7 +98,6 @@ namespace PrjFSLib.Mac
             string relativePath,
             byte[] providerId,
             byte[] contentId,
-            ulong fileSize,
             ushort fileMode)
         {
             if (providerId.Length != Interop.PrjFSLib.PlaceholderIdLength ||
@@ -107,7 +110,6 @@ namespace PrjFSLib.Mac
                 relativePath,
                 providerId,
                 contentId,
-                fileSize,
                 fileMode);
         }
 
@@ -122,7 +124,6 @@ namespace PrjFSLib.Mac
             string relativePath,
             byte[] providerId,
             byte[] contentId,
-            ulong fileSize,
             ushort fileMode,
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
@@ -138,7 +139,6 @@ namespace PrjFSLib.Mac
                 relativePath,
                 providerId,
                 contentId,
-                fileSize,
                 fileMode,
                 updateFlags,
                 ref updateFailureCause);

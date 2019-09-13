@@ -54,5 +54,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
         {
             throw new NotSupportedException();
         }
+
+        public bool IsFileSystemSupported(string path, out string error)
+        {
+            error = null;
+            return true;
+        }
     }
 }

@@ -263,6 +263,10 @@ namespace GVFS.Mount
                     this.HandlePostFetchJobRequest(message, connection);
                     break;
 
+                case NamedPipeMessages.DehydrateFolders.Dehydrate:
+                    this.HandleDehydrateFolders(message, connection);
+                    break;
+
                 default:
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", "Mount");
@@ -272,6 +276,41 @@ namespace GVFS.Mount
                     connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
                     break;
             }
+        }
+
+        private void HandleDehydrateFolders(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(message);
+
+            this.tracer.RelatedInfo($"Received dehydrate folders request with body {message.Body}");
+
+            NamedPipeMessages.DehydrateFolders.Response response;
+            if (this.currentState == MountState.Ready)
+            {
+                response = new NamedPipeMessages.DehydrateFolders.Response(NamedPipeMessages.DehydrateFolders.DehydratedResult);
+                string[] folders = request.Folders.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (string folder in folders)
+                {
+                    if (this.fileSystemCallbacks.TryDehydrateFolder(folder))
+                    {
+                        response.SuccessfulFolders.Add(folder);
+                    }
+                    else
+                    {
+                        response.FailedFolders.Add(folder);
+                    }
+                }
+
+                // Since placeholders and modified paths could have changed with the dehydrate, the index needs to be rebuilt
+                GitProcess gitProcess = new GitProcess(this.enlistment);
+                gitProcess.ForceCheckout(GVFSConstants.DotGit.HeadName);
+            }
+            else
+            {
+                response = new NamedPipeMessages.DehydrateFolders.Response(NamedPipeMessages.DehydrateFolders.MountNotReadyResult);
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
         }
 
         private void HandleLockRequest(string messageBody, NamedPipeServer.Connection connection)
@@ -564,6 +603,7 @@ namespace GVFS.Mount
                         backgroundFileSystemTaskRunner: null,
                         fileSystemVirtualizer: virtualizer,
                         placeholderDatabase: new PlaceholderTable(this.gvfsDatabase),
+                        sparseCollection: new SparseTable(this.gvfsDatabase),
                         gitStatusCache: gitStatusCache);
                 }, "Failed to create src folder callback listener");
             this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");

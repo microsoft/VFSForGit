@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 
@@ -8,7 +9,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class MergeConflictTests : GitRepoTests
     {
-        public MergeConflictTests(bool validateWorkingTree)
+        public MergeConflictTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

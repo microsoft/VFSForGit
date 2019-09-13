@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\..\..\packages\NUnit3TestAdapter.3.12.0\build\net35\NUnit3TestAdapter.props" Condition="Exists('..\..\..\packages\NUnit3TestAdapter.3.12.0\build\net35\NUnit3TestAdapter.props')" />
-  <Import Project="..\..\..\packages\NUnit.3.10.1\build\NUnit.props" Condition="Exists('..\..\..\packages\NUnit.3.10.1\build\NUnit.props')" />
+  <Import Project="..\..\..\packages\NUnit3TestAdapter.3.13.0\build\net35\NUnit3TestAdapter.props" Condition="Exists('..\..\..\packages\NUnit3TestAdapter.3.13.0\build\net35\NUnit3TestAdapter.props')" />
+  <Import Project="..\..\..\packages\NUnit.3.12.0\build\NUnit.props" Condition="Exists('..\..\..\packages\NUnit.3.12.0\build\NUnit.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\ProjFS.props" />
   <Import Project="..\ProjectedFSLib.NativeBinaries.props" />
@@ -71,11 +71,11 @@
     <Reference Include="NuGet.Versioning, Version=4.9.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\..\..\packages\NuGet.Versioning.4.9.2\lib\net46\NuGet.Versioning.dll</HintPath>
     </Reference>
-    <Reference Include="nunit.framework, Version=3.10.1.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NUnit.3.10.1\lib\net45\nunit.framework.dll</HintPath>
+    <Reference Include="nunit.framework, Version=3.12.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
+      <HintPath>..\..\..\packages\NUnit.3.12.0\lib\net45\nunit.framework.dll</HintPath>
     </Reference>
-    <Reference Include="nunitlite, Version=3.10.1.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NUnitLite.3.10.1\lib\net45\nunitlite.dll</HintPath>
+    <Reference Include="nunitlite, Version=3.12.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
+      <HintPath>..\..\..\packages\NUnitLite.3.12.0\lib\net45\nunitlite.dll</HintPath>
     </Reference>
     <Reference Include="ProjectedFSLib.Managed, Version=1.1.19156.1, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
       <HintPath>..\..\..\packages\Microsoft.Windows.ProjFS.1.1.19156.1\lib\net461\ProjectedFSLib.Managed.dll</HintPath>
@@ -114,6 +114,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Windows\Mock\WindowsFileSystemVirtualizerTester.cs" />
     <Compile Include="Windows\Upgrader\WindowsNuGetUpgraderTests.cs" />
     <Compile Include="Windows\Mock\MockProcessLauncher.cs" />
     <Compile Include="Windows\Mock\MockVirtualizationInstance.cs" />
@@ -202,8 +203,8 @@
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('..\..\..\packages\NUnit.3.10.1\build\NUnit.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\NUnit.3.10.1\build\NUnit.props'))" />
-    <Error Condition="!Exists('..\..\..\packages\NUnit3TestAdapter.3.12.0\build\net35\NUnit3TestAdapter.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\NUnit3TestAdapter.3.12.0\build\net35\NUnit3TestAdapter.props'))" />
+    <Error Condition="!Exists('..\..\..\packages\NUnit.3.12.0\build\NUnit.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\NUnit.3.12.0\build\NUnit.props'))" />
+    <Error Condition="!Exists('..\..\..\packages\NUnit3TestAdapter.3.13.0\build\net35\NUnit3TestAdapter.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\NUnit3TestAdapter.3.13.0\build\net35\NUnit3TestAdapter.props'))" />
     <Error Condition="!Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.linux.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.linux.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.linux.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.linux.targets'))" />
     <Error Condition="!Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.osx.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.osx.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.osx.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.osx.targets'))" />
     <Error Condition="!Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.v110_xp.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.v110_xp.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.v110_xp.1.1.12\build\net35\SQLitePCLRaw.lib.e_sqlite3.v110_xp.targets'))" />

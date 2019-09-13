@@ -273,9 +273,19 @@ namespace GVFS.Common
             }
         }
 
+        List<IPlaceholderData> IPlaceholderCollection.RemoveAllEntriesForFolder(string path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void AddPlaceholderData(IPlaceholderData data)
+        {
+            throw new NotImplementedException();
+        }
+
         private IEnumerable<string> GenerateDataLines(IEnumerable<IPlaceholderData> updatedPlaceholders)
         {
-            HashSet<string> keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> keys = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
             this.count = 0;
             foreach (IPlaceholderData updated in updatedPlaceholders)

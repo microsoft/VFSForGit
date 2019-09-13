@@ -295,6 +295,33 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     XCTAssertFalse(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
 }
 
+- (void)testRegisterProviderForPath_ResizeArray
+{
+    const char* path = "/Users/test/code/Repo";
+    
+    shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path, VDIR);
+    
+    // Start with 4 "full" array items, forcing resize on next insertion
+    Memory_FreeArray(s_virtualizationRoots, s_maxVirtualizationRoots);
+    s_maxVirtualizationRoots = 4;
+    s_virtualizationRoots = Memory_AllocArray<VirtualizationRoot>(s_maxVirtualizationRoots);
+    memset(s_virtualizationRoots, 0, s_maxVirtualizationRoots * sizeof(s_virtualizationRoots[0]));
+    
+    for (uint32_t i = 0; i < s_maxVirtualizationRoots; ++i)
+    {
+        s_virtualizationRoots[i].inUse = true;
+    }
+    
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
+    XCTAssertEqual(result.error, 0);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(result.root));
+    
+    if (VirtualizationRoot_IsValidRootHandle(result.root))
+    {
+        ActiveProvider_Disconnect(result.root, &self->dummyClient);
+    }
+}
+
 
 - (void)testRegisterProviderForPath_ExistingRecycledRoot
 {
@@ -366,7 +393,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     shared_ptr<vnode> testFileVnode = self->testMountPoint->CreateVnodeTree(filePath);
     shared_ptr<vnode> deepFileVnode = self->testMountPoint->CreateVnodeTree(deeplyNestedPath);
     
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(repoRootHandle));
 
     VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), self->dummyVFSContext);
@@ -386,7 +413,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     shared_ptr<vnode> testFileVnode = self->testMountPoint->CreateVnodeTree(filePath);
     
     
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(repoRootHandle));
     
     VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), self->dummyVFSContext);
@@ -503,5 +530,66 @@ int strprefix(const char* string1, const char* string2)
     XCTAssertFalse(PathInsideDirectory("/some/directory/with/sub/directories", "/some/directory"));
 }
 
+- (void) testOfflineIOProcessArrayOperations
+{
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(10));
+    // Processes can technically register more than once
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(10));
+    // Adding so many items should resize the array a few times
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(11));
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(12));
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(13));
+    
+    for (pid_t testPid = 1; testPid < 20; ++testPid)
+    {
+        bool allowed = VirtualizationRoots_ProcessMayAccessOfflineRoots(testPid);
+        if (testPid < 10 || testPid > 13)
+        {
+            XCTAssertFalse(allowed);
+        }
+        else
+        {
+            XCTAssertTrue(allowed);
+        }
+    }
+    
+    // remove from the middle of the array
+    VirtualizationRoots_RemoveOfflineIOProcess(11);
+
+    for (pid_t testPid = 1; testPid < 20; ++testPid)
+    {
+        bool allowed = VirtualizationRoots_ProcessMayAccessOfflineRoots(testPid);
+        if (testPid < 10 || testPid > 13 || testPid == 11)
+        {
+            XCTAssertFalse(allowed);
+        }
+        else
+        {
+            XCTAssertTrue(allowed);
+        }
+    }
+
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(14));
+
+    for (pid_t testPid = 1; testPid < 20; ++testPid)
+    {
+        bool allowed = VirtualizationRoots_ProcessMayAccessOfflineRoots(testPid);
+        if (testPid < 10 || testPid > 14 || testPid == 11)
+        {
+            XCTAssertFalse(allowed);
+        }
+        else
+        {
+            XCTAssertTrue(allowed);
+        }
+    }
+
+    // These must balance out
+    VirtualizationRoots_RemoveOfflineIOProcess(10);
+    VirtualizationRoots_RemoveOfflineIOProcess(10);
+    VirtualizationRoots_RemoveOfflineIOProcess(14);
+    VirtualizationRoots_RemoveOfflineIOProcess(12);
+    VirtualizationRoots_RemoveOfflineIOProcess(13);
+}
 
 @end

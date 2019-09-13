@@ -4,6 +4,7 @@
 #include "public/PrjFSCommon.h"
 #include "PrjFSClasses.hpp"
 #include "public/PrjFSLogClientShared.h"
+#include "VnodeUtilities.hpp"
 #include "kernel-header-wrappers/vnode.h"
 #include "kernel-header-wrappers/mount.h"
 #include <os/log.h>
@@ -44,16 +45,17 @@ template <typename... args>
         char vnodePath[PrjFSMaxPath] = "";
         int vnodePathLength = PrjFSMaxPath;
         vn_getpath(vnode, vnodePath, &vnodePathLength);
-        KextLog_Printf(loglevel, fmt, a..., vnodePath);
+        const char* vnodeTypeString = Vnode_GetTypeAsString(vnode);
+        KextLog_Printf(loglevel, fmt, a..., vnodePath, vnodeTypeString);
     }
 
 // The dummy _os_log_verify_format_str() expression here is for using its
 // compile time printf format checking, as template varargs can't be annotated
 // as __printflike.
 // The %s at the end of the format string for the vnode path is implicit.
-#define KextLog_FileError(vnode, format, ...) ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_ERROR, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
-#define KextLog_FileInfo(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_INFO, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
-#define KextLog_File(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_DEFAULT, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
+#define KextLog_FileError(vnode, format, ...) ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_ERROR, vnode, format " (vnode path: '%s', type = %s)", ##__VA_ARGS__); })
+#define KextLog_FileInfo(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_INFO, vnode, format " (vnode path: '%s', type = %s)", ##__VA_ARGS__); })
+#define KextLog_File(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_DEFAULT, vnode, format " (vnode path: '%s', type = %s)", ##__VA_ARGS__); })
 
 
 // See comments for KextLogFile_Printf() above for rationale.
@@ -110,7 +112,7 @@ template <typename... args>
 
 #define KextLog_VnodeOp(vnode, vnodeType, procname, action, message) \
     do { \
-        if (VDIR == vnodeType) \
+        if (VDIR == (vnodeType)) \
         { \
             KextLog_File( \
                 vnode, \

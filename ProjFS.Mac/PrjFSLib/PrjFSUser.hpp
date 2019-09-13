@@ -16,7 +16,7 @@ struct DataQueueResources
     dispatch_source_t dispatchSource;
 };
 
-io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType clientType);
+io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType clientType, bool performVersionValidation = true);
 
 struct PrjFSService_WatchContext;
 PrjFSService_WatchContext* PrjFSService_WatchForServiceAndConnect(

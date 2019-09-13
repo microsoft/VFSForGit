@@ -6,14 +6,14 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
 
 namespace GVFS.UnitTests.Common.Database
 {
     [TestFixture]
-    public class PlaceholderTableTests
+    public class PlaceholderTableTests : TableTests<PlaceholderTable>
     {
-        private const string DefaultExceptionMessage = "Somethind bad.";
         private const string DefaultPath = "test";
         private const byte PathTypeFile = 0;
         private const byte PathTypePartialFolder = 1;
@@ -21,52 +21,12 @@ namespace GVFS.UnitTests.Common.Database
         private const byte PathTypePossibleTombstoneFolder = 3;
         private const string DefaultSha = "1234567890123456789012345678901234567890";
 
-        [TestCase]
-        public void ConstructorTest()
-        {
-            Mock<IGVFSConnectionPool> mockConnectionPool = new Mock<IGVFSConnectionPool>(MockBehavior.Strict);
-            PlaceholderTable placeholders = new PlaceholderTable(mockConnectionPool.Object);
-            mockConnectionPool.VerifyAll();
-        }
-
-        [TestCase]
-        public void CreateTableTest()
-        {
-            Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
-            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY COLLATE NOCASE, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
-            mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
-            mockCommand.Setup(x => x.Dispose());
-
-            Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
-            mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
-
-            PlaceholderTable.CreateTable(mockConnection.Object);
-            mockCommand.VerifyAll();
-            mockConnection.VerifyAll();
-        }
-
-        [TestCase]
-        [Category(CategoryConstants.ExceptionExpected)]
-        public void CreateTableThrowsExceptionNotWrappedInGVFSDatabaseException()
-        {
-            Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
-            mockCommand.SetupSet(x => x.CommandText = "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY COLLATE NOCASE, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;");
-            mockCommand.Setup(x => x.ExecuteNonQuery()).Throws(new Exception(DefaultExceptionMessage));
-            mockCommand.Setup(x => x.Dispose());
-
-            Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
-            mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
-
-            Exception ex = Assert.Throws<Exception>(() => PlaceholderTable.CreateTable(mockConnection.Object));
-            ex.Message.ShouldEqual(DefaultExceptionMessage);
-            mockCommand.VerifyAll();
-            mockConnection.VerifyAll();
-        }
+        protected override string CreateTableCommandString => "CREATE TABLE IF NOT EXISTS [Placeholder] (path TEXT PRIMARY KEY COLLATE NOCASE, pathType TINYINT NOT NULL, sha char(40) ) WITHOUT ROWID;";
 
         [TestCase]
         public void GetCountTest()
         {
-            this.TestPlaceholders(
+            this.TestTable(
                 (placeholders, mockCommand) =>
                 {
                     mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Placeholder;");
@@ -79,7 +39,7 @@ namespace GVFS.UnitTests.Common.Database
         [Category(CategoryConstants.ExceptionExpected)]
         public void GetCountThrowsGVFSDatabaseException()
         {
-            this.TestPlaceholders(
+            this.TestTable(
                 (placeholders, mockCommand) =>
                 {
                     mockCommand.SetupSet(x => x.CommandText = "SELECT count(path) FROM Placeholder;");
@@ -93,7 +53,7 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void GetAllFilePathsWithNoResults()
         {
-            this.TestPlaceholdersWithReader(
+            this.TestTableWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    mockReader.Setup(x => x.Read()).Returns(false);
@@ -109,7 +69,7 @@ namespace GVFS.UnitTests.Common.Database
         [Category(CategoryConstants.ExceptionExpected)]
         public void GetAllFilePathsThrowsGVFSDatabaseException()
         {
-            this.TestPlaceholdersWithReader(
+            this.TestTableWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    mockReader.Setup(x => x.Read()).Throws(new Exception(DefaultExceptionMessage));
@@ -124,7 +84,7 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void GetAllFilePathsTest()
         {
-            this.TestPlaceholdersWithReader(
+            this.TestTableWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    int readCalls = 0;
@@ -149,7 +109,7 @@ namespace GVFS.UnitTests.Common.Database
         public void GetAllEntriesThrowsGVFSDatabaseException()
         {
             List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
-            this.TestPlaceholdersWithReader(
+            this.TestTableWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder;");
@@ -165,7 +125,7 @@ namespace GVFS.UnitTests.Common.Database
         public void GetAllEntriesReturnsNothing()
         {
             List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
-            this.TestPlaceholdersWithReader(
+            this.TestTableWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    this.SetupMockReader(mockReader, expectedPlacholders);
@@ -185,7 +145,7 @@ namespace GVFS.UnitTests.Common.Database
         {
             List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
             expectedPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = DefaultPath, PathType = PlaceholderTable.PlaceholderData.PlaceholderType.File, Sha = DefaultSha });
-            this.TestPlaceholdersWithReader(
+            this.TestTableWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    this.SetupMockReader(mockReader, expectedPlacholders);
@@ -205,7 +165,7 @@ namespace GVFS.UnitTests.Common.Database
         {
             List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
             expectedPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = DefaultPath, PathType = PlaceholderTable.PlaceholderData.PlaceholderType.PartialFolder, Sha = null });
-            this.TestPlaceholdersWithReader(
+            this.TestTableWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    this.SetupMockReader(mockReader, expectedPlacholders);
@@ -229,7 +189,7 @@ namespace GVFS.UnitTests.Common.Database
             expectedFolderPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = "test1", PathType = PlaceholderTable.PlaceholderData.PlaceholderType.PartialFolder, Sha = null });
             expectedFolderPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = "test2", PathType = PlaceholderTable.PlaceholderData.PlaceholderType.ExpandedFolder, Sha = null });
             expectedFolderPlacholders.Add(new PlaceholderTable.PlaceholderData() { Path = "test3", PathType = PlaceholderTable.PlaceholderData.PlaceholderType.PossibleTombstoneFolder, Sha = null });
-            this.TestPlaceholdersWithReader(
+            this.TestTableWithReader(
                (placeholders, mockCommand, mockReader) =>
                {
                    this.SetupMockReader(mockReader, expectedFilePlacholders.Union(expectedFolderPlacholders).ToList());
@@ -493,7 +453,7 @@ namespace GVFS.UnitTests.Common.Database
         [TestCase]
         public void RemoveTest()
         {
-            this.TestPlaceholders(
+            this.TestTable(
                 (placeholders, mockCommand) =>
                 {
                     Mock<IDbDataParameter> mockParameter = new Mock<IDbDataParameter>(MockBehavior.Strict);
@@ -520,7 +480,7 @@ namespace GVFS.UnitTests.Common.Database
         [Category(CategoryConstants.ExceptionExpected)]
         public void RemoveThrowsGVFSDatabaseException()
         {
-            this.TestPlaceholders(
+            this.TestTable(
                 (placeholders, mockCommand) =>
                 {
                     mockCommand.SetupSet(x => x.CommandText = "DELETE FROM Placeholder WHERE path = @path;").Throws(new Exception(DefaultExceptionMessage));
@@ -531,9 +491,73 @@ namespace GVFS.UnitTests.Common.Database
                 });
         }
 
+        [TestCase]
+        public void RemoveAllEntriesForFolderTest()
+        {
+            List<PlaceholderTable.PlaceholderData> expectedPlacholders = new List<PlaceholderTable.PlaceholderData>();
+            this.TestTableWithReader(
+                (placeholders, mockCommand, mockReader) =>
+                {
+                    this.SetupMockReader(mockReader, expectedPlacholders);
+
+                    mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;");
+
+                    Mock<IDbDataParameter> mockParameter = new Mock<IDbDataParameter>(MockBehavior.Strict);
+                    mockParameter.SetupSet(x => x.ParameterName = "@path");
+                    mockParameter.SetupSet(x => x.DbType = DbType.String);
+                    mockParameter.SetupSet(x => x.Value = DefaultPath);
+
+                    Mock<IDbDataParameter> mockParameter2 = new Mock<IDbDataParameter>(MockBehavior.Strict);
+                    mockParameter2.SetupSet(x => x.ParameterName = "@pathWithDirectorySeparator");
+                    mockParameter2.SetupSet(x => x.DbType = DbType.String);
+                    mockParameter2.SetupSet(x => x.Value = DefaultPath + Path.DirectorySeparatorChar + "%");
+
+                    Mock<IDataParameterCollection> mockParameters = new Mock<IDataParameterCollection>(MockBehavior.Strict);
+                    mockParameters.Setup(x => x.Add(mockParameter.Object)).Returns(0);
+                    mockParameters.Setup(x => x.Add(mockParameter2.Object)).Returns(0);
+
+                    mockCommand.SetupSet(x => x.CommandText = "DELETE FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;");
+                    mockCommand.SetupSequence(x => x.CreateParameter())
+                        .Returns(mockParameter.Object)
+                        .Returns(mockParameter2.Object);
+                    mockCommand.SetupGet(x => x.Parameters).Returns(mockParameters.Object);
+                    mockCommand.Setup(x => x.ExecuteNonQuery()).Returns(1);
+
+                    placeholders.RemoveAllEntriesForFolder(DefaultPath);
+
+                    mockParameters.VerifyAll();
+                    mockParameter.VerifyAll();
+                });
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void RemoveAllEntriesForFolderThrowsGVFSDatabaseException()
+        {
+            this.TestTable(
+                (placeholders, mockCommand) =>
+                {
+                    mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;").Throws(new Exception(DefaultExceptionMessage));
+
+                    GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.RemoveAllEntriesForFolder(DefaultPath));
+                    ex.Message.ShouldEqual($"PlaceholderTable.RemoveAllEntriesForFolder({DefaultPath}) Exception");
+                    ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
+                });
+        }
+
+        protected override PlaceholderTable TableFactory(IGVFSConnectionPool pool)
+        {
+            return new PlaceholderTable(pool);
+        }
+
+        protected override void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem)
+        {
+            PlaceholderTable.CreateTable(connection, caseSensitiveFileSystem);
+        }
+
         private void TestPlaceholdersInsert(Action<PlaceholderTable> testCode, string path, int pathType, string sha, bool throwException = false)
         {
-            this.TestPlaceholders(
+            this.TestTable(
                 (placeholders, mockCommand) =>
                 {
                     Mock<IDbDataParameter> mockPathParameter = new Mock<IDbDataParameter>(MockBehavior.Strict);
@@ -585,43 +609,6 @@ namespace GVFS.UnitTests.Common.Database
                     mockPathTypeParameter.VerifyAll();
                     mockShaParameter.VerifyAll();
                 });
-        }
-
-        private void TestPlaceholdersWithReader(Action<PlaceholderTable, Mock<IDbCommand>, Mock<IDataReader>> testCode)
-        {
-            this.TestPlaceholders(
-                (placeholders, mockCommand) =>
-                {
-                    Mock<IDataReader> mockReader = new Mock<IDataReader>(MockBehavior.Strict);
-                    mockReader.Setup(x => x.Dispose());
-
-                    mockCommand.Setup(x => x.ExecuteReader()).Returns(mockReader.Object);
-                    testCode(placeholders, mockCommand, mockReader);
-                    mockReader.Verify(x => x.Dispose(), Times.Once);
-                    mockReader.VerifyAll();
-                });
-        }
-
-        private void TestPlaceholders(Action<PlaceholderTable, Mock<IDbCommand>> testCode)
-        {
-            Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
-            mockCommand.Setup(x => x.Dispose());
-
-            Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
-            mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);
-            mockConnection.Setup(x => x.Dispose());
-
-            Mock<IGVFSConnectionPool> mockConnectionPool = new Mock<IGVFSConnectionPool>(MockBehavior.Strict);
-            mockConnectionPool.Setup(x => x.GetConnection()).Returns(mockConnection.Object);
-
-            PlaceholderTable placeholders = new PlaceholderTable(mockConnectionPool.Object);
-            testCode(placeholders, mockCommand);
-
-            mockCommand.Verify(x => x.Dispose(), Times.Once);
-            mockCommand.VerifyAll();
-            mockConnection.Verify(x => x.Dispose(), Times.Once);
-            mockConnection.VerifyAll();
-            mockConnectionPool.VerifyAll();
         }
 
         private void SetupMockReader(Mock<IDataReader> mockReader, List<PlaceholderTable.PlaceholderData> data)

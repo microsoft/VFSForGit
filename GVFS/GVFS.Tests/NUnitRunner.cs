@@ -33,6 +33,15 @@ namespace GVFS.Tests
             return this.args.Remove(arg);
         }
 
+        public void AddGlobalSetupIfNeeded(string globalSetup)
+        {
+            // If there are any test filters, the GlobalSetup still needs to run so add it.
+            if (this.args.Any(x => x.StartsWith("--test=")))
+            {
+                this.args.Add($"--test={globalSetup}");
+            }
+        }
+
         public int RunTests(ICollection<string> includeCategories, ICollection<string> excludeCategories)
         {
             string filters = GetFiltersArgument(includeCategories, excludeCategories);

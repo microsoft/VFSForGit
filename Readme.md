@@ -147,7 +147,7 @@ Note that VFS for Git on Mac is under active development.
 * Try cloning a VFS for Git enabled repository!
 
   ```
-  gvfs clone URL_TO_REPOSITORY --local-cache-path ~/.gvfsCache
+  gvfs clone URL_TO_REPOSITORY
   ```
 
   Note the current use of `--local-cache-path`. Without this argument VFS for Git will encounter a permissions error when it attempts to create its cache at the root of your hard-drive. Automatic picking of the cache path has not yet been ported to VFS for Git on Mac.

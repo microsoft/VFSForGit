@@ -1,4 +1,5 @@
-﻿using GVFS.Virtualization.Projection;
+﻿using GVFS.Common;
+using GVFS.Virtualization.Projection;
 using Microsoft.Windows.ProjFS;
 using System.Collections.Generic;
 
@@ -111,7 +112,7 @@ namespace GVFS.Platform.Windows
 
         private static bool NameMatchesNoWildcardFilter(string name, string filter)
         {
-            return string.Equals(name, filter, System.StringComparison.OrdinalIgnoreCase);
+            return string.Equals(name, filter, GVFSPlatform.Instance.Constants.PathComparison);
         }
 
         private void SaveFilter(string filter)

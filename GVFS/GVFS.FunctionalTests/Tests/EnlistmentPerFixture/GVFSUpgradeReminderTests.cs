@@ -218,7 +218,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                                                     removeUpgradeMessages: false);
 
             if (!string.IsNullOrEmpty(result.Errors) &&
-                result.Errors.Contains("A new version of GVFS is available."))
+                result.Errors.Contains("A new version of VFS for Git is available."))
             {
                 return true;
             }

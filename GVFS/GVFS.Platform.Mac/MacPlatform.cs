@@ -15,6 +15,9 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform : POSIXPlatform
     {
         private const string UpgradeProtectedDataDirectory = "/usr/local/vfsforgit_upgrader";
+        private const string DiagnosticReportsDirectory = "/Library/Logs/DiagnosticReports";
+        private const string PanicFileNamePattern = "*panic";
+        private const string SystemInstallerLogPath = "/var/log/install.log";
 
         public MacPlatform() : base(
              underConstruction: new UnderConstructionFlags(
@@ -35,6 +38,19 @@ namespace GVFS.Platform.Mac
             get
             {
                 return Path.Combine(this.Constants.GVFSBinDirectoryPath, LocalGVFSConfig.FileName);
+            }
+        }
+
+        /// <summary>
+        /// On the Mac VFSForGit installer messages get captured in the system
+        /// wide installer log file. There is no customized log file specific
+        /// to VFSForGit installer.
+        /// </summary>
+        public override bool SupportsSystemInstallLog
+        {
+            get
+            {
+                return true;
             }
         }
 
@@ -85,11 +101,16 @@ namespace GVFS.Platform.Mac
         /// <summary>
         /// This is the directory in which the upgradelogs directory should go.
         /// There can be multiple logs directories, so here we return the containing
-        //  directory.
+        /// directory.
         /// </summary>
         public override string GetUpgradeLogDirectoryParentDirectory()
         {
             return this.GetUpgradeNonProtectedDataDirectory();
+        }
+
+        public override string GetSystemInstallerLogPath()
+        {
+            return SystemInstallerLogPath;
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
@@ -141,6 +162,48 @@ namespace GVFS.Platform.Mac
             running = installed && gvfsService.IsRunning;
         }
 
+        public override bool TryCopyPanicLogs(string copyToDir, out string error)
+        {
+            error = null;
+            try
+            {
+                if (!Directory.Exists(DiagnosticReportsDirectory))
+                {
+                    return true;
+                }
+
+                string copyToPanicDir = Path.Combine(copyToDir, ProjFSKext.DriverLogDirectory, "panic_logs");
+                Directory.CreateDirectory(copyToPanicDir);
+
+                foreach (string filePath in Directory.GetFiles(DiagnosticReportsDirectory, PanicFileNamePattern))
+                {
+                    try
+                    {
+                        // We only include panic logs caused by our kext
+                        // Panics caused by our kext will be in the form DriverName(Version)
+                        // We match the minimal requirement here
+                        if (File.ReadAllText(filePath).Contains(ProjFSKext.DriverName + "("))
+                        {
+                            File.Copy(filePath, Path.Combine(copyToPanicDir, Path.GetFileName(filePath)));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        error = error == null ? string.Empty : error + "\n";
+                        error += $"{nameof(this.TryCopyPanicLogs)}: Failed to handle log {filePath}: {ex.ToString()}";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                error = error == null ? string.Empty : error + "\n";
+                error += $"{nameof(this.TryCopyPanicLogs)}: Failed to copy panic logs: {ex.ToString()}";
+                return false;
+            }
+
+            return error == null;
+        }
+
         public class MacPlatformConstants : POSIXPlatformConstants
         {
             public override string InstallerExtension
@@ -170,6 +233,28 @@ namespace GVFS.Platform.Mac
 
             // Documented here (in the addressing section): https://www.unix.com/man-page/mojave/4/unix/
             public override int MaxPipePathLength => 104;
+
+            public override string UpgradeInstallAdviceMessage
+            {
+                get { return $"When ready, run {this.UpgradeConfirmCommandMessage} to upgrade."; }
+            }
+
+            public override string UpgradeConfirmCommandMessage
+            {
+                get { return UpgradeConfirmMessage; }
+            }
+
+            public override string StartServiceCommandMessage
+            {
+                get { return "`launchctl load /Library/LaunchAgents/org.vfsforgit.service.plist`"; }
+            }
+
+            public override string RunUpdateMessage
+            {
+                get { return $"Run {UpgradeConfirmMessage}."; }
+            }
+
+            public override bool CaseSensitiveFileSystem => false;
         }
     }
 }

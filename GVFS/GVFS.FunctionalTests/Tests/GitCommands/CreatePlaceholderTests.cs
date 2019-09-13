@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 using System.IO;
@@ -13,7 +14,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     {
         private static readonly string FileToRead = Path.Combine("GVFS", "GVFS", "Program.cs");
 
-        public CreatePlaceholderTests(bool validateWorkingTree)
+        public CreatePlaceholderTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

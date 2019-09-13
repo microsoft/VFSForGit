@@ -463,16 +463,16 @@ class PrjFSProviderUserClient
     shared_ptr<mount> testMountNone = mount::Create("msdos", fsid_t{}, 0);
     const string testMountPath = "/Volumes/USBSTICK";
     shared_ptr<vnode> testMountRoot = testMountNone->CreateVnodeTree(testMountPath, VDIR);
-    const string filePath = testMountPath + "/file";
-    shared_ptr<vnode> testVnode = testMountNone->CreateVnodeTree(filePath);
-    const string renamedFilePath = filePath + "_renamed";
+    const string badfsFilePath = testMountPath + "/file";
+    shared_ptr<vnode> testVnode = testMountNone->CreateVnodeTree(badfsFilePath);
+    const string renamedFilePath = badfsFilePath + "_renamed";
 
     HandleFileOpOperation(
         nullptr, // credential
         nullptr, /* idata, unused */
         KAUTH_FILEOP_WILL_RENAME,
         reinterpret_cast<uintptr_t>(testVnode.get()),
-        reinterpret_cast<uintptr_t>(filePath.c_str()),
+        reinterpret_cast<uintptr_t>(badfsFilePath.c_str()),
         reinterpret_cast<uintptr_t>(renamedFilePath.c_str()),
         0); // unused
     XCTAssertEqual(0, s_pendingRenameCount);

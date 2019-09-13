@@ -29,7 +29,7 @@ namespace GVFS.Common
         private const string GitSigner = "Johannes Schindelin";
         private const string GitCertIssuer = "COMODO RSA Code Signing CA";
 
-        private static readonly HashSet<string> GVFSInstallerFileNamePrefixCandidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        private static readonly HashSet<string> GVFSInstallerFileNamePrefixCandidates = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer)
         {
             "SetupGVFS",
             "VFSForGit"
@@ -152,7 +152,7 @@ namespace GVFS.Common
 
             foreach (Asset asset in this.newestRelease.Assets)
             {
-                bool targetOSMatch = string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, StringComparison.OrdinalIgnoreCase);
+                bool targetOSMatch = string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, GVFSPlatform.Instance.Constants.PathComparison);
                 bool isGitAsset = this.IsGitAsset(asset);
                 bool isGVFSAsset = isGitAsset ? false : this.IsGVFSAsset(asset);
                 if (!targetOSMatch || (!isGVFSAsset && !isGitAsset))
@@ -461,7 +461,7 @@ namespace GVFS.Common
         {
             foreach (Asset asset in this.newestRelease.Assets)
             {
-                if (string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     path = asset.LocalPath;
                     if (assetId == GitAssetId && this.IsGitAsset(asset))
@@ -497,7 +497,7 @@ namespace GVFS.Common
         {
             foreach (string fileNamePrefix in expectedFileNamePrefixes)
             {
-                if (asset.Name.StartsWith(fileNamePrefix, StringComparison.OrdinalIgnoreCase))
+                if (asset.Name.StartsWith(fileNamePrefix, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     return true;
                 }

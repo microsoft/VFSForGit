@@ -37,6 +37,12 @@ namespace PrjFSLib.Mac
     public delegate void LogErrorCallback(
         string errorMessage);
 
+    public delegate void LogWarningCallback(
+        string warningMessage);
+
+    public delegate void LogInfoCallback(
+        string infoMessage);
+
     // Pre-event notifications
     public delegate Result NotifyPreDeleteEvent(
         string relativePath,

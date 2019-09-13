@@ -28,6 +28,7 @@ namespace GVFS.Common
         public void Dispose()
         {
             this.Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         protected virtual void Dispose(bool disposing)

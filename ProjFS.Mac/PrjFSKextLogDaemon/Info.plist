@@ -7,8 +7,10 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleVersion</key>
-	<string>0.1</string>
+	<string>$(PRJFS_BUNDLE_VERSION)</string>
 	<key>CFBundleName</key>
 	<string>PrjFSKextLogDaemon</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(PRJFS_BUNDLE_SHORT_VERSION_STRING)</string>
 </dict>
 </plist>

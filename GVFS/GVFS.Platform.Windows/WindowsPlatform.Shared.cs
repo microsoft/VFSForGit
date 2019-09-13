@@ -11,6 +11,7 @@ namespace GVFS.Platform.Windows
     public partial class WindowsPlatform
     {
         public const string DotGVFSRoot = ".gvfs";
+        public const string UpgradeConfirmMessage = "`gvfs upgrade --confirm`";
 
         private const int StillActive = 259; /* from Win32 STILL_ACTIVE */
 
@@ -119,6 +120,11 @@ namespace GVFS.Platform.Windows
         public static string GetUpgradeHighestAvailableVersionDirectoryImplementation()
         {
             return GetUpgradeProtectedDataDirectoryImplementation();
+        }
+
+        public static string GetUpgradeReminderNotificationImplementation()
+        {
+            return $"A new version of VFS for Git is available. Run {UpgradeConfirmMessage} from an elevated command prompt to upgrade.";
         }
 
         [DllImport("kernel32.dll")]

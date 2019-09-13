@@ -57,6 +57,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public abstract void MoveFile_FileShouldNotBeFound(string sourcePath, string targetPath);
         public abstract string ReplaceFile(string sourcePath, string targetPath);
         public abstract void ReplaceFile_FileShouldNotBeFound(string sourcePath, string targetPath);
+        public abstract void ReplaceFile_AccessShouldBeDenied(string sourcePath, string targetPath);
         public abstract string DeleteFile(string path);
         public abstract void DeleteFile_FileShouldNotBeFound(string path);
         public abstract void DeleteFile_AccessShouldBeDenied(string path);

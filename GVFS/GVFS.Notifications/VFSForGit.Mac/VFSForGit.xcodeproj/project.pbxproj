@@ -28,6 +28,7 @@
 		43AF0E0822B023F200E54D48 /* VFSMessageParserTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 43AF0E0622B023F200E54D48 /* VFSMessageParserTests.m */; };
 		43AF0E0922B023F200E54D48 /* VFSForGitNotificationTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 43AF0E0722B023F200E54D48 /* VFSForGitNotificationTests.m */; };
 		43C021F022B18BDD00F868F2 /* VFSNotificationErrors.m in Sources */ = {isa = PBXBuildFile; fileRef = 43C021EF22B18BDD00F868F2 /* VFSNotificationErrors.m */; };
+		43C0221A22BBFA7A00F868F2 /* VFSCommandRunner.m in Sources */ = {isa = PBXBuildFile; fileRef = 43C0221822BBFA7A00F868F2 /* VFSCommandRunner.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +81,8 @@
 		43AF0E0722B023F200E54D48 /* VFSForGitNotificationTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = VFSForGitNotificationTests.m; sourceTree = "<group>"; };
 		43C021EE22B18BDD00F868F2 /* VFSNotificationErrors.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VFSNotificationErrors.h; sourceTree = "<group>"; };
 		43C021EF22B18BDD00F868F2 /* VFSNotificationErrors.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VFSNotificationErrors.m; sourceTree = "<group>"; };
+		43C0221822BBFA7A00F868F2 /* VFSCommandRunner.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = VFSCommandRunner.m; sourceTree = "<group>"; };
+		43C0221922BBFA7A00F868F2 /* VFSCommandRunner.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VFSCommandRunner.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -178,6 +181,8 @@
 		435B1E04228C88E300E853F3 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				43C0221922BBFA7A00F868F2 /* VFSCommandRunner.h */,
+				43C0221822BBFA7A00F868F2 /* VFSCommandRunner.m */,
 				433FE8582280E10F00488730 /* VFSProductInfoFetcher.h */,
 				433FE8592280E10F00488730 /* VFSProductInfoFetcher.m */,
 				435B1E0D228CC1E000E853F3 /* VFSProcessRunner.h */,
@@ -306,6 +311,7 @@
 				433FE8632281D06100488730 /* VFSAboutWindowController.m in Sources */,
 				43AF0DF822B01C9800E54D48 /* VFSForGitNotification.m in Sources */,
 				433FE821227B594300488730 /* main.m in Sources */,
+				43C0221A22BBFA7A00F868F2 /* VFSCommandRunner.m in Sources */,
 				43C021F022B18BDD00F868F2 /* VFSNotificationErrors.m in Sources */,
 				43AF0DFA22B01C9800E54D48 /* VFSMessageParser.m in Sources */,
 				433FE819227B593500488730 /* VFSAppDelegate.m in Sources */,

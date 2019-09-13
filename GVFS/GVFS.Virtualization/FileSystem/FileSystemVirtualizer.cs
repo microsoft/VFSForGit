@@ -111,6 +111,8 @@ namespace GVFS.Virtualization.FileSystem
             UpdatePlaceholderType updateFlags,
             out UpdateFailureReason failureReason);
 
+        public abstract FileSystemResult DehydrateFolder(string relativePath);
+
         public void Dispose()
         {
             if (this.fileAndNetworkRequests != null)
@@ -150,17 +152,17 @@ namespace GVFS.Virtualization.FileSystem
         protected bool IsSpecialGitFile(string fileName)
         {
             return
-                fileName.Equals(GVFSConstants.SpecialGitFiles.GitAttributes, StringComparison.OrdinalIgnoreCase) ||
-                fileName.Equals(GVFSConstants.SpecialGitFiles.GitIgnore, StringComparison.OrdinalIgnoreCase);
+                fileName.Equals(GVFSConstants.SpecialGitFiles.GitAttributes, GVFSPlatform.Instance.Constants.PathComparison) ||
+                fileName.Equals(GVFSConstants.SpecialGitFiles.GitIgnore, GVFSPlatform.Instance.Constants.PathComparison);
         }
 
         protected void OnDotGitFileOrFolderChanged(string relativePath)
         {
-            if (relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
+            if (relativePath.Equals(GVFSConstants.DotGit.Index, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 this.FileSystemCallbacks.OnIndexFileChange();
             }
-            else if (relativePath.Equals(GVFSConstants.DotGit.Logs.Head, StringComparison.OrdinalIgnoreCase))
+            else if (relativePath.Equals(GVFSConstants.DotGit.Logs.Head, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 this.FileSystemCallbacks.OnLogsHeadChange();
             }
@@ -168,7 +170,7 @@ namespace GVFS.Virtualization.FileSystem
             {
                 this.FileSystemCallbacks.OnHeadOrRefChanged();
             }
-            else if (relativePath.Equals(GVFSConstants.DotGit.Info.ExcludePath, StringComparison.OrdinalIgnoreCase))
+            else if (relativePath.Equals(GVFSConstants.DotGit.Info.ExcludePath, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 this.FileSystemCallbacks.OnExcludeFileChanged();
             }
@@ -180,7 +182,7 @@ namespace GVFS.Virtualization.FileSystem
             {
                 this.FileSystemCallbacks.OnHeadOrRefChanged();
             }
-            else if (relativePath.Equals(GVFSConstants.DotGit.Info.ExcludePath, StringComparison.OrdinalIgnoreCase))
+            else if (relativePath.Equals(GVFSConstants.DotGit.Info.ExcludePath, GVFSPlatform.Instance.Constants.PathComparison))
             {
                 this.FileSystemCallbacks.OnExcludeFileChanged();
             }
@@ -364,9 +366,9 @@ namespace GVFS.Virtualization.FileSystem
 
         private static bool IsPathHeadOrLocalBranch(string relativePath)
         {
-            if (!relativePath.EndsWith(GVFSConstants.DotGit.LockExtension, StringComparison.OrdinalIgnoreCase) &&
-                (relativePath.Equals(GVFSConstants.DotGit.Head, StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(GVFSConstants.DotGit.Refs.Heads.RootFolder, StringComparison.OrdinalIgnoreCase)))
+            if (!relativePath.EndsWith(GVFSConstants.DotGit.LockExtension, GVFSPlatform.Instance.Constants.PathComparison) &&
+                (relativePath.Equals(GVFSConstants.DotGit.Head, GVFSPlatform.Instance.Constants.PathComparison) ||
+                relativePath.StartsWith(GVFSConstants.DotGit.Refs.Heads.RootFolder, GVFSPlatform.Instance.Constants.PathComparison)))
             {
                 return true;
             }

@@ -4,6 +4,7 @@ using NUnit.Framework;
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
@@ -12,6 +13,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
     [Category(Categories.ExtraCoverage)]
     public class RepairTests : TestsWithEnlistmentPerTestCase
     {
+        [OneTimeSetUp]
+        public void TurnOfflineIOOn()
+        {
+            GVFSHelpers.RegisterForOfflineIO();
+        }
+
+        [OneTimeTearDown]
+        public void TurnOfflineIOOff()
+        {
+            GVFSHelpers.UnregisterForOfflineIO();
+        }
+
         [TestCase]
         public void NoFixesNeeded()
         {
@@ -25,7 +38,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             this.Enlistment.UnmountGVFS();
 
-            string headFilePath = Path.Combine(this.Enlistment.RepoRoot, ".git", "HEAD");
+            string headFilePath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "HEAD");
             File.WriteAllText(headFilePath, "0000");
             this.Enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when HEAD is corrupt");
 
@@ -39,7 +52,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             this.Enlistment.UnmountGVFS();
 
-            string headFilePath = Path.Combine(this.Enlistment.RepoRoot, ".git", "HEAD");
+            string headFilePath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "HEAD");
             File.WriteAllText(headFilePath, "ref: refs");
             this.Enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when HEAD is corrupt");
 
@@ -53,7 +66,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             this.Enlistment.UnmountGVFS();
 
-            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "index");
             File.Delete(gitIndexPath);
             this.Enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when git index is missing");
 
@@ -67,7 +80,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             this.Enlistment.UnmountGVFS();
 
-            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "index");
             this.CreateCorruptIndexAndRename(
                 gitIndexPath,
                 (current, temp) =>
@@ -90,7 +103,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             this.Enlistment.UnmountGVFS();
 
-            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "index");
 
             // Set the contents of the index file to gitIndexPath NULL
             this.CreateCorruptIndexAndRename(
@@ -114,7 +127,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             this.Enlistment.UnmountGVFS();
 
-            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "index");
 
             // Truncate the contents of the index
             this.CreateCorruptIndexAndRename(
@@ -141,7 +154,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             this.Enlistment.UnmountGVFS();
 
-            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "config");
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "config");
             File.WriteAllText(gitIndexPath, "[cor");
 
             this.Enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when git config is missing");
@@ -149,7 +162,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.RepairWithoutConfirmShouldNotFix();
 
             this.Enlistment.Repair(confirm: true);
-            ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "remote add origin " + this.Enlistment.RepoUrl);
+            ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoBackingRoot, "remote add origin " + this.Enlistment.RepoUrl);
             result.ExitCode.ShouldEqual(0, result.Errors);
             this.Enlistment.MountGVFS();
         }

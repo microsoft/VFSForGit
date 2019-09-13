@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.Tests;
+using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
 using System;
@@ -15,6 +15,7 @@ namespace GVFS.FunctionalTests
         {
             Properties.Settings.Default.Initialize();
             NUnitRunner runner = new NUnitRunner(args);
+            runner.AddGlobalSetupIfNeeded("GVFS.FunctionalTests.GlobalSetup");
 
             if (runner.HasCustomArg("--no-shared-gvfs-cache"))
             {
@@ -43,7 +44,13 @@ namespace GVFS.FunctionalTests
             {
                 Console.WriteLine("Running the full suite of tests");
 
-                GVFSTestConfig.GitRepoTestsValidateWorkTree = DataSources.AllBools;
+                List<object[]> modes = new List<object[]>();
+                foreach (Settings.ValidateWorkingTreeMode mode in Enum.GetValues(typeof(Settings.ValidateWorkingTreeMode)))
+                {
+                    modes.Add(new object[] { mode });
+                }
+
+                GVFSTestConfig.GitRepoTestsValidateWorkTree = modes.ToArray();
 
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
@@ -56,10 +63,20 @@ namespace GVFS.FunctionalTests
             }
             else
             {
+                Settings.ValidateWorkingTreeMode validateMode = Settings.ValidateWorkingTreeMode.Full;
+
+                if (runner.HasCustomArg("--sparse-mode"))
+                {
+                    validateMode = Settings.ValidateWorkingTreeMode.SparseMode;
+
+                    // Only test the git commands in sparse mode for splitting out tests in builds
+                    includeCategories.Add(Categories.GitCommands);
+                }
+
                 GVFSTestConfig.GitRepoTestsValidateWorkTree =
                     new object[]
                     {
-                        new object[] { true }
+                        new object[] { validateMode },
                     };
 
                 if (runner.HasCustomArg("--extra-only"))
@@ -88,15 +105,13 @@ namespace GVFS.FunctionalTests
             {
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
                 excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
-                excludeCategories.Add(Categories.MacTODO.NeedsDehydrate);
-                excludeCategories.Add(Categories.MacTODO.NeedsServiceVerb);
                 excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
-                excludeCategories.Add(Categories.MacTODO.NeedsCorruptObjectFix);
                 excludeCategories.Add(Categories.MacTODO.TestNeedsToLockFile);
                 excludeCategories.Add(Categories.WindowsOnly);
             }
             else
             {
+                // Windows excludes.
                 excludeCategories.Add(Categories.MacOnly);
             }
 
@@ -108,7 +123,6 @@ namespace GVFS.FunctionalTests
 
             RunBeforeAnyTests();
             Environment.ExitCode = runner.RunTests(includeCategories, excludeCategories);
-            RunAfterAllTests();
 
             if (Debugger.IsAttached)
             {
@@ -139,28 +153,6 @@ namespace GVFS.FunctionalTests
                     File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
                 }
             }
-        }
-
-        private static void RunAfterAllTests()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                string serviceLogFolder = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                    "GVFS",
-                    GVFSServiceProcess.TestServiceName,
-                    "Logs");
-
-                Console.WriteLine("GVFS.Service logs at '{0}' attached below.\n\n", serviceLogFolder);
-                foreach (string filename in TestResultsHelper.GetAllFilesInDirectory(serviceLogFolder))
-                {
-                    TestResultsHelper.OutputFileContents(filename);
-                }
-
-                GVFSServiceProcess.UninstallService();
-            }
-
-            PrintTestCaseStats.PrintRunTimeStats();
         }
     }
 }

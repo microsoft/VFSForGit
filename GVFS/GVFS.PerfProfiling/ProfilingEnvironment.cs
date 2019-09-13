@@ -26,9 +26,7 @@ namespace GVFS.PerfProfiling
         private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
         {
             string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            string hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-
-            return GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication: null);
+            return GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, authentication: null);
         }
 
         private GVFSContext CreateContext()
@@ -89,6 +87,7 @@ namespace GVFS.PerfProfiling
                 backgroundFileSystemTaskRunner: null,
                 fileSystemVirtualizer: null,
                 placeholderDatabase: new PlaceholderTable(this.gvfsDatabase),
+                sparseCollection: new SparseTable(this.gvfsDatabase),
                 gitStatusCache : null);
         }
     }

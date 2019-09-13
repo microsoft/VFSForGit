@@ -53,6 +53,7 @@ using std::string;
 - (void)testIsFileSystemCrawler {
     XCTAssertTrue(IsFileSystemCrawler("mds"));
     XCTAssertTrue(IsFileSystemCrawler("mdworker"));
+    XCTAssertTrue(IsFileSystemCrawler("mdworker_shared"));
     XCTAssertTrue(IsFileSystemCrawler("mds_stores"));
     XCTAssertTrue(IsFileSystemCrawler("fseventsd"));
     XCTAssertTrue(IsFileSystemCrawler("Spotlight"));
@@ -89,7 +90,6 @@ using std::string;
     bool fileFlaggedInRoot;
     shared_ptr<mount> testMount = mount::Create();
     shared_ptr<vnode> testVnode = vnode::Create(testMount, "/foo");
-    vfs_context_t _Nonnull context = vfs_context_create(nullptr);
     
     testVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(TryGetFileIsFlaggedAsInRoot(testVnode.get(), context, &fileFlaggedInRoot));
@@ -121,7 +121,6 @@ using std::string;
     shared_ptr<vnode> testVnode = vnode::Create(testMount, "/foo");
     testVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
     PerfTracer perfTracer;
-    vfs_context_t _Nonnull context = vfs_context_create(nullptr);
     kauth_action_t action = KAUTH_VNODE_READ_DATA;
     
     // Out Parameters

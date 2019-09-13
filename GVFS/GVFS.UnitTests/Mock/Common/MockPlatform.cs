@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 
 namespace GVFS.UnitTests.Mock.Common
 {
@@ -31,6 +32,14 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string GVFSConfigPath { get => Path.Combine("mock:", LocalGVFSConfig.FileName); }
 
+        public override bool SupportsSystemInstallLog
+        {
+            get
+            {
+                return false;
+            }
+        }
+
         public override GVFSPlatformConstants Constants { get; } = new MockPlatformConstants();
 
         public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
@@ -40,7 +49,7 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error)
+        public override bool TryGetGVFSHooksVersion(out string hooksVersion, out string error)
         {
             throw new NotSupportedException();
         }
@@ -111,6 +120,11 @@ namespace GVFS.UnitTests.Mock.Common
         public override string GetUpgradeLogDirectoryParentDirectory()
         {
             return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetSystemInstallerLogPath()
+        {
+            return "MockPath";
         }
 
         public override string GetUpgradeHighestAvailableVersionDirectory()
@@ -187,6 +201,12 @@ namespace GVFS.UnitTests.Mock.Common
             return true;
         }
 
+        public override bool TryCopyPanicLogs(string copyToDir, out string error)
+        {
+            error = null;
+            return true;
+        }
+
         public class MockPlatformConstants : GVFSPlatformConstants
         {
             public override string ExecutableExtension
@@ -231,12 +251,34 @@ namespace GVFS.UnitTests.Mock.Common
 
             public override HashSet<string> UpgradeBlockingProcesses
             {
-                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "wish", "bash" }; }
+                get { return new HashSet<string>(this.PathComparer) { "GVFS", "GVFS.Mount", "git", "wish", "bash" }; }
             }
 
             public override bool SupportsUpgradeWhileRunning => false;
 
             public override int MaxPipePathLength => 250;
+
+            public override string UpgradeInstallAdviceMessage
+            {
+                get { return "MockUpgradeInstallAdvice"; }
+            }
+
+            public override string UpgradeConfirmCommandMessage
+            {
+                get { return "MockUpgradeConfirmCommand"; }
+            }
+
+            public override string StartServiceCommandMessage
+            {
+                get { return "MockStartServiceCommand"; }
+            }
+
+            public override string RunUpdateMessage
+            {
+                get { return "MockRunUpdateMessage"; }
+            }
+
+            public override bool CaseSensitiveFileSystem => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         }
     }
 }

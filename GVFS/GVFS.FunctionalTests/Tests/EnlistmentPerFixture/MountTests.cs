@@ -57,7 +57,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.Enlistment.UnmountGVFS();
 
-            string readObjectPath = this.Enlistment.GetVirtualPathTo(".git", "hooks", "read-object" + Settings.Default.BinaryFileNameExtension);
+            string readObjectPath = this.Enlistment.GetDotGitPath("hooks", "read-object" + Settings.Default.BinaryFileNameExtension);
             readObjectPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.DeleteFile(readObjectPath);
             readObjectPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -68,21 +68,30 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void MountSetsCoreHooksPath()
         {
-            this.Enlistment.UnmountGVFS();
+            try
+            {
+                GVFSHelpers.RegisterForOfflineIO();
 
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "config --unset core.hookspath");
-            string.IsNullOrWhiteSpace(
-                GitProcess.Invoke(this.Enlistment.RepoRoot, "config core.hookspath"))
-                .ShouldBeTrue();
+                this.Enlistment.UnmountGVFS();
 
-            this.Enlistment.MountGVFS();
-            string expectedHooksPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "hooks");
-            expectedHooksPath = GitHelpers.ConvertPathToGitFormat(expectedHooksPath);
+                GitProcess.Invoke(this.Enlistment.RepoRoot, "config --unset core.hookspath");
+                string.IsNullOrWhiteSpace(
+                    GitProcess.Invoke(this.Enlistment.RepoRoot, "config core.hookspath"))
+                    .ShouldBeTrue();
 
-            GitProcess.Invoke(
-                this.Enlistment.RepoRoot, "config core.hookspath")
-                .Trim('\n')
-                .ShouldEqual(expectedHooksPath);
+                this.Enlistment.MountGVFS();
+                string expectedHooksPath = this.Enlistment.GetDotGitPath("hooks");
+                expectedHooksPath = GitHelpers.ConvertPathToGitFormat(expectedHooksPath);
+
+                GitProcess.Invoke(
+                    this.Enlistment.RepoRoot, "config core.hookspath")
+                    .Trim('\n')
+                    .ShouldEqual(expectedHooksPath);
+            }
+            finally
+            {
+                GVFSHelpers.UnregisterForOfflineIO();
+            }
         }
 
         [TestCase]
@@ -198,7 +207,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
 
-            string alternatesFilePath = Path.Combine(this.Enlistment.RepoRoot, ".git", "objects", "info", "alternates");
+            string alternatesFilePath = this.Enlistment.GetDotGitPath("objects", "info", "alternates");
             alternatesFilePath.ShouldBeAFile(this.fileSystem).WithContents(objectsRoot);
             this.fileSystem.WriteAllText(alternatesFilePath, "Z:\\invalidPath");
 
@@ -214,7 +223,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
 
-            string alternatesFilePath = Path.Combine(this.Enlistment.RepoRoot, ".git", "objects", "info", "alternates");
+            string alternatesFilePath = this.Enlistment.GetDotGitPath("objects", "info", "alternates");
             alternatesFilePath.ShouldBeAFile(this.fileSystem).WithContents(objectsRoot);
             this.fileSystem.DeleteFile(alternatesFilePath);
 
@@ -345,17 +354,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private class MountSubfolders
         {
             public const string MountFolders = "Folders";
-            private static object[] mountFolders =
-            {
-                new object[] { string.Empty },
-                new object[] { "GVFS" },
-            };
 
             public static object[] Folders
             {
                 get
                 {
-                    return mountFolders;
+                    // On Linux, an unmounted repository is completely empty, so we must
+                    // only try to mount from the root of the virtual path.
+
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                    {
+                        return new object[] { new object[] { string.Empty } };
+                    }
+                    else
+                    {
+                        return new object[]
+                        {
+                            new object[] { string.Empty },
+                            new object[] { "GVFS" },
+                        };
+                    }
                 }
             }
 

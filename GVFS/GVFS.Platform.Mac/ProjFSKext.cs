@@ -3,7 +3,6 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using PrjFSLib.Mac;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -11,7 +10,9 @@ namespace GVFS.Platform.Mac
 {
     public class ProjFSKext : IKernelDriver
     {
-        private const string DriverName = "org.vfsforgit.PrjFSKext";
+        public const string DriverName = "org.vfsforgit.PrjFSKext";
+        public const string DriverLogDirectory = "PrjFSKext";
+
         private const int LoadKext_ExitCode_Success = 0;
 
         // This exit code was found in the following article
@@ -19,12 +20,13 @@ namespace GVFS.Platform.Mac
         private const int LoadKext_ExitCode_NotApproved = 27;
 
         public bool EnumerationExpandsDirectories { get; } = true;
+        public bool EmptyPlaceholdersRequireFileSize { get; } = false;
 
         public string LogsFolderPath
         {
             get
             {
-                return Path.Combine(System.IO.Path.GetTempPath(), "PrjFSKext");
+                return Path.Combine(System.IO.Path.GetTempPath(), DriverLogDirectory);
             }
         }
 
@@ -84,6 +86,16 @@ namespace GVFS.Platform.Mac
             }
 
             return true;
+        }
+
+        public bool RegisterForOfflineIO()
+        {
+            return PrjFSLib.Mac.Managed.OfflineIO.RegisterForOfflineIO();
+        }
+
+        public bool UnregisterForOfflineIO()
+        {
+            return PrjFSLib.Mac.Managed.OfflineIO.UnregisterForOfflineIO();
         }
 
         private bool TryLoad(ITracer tracer, TextWriter output, out string errorMessage)

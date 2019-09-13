@@ -594,6 +594,12 @@ namespace GVFS.Common.Git
 
         private LooseObjectToWrite GetLooseObjectDestination(string sha)
         {
+            // Ensure SHA path is lowercase for case-sensitive filesystems
+            if (GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem)
+            {
+                sha = sha.ToLower();
+            }
+
             string firstTwoDigits = sha.Substring(0, 2);
             string remainingDigits = sha.Substring(2);
             string twoLetterFolderName = Path.Combine(this.Enlistment.GitObjectsRoot, firstTwoDigits);

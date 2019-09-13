@@ -13,7 +13,6 @@ namespace GVFS.Common
             string workingDirectoryBackingRoot,
             string repoUrl,
             string gitBinPath,
-            string gvfsHooksRoot,
             bool flushFileBuffersForPacks,
             GitAuthentication authentication)
         {
@@ -27,7 +26,6 @@ namespace GVFS.Common
             this.WorkingDirectoryBackingRoot = workingDirectoryBackingRoot;
             this.DotGitRoot = Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
             this.GitBinPath = gitBinPath;
-            this.GVFSHooksRoot = gvfsHooksRoot;
             this.FlushFileBuffersForPacks = flushFileBuffersForPacks;
 
             GitProcess gitProcess = new GitProcess(this);
@@ -72,7 +70,6 @@ namespace GVFS.Common
         public bool FlushFileBuffersForPacks { get; }
 
         public string GitBinPath { get; }
-        public string GVFSHooksRoot { get; }
 
         public GitAuthentication Authentication { get; }
 

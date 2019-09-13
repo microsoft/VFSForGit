@@ -186,7 +186,7 @@ namespace GVFS.Common
                 error = string.Join(
                     Environment.NewLine,
                     "File copy error - " + e.Message,
-                    $"Make sure you have write permissions to directory {upgradeApplicationDirectory} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
+                    $"Make sure you have write permissions to directory {upgradeApplicationDirectory} and run {GVFSPlatform.Instance.Constants.UpgradeConfirmCommandMessage} again.");
             }
             catch (IOException e)
             {

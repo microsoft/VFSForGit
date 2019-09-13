@@ -7,6 +7,7 @@
         RebootRequired = 2,
         GenericError = 3,
         FilterError = 4,
-        NullRequestData = 5
+        NullRequestData = 5,
+        UnableToRegisterForOfflineIO = 6
     }
 }

@@ -13,6 +13,11 @@ namespace GVFS
         public static void Main(string[] args)
         {
             GVFSPlatformLoader.Initialize();
+            if (!GVFSPlatform.Instance.KernelDriver.RegisterForOfflineIO())
+            {
+                Console.WriteLine("Unable to register with the kernel for offline I/O. Ensure that VFS for Git installed successfully and try again");
+                Environment.Exit((int)ReturnCode.UnableToRegisterForOfflineIO);
+            }
 
             Type[] verbTypes = new Type[]
             {
@@ -22,6 +27,7 @@ namespace GVFS
                 typeof(DehydrateVerb),
                 typeof(DiagnoseVerb),
                 typeof(LogVerb),
+                typeof(SparseVerb),
                 typeof(MountVerb),
                 typeof(PrefetchVerb),
                 typeof(RepairVerb),
@@ -99,6 +105,13 @@ namespace GVFS
             {
                 // Calling Environment.Exit() is required, to force all background threads to exit as well
                 Environment.Exit((int)e.Verb.ReturnCode);
+            }
+            finally
+            {
+                if (!GVFSPlatform.Instance.KernelDriver.UnregisterForOfflineIO())
+                {
+                    Console.WriteLine("Unable to unregister with the kernel for offline I/O.");
+                }
             }
         }
     }

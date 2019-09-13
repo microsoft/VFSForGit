@@ -1,10 +1,9 @@
 #import <Foundation/Foundation.h>
+#import "VFSForGitNotification.h"
 
-@interface VFSNotificationDisplay : NSObject
+@interface VFSNotificationDisplay : NSObject <NSUserNotificationCenterDelegate>
 
-- (instancetype _Nullable)initWithTitle:(NSString *)title message:(NSString *)message;
-- (instancetype _Nullable)initWithUserNotification:(NSUserNotification *)userNotification
-                                notificationCenter:(NSUserNotificationCenter *)notificationCenter;
-- (void) display;
+- (instancetype)initWithCommandRunner:(VFSCommandRunner *)commandRunner;
+- (void)display:(VFSForGitNotification *) notification;
 
 @end

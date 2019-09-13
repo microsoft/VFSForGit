@@ -22,10 +22,13 @@ using std::make_tuple;
 using std::shared_ptr;
 using std::vector;
 using std::string;
+using std::extent;
 using KextMock::_;
 
 // Darwin version of running kernel
 int version_major = PrjFSDarwinMajorVersion::MacOS10_14_Mojave;
+
+static const pid_t RunningMockProcessPID = 501;
 
 class PrjFSProviderUserClient
 {
@@ -99,9 +102,9 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     XCTAssertEqual(result.error, 0);
     self->dummyRepoHandle = result.root;
 
-    MockProcess_AddContext(context, 501 /*pid*/);
-    MockProcess_SetSelfInfo(501, "Test");
-    MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
+    MockProcess_AddContext(context, RunningMockProcessPID /*pid*/);
+    MockProcess_SetSelfInfo(RunningMockProcessPID, "Test");
+    MockProcess_AddProcess(RunningMockProcessPID, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
     
     ProvidermessageMock_ResetResultCount();
     ProviderMessageMock_SetDefaultRequestResult(true);
@@ -447,6 +450,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
 {
     testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
 
+    InitPendingRenames();
     XCTAssertTrue(HandleVnodeOperation(
         nullptr,
         nullptr,
@@ -481,10 +485,12 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
         _,
         _,
         nullptr));
+    CleanupPendingRenames();
 }
 
 - (void) testConcurrentRenameOperationRecording
 {
+    InitPendingRenames();
     self->testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
 
     string otherFilePath = repoPath + "/otherFile";
@@ -585,6 +591,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
             nullptr))
     );
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 4);
+    CleanupPendingRenames();
 }
 
 
@@ -645,6 +652,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
     testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
 
     TestForAllSupportedDarwinVersions(^{
+        InitPendingRenames();
         XCTAssertTrue(HandleVnodeOperation(
             nullptr,
             nullptr,
@@ -689,6 +697,7 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
         }
         
         MockCalls::Clear();
+        CleanupPendingRenames();
     });
 }
 
@@ -879,6 +888,67 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
             _,
             nullptr));
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
+}
+
+-(void) testWriteFileHydratedOfflineRoot
+{
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(testFileVnode);
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+    
+    XCTAssertEqual(
+        KAUTH_RESULT_DENY,
+        HandleVnodeOperation(
+            nullptr,
+            nullptr,
+            KAUTH_VNODE_WRITE_DATA,
+            reinterpret_cast<uintptr_t>(context),
+            reinterpret_cast<uintptr_t>(testFileVnode.get()),
+            0,
+            0));
+    XCTAssertFalse(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            _,
+            testFileVnode.get(),
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            nullptr));
+}
+
+-(void) testWriteFlaggedNonRepoFile
+{
+    string testFilePath = "/Users/test/code/otherproject/file";
+    shared_ptr<vnode> testFile = testMount->CreateVnodeTree(testFilePath);
+    testFile->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    XCTAssertEqual(
+        KAUTH_RESULT_DEFER,
+        HandleVnodeOperation(
+            nullptr,
+            nullptr,
+            KAUTH_VNODE_WRITE_DATA,
+            reinterpret_cast<uintptr_t>(context),
+            reinterpret_cast<uintptr_t>(testFile.get()),
+            0,
+            0));
+    XCTAssertFalse(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            _,
+            testFileVnode.get(),
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            nullptr));
 }
 
 -(void) testWriteFileFull {
@@ -1125,20 +1195,32 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
 }
 
 - (void) testWriteWithDisappearingVirtualizationRoot {
+    // Tests provider disappearing between hydration and attempting to convert to full.
+    
+    // Start with empty file…
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(self->testFileVnode);
+    
+    // First message to provider marks the file as hydrated and also disconnects the providers
     ProviderMessageMock_SetRequestSideEffect(
         [&]()
         {
             ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+            // mark as hydrated
+            testFileVnode->attrValues.va_flags &= ~FileFlags_IsEmpty;
         });
-    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
-    XCTAssertTrue(HandleVnodeOperation(
-        nullptr,
-        nullptr,
-        KAUTH_VNODE_WRITE_DATA,
-        reinterpret_cast<uintptr_t>(context),
-        reinterpret_cast<uintptr_t>(testFileVnode.get()),
-        0,
-        0) == KAUTH_RESULT_DEFER);
+    
+    // File should become hydrated but write access should be denied due to failure to convert to full.
+    XCTAssertEqual(
+        KAUTH_RESULT_DENY,
+        HandleVnodeOperation(
+            nullptr,
+            nullptr,
+            KAUTH_VNODE_WRITE_DATA,
+            reinterpret_cast<uintptr_t>(context),
+            reinterpret_cast<uintptr_t>(testFileVnode.get()),
+            0,
+            0));
 
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
 }
@@ -1194,6 +1276,216 @@ static void TestForAllSupportedDarwinVersions(void(^testBlock)(void))
             0,
             0));
     XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+- (void) testOfflineRootDeniesAccessToEmptyFile
+{
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(testFileVnode);
+
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+
+    kauth_action_t actions[] =
+    {
+        KAUTH_VNODE_WRITE_ATTRIBUTES,
+        KAUTH_VNODE_WRITE_EXTATTRIBUTES,
+        KAUTH_VNODE_WRITE_DATA,
+        KAUTH_VNODE_APPEND_DATA,
+        KAUTH_VNODE_READ_DATA,
+        KAUTH_VNODE_READ_ATTRIBUTES,
+        KAUTH_VNODE_EXECUTE,
+        KAUTH_VNODE_READ_EXTATTRIBUTES,
+    };
+    const size_t actionCount = extent<decltype(actions)>::value;
+    
+    for (size_t i = 0; i < actionCount; i++)
+    {
+        XCTAssertEqual(
+            KAUTH_RESULT_DENY,
+            HandleVnodeOperation(
+                nullptr,
+                nullptr,
+                actions[i],
+                reinterpret_cast<uintptr_t>(context),
+                reinterpret_cast<uintptr_t>(testFileVnode.get()),
+                0,
+                0));
+        XCTAssertFalse(
+            MockCalls::DidCallFunction(
+                ProviderMessaging_TrySendRequestAndWaitForResponse,
+                _,
+                MessageType_KtoU_HydrateFile,
+                testFileVnode.get(),
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                nullptr));
+        MockCalls::Clear();
+    }
+}
+
+- (void) testOfflineRootDeniesFileAndDirectoryCreation
+{
+    self->testDirVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(self->testDirVnode);
+
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+
+    kauth_action_t actions[] =
+    {
+        KAUTH_VNODE_ADD_SUBDIRECTORY,
+        KAUTH_VNODE_ADD_FILE
+    };
+    const size_t actionCount = extent<decltype(actions)>::value;
+    
+    for (size_t i = 0; i < actionCount; i++)
+    {
+        XCTAssertEqual(
+            KAUTH_RESULT_DENY,
+            HandleVnodeOperation(
+                nullptr,
+                nullptr,
+                actions[i],
+                reinterpret_cast<uintptr_t>(self->context),
+                reinterpret_cast<uintptr_t>(self->testDirVnode.get()),
+                0,
+                0));
+        XCTAssertFalse(
+            MockCalls::DidCallFunction(
+                ProviderMessaging_TrySendRequestAndWaitForResponse));
+        MockCalls::Clear();
+    }
+}
+
+
+- (void) testOfflineRootDeniesRename
+{
+    // Where we can detect renames (Mojave and newer), file/directory renames
+    // should be prevented when the provider is offline. On High Sierra we have
+    // to let them happen as we can't distinguish them from file deletions
+    // before it's already happened.
+
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+
+    // Check the behaviour works for both empty and full files, and empty files are not hydrated.
+    vector<uint32_t> vnode_flags { FileFlags_IsInVirtualizationRoot, FileFlags_IsInVirtualizationRoot | FileFlags_IsEmpty };
+    
+    std::for_each(vnode_flags.begin(), vnode_flags.end(),
+        [self](uint32_t flags)
+        {
+            testFileVnode->attrValues.va_flags = flags;
+
+            TestForAllSupportedDarwinVersions(^{
+                InitPendingRenames();
+
+                if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+                {
+                    string renamedFilePath = self->filePath + "_renamed";
+                    HandleFileOpOperation(
+                        nullptr, // credential
+                        nullptr, /* idata, unused */
+                        KAUTH_FILEOP_WILL_RENAME,
+                        reinterpret_cast<uintptr_t>(self->testFileVnode.get()),
+                        reinterpret_cast<uintptr_t>(self->filePath.c_str()),
+                        reinterpret_cast<uintptr_t>(renamedFilePath.c_str()),
+                        0); // unused
+                }
+
+                int deleteAuthResult =
+                    HandleVnodeOperation(
+                        nullptr,
+                        nullptr,
+                        KAUTH_VNODE_DELETE,
+                        reinterpret_cast<uintptr_t>(self->context),
+                        reinterpret_cast<uintptr_t>(self->testFileVnode.get()),
+                        0,
+                        0);
+
+                if (version_major <= PrjFSDarwinMajorVersion::MacOS10_13_HighSierra)
+                {
+                    XCTAssertEqual(deleteAuthResult, KAUTH_RESULT_DEFER);
+                }
+                else
+                {
+                    // On Mojave+, renames should be blocked:
+                    XCTAssertEqual(deleteAuthResult, KAUTH_RESULT_DENY, "flags = 0x%x", flags);
+                }
+
+                XCTAssertFalse(
+                    MockCalls::DidCallFunction(
+                        ProviderMessaging_TrySendRequestAndWaitForResponse,
+                        _,
+                        MessageType_KtoU_HydrateFile,
+                        self->testFileVnode.get(),
+                        _,
+                        _,
+                        _,
+                        _,
+                        _,
+                        _,
+                        nullptr));
+
+                MockCalls::Clear();
+                CleanupPendingRenames();
+            });
+        });
+}
+
+- (void) testOfflineRootAllowsRegisteredProcessAccessToEmptyFile
+{
+    testFileVnode->attrValues.va_flags = FileFlags_IsEmpty | FileFlags_IsInVirtualizationRoot;
+    SetPrjFSFileXattrData(testFileVnode);
+
+    ActiveProvider_Disconnect(self->dummyRepoHandle, &self->dummyClient);
+
+    XCTAssertTrue(VirtualizationRoots_AddOfflineIOProcess(RunningMockProcessPID));
+
+    kauth_action_t actions[] =
+    {
+        KAUTH_VNODE_READ_ATTRIBUTES,
+        KAUTH_VNODE_WRITE_ATTRIBUTES,
+        KAUTH_VNODE_READ_EXTATTRIBUTES,
+        KAUTH_VNODE_WRITE_EXTATTRIBUTES,
+        KAUTH_VNODE_READ_DATA,
+        KAUTH_VNODE_WRITE_DATA,
+        KAUTH_VNODE_EXECUTE,
+        KAUTH_VNODE_DELETE,
+        KAUTH_VNODE_APPEND_DATA,
+    };
+    const size_t actionCount = extent<decltype(actions)>::value;
+    
+    for (size_t i = 0; i < actionCount; i++)
+    {
+        XCTAssertEqual(
+            KAUTH_RESULT_DEFER,
+            HandleVnodeOperation(
+                nullptr,
+                nullptr,
+                actions[i],
+                reinterpret_cast<uintptr_t>(context),
+                reinterpret_cast<uintptr_t>(testFileVnode.get()),
+                0,
+                0));
+        XCTAssertFalse(
+            MockCalls::DidCallFunction(
+                ProviderMessaging_TrySendRequestAndWaitForResponse,
+                _,
+                MessageType_KtoU_HydrateFile,
+                testFileVnode.get(),
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                nullptr));
+        MockCalls::Clear();
+    }
+
+    VirtualizationRoots_RemoveOfflineIOProcess(RunningMockProcessPID);
 }
 
 @end

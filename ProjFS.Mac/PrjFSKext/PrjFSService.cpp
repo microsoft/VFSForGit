@@ -3,6 +3,7 @@
 #include "PrjFSService.hpp"
 #include "PrjFSProviderUserClientPrivate.hpp"
 #include "PrjFSLogUserClient.hpp"
+#include "PrjFSOfflineIOUserClient.hpp"
 #include "KextLog.hpp"
 #include "VirtualizationRoots.hpp"
 
@@ -121,6 +122,16 @@ IOReturn PrjFSService::newUserClient(
                     StopDetachReleaseUserClient(this, log_client);
                     result = kIOReturnExclusiveAccess;
                 }
+            }
+        }
+        break;
+    case UserClientType_OfflineIO:
+        {
+            PrjFSOfflineIOUserClient* offline_io_client = new PrjFSOfflineIOUserClient();
+            if (InitAttachAndStartUserClient(this, offline_io_client, owningTask, securityID, type, properties))
+            {
+                *handler = offline_io_client;
+                result = kIOReturnSuccess;
             }
         }
         break;

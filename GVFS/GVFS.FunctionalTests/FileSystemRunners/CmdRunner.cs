@@ -1,3 +1,4 @@
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using System;
 using System.Diagnostics;
@@ -93,6 +94,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             return this.RunProcess(string.Format("/C move /Y \"{0}\" \"{1}\"", sourcePath, targetPath));
         }
 
+        public override void ReplaceFile_AccessShouldBeDenied(string sourcePath, string targetPath)
+        {
+            // CMD does not report any error messages when access is denied, so just confirm the file still exists
+            this.ReplaceFile(sourcePath, targetPath);
+            this.FileExists(sourcePath).ShouldBeTrue($"{sourcePath} does not exist when it should");
+            this.FileExists(targetPath).ShouldBeFalse($"{targetPath} exists when it should not");
+        }
+
         public override string DeleteFile(string path)
         {
             return this.RunProcess(string.Format("/C del \"{0}\"", path));
@@ -143,7 +152,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
             foreach (string directory in directories)
             {
-                if (directory.Equals(targetName, StringComparison.OrdinalIgnoreCase))
+                if (directory.Equals(targetName, FileSystemHelpers.PathComparison))
                 {
                     return true;
                 }
@@ -206,7 +215,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             // CMD does not report any error messages when access is denied, so just confirm the file still exists
             this.DeleteFile(path);
-            this.FileExists(path).ShouldEqual(true);
+            this.FileExists(path).ShouldBeTrue($"{path} does not exist when it should");
         }
 
         public override void ReadAllText_FileShouldNotBeFound(string path)

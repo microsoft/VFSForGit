@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>KEXT</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(PRJFS_BUNDLE_SHORT_VERSION_STRING)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(PRJFS_BUNDLE_VERSION)</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © Microsoft</string>
 	<key>IOKitPersonalities</key>

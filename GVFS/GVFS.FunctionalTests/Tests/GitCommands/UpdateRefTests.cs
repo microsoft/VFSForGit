@@ -1,4 +1,6 @@
-﻿using NUnit.Framework;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Tools;
+using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -6,7 +8,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class UpdateRefTests : GitRepoTests
     {
-        public UpdateRefTests(bool validateWorkingTree)
+        public UpdateRefTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
@@ -28,11 +30,19 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         public override void TearDownForTest()
         {
-            // Need to ignore case changes in this test because the update-ref will have
-            // folder names that only changed the case and when checking the folder structure
-            // it will create partial folders with that case and will not get updated to the
-            // previous case when the reset --hard running in the tear down step
-            this.TestValidationAndCleanup(ignoreCase: true);
+            if (FileSystemHelpers.CaseSensitiveFileSystem)
+            {
+                this.TestValidationAndCleanup();
+            }
+            else
+            {
+                // On case-insensitive filesystems, we
+                // need to ignore case changes in this test because the update-ref will have
+                // folder names that only changed the case and when checking the folder structure
+                // it will create partial folders with that case and will not get updated to the
+                // previous case when the reset --hard running in the tear down step
+                this.TestValidationAndCleanup(ignoreCase: true);
+            }
         }
     }
 }
