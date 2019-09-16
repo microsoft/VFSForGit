@@ -104,7 +104,12 @@ namespace GVFS.FunctionalTests.Tools
                 }
             }
 
-            return this.CallGVFS($"sparse {this.enlistmentRoot} {pruneArg} {action} {folderList}", expectedExitCode: shouldSucceed ? SuccessExitCode : ExitCodeShouldNotBeZero);
+            return this.Sparse($"{pruneArg} {action} {folderList}", shouldSucceed);
+        }
+
+        public string Sparse(string arguments, bool shouldSucceed)
+        {
+            return this.CallGVFS($"sparse {this.enlistmentRoot} {arguments}", expectedExitCode: shouldSucceed ? SuccessExitCode : ExitCodeShouldNotBeZero);
         }
 
         public string[] GetSparseFolders()

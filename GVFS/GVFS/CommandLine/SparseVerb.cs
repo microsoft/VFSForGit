@@ -26,6 +26,22 @@ Folders need to be relative to the repos root directory.")
         private const char StatusRenameToken = 'R';
 
         [Option(
+            's',
+            "set",
+            Required = false,
+            Default = "",
+            HelpText = "A semicolon-delimited list of repo root relative folders to use as the sparse set for determining what to project. Wildcards are not supported.")]
+        public string Set { get; set; }
+
+        [Option(
+            'f',
+            "file",
+            Required = false,
+            Default = "",
+            HelpText = "Path to a file that will has repo root relative folders to use as the sparse set. One folder per line. Wildcards are not supported.")]
+        public string File { get; set; }
+
+        [Option(
             'a',
             "add",
             Required = false,
@@ -61,6 +77,19 @@ Folders need to be relative to the repos root directory.")
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
+            if (this.List || (
+                !this.Prune &&
+                string.IsNullOrEmpty(this.Add) &&
+                string.IsNullOrEmpty(this.Remove) &&
+                string.IsNullOrEmpty(this.Set) &&
+                string.IsNullOrEmpty(this.File)))
+            {
+                this.ListSparseFolders(enlistment.EnlistmentRoot);
+                return;
+            }
+
+            this.CheckOptions();
+
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, SparseVerbName))
             {
                 tracer.AddLogFileEventListener(
@@ -75,41 +104,68 @@ Folders need to be relative to the repos root directory.")
                     SparseTable sparseTable = new SparseTable(database);
                     directories = sparseTable.GetAll();
 
-                    string[] foldersToRemove = this.ParseFolderList(this.Remove);
-                    string[] foldersToAdd = this.ParseFolderList(this.Add);
+                    List<string> foldersToRemove = new List<string>();
+                    List<string> foldersToAdd = new List<string>();
 
-                    if (this.List || (foldersToAdd.Length == 0 && foldersToRemove.Length == 0 && !this.Prune))
+                    if (!string.IsNullOrEmpty(this.Set) || !string.IsNullOrEmpty(this.File))
                     {
-                        if (directories.Count == 0)
+                        IEnumerable<string> folders = null;
+                        if (!string.IsNullOrEmpty(this.Set))
                         {
-                            this.Output.WriteLine("No folders in sparse list. When the sparse list is empty, all folders are projected.");
+                            folders = this.ParseFolderList(this.Set);
+                        }
+                        else if (!string.IsNullOrEmpty(this.File))
+                        {
+                            PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                            folders = this.ParseFolderList(fileSystem.ReadAllText(this.File), folderSeparator: Environment.NewLine);
                         }
                         else
                         {
-                            foreach (string directory in directories)
+                            this.WriteMessage(tracer, "Invalid options specified.");
+                            throw new InvalidOperationException();
+                        }
+
+                        foreach (string folder in folders)
+                        {
+                            if (!directories.Contains(folder))
                             {
-                                this.Output.WriteLine(directory);
+                                needToChangeProjection = true;
+                                foldersToAdd.Add(folder);
+                            }
+                            else
+                            {
+                                // Remove from directories so that the only directories left in the directories collection
+                                // will be the ones that will need to be removed from sparse set
+                                directories.Remove(folder);
                             }
                         }
 
-                        return;
-                    }
-
-                    foreach (string folder in foldersToRemove)
-                    {
-                        if (directories.Contains(folder))
+                        if (directories.Count > 0)
                         {
                             needToChangeProjection = true;
-                            directories.Remove(folder);
+                            foldersToRemove.AddRange(directories);
                         }
                     }
-
-                    foreach (string folder in foldersToAdd)
-                    {
-                        if (!directories.Contains(folder))
+                    else
+                    { // Process adds and removes
+                        foreach (string folder in this.ParseFolderList(this.Remove))
                         {
-                            needToChangeProjection = true;
-                            directories.Add(folder);
+                            if (directories.Contains(folder))
+                            {
+                                needToChangeProjection = true;
+                                directories.Remove(folder);
+                                foldersToRemove.Add(folder);
+                            }
+                        }
+
+                        foreach (string folder in this.ParseFolderList(this.Add))
+                        {
+                            if (!directories.Contains(folder))
+                            {
+                                needToChangeProjection = true;
+                                directories.Add(folder);
+                                foldersToAdd.Add(folder);
+                            }
                         }
                     }
 
@@ -123,29 +179,29 @@ Folders need to be relative to the repos root directory.")
 
                         this.UpdateSparseFolders(tracer, sparseTable, foldersToRemove, foldersToAdd);
                     }
-                }
 
-                if (needToChangeProjection)
-                {
-                    // Force a projection update to get the current inclusion set
-                    this.ForceProjectionChange(tracer, enlistment);
-                    tracer.RelatedInfo("Projection updated after adding or removing folders.");
-                }
-                else
-                {
-                    this.WriteMessage(tracer, "No folders to update in sparse set.");
-                }
+                    if (needToChangeProjection)
+                    {
+                        // Force a projection update to get the current inclusion set
+                        this.ForceProjectionChange(tracer, enlistment);
+                        tracer.RelatedInfo("Projection updated after adding or removing folders.");
+                    }
+                    else
+                    {
+                        this.WriteMessage(tracer, "No folders to update in sparse set.");
+                    }
 
-                if (this.Prune)
-                {
-                    this.PruneFoldersOutsideSparse(tracer, enlistment, directories);
+                    if (this.Prune && directories.Count > 0)
+                    {
+                        this.PruneFoldersOutsideSparse(tracer, enlistment, sparseTable);
+                    }
                 }
             }
         }
 
-        private void PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, HashSet<string> sparseFolders)
+        private void PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, SparseTable sparseTable)
         {
-            string[] directoriesToDehydrate = this.GetDirectoriesOutsideSparse(enlistment.WorkingDirectoryBackingRoot, sparseFolders);
+            string[] directoriesToDehydrate = this.GetDirectoriesOutsideSparse(enlistment.WorkingDirectoryBackingRoot, sparseTable);
             if (directoriesToDehydrate.Length > 0)
             {
                 if (!this.ShowStatusWhileRunning(
@@ -168,8 +224,9 @@ Folders need to be relative to the repos root directory.")
             }
         }
 
-        private string[] GetDirectoriesOutsideSparse(string rootPath, HashSet<string> sparseFolders)
+        private string[] GetDirectoriesOutsideSparse(string rootPath, SparseTable sparseTable)
         {
+            HashSet<string> sparseFolders = sparseTable.GetAll();
             PhysicalFileSystem fileSystem = new PhysicalFileSystem();
             Queue<string> foldersToEnumerate = new Queue<string>();
             foldersToEnumerate.Enqueue(rootPath);
@@ -195,7 +252,7 @@ Folders need to be relative to the repos root directory.")
             return foldersOutsideSparse.ToArray();
         }
 
-        private void UpdateSparseFolders(ITracer tracer, SparseTable sparseTable, string[] foldersToRemove, string[] foldersToAdd)
+        private void UpdateSparseFolders(ITracer tracer, SparseTable sparseTable, List<string> foldersToRemove, List<string> foldersToAdd)
         {
             if (!this.ShowStatusWhileRunning(
                 () =>
@@ -221,7 +278,46 @@ Folders need to be relative to the repos root directory.")
             }
         }
 
-        private string[] ParseFolderList(string folders)
+        private void CheckOptions()
+        {
+            if (!string.IsNullOrEmpty(this.Set) && (
+                !string.IsNullOrEmpty(this.Add) ||
+                !string.IsNullOrEmpty(this.Remove) ||
+                !string.IsNullOrEmpty(this.File)))
+            {
+                this.ReportErrorAndExit("--set not valid with other options.");
+            }
+
+            if (!string.IsNullOrEmpty(this.File) && (
+                !string.IsNullOrEmpty(this.Add) ||
+                !string.IsNullOrEmpty(this.Remove) ||
+                !string.IsNullOrEmpty(this.Set)))
+            {
+                this.ReportErrorAndExit("--file not valid with other options.");
+            }
+        }
+
+        private void ListSparseFolders(string enlistmentRoot)
+        {
+            using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistmentRoot, new SqliteDatabase()))
+            {
+                SparseTable sparseTable = new SparseTable(database);
+                HashSet<string> directories = sparseTable.GetAll();
+                if (directories.Count == 0)
+                {
+                    this.Output.WriteLine("No folders in sparse list. When the sparse list is empty, all folders are projected.");
+                }
+                else
+                {
+                    foreach (string directory in directories)
+                    {
+                        this.Output.WriteLine(directory);
+                    }
+                }
+            }
+        }
+
+        private IEnumerable<string> ParseFolderList(string folders, string folderSeparator = FolderListSeparator)
         {
             if (string.IsNullOrEmpty(folders))
             {
@@ -229,9 +325,8 @@ Folders need to be relative to the repos root directory.")
             }
             else
             {
-                return folders.Split(new[] { FolderListSeparator }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => GVFSDatabase.NormalizePath(x))
-                    .ToArray();
+                return folders.Split(new[] { folderSeparator }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => GVFSDatabase.NormalizePath(x));
             }
         }
 
