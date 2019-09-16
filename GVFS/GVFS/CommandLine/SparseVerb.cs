@@ -73,12 +73,21 @@ Folders need to be relative to the repos root directory.")
             HelpText = "Remove any folders that are not in the list of sparse folders.")]
         public bool Prune { get; set; }
 
+        [Option(
+            'd',
+            "disable",
+            Required = false,
+            Default = false,
+            HelpText = "Disable the sparse feature.  This will remove all folders in the sparse list and start projecting all folders.")]
+        public bool Disable { get; set; }
+
         protected override string VerbName => SparseVerbName;
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
             if (this.List || (
                 !this.Prune &&
+                !this.Disable &&
                 string.IsNullOrEmpty(this.Add) &&
                 string.IsNullOrEmpty(this.Remove) &&
                 string.IsNullOrEmpty(this.Set) &&
@@ -107,7 +116,20 @@ Folders need to be relative to the repos root directory.")
                     List<string> foldersToRemove = new List<string>();
                     List<string> foldersToAdd = new List<string>();
 
-                    if (!string.IsNullOrEmpty(this.Set) || !string.IsNullOrEmpty(this.File))
+                    if (this.Disable)
+                    {
+                        if (directories.Count > 0)
+                        {
+                            needToChangeProjection = true;
+                            foldersToRemove.AddRange(directories);
+                            directories.Clear();
+                        }
+                        else
+                        {
+                            return;
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(this.Set) || !string.IsNullOrEmpty(this.File))
                     {
                         IEnumerable<string> folders = null;
                         if (!string.IsNullOrEmpty(this.Set))
@@ -280,6 +302,16 @@ Folders need to be relative to the repos root directory.")
 
         private void CheckOptions()
         {
+            if (this.Disable && (
+                this.Prune ||
+                !string.IsNullOrEmpty(this.Set) ||
+                !string.IsNullOrEmpty(this.Add) ||
+                !string.IsNullOrEmpty(this.Remove) ||
+                !string.IsNullOrEmpty(this.File)))
+            {
+                this.ReportErrorAndExit("--disable not valid with other options.");
+            }
+
             if (!string.IsNullOrEmpty(this.Set) && (
                 !string.IsNullOrEmpty(this.Add) ||
                 !string.IsNullOrEmpty(this.Remove) ||

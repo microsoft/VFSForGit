@@ -14,17 +14,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixture]
     public class SparseTests : TestsWithEnlistmentPerFixture
     {
+        private static readonly string[] NoSparseFolders = new string[0];
         private FileSystemRunner fileSystem = new SystemIORunner();
         private GVFSProcess gvfsProcess;
         private string mainSparseFolder = Path.Combine("GVFS", "GVFS");
-        private string[] allRootDirectories;
+        private string[] allDirectories;
         private string[] directoriesInMainFolder;
 
         [OneTimeSetUp]
         public void Setup()
         {
             this.gvfsProcess = new GVFSProcess(this.Enlistment);
-            this.allRootDirectories = Directory.GetDirectories(this.Enlistment.RepoRoot, "*", SearchOption.AllDirectories)
+            this.allDirectories = Directory.GetDirectories(this.Enlistment.RepoRoot, "*", SearchOption.AllDirectories)
                 .Where(x => !x.Contains(Path.DirectorySeparatorChar + ".git" + Path.DirectorySeparatorChar))
                 .ToArray();
             this.directoriesInMainFolder = Directory.GetDirectories(Path.Combine(this.Enlistment.RepoRoot, this.mainSparseFolder));
@@ -36,17 +37,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
 
-            foreach (string sparseFolder in this.gvfsProcess.GetSparseFolders())
-            {
-                this.gvfsProcess.RemoveSparseFolders(sparseFolder);
-            }
+            this.gvfsProcess.Sparse("--disable", shouldSucceed: true);
 
             // Remove all sparse folders should make all folders appear again
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot, "*", SearchOption.AllDirectories)
                 .Where(x => !x.Contains(Path.DirectorySeparatorChar + ".git" + Path.DirectorySeparatorChar))
                 .ToArray();
-            directories.ShouldMatchInOrder(this.allRootDirectories);
-            this.ValidateFoldersInSparseList(new string[0]);
+            directories.ShouldMatchInOrder(this.allDirectories);
+            this.ValidateFoldersInSparseList(NoSparseFolders);
         }
 
         [TestCase, Order(1)]
@@ -238,7 +236,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string output = this.gvfsProcess.AddSparseFolders(shouldPrune: false, shouldSucceed: false, folders: this.mainSparseFolder);
             output.ShouldContain("sparse was aborted");
-            this.ValidateFoldersInSparseList(new string[0]);
+            this.ValidateFoldersInSparseList(NoSparseFolders);
         }
 
         [TestCase, Order(10)]
@@ -422,7 +420,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string output = this.gvfsProcess.AddSparseFolders(shouldPrune: false, shouldSucceed: false, folders: "Scripts");
             output.ShouldContain("Running git status...Failed", "sparse was aborted");
-            this.ValidateFoldersInSparseList(new string[0]);
+            this.ValidateFoldersInSparseList(NoSparseFolders);
         }
 
         [TestCase, Order(20)]
@@ -464,7 +462,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string output = this.gvfsProcess.RemoveSparseFolders(folders: this.mainSparseFolder);
             output.ShouldNotContain(ignoreCase: false, unexpectedSubstrings: "Running git status");
-            this.ValidateFoldersInSparseList(new string[0]);
+            this.ValidateFoldersInSparseList(NoSparseFolders);
         }
 
         [TestCase, Order(23)]
@@ -500,11 +498,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             output = this.gvfsProcess.RemoveSparseFolders(folders: this.mainSparseFolder);
             output.ShouldNotContain(ignoreCase: false, unexpectedSubstrings: "Running git status");
-            this.ValidateFoldersInSparseList(new string[0]);
+            this.ValidateFoldersInSparseList(NoSparseFolders);
 
             output = this.gvfsProcess.AddSparseFolders(shouldPrune: false, shouldSucceed: false, folders: "Scripts");
             output.ShouldContain("Running git status...Failed", "sparse was aborted");
-            this.ValidateFoldersInSparseList(new string[0]);
+            this.ValidateFoldersInSparseList(NoSparseFolders);
 
             string statusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
             statusOutput.ShouldEqual(expecetedStatusOutput, "Status output should not change.");
@@ -573,6 +571,30 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateFoldersInSparseList("Scripts", "GitCommandsTests");
         }
 
+        [TestCase, Order(30)]
+        public void DisableWithOtherOptionsFails()
+        {
+            string output = this.gvfsProcess.Sparse($"--disable --add test1", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+            output = this.gvfsProcess.Sparse($"--disable --remove test1", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+            output = this.gvfsProcess.Sparse($"--disable --set test1", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+            output = this.gvfsProcess.Sparse($"--disable --file test1", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+            output = this.gvfsProcess.Sparse($"--disable --prune", shouldSucceed: false);
+            output.ShouldContain("--disable not valid with other options.");
+        }
+
+        [TestCase, Order(30)]
+        public void DisableWhenNotInSparseModeShouldBeNoop()
+        {
+            this.ValidateFoldersInSparseList(NoSparseFolders);
+            string output = this.gvfsProcess.Sparse("--disable", shouldSucceed: true);
+            output.ShouldEqual(string.Empty);
+            this.ValidateFoldersInSparseList(NoSparseFolders);
+        }
+
         private void CheckMainSparseFolder()
         {
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);
@@ -599,11 +621,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.gvfsProcess.AddSparseFolders(path);
             this.ValidateFoldersInSparseList(expectedSparsePath);
             this.gvfsProcess.RemoveSparseFolders(path);
-            this.ValidateFoldersInSparseList(new string[0]);
+            this.ValidateFoldersInSparseList(NoSparseFolders);
             this.gvfsProcess.AddSparseFolders(path);
             this.ValidateFoldersInSparseList(expectedSparsePath);
             this.gvfsProcess.RemoveSparseFolders(expectedSparsePath);
-            this.ValidateFoldersInSparseList(new string[0]);
+            this.ValidateFoldersInSparseList(NoSparseFolders);
         }
 
         private void ValidateFoldersInSparseList(params string[] folders)
