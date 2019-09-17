@@ -276,6 +276,14 @@ namespace GVFS.Common.Maintenance
             string commitGraphPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", "commit-graph");
             errorMetadata["TryDeleteFileResult"] = this.Context.FileSystem.TryDeleteFile(commitGraphPath);
 
+            string commitGraphsPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", "commit-graphs");
+            errorMetadata["TryDeleteDirectoryResult"] = this.Context.FileSystem.TryDeleteDirectory(commitGraphsPath, out Exception dirException);
+
+            if (dirException != null)
+            {
+                errorMetadata["TryDeleteDirectoryError"] = dirException.Message;
+            }
+
             GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, packs), nameof(GitProcess.WriteCommitGraph));
             errorMetadata["RewriteResultExitCode"] = rewriteResult.ExitCode;
 
