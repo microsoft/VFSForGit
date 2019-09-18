@@ -11,6 +11,7 @@ namespace MirrorProvider.Mac
         private VirtualizationInstance virtualizationInstance = new VirtualizationInstance();
 
         protected override StringComparison PathComparison => StringComparison.OrdinalIgnoreCase;
+        protected override StringComparer PathComparer => StringComparer.OrdinalIgnoreCase;
 
         public override bool TryConvertVirtualizationRoot(string directory, out string error)
         {
@@ -243,7 +244,7 @@ namespace MirrorProvider.Mac
             targetBuffer[bytesRead] = 0;
             symLinkTarget = Encoding.UTF8.GetString(targetBuffer);
 
-            if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, StringComparison.OrdinalIgnoreCase))
+            if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, PathComparison))
             {
                 // Link target is an absolute path inside the MirrorRoot.  
                 // The target needs to be adjusted to point inside the src root

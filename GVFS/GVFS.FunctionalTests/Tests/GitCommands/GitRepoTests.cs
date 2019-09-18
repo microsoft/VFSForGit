@@ -44,7 +44,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             "foo.cpp", // Changes to a folder in one test
             "FilenameEncoding",
             "GitCommandsTests",
-            "GVFLT_MultiThreadTest",
+            "GVFLT_MultiThreadTest", // Required by DeleteFolderAndChangeBranchToFolderWithDifferentCase test in sparse mode
             "GVFlt_BugRegressionTest",
             "GVFlt_DeleteFileTest",
             "GVFlt_DeleteFolderTest",
