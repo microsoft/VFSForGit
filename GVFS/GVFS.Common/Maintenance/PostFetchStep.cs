@@ -56,7 +56,12 @@ namespace GVFS.Common.Maintenance
 
                 GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyCommitGraph(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyCommitGraph));
 
-                if (!this.Stopping && verifyResult.ExitCodeIsFailure)
+                // Currently, Git does not fail when looking for the commit-graphs in the chain of
+                // incremental files. This is by design, as there is a race condition otherwise.
+                // However, 'git commit-graph verify' should change this behavior to fail if we
+                // cannot find all commit-graph files. Until that change happens in Git, look for
+                // the error message to get out of this state.
+                if (!this.Stopping && (verifyResult.ExitCodeIsFailure || verifyResult.Errors.Contains("unable to find all commit-graph files")))
                 {
                     this.LogErrorAndRewriteCommitGraph(activity, this.packIndexes);
                 }
