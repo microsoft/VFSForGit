@@ -9,7 +9,9 @@ namespace GVFS.Service.UI
     public class GVFSToastRequestHandler
     {
         private const string VFSForGitAutomountStartTitle= "VFS For Git Automount";
-        private const string VFSForGitAutomountStartMessageFormat = "Attempting to mount {0} VFS For Git repos(s)";
+        private const string VFSForGitAutomountStartMessageFormat = "Attempting to mount {0} VFS For Git {1}";
+        private const string VFSForGitMultipleRepos = "repos";
+        private const string VFSForGitSingleRepo = "repo";
 
         private const string VFSForGitAutomountSuccessTitle = "VFS For Git Automount";
         private const string VFSForGitAutomountSuccessMessageFormat = "The following VFS For Git repo is now mounted: {0}{1}";
@@ -46,8 +48,9 @@ namespace GVFS.Service.UI
             switch (request.Id)
             {
                 case NamedPipeMessages.Notification.Request.Identifier.AutomountStart:
+                    string reposSuffix = request.EnlistmentCount <= 1 ? VFSForGitSingleRepo : VFSForGitMultipleRepos;
                     title = VFSForGitAutomountStartTitle;
-                    message = string.Format(VFSForGitAutomountStartMessageFormat, request.EnlistmentCount);
+                    message = string.Format(VFSForGitAutomountStartMessageFormat, request.EnlistmentCount, reposSuffix);
                     break;
 
                 case NamedPipeMessages.Notification.Request.Identifier.MountSuccess:
