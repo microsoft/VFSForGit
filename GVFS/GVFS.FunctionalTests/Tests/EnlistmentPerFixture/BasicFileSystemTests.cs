@@ -825,7 +825,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         // separately from the DeleteIndexFileFails() test case
         // This test is failing on Windows because the CmdRunner succeeds in moving the index file
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.POSIXOnly)]
         public void MoveIndexFileFails(FileSystemRunner fileSystem)
         {
             string indexFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index"));

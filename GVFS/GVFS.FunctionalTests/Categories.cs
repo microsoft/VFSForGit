@@ -8,6 +8,7 @@
 
         public const string WindowsOnly = "WindowsOnly";
         public const string MacOnly = "MacOnly";
+        public const string POSIXOnly = "POSIXOnly";
 
         public static class MacTODO
         {
