@@ -8,7 +8,7 @@
 		<key>BundleIsRelocatable</key>
 		<false/>
 		<key>BundleIsVersionChecked</key>
-		<true/>
+		<false/>
 		<key>BundleOverwriteAction</key>
 		<string>upgrade</string>
 		<key>RootRelativeBundlePath</key>
@@ -16,7 +16,7 @@
 	</dict>
 	<dict>
 		<key>BundleIsVersionChecked</key>
-		<true/>
+		<false/>
 		<key>BundleOverwriteAction</key>
 		<string>upgrade</string>
 		<key>RootRelativeBundlePath</key>
