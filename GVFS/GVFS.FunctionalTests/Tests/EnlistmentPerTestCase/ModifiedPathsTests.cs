@@ -133,7 +133,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             }
         }
 
-        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         [Category(Categories.RepositoryMountsSameFileSystem)]
         [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
@@ -221,7 +220,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             }
         }
 
-        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         [Category(Categories.RepositoryMountsSameFileSystem)]
         public void ModifiedPathsCorrectAfterHardLinkingOutsideRepo(FileSystemRunner fileSystem)

@@ -395,7 +395,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileNameOutsideRepo);
         }
 
-        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCase, Order(18)]
         [Category(Categories.RepositoryMountsSameFileSystem)]
         public void HardlinkFromOutsideRepoToInside()
@@ -416,7 +415,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             fileLinkInsideRepo.ShouldBeAFile(this.fileSystem);
         }
 
-        // Mac and Windows only because Linux uses a separate repo mount device
         [TestCase, Order(19)]
         [Category(Categories.RepositoryMountsSameFileSystem)]
         public void HardlinkFromInsideRepoToOutside()
