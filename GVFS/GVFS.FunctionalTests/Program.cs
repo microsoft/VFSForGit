@@ -113,6 +113,7 @@ namespace GVFS.FunctionalTests
             {
                 // Windows excludes.
                 excludeCategories.Add(Categories.MacOnly);
+                excludeCategories.Add(Categories.POSIXOnly);
             }
 
             GVFSTestConfig.DotGVFSRoot = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? ".vfsforgit" : ".gvfs";

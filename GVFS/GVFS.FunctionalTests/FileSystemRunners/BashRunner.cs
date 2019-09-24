@@ -104,7 +104,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string existingFileBashPath = this.ConvertWinPathToBashPath(existingFilePath);
             string newLinkBashPath = this.ConvertWinPathToBashPath(newLinkFilePath);
 
-            this.RunProcess(string.Format("-c \"ln -s -F '{0}' '{1}'\"", existingFileBashPath, newLinkBashPath));
+            this.RunProcess(string.Format("-c \"ln -s -f '{0}' '{1}'\"", existingFileBashPath, newLinkBashPath));
         }
 
         public override bool FileExists(string path)
