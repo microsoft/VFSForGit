@@ -416,6 +416,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFileFromOutsideRepoToInsideRepoAndAdd()
         {
             string testFileContents = "0123456789";
@@ -449,6 +450,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFolderFromOutsideRepoToInsideRepoAndAdd()
         {
             string testFileContents = "0123456789";
@@ -486,6 +488,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFileFromInsideRepoToOutsideRepoAndCommit()
         {
             string newBranchName = "tests/functional/MoveFileFromInsideRepoToOutsideRepoAndCommit";
