@@ -7,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -166,7 +165,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 
             Task task1 = Task.Run(() =>
             {
-                this.HydrateEntireRepo(enlistment1);
+                this.LoadBlobsViaGit(enlistment1);
             });
 
             while (!task1.IsCompleted)
@@ -323,6 +322,14 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
                     File.ReadAllText(allFiles[i]);
                 }
             }
+        }
+
+        private void LoadBlobsViaGit(GVFSFunctionalTestEnlistment enlistment)
+        {
+            // 'git rev-list --objects' will check for all objects' existence, which
+            // triggers an object download on every missing blob.
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(enlistment.RepoRoot, "rev-list --all --objects");
+            result.ExitCode.ShouldEqual(0);
         }
     }
 }
