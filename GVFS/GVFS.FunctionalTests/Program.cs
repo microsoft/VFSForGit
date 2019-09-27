@@ -113,6 +113,8 @@ namespace GVFS.FunctionalTests
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
+                excludeCategories.Add(Categories.RepositoryMountsSameFileSystem);
+
                 excludeCategories.Add(Categories.WindowsOnly);
                 excludeCategories.Add(Categories.MacOnly);
             }
