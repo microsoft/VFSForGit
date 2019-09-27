@@ -504,7 +504,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] placeholderLines = this.GetPlaceholderDatabaseLines();
             foreach (string path in paths)
             {
-                placeholderLines.ShouldContain(x => x.StartsWith(path + GVFSHelpers.PlaceholderFieldDelimiter, StringComparison.OrdinalIgnoreCase));
+                placeholderLines.ShouldContain(x => x.StartsWith(path + GVFSHelpers.PlaceholderFieldDelimiter, FileSystemHelpers.PathComparison));
             }
         }
 
@@ -513,7 +513,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] placeholderLines = this.GetPlaceholderDatabaseLines();
             foreach (string path in paths)
             {
-                placeholderLines.ShouldNotContain(x => x.StartsWith(path + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || x.Equals(path, StringComparison.OrdinalIgnoreCase));
+                placeholderLines.ShouldNotContain(x => x.StartsWith(path + Path.DirectorySeparatorChar, FileSystemHelpers.PathComparison) || x.Equals(path, FileSystemHelpers.PathComparison));
             }
         }
 
