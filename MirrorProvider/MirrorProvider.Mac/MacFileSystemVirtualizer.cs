@@ -10,6 +10,9 @@ namespace MirrorProvider.Mac
     {
         private VirtualizationInstance virtualizationInstance = new VirtualizationInstance();
 
+        protected override StringComparison PathComparison => StringComparison.OrdinalIgnoreCase;
+        protected override StringComparer PathComparer => StringComparer.OrdinalIgnoreCase;
+
         public override bool TryConvertVirtualizationRoot(string directory, out string error)
         {
             Result result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(directory);
@@ -23,6 +26,8 @@ namespace MirrorProvider.Mac
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
             this.virtualizationInstance.OnLogError = this.OnLogError;
+            this.virtualizationInstance.OnLogWarning = this.OnLogWarning;
+            this.virtualizationInstance.OnLogInfo = this.OnLogInfo;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
@@ -107,7 +112,6 @@ namespace MirrorProvider.Mac
                             Path.Combine(relativePath, child.Name),
                             providerId: ToVersionIdByteArray(1),
                             contentId: ToVersionIdByteArray(0),
-                            fileSize: (ulong)child.Size,
                             fileMode: fileMode);
                         if (result != Result.Success)
                         {
@@ -182,6 +186,15 @@ namespace MirrorProvider.Mac
             Console.WriteLine($"OnLogError: {errorMessage}");
         }
 
+        private void OnLogWarning(string warningMessage)
+        {
+            Console.WriteLine($"OnLogWarning: {warningMessage}");
+        }
+        private void OnLogInfo(string infoMessage)
+        {
+            Console.WriteLine($"OnLogInfo: {infoMessage}");
+        }
+
         private void OnFileModified(string relativePath)
         {
             Console.WriteLine($"OnFileModified: {relativePath}");
@@ -231,7 +244,7 @@ namespace MirrorProvider.Mac
             targetBuffer[bytesRead] = 0;
             symLinkTarget = Encoding.UTF8.GetString(targetBuffer);
 
-            if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, StringComparison.OrdinalIgnoreCase))
+            if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, PathComparison))
             {
                 // Link target is an absolute path inside the MirrorRoot.  
                 // The target needs to be adjusted to point inside the src root

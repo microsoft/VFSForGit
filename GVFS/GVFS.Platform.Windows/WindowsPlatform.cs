@@ -25,7 +25,7 @@ namespace GVFS.Platform.Windows
         private const string BuildLabRegistryValue = "BuildLab";
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
-        public WindowsPlatform() : base(underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
+        public WindowsPlatform() : base(underConstruction: new UnderConstructionFlags())
         {
         }
 
@@ -44,6 +44,19 @@ namespace GVFS.Platform.Windows
                 string gvfsDirectory = Path.GetDirectoryName(servicePath);
 
                 return Path.Combine(gvfsDirectory, LocalGVFSConfig.FileName);
+            }
+        }
+
+        /// <summary>
+        /// On Windows VFSForGit does not need to use system wide logs to track
+        /// installer messages. VFSForGit is able to specifiy a custom installer
+        /// log file as a commandline argument to the installer.
+        /// </summary>
+        public override bool SupportsSystemInstallLog
+        {
+            get
+            {
+                return false;
             }
         }
 
@@ -256,11 +269,11 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        public override bool TryGetGVFSHooksPathAndVersion(out string hooksPath, out string hooksVersion, out string error)
+        public override bool TryGetGVFSHooksVersion(out string hooksVersion, out string error)
         {
             error = null;
             hooksVersion = null;
-            hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            string hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             if (hooksPath == null)
             {
                 error = "Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName;
@@ -340,6 +353,11 @@ namespace GVFS.Platform.Windows
         public override string GetUpgradeLogDirectoryParentDirectory()
         {
             return this.GetUpgradeProtectedDataDirectory();
+        }
+
+        public override string GetSystemInstallerLogPath()
+        {
+            return null;
         }
 
         public override string GetUpgradeHighestAvailableVersionDirectory()
@@ -428,6 +446,12 @@ namespace GVFS.Platform.Windows
             return result.ExitCode == 0;
         }
 
+        public override bool TryCopyPanicLogs(string copyToDir, out string error)
+        {
+            error = null;
+            return true;
+        }
+
         private static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName, RegistryView view)
         {
             RegistryKey localKey = RegistryKey.OpenBaseKey(registryHive, view);
@@ -488,11 +512,33 @@ namespace GVFS.Platform.Windows
 
             public override HashSet<string> UpgradeBlockingProcesses
             {
-                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS", "GVFS.Mount", "git", "ssh-agent", "wish", "bash" }; }
+                get { return new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer) { "GVFS", "GVFS.Mount", "git", "ssh-agent", "wish", "bash" }; }
             }
 
             // Tests show that 250 is the max supported pipe name length
             public override int MaxPipePathLength => 250;
+
+            public override string UpgradeInstallAdviceMessage
+            {
+                get { return $"When ready, run {this.UpgradeConfirmCommandMessage} from an elevated command prompt."; }
+            }
+
+            public override string UpgradeConfirmCommandMessage
+            {
+                get { return UpgradeConfirmMessage; }
+            }
+
+            public override string StartServiceCommandMessage
+            {
+                get { return $"`sc start GVFS.Service`";  }
+            }
+
+            public override string RunUpdateMessage
+            {
+                get { return $"Run {UpgradeConfirmMessage} from an elevated command prompt."; }
+            }
+
+            public override bool CaseSensitiveFileSystem => false;
         }
     }
 }

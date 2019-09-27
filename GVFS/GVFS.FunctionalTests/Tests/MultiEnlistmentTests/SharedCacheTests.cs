@@ -80,7 +80,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsServiceVerb)]
+        [Category(Categories.MacTODO.TestNeedsToLockFile)]
         public void CloneCleansUpStaleMetadataLock()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();
@@ -315,9 +315,10 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         private void HydrateEntireRepo(GVFSFunctionalTestEnlistment enlistment)
         {
             List<string> allFiles = Directory.EnumerateFiles(enlistment.RepoRoot, "*", SearchOption.AllDirectories).ToList();
+            string dotGitRoot = Path.Combine(enlistment.RepoRoot, ".git") + Path.DirectorySeparatorChar;
             for (int i = 0; i < allFiles.Count; ++i)
             {
-                if (!allFiles[i].StartsWith(enlistment.RepoRoot + "\\.git\\", StringComparison.OrdinalIgnoreCase))
+                if (!allFiles[i].StartsWith(dotGitRoot, FileSystemHelpers.PathComparison))
                 {
                     File.ReadAllText(allFiles[i]);
                 }

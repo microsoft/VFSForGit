@@ -9,6 +9,9 @@ namespace MirrorProvider
     {
         protected Enlistment Enlistment { get; private set; }
 
+        protected abstract StringComparison PathComparison { get; }
+        protected abstract StringComparer PathComparer { get; }
+
         public abstract bool TryConvertVirtualizationRoot(string directory, out string error);
         public virtual bool TryStartVirtualizationInstance(Enlistment enlistment, out string error)
         {
@@ -147,7 +150,7 @@ namespace MirrorProvider
             FileSystemInfo fileSystemInfo = 
                 dirInfo
                 .GetFileSystemInfos()
-                .FirstOrDefault(fsInfo => fsInfo.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(fsInfo => fsInfo.Name.Equals(fileName, PathComparison));
 
             if (fileSystemInfo == null)
             {

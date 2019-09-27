@@ -80,7 +80,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.RestartService();
 
             bool timerScheduled = false;
-            for (int trialCount = 0; trialCount < 15; trialCount++)
+
+            // Service starts upgrade checks after 60 seconds.
+            Thread.Sleep(TimeSpan.FromSeconds(60));
+            for (int trialCount = 0; trialCount < 30; trialCount++)
             {
                 Thread.Sleep(TimeSpan.FromSeconds(1));
                 if (this.ServiceLogContainsUpgradeMessaging())
@@ -208,19 +211,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private bool ReminderMessagingEnabled()
         {
-            for (int count = 0; count < 50; count++)
-            {
-                ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "status",
-                removeWaitingMessages:true,
-                removeUpgradeMessages:false);
+            Dictionary<string, string> environmentVariables = new Dictionary<string, string>();
+            environmentVariables["GVFS_UPGRADE_DETERMINISTIC"] = "true";
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
+                                                    this.Enlistment.RepoRoot,
+                                                    "status",
+                                                    environmentVariables,
+                                                    removeWaitingMessages: true,
+                                                    removeUpgradeMessages: false);
 
-                if (!string.IsNullOrEmpty(result.Errors) &&
-                    result.Errors.Contains("A new version of GVFS is available."))
-                {
-                    return true;
-                }
+            if (!string.IsNullOrEmpty(result.Errors) &&
+                result.Errors.Contains("A new version of VFS for Git is available."))
+            {
+                return true;
             }
 
             return false;

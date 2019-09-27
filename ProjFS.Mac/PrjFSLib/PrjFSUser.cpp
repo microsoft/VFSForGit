@@ -57,7 +57,7 @@ CleanupAndFail:
     return false;
 }
 
-io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType clientType)
+io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType clientType, bool performVersionValidation)
 {
     CFDictionaryRef matchDict = IOServiceMatching(PrjFSServiceClass);
     io_service_t prjfsService = IOServiceGetMatchingService(kIOMasterPortDefault, matchDict); // matchDict consumed
@@ -70,7 +70,7 @@ io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType client
         return IO_OBJECT_NULL;
     }
     
-    if (!PrjFSService_ValidateVersion(prjfsService))
+    if (performVersionValidation && !PrjFSService_ValidateVersion(prjfsService))
     {
         IOObjectRelease(prjfsService);
         return IO_OBJECT_NULL;

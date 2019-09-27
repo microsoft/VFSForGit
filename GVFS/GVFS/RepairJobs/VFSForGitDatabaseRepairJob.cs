@@ -7,9 +7,9 @@ using System.IO;
 
 namespace GVFS.RepairJobs
 {
-    public class PlaceholderDatabaseRepairJob : RepairJob
+    public class VFSForGitDatabaseRepairJob : RepairJob
     {
-        public PlaceholderDatabaseRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
+        public VFSForGitDatabaseRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
         }

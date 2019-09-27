@@ -29,7 +29,6 @@ namespace PrjFSLib.Mac.Interop
             byte[] providerId,
             [MarshalAs(UnmanagedType.LPArray, SizeConst = PlaceholderIdLength)]
             byte[] contentId,
-            ulong fileSize,
             ushort fileMode);
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WriteSymLink")]
@@ -44,7 +43,6 @@ namespace PrjFSLib.Mac.Interop
             byte[] providerId,
             [MarshalAs(UnmanagedType.LPArray, SizeConst = PlaceholderIdLength)]
             byte[] contentId,
-            ulong fileSize,
             ushort fileMode,
             UpdateType updateType,
             ref UpdateFailureCause failureCause);
@@ -67,5 +65,11 @@ namespace PrjFSLib.Mac.Interop
             IntPtr fileHandle,
             IntPtr bytes,
             uint byteCount);
+
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_RegisterForOfflineIO")]
+        public static extern Result RegisterForOfflineIO();
+
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_UnregisterForOfflineIO")]
+        public static extern Result UnregisterForOfflineIO();
     }
 }

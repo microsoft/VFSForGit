@@ -32,7 +32,6 @@ namespace GVFS.Common.Git
         private string gitBinPath;
         private string workingDirectoryRoot;
         private string dotGitRoot;
-        private string gvfsHooksRoot;
         private Process executingProcess;
         private bool stopping;
 
@@ -62,11 +61,11 @@ namespace GVFS.Common.Git
         }
 
         public GitProcess(Enlistment enlistment)
-            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, enlistment.GVFSHooksRoot)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot)
         {
         }
 
-        public GitProcess(string gitBinPath, string workingDirectoryRoot, string gvfsHooksRoot)
+        public GitProcess(string gitBinPath, string workingDirectoryRoot)
         {
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
@@ -75,7 +74,6 @@ namespace GVFS.Common.Git
 
             this.gitBinPath = gitBinPath;
             this.workingDirectoryRoot = workingDirectoryRoot;
-            this.gvfsHooksRoot = gvfsHooksRoot;
 
             if (this.workingDirectoryRoot != null)
             {
@@ -93,27 +91,27 @@ namespace GVFS.Common.Git
         public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)
         {
             return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName),
+                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName),
                 settingName);
         }
 
         public static ConfigResult GetFromSystemConfig(string gitBinPath, string settingName)
         {
             return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName),
+                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName),
                 settingName);
         }
 
         public static ConfigResult GetFromFileConfig(string gitBinPath, string configFile, string settingName)
         {
             return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName),
+                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName),
                 settingName);
         }
 
         public static bool TryGetVersion(string gitBinPath, out GitVersion gitVersion, out string error)
         {
-            GitProcess gitProcess = new GitProcess(gitBinPath, null, null);
+            GitProcess gitProcess = new GitProcess(gitBinPath, null);
             Result result = gitProcess.InvokeGitOutsideEnlistment("--version");
             string version = result.Output;
 
@@ -484,6 +482,12 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: allowObjectDownloads);
         }
 
+        public Result StatusPorcelain()
+        {
+            string command = "status -uall --porcelain -z";
+            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: false);
+        }
+
         public Result SerializeStatus(bool allowObjectDownloads, string serializePath)
         {
             // specify ignored=matching and --untracked-files=complete
@@ -564,12 +568,12 @@ namespace GVFS.Common.Git
         public Result WriteMultiPackIndex(string objectDir)
         {
             // We override the config settings so we keep writing the MIDX file even if it is disabled for reads.
-            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index write --object-dir=\"" + objectDir + "\"");
+            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index write --object-dir=\"" + objectDir + "\" --no-progress");
         }
 
         public Result VerifyMultiPackIndex(string objectDir)
         {
-            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"" + objectDir + "\"");
+            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"" + objectDir + "\" --no-progress");
         }
 
         public Result RemoteAdd(string remoteName, string url)
@@ -582,12 +586,20 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder("cat-file -t " + objectId);
         }
 
-        public Result LsTree(string treeish, Action<string> parseStdOutLine, bool recursive, bool showAllTrees = false)
+        public Result LsTree(string treeish, Action<string> parseStdOutLine, bool recursive, bool showAllTrees = false, bool showDirectories = false)
         {
             return this.InvokeGitAgainstDotGitFolder(
-                "ls-tree " + (recursive ? "-r " : string.Empty) + (showAllTrees ? "-t " : string.Empty) + treeish,
+                "ls-tree " + (recursive ? "-r " : string.Empty) + (showAllTrees ? "-t " : string.Empty) + (showDirectories ? "-d " : string.Empty) + treeish,
                 null,
                 parseStdOutLine);
+        }
+
+        public Result LsFiles(Action<string> parseStdOutLine)
+        {
+            return this.InvokeGitInWorkingDirectoryRoot(
+                "ls-files -v",
+                useReadObjectHook: false,
+                parseStdOutLine: parseStdOutLine);
         }
 
         public Result SetUpstream(string branchName, string upstream)
@@ -629,12 +641,12 @@ namespace GVFS.Common.Git
 
         public Result MultiPackIndexExpire(string gitObjectDirectory)
         {
-            return this.InvokeGitAgainstDotGitFolder($"multi-pack-index expire --object-dir=\"{gitObjectDirectory}\"");
+            return this.InvokeGitAgainstDotGitFolder($"multi-pack-index expire --object-dir=\"{gitObjectDirectory}\" --no-progress");
         }
 
         public Result MultiPackIndexRepack(string gitObjectDirectory, string batchSize)
         {
-            return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize}");
+            return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize} --no-progress");
         }
 
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory)
@@ -675,11 +687,6 @@ namespace GVFS.Common.Git
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
             processInfo.EnvironmentVariables["GCM_VALIDATE"] = "0";
-            processInfo.EnvironmentVariables["PATH"] =
-                string.Join(
-                    ";",
-                    this.gitBinPath,
-                    this.gvfsHooksRoot ?? string.Empty);
 
             if (gitObjectsDirectory != null)
             {
@@ -764,7 +771,14 @@ namespace GVFS.Common.Git
 
                             if (this.LowerPriority)
                             {
-                                this.executingProcess.PriorityClass = ProcessPriorityClass.BelowNormal;
+                                try
+                                {
+                                    this.executingProcess.PriorityClass = ProcessPriorityClass.BelowNormal;
+                                }
+                                catch (InvalidOperationException)
+                                {
+                                    // This is thrown if the process completes before we can set its priority.
+                                }
                             }
                         }
 
@@ -852,7 +866,8 @@ namespace GVFS.Common.Git
         private Result InvokeGitInWorkingDirectoryRoot(
             string command,
             bool useReadObjectHook,
-            Action<StreamWriter> writeStdIn = null)
+            Action<StreamWriter> writeStdIn = null,
+            Action<string> parseStdOutLine = null)
         {
             return this.InvokeGitImpl(
                 command,
@@ -860,7 +875,7 @@ namespace GVFS.Common.Git
                 dotGitDirectory: null,
                 useReadObjectHook: useReadObjectHook,
                 writeStdIn: writeStdIn,
-                parseStdOutLine: null,
+                parseStdOutLine: parseStdOutLine,
                 timeoutMs: -1);
         }
 

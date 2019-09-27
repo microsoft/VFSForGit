@@ -2,6 +2,7 @@
 using GVFS.Common.Prefetch.Git;
 using GVFS.Tests;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
@@ -102,6 +103,7 @@ namespace GVFS.UnitTests.Prefetch
         // Delete a folder with two sub folders each with a single file
         // Readd it with a different casing and same contents
         [TestCase]
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
         public void ParsesCaseChangesAsAdds()
         {
             MockTracer tracer = new MockTracer();
@@ -116,6 +118,27 @@ namespace GVFS.UnitTests.Prefetch
 
             diffBackwards.DirectoryOperations.ShouldNotContain(entry => entry.Operation == DiffTreeResult.Operations.Delete);
             diffBackwards.TotalDirectoryOperations.ShouldEqual(3);
+        }
+
+        // Delete a folder with two sub folders each with a single file
+        // Readd it with a different casing and same contents
+        [TestCase]
+        [Category(CategoryConstants.CaseSensitiveFileSystemOnly)]
+        public void ParsesCaseChangesAsRenames()
+        {
+            MockTracer tracer = new MockTracer();
+            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
+            diffBackwards.ParseDiffFile(GetDataPath("caseChange.txt"));
+
+            diffBackwards.RequiredBlobs.Count.ShouldEqual(2);
+            diffBackwards.FileAddOperations.Sum(list => list.Value.Count).ShouldEqual(2);
+
+            diffBackwards.FileDeleteOperations.Count.ShouldEqual(0);
+            diffBackwards.TotalFileDeletes.ShouldEqual(2);
+
+            diffBackwards.DirectoryOperations.ShouldContain(entry => entry.Operation == DiffTreeResult.Operations.Add);
+            diffBackwards.DirectoryOperations.ShouldContain(entry => entry.Operation == DiffTreeResult.Operations.Delete);
+            diffBackwards.TotalDirectoryOperations.ShouldEqual(6);
         }
 
         [TestCase]

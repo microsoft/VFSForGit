@@ -48,6 +48,7 @@ namespace GVFS.Platform.Windows
         }
 
         public bool EnumerationExpandsDirectories { get; } = false;
+        public bool EmptyPlaceholdersRequireFileSize { get; } = true;
 
         public string LogsFolderPath
         {
@@ -435,7 +436,7 @@ namespace GVFS.Platform.Windows
             {
                 exception = e;
 
-                if (e.FileName.Equals(ProjFSManagedLibFileName, StringComparison.OrdinalIgnoreCase))
+                if (e.FileName.Equals(ProjFSManagedLibFileName, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     error = $"Failed to load {ProjFSManagedLibFileName}. Ensure that ProjFS is installed and enabled";
                 }
@@ -463,6 +464,16 @@ namespace GVFS.Platform.Windows
                 IsServiceRunning(tracer) &&
                 IsNativeLibInstalled(tracer, new PhysicalFileSystem()) &&
                 TryAttach(enlistmentRoot, out error);
+        }
+
+        public bool RegisterForOfflineIO()
+        {
+            return true;
+        }
+
+        public bool UnregisterForOfflineIO()
+        {
+            return true;
         }
 
         private static bool IsInboxAndEnabled()

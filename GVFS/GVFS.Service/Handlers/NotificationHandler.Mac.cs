@@ -15,7 +15,7 @@ namespace GVFS.Service.Handlers
             this.tracer = tracer;
         }
 
-        public void SendNotification(int sessionId, NamedPipeMessages.Notification.Request request)
+        public void SendNotification(NamedPipeMessages.Notification.Request request)
         {
             string pipeName = Path.Combine(Path.GetTempPath(), NotificationServerPipeName);
             using (NamedPipeClient client = new NamedPipeClient(pipeName))

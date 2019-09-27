@@ -34,7 +34,7 @@ shared_ptr<mount> mount::Create(const char* fileSystemTypeName, fsid_t fsid, uin
 vnode::vnode(const shared_ptr<mount>& mount) :
     mountPoint(mount),
     name(nullptr),
-    inode(mount->nextInode++)
+    inode(mount != nullptr ? mount->nextInode++ : 0)
 {
 }
 
@@ -152,11 +152,11 @@ void vnode::StartRecycling()
     this->isRecycling = true;
 }
 
-void vnode::SetAndRegisterPath(const string& path)
+void vnode::SetAndRegisterPath(const string& newPath)
 {
     s_vnodesByPath.erase(this->path);
 
-    this->path = path;
+    this->path = newPath;
     size_t lastSlash = this->path.rfind('/');
     if (lastSlash == string::npos)
     {
@@ -168,8 +168,8 @@ void vnode::SetAndRegisterPath(const string& path)
     }
     
     // Any existing vnodes for that path should be destroyed/recycled by now
-    assert(!s_vnodesByPath[path].lock());
-    s_vnodesByPath[path] = this->weakSelfPointer;
+    assert(!s_vnodesByPath[newPath].lock());
+    s_vnodesByPath[newPath] = this->weakSelfPointer;
 }
 
 int vnode_isrecycled(vnode_t vnode)

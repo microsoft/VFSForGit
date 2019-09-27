@@ -59,6 +59,13 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.ShouldFail<IOException>(() => { this.ReplaceFile(sourcePath, targetPath); });
         }
 
+        public override void ReplaceFile_AccessShouldBeDenied(string sourcePath, string targetPath)
+        {
+            this.ShouldFail<Exception>(() => { this.ReplaceFile(sourcePath, targetPath); });
+            this.FileExists(sourcePath).ShouldBeTrue($"{sourcePath} does not exist when it should");
+            this.FileExists(targetPath).ShouldBeFalse($"{targetPath} exists when it should not");
+        }
+
         public override string DeleteFile(string path)
         {
             File.Delete(path);

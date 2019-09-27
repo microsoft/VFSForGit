@@ -252,6 +252,12 @@ namespace GVFS.CommandLine
                 return false;
             }
 
+            if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(enlistment.EnlistmentRoot, out string error))
+            {
+                errorMessage = $"FileSystem unsupported: {error}";
+                return false;
+            }
+
             return true;
         }
 

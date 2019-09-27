@@ -1,4 +1,4 @@
-using GVFS.Common;
+﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
@@ -83,7 +83,7 @@ namespace GVFS.Upgrader
 
             if (this.preRunChecker == null)
             {
-                this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
+                this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSPlatform.Instance.Constants.UpgradeConfirmCommandMessage);
             }
 
             try
@@ -165,7 +165,8 @@ namespace GVFS.Upgrader
             string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
                 this.logDirectory,
                 GVFSConstants.LogFileTypes.UpgradeProcess,
-                this.fileSystem);
+                logId: null,
+                fileSystem: this.fileSystem);
 
             JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeProcess");
 
@@ -188,7 +189,7 @@ namespace GVFS.Upgrader
                     return false;
                 }
 
-                ICredentialStore credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null);
+                ICredentialStore credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null);
 
                 ProductUpgrader upgrader;
                 if (!ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, new LocalGVFSConfig(), credentialStore, this.DryRun, this.NoVerify, out upgrader, out errorMessage))

@@ -14,6 +14,7 @@ static map<uintptr_t /*credential ID*/, int /*UID*/> s_credentialMap;
 static map<vfs_context_t /*context*/, int /*pid*/> s_contextMap;
 static map<int /*process Id*/, proc> s_processMap;
 static int s_selfPid;
+static string s_selfName;
 static uint16_t s_currentThreadIndex = 0;
 static thread s_threadPool[MockProcess_ThreadPoolSize] = {};
 
@@ -25,9 +26,10 @@ void MockProcess_Reset()
     MockProcess_SetCurrentThreadIndex(0);
 }
 
-void MockProcess_SetSelfPid(int selfPid)
+void MockProcess_SetSelfInfo(int selfPid, const string& selfName)
 {
     s_selfPid = selfPid;
+    s_selfName = selfName;
 }
 
 int proc_pid(proc_t proc)
@@ -147,6 +149,11 @@ int proc_rele(proc_t p)
 int proc_selfpid(void)
 {
     return s_selfPid;
+}
+
+void proc_selfname(char* buf, int size)
+{
+    strlcpy(buf, s_selfName.c_str(), size);
 }
 
 void MockProcess_AddCredential(uintptr_t credentialId, uid_t UID)

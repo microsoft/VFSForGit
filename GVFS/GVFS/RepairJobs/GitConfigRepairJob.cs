@@ -16,7 +16,7 @@ namespace GVFS.RepairJobs
 
         public override string Name
         {
-            get { return ".git\\config"; }
+            get { return GVFSConstants.DotGit.Config; }
         }
 
         public override IssueType HasIssue(List<string> messages)
@@ -52,14 +52,13 @@ namespace GVFS.RepairJobs
                 GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
                     this.Enlistment.EnlistmentRoot,
                     this.Enlistment.GitBinPath,
-                    this.Enlistment.GVFSHooksRoot,
                     authentication: null);
 
                 string authError;
                 if (!enlistment.Authentication.TryInitialize(this.Tracer, enlistment, out authError))
                 {
                     messages.Add("Authentication failed. Run 'gvfs log' for more info.");
-                    messages.Add(".git\\config is valid and remote 'origin' is set, but may have a typo:");
+                    messages.Add($"{GVFSConstants.DotGit.Config} is valid and remote 'origin' is set, but may have a typo:");
                     messages.Add(originUrl.Trim());
                     return IssueType.CantFix;
                 }
@@ -75,7 +74,7 @@ namespace GVFS.RepairJobs
 
         public override FixResult TryFixIssues(List<string> messages)
         {
-            string configPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Config);
+            string configPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Config);
             string configBackupPath;
             if (!this.TryRenameToBackupFile(configPath, out configBackupPath, messages))
             {
@@ -88,7 +87,7 @@ namespace GVFS.RepairJobs
             if (!GVFSVerb.TrySetRequiredGitConfigSettings(this.Enlistment) ||
                 !GVFSVerb.TrySetOptionalGitConfigSettings(this.Enlistment))
             {
-                messages.Add("Unable to create default .git\\config.");
+                messages.Add($"Unable to create default {GVFSConstants.DotGit.Config}.");
                 this.RestoreFromBackupFile(configBackupPath, configPath, messages);
 
                 return FixResult.Failure;
@@ -101,7 +100,7 @@ namespace GVFS.RepairJobs
             // but getting Fixable means that we still failed
             if (this.HasIssue(validationMessages) == IssueType.Fixable)
             {
-                messages.Add("Reinitializing the .git\\config did not fix the issue. Check the errors below for more details:");
+                messages.Add($"Reinitializing the {GVFSConstants.DotGit.Config} did not fix the issue. Check the errors below for more details:");
                 messages.AddRange(validationMessages);
 
                 this.RestoreFromBackupFile(configBackupPath, configPath, messages);
@@ -111,10 +110,10 @@ namespace GVFS.RepairJobs
 
             if (!this.TryDeleteFile(configBackupPath))
             {
-                messages.Add("Failed to delete .git\\config backup file: " + configBackupPath);
+                messages.Add($"Failed to delete {GVFSConstants.DotGit.Config} backup file: " + configBackupPath);
             }
 
-            messages.Add("Reinitialized .git\\config. You will need to manually add the origin remote by running");
+            messages.Add($"Reinitialized {GVFSConstants.DotGit.Config}. You will need to manually add the origin remote by running");
             messages.Add("git remote add origin <repo url>");
             messages.Add("If you previously configured a custom cache server, you will need to configure it again.");
 

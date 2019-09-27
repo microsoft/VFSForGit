@@ -60,18 +60,7 @@ namespace GVFS.Common.Maintenance
         /// </summary>
         public bool EnlistmentRootReady()
         {
-            // If a user locks their drive or disconnects an external drive while the mount process
-            // is running, then it will appear as if the directories below do not exist or throw
-            // a "Device is not ready" error.
-            try
-            {
-                return this.context.FileSystem.DirectoryExists(this.context.Enlistment.EnlistmentRoot)
-                         && this.context.FileSystem.DirectoryExists(this.context.Enlistment.GitObjectsRoot);
-            }
-            catch (IOException)
-            {
-                return false;
-            }
+            return GitMaintenanceStep.EnlistmentRootReady(this.context);
         }
 
         private void RunQueue()

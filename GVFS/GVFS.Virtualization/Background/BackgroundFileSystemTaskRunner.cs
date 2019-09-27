@@ -124,10 +124,13 @@ namespace GVFS.Virtualization.Background
 
         protected void Dispose(bool disposing)
         {
-            if (this.backgroundThread != null)
+            if (disposing)
             {
-                this.backgroundThread.Dispose();
-                this.backgroundThread = null;
+                if (this.backgroundThread != null)
+                {
+                    this.backgroundThread.Dispose();
+                    this.backgroundThread = null;
+                }
             }
         }
 

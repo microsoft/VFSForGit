@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Properties;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;
@@ -15,7 +16,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class CheckoutTests : GitRepoTests
     {
-        public CheckoutTests(bool validateWorkingTree)
+        public CheckoutTests(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
@@ -238,11 +239,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true, withinPrefixes: this.pathPrefixes);
 
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true, withinPrefixes: this.pathPrefixes);
 
             // Verify modified paths contents
             GVFSHelpers.ModifiedPathsContentsShouldEqual(this.Enlistment, this.FileSystem, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
@@ -497,55 +498,64 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void CheckoutBranchWithOpenHandleBlockingProjectionDeleteAndRepoMetdataUpdate()
         {
-            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
-            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
-
-            this.Enlistment.UnmountGVFS();
-            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
-            CopyIndexAndRename(gitIndexPath);
-            this.Enlistment.MountGVFS();
-
-            ManualResetEventSlim testReady = new ManualResetEventSlim(initialState: false);
-            ManualResetEventSlim fileLocked = new ManualResetEventSlim(initialState: false);
-            Task task = Task.Run(() =>
-            {
-                int attempts = 0;
-                while (attempts < 100)
-                {
-                    try
-                    {
-                        using (FileStream projectionStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_projection"), FileMode.Open, FileAccess.Read, FileShare.None))
-                        using (FileStream metadataStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "RepoMetadata.dat"), FileMode.Open, FileAccess.Read, FileShare.None))
-                        {
-                            fileLocked.Set();
-                            testReady.Set();
-                            Thread.Sleep(15000);
-                            return;
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        ++attempts;
-                        Thread.Sleep(50);
-                    }
-                }
-
-                testReady.Set();
-            });
-
-            // Wait for task to acquire the handle
-            testReady.Wait();
-            fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
-
             try
             {
-                this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+                GVFSHelpers.RegisterForOfflineIO();
+
+                this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+                this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+                this.Enlistment.UnmountGVFS();
+                string gitIndexPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "index");
+                CopyIndexAndRename(gitIndexPath);
+                this.Enlistment.MountGVFS();
+
+                ManualResetEventSlim testReady = new ManualResetEventSlim(initialState: false);
+                ManualResetEventSlim fileLocked = new ManualResetEventSlim(initialState: false);
+                Task task = Task.Run(() =>
+                {
+                    int attempts = 0;
+                    while (attempts < 100)
+                    {
+                        try
+                        {
+                            using (FileStream projectionStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_projection"), FileMode.Open, FileAccess.Read, FileShare.None))
+                            using (FileStream metadataStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "RepoMetadata.dat"), FileMode.Open, FileAccess.Read, FileShare.None))
+                            {
+                                fileLocked.Set();
+                                testReady.Set();
+                                Thread.Sleep(15000);
+                                return;
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            ++attempts;
+                            Thread.Sleep(50);
+                        }
+                    }
+
+                    testReady.Set();
+                });
+
+                // Wait for task to acquire the handle
+                testReady.Wait();
+                fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
+
+                try
+                {
+                    this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+                }
+                catch (Exception)
+                {
+                    // If the test fails, we should wait for the Task to complete so that it does not keep a handle open
+                    task.Wait();
+                    throw;
+                }
             }
-            catch (Exception)
+            finally
             {
-                // If the test fails, we should wait for the Task to complete so that it does not keep a handle open
-                task.Wait();
-                throw;
+                GVFSHelpers.UnregisterForOfflineIO();
             }
         }
 

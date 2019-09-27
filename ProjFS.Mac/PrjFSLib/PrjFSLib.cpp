@@ -2,6 +2,8 @@
 #include <cassert>
 #include <stddef.h>
 #include <sys/ioctl.h>
+#include <sys/mount.h>
+#include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/sys_domain.h>
 #include <sys/xattr.h>
@@ -87,6 +89,8 @@ struct MutexAndUseCount
 
 typedef map<FsidInode, MutexAndUseCount, FsidInodeCompare> FileMutexMap;
 
+static fsid_t s_virtualizationRoot_fsid;
+
 // Function prototypes
 static bool SetBitInFileFlags(const char* fullPath, uint32_t bit, bool value);
 static bool IsBitSetInFileFlags(const char* fullPath, uint32_t bit);
@@ -112,6 +116,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize);
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath);
 static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath);
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath);
+static PrjFS_Result HydrateFile(const char* absolutePath, const char* relativePath, FsidInode fsidInode, pid_t pid, const char* procname);
 static PrjFS_Result HandleNewFileInRootNotification(
     const MessageHeader* request,
     const char* relativePath,
@@ -140,6 +145,8 @@ static FileMutexMap::iterator CheckoutFileMutexIterator(const FsidInode& fsidIno
 static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator);
 
 static void LogError(const char* formatString, ...) __attribute__((__format__ (printf, 1, 2)));
+static void LogWarning(const char* formatString, ...) __attribute__((__format__ (printf, 1, 2)));
+static void LogInfo(const char* formatString, ...) __attribute__((__format__ (printf, 1, 2)));
 
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
@@ -147,6 +154,11 @@ static string s_virtualizationRootFullPath;
 static PrjFS_Callbacks s_callbacks;
 static dispatch_queue_t s_messageQueueDispatchQueue;
 static dispatch_queue_t s_kernelRequestHandlingConcurrentQueue;
+
+static mutex s_kernelServiceOfflineClientMutex;
+static uint32_t s_kernelServiceOfflineClientCount = 0;
+static io_connect_t s_kernelServiceOfflineWriterConnection = IO_OBJECT_NULL;
+
 
 // Map of FsidInode -> MutexAndUseCount for that FsidInode, plus mutex to protect the map itself.
 static FileMutexMap s_fileLocks;
@@ -157,6 +169,48 @@ static mutex s_fileLocksMutex;
 // will lead to a linker error for now.
 
 // Public functions
+
+PrjFS_Result PrjFS_RegisterForOfflineIO()
+{
+    mutex_lock lock(s_kernelServiceOfflineClientMutex);
+    
+    // Reference counting offline I/O registrations so that each process only
+    // maintains a single user client connection to the kext even if multiple
+    // registration calls are made.
+    if (s_kernelServiceOfflineClientCount == 0)
+    {
+        assert(s_kernelServiceOfflineWriterConnection == IO_OBJECT_NULL);
+        s_kernelServiceOfflineWriterConnection = PrjFSService_ConnectToDriver(
+            UserClientType_OfflineIO,
+            false); // Don't require user/kernel versions to match, as this type of user client does not have a version-sensitive API at this time.
+        if (s_kernelServiceOfflineWriterConnection == IO_OBJECT_NULL)
+        {
+            return PrjFS_Result_EDriverNotLoaded;
+        }
+    }
+    
+    ++s_kernelServiceOfflineClientCount;
+
+    return PrjFS_Result_Success;
+}
+
+PrjFS_Result PrjFS_UnregisterForOfflineIO()
+{
+    mutex_lock lock(s_kernelServiceOfflineClientMutex);
+    
+    // If these assertions fail, the calling code has called Unregister
+    // more times than Register succeeded, indicating a bug.
+    assert(s_kernelServiceOfflineClientCount > 0);
+    assert(s_kernelServiceOfflineWriterConnection != IO_OBJECT_NULL);
+    --s_kernelServiceOfflineClientCount;
+    if (s_kernelServiceOfflineClientCount == 0)
+    {
+        IOServiceClose(s_kernelServiceOfflineWriterConnection);
+        s_kernelServiceOfflineWriterConnection = IO_OBJECT_NULL;
+    }
+    
+    return PrjFS_Result_Success;
+}
 
 PrjFS_Result PrjFS_StartVirtualizationInstance(
     _In_    const char*                             virtualizationRootFullPath,
@@ -171,6 +225,8 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
         << callbacks.GetFileStream << ", "
         << callbacks.NotifyOperation << ", "
         << callbacks.LogError << ","
+        << callbacks.LogWarning << ","
+        << callbacks.LogInfo << ","
         << poolThreadCount << ")" << endl;
 #endif
     
@@ -178,13 +234,16 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
         nullptr == callbacks.EnumerateDirectory ||
         nullptr == callbacks.GetFileStream ||
         nullptr == callbacks.NotifyOperation ||
-        nullptr == callbacks.LogError)
+        nullptr == callbacks.LogError ||
+        nullptr == callbacks.LogWarning ||
+        nullptr == callbacks.LogInfo)
     {
         return PrjFS_Result_EInvalidArgs;
     }
     
     if (!s_virtualizationRootFullPath.empty())
     {
+        LogError("PrjFS_StartVirtualizationInstance: s_virtualizationRootFullPath is not empty");
         return PrjFS_Result_EInvalidOperation;
     }
     
@@ -203,7 +262,7 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     s_messageQueueDispatchQueue = dispatch_queue_create("PrjFS Kernel Message Handling", DISPATCH_QUEUE_SERIAL);
     if (!PrjFSService_DataQueueInit(&dataQueue, s_kernelServiceConnection, ProviderPortType_MessageQueue, ProviderMemoryType_MessageQueue, s_messageQueueDispatchQueue))
     {
-        cerr << "Failed to set up shared data queue.\n";
+        LogError("PrjFS_StartVirtualizationInstance: Failed to set up shared data queue.");
         return PrjFS_Result_EInvalidOperation;
     }
     
@@ -213,9 +272,17 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     errno_t error = RegisterVirtualizationRootPath(virtualizationRootFullPath);
     if (error != 0)
     {
-        cerr << "Registering virtualization root failed: " << error << ", " << strerror(error) << endl;
+        LogError("PrjFS_StartVirtualizationInstance: Registering virtualization root failed: error=%d strerror=%s", error, strerror(error));
         return PrjFS_Result_EInvalidOperation;
     }
+    
+    struct statfs rootAttributes;
+    if (0 != statfs(virtualizationRootFullPath, &rootAttributes))
+    {
+        LogError("PrjFS_StartVirtualizationInstance: statfs failed on %s errno=%d, strerror=%s", virtualizationRootFullPath, errno, strerror(errno));
+        return PrjFS_Result_EInvalidOperation;
+    }
+    s_virtualizationRoot_fsid = rootAttributes.f_fsid;
     
     s_kernelRequestHandlingConcurrentQueue = dispatch_queue_create("PrjFS Kernel Request Handling", DISPATCH_QUEUE_CONCURRENT);
     
@@ -234,7 +301,7 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
             uint32_t messageSize = entry->size;
             if (messageSize < sizeof(Message))
             {
-                cerr << "Bad message size: got " << messageSize << " bytes, expected minimum of " << sizeof(Message) << ", skipping. Kernel/user version mismatch?\n";
+                LogError("PrjFS_StartVirtualizationInstance: Bad message size: got %d bytes, expected minimum of %lu, skipping. Kernel/user version mismatch?", messageSize, sizeof(Message));
                 DataQueue_Dequeue(dataQueue.queueMemory, nullptr, nullptr);
                 continue;
             }
@@ -244,7 +311,7 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
             IOReturn result = DataQueue_Dequeue(dataQueue.queueMemory, messageMemory, &dequeuedSize);
             if (kIOReturnSuccess != result || dequeuedSize != messageSize)
             {
-                cerr << "Unexpected result dequeueing message - result 0x" << hex << result << " dequeued " << dequeuedSize << "/" << messageSize << " bytes\n";
+                LogError("PrjFS_StartVirtualizationInstance: Unexpected result dequeueing message - result 0x%08x dequeued %d/%d bytes", result, dequeuedSize, messageSize);
                 abort();
             }
 
@@ -275,7 +342,7 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
         return PrjFS_Result_EInvalidArgs;
     }
     
-    // TODO(Mac): walk entire parent chain to root and all child directories to leaf nodes, to make sure we find no other virtualization roots.
+    // TODO(#1373): walk entire parent chain to root and all child directories to leaf nodes, to make sure we find no other virtualization roots.
     // It is not allowed to have nested virtualization roots.
 
     if (IsBitSetInFileFlags(virtualizationRootFullPath, FileFlags_IsInVirtualizationRoot) ||
@@ -319,11 +386,12 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     {
         switch(errno)
         {
-            // TODO(Mac): Return more specific error codes for other failure scenarios
+            // TODO(#1371): Return more specific error codes for other failure scenarios
             case ENOENT: // A component of the path prefix does not exist or path is an empty string
                 result = PrjFS_Result_EPathNotFound;
                 break;
             default:
+                LogWarning("PrjFS_WritePlaceholderDirectory: mkdir failed errno=%d stderror=%s", errno, strerror(errno));
                 result = PrjFS_Result_EIOError;
                 break;
         }
@@ -340,7 +408,7 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     return PrjFS_Result_Success;
     
 CleanupAndFail:
-    // TODO(Mac): cleanup the directory on disk if needed
+    // TODO(#1371): cleanup the directory on disk if needed
     return result;
 }
 
@@ -348,7 +416,6 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     _In_    const char*                             relativePath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
-    _In_    unsigned long                           fileSize,
     _In_    uint16_t                                fileMode)
 {
 #ifdef DEBUG
@@ -357,7 +424,6 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         << relativePath << ", " 
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
-        << fileSize << ", "
         << oct << fileMode << dec << ")" << endl;
 #endif
     
@@ -380,12 +446,13 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     {
         switch(errno)
         {
-            // TODO(Mac): Return more specific error codes for other failure scenarios
+            // TODO(#1371): Return more specific error codes for other failure scenarios
             case ENOENT: // A directory component in fullPath does not exist or is a dangling symbolic link.
                 result = PrjFS_Result_EPathNotFound;
                 break;
             case EEXIST: // The file already exists
             default:
+                LogWarning("PrjFS_WritePlaceholderFile: fopen failed filename=%s errorno=%d stderror=%s", fullPath, errno, strerror(errno));
                 result = PrjFS_Result_EIOError;
                 break;
         }
@@ -408,9 +475,32 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         goto CleanupAndFail;
     }
     
-    // TODO(Mac): Only call chmod if fileMode is different than the default file mode
+    if ((fileMode & (S_IXUSR|S_IXGRP|S_IXOTH)) != 0)
+    {
+        struct stat fileAttributes;
+        if (0 != lstat(fullPath, &fileAttributes))
+        {
+           LogWarning("PrjFS_WritePlaceholderFile: lstat failed on %s errno=%d, strerror=%s", fullPath, errno, strerror(errno));
+           result = PrjFS_Result_EIOError;
+           goto CleanupAndFail;
+        }
+
+        FsidInode fsidInode;
+        fsidInode.inode = fileAttributes.st_ino;
+        fsidInode.fsid = s_virtualizationRoot_fsid;
+
+        if (HydrateFile(fullPath, relativePath, fsidInode, 1, "placeholder") != PrjFS_Result_Success)
+        {
+           LogWarning("PrjFS_WritePlaceholderFile: failed to hydrate executable %s", fullPath);
+           result = PrjFS_Result_EIOError;
+           goto CleanupAndFail;
+        }
+    }
+    
+    // TODO(#1370): Only call chmod if fileMode is different than the default file mode
     if (chmod(fullPath, fileMode))
     {
+        LogWarning("PrjFS_WritePlaceholderFile: failed to change permissions for %s errno=%d strerror=%s", fullPath, errno, strerror(errno));
         result = PrjFS_Result_EIOError;
         goto CleanupAndFail;
     }
@@ -420,9 +510,8 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
 CleanupAndFail:
     if (nullptr != file)
     {
-        // TODO(Mac) #234: we now have a partially created placeholder file. Should we delete it?
+        // TODO(#234): we now have a partially created placeholder file. Should we delete it?
         // A better pattern would likely be to create the file in a tmp location, fully initialize its state, then move it into the requested path
-        
         fclose(file);
         file = nullptr;
     }
@@ -451,10 +540,11 @@ PrjFS_Result PrjFS_WriteSymLink(
     
     if(symlink(symLinkTarget, fullPath))
     {
+        LogWarning("PrjFS_WriteSymLink: symLink call failed symLinkTarget=%s fullPath=%s errno=%d, strerror=%s", symLinkTarget, fullPath, errno, strerror(errno));
         goto CleanupAndFail;
     }
     
-    // TODO(Mac) #391: Handles failures of SetBitInFileFlags
+    // TODO(#391): Handles failures of SetBitInFileFlags
     SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
 
     return PrjFS_Result_Success;
@@ -469,7 +559,6 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     _In_    const char*                             relativePath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
-    _In_    unsigned long                           fileSize,
     _In_    uint16_t                                fileMode,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
@@ -480,22 +569,22 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
         << relativePath << ", "
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
-        << fileSize << ", "
         << oct << fileMode << dec << ", "
         << hex << updateFlags << dec << ")" << endl;
 #endif
     
-    // TODO(Mac): Check if the contentId or fileMode have changed before proceeding
+    // TODO(#1372): Check if the contentId or fileMode have changed before proceeding
     // with the update
     
     PrjFS_Result result = PrjFS_DeleteFile(relativePath, updateFlags, failureCause);
     if (result != PrjFS_Result_Success)
     {
+       LogWarning("PrjFS_UpdatePlaceholderFileIfNeeded: PrjFS_DeleteFile call failed relativePath=%s updateFlags=%d failureCause=%d", relativePath, updateFlags, *failureCause);
        return result;
     }
 
-    // TODO(Mac): Ensure that races with hydration are handled properly
-    return PrjFS_WritePlaceholderFile(relativePath, providerId, contentId, fileSize, fileMode);
+    // TODO(#1372): Ensure that races with hydration are handled properly
+    return PrjFS_WritePlaceholderFile(relativePath, providerId, contentId, fileMode);
 }
 
 PrjFS_Result PrjFS_ReplacePlaceholderFileWithSymLink(
@@ -515,6 +604,7 @@ PrjFS_Result PrjFS_ReplacePlaceholderFileWithSymLink(
     PrjFS_Result result = PrjFS_DeleteFile(relativePath, updateFlags, failureCause);
     if (result != PrjFS_Result_Success)
     {
+       LogWarning("PrjFS_ReplacePlaceholderFileWithSymLink: PrjFS_DeleteFile call failed relativePath=%s updateFlags=%d failureCause=%d", relativePath, updateFlags, *failureCause);
        return result;
     }
     
@@ -540,13 +630,13 @@ PrjFS_Result PrjFS_DeleteFile(
         return PrjFS_Result_EInvalidArgs;
     }
 
-    // TODO(Mac): Ensure that races with hydration are handled properly
+    // TODO(#1372): Ensure that races with hydration are handled properly
     
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
     
     struct stat path_stat;
-    if (0 != stat(fullPath, &path_stat))
+    if (0 != lstat(fullPath, &path_stat))
     {
         switch(errno)
         {
@@ -554,6 +644,7 @@ PrjFS_Result PrjFS_DeleteFile(
             case ENOTDIR: // A component of fullPath is not a directory
                 return PrjFS_Result_Success;
             default:
+                LogWarning("PrjFS_DeleteFile: stat call failed fullPath=%s errno=%d strerror=%s", fullPath, errno, strerror(errno));
                 return PrjFS_Result_EIOError;
         }
     }
@@ -562,16 +653,18 @@ PrjFS_Result PrjFS_DeleteFile(
     {
         // Only files and directories can be deleted with PrjFS_DeleteFile
         // Anything else should be treated as a full file
+        LogWarning("PrjFS_DeleteFile: path is not a regular file or directory %s, %d", fullPath, path_stat.st_mode);
         *failureCause = PrjFS_UpdateFailureCause_FullFile;
         return PrjFS_Result_EVirtualizationInvalidOperation;
     }
     
     if (S_ISREG(path_stat.st_mode))
     {
-        // TODO(Mac): Determine if we need a similar check for directories as well
+        // TODO(#1372): Determine if we need a similar check for directories as well
         PrjFSFileXAttrData xattrData = {};
         if (!TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
         {
+            LogWarning("PrjFS_DeleteFile: failing because we were unable to get PrjFSFileXAttrName fullPath=%s", fullPath);
             *failureCause = PrjFS_UpdateFailureCause_FullFile;
             return PrjFS_Result_EVirtualizationInvalidOperation;
         }
@@ -587,6 +680,7 @@ PrjFS_Result PrjFS_DeleteFile(
             case ENOTEMPTY:
                 return PrjFS_Result_EDirectoryNotEmpty;
             default:
+                LogWarning("PrjFS_DeleteFile: remove failed fullPath=%s errno=%d strerror=%s", fullPath, errno, strerror(errno));
                 return PrjFS_Result_EIOError;
         }
     }
@@ -617,6 +711,7 @@ PrjFS_Result PrjFS_WriteFileContents(
     
     if (byteCount != fwrite(bytes, 1, byteCount, fileHandle->file))
     {
+        LogWarning("PrjFS_WriteFileContents: byte count is incorrect");
         return PrjFS_Result_EIOError;
     }
     
@@ -681,7 +776,6 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
 
         if (pathSize < 0)
         {
-            // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
             ostringstream ss;
             ss
                 << "MessageType: " << requestHeader->messageType << " "
@@ -705,6 +799,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             relativePath = GetRelativePath(pathBuffer, s_virtualizationRootFullPath.c_str());
             if (relativePath == nullptr)
             {
+                LogWarning("HandleKernelRequest: relativePath is [NULL] and pathSize > 0, pathBuffer=%s virtualizationRootPath=%s", pathBuffer, s_virtualizationRootFullPath.c_str());
                 goto CleanupAndReturn;
             }
 #if DEBUG
@@ -727,6 +822,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         relativePath = GetRelativePath(absolutePath, s_virtualizationRootFullPath.c_str());
         if (relativePath == nullptr)
         {
+            LogWarning("HandleKernelRequest: absolutePath=%s virtualizationRootPath=%s relativePath=[NULL]", absolutePath, s_virtualizationRootFullPath.c_str());
             goto CleanupAndReturn;
         }
     }
@@ -877,8 +973,9 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
         {
             if (!SetBitInFileFlags(absolutePath, FileFlags_IsEmpty, false))
             {
-                // TODO(Mac): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
+                // TODO(#1374): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
                 // update placeholder metadata?
+                LogWarning("HandleEnumerateDirectoryRequest: SetBitInFileFlags failed on %s", absolutePath);
                 result = PrjFS_Result_EIOError;
             }
         }
@@ -916,15 +1013,17 @@ static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHead
         
         CombinePaths(s_virtualizationRootFullPath.c_str(), directoryRelativePath.c_str(), path);
     
-        PrjFS_Result result = HandleEnumerateDirectoryRequest(request, path, directoryRelativePath.c_str());
+        result = HandleEnumerateDirectoryRequest(request, path, directoryRelativePath.c_str());
         if (result != PrjFS_Result_Success)
         {
+            LogWarning("HandleRecursivelyEnumerateDirectoryRequest: HandleEnumerateDirectoryRequest failed on %s %d", path, result);
             goto CleanupAndReturn;
         }
         
-        DIR* directory = opendir(path);
+        directory = opendir(path);
         if (nullptr == directory)
         {
+            LogWarning("HandleRecursivelyEnumerateDirectoryRequest: failed to open dir %s errno=%d strerror=%s", path, errno, strerror(errno));
             result = PrjFS_Result_EIOError;
             goto CleanupAndReturn;
         }
@@ -942,6 +1041,7 @@ static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHead
         }
         
         closedir(directory);
+        directory = nullptr;
     }
     
 CleanupAndReturn:
@@ -953,21 +1053,12 @@ CleanupAndReturn:
     return result;
 }
 
-static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath)
+static PrjFS_Result HydrateFile(const char* absolutePath, const char* relativePath, FsidInode fsidInode, pid_t pid, const char* procname)
 {
-#ifdef DEBUG
-    cout
-        << "PrjFSLib.HandleHydrateFileRequest: "
-        << absolutePath
-        << " (root-relative: " << relativePath << ")"
-        << " Process name: " << request->procname
-        << " Pid: " << request->pid
-        << endl;
-#endif
-        
     PrjFSFileXAttrData xattrData = {};
     if (!TryGetXAttr(absolutePath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
     {
+        LogWarning("HandleHydrateFileRequest: TryGetXAttr PrjFSFileXAttrName failed %s", absolutePath);
         return PrjFS_Result_EIOError;
     }
     
@@ -979,7 +1070,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     PrjFS_Result result;
     PrjFS_FileHandle fileHandle;
     
-    FileMutexMap::iterator mutexIterator = CheckoutFileMutexIterator(request->fsidInode);
+    FileMutexMap::iterator mutexIterator = CheckoutFileMutexIterator(fsidInode);
     
     {
         mutex_lock lock(*(mutexIterator->second.mutex));
@@ -996,6 +1087,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         fileHandle.file = fopen(absolutePath, "rb+");
         if (nullptr == fileHandle.file)
         {
+            LogWarning("HandleHydrateFileRequest: fopen with mode 'rb+' failed %s errno=%d strerror=%s", absolutePath, errno, strerror(errno));
             result = PrjFS_Result_EIOError;
             goto CleanupAndReturn;
         }
@@ -1003,6 +1095,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         // Seek back to the beginning so the provider can overwrite the empty contents
         if (fseek(fileHandle.file, 0, 0))
         {
+            LogWarning("HandleHydrateFileRequest: fseek failed %s errno=%d strerror=%s", absolutePath, errno, strerror(errno));
             fclose(fileHandle.file);
             result = PrjFS_Result_EIOError;
             goto CleanupAndReturn;
@@ -1013,11 +1106,9 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             relativePath,
             xattrData.providerId,
             xattrData.contentId,
-            request->pid,
-            request->procname,
+            pid,
+            procname,
             &fileHandle);
-        
-        // TODO(Mac): once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
         
         fflush(fileHandle.file);
         
@@ -1025,13 +1116,14 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         dispatch_async(s_kernelRequestHandlingConcurrentQueue, ^{
             if (fclose(fileHandle.file))
             {
-                // TODO(Mac): under what conditions can fclose fail? How do we recover?
+                LogWarning("HandleHydrateFileRequest: fclose failed %s errno=%d, strerror=%s", absolutePath, errno, strerror(errno));
+                // TODO(#1374): under what conditions can fclose fail? How do we recover?
             }
         });
         
         if (PrjFS_Result_Success == result)
         {
-            // TODO(Mac): validate that the total bytes written match the size that was reported on the placeholder in the first place
+            // TODO(#1374): validate that the total bytes written match the size that was reported on the placeholder in the first place
             // Potential bugs if we don't:
             //  * The provider writes fewer bytes than expected. The hydrated is left with extra padding up to the original reported size.
             //  * The provider writes more bytes than expected. The write succeeds, but whatever tool originally opened the file may have already
@@ -1039,8 +1131,9 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             
             if (!SetBitInFileFlags(absolutePath, FileFlags_IsEmpty, false))
             {
-                // TODO(Mac): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
+                // TODO(#1374): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
                 // update placeholder metadata?
+                LogWarning("HandleHydrateFileRequest: SetBitInFileFlags failed %s", absolutePath);
                 result = PrjFS_Result_EIOError;
             }
         }
@@ -1049,6 +1142,21 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
 CleanupAndReturn:
     ReturnFileMutexIterator(mutexIterator);
     return result;
+}
+
+static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath)
+{
+#ifdef DEBUG
+    cout
+        << "PrjFSLib.HandleHydrateFileRequest: "
+        << absolutePath
+        << " (root-relative: " << relativePath << ")"
+        << " Process name: " << request->procname
+        << " Pid: " << request->pid
+        << endl;
+#endif
+
+    return HydrateFile(absolutePath, relativePath, request->fsidInode, request->pid, request->procname);
 }
 
 static PrjFS_Result HandleNewFileInRootNotification(
@@ -1083,7 +1191,7 @@ static PrjFS_Result HandleNewFileInRootNotification(
         isDirectory,
         notificationType);
     
-    // TODO(Mac) #391: Handle SetBitInFileFlags failures
+    // TODO(#391): Handle SetBitInFileFlags failures
     SetBitInFileFlags(absolutePath, FileFlags_IsInVirtualizationRoot, true);
     
     return result;
@@ -1131,12 +1239,12 @@ static PrjFS_Result HandleFileNotification(
         placeholderFile &&
         (PrjFS_NotificationType_PreConvertToFull == notificationType || PrjFS_NotificationType_PreDeleteFromRename == notificationType))
     {
-        errno_t result = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
-        if (0 != result)
+        errno_t error = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
+        if (0 != error && ENOATTR != error)
         {
-            // TODO(Mac) #395: Log error
-            // Note that it's expected that RemoveXAttrWithoutFollowingLinks return ENOATTR if
+            // It's expected that RemoveXAttrWithoutFollowingLinks return ENOATTR if
             // another thread has removed the attribute
+            LogError("HandleFileNotification: RemoveXAttrWithoutFollowingLinks failed for '%s', error=%d strerror=%s", absolutePath, error, strerror(error));
         }
     }
     
@@ -1178,7 +1286,7 @@ static void FindNewFoldersInRootAndNotifyProvider(const MessageHeader* request, 
             true, // isDirectory
             PrjFS_NotificationType_NewFileCreated);
         
-        // TODO(Mac) #391: Handle SetBitInFileFlags failures
+        // TODO(#391): Handle SetBitInFileFlags failures
         SetBitInFileFlags(parentFolderPath.second.c_str(), FileFlags_IsInVirtualizationRoot, true);
         
         newFolderPaths.pop();
@@ -1195,9 +1303,16 @@ static bool IsDirEntChildDirectory(const dirent* directoryEntry)
 
 static bool InitializeEmptyPlaceholder(const char* fullPath)
 {
-    return
+    bool result =
         SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true) &&
         SetBitInFileFlags(fullPath, FileFlags_IsEmpty, true);
+    
+    if (!result)
+    {
+        LogWarning("InitializeEmptyPlaceholder: failed for path %s", fullPath);
+    }
+    
+    return result;
 }
 
 template<typename TPlaceholder>
@@ -1217,7 +1332,7 @@ static bool InitializeEmptyPlaceholder(const char* fullPath, TPlaceholder* data,
         }
         else
         {
-            // TODO(Mac) #395: Log result
+            LogError("InitializeEmptyPlaceholder: AddXAttr failed for '%s', error=%d strerror=%s", fullPath, result, strerror(result));
         }
     }
     
@@ -1245,6 +1360,7 @@ static bool SetBitInFileFlags(const char* fullPath, uint32_t bit, bool value)
     struct stat fileAttributes;
     if (lstat(fullPath, &fileAttributes))
     {
+        LogWarning("SetBitInFileFlags: lstat failed on %s errno=%d, strerror=%s", fullPath, errno, strerror(errno));
         return false;
     }
     
@@ -1260,6 +1376,7 @@ static bool SetBitInFileFlags(const char* fullPath, uint32_t bit, bool value)
     
     if (lchflags(fullPath, newValue))
     {
+        LogWarning("SetBitInFileFlags: lchflags failed on %s errno=%d, strerror=%s", fullPath, errno, strerror(errno));
         return false;
     }
     
@@ -1271,6 +1388,7 @@ static bool IsBitSetInFileFlags(const char* fullPath, uint32_t bit)
     struct stat fileAttributes;
     if (lstat(fullPath, &fileAttributes))
     {
+        LogWarning("IsBitSetInFileFlags: lstat failed on %s errno=%d strerror=%s", fullPath, errno, strerror(errno));
         return false;
     }
 
@@ -1279,8 +1397,9 @@ static bool IsBitSetInFileFlags(const char* fullPath, uint32_t bit)
 
 static errno_t AddXAttr(const char* fullPath, const char* name, const void* value, size_t size)
 {
-    if (0 != setxattr(fullPath, name, value, size, 0, 0))
+    if (0 != setxattr(fullPath, name, value, size, 0, XATTR_NOFOLLOW))
     {
+        // We do not log a warning here, since files in the .git folder are expected to fail this check
         return errno;
     }
     
@@ -1289,12 +1408,12 @@ static errno_t AddXAttr(const char* fullPath, const char* name, const void* valu
 
 static bool TryGetXAttr(const char* fullPath, const char* name, size_t expectedSize, _Out_ void* value)
 {
-    if (expectedSize != getxattr(fullPath, name, value, expectedSize, 0, 0))
+    if (expectedSize != getxattr(fullPath, name, value, expectedSize, 0, XATTR_NOFOLLOW))
     {
         return false;
     }
     
-    // TODO(Mac): also validate the magic number and format version.
+    // TODO(#1369): also validate the magic number and format version.
     // It's easy to check their expected values, but we will need to decide what to do if they are incorrect.
     
     return true;
@@ -1304,6 +1423,7 @@ static errno_t RemoveXAttrWithoutFollowingLinks(const char* fullPath, const char
 {
     if (0 != removexattr(fullPath, name, XATTR_NOFOLLOW))
     {
+        LogWarning("RemoveXAttrWithoutFollowingLinks: removexattr failed on %s errno=%d strerror=%s", fullPath, errno, strerror(errno));
         return errno;
     }
 
@@ -1392,9 +1512,10 @@ static PrjFS_Result RecursivelyMarkAllChildrenAsInRoot(const char* fullDirectory
         directoryRelativePaths.pop();
         
         CombinePaths(fullDirectoryPath, directoryRelativePath.c_str(), fullPath);
-        DIR* directory = opendir(fullPath);
+        directory = opendir(fullPath);
         if (nullptr == directory)
         {
+            LogWarning("RecursivelyMarkAllChildrenAsInRoot: failed to open %s errno=%d, strerror=%s", fullPath, errno, strerror(errno));
             result = PrjFS_Result_EIOError;
             goto CleanupAndReturn;
         }
@@ -1409,6 +1530,7 @@ static PrjFS_Result RecursivelyMarkAllChildrenAsInRoot(const char* fullDirectory
                 CombinePaths(fullDirectoryPath, relativePath, fullPath);
                 if (!SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true))
                 {
+                    LogWarning("RecursivelyMarkAllChildrenAsInRoot: failed to set FileFlags_IsInVirtualizationRoot for fullPath=%s", fullPath);
                     result = PrjFS_Result_EIOError;
                     goto CleanupAndReturn;
                 }
@@ -1423,6 +1545,7 @@ static PrjFS_Result RecursivelyMarkAllChildrenAsInRoot(const char* fullDirectory
         }
         
         closedir(directory);
+        directory = nullptr;
     }
     
 CleanupAndReturn:
@@ -1502,27 +1625,41 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     // Hardlinks will send an empty path when files are linked outside the virtualization root
     if (strcmp(fullPath, "") == 0)
     {
+        LogInfo("GetRelativePath: returning an empty path.  This should be the result of a hardlink outside the virtualization root root=%s fullPath=%s\n", root, fullPath);
         return "";
     }
     
-    size_t rootLength = strlen(root);
-    size_t pathLength = strlen(fullPath);
-    if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
+    const char removePart[] = "/System/Volumes/Data/";
+    const int removePartLength = sizeof(removePart) - 1;
+    const char* realFullPath;
+    if (strncmp(fullPath, removePart, removePartLength) == 0
+        && strncmp(root, removePart, removePartLength) != 0)
     {
-        // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
-        LogError("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
+        // If fullPath contains "/System/Volumes/Data/", but the root does not remove it for comparison
+        // "/System/Volumes/Data/Users/account" is effectively "/Users/account" and should be compared as such
+		realFullPath = fullPath + removePartLength - 1;
+    }
+    else
+    {
+		realFullPath = fullPath;
+    }
+
+    size_t rootLength = strlen(root);
+    size_t pathLength = strlen(realFullPath);
+    if (pathLength < rootLength || 0 != memcmp(realFullPath, root, rootLength))
+    {
+        LogError("GetRelativePath: root path '%s' is not a prefix of path:'%s' originalPath:'%s'\n", root, realFullPath, fullPath);
         return nullptr;
     }
     
-    const char* relativePath = fullPath + rootLength;
+    const char* relativePath = realFullPath + rootLength;
     if (relativePath[0] == '/')
     {
         relativePath++;
     }
     else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
     {
-        // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
-        LogError("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
+        LogError("GetRelativePath: root path '%s' is not a parent directory of path:'%s' originalPath:%s (just a string prefix)\n", root, realFullPath, fullPath);
         return nullptr;
     }
     
@@ -1538,6 +1675,62 @@ static void LogError(const char* formatString, ...)
     vasprintf(&logString, formatString, dataArgs);
     va_end(dataArgs);
     
-    s_callbacks.LogError(logString);
+    if (s_callbacks.LogError != nullptr)
+    {
+       s_callbacks.LogError(logString);
+    }
+    else
+    {
+        #ifdef DEBUG
+        cout << "LogError: s_callbacks.Info is [NULL], Unable to log: %s " << logString << endl;
+        #endif
+    }
+    
+    free(logString);
+}
+
+static void LogWarning(const char* formatString, ...)
+{
+    va_list dataArgs;
+    char* logString = nullptr;
+
+    va_start(dataArgs, formatString);
+    vasprintf(&logString, formatString, dataArgs);
+    va_end(dataArgs);
+ 
+    if (s_callbacks.LogWarning != nullptr)
+    {
+       s_callbacks.LogWarning(logString);
+    }
+    else
+    {
+        #ifdef DEBUG
+        cout << "LogWarning: s_callbacks.LogWarning is [NULL], Unable to log: %s " << logString << endl;
+        #endif
+    }
+    
+    free(logString);
+}
+
+static void LogInfo(const char* formatString, ...)
+{
+    va_list dataArgs;
+    char* logString = nullptr;
+
+    va_start(dataArgs, formatString);
+    vasprintf(&logString, formatString, dataArgs);
+    va_end(dataArgs);
+    
+    if (s_callbacks.LogInfo != nullptr)
+    {
+       s_callbacks.LogInfo(logString);
+    }
+    else
+    {
+        #ifdef DEBUG
+        cout << "LogInfo: s_callbacks.LogInfo is [NULL], Unable to log: %s " << logString << endl;
+        #endif
+    }
+
     free(logString);
 }

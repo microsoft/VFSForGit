@@ -102,7 +102,7 @@ namespace GVFS.CommandLine
 
                 if (normalizedLocalCacheRootPath.StartsWith(
                     Path.Combine(normalizedEnlistmentRootPath, GVFSConstants.WorkingDirectoryRootName),
-                    StringComparison.OrdinalIgnoreCase))
+                    GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     this.ReportErrorAndExit("'--local-cache-path' cannot be inside the src folder");
                 }
@@ -293,7 +293,7 @@ namespace GVFS.CommandLine
             // LogFileEventListener will create a file in EnlistmentRootPath
             if (Directory.Exists(normalizedEnlistementRootPath) && Directory.EnumerateFileSystemEntries(normalizedEnlistementRootPath).Any())
             {
-                if (fullEnlistmentRootPathParameter.Equals(normalizedEnlistementRootPath, StringComparison.OrdinalIgnoreCase))
+                if (fullEnlistmentRootPathParameter.Equals(normalizedEnlistementRootPath, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     return new Result($"Clone directory '{fullEnlistmentRootPathParameter}' exists and is not empty");
                 }
@@ -307,7 +307,7 @@ namespace GVFS.CommandLine
                 return new Result(GVFSConstants.GitIsNotInstalledError);
             }
 
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
+            this.CheckGVFSHooksVersion(tracer: null, hooksVersion: out _);
 
             try
             {
@@ -315,7 +315,6 @@ namespace GVFS.CommandLine
                     normalizedEnlistementRootPath,
                     this.RepositoryURL,
                     gitBinPath,
-                    hooksPath,
                     authentication: null);
             }
             catch (InvalidRepoException e)
@@ -375,6 +374,13 @@ namespace GVFS.CommandLine
                     if (!enlistment.TryCreateEnlistmentFolders())
                     {
                         string error = "Could not create enlistment directory";
+                        tracer.RelatedError(error);
+                        return new Result(error);
+                    }
+
+                    if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(enlistment.EnlistmentRoot, out string fsError))
+                    {
+                        string error = $"FileSystem unsupported: {fsError}";
                         tracer.RelatedError(error);
                         return new Result(error);
                     }
@@ -664,7 +670,7 @@ namespace GVFS.CommandLine
             return new Result(true);
         }
 
-        // TODO(Linux), TODO(Mac): either adjust to "git" or remove entirely
+        // TODO(#1364): Don't call this method on POSIX platforms (or have it no-op on them)
         private void CreateGitScript(GVFSEnlistment enlistment)
         {
             FileInfo gitCmd = new FileInfo(Path.Combine(enlistment.EnlistmentRoot, "git.cmd"));

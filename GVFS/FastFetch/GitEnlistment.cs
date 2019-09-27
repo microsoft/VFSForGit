@@ -13,7 +13,6 @@ namespace FastFetch
                   repoRoot,
                   null,
                   gitBinPath,
-                  gvfsHooksRoot: null,
                   flushFileBuffersForPacks: false,
                   authentication: null)
         {

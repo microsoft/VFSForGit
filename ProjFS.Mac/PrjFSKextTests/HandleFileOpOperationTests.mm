@@ -95,7 +95,7 @@ class PrjFSProviderUserClient
     self->otherRepoHandle = result.root;
 
     MockProcess_AddContext(context, 501 /*pid*/);
-    MockProcess_SetSelfPid(501);
+    MockProcess_SetSelfInfo(501, "Test");
     MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
     
     ProvidermessageMock_ResetResultCount();
@@ -402,7 +402,7 @@ class PrjFSProviderUserClient
 {
     MockProcess_Reset();
     MockProcess_AddContext(context, self->dummyClientPid /*pid*/);
-    MockProcess_SetSelfPid(self->dummyClientPid);
+    MockProcess_SetSelfInfo(self->dummyClientPid, "Test");
     MockProcess_AddProcess(self->dummyClientPid /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "GVFS.Mount" /*name*/);
 
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
@@ -432,7 +432,7 @@ class PrjFSProviderUserClient
 {
     MockProcess_Reset();
     MockProcess_AddContext(context, self->otherDummyClientPid /*pid*/);
-    MockProcess_SetSelfPid(self->otherDummyClientPid);
+    MockProcess_SetSelfInfo(self->otherDummyClientPid, "Test");
     MockProcess_AddProcess(self->otherDummyClientPid /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "GVFS.Mount" /*name*/);
 
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
@@ -463,16 +463,16 @@ class PrjFSProviderUserClient
     shared_ptr<mount> testMountNone = mount::Create("msdos", fsid_t{}, 0);
     const string testMountPath = "/Volumes/USBSTICK";
     shared_ptr<vnode> testMountRoot = testMountNone->CreateVnodeTree(testMountPath, VDIR);
-    const string filePath = testMountPath + "/file";
-    shared_ptr<vnode> testVnode = testMountNone->CreateVnodeTree(filePath);
-    const string renamedFilePath = filePath + "_renamed";
+    const string badfsFilePath = testMountPath + "/file";
+    shared_ptr<vnode> testVnode = testMountNone->CreateVnodeTree(badfsFilePath);
+    const string renamedFilePath = badfsFilePath + "_renamed";
 
     HandleFileOpOperation(
         nullptr, // credential
         nullptr, /* idata, unused */
         KAUTH_FILEOP_WILL_RENAME,
         reinterpret_cast<uintptr_t>(testVnode.get()),
-        reinterpret_cast<uintptr_t>(filePath.c_str()),
+        reinterpret_cast<uintptr_t>(badfsFilePath.c_str()),
         reinterpret_cast<uintptr_t>(renamedFilePath.c_str()),
         0); // unused
     XCTAssertEqual(0, s_pendingRenameCount);

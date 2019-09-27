@@ -54,6 +54,7 @@ namespace GVFS.Virtualization
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
             IPlaceholderCollection placeholderDatabase,
+            ISparseCollection sparseCollection,
             GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;
@@ -61,10 +62,10 @@ namespace GVFS.Virtualization
             this.context = context;
             this.fileSystemVirtualizer = fileSystemVirtualizer;
 
-            this.filePlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
-            this.folderPlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
-            this.fileHydrationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
-            this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
+            this.filePlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
+            this.folderPlaceHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
+            this.fileHydrationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
+            this.newlyCreatedFileAndFolderPaths = new ConcurrentHashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
             string error;
             if (!ModifiedPathsDatabase.TryLoadOrCreate(
@@ -88,6 +89,7 @@ namespace GVFS.Virtualization
                 repoMetadata,
                 fileSystemVirtualizer,
                 this.placeholderDatabase,
+                sparseCollection,
                 this.modifiedPaths);
 
             if (backgroundFileSystemTaskRunner != null)
@@ -149,11 +151,12 @@ namespace GVFS.Virtualization
         /// </summary>
         public static bool IsPathInsideDotGit(string relativePath)
         {
-            return relativePath.StartsWith(GVFSConstants.DotGit.Root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            return relativePath.StartsWith(GVFSConstants.DotGit.Root + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison);
         }
 
         public bool TryStart(out string error)
         {
+            this.fileSystemVirtualizer.Initialize(this);
             this.modifiedPaths.RemoveEntriesWithParentFolderEntry(this.context.Tracer);
             this.modifiedPaths.WriteAllEntriesAndFlush();
 
@@ -166,7 +169,7 @@ namespace GVFS.Virtualization
 
             this.backgroundFileSystemTaskRunner.Start();
 
-            if (!this.fileSystemVirtualizer.TryStart(this, out error))
+            if (!this.fileSystemVirtualizer.TryStart(out error))
             {
                 return false;
             }
@@ -294,6 +297,65 @@ namespace GVFS.Virtualization
             return metadata;
         }
 
+        public bool TryDehydrateFolder(string relativePath)
+        {
+            List<IPlaceholderData> removedPlaceholders = null;
+            List<string> removedModifiedPaths = null;
+            bool successful = false;
+
+            try
+            {
+                relativePath = GVFSDatabase.NormalizePath(relativePath);
+                removedPlaceholders = this.placeholderDatabase.RemoveAllEntriesForFolder(relativePath);
+                removedModifiedPaths = this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
+                FileSystemResult result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
+                successful = result.Result == FSResult.Ok;
+
+                if (!successful)
+                {
+                    this.context.Tracer.RelatedError($"{nameof(this.TryDehydrateFolder)} failed with {result.Result}");
+                }
+            }
+            catch (Exception ex)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativePath, ex);
+                this.context.Tracer.RelatedError(metadata, $"{nameof(this.TryDehydrateFolder)} threw an exception");
+                successful = false;
+            }
+
+            if (!successful)
+            {
+                if (removedPlaceholders != null)
+                {
+                    foreach (IPlaceholderData data in removedPlaceholders)
+                    {
+                        try
+                        {
+                            this.placeholderDatabase.AddPlaceholderData(data);
+                        }
+                        catch (Exception ex)
+                        {
+                            EventMetadata metadata = this.CreateEventMetadata(data.Path, ex);
+                            this.context.Tracer.RelatedError(metadata, $"{nameof(FileSystemCallbacks)}.{nameof(this.TryDehydrateFolder)} failed to add '{data.Path}' back into PlaceholderDatabase");
+                        }
+                    }
+                }
+
+                if (removedModifiedPaths != null)
+                {
+                    foreach (string modifiedPath in removedModifiedPaths)
+                    {
+                        if (!this.modifiedPaths.TryAdd(modifiedPath, isFolder: modifiedPath.EndsWith(GVFSConstants.GitPathSeparatorString), isRetryable: out bool isRetryable))
+                        {
+                            this.context.Tracer.RelatedError($"{nameof(FileSystemCallbacks)}.{nameof(this.TryDehydrateFolder)}: failed to add '{modifiedPath}' back into ModifiedPaths");
+                        }
+                    }
+                }
+            }
+
+            return successful;
+        }
+
         public void ForceIndexProjectionUpdate(bool invalidateProjection, bool invalidateModifiedPaths)
         {
             this.InvalidateState(invalidateProjection, invalidateModifiedPaths);
@@ -383,6 +445,11 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileConvertedToFull(relativePath));
         }
 
+        public void OnFailedFileHydration(string relativePath)
+        {
+            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFailedFileHydration(relativePath));
+        }
+
         public virtual void OnFileRenamed(string oldRelativePath, string newRelativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileRenamed(oldRelativePath, newRelativePath));
@@ -408,8 +475,27 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFilePreDelete(relativePath));
         }
 
-        public void OnFolderCreated(string relativePath)
+        /// <summary>
+        /// Called to indicate a folder was created
+        /// </summary>
+        /// <param name="relativePath">The relative path to the newly created folder</param>
+        /// <param name="sparseFoldersUpdated">
+        /// true when the folder is successfully added to the sparse list because it is in the projection but currently excluded.
+        /// false when the folder was not excluded or there was a failure adding to the sparse list.
+        /// </param>
+        public void OnFolderCreated(string relativePath, out bool sparseFoldersUpdated)
         {
+            sparseFoldersUpdated = false;
+            GitIndexProjection.PathSparseState pathProjectionState = this.GitIndexProjection.GetFolderPathSparseState(relativePath);
+            if (pathProjectionState == GitIndexProjection.PathSparseState.Excluded)
+            {
+                if (this.GitIndexProjection.TryAddSparseFolder(relativePath))
+                {
+                    sparseFoldersUpdated = true;
+                    return;
+                }
+            }
+
             this.AddToNewlyCreatedList(relativePath, isFolder: true);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderCreated(relativePath));
         }
@@ -541,7 +627,7 @@ namespace GVFS.Virtualization
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> GetAndResetProcessCountMetadata(ref ConcurrentDictionary<string, PlaceHolderCreateCounter> collectedData)
         {
             ConcurrentDictionary<string, PlaceHolderCreateCounter> localData = collectedData;
-            collectedData = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+            collectedData = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(GVFSPlatform.Instance.Constants.PathComparer);
             return localData;
         }
 
@@ -687,6 +773,7 @@ namespace GVFS.Virtualization
                 case FileSystemTask.OperationType.OnFileSuperseded:
                 case FileSystemTask.OperationType.OnFileConvertedToFull:
                 case FileSystemTask.OperationType.OnFailedPlaceholderUpdate:
+                case FileSystemTask.OperationType.OnFailedFileHydration:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.VirtualPath);
                     break;
@@ -694,6 +781,7 @@ namespace GVFS.Virtualization
                 case FileSystemTask.OperationType.OnFolderCreated:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     result = this.TryAddModifiedPath(gitUpdate.VirtualPath, isFolder: true);
+
                     break;
 
                 case FileSystemTask.OperationType.OnFolderRenamed:

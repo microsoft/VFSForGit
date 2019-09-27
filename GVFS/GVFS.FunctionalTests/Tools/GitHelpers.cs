@@ -121,8 +121,11 @@ namespace GVFS.FunctionalTests.Tools
             string controlRepoRoot = controlGitRepo.RootPath;
             string gvfsRepoRoot = enlistment.RepoRoot;
 
-            ProcessResult expectedResult = GitProcess.InvokeProcess(controlRepoRoot, command);
-            ProcessResult actualResult = GitHelpers.InvokeGitAgainstGVFSRepo(gvfsRepoRoot, command);
+            Dictionary<string, string> environmentVariables = new Dictionary<string, string>();
+            environmentVariables["GIT_QUIET"] = "true";
+
+            ProcessResult expectedResult = GitProcess.InvokeProcess(controlRepoRoot, command, environmentVariables);
+            ProcessResult actualResult = GitHelpers.InvokeGitAgainstGVFSRepo(gvfsRepoRoot, command, environmentVariables);
 
             ErrorsShouldMatch(command, expectedResult, actualResult);
             actualResult.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)

@@ -6,6 +6,7 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -819,6 +820,23 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             indexFilePath.ShouldBeAFile(fileSystem);
         }
 
+        // On some platforms, a pre-rename event may be delivered prior to a
+        // file rename rather than a pre-delete event, so we check this
+        // separately from the DeleteIndexFileFails() test case
+        // This test is failing on Windows because the CmdRunner succeeds in moving the index file
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        [Category(Categories.POSIXOnly)]
+        public void MoveIndexFileFails(FileSystemRunner fileSystem)
+        {
+            string indexFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index"));
+            string indexTargetFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index_target"));
+            indexFilePath.ShouldBeAFile(fileSystem);
+            indexTargetFilePath.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.ReplaceFile_AccessShouldBeDenied(indexFilePath, indexTargetFilePath);
+            indexFilePath.ShouldBeAFile(fileSystem);
+            indexTargetFilePath.ShouldNotExistOnDisk(fileSystem);
+        }
+
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Runners))]
         public void MoveVirtualNTFSFolderIntoInvalidFolder(FileSystemRunner fileSystem, string parentFolder)
         {
@@ -900,6 +918,30 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 
             FileSystemRunner.DefaultRunner.DeleteDirectory(parentDirectoryPath);
         }
+
+        [TestCase]
+        [Category(Categories.MacOnly)]
+        public void RunPythonExecutable()
+        {
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout FunctionalTests/PythonExecutable");
+
+            // Found an issue on Mac where running a python executable that is a placeholder, fails
+            // The fix was to always hydrate executables (no placeholders for this mode)
+            // To repro this issue in the C# framework the python executable must be run via a wrapper
+            string pythonDirectory = Path.Combine(this.Enlistment.RepoRoot, "Test_Executable");
+            string pythonExecutable = Path.Combine(pythonDirectory, "python_wrapper.sh");
+
+            ProcessStartInfo startInfo = new ProcessStartInfo(pythonExecutable);
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+            startInfo.WorkingDirectory = pythonDirectory;
+
+            ProcessResult result = ProcessHelper.Run(startInfo);
+            result.ExitCode.ShouldEqual(0);
+            result.Output.ShouldContain("3.14");
+
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
+       }
 
         private class FileRunnersAndFolders
         {

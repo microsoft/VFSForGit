@@ -29,6 +29,11 @@ namespace GVFS.Common
 
         public abstract string GVFSConfigPath { get; }
 
+        /// <summary>
+        /// Returns true if the platform keeps a system-wide installer log.
+        /// </summary>
+        public abstract bool SupportsSystemInstallLog { get; }
+
         public static void Register(GVFSPlatform platform)
         {
             if (GVFSPlatform.Instance != null)
@@ -86,6 +91,7 @@ namespace GVFS.Common
         /// containing directory to place them in.
         /// </summary>
         public abstract string GetUpgradeLogDirectoryParentDirectory();
+        public abstract string GetSystemInstallerLogPath();
 
         /// <summary>
         /// Directory that contains the file indicating that a new
@@ -95,7 +101,9 @@ namespace GVFS.Common
 
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
 
-        public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
+        public abstract bool TryCopyPanicLogs(string copyToDir, out string error);
+
+        public abstract bool TryGetGVFSHooksVersion(out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
         public abstract bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error);
@@ -147,6 +155,10 @@ namespace GVFS.Common
             /// the upgrade verb is running.
             /// </summary>
             public abstract bool SupportsUpgradeWhileRunning { get; }
+            public abstract string UpgradeInstallAdviceMessage { get; }
+            public abstract string RunUpdateMessage { get; }
+            public abstract string UpgradeConfirmCommandMessage { get; }
+            public abstract string StartServiceCommandMessage { get; }
             public abstract string WorkingDirectoryBackingRootPath { get; }
             public abstract string DotGVFSRoot { get; }
 
@@ -169,6 +181,28 @@ namespace GVFS.Common
             /// is running.
             /// </summary>
             public abstract HashSet<string> UpgradeBlockingProcesses { get; }
+
+            public abstract bool CaseSensitiveFileSystem { get; }
+
+            public StringComparison PathComparison
+            {
+                get
+                {
+                    return this.CaseSensitiveFileSystem ?
+                        StringComparison.Ordinal :
+                        StringComparison.OrdinalIgnoreCase;
+                }
+            }
+
+            public StringComparer PathComparer
+            {
+                get
+                {
+                    return this.CaseSensitiveFileSystem ?
+                        StringComparer.Ordinal :
+                        StringComparer.OrdinalIgnoreCase;
+                }
+            }
 
             public string GVFSHooksExecutableName
             {
@@ -206,18 +240,15 @@ namespace GVFS.Common
             public UnderConstructionFlags(
                 bool supportsGVFSUpgrade = true,
                 bool supportsGVFSConfig = true,
-                bool requiresDeprecatedGitHooksLoader = false,
                 bool supportsNuGetEncryption = true)
             {
                 this.SupportsGVFSUpgrade = supportsGVFSUpgrade;
                 this.SupportsGVFSConfig = supportsGVFSConfig;
-                this.RequiresDeprecatedGitHooksLoader = requiresDeprecatedGitHooksLoader;
                 this.SupportsNuGetEncryption = supportsNuGetEncryption;
             }
 
             public bool SupportsGVFSUpgrade { get; }
             public bool SupportsGVFSConfig { get; }
-            public bool RequiresDeprecatedGitHooksLoader { get; }
             public bool SupportsNuGetEncryption { get; }
         }
     }

@@ -27,6 +27,7 @@
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 #define FileSystemKey "SYSTEM\CurrentControlSet\Control\FileSystem"
 #define GvFltAutologgerKey "SYSTEM\CurrentControlSet\Control\WMI\Autologger\Microsoft-Windows-Git-Filter-Log"
+#define ServiceUIName "VFS For Git"
 
 [Setup]
 AppId={{489CA581-F131-4C28-BE04-4FB178933E6D}
@@ -130,10 +131,11 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Platform.Windows
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.pdb"
 
 ; GVFS.Service.UI Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe" 
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe.config" 
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GitVirtualFileSystem.ico"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\System.Runtime.dll"
 
 ; GVFS Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\CommandLine.dll"
@@ -176,6 +178,9 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\System.IO.Compression
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe.config"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
+
+[Icons]
+Name: "{commonstartmenu}\{#ServiceUIName}"; Filename: "{app}\GVFS.Service.UI.exe"; AppUserModelID: "GVFS"
 
 [UninstallDelete]
 ; Deletes the entire installation directory, including files and subdirectories
@@ -262,7 +267,7 @@ var
 begin
   Log('StopService: stopping: ' + ServiceName);
   // ErrorCode 1060 means service not installed, 1062 means service not started
-  if not Exec(ExpandConstant('SC.EXE'), 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) and (ResultCode <> 1062) then
+  if not Exec(ExpandConstant('{sys}\SC.EXE'), 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) and (ResultCode <> 1062) then
     begin
       RaiseException('Fatal: Could not stop service: ' + ServiceName);
     end;
@@ -272,7 +277,7 @@ procedure UninstallService(ServiceName: string; ShowProgress: boolean);
 var
   ResultCode: integer;
 begin
-  if Exec(ExpandConstant('SC.EXE'), 'query ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) then
+  if Exec(ExpandConstant('{sys}\SC.EXE'), 'query ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) then
     begin
       Log('UninstallService: uninstalling service: ' + ServiceName);
       if (ShowProgress) then
@@ -284,7 +289,7 @@ begin
       try
         StopService(ServiceName);
 
-        if not Exec(ExpandConstant('SC.EXE'), 'delete ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        if not Exec(ExpandConstant('{sys}\SC.EXE'), 'delete ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
           begin
             Log('UninstallService: Could not uninstall service: ' + ServiceName);
             RaiseException('Fatal: Could not uninstall service: ' + ServiceName);
@@ -330,9 +335,9 @@ begin
   WizardForm.ProgressGauge.Style := npbstMarquee;
   
   try
-    if Exec(ExpandConstant('SC.EXE'), ExpandConstant('create GVFS.Service binPath="{app}\GVFS.Service.exe" start=auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+    if Exec(ExpandConstant('{sys}\SC.EXE'), ExpandConstant('create GVFS.Service binPath="{app}\GVFS.Service.exe" start=auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
       begin
-        if Exec(ExpandConstant('SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+        if Exec(ExpandConstant('{sys}\SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
           begin
             InstallSuccessful := True;
           end;
@@ -347,6 +352,34 @@ begin
   if InstallSuccessful = False then
     begin
       RaiseException('Fatal: An error occured while installing GVFS.Service.');
+    end;
+end;
+
+procedure StartGVFSServiceUI();
+var
+  ResultCode: integer;
+begin
+  if ExecAsOriginalUser(ExpandConstant('{app}\GVFS.Service.UI.exe'), '', '', SW_HIDE, ewNoWait, ResultCode) then
+    begin
+      Log('StartGVFSServiceUI: Successfully launched GVFS.Service.UI');
+    end
+  else
+    begin
+      Log('StartGVFSServiceUI: Failed to launch GVFS.Service.UI');
+    end;
+end;
+
+procedure StopGVFSServiceUI();
+var
+  ResultCode: integer;
+begin
+  if Exec('powershell.exe', '-NoProfile "Stop-Process -Name GVFS.Service.UI"', '', SW_HIDE, ewNoWait, ResultCode) then
+    begin
+      Log('StopGVFSServiceUI: Successfully stopped GVFS.Service.UI');
+    end
+  else
+    begin
+      RaiseException('Fatal: Could not stop process: GVFS.Service.UI');
     end;
 end;
 
@@ -728,12 +761,13 @@ begin
     ssPostInstall:
       begin
         // Use NET.exe to send start request and wait for service start. SC.exe sends start request only and does not wait status change.
-        if not Exec(ExpandConstant('NET.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        if not Exec(ExpandConstant('{sys}\NET.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
           begin
             RaiseException('Fatal: Could not start GVFS.Service');
           end;
         if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
           begin
+            StartGVFSServiceUI();
             MountRepos();
           end
       end;
@@ -750,6 +784,7 @@ begin
   case CurStep of
     usUninstall:
       begin
+        StopGVFSServiceUI();
         UninstallService('GVFS.Service', False);
         RemovePath(ExpandConstant('{app}'));
       end;
@@ -773,6 +808,7 @@ begin
       Abort();
     end;
   StopService('GVFS.Service');
+  StopGVFSServiceUI();
   UninstallGvFlt();
   UninstallProjFSIfNecessary();
 end;

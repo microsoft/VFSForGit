@@ -25,20 +25,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         private static readonly string FileToCreateOutsideRepo = $"{nameof(ModifiedPathsTests)}_outsideRepo.txt";
         private static readonly string FolderToCreateOutsideRepo = $"{nameof(ModifiedPathsTests)}_outsideFolder";
         private static readonly string FolderToDelete = "Scripts";
-        private static readonly string[] ExpectedModifiedFilesContentsAfterRemount =
-            {
-                $"A .gitattributes",
-                $"A {GVFSHelpers.ConvertPathToGitFormat(FileToAdd)}",
-                $"A {GVFSHelpers.ConvertPathToGitFormat(FileToUpdate)}",
-                $"A {FileToDelete}",
-                $"A {GVFSHelpers.ConvertPathToGitFormat(FileToRename)}",
-                $"A {GVFSHelpers.ConvertPathToGitFormat(RenameFileTarget)}",
-                $"A {FolderToCreate}/",
-                $"A {RenameNewDotGitFileTarget}",
-                $"A {FileToCreateOutsideRepo}",
-                $"A {FolderToCreateOutsideRepo}/",
-                $"A {FolderToDelete}/",
-            };
 
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void DeletedTempFileIsRemovedFromModifiedFiles(FileSystemRunner fileSystem)
@@ -76,8 +62,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
-        public void ModifiedPathsSavedAfterRemount(FileSystemRunner fileSystem)
+        public void ModifiedPathsFromChangesInsideRepoSavedAfterRemount(FileSystemRunner fileSystem)
         {
+            string[] expectedModifiedFilesContentsAfterRemount =
+                {
+                    @"A .gitattributes",
+                    $"A {GVFSHelpers.ConvertPathToGitFormat(FileToAdd)}",
+                    $"A {GVFSHelpers.ConvertPathToGitFormat(FileToUpdate)}",
+                    $"A {FileToDelete}",
+                    $"A {GVFSHelpers.ConvertPathToGitFormat(FileToRename)}",
+                    $"A {GVFSHelpers.ConvertPathToGitFormat(RenameFileTarget)}",
+                    $"A {FolderToCreate}/",
+                    $"A {RenameNewDotGitFileTarget}",
+                    $"A {FolderToDelete}/",
+                };
+
             string fileToAdd = this.Enlistment.GetVirtualPathTo(FileToAdd);
             fileSystem.WriteAllText(fileToAdd, "Contents for the new file");
 
@@ -99,36 +98,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string folderToRenameTarget = this.Enlistment.GetVirtualPathTo(RenameFolderTarget);
             fileSystem.MoveDirectory(folderToRename, folderToRenameTarget);
 
-            // Moving the new folder out of the repo will remove it from the modified paths file
-            string folderTargetOutsideSrc = Path.Combine(this.Enlistment.EnlistmentRoot, RenameFolderTarget);
-            folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);
-            folderTargetOutsideSrc.ShouldBeADirectory(fileSystem);
+            // Deleting the new folder will remove it from the modified paths file
+            fileSystem.DeleteDirectory(folderToRenameTarget);
             folderToRenameTarget.ShouldNotExistOnDisk(fileSystem);
 
             // Moving a file from the .git folder to the working directory should add the file to the modified paths
             string dotGitfileToAdd = this.Enlistment.GetVirtualPathTo(DotGitFileToCreate);
             fileSystem.WriteAllText(dotGitfileToAdd, "Contents for the new file in dot git");
             fileSystem.MoveFile(dotGitfileToAdd, this.Enlistment.GetVirtualPathTo(RenameNewDotGitFileTarget));
-
-            // Move a file from outside of src into src
-            string fileToCreateOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, FileToCreateOutsideRepo);
-            fileSystem.WriteAllText(fileToCreateOutsideRepoPath, "Contents for the new file outside of repo");
-            string fileToCreateOutsideRepoTargetPath = this.Enlistment.GetVirtualPathTo(FileToCreateOutsideRepo);
-            fileToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.MoveFile(fileToCreateOutsideRepoPath, fileToCreateOutsideRepoTargetPath);
-            fileToCreateOutsideRepoTargetPath.ShouldBeAFile(fileSystem);
-            fileToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
-
-            // Move a folder from outside of src into src
-            string folderToCreateOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, FolderToCreateOutsideRepo);
-            fileSystem.CreateDirectory(folderToCreateOutsideRepoPath);
-            folderToCreateOutsideRepoPath.ShouldBeADirectory(fileSystem);
-            string folderToCreateOutsideRepoTargetPath = this.Enlistment.GetVirtualPathTo(FolderToCreateOutsideRepo);
-            folderToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.MoveDirectory(folderToCreateOutsideRepoPath, folderToCreateOutsideRepoTargetPath);
-            folderToCreateOutsideRepoTargetPath.ShouldBeADirectory(fileSystem);
-            folderToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
 
             string folderToDeleteFullPath = this.Enlistment.GetVirtualPathTo(FolderToDelete);
             fileSystem.WriteAllText(Path.Combine(folderToDeleteFullPath, "NewFile.txt"), "Contents for new file");
@@ -152,20 +129,76 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {
                 reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
-                    .ShouldMatchInOrder(ExpectedModifiedFilesContentsAfterRemount.OrderBy(x => x));
+                    .ShouldMatchInOrder(expectedModifiedFilesContentsAfterRemount.OrderBy(x => x));
             }
         }
 
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
-        public void ModifiedPathsCorrectAfterHardLinking(FileSystemRunner fileSystem)
+        [Category(Categories.RepositoryMountsSameFileSystem)]
+        [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
+        public void ModifiedPathsFromRenamingOutsideRepoSavedAfterRemount(FileSystemRunner fileSystem)
+        {
+            string[] expectedModifiedFilesContentsAfterRemount =
+                {
+                    @"A .gitattributes",
+                    $"A {FileToCreateOutsideRepo}",
+                    $"A {FolderToCreateOutsideRepo}/",
+                };
+
+            string folderToRename = this.Enlistment.GetVirtualPathTo(FolderToRename);
+            fileSystem.CreateDirectory(folderToRename);
+            string folderToRenameTarget = this.Enlistment.GetVirtualPathTo(RenameFolderTarget);
+            fileSystem.MoveDirectory(folderToRename, folderToRenameTarget);
+
+            // Moving the new folder out of the repo will remove it from the modified paths file
+            string folderTargetOutsideSrc = Path.Combine(this.Enlistment.EnlistmentRoot, RenameFolderTarget);
+            folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);
+            folderTargetOutsideSrc.ShouldBeADirectory(fileSystem);
+            folderToRenameTarget.ShouldNotExistOnDisk(fileSystem);
+
+            // Move a file from outside of src into src
+            string fileToCreateOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, FileToCreateOutsideRepo);
+            fileSystem.WriteAllText(fileToCreateOutsideRepoPath, "Contents for the new file outside of repo");
+            string fileToCreateOutsideRepoTargetPath = this.Enlistment.GetVirtualPathTo(FileToCreateOutsideRepo);
+            fileToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.MoveFile(fileToCreateOutsideRepoPath, fileToCreateOutsideRepoTargetPath);
+            fileToCreateOutsideRepoTargetPath.ShouldBeAFile(fileSystem);
+            fileToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
+
+            // Move a folder from outside of src into src
+            string folderToCreateOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, FolderToCreateOutsideRepo);
+            fileSystem.CreateDirectory(folderToCreateOutsideRepoPath);
+            folderToCreateOutsideRepoPath.ShouldBeADirectory(fileSystem);
+            string folderToCreateOutsideRepoTargetPath = this.Enlistment.GetVirtualPathTo(FolderToCreateOutsideRepo);
+            folderToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.MoveDirectory(folderToCreateOutsideRepoPath, folderToCreateOutsideRepoTargetPath);
+            folderToCreateOutsideRepoTargetPath.ShouldBeADirectory(fileSystem);
+            folderToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
+
+            // Remount
+            this.Enlistment.UnmountGVFS();
+            this.Enlistment.MountGVFS();
+
+            this.Enlistment.WaitForBackgroundOperations();
+
+            string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
+            using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+            {
+                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
+                    .ShouldMatchInOrder(expectedModifiedFilesContentsAfterRemount.OrderBy(x => x));
+            }
+        }
+
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        public void ModifiedPathsCorrectAfterHardLinkingInsideRepo(FileSystemRunner fileSystem)
         {
             string[] expectedModifiedFilesContentsAfterHardlinks =
                 {
                     "A .gitattributes",
                     "A LinkToReadme.md",
-                    "A LinkToFileOutsideSrc.txt",
                     "A Readme.md",
-                    "A GVFS/GVFS/Program.cs",
                 };
 
             // Create a link from src\LinkToReadme.md to src\Readme.md
@@ -175,6 +208,28 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             hardLinkToFileInRepoPath.ShouldNotExistOnDisk(fileSystem);
             fileSystem.CreateHardLink(hardLinkToFileInRepoPath, existingFileInRepoPath);
             hardLinkToFileInRepoPath.ShouldBeAFile(fileSystem).WithContents(contents);
+
+            this.Enlistment.WaitForBackgroundOperations();
+
+            string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
+            using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+            {
+                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
+                    .ShouldMatchInOrder(expectedModifiedFilesContentsAfterHardlinks.OrderBy(x => x));
+            }
+        }
+
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
+        public void ModifiedPathsCorrectAfterHardLinkingOutsideRepo(FileSystemRunner fileSystem)
+        {
+            string[] expectedModifiedFilesContentsAfterHardlinks =
+                {
+                    "A .gitattributes",
+                    "A LinkToFileOutsideSrc.txt",
+                    "A GVFS/GVFS/Program.cs",
+                };
 
             // Create a link from src\LinkToFileOutsideSrc.txt to FileOutsideRepo.txt
             string fileOutsideOfRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "FileOutsideRepo.txt");
@@ -188,7 +243,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             // Create a link from LinkOutsideSrcToInsideSrc.cs to src\GVFS\GVFS\Program.cs
             string secondFileInRepoPath = this.Enlistment.GetVirtualPathTo("GVFS", "GVFS", "Program.cs");
-            contents = secondFileInRepoPath.ShouldBeAFile(fileSystem).WithContents();
+            string contents = secondFileInRepoPath.ShouldBeAFile(fileSystem).WithContents();
             string hardLinkOutsideRepoToFileInRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "LinkOutsideSrcToInsideSrc.cs");
             hardLinkOutsideRepoToFileInRepoPath.ShouldNotExistOnDisk(fileSystem);
             fileSystem.CreateHardLink(hardLinkOutsideRepoToFileInRepoPath, secondFileInRepoPath);

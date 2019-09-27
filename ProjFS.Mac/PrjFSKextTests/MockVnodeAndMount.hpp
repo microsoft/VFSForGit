@@ -121,6 +121,7 @@ public:
     mount_t GetMountPoint() const      { return this->mountPoint.get(); }
     bool IsRecycling() const           { return this->isRecycling; }
     vtype GetVnodeType() const         { return this->type; }
+    void SetVnodeType(vtype vtype)     { this->type = vtype; }
     std::shared_ptr<vnode> const GetParentVnode() { return this->parent; }
     
     struct BytesOrError

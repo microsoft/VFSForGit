@@ -28,16 +28,17 @@
 #include "KauthHandlerTestable.hpp"
 #endif
 
-template <typename T, typename MIN_T, typename MAX_T>
-    auto clamp(const T& value, const MIN_T& min, const MAX_T& max)
-{
-    return value < min ? min : (value > max ? max : value);
-}
-
 enum ProviderCallbackPolicy
 {
     CallbackPolicy_AllowAny,
     CallbackPolicy_UserInitiatedOnly,
+};
+
+enum ProviderStatus
+{
+    Provider_StatusUnknown,
+    Provider_IsOffline,
+    Provider_IsOnline,
 };
 
 struct PendingRenameOperation
@@ -69,7 +70,7 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
 KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 KEXT_STATIC_INLINE bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
-KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser();
+KEXT_STATIC bool CurrentProcessIsAllowedToHydrate();
 KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 
 static void WaitForListenerCompletion();
@@ -97,12 +98,14 @@ static bool TryGetVirtualizationRoot(
     const vnode_t vnode,
     pid_t pidMakingRequest,
     ProviderCallbackPolicy callbackPolicy,
-    
+    bool denyIfOffline,
+
     // Out params:
     VirtualizationRootHandle* root,
     FsidInode* vnodeFsidInode,
     int* kauthResult,
-    int* kauthError);
+    int* kauthError,
+    ProviderStatus* _Nullable providerStatus = nullptr);
 
 KEXT_STATIC bool ShouldHandleFileOpEvent(
     // In params:
@@ -130,6 +133,7 @@ static SpinLock s_renameLock;
 static PendingRenameOperation* s_pendingRenames = nullptr;
 KEXT_STATIC uint32_t s_pendingRenameCount = 0;
 KEXT_STATIC uint32_t s_maxPendingRenames = 0;
+static bool s_osSupportsRenameDetection = false;
 
 // Public functions
 kern_return_t KauthHandler_Init()
@@ -249,7 +253,9 @@ KEXT_STATIC void UseMainForkIfNamedStream(
 
 KEXT_STATIC bool InitPendingRenames()
 {
-    if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave) // Only need to track renames on Mojave and newer
+    // Only need to/can track renames on Mojave and newer
+    s_osSupportsRenameDetection = (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave);
+    if (s_osSupportsRenameDetection)
     {
         s_renameLock = SpinLock_Alloc();
         s_maxPendingRenames = 8; // Arbitrary choice, should be maximum number of expected concurrent threads performing renames, but array will resize on demand
@@ -268,7 +274,7 @@ KEXT_STATIC bool InitPendingRenames()
 
 KEXT_STATIC void CleanupPendingRenames()
 {
-    if (version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+    if (s_osSupportsRenameDetection)
     {
         if (SpinLock_IsValid(s_renameLock))
         {
@@ -322,7 +328,7 @@ KEXT_STATIC void ResizePendingRenames(uint32_t newMaxPendingRenames)
 
 KEXT_STATIC void RecordPendingRenameOperation(vnode_t vnode)
 {
-    assertf(version_major >= PrjFSDarwinMajorVersion::MacOS10_14_Mojave, "This function should only be called from the KAUTH_FILEOP_WILL_RENAME handler, which is only supported by Darwin 18 (macOS 10.14 Mojave) and newer (version_major = %u)", version_major);
+    assertf(s_osSupportsRenameDetection, "This function should only be called from the KAUTH_FILEOP_WILL_RENAME handler, which is only supported by Darwin 18 (macOS 10.14 Mojave) and newer (version_major = %u)", version_major);
     thread_t myThread = current_thread();
     
     bool resizeTable;
@@ -367,7 +373,7 @@ KEXT_STATIC void RecordPendingRenameOperation(vnode_t vnode)
 
 KEXT_STATIC bool DeleteOpIsForRename(vnode_t vnode)
 {
-    if (version_major < PrjFSDarwinMajorVersion::MacOS10_14_Mojave)
+    if (!s_osSupportsRenameDetection)
     {
         // High Sierra and earlier do not support WILL_RENAME notification, so we have to assume any delete may be caused by a rename
         assert(s_pendingRenameCount == 0);
@@ -483,8 +489,21 @@ KEXT_STATIC int HandleVnodeOperation(
             // Recursively expand directory on rename as user will expect the moved directory to have the same contents as in its original location
             if (isRename)
             {
-                // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                if (!TryGetVirtualizationRoot(
+                        &perfTracer,
+                        context,
+                        currentVnode,
+                        pid,
+                        // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
+                        CallbackPolicy_UserInitiatedOnly,
+                        // We want to block directory renames when provider is offline, but we can only do this on
+                        // newer OS versions as any delete operation could be a rename on High Sierra and older,
+                        // so on those versions, isRename is true for all delete events.
+                        s_osSupportsRenameDetection,
+                        &root,
+                        &vnodeFsidInode,
+                        &kauthResult,
+                        kauthError))
                 {
                     goto CleanupAndReturn;
                 }
@@ -508,8 +527,18 @@ KEXT_STATIC int HandleVnodeOperation(
             }
             else if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
-                // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                if (!TryGetVirtualizationRoot(
+                        &perfTracer,
+                        context,
+                        currentVnode,
+                        pid,
+                        // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
+                        CallbackPolicy_UserInitiatedOnly,
+                        false, // allow reading offline directories even if not expanded
+                        &root,
+                        &vnodeFsidInode,
+                        &kauthResult,
+                        kauthError))
                 {
                     goto CleanupAndReturn;
                 }
@@ -532,6 +561,24 @@ KEXT_STATIC int HandleVnodeOperation(
                 }
             }
         }
+        else if (ActionBitIsSet(action, KAUTH_VNODE_ADD_FILE | KAUTH_VNODE_ADD_SUBDIRECTORY))
+        {
+            if (!TryGetVirtualizationRoot(
+                    &perfTracer,
+                    context,
+                    currentVnode,
+                    pid,
+                    CallbackPolicy_AllowAny,
+                    // Block creating new files in offline roots.
+                    true,
+                    &root,
+                    &vnodeFsidInode,
+                    &kauthResult,
+                    kauthError))
+            {
+                goto CleanupAndReturn;
+            }
+        }
     }
     else
     {
@@ -549,8 +596,33 @@ KEXT_STATIC int HandleVnodeOperation(
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
-                // Prevent system services from hydrating files as this tends to cause deadlocks with the kauth listeners for Antivirus software
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                // Prevent access to empty files in offline roots, except always allow the user to delete files.
+                bool shouldBlockIfOffline =
+                    (isRename && s_osSupportsRenameDetection) ||
+                    ActionBitIsSet(
+                        action,
+                        // Writes would get overwritten by subsequent hydration
+                        KAUTH_VNODE_WRITE_ATTRIBUTES |
+                        KAUTH_VNODE_WRITE_EXTATTRIBUTES |
+                        KAUTH_VNODE_WRITE_DATA |
+                        KAUTH_VNODE_APPEND_DATA |
+                        // Reads would yield bad (null) data
+                        KAUTH_VNODE_READ_DATA |
+                        KAUTH_VNODE_READ_ATTRIBUTES |
+                        KAUTH_VNODE_EXECUTE |
+                        KAUTH_VNODE_READ_EXTATTRIBUTES);
+                if (!TryGetVirtualizationRoot(
+                        &perfTracer,
+                        context,
+                        currentVnode,
+                        pid,
+                        // Prevent system services from hydrating files as this tends to cause deadlocks with the kauth listeners for Antivirus software
+                        CallbackPolicy_UserInitiatedOnly,
+                        shouldBlockIfOffline,
+                        &root,
+                        &vnodeFsidInode,
+                        &kauthResult,
+                        kauthError))
                 {
                     goto CleanupAndReturn;
                 }
@@ -575,19 +647,68 @@ KEXT_STATIC int HandleVnodeOperation(
             
             if (ActionBitIsSet(action, KAUTH_VNODE_WRITE_DATA | KAUTH_VNODE_APPEND_DATA))
             {
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                /* At this stage we know the file is NOT empty, but it could be
+                 * in either placeholder (hydrated) or full (modified/added to
+                 * watchlist) state.
+                 *
+                 * If it's a placeholder, we need to notify the provider before
+                 * allowing modifications so that it is tracked as a full file
+                 * (and the placeholder xattr is removed).
+                 * If the provider is offline in this situation, we want to
+                 * prevent writes (by most processes) to the file so that the
+                 * modifications don't go undetected.
+                 *
+                 * If it's already a full file on the other hand, nothing needs
+                 * to be done, so we can allow writes even when the provider is
+                 * offline.
+                 */
+                ProviderStatus providerStatus;
+                bool shouldMessageProvider = TryGetVirtualizationRoot(
+                    &perfTracer,
+                    context,
+                    currentVnode,
+                    pid,
+                    CallbackPolicy_UserInitiatedOnly,
+                    // At this stage, we don't yet know if the file is still a placeholder, so don't deny yet even if offline
+                    false, // denyIfOffline
+                    &root,
+                    &vnodeFsidInode,
+                    &kauthResult,
+                    kauthError,
+                    &providerStatus);
+                
+                if (!shouldMessageProvider)
                 {
-                    goto CleanupAndReturn;
+                    // If we don't need to message the provider, that's normally
+                    // the end of it, but in the case where the provider is
+                    // offline we need to do further checks.
+                    if (providerStatus != Provider_IsOffline)
+                    {
+                        goto CleanupAndReturn;
+                    }
                 }
                 
                 PrjFSFileXAttrData rootXattr = {};
                 SizeOrError xattrResult = Vnode_ReadXattr(currentVnode, PrjFSFileXAttrName, &rootXattr, sizeof(rootXattr));
                 if (xattrResult.error == ENOATTR)
                 {
-                    // Only notify if the file is still a placeholder
+                    // If the file does not have the attribute, this means it's
+                    // already in the "full" state, so no need to send a provider
+                    // message or block the I/O if the provider is offline
                     goto CleanupAndReturn;
                 }
                 
+                if (providerStatus == Provider_IsOffline)
+                {
+                    assert(!shouldMessageProvider);
+                    // Deny write access to placeholders in an offline root
+                    kauthResult = KAUTH_RESULT_DENY;
+                    goto CleanupAndReturn;
+                }
+                
+                assert(shouldMessageProvider);
+                assert(providerStatus == Provider_IsOnline);
+
                 PerfSample preConvertToFullSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreConvertToFull);
                 
                 if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
@@ -610,8 +731,20 @@ KEXT_STATIC int HandleVnodeOperation(
     
     if (isDeleteAction)
     {
-        // Allow any user to delete individual files, as this generally doesn't cause nested kauth callbacks.
-        if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_AllowAny, &root, &vnodeFsidInode, &kauthResult, kauthError))
+        if (!TryGetVirtualizationRoot(
+                &perfTracer,
+                context,
+                currentVnode,
+                pid,
+                // Allow any user to delete individual files, as this generally doesn't cause nested kauth callbacks.
+                CallbackPolicy_AllowAny,
+                // Allow deletes even if provider offline, except renames. Allow all deletes
+                // on OS versions where we can't distinguish renames & other deletes.
+                isRename && s_osSupportsRenameDetection,
+                &root,
+                &vnodeFsidInode,
+                &kauthResult,
+                kauthError))
         {
             goto CleanupAndReturn;
         }
@@ -673,12 +806,14 @@ KEXT_STATIC int HandleFileOpOperation(
         // arg0 is the (const char *) fromPath (or the file being linked to)
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
-        // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
+        // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
-        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
+        errno_t toErr = vnode_lookup(newPath, /* flags: */ VNODE_LOOKUP_NOFOLLOW, &currentVnode, context);
         if (0 != toErr)
         {
-            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_RENAME): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
+            VirtualizationRootHandle providerHandle = ActiveProvider_FindForPath(newPath);
+            // TODO(#1480): Drop log level to KEXTLOG_DEFAULT when providerHandle is 'none' once these failures become rare
+            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_RENAME): vnode_lookup failed, errno %d for path '%s'; path lies within root %d%s", toErr, newPath, providerHandle, providerHandle == RootHandle_None ? "" : " with active provider");
             goto CleanupAndReturn;
         }
         
@@ -740,12 +875,14 @@ KEXT_STATIC int HandleFileOpOperation(
         const char* fromPath = reinterpret_cast<const char*>(arg0);
         const char* newPath = reinterpret_cast<const char*>(arg1);
         
-        // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
+        // TODO(#1367): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
-        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
+        errno_t toErr = vnode_lookup(newPath, /* flags: */ VNODE_LOOKUP_NOFOLLOW, &currentVnode, context);
         if (0 != toErr)
         {
-            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_LINK): vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
+            VirtualizationRootHandle providerHandle = ActiveProvider_FindForPath(newPath);
+            // TODO(#1480): Drop log level to KEXTLOG_DEFAULT when providerHandle is 'none' once these failures become rare
+            KextLog_Error("HandleFileOpOperation (KAUTH_FILEOP_LINK): vnode_lookup failed, errno %d for path '%s'; path lies within root %d%s", toErr, newPath, providerHandle, providerHandle == RootHandle_None ? "" : " with active provider");
             goto CleanupAndReturn;
         }
         
@@ -757,7 +894,6 @@ KEXT_STATIC int HandleFileOpOperation(
         bool isDirectory = (0 != vnode_isdir(currentVnode));
         if (isDirectory)
         {
-            // TODO(Mac): Handle hard-linked directories?
             KextLog_Info("HandleFileOpOperation: KAUTH_FILEOP_LINK event for hardlinked directory currently not handled. ('%s' -> '%s')", fromPath, newPath);
             goto CleanupAndReturn;
         }
@@ -1090,14 +1226,21 @@ static bool TryGetVirtualizationRoot(
     const vnode_t vnode,
     pid_t pidMakingRequest,
     ProviderCallbackPolicy callbackPolicy,
+    bool denyIfOffline,
 
     // Out params:
     VirtualizationRootHandle* root,
     FsidInode* vnodeFsidInode,
     int* kauthResult,
-    int* kauthError)
+    int* kauthError,
+    ProviderStatus* _Nullable providerStatus)
 {
     PerfSample findRootSample(perfTracer, PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot);
+    
+    if (providerStatus != nullptr)
+    {
+        *providerStatus = Provider_StatusUnknown;
+    }
     
     *root = VnodeCache_FindRootForVnode(
         perfTracer,
@@ -1125,14 +1268,21 @@ static bool TryGetVirtualizationRoot(
     }
     
     ActiveProviderProperties provider = VirtualizationRoot_GetActiveProvider(*root);
+    if (providerStatus != nullptr)
+    {
+        *providerStatus = provider.isOnline ? Provider_IsOnline : Provider_IsOffline;
+    }
+
     if (!provider.isOnline)
     {
-        // TODO(Mac): Protect files in the worktree from modification (and prevent
-        // the creation of new files) when the provider is offline
-        
         perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_ProviderOffline);
         
         *kauthResult = KAUTH_RESULT_DEFER;
+        if (denyIfOffline && !VirtualizationRoots_ProcessMayAccessOfflineRoots(pidMakingRequest))
+        {
+            *kauthResult = KAUTH_RESULT_DENY;
+        }
+        
         return false;
     }
     
@@ -1145,10 +1295,10 @@ static bool TryGetVirtualizationRoot(
         return false;
     }
     
-    if (callbackPolicy == CallbackPolicy_UserInitiatedOnly && !CurrentProcessWasSpawnedByRegularUser())
+    if (callbackPolicy == CallbackPolicy_UserInitiatedOnly && !CurrentProcessIsAllowedToHydrate())
     {
         // Prevent hydration etc. by system services
-        KextLog_Info("TryGetVirtualizationRoot: process %d restricted due to owner UID.", pidMakingRequest);
+        KextLog_Info("TryGetVirtualizationRoot: process %d is not allowed to hydrate.", pidMakingRequest);
         perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_UserRestriction);
         
         *kauthResult = KAUTH_RESULT_DENY;
@@ -1160,7 +1310,7 @@ static bool TryGetVirtualizationRoot(
     return true;
 }
 
-KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser()
+KEXT_STATIC bool CurrentProcessIsAllowedToHydrate()
 {
     bool nonServiceUser = false;
     
@@ -1189,7 +1339,7 @@ KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser()
         process = parentProcess;
         if (parentProcess == nullptr)
         {
-            KextLog_Error("CurrentProcessIsOwnedOrWasSpawnedByRegularUser: Failed to locate ancestor process %d for current process %d\n", parentPID, proc_selfpid());
+            KextLog_Error("CurrentProcessIsAllowedToHydrate: Failed to locate ancestor process %d for current process %d\n", parentPID, proc_selfpid());
             break;
         }
     }
@@ -1198,6 +1348,19 @@ KEXT_STATIC bool CurrentProcessWasSpawnedByRegularUser()
     if (process != nullptr)
     {
         proc_rele(process);
+    }
+    
+    if (!nonServiceUser)
+    {
+       // When amfid is invoked to check the code signature of a library which has not been hydrated,
+       // blocking hydration would cause the launch of an application which depends on the library to fail,
+       // so amfid should always be allowed to hydrate.
+       char buffer[MAXCOMLEN + 1] = "";
+       proc_selfname(buffer, sizeof(buffer));
+       if (0 == strcmp(buffer, "amfid"))
+       {
+          nonServiceUser = true;
+       }
     }
     
     return nonServiceUser;
@@ -1238,7 +1401,7 @@ static VirtualizationRootHandle FindRootForVnodeWithFileOpEvent(
     }
     else
     {
-        // TODO(Mac): Once all hardlink paths are delivered to the appropriate root(s)
+        // TODO(#1188): Once all hardlink paths are delivered to the appropriate root(s)
         // check if the KAUTH_FILEOP_LINK case can be removed.  For now the check is required to make
         // sure we're looking up the most up-to-date parent information for the vnode on the next
         // access to the vnode cache
@@ -1383,9 +1546,8 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
     errno_t err = GetVNodeAttributes(vn, context, &attributes);
     if (0 != err)
     {
-        // TODO(Mac): May fail on some file system types? Perhaps we should early-out depending on mount point anyway.
-        // We should also consider:
-        //   - Logging this error
+        // May fail on some file system types? Perhaps we should early-out depending on mount point anyway.
+        // If we see failures we should also consider:
         //   - Falling back on vnode lookup (or custom cache) to determine if file is in the root
         //   - Assuming files are empty if we can't read the flags
         KextLog_FileError(vn, "ReadVNodeFileFlags: GetVNodeAttributes failed with error %d; vnode type: %d, recycled: %s", err, vnode_vtype(vn), vnode_isrecycled(vn) ? "yes" : "no");
@@ -1426,6 +1588,7 @@ KEXT_STATIC bool IsFileSystemCrawler(const char* procname)
     // These process will crawl the file system and force a full hydration
     if (!strcmp(procname, "mds") ||
         !strcmp(procname, "mdworker") ||
+        !strcmp(procname, "mdworker_shared") ||
         !strcmp(procname, "mds_stores") ||
         !strcmp(procname, "fseventsd") ||
         !strcmp(procname, "Spotlight"))

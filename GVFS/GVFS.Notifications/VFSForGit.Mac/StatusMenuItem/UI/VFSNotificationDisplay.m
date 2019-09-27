@@ -1,42 +1,70 @@
 #import <Cocoa/Cocoa.h>
+#import "VFSCommandRunner.h"
 #import "VFSNotificationDisplay.h"
 
 @interface VFSNotificationDisplay ()
 
-@property (strong) NSUserNotification *userNotification;
-@property (strong) NSUserNotificationCenter *userNotificationCenter;
+@property (strong, nonnull) VFSCommandRunner *commandRunner;
 
 @end
 
 @implementation VFSNotificationDisplay
 
-- (instancetype)initWithTitle:(NSString *)title message:(NSString *)message
-{
-    NSUserNotification *userNotification = [[NSUserNotification alloc] init];
-    userNotification.title = title;
-    userNotification.informativeText = message;
-    NSUserNotificationCenter *notificationCenter =
-    [NSUserNotificationCenter defaultUserNotificationCenter];
-    
-    return self = [self initWithUserNotification:userNotification
-                              notificationCenter:notificationCenter];
-}
-
-- (instancetype)initWithUserNotification:(NSUserNotification *)userNotification
-                      notificationCenter:(NSUserNotificationCenter *)notificationCenter
+- (instancetype)initWithCommandRunner:(VFSCommandRunner *)commandRunner
 {
     if (self = [super init])
     {
-        _userNotification = userNotification;
-        _userNotificationCenter = notificationCenter;
+        _commandRunner = commandRunner;
+        [[NSUserNotificationCenter defaultUserNotificationCenter] setDelegate:self];
     }
     
     return self;
 }
 
-- (void)display
+- (void)display:(VFSForGitNotification *) notification
 {
-    [self.userNotificationCenter deliverNotification:self.userNotification];
+    NSUserNotification *userNotification = [[NSUserNotification alloc] init];
+    userNotification.title = notification.title;
+    userNotification.informativeText = notification.message;
+    userNotification.userInfo = [NSDictionary dictionaryWithObject:[NSKeyedArchiver archivedDataWithRootObject:notification]
+                                                            forKey:@"VFSForGitNotification"];
+    if (notification.actionable == YES)
+    {
+        userNotification.hasActionButton = notification.actionable;
+        userNotification.actionButtonTitle = notification.actionTitle;
+    }
+    
+    [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:userNotification];
+}
+
+- (void)userNotificationCenter:(NSUserNotificationCenter *)center
+       didActivateNotification:(NSUserNotification *)notification
+{
+    [[NSUserNotificationCenter defaultUserNotificationCenter] removeDeliveredNotification:notification];
+    
+    VFSForGitNotification *vfsNotification = [NSKeyedUnarchiver
+                                              unarchiveObjectWithData:[[notification userInfo]
+                                                                       objectForKey:@"VFSForGitNotification"]];
+    if (vfsNotification != nil)
+    {
+        switch (notification.activationType)
+        {
+            case NSUserNotificationActivationTypeActionButtonClicked:
+            {
+                if (vfsNotification.gvfsCommand)
+                {
+                    [self.commandRunner runCommand:vfsNotification.gvfsCommand];
+                }
+                
+                break;
+            }
+                
+            default:
+            {
+                break;
+            }
+        }
+    }    
 }
 
 @end

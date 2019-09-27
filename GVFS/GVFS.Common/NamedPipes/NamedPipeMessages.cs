@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 
@@ -71,6 +71,7 @@ namespace GVFS.Common.NamedPipes
             public const string ListRequest = "MPL";
             public const string InvalidVersion = "InvalidVersion";
             public const string SuccessResult = "S";
+            public const string CurrentVersion = "1";
 
             public class Request
             {
@@ -157,9 +158,25 @@ namespace GVFS.Common.NamedPipes
                     this.UpdatedSkipWorktreeBits = message.Body[1] == '1';
                 }
 
+                public Request(bool updatedWorkingDirectory, bool updatedSkipWorktreeBits)
+                {
+                    this.UpdatedWorkingDirectory = updatedWorkingDirectory;
+                    this.UpdatedSkipWorktreeBits = updatedSkipWorktreeBits;
+                }
+
                 public bool UpdatedWorkingDirectory { get; }
 
                 public bool UpdatedSkipWorktreeBits { get; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(NotificationRequest, $"{this.BoolToString(this.UpdatedWorkingDirectory)}{this.BoolToString(this.UpdatedSkipWorktreeBits)}");
+                }
+
+                private string BoolToString(bool value)
+                {
+                    return value ? "1" : "0";
+                }
             }
 
             public class Response
@@ -174,6 +191,57 @@ namespace GVFS.Common.NamedPipes
                 public Message CreateMessage()
                 {
                     return new Message(this.Result, null);
+                }
+            }
+        }
+
+        public static class DehydrateFolders
+        {
+            public const string Dehydrate = "Dehydrate";
+            public const string DehydratedResult = "Dehydrated";
+            public const string MountNotReadyResult = "MountNotReady";
+
+            public class Request
+            {
+                public Request(string folders)
+                {
+                    this.Folders = folders;
+                }
+
+                public Request(Message message)
+                {
+                    this.Folders = message.Body;
+                }
+
+                public string Folders { get; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(Dehydrate, this.Folders);
+                }
+            }
+
+            public class Response
+            {
+                public Response(string result)
+                {
+                    this.Result = result;
+                    this.SuccessfulFolders = new List<string>();
+                    this.FailedFolders = new List<string>();
+                }
+
+                public string Result { get; }
+                public List<string> SuccessfulFolders { get; }
+                public List<string> FailedFolders { get; }
+
+                public static Response FromMessage(Message message)
+                {
+                    return JsonConvert.DeserializeObject<Response>(message.Body);
+                }
+
+                public Message CreateMessage()
+                {
+                    return new Message(this.Result, JsonConvert.SerializeObject(this));
                 }
             }
         }
@@ -235,7 +303,8 @@ namespace GVFS.Common.NamedPipes
                 {
                     AutomountStart,
                     MountSuccess,
-                    MountFailure
+                    MountFailure,
+                    UpgradeAvailable
                 }
 
                 public Identifier Id { get; set; }
@@ -247,6 +316,8 @@ namespace GVFS.Common.NamedPipes
                 public string Enlistment { get; set; }
 
                 public int EnlistmentCount { get; set; }
+
+                public string NewVersion { get; set; }
 
                 public static Request FromMessage(Message message)
                 {

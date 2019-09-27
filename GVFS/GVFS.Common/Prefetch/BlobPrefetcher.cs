@@ -576,7 +576,7 @@ namespace GVFS.Common.Prefetch
 
         private bool IsSymbolicRef(string targetCommitish)
         {
-            return targetCommitish.StartsWith("refs/", StringComparison.OrdinalIgnoreCase);
+            return targetCommitish.StartsWith("refs/", GVFSPlatform.Instance.Constants.PathComparison);
         }
 
         private void SavePrefetchArgs(string targetCommit, bool hydrate)

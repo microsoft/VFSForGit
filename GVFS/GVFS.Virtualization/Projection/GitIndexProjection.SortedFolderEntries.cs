@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 
@@ -88,27 +89,57 @@ namespace GVFS.Virtualization.Projection
                 this.sortedEntries.Clear();
             }
 
-            public FolderData AddFolder(LazyUTF8String name)
-            {
-                int insertionIndex = this.GetInsertionIndex(name);
-                return this.InsertFolder(name, insertionIndex);
-            }
-
             public FileData AddFile(LazyUTF8String name, byte[] shaBytes)
             {
                 int insertionIndex = this.GetInsertionIndex(name);
                 return this.InsertFile(name, shaBytes, insertionIndex);
             }
 
-            public FolderData GetOrAddFolder(LazyUTF8String name)
+            public FolderData GetOrAddFolder(
+                LazyUTF8String[] pathParts,
+                int partIndex,
+                bool parentIsIncluded,
+                SparseFolderData rootSparseFolderData)
             {
-                int index = this.GetSortedEntriesIndexOfName(name);
+                int index = this.GetSortedEntriesIndexOfName(pathParts[partIndex]);
                 if (index >= 0)
                 {
                     return (FolderData)this.sortedEntries[index];
                 }
 
-                return this.InsertFolder(name, ~index);
+                bool isIncluded = true;
+                if (rootSparseFolderData.Children.Count > 0)
+                {
+                    if (parentIsIncluded)
+                    {
+                        // Need to check if this child folder should be included
+                        SparseFolderData folderData = rootSparseFolderData;
+                        for (int i = 0; i <= partIndex; i++)
+                        {
+                            if (folderData.IsRecursive)
+                            {
+                                break;
+                            }
+
+                            string childFolderName = pathParts[i].GetString();
+                            if (!folderData.Children.ContainsKey(childFolderName))
+                            {
+                                isIncluded = false;
+                                break;
+                            }
+                            else
+                            {
+                                folderData = folderData.Children[childFolderName];
+                            }
+                        }
+                    }
+                    else
+                    {
+                        isIncluded = false;
+                    }
+                }
+
+                return this.InsertFolder(pathParts[partIndex], ~index, isIncluded: isIncluded);
             }
 
             public bool TryGetValue(LazyUTF8String name, out FolderEntryData value)
@@ -143,10 +174,10 @@ namespace GVFS.Virtualization.Projection
                 return insertionIndex;
             }
 
-            private FolderData InsertFolder(LazyUTF8String name, int insertionIndex)
+            private FolderData InsertFolder(LazyUTF8String name, int insertionIndex, bool isIncluded)
             {
                 FolderData data = folderPool.GetNew();
-                data.ResetData(name);
+                data.ResetData(name, isIncluded);
                 this.sortedEntries.Insert(insertionIndex, data);
                 return data;
             }
@@ -176,8 +207,10 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 // Insertions are almost always at the end, because the inputs are pre-sorted by git.
-                // We only have to insert at a different spot where Windows and git disagree on the sort order.
-                int compareResult = this.sortedEntries[this.sortedEntries.Count - 1].Name.CaseInsensitiveCompare(name);
+                // We only have to insert at a different spot where Windows/Mac and git disagree on the sort order;
+                // on Linux we use a case-sensitive comparsion, which we expect to align with git.
+                bool caseSensitive = GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem;
+                int compareResult = this.sortedEntries[this.sortedEntries.Count - 1].Name.Compare(name, caseSensitive);
                 if (compareResult == 0)
                 {
                     return this.sortedEntries.Count - 1;
@@ -193,7 +226,7 @@ namespace GVFS.Virtualization.Projection
                 while (right - left > 2)
                 {
                     int middle = left + ((right - left) / 2);
-                    int comparison = this.sortedEntries[middle].Name.CaseInsensitiveCompare(name);
+                    int comparison = this.sortedEntries[middle].Name.Compare(name, caseSensitive);
 
                     if (comparison == 0)
                     {
@@ -212,7 +245,7 @@ namespace GVFS.Virtualization.Projection
 
                 for (int i = right; i >= left; i--)
                 {
-                    compareResult = this.sortedEntries[i].Name.CaseInsensitiveCompare(name);
+                    compareResult = this.sortedEntries[i].Name.Compare(name, caseSensitive);
                     if (compareResult == 0)
                     {
                         return i;

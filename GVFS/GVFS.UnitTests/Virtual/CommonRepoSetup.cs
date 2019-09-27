@@ -3,6 +3,7 @@ using GVFS.Common.Git;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
+using GVFS.Virtualization.FileSystem;
 using System;
 using System.IO;
 
@@ -10,12 +11,14 @@ namespace GVFS.UnitTests.Virtual
 {
     public class CommonRepoSetup : IDisposable
     {
+        public static readonly byte[] DefaultContentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
+
         public CommonRepoSetup()
         {
             MockTracer tracer = new MockTracer();
 
             string enlistmentRoot = Path.Combine("mock:", "GVFS", "UnitTests", "Repo");
-            GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", gvfsHooksRoot: null, authentication: null);
+            GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", authentication: null);
             enlistment.InitializeCachePathsFromKey("fake:\\gvfsSharedCache", "fakeCacheKey");
 
             this.GitParentPath = enlistment.WorkingDirectoryRoot;

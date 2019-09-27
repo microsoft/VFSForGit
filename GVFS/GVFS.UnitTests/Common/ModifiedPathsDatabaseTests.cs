@@ -161,7 +161,7 @@ A dir1/dir2
             modifiedPathsDatabase.Count.ShouldEqual(2);
             modifiedPathsDatabase.Contains(pathInList, isFolder).ShouldBeTrue();
             modifiedPathsDatabase.Contains(ToGitPathSeparators(pathInList), isFolder).ShouldBeTrue();
-            modifiedPathsDatabase.GetAllModifiedPaths().ShouldContainSingle(x => string.Compare(x, ToGitPathSeparators(pathInList), StringComparison.OrdinalIgnoreCase) == 0);
+            modifiedPathsDatabase.GetAllModifiedPaths().ShouldContainSingle(x => string.Compare(x, ToGitPathSeparators(pathInList), GVFSPlatform.Instance.Constants.PathComparison) == 0);
         }
 
         private static string ToGitPathSeparators(string path)

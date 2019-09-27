@@ -144,6 +144,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             ProcessResult revParseResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, $"rev-parse :{fileGitPath}");
             sha = revParseResult.Output.Trim();
+            if (FileSystemHelpers.CaseSensitiveFileSystem)
+            {
+                // Ensure SHA path is lowercase for case-sensitive filesystems
+                sha = sha.ToLower();
+            }
+
             sha.Length.ShouldEqual(40);
             string objectPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), sha.Substring(0, 2), sha.Substring(2, 38));
             return objectPath;

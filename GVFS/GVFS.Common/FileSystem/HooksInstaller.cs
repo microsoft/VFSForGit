@@ -28,8 +28,9 @@ namespace GVFS.Common.FileSystem
         public static string MergeHooksData(string[] defaultHooksLines, string filename, string hookName)
         {
             IEnumerable<string> valuableHooksLines = defaultHooksLines.Where(line => !string.IsNullOrEmpty(line.Trim()));
+            string absolutePathToHooksExecutable = Path.Combine(ExecutingDirectory, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
 
-            if (valuableHooksLines.Contains(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName, StringComparer.OrdinalIgnoreCase))
+            if (valuableHooksLines.Contains(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName, GVFSPlatform.Instance.Constants.PathComparer))
             {
                 throw new HooksConfigurationException(
                     $"{GVFSPlatform.Instance.Constants.GVFSHooksExecutableName} should not be specified in the configuration for "
@@ -37,15 +38,15 @@ namespace GVFS.Common.FileSystem
             }
             else if (!valuableHooksLines.Any())
             {
-                return GVFSPlatform.Instance.Constants.GVFSHooksExecutableName;
+                return absolutePathToHooksExecutable;
             }
             else if (hookName.Equals(GVFSConstants.DotGit.Hooks.PostCommandHookName))
             {
-                return string.Join("\n", new string[] { GVFSPlatform.Instance.Constants.GVFSHooksExecutableName }.Concat(valuableHooksLines));
+                return string.Join("\n", new string[] { absolutePathToHooksExecutable }.Concat(valuableHooksLines));
             }
             else
             {
-                return string.Join("\n", valuableHooksLines.Concat(new string[] { GVFSPlatform.Instance.Constants.GVFSHooksExecutableName }));
+                return string.Join("\n", valuableHooksLines.Concat(new string[] { absolutePathToHooksExecutable }));
             }
         }
 

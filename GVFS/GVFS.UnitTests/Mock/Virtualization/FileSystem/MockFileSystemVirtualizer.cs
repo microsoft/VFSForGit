@@ -43,7 +43,12 @@ namespace GVFS.UnitTests.Mock.Virtualization.FileSystem
             throw new NotImplementedException();
         }
 
-        protected override bool TryStart(out string error)
+        public override FileSystemResult DehydrateFolder(string relativePath)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override bool TryStart(out string error)
         {
             error = null;
             return true;

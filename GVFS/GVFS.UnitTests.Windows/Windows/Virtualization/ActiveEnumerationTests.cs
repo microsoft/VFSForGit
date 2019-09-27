@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
 using GVFS.Virtualization.Projection;
@@ -228,13 +229,13 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString("*.txt").ShouldEqual(true);
-            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.EndsWith(".txt", GVFSPlatform.Instance.Constants.PathComparison)));
 
             // '<' = DOS_STAR, matches 0 or more characters until encountering and matching
             //                 the final . in the name
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString("<.txt").ShouldEqual(true);
-            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.EndsWith(".txt", GVFSPlatform.Instance.Constants.PathComparison)));
 
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString("?").ShouldEqual(true);
@@ -242,35 +243,35 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString("?.txt").ShouldEqual(true);
-            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.EndsWith(".txt", GVFSPlatform.Instance.Constants.PathComparison)));
 
             // '>' = DOS_QM, matches any single character, or upon encountering a period or
             //               end of name string, advances the expression to the end of the
             //               set of contiguous DOS_QMs.
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString(">.txt").ShouldEqual(true);
-            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length <= 5 && entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length <= 5 && entry.Name.EndsWith(".txt", GVFSPlatform.Instance.Constants.PathComparison)));
 
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString("E.???").ShouldEqual(true);
-            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase)));
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.StartsWith("E.", GVFSPlatform.Instance.Constants.PathComparison)));
 
             // '"' = DOS_DOT, matches either a . or zero characters beyond name string.
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString("E\"*").ShouldEqual(true);
-            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("E", System.StringComparison.OrdinalIgnoreCase)));
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("E.", GVFSPlatform.Instance.Constants.PathComparison) || entry.Name.Equals("E", GVFSPlatform.Instance.Constants.PathComparison)));
 
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString("e\"*").ShouldEqual(true);
-            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("E", System.StringComparison.OrdinalIgnoreCase)));
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("E.", GVFSPlatform.Instance.Constants.PathComparison) || entry.Name.Equals("E", GVFSPlatform.Instance.Constants.PathComparison)));
 
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString("B\"*").ShouldEqual(true);
-            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("B.", System.StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("B", System.StringComparison.OrdinalIgnoreCase)));
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("B.", GVFSPlatform.Instance.Constants.PathComparison) || entry.Name.Equals("B", GVFSPlatform.Instance.Constants.PathComparison)));
 
             activeEnumeration = CreateActiveEnumeration(entries);
             activeEnumeration.TrySaveFilterString("e.???").ShouldEqual(true);
-            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase)));
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.StartsWith("E.", GVFSPlatform.Instance.Constants.PathComparison)));
         }
 
         [TestCase]

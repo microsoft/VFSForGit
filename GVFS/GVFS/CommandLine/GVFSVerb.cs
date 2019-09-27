@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security;
+using System.Text;
 
 namespace GVFS.CommandLine
 {
@@ -371,7 +372,7 @@ namespace GVFS.CommandLine
             this.CheckGitVersion(tracer, enlistment, out string gitVersion);
             enlistment.SetGitVersion(gitVersion);
 
-            this.GetGVFSHooksPathAndCheckVersion(tracer, out string hooksVersion);
+            this.CheckGVFSHooksVersion(tracer, out string hooksVersion);
             enlistment.SetGVFSHooksVersion(hooksVersion);
             this.CheckFileSystemSupportsRequiredFeatures(tracer, enlistment);
 
@@ -416,11 +417,10 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        protected string GetGVFSHooksPathAndCheckVersion(ITracer tracer, out string hooksVersion)
+        protected void CheckGVFSHooksVersion(ITracer tracer, out string hooksVersion)
         {
             string error;
-            string hooksPath;
-            if (!GVFSPlatform.Instance.TryGetGVFSHooksPathAndVersion(out hooksPath, out hooksVersion, out error))
+            if (!GVFSPlatform.Instance.TryGetGVFSHooksVersion(out hooksVersion, out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
@@ -430,8 +430,6 @@ namespace GVFS.CommandLine
             {
                 this.ReportErrorAndExit(tracer, "GVFS.Hooks version ({0}) does not match GVFS version ({1}).", hooksVersion, gvfsVersion);
             }
-
-            return hooksPath;
         }
 
         protected void BlockEmptyCacheServerUrl(string userInput)
@@ -876,6 +874,78 @@ You can specify a URL, a name of a configured cache server, or the special names
                 RepoMetadata.Shutdown();
             }
 
+            protected ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer, Action<TVerb> configureVerb = null)
+                where TVerb : GVFSVerb, new()
+            {
+                try
+                {
+                    ReturnCode returnCode;
+                    StringBuilder commandOutput = new StringBuilder();
+                    using (StringWriter writer = new StringWriter(commandOutput))
+                    {
+                        returnCode = this.Execute<TVerb>(
+                            this.EnlistmentRootPathParameter,
+                            verb =>
+                            {
+                                verb.Output = writer;
+                                configureVerb?.Invoke(verb);
+                            });
+                    }
+
+                    tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        typeof(TVerb).Name,
+                        new EventMetadata
+                        {
+                        { "Output", commandOutput.ToString() },
+                        { "ReturnCode", returnCode }
+                        });
+
+                    return returnCode;
+                }
+                catch (Exception e)
+                {
+                    tracer.RelatedError(
+                        new EventMetadata
+                        {
+                        { "Verb", typeof(TVerb).Name },
+                        { "Exception", e.ToString() }
+                        },
+                        "ExecuteGVFSVerb: Caught exception");
+
+                    return ReturnCode.GenericError;
+                }
+            }
+
+            protected void Unmount(ITracer tracer)
+            {
+                if (!this.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        return
+                            this.ExecuteGVFSVerb<StatusVerb>(tracer) != ReturnCode.Success ||
+                            this.ExecuteGVFSVerb<UnmountVerb>(tracer) == ReturnCode.Success;
+                    },
+                    "Unmounting",
+                    suppressGvfsLogMessage: true))
+                {
+                    this.ReportErrorAndExit(tracer, "Unable to unmount.");
+                }
+            }
+
+            protected void Mount(ITracer tracer)
+            {
+                if (!this.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        return this.ExecuteGVFSVerb<MountVerb>(tracer) == ReturnCode.Success;
+                    },
+                    "Mounting"))
+                {
+                    this.ReportErrorAndExit(tracer, "Failed to mount.");
+                }
+            }
+
             private void InitializeCachePathsFromRepoMetadata(
                 ITracer tracer,
                 GVFSEnlistment enlistment)
@@ -964,7 +1034,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                                     while (!reader.EndOfStream)
                                     {
                                         string alternatesLine = reader.ReadLine();
-                                        if (string.Equals(alternatesLine, enlistment.GitObjectsRoot, StringComparison.OrdinalIgnoreCase))
+                                        if (string.Equals(alternatesLine, enlistment.GitObjectsRoot, GVFSPlatform.Instance.Constants.PathComparison))
                                         {
                                             gitObjectsRootInAlternates = true;
                                         }
@@ -1101,29 +1171,12 @@ You can specify a URL, a name of a configured cache server, or the special names
                     this.ReportErrorAndExit("Error: " + GVFSConstants.GitIsNotInstalledError);
                 }
 
-                string hooksPath = null;
-                if (GVFSPlatform.Instance.UnderConstruction.RequiresDeprecatedGitHooksLoader)
-                {
-                    // On Windows, the soon-to-be deprecated GitHooksLoader tries to call out to the hooks process without
-                    // its full path, so we have to pass the path along to our background git processes via the PATH
-                    // environment variable. On Mac this is not needed because we just copy our own hook directly into
-                    // the .git/hooks folder, and once Windows does the same, this hooksPath can be removed (from here
-                    // and all the classes that handle it on the way to GitProcess)
-
-                    hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-                    if (hooksPath == null)
-                    {
-                        this.ReportErrorAndExit("Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-                    }
-                }
-
                 GVFSEnlistment enlistment = null;
                 try
                 {
                     enlistment = GVFSEnlistment.CreateFromDirectory(
                         enlistmentRootPath,
                         gitBinPath,
-                        hooksPath,
                         authentication,
                         createWithoutRepoURL: !this.validateOriginURL);
                 }

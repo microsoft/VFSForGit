@@ -45,6 +45,11 @@ namespace GVFS.Common.Database
             }
         }
 
+        public static string NormalizePath(string path)
+        {
+            return path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).Trim().Trim(Path.DirectorySeparatorChar);
+        }
+
         public void Dispose()
         {
             if (this.disposed)
@@ -117,7 +122,8 @@ namespace GVFS.Common.Database
                     command.ExecuteNonQuery();
                 }
 
-                PlaceholderTable.CreateTable(connection);
+                PlaceholderTable.CreateTable(connection, GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem);
+                SparseTable.CreateTable(connection, GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem);
             }
         }
 

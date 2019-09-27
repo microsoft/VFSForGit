@@ -95,8 +95,11 @@ namespace GVFS.Common
             public const string Prefetch = "prefetch";
             public const string Repair = "repair";
             public const string Service = "service";
+            public const string ServiceUI = "service_ui";
+            public const string Sparse = "sparse";
             public const string UpgradeVerb = UpgradePrefix + "_verb";
             public const string UpgradeProcess = UpgradePrefix + "_process";
+            public const string UpgradeSystemInstaller = UpgradePrefix + "_system_installer";
         }
 
         public static class DotGVFS
@@ -238,16 +241,13 @@ namespace GVFS.Common
         public static class UpgradeVerbMessages
         {
             public const string GVFSUpgrade = "`gvfs upgrade`";
-            public const string GVFSUpgradeConfirm = "`gvfs upgrade --confirm`";
             public const string GVFSUpgradeDryRun = "`gvfs upgrade --dry-run`";
             public const string NoUpgradeCheckPerformed = "No upgrade check was performed.";
             public const string NoneRingConsoleAlert = "Upgrade ring set to \"None\". " + NoUpgradeCheckPerformed;
             public const string NoRingConfigConsoleAlert = "Upgrade ring is not set. " + NoUpgradeCheckPerformed;
             public const string InvalidRingConsoleAlert = "Upgrade ring set to unknown value. " + NoUpgradeCheckPerformed;
             public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `gvfs config " + LocalGVFSConfig.UpgradeRing + " [\"Fast\"|\"Slow\"|\"None\"]` from a command prompt.";
-            public const string ReminderNotification = "A new version of GVFS is available. Run " + UpgradeVerbMessages.GVFSUpgradeConfirm + " from an elevated command prompt to upgrade.";
             public const string UnmountRepoWarning = "Upgrade will unmount and remount gvfs repos, ensure you are at a stopping point.";
-            public const string UpgradeInstallAdvice = "When ready, run " + UpgradeVerbMessages.GVFSUpgradeConfirm + " from an elevated command prompt.";
         }
     }
 }

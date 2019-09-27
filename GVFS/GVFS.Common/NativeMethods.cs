@@ -98,14 +98,6 @@ namespace GVFS.Common
             }
         }
 
-        public static void CreateHardLink(string newLinkFileName, string existingFileName)
-        {
-            if (!CreateHardLink(newLinkFileName, existingFileName, IntPtr.Zero))
-            {
-                ThrowLastWin32Exception($"Failed to create hard link from '{newLinkFileName}' to '{existingFileName}'");
-            }
-        }
-
         /// <summary>
         /// Get the build number of the OS
         /// </summary>
@@ -169,12 +161,6 @@ namespace GVFS.Common
             string existingFileName,
             string newFileName,
             uint flags);
-
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern bool CreateHardLink(
-            string newLinkFileName,
-            string existingFileName,
-            IntPtr securityAttributes);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool FlushFileBuffers(SafeFileHandle hFile);

@@ -2,6 +2,8 @@
 #include "../PrjFSKext/public/PrjFSVnodeCacheHealth.h"
 #include "../PrjFSLib/Json/JsonWriter.hpp"
 #include "../PrjFSLib/PrjFSUser.hpp"
+#include <atomic>
+#include <dirent.h>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -9,8 +11,12 @@
 #include <IOKit/IOKitLib.h>
 #include <signal.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
+#include <unistd.h>
 
+using std::atomic_exchange;
+using std::atomic_uint32_t;
 using std::hex;
 using std::lock_guard;
 using std::mutex;
@@ -18,6 +24,9 @@ using std::ostringstream;
 using std::string;
 
 static const char PrjFSKextLogDaemon_OSLogSubsystem[] = "org.vfsforgit.prjfs.PrjFSKextLogDaemon";
+static const char PanicLogDirectory[] = "/Library/Logs/DiagnosticReports";
+static const char PanicLogTimestampDirectory[] = "/usr/local/vfsforgit/diagnostics";
+static const char PanicLogTimestampFile[] = "/usr/local/vfsforgit/diagnostics/LastRun.txt";
 static const int INVALID_SOCKET_FD = -1;
 
 static os_log_t s_daemonLogger, s_kextLogger;
@@ -35,12 +44,19 @@ enum class MessageType
 
 static mutex s_messageListenerMutex;
 
+static atomic_uint32_t s_droppedMessageCount(0);
+
+static void LogPanics();
+static long GetFileModifiedTime(const char* path);
+static bool DoesPathExist(const char* path);
 static void StartLoggingKextMessages(io_connect_t connection, io_service_t service);
 static void HandleSigterm(int sig, siginfo_t* info, void* uc);
 static void SetupExitSignalHandler();
 
-static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection);
-static bool TryFetchAndLogKextHealthData(io_connect_t connection);
+static dispatch_source_t StartPeriodicLoggingTimer(io_connect_t connection);
+static void FetchAndLogKextHealthData(io_connect_t connection);
+
+static void ReportDroppedKextMessages();
 
 // LogXXX functions will log to the OS as well as the message listener
 static void LogDaemonError(const string& message);
@@ -120,6 +136,7 @@ int main(int argc, const char* argv[])
 
     os_log(s_daemonLogger, "PrjFSKextLogDaemon running");
 
+    LogPanics();
     CFRunLoopRun();
 
     os_log(s_daemonLogger, "PrjFSKextLogDaemon shutting down");
@@ -146,6 +163,117 @@ static os_log_type_t KextLogLevelAsOSLogType(KextLog_Level level)
     default:
         return OS_LOG_TYPE_ERROR;
     }
+}
+
+static void LogPanics()
+{
+    DIR* dr = opendir(PanicLogDirectory);
+    if (dr == nullptr)
+    {
+        ostringstream errorMessage;
+        errorMessage << "Unable to open " << PanicLogDirectory << ", errno=" << errno << ", errorstr=" << strerror(errno);
+        LogDaemonError(errorMessage.str());
+        return;
+    }
+
+    // Look up the last run time
+    long lastRunTimestamp = GetFileModifiedTime(PanicLogTimestampFile);
+
+    struct dirent* dirEntry;
+    while ((dirEntry = readdir(dr)) != nullptr)
+    {
+        // Only check files
+        if(dirEntry->d_type == DT_REG)
+        {
+           // Check for .panic extension
+           const char* ext = strrchr(dirEntry->d_name,'.');
+           if(ext != nullptr && strcmp(ext, ".panic") == 0)
+           {
+               // Get the full name of the panic file
+               string fullFileName = PanicLogDirectory;
+               fullFileName += "/";
+               fullFileName += dirEntry->d_name;
+
+               // Verify it's after the last timestamp
+               long panicLogTime = GetFileModifiedTime(fullFileName.c_str());
+               if (panicLogTime == 0)
+               {
+                   // Record error if we can't determine timestamp
+                   os_log(s_daemonLogger, "Unable to run stat on panic at %{public}s errno=%d strerror=%{public}s\n", fullFileName.c_str(), errno, strerror(errno));
+                   continue;
+               }
+
+               if (panicLogTime >= lastRunTimestamp)
+               {
+                  // Check if 'org.vfsforgit.PrjFSKext(' occurs in the log
+                  // If it does, then PrjFSKext may have caused the panic and we should log an error
+                  FILE* fp = fopen(fullFileName.c_str(), "r");
+                  if (fp != nullptr)
+                  {
+                      char* line = nullptr;
+                      size_t len = 0;
+                      ssize_t read;
+                      while ((read = getline(&line, &len, fp)) != -1)
+                      {
+                          if (strstr(line, "org.vfsforgit.PrjFSKext(") != nullptr)
+                          {
+                              ostringstream errorMessage;
+                              errorMessage << "Found panic at " << fullFileName.c_str() << "\n";
+                              LogDaemonError(errorMessage.str());
+                              break;
+                          }
+                      }
+                      
+                      fclose(fp);
+                      free(line);
+                  }
+                  else
+                  {
+                      os_log(s_daemonLogger, "Unable open %{public}s errno=%d strerror=%{public}s\n", fullFileName.c_str(), errno, strerror(errno));
+                      continue;
+                  }
+              }
+           }
+        }
+    }
+    closedir(dr);
+
+    // Update timestamp file
+    if (!DoesPathExist(PanicLogTimestampDirectory))
+    {
+        mkdir(PanicLogTimestampDirectory, 0755);
+    }
+    
+    FILE* fp = fopen(PanicLogTimestampFile, "a");
+    if (fp != nullptr)
+    {
+       fprintf(fp, "Completed Panic Sweep for :%ld\n", lastRunTimestamp);
+       fclose(fp);
+    }
+    else
+    {
+        os_log(s_daemonLogger, "Unable to save panic timestamp file %{public}s errno=%d strerror=%{public}s\n", PanicLogTimestampFile, errno, strerror(errno));
+    }
+}
+
+static long GetFileModifiedTime(const char* path)
+{
+    struct stat attr;
+    if (stat(path, &attr) == -1)
+    {
+        return 0;
+    }
+    return attr.st_mtimespec.tv_sec;
+}
+
+static bool DoesPathExist(const char* path)
+{
+    struct stat attr;
+    if (stat(path, &attr) == -1)
+    {
+        return false;
+    }
+    return true;
 }
 
 static void StartLoggingKextMessages(io_connect_t connection, io_service_t prjfsService)
@@ -196,11 +324,7 @@ static void StartLoggingKextMessages(io_connect_t connection, io_service_t prjfs
     });
     dispatch_resume(logDataQueue->dispatchSource);
 
-    dispatch_source_t timer = nullptr;
-    if (TryFetchAndLogKextHealthData(connection))
-    {
-        timer = StartKextHealthDataPolling(connection);
-    }
+    dispatch_source_t timer = StartPeriodicLoggingTimer(connection);
 
     PrjFSService_WatchForServiceTermination(
         prjfsService,
@@ -241,7 +365,7 @@ static void SetupExitSignalHandler()
     sigaction(SIGTERM, &newAction, &oldAction);
 }
 
-static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection)
+static dispatch_source_t StartPeriodicLoggingTimer(io_connect_t connection)
 {
     dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
     dispatch_source_set_timer(
@@ -252,21 +376,21 @@ static dispatch_source_t StartKextHealthDataPolling(io_connect_t connection)
     dispatch_source_set_event_handler(timer, ^{
         // Every time the timer fires attempt to connect (if not already connected)
         CreatePipeToMessageListener();
-        TryFetchAndLogKextHealthData(connection);
+        FetchAndLogKextHealthData(connection);
+        ReportDroppedKextMessages();
     });
     dispatch_resume(timer);
     return timer;
 }
 
-static bool TryFetchAndLogKextHealthData(io_connect_t connection)
+static void FetchAndLogKextHealthData(io_connect_t connection)
 {
     PrjFSVnodeCacheHealth healthData;
     size_t out_size = sizeof(healthData);
     IOReturn ret = IOConnectCallStructMethod(connection, LogSelector_FetchVnodeCacheHealth, nullptr, 0, &healthData, &out_size);
     if (ret == kIOReturnUnsupported)
     {
-        LogDaemonError("TryFetchAndLogKextHealthData: IOConnectCallStructMethod failed for LogSelector_FetchVnodeCacheHealth, ret: kIOReturnUnsupported");
-        return false;
+        LogDaemonError("FetchAndLogKextHealthData: IOConnectCallStructMethod failed for LogSelector_FetchVnodeCacheHealth, ret: kIOReturnUnsupported");
     }
     else if (ret == kIOReturnSuccess)
     {
@@ -275,12 +399,23 @@ static bool TryFetchAndLogKextHealthData(io_connect_t connection)
     else
     {
         ostringstream errorMessage;
-        errorMessage << "TryFetchAndLogKextHealthData: Fetching profiling data from kernel failed, ret: 0x" << hex << ret;
+        errorMessage << "FetchAndLogKextHealthData: Fetching profiling data from kernel failed, ret: 0x" << hex << ret;
         LogDaemonError(errorMessage.str());
-        return false;
     }
+}
+
+static void ReportDroppedKextMessages()
+{
+    // We should only report the number of drops reported during the last time interval (i.e. since the last
+    // time ReportDroppedKextMessages was called).  Capture the current value of s_droppedMessageCount and reset it to 0.
+    uint32_t droppedMessageCount = atomic_exchange(&s_droppedMessageCount, 0U);
     
-    return true;
+    if (droppedMessageCount > 0)
+    {
+        ostringstream message;
+        message << "ReportAnyDroppedMessages: " << droppedMessageCount << " reports of dropped kext log messages since last checked";
+        LogDaemonError(message.str());
+    }
 }
 
 static void LogDaemonError(const string& message)
@@ -296,12 +431,11 @@ static void LogKextMessage(os_log_type_t messageLogType, uint32_t messageFlags, 
 {
     if (messageFlags & LogMessageFlag_LogMessagesDropped)
     {
-        // One or more earlier messages have been dropped
-        os_log_error(s_kextLogger, "One or more kext log messages have been dropped");
-        
-        JsonWriter messageWriter;
-        messageWriter.Add(MessageKey, "One or more kext log messages have been dropped");
-        WriteJsonToMessageListener(MessageType::Error, messageWriter);
+        if (1 == ++s_droppedMessageCount)
+        {
+            // Don't log every time a message is dropped to avoid flooding the logs under heavy load
+            LogDaemonError("LogKextMessage: One or more kext log messages have been dropped");
+        }
     }
     
     os_log_with_type(

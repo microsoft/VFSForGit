@@ -36,7 +36,7 @@ class PrjFSProviderUserClient
     self->cacheWrapper.AllocateCache();
     self->context = vfs_context_create(nullptr);
     MockProcess_AddContext(self->context, 501 /*pid*/);
-    MockProcess_SetSelfPid(501);
+    MockProcess_SetSelfInfo(501, "Test");
     MockProcess_AddProcess(501 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
     
     self->testMount = mount::Create();
@@ -58,7 +58,8 @@ class PrjFSProviderUserClient
 
 - (void)testRootHandle {
     int pid;
-    VirtualizationRootHandle testRootHandle;
+    VirtualizationRootHandle testRootHandle = RootHandle_None;
+    VirtualizationRootResult testRootResult;
     
     // Invalid Root Handle Test
     XCTAssertFalse(
@@ -72,14 +73,13 @@ class PrjFSProviderUserClient
             &testRootHandle,
             &pid));
 
-    testRootHandle = InsertVirtualizationRoot_Locked(
+    
+    testRootResult = VirtualizationRoot_RegisterProviderForPath(
         &self->userClient,
         0,
-        self->repoRootVnode.get(),
-        self->repoRootVnode->GetVid(),
-        FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
         self->repoPath.c_str());
-    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
+    XCTAssertEqual(0, testRootResult.error);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootResult.root));
 
     // With Valid Root Handle we should pass
     XCTAssertTrue(
@@ -92,10 +92,11 @@ class PrjFSProviderUserClient
             true, // isDirectory,
             &testRootHandle,
             &pid));
+    XCTAssertEqual(testRootHandle, testRootResult.root);
     
-    if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
+    if (VirtualizationRoot_IsValidRootHandle(testRootResult.root))
     {
-        ActiveProvider_Disconnect(testRootHandle, &userClient);
+        ActiveProvider_Disconnect(testRootResult.root, &userClient);
     }
 }
 
@@ -120,14 +121,12 @@ class PrjFSProviderUserClient
 - (void)testUnsupportedVnodeType {
     shared_ptr<vnode> testVnodeUnsupportedType = vnode::Create(self->testMount, "/foo", VNON);
 
-    VirtualizationRootHandle testRepoHandle = InsertVirtualizationRoot_Locked(
+    VirtualizationRootResult testRootResult = VirtualizationRoot_RegisterProviderForPath(
         &self->userClient,
         0,
-        self->repoRootVnode.get(),
-        self->repoRootVnode->GetVid(),
-        FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
         self->repoPath.c_str());
-    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRepoHandle));
+    XCTAssertEqual(0, testRootResult.error);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootResult.root));
 
     VirtualizationRootHandle testRootHandle;
     int pid;
@@ -143,25 +142,24 @@ class PrjFSProviderUserClient
             &testRootHandle,
             &pid));
     
-    if (VirtualizationRoot_IsValidRootHandle(testRepoHandle))
+    if (VirtualizationRoot_IsValidRootHandle(testRootResult.root))
     {
-        ActiveProvider_Disconnect(testRepoHandle, &userClient);
+        ActiveProvider_Disconnect(testRootResult.root, &userClient);
     }
 }
 
 - (void)testProviderOffline {
-    VirtualizationRootHandle testRootHandle = InsertVirtualizationRoot_Locked(
+    VirtualizationRootHandle testRootHandle = RootHandle_None;
+    VirtualizationRootResult testRootResult = VirtualizationRoot_RegisterProviderForPath(
         &self->userClient,
         0,
-        self->repoRootVnode.get(),
-        self->repoRootVnode->GetVid(),
-        FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
         self->repoPath.c_str());
-    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
+    XCTAssertEqual(0, testRootResult.error);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootResult.root));
 
-    if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
+    if (VirtualizationRoot_IsValidRootHandle(testRootResult.root))
     {
-        ActiveProvider_Disconnect(testRootHandle, &userClient);
+        ActiveProvider_Disconnect(testRootResult.root, &userClient);
     }
 
     int pid;
@@ -179,19 +177,18 @@ class PrjFSProviderUserClient
 }
 
 - (void)testProviderInitiatedIO {
-    VirtualizationRootHandle testRootHandle = InsertVirtualizationRoot_Locked(
+    VirtualizationRootHandle testRootHandle = RootHandle_None;
+    VirtualizationRootResult testRootResult = VirtualizationRoot_RegisterProviderForPath(
         &self->userClient,
         0,
-        self->repoRootVnode.get(),
-        self->repoRootVnode->GetVid(),
-        FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
         self->repoPath.c_str());
-    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
+    XCTAssertEqual(0, testRootResult.error);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootResult.root));
 
     // Fail when pid matches provider pid
     MockProcess_Reset();
     MockProcess_AddContext(self->context, 0 /*pid*/);
-    MockProcess_SetSelfPid(0);
+    MockProcess_SetSelfInfo(0, "Test");
     MockProcess_AddProcess(0 /*pid*/, 1 /*credentialId*/, 1 /*ppid*/, "test" /*name*/);
     int pid;
     XCTAssertFalse(
@@ -205,9 +202,9 @@ class PrjFSProviderUserClient
             &testRootHandle,
             &pid));
     
-    if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
+    if (VirtualizationRoot_IsValidRootHandle(testRootResult.root))
     {
-        ActiveProvider_Disconnect(testRootHandle, &userClient);
+        ActiveProvider_Disconnect(testRootResult.root, &userClient);
     }
 }
 
@@ -216,14 +213,12 @@ class PrjFSProviderUserClient
 
     VirtualizationRootHandle rootHandle;
     int pid;
-    VirtualizationRootHandle testRootHandle = InsertVirtualizationRoot_Locked(
+    VirtualizationRootResult testRootResult = VirtualizationRoot_RegisterProviderForPath(
         &self->userClient,
         0,
-        self->repoRootVnode.get(),
-        self->repoRootVnode->GetVid(),
-        FsidInode{ self->repoRootVnode->GetMountPoint()->GetFsid(), self->repoRootVnode->GetInode() },
         self->repoPath.c_str());
-    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
+    XCTAssertEqual(0, testRootResult.error);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootResult.root));
 
     // KAUTH_FILEOP_OPEN
     XCTAssertTrue(
@@ -236,7 +231,7 @@ class PrjFSProviderUserClient
             false, // isDirectory,
             &rootHandle,
             &pid));
-    XCTAssertEqual(rootHandle, testRootHandle);
+    XCTAssertEqual(rootHandle, testRootResult.root);
     // Finding the root should have added testVnodeFile to the cache
     // IMPORTANT: This check assumes that the vnode cache is empty before the above call to ShouldHandleFileOpEvent
     XCTAssertEqual(self->testVnodeFile.get(), self->cacheWrapper[ComputeVnodeHashIndex(self->testVnodeFile.get())].vnode);
@@ -253,7 +248,7 @@ class PrjFSProviderUserClient
             false, // isDirectory,
             &rootHandle,
             &pid));
-    XCTAssertEqual(rootHandle, testRootHandle);
+    XCTAssertEqual(rootHandle, testRootResult.root);
     // KAUTH_FILEOP_LINK should invalidate the cache entry for testVnodeFile
     XCTAssertEqual(self->testVnodeFile.get(), self->cacheWrapper[ComputeVnodeHashIndex(self->testVnodeFile.get())].vnode);
     XCTAssertEqual(RootHandle_Indeterminate, self->cacheWrapper[ComputeVnodeHashIndex(self->testVnodeFile.get())].virtualizationRoot);
@@ -271,7 +266,7 @@ class PrjFSProviderUserClient
             false, // isDirectory,
             &rootHandle,
             &pid));
-    XCTAssertEqual(rootHandle, testRootHandle);
+    XCTAssertEqual(rootHandle, testRootResult.root);
     // The cache should have been refreshed for KAUTH_FILEOP_RENAME
     XCTAssertEqual(self->testVnodeFile.get(), self->cacheWrapper[ComputeVnodeHashIndex(self->testVnodeFile.get())].vnode);
     XCTAssertEqual(rootHandle, self->cacheWrapper[ComputeVnodeHashIndex(self->testVnodeFile.get())].virtualizationRoot);
@@ -290,7 +285,7 @@ class PrjFSProviderUserClient
             true, // isDirectory,
             &rootHandle,
             &pid));
-    XCTAssertEqual(rootHandle, testRootHandle);
+    XCTAssertEqual(rootHandle, testRootResult.root);
 
     // Validate the cache is empty except for the testVnodeDirectory entry
     uintptr_t directoryVnodeHash = ComputeVnodeHashIndex(testVnodeDirectory.get());
@@ -310,9 +305,9 @@ class PrjFSProviderUserClient
         }
     }
     
-    if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
+    if (VirtualizationRoot_IsValidRootHandle(testRootResult.root))
     {
-        ActiveProvider_Disconnect(testRootHandle, &userClient);
+        ActiveProvider_Disconnect(testRootResult.root, &userClient);
     }
 }
 

@@ -9,5 +9,7 @@ namespace PrjFSLib.Mac.Interop
         public GetFileStreamCallback OnGetFileStream;
         public NotifyOperationCallback OnNotifyOperation;
         public LogErrorCallback OnLogError;
+        public LogWarningCallback OnLogWarning;
+        public LogInfoCallback OnLogInfo;
     }
 }

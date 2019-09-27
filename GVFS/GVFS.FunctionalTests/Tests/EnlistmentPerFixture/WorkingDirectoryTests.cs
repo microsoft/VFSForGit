@@ -310,9 +310,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             string parentFolderPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(fileName));
             parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
 
-            // Hydrate file with a request using different file name case
-            string wrongCaseFilePath = this.Enlistment.GetVirtualPathTo(fileName.ToUpper());
-            string fileContents = wrongCaseFilePath.ShouldBeAFile(this.fileSystem).WithContents();
+            // Hydrate file with a request using different file name case except on case-sensitive filesystems
+            string testFileName = FileSystemHelpers.CaseSensitiveFileSystem ? fileName : fileName.ToUpper();
+            string testFilePath = this.Enlistment.GetVirtualPathTo(testFileName);
+            string fileContents = testFilePath.ShouldBeAFile(this.fileSystem).WithContents();
 
             // File on disk should have original case projected from repo
             parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
@@ -322,13 +323,13 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         public void HydratingNestedFileUsesNameCaseFromRepo()
         {
             string filePath = Path.Combine("GVFS", "FastFetch", "Properties", "AssemblyInfo.cs");
-            string filePathAllCaps = filePath.ToUpper();
-            string parentFolderVirtualPathAllCaps = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(filePathAllCaps));
-            parentFolderVirtualPathAllCaps.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
+            string testFilePath = FileSystemHelpers.CaseSensitiveFileSystem ? filePath : filePath.ToUpper();
+            string testParentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(testFilePath));
+            testParentFolderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(Path.GetFileName(filePath), StringComparison.Ordinal));
 
-            // Hydrate file with a request using different file name case
-            string wrongCaseFilePath = this.Enlistment.GetVirtualPathTo(filePathAllCaps);
-            string fileContents = wrongCaseFilePath.ShouldBeAFile(this.fileSystem).WithContents();
+            // Hydrate file with a request using different file name case except on case-sensitive filesystems
+            testFilePath = this.Enlistment.GetVirtualPathTo(testFilePath);
+            string fileContents = testFilePath.ShouldBeAFile(this.fileSystem).WithContents();
 
             // File on disk should have original case projected from repo
             string parentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(filePath));
@@ -414,11 +415,12 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             // b3ddcf43b997cba3fbf9d2341b297e22bf48601a was the commit prior to deleting GVFLT_MultiThreadTest
             // 692765: Note that test also validates case insensitivity as GVFlt_MultiThreadTest is named GVFLT_MultiThreadTest
-            //         in this commit
+            //         in this commit; on case-sensitive filesystems, case sensitivity is validated instead
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout b3ddcf43b997cba3fbf9d2341b297e22bf48601a");
 
-            this.Enlistment.GetVirtualPathTo(folderName + "\\OpenForReadsSameTime\\test").ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
-            this.Enlistment.GetVirtualPathTo(folderName + "\\OpenForWritesSameTime\\test").ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
+            string testFolderName = FileSystemHelpers.CaseSensitiveFileSystem ? "GVFLT_MultiThreadTest" : folderName;
+            this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForReadsSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
+            this.Enlistment.GetVirtualPathTo(Path.Combine(testFolderName, "OpenForWritesSameTime", "test")).ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
         }
 
         [TestCase, Order(14)]
@@ -460,7 +462,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, null);
             this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt");
             this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك*");
-            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبر*.TXT");
+            string testEntryExt = FileSystemHelpers.CaseSensitiveFileSystem ? "txt" : "TXT";
+            string testEntryName = "ريلٌأكتوبر*." + testEntryExt;
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, testEntryName);
 
             folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("test*");
             folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("ريلٌأكتوب.TXT");
@@ -473,7 +477,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             ProcessResult revParseResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/AllNullObjectRedownloaded.txt");
             string sha = revParseResult.Output.Trim();
             sha.Length.ShouldEqual(40);
-            string objectPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), sha.Substring(0, 2), sha.Substring(2, 38));
+
+            // Ensure SHA path is lowercase for case-sensitive filesystems
+            string objectPathSha = FileSystemHelpers.CaseSensitiveFileSystem ? sha.ToLower() : sha;
+            string objectPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), objectPathSha.Substring(0, 2), objectPathSha.Substring(2, 38));
             objectPath.ShouldNotExistOnDisk(this.fileSystem);
 
             // At this point there should be no corrupt objects
@@ -498,9 +505,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (badObject as FileInfo).ShouldNotBeNull().Length.ShouldEqual(objectFileInfo.Length);
         }
 
-        // TODO(Mac): Figure out why git for Mac is not requesting a redownload of the truncated object
         [TestCase, Order(17)]
-        [Category(Categories.MacTODO.NeedsCorruptObjectFix)]
         public void TruncatedObjectRedownloaded()
         {
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
@@ -521,6 +526,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded_copy.txt").Output.Trim().ShouldEqual(sha);
             string testFileContents = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded_copy.txt").ShouldBeAFile(this.fileSystem).WithContents();
             objectPath.ShouldBeAFile(this.fileSystem);
+            string modifedFile = "Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded.txt";
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, modifedFile);
 
             // Truncate the contents of objectPath
             string tempTruncatedObjectPath = objectPath + "truncated";
@@ -541,11 +548,29 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             objectPath.ShouldBeAFile(this.fileSystem);
             new FileInfo(objectPath).Length.ShouldEqual(objectLength - 16);
 
-            // Read the original path and verify its contents are correct
-            this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                // Mac can't correct corrupt objects, but it should detect them and add to ModifiedPaths.dat
+                this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem);
 
-            // Confirm there's a new item in the corrupt objects folder
-            corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().Count().ShouldEqual(initialCorruptObjectCount + 1);
+                GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, modifedFile);
+                GitHelpers.CheckGitCommandAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    "status",
+                    $"modified:   {modifedFile}");
+            }
+            else
+            {
+                // Windows should correct a corrupt obect
+                // Read the original path and verify its contents are correct
+                this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
+
+                // Confirm there's a new item in the corrupt objects folder
+                corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().Count().ShouldEqual(initialCorruptObjectCount + 1);
+
+                // File should not be in ModifiedPaths.dat
+                GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, "Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded.txt");
+            }
         }
 
         [TestCase, Order(18)]
@@ -630,7 +655,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                //// TODO(Mac): Add a version of PlaceHolderHasVersionInfo that works on Mac
+                // TODO(#1360): Add a version of PlaceHolderHasVersionInfo that works on Mac
                 return true;
             }
             else

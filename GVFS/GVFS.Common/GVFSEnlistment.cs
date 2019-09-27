@@ -20,14 +20,13 @@ namespace GVFS.Common
         private string gvfsHooksVersion;
 
         // New enlistment
-        public GVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, string gvfsHooksRoot, GitAuthentication authentication)
+        public GVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, GitAuthentication authentication)
             : base(
                   enlistmentRoot,
                   Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName),
                   Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.WorkingDirectoryBackingRootPath),
                   repoUrl,
                   gitBinPath,
-                  gvfsHooksRoot,
                   flushFileBuffersForPacks: true,
                   authentication: authentication)
         {
@@ -40,12 +39,11 @@ namespace GVFS.Common
         }
 
         // Existing, configured enlistment
-        private GVFSEnlistment(string enlistmentRoot, string gitBinPath, string gvfsHooksRoot, GitAuthentication authentication)
+        private GVFSEnlistment(string enlistmentRoot, string gitBinPath, GitAuthentication authentication)
             : this(
                   enlistmentRoot,
                   null,
                   gitBinPath,
-                  gvfsHooksRoot,
                   authentication)
         {
         }
@@ -85,7 +83,6 @@ namespace GVFS.Common
         public static GVFSEnlistment CreateFromDirectory(
             string directory,
             string gitBinRoot,
-            string gvfsHooksRoot,
             GitAuthentication authentication,
             bool createWithoutRepoURL = false)
         {
@@ -100,10 +97,10 @@ namespace GVFS.Common
 
                 if (createWithoutRepoURL)
                 {
-                    return new GVFSEnlistment(enlistmentRoot, string.Empty, gitBinRoot, gvfsHooksRoot, authentication);
+                    return new GVFSEnlistment(enlistmentRoot, string.Empty, gitBinRoot, authentication);
                 }
 
-                return new GVFSEnlistment(enlistmentRoot, gitBinRoot, gvfsHooksRoot, authentication);
+                return new GVFSEnlistment(enlistmentRoot, gitBinRoot, authentication);
             }
 
             throw new InvalidRepoException($"Directory '{directory}' does not exist");
@@ -112,12 +109,13 @@ namespace GVFS.Common
         public static string GetNewGVFSLogFileName(
             string logsRoot,
             string logFileType,
+            string logId = null,
             PhysicalFileSystem fileSystem = null)
         {
             return Enlistment.GetNewLogFileName(
                 logsRoot,
                 "gvfs_" + logFileType,
-                logId: null,
+                logId: logId,
                 fileSystem: fileSystem);
         }
 

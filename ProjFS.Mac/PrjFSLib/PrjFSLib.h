@@ -85,12 +85,14 @@ extern "C" PrjFS_Result PrjFS_WritePlaceholderFile(
     _In_    const char*                             relativePath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
-    _In_    unsigned long                           fileSize,
     _In_    uint16_t                                fileMode);
 
 extern "C" PrjFS_Result PrjFS_WriteSymLink(
     _In_    const char*                             relativePath,
     _In_    const char*                             symLinkTarget);
+
+extern "C" PrjFS_Result PrjFS_RegisterForOfflineIO();
+extern "C" PrjFS_Result PrjFS_UnregisterForOfflineIO();
 
 typedef enum
 {
@@ -113,7 +115,6 @@ extern "C" PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     _In_    const char*                             relativePath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
-    _In_    unsigned long                           fileSize,
     _In_    uint16_t                                fileMode,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause);
@@ -180,13 +181,21 @@ typedef PrjFS_Result (PrjFS_NotifyOperationCallback)(
 typedef void (PrjFS_LogErrorCallback)(
     _In_    const char*                             errorMessage);
 
+typedef void (PrjFS_LogWarningCallback)(
+    _In_    const char*                             warningMessage);
+
+typedef void (PrjFS_LogInfoCallback)(
+    _In_    const char*                             infoMessage);
+
 typedef struct _PrjFS_Callbacks
 {
     _In_    PrjFS_EnumerateDirectoryCallback*       EnumerateDirectory;
     _In_    PrjFS_GetFileStreamCallback*            GetFileStream;
     _In_    PrjFS_NotifyOperationCallback*          NotifyOperation;
     _In_    PrjFS_LogErrorCallback*                 LogError;
-    
+    _In_    PrjFS_LogWarningCallback*               LogWarning;
+    _In_    PrjFS_LogInfoCallback*                  LogInfo;
+
 } PrjFS_Callbacks;
 
 PrjFS_Result PrjFS_CompleteCommand(

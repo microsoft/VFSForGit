@@ -28,6 +28,27 @@ namespace GVFS.Common.Maintenance
         protected bool RequireObjectCacheLock { get; }
         protected GitProcessChecker GitProcessChecker { get; }
 
+        public static bool EnlistmentRootReady(GVFSContext context)
+        {
+            // If a user locks their drive or disconnects an external drive while the mount process
+            // is running, then it will appear as if the directories below do not exist or throw
+            // a "Device is not ready" error.
+            try
+            {
+                return context.FileSystem.DirectoryExists(context.Enlistment.EnlistmentRoot)
+                         && context.FileSystem.DirectoryExists(context.Enlistment.GitObjectsRoot);
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+        }
+
+        public bool EnlistmentRootReady()
+        {
+            return EnlistmentRootReady(this.Context);
+        }
+
         public void Execute()
         {
             try
@@ -62,10 +83,20 @@ namespace GVFS.Common.Maintenance
             }
             catch (Exception e)
             {
-                this.Context.Tracer.RelatedError(
-                    metadata: this.CreateEventMetadata(e),
-                    message: "Exception while running action: " + e.Message,
-                    keywords: Keywords.Telemetry);
+                if (this.EnlistmentRootReady())
+                {
+                    this.Context.Tracer.RelatedError(
+                        metadata: this.CreateEventMetadata(e),
+                        message: "Exception while running action: " + e.Message,
+                        keywords: Keywords.Telemetry);
+                }
+                else
+                {
+                    this.Context.Tracer.RelatedWarning(
+                        metadata: this.CreateEventMetadata(e),
+                        message: "Exception while running action inside a repo that's not ready: " + e.Message);
+                }
+
                 Environment.Exit((int)ReturnCode.GenericError);
             }
         }
@@ -119,12 +150,12 @@ namespace GVFS.Common.Maintenance
             {
                 string extension = Path.GetExtension(info.Name);
 
-                if (string.Equals(extension, ".pack", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(extension, ".pack", GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     count++;
                     size += info.Length;
                 }
-                else if (string.Equals(extension, ".keep", StringComparison.OrdinalIgnoreCase))
+                else if (string.Equals(extension, ".keep", GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     hasKeep = true;
                 }
@@ -244,6 +275,14 @@ namespace GVFS.Common.Maintenance
             EventMetadata errorMetadata = this.CreateEventMetadata();
             string commitGraphPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", "commit-graph");
             errorMetadata["TryDeleteFileResult"] = this.Context.FileSystem.TryDeleteFile(commitGraphPath);
+
+            string commitGraphsPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", "commit-graphs");
+            errorMetadata["TryDeleteDirectoryResult"] = this.Context.FileSystem.TryDeleteDirectory(commitGraphsPath, out Exception dirException);
+
+            if (dirException != null)
+            {
+                errorMetadata["TryDeleteDirectoryError"] = dirException.Message;
+            }
 
             GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, packs), nameof(GitProcess.WriteCommitGraph));
             errorMetadata["RewriteResultExitCode"] = rewriteResult.ExitCode;

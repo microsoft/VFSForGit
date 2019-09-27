@@ -60,6 +60,7 @@ namespace GVFS.CommandLine
                 this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Prefetch);
                 this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Dehydrate);
                 this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Repair);
+                this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Sparse);
 
                 string serviceLogsRoot = Path.Combine(
                     GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName),
@@ -122,6 +123,7 @@ namespace GVFS.CommandLine
                 GVFSConstants.LogFileTypes.Prefetch,
                 GVFSConstants.LogFileTypes.Dehydrate,
                 GVFSConstants.LogFileTypes.Repair,
+                GVFSConstants.LogFileTypes.Sparse,
                 GVFSConstants.LogFileTypes.Service,
                 GVFSConstants.LogFileTypes.UpgradePrefix,
             };

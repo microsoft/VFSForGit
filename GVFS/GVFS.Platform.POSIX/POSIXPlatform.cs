@@ -38,16 +38,9 @@ namespace GVFS.Platform.POSIX
         {
         }
 
-        public override bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error)
+        public override bool TryGetGVFSHooksVersion(out string hooksVersion, out string error)
         {
-            hooksPaths = string.Empty;
-            string binPath = Path.Combine(this.Constants.GVFSBinDirectoryPath, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-            if (File.Exists(binPath))
-            {
-                hooksPaths = binPath;
-            }
-
-            // TODO(POSIX): Get the hooks version rather than the GVFS version (and share that code with the Windows platform)
+            // TODO(#1044): Get the hooks version rather than the GVFS version (and share that code with the Windows platform)
             hooksVersion = ProcessHelper.GetCurrentProcessVersion();
             error = null;
             return true;
@@ -183,7 +176,7 @@ namespace GVFS.Platform.POSIX
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
-            // TODO(POSIX): Collect disk information
+            // TODO(#1356): Collect disk information
             Dictionary<string, string> result = new Dictionary<string, string>();
             result.Add("GetPhysicalDiskInfo", "Not yet implemented on POSIX");
             return result;
@@ -248,7 +241,7 @@ namespace GVFS.Platform.POSIX
 
         public override bool IsGitStatusCacheSupported()
         {
-            // TODO(POSIX): support git status cache
+            // Git status cache is only supported on Windows
             return false;
         }
 
@@ -258,6 +251,12 @@ namespace GVFS.Platform.POSIX
             error = result.Errors;
             exitCode = result.ExitCode;
             return result.ExitCode == 0;
+        }
+
+        public override bool TryCopyPanicLogs(string copyToDir, out string error)
+        {
+            error = null;
+            return true;
         }
 
         [DllImport("libc", EntryPoint = "getuid", SetLastError = true)]
@@ -294,7 +293,7 @@ namespace GVFS.Platform.POSIX
 
             public override HashSet<string> UpgradeBlockingProcesses
             {
-                get { return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "GVFS.Mount", "git", "wish" }; }
+                get { return new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer) { "GVFS.Mount", "git", "wish" }; }
             }
 
             public override bool SupportsUpgradeWhileRunning => true;

@@ -108,15 +108,18 @@ namespace GVFS.Common.Git
 
         protected override void Dispose(bool disposing)
         {
-            if (this.hash != null)
+            if (disposing)
             {
-                this.hash.Dispose();
-            }
+                if (this.hash != null)
+                {
+                    this.hash.Dispose();
+                }
 
-            if (this.stream != null)
-            {
-                this.stream.Dispose();
-                this.stream = null;
+                if (this.stream != null)
+                {
+                    this.stream.Dispose();
+                    this.stream = null;
+                }
             }
 
             base.Dispose(disposing);

@@ -55,8 +55,12 @@
     <Compile Include="Data\BindingData.cs" />
     <Compile Include="Data\BindingItem.cs" />
     <Compile Include="Data\VisualData.cs" />
+    <Compile Include="GVFSServiceUI.cs" />
+    <Compile Include="GVFSToastRequestHandler.cs" />
+    <Compile Include="IToastNotifier.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Data\ToastData.cs" />
+    <Compile Include="WinToastNotifier.cs" />
     <Compile Include="XmlList.cs" />
   </ItemGroup>
   <ItemGroup>

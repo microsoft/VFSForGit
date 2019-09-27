@@ -190,7 +190,7 @@ namespace GVFS.Mount
             GVFSEnlistment enlistment = null;
             try
             {
-                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, ProcessHelper.GetCurrentProcessLocation(), authentication: null);
+                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, authentication: null);
             }
             catch (InvalidRepoException e)
             {

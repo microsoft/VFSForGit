@@ -18,6 +18,7 @@ namespace GVFS.Platform.Mac
         public static readonly byte[] PlaceholderVersionId = ToVersionIdByteArray(new byte[] { PlaceholderVersion });
 
         private const int SymLinkTargetBufferSize = 4096;
+        private const long DummyFileSize = -1;
 
         private const string ClassName = nameof(MacFileSystemVirtualizer);
 
@@ -83,12 +84,18 @@ namespace GVFS.Platform.Mac
             this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.Stop)}_StopRequested", metadata: null);
         }
 
+        /// <summary>
+        /// Writes a placeholder file.
+        /// </summary>
+        /// <param name="relativePath">Placeholder's path relative to the root of the repo</param>
+        /// <param name="endOfFile">Length of the file (ignored on this platform)</param>
+        /// <param name="sha">The SHA of the placeholder's contents, stored as the content ID in the placeholder</param>
         public override FileSystemResult WritePlaceholderFile(
             string relativePath,
             long endOfFile,
             string sha)
         {
-            // TODO(Mac): Add functional tests that validate file mode is set correctly
+            // TODO(#223): Add functional tests that validate file mode is set correctly
             GitIndexProjection.FileType fileType;
             ushort fileMode;
             this.FileSystemCallbacks.GitIndexProjection.GetFileTypeAndMode(relativePath, out fileType, out fileMode);
@@ -99,7 +106,6 @@ namespace GVFS.Platform.Mac
                     relativePath,
                     PlaceholderVersionId,
                     ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
-                    (ulong)endOfFile,
                     fileMode);
 
                 return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
@@ -137,6 +143,7 @@ namespace GVFS.Platform.Mac
             return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
         }
 
+        /// <param name="endOfFile">Length of the file, not required on the Mac platform</param>
         public override FileSystemResult UpdatePlaceholderIfNeeded(
             string relativePath,
             DateTime creationTime,
@@ -151,7 +158,7 @@ namespace GVFS.Platform.Mac
         {
             UpdateFailureCause failureCause = UpdateFailureCause.NoFailure;
 
-            // TODO(Mac): Add functional tests that include:
+            // TODO(#223): Add functional tests that include:
             //     - Mode + content changes between commits
             //     - Mode only changes (without any change to content, see issue #223)
             GitIndexProjection.FileType fileType;
@@ -164,7 +171,6 @@ namespace GVFS.Platform.Mac
                     relativePath,
                     PlaceholderVersionId,
                     ToVersionIdByteArray(ConvertShaToContentId(shaContentId)),
-                    (ulong)endOfFile,
                     fileMode,
                     (UpdateType)updateFlags,
                     out failureCause);
@@ -206,7 +212,37 @@ namespace GVFS.Platform.Mac
             }
         }
 
-        protected override bool TryStart(out string error)
+        public override FileSystemResult DehydrateFolder(string relativePath)
+        {
+            FileSystemResult result = new FileSystemResult(FSResult.Ok, 0);
+            GitIndexProjection.PathSparseState sparseState = this.FileSystemCallbacks.GitIndexProjection.GetFolderPathSparseState(relativePath);
+
+            if (sparseState == GitIndexProjection.PathSparseState.Included)
+            {
+                // When the folder is included we need to create the placeholder to make sure it is on disk for enumeration
+                result = this.WritePlaceholderDirectory(relativePath);
+                if (result.Result == FSResult.Ok)
+                {
+                    this.FileSystemCallbacks.OnPlaceholderFolderCreated(relativePath, string.Empty);
+                }
+                else if (result.Result == FSResult.FileOrPathNotFound)
+                {
+                    // This will happen when the parent folder is also in the dehydrate list and is no longer on disk.
+                    result = new FileSystemResult(FSResult.Ok, 0);
+                }
+                else
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(relativePath);
+                    metadata.Add(nameof(result.Result), result.Result);
+                    metadata.Add(nameof(result.RawResult), result.RawResult);
+                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.DehydrateFolder)}: Write placeholder failed");
+                }
+            }
+
+            return result;
+        }
+
+        public override bool TryStart(out string error)
         {
             error = string.Empty;
 
@@ -214,6 +250,8 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
             this.virtualizationInstance.OnLogError = this.OnLogError;
+            this.virtualizationInstance.OnLogWarning = this.OnLogWarning;
+            this.virtualizationInstance.OnLogInfo = this.OnLogInfo;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
@@ -266,7 +304,7 @@ namespace GVFS.Platform.Mac
                         byte[] buffer = new byte[SymLinkTargetBufferSize];
                         uint bufferIndex = 0;
 
-                        // TODO(Mac): Find a better solution than reading from the stream one byte at at time
+                        // TODO(#1361): Find a better solution than reading from the stream one byte at at time
                         int nextByte = stream.ReadByte();
                         while (nextByte != -1)
                         {
@@ -364,7 +402,7 @@ namespace GVFS.Platform.Mac
                     activity.RelatedError(metadata, nameof(this.OnGetFileStream) + ": Unexpected placeholder version");
                     activity.Dispose();
 
-                    // TODO(Mac): Is this the correct Result to return?
+                    // TODO(#1362): Is this the correct Result to return?
                     return Result.EIOError;
                 }
 
@@ -376,10 +414,11 @@ namespace GVFS.Platform.Mac
                         GVFSGitObjects.RequestSource.FileStreamCallback,
                         (stream, blobLength) =>
                         {
-                            // TODO(Mac): Find a better solution than reading from the stream one byte at at time
+                            // TODO(#1361): Find a better solution than reading from the stream one byte at at time
                             byte[] buffer = new byte[4096];
                             uint bufferIndex = 0;
                             int nextByte = stream.ReadByte();
+                            int bytesWritten = 0;
                             while (nextByte != -1)
                             {
                                 while (bufferIndex < buffer.Length && nextByte != -1)
@@ -402,13 +441,24 @@ namespace GVFS.Platform.Mac
                                 if (bufferIndex == buffer.Length)
                                 {
                                     bufferIndex = 0;
+                                    bytesWritten += buffer.Length;
                                 }
+                            }
+                            bytesWritten += Convert.ToInt32(bufferIndex);
+
+                            if (bytesWritten != blobLength)
+                            {
+                                // If the read size does not match the expected size print an error and add the file to ModifiedPaths.dat
+                                // This allows the user to see that something went wrong with file hydration
+                                // Unfortunitely we must do this check *after* the file is hydrated since the header isn't corrupt for trunctated objects on mac
+                                this.Context.Tracer.RelatedError($"Read {relativePath} to {bytesWritten}, not expected size of {blobLength}");
+                                this.FileSystemCallbacks.OnFailedFileHydration(relativePath);
                             }
                         }))
                     {
                         activity.RelatedError(metadata, $"{nameof(this.OnGetFileStream)}: TryCopyBlobContentStream failed");
 
-                        // TODO(Mac): Is this the correct Result to return?
+                        // TODO(#1362): Is this the correct Result to return?
                         return Result.EFileNotFound;
                     }
                 }
@@ -435,6 +485,16 @@ namespace GVFS.Platform.Mac
         private void OnLogError(string errorMessage)
         {
             this.Context.Tracer.RelatedError($"{nameof(MacFileSystemVirtualizer)}::{nameof(this.OnLogError)}: {errorMessage}");
+        }
+
+        private void OnLogWarning(string warningMessage)
+        {
+            this.Context.Tracer.RelatedWarning($"{nameof(MacFileSystemVirtualizer)}::{nameof(this.OnLogWarning)}: {warningMessage}");
+        }
+
+        private void OnLogInfo(string infoMessage)
+        {
+            this.Context.Tracer.RelatedInfo($"{nameof(MacFileSystemVirtualizer)}::{nameof(this.OnLogInfo)}: {infoMessage}");
         }
 
         private void OnFileModified(string relativePath)
@@ -465,7 +525,7 @@ namespace GVFS.Platform.Mac
                 bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
                 if (pathInsideDotGit)
                 {
-                    if (relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
+                    if (relativePath.Equals(GVFSConstants.DotGit.Index, GVFSPlatform.Instance.Constants.PathComparison))
                     {
                         string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
                         if (string.IsNullOrEmpty(lockedGitCommand))
@@ -524,7 +584,14 @@ namespace GVFS.Platform.Mac
                         }
                         else
                         {
-                            this.FileSystemCallbacks.OnFolderCreated(relativePath);
+                            this.FileSystemCallbacks.OnFolderCreated(relativePath, out bool sparseFoldersUpdated);
+                            if (sparseFoldersUpdated)
+                            {
+                                // When sparseFoldersUpdated is true it means the folder was previously excluded from the projection and was
+                                // included so it needs to enumerate the directory to get and create placeholders
+                                // for all the directory items that are now included
+                                this.OnEnumerateDirectory(0, relativePath, -1, $"{nameof(this.OnNewFileCreated)}_FolderIncluded");
+                            }
                         }
                     }
                     else
@@ -560,31 +627,12 @@ namespace GVFS.Platform.Mac
         {
             try
             {
-                Result result;
-                try
-                {
-                    IEnumerable<ProjectedFileInfo> projectedItems;
+                IEnumerable<ProjectedFileInfo> projectedItems = this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(
+                        CancellationToken.None,
+                        blobSizesConnection: null,
+                        folderPath: relativePath);
 
-                    // TODO: Pool these connections or schedule this work to run asynchronously using TryScheduleFileOrNetworkRequest
-                    using (BlobSizes.BlobSizesConnection blobSizesConnection = this.FileSystemCallbacks.BlobSizes.CreateConnection())
-                    {
-                        projectedItems = this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(CancellationToken.None, blobSizesConnection, relativePath);
-                    }
-
-                    result = this.CreatePlaceholders(relativePath, projectedItems, triggeringProcessName);
-                }
-                catch (SizesUnavailableException e)
-                {
-                    // TODO: Is this the correct Result to return?
-                    result = Result.EIOError;
-
-                    EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
-                    this.Context.Tracer.RelatedError(metadata, nameof(this.OnEnumerateDirectory) + ": caught SizesUnavailableException");
-                }
-
-                return result;
+                return this.CreatePlaceholders(relativePath, projectedItems, triggeringProcessName);
             }
             catch (Exception e)
             {
@@ -612,7 +660,9 @@ namespace GVFS.Platform.Mac
                 else
                 {
                     sha = fileInfo.Sha.ToString();
-                    fileSystemResult = this.WritePlaceholderFile(childRelativePath, fileInfo.Size, sha);
+
+                    // Writing placeholders on Mac does not require a file size
+                    fileSystemResult = this.WritePlaceholderFile(childRelativePath, DummyFileSize, sha);
                 }
 
                 Result result = (Result)fileSystemResult.RawResult;
@@ -622,10 +672,22 @@ namespace GVFS.Platform.Mac
                     metadata.Add("fileInfo.Name", fileInfo.Name);
                     metadata.Add("fileInfo.Size", fileInfo.Size);
                     metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
+                    metadata.Add(nameof(result), result.ToString());
                     metadata.Add(nameof(sha), sha);
                     this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholders)}: Write placeholder failed");
 
-                    return result;
+                    if (result == Result.EIOError)
+                    {
+                        // If there is an IO error writing the placeholder then the file might already exist and it needs to
+                        // be added to the modified paths so that git will show any differences or errors when interacting with the file
+                        // This will happen in the include mode when the user creates a file that is already in the files that
+                        // should be projected but we are trying to create the placeholder after it has already been created
+                        this.FileSystemCallbacks.OnFileConvertedToFull(childRelativePath);
+                    }
+                    else
+                    {
+                        return result;
+                    }
                 }
                 else
                 {
