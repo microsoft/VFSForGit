@@ -12,6 +12,9 @@
         // be flagged with this category so they will be excluded on Linux.
         public const string RepositoryMountsSameFileSystem = "RepositoryMountsSameFileSystem";
 
+        public const string PartialFolderRenamesAllowed = "PartialFolderRenamesAllowed";
+        public const string PartialFolderRenamesBlocked = "PartialFolderRenamesBlocked";
+
         public const string WindowsOnly = "WindowsOnly";
         public const string LinuxOnly = "LinuxOnly";
         public const string MacOnly = "MacOnly";
