@@ -16,6 +16,9 @@
         public const string MacOnly = "MacOnly";
         public const string POSIXOnly = "POSIXOnly";
 
+        public const string PartialFolderRenamesAllowed = "PartialFolderRenamesAllowed";
+        public const string PartialFolderRenamesBlocked = "PartialFolderRenamesBlocked";
+
         public static class MacTODO
         {
             // Tests that require #360 (detecting/handling new empty folders)

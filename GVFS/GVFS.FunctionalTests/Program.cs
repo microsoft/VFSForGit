@@ -108,12 +108,23 @@ namespace GVFS.FunctionalTests
                 excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
                 excludeCategories.Add(Categories.MacTODO.TestNeedsToLockFile);
                 excludeCategories.Add(Categories.WindowsOnly);
+
+                // Darwin 18 is macOS 10.14. Don't run tests expecting allowed directory renames
+                if (Environment.OSVersion.Version.Major >= 18)
+                {
+                    excludeCategories.Add(Categories.PartialFolderRenamesAllowed);
+                }
+                else
+                {
+                    excludeCategories.Add(Categories.PartialFolderRenamesBlocked);
+                }
             }
             else
             {
                 // Windows excludes.
                 excludeCategories.Add(Categories.MacOnly);
                 excludeCategories.Add(Categories.POSIXOnly);
+                excludeCategories.Add(Categories.PartialFolderRenamesAllowed);
             }
 
             GVFSTestConfig.DotGVFSRoot = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? ".vfsforgit" : ".gvfs";
