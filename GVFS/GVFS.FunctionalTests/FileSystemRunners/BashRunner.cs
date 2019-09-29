@@ -39,6 +39,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             "Resource temporarily unavailable"
         };
 
+        private static string[] macOperationNotSupportedMessage = new string[]
+        {
+            "Operation not supported"
+        };
+
         private readonly string pathToBash;
 
         public BashRunner()
@@ -225,7 +230,8 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void MoveDirectory_RequestShouldNotBeSupported(string sourcePath, string targetPath)
         {
-            this.MoveFile(sourcePath, targetPath).ShouldContain(moveDirectoryNotSupportedMessage);
+            string[] expectedErrorMessage = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? macOperationNotSupportedMessage : moveDirectoryNotSupportedMessage;
+            this.MoveFile(sourcePath, targetPath).ShouldContain(expectedErrorMessage);
         }
 
         public override void MoveDirectory_TargetShouldBeInvalid(string sourcePath, string targetPath)

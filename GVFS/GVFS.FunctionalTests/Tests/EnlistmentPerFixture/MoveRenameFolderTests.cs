@@ -40,15 +40,16 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.fileSystem = fileSystem;
         }
 
-        // WindowsOnly because renames of partial folders are blocked only on Windows
+        // Test applies only on platforms where renaming partial folders is blocked
         [TestCase]
-        [Category(Categories.WindowsOnly)]
+        [Category(Categories.PartialFolderRenamesBlocked)]
         public void RenameFolderShouldFail()
         {
             string testFileName = "RenameFolderShouldFail.cpp";
             string oldFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "RenameFolderShouldFail", "source");
             string newFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "RenameFolderShouldFail", "sourcerenamed");
             this.Enlistment.GetVirtualPathTo(newFolderName).ShouldNotExistOnDisk(this.fileSystem);
+            this.Enlistment.GetVirtualPathTo(oldFolderName).ShouldBeADirectory(this.fileSystem);
 
             this.fileSystem.MoveDirectory_RequestShouldNotBeSupported(this.Enlistment.GetVirtualPathTo(oldFolderName), this.Enlistment.GetVirtualPathTo(newFolderName));
 
@@ -59,9 +60,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(Path.Combine(oldFolderName, testFileName)).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
         }
 
-        // MacOnly because renames of partial folders are blocked on Windows
+        // Test applies only to platforms where renaming partial folders is allowed
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.PartialFolderRenamesAllowed)]
         public void ChangeUnhydratedFolderName()
         {
             string testFileName = "ChangeUnhydratedFolderName.cpp";
@@ -78,9 +79,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(Path.Combine(newFolderName, testFileName)).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
         }
 
-        // MacOnly because renames of partial folders are blocked on Windows
+        // Test applies only to platforms where renaming partial folders is allowed
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.PartialFolderRenamesAllowed)]
         public void MoveUnhydratedFolderToNewFolder()
         {
             string testFileName = "MoveUnhydratedFolderToVirtualNTFSFolder.cpp";
@@ -101,9 +102,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(Path.Combine(movedFolderPath, testFileName)).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
         }
 
-        // MacOnly because renames of partial folders are blocked on Windows
+        // Test applies only to platforms where renaming partial folders is allowed
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.PartialFolderRenamesAllowed)]
         public void MoveUnhydratedFolderToFullFolderInDotGitFolder()
         {
             string testFileName = "MoveUnhydratedFolderToFullFolderInDotGitFolder.cpp";
@@ -151,9 +152,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             Path.Combine(movedFolderPath, testFileName).ShouldBeAFile(this.fileSystem).WithContents(fileContents);
         }
 
-        // MacOnly because renames of partial folders are blocked on Windows
+        // Test applies only to platforms where renaming partial folders is allowed
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.PartialFolderRenamesAllowed)]
         public void MoveAndRenameUnhydratedFolderToNewFolder()
         {
             string testFileName = "MoveAndRenameUnhydratedFolderToNewFolder.cpp";
@@ -174,9 +175,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(Path.Combine(movedFolderPath, testFileName)).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
         }
 
-        // MacOnly because renames of partial folders are blocked on Windows
+        // Test applies only to platforms where renaming partial folders is allowed
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.PartialFolderRenamesAllowed)]
         public void MoveFolderWithUnhydratedAndFullContents()
         {
             string testFileName = "MoveFolderWithUnhydratedAndFullContents.cpp";
@@ -206,9 +207,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(Path.Combine(movedFolderPath, newFile)).ShouldBeAFile(this.fileSystem).WithContents(newFileContents);
         }
 
-        // MacOnly because renames of partial folders are blocked on Windows
+        // Test applies only to platforms where renaming partial folders is allowed
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.PartialFolderRenamesAllowed)]
         public void MoveFolderWithUnexpandedChildFolders()
         {
             string oldFolderPath = this.Enlistment.GetVirtualPathTo("Test_EPF_MoveRenameFileTests");

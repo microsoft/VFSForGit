@@ -104,6 +104,16 @@ namespace GVFS.FunctionalTests
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
+                // Darwin 18 is macOS 10.14. Don't run tests expecting allowed directory renames
+                if (Environment.OSVersion.Version.Major >= 18)
+                {
+                    excludeCategories.Add(Categories.PartialFolderRenamesAllowed);
+                }
+                else
+                {
+                    excludeCategories.Add(Categories.PartialFolderRenamesBlocked);
+                }
+
                 excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
 
                 excludeCategories.Add(Categories.NonWindowsTODO.NeedsGVFSConfig);
@@ -130,6 +140,8 @@ namespace GVFS.FunctionalTests
             else
             {
                 // Windows excludes.
+                excludeCategories.Add(Categories.PartialFolderRenamesAllowed);
+
                 excludeCategories.Add(Categories.LinuxOnly);
                 excludeCategories.Add(Categories.MacOnly);
                 excludeCategories.Add(Categories.POSIXOnly);
