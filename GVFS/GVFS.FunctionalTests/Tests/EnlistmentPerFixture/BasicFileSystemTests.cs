@@ -920,7 +920,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.POSIXOnly)]
         public void RunPythonExecutable()
         {
             GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout FunctionalTests/PythonExecutable");
