@@ -596,6 +596,42 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateFoldersInSparseList(NoSparseFolders);
         }
 
+        [TestCase, Order(31)]
+        public void SetShouldFailIfModifiedFilesOutsideSparseSet()
+        {
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+
+            string output = this.gvfsProcess.Sparse($"--set Scripts", shouldSucceed: false);
+            output.ShouldContain("Running git status...Failed", SparseAbortedMessage);
+        }
+
+        [TestCase, Order(32)]
+        public void SetShouldFailIfModifiedFilesOutsideChangedSparseSet()
+        {
+            string secondFolder = Path.Combine("GVFS", "FastFetch");
+            string output = this.gvfsProcess.Sparse($"--set {this.mainSparseFolder};{secondFolder}", shouldSucceed: true);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, secondFolder);
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, this.mainSparseFolder, "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+
+            output = this.gvfsProcess.Sparse($"--set {secondFolder}", shouldSucceed: false);
+            output.ShouldContain("Running git status...Failed", SparseAbortedMessage);
+        }
+
+        [TestCase, Order(33)]
+        public void SetShouldSucceedIfModifiedFilesInChangedSparseSet()
+        {
+            string secondFolder = Path.Combine("GVFS", "FastFetch");
+            string output = this.gvfsProcess.Sparse($"--set {this.mainSparseFolder};{secondFolder}", shouldSucceed: true);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, secondFolder);
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, this.mainSparseFolder, "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+
+            output = this.gvfsProcess.Sparse($"--set {this.mainSparseFolder}", shouldSucceed: true);
+            output.ShouldContain("Running git status...Succeeded");
+        }
+
         private void CheckMainSparseFolder()
         {
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);
