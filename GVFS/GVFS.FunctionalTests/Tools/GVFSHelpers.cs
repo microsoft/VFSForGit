@@ -34,6 +34,11 @@ namespace GVFS.FunctionalTests.Tools
         private const string PrjFSLibPath = "libPrjFSLib.dylib";
         private const int PrjFSResultSuccess = 1;
 
+        private const int WindowsCurrentDiskLayoutMajorVersion = 19;
+        private const int MacCurrentDiskLayoutMajorVersion = 19;
+        private const int WindowsCurrentDiskLayoutMinimumMajorVersion = 7;
+        private const int MacCurrentDiskLayoutMinimumMajorVersion = 18;
+
         public static string ConvertPathToGitFormat(string path)
         {
             return path.Replace(Path.DirectorySeparatorChar, TestConstants.GitPathSeparator);
@@ -214,6 +219,30 @@ namespace GVFS.FunctionalTests.Tools
             {
                 uint result = PrjFSUnregisterForOfflineIO();
                 result.ShouldEqual<uint>(PrjFSResultSuccess, $"{nameof(RegisterForOfflineIO)} failed (result = {result})");
+            }
+        }
+
+        public static int GetCurrentDiskLayoutMajorVersion()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return MacCurrentDiskLayoutMajorVersion;
+            }
+            else
+            {
+                return WindowsCurrentDiskLayoutMajorVersion;
+            }
+        }
+
+        public static int GetCurrentDiskLayoutMinimumMajorVersion()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return MacCurrentDiskLayoutMinimumMajorVersion;
+            }
+            else
+            {
+                return WindowsCurrentDiskLayoutMinimumMajorVersion;
             }
         }
 
