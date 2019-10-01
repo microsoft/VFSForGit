@@ -632,6 +632,24 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             output.ShouldContain("Running git status...Succeeded");
         }
 
+        [TestCase, Order(34)]
+        public void PruneShouldStillRunWhenSparseSetDidNotChange()
+        {
+            string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
+            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
+
+            string output = this.gvfsProcess.Sparse($"--set Scripts", shouldSucceed: true);
+            output.ShouldContain("Running git status...Succeeded", "Updating sparse folder set...Succeeded", "Forcing a projection change...Succeeded");
+            this.ValidateFoldersInSparseList("Scripts");
+            modifiedPath.ShouldBeAFile(this.fileSystem);
+
+            output = this.gvfsProcess.Sparse($"--set Scripts --prune", shouldSucceed: true);
+            output.ShouldContain("No folders to update in sparse set.", "Pruning folders...Succeeded");
+            this.ValidateFoldersInSparseList("Scripts");
+            modifiedPath.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
         private void CheckMainSparseFolder()
         {
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);
