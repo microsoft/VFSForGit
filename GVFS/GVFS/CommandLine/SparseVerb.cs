@@ -435,7 +435,8 @@ Folders need to be relative to the repos root directory.")
                     this.WriteMessage(tracer, "Either commit your changes or reset and clean");
                 }
 
-                this.ReportErrorAndExit(tracer, SparseVerbName + " was aborted");
+                this.Output.WriteLine();
+                this.ReportErrorAndExit(tracer, "Sparse was aborted.");
             }
         }
 

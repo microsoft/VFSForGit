@@ -14,6 +14,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixture]
     public class SparseTests : TestsWithEnlistmentPerFixture
     {
+        private static readonly string SparseAbortedMessage = Environment.NewLine + "Sparse was aborted.";
         private static readonly string[] NoSparseFolders = new string[0];
         private FileSystemRunner fileSystem = new SystemIORunner();
         private GVFSProcess gvfsProcess;
@@ -216,7 +217,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.WriteAllText(fileToCreate, "New Contents");
 
             string output = this.gvfsProcess.RemoveSparseFolders(shouldPrune: false, shouldSucceed: false, folders: "Scripts");
-            output.ShouldContain("sparse was aborted");
+            output.ShouldContain(SparseAbortedMessage);
             this.ValidateFoldersInSparseList(this.mainSparseFolder, "Scripts");
 
             string folderPath = Path.Combine(this.Enlistment.RepoRoot, "Scripts");
@@ -235,7 +236,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.WriteAllText(modifiedPath, "New Contents");
 
             string output = this.gvfsProcess.AddSparseFolders(shouldPrune: false, shouldSucceed: false, folders: this.mainSparseFolder);
-            output.ShouldContain("sparse was aborted");
+            output.ShouldContain(SparseAbortedMessage);
             this.ValidateFoldersInSparseList(NoSparseFolders);
         }
 
@@ -419,7 +420,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.WriteAllText(modifiedPath, "New Contents");
 
             string output = this.gvfsProcess.AddSparseFolders(shouldPrune: false, shouldSucceed: false, folders: "Scripts");
-            output.ShouldContain("Running git status...Failed", "sparse was aborted");
+            output.ShouldContain("Running git status...Failed", SparseAbortedMessage);
             this.ValidateFoldersInSparseList(NoSparseFolders);
         }
 
@@ -447,7 +448,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.WriteAllText(modifiedPath, "New Contents");
 
             string output = this.gvfsProcess.RemoveSparseFolders(shouldPrune: false, shouldSucceed: false, folders: this.mainSparseFolder);
-            output.ShouldContain("Running git status...Failed", "sparse was aborted");
+            output.ShouldContain("Running git status...Failed", SparseAbortedMessage);
             this.ValidateFoldersInSparseList(this.mainSparseFolder, "Scripts");
         }
 
@@ -501,7 +502,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateFoldersInSparseList(NoSparseFolders);
 
             output = this.gvfsProcess.AddSparseFolders(shouldPrune: false, shouldSucceed: false, folders: "Scripts");
-            output.ShouldContain("Running git status...Failed", "sparse was aborted");
+            output.ShouldContain("Running git status...Failed", SparseAbortedMessage);
             this.ValidateFoldersInSparseList(NoSparseFolders);
 
             string statusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
