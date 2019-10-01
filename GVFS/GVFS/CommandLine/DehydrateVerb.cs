@@ -490,7 +490,7 @@ from a parent of the folders list.
                     }
 
                     // Move the current src folder to the backup location...
-                    if (!this.TryIO(tracer, () => Directory.Move(enlistment.WorkingDirectoryRoot, backupSrc), "Move the src folder", out ioError))
+                    if (!this.TryIO(tracer, () => Directory.Move(enlistment.WorkingDirectoryBackingRoot, backupSrc), "Move the src folder", out ioError))
                     {
                         errorMessage = "Failed to move the src folder: " + ioError + Environment.NewLine;
                         errorMessage += "Make sure you have no open handles or running processes in the src folder";
@@ -498,7 +498,7 @@ from a parent of the folders list.
                     }
 
                     // ... but move the .git folder back to the new src folder so we can preserve objects, refs, logs...
-                    if (!this.TryIO(tracer, () => Directory.CreateDirectory(enlistment.WorkingDirectoryRoot), "Create new src folder", out errorMessage) ||
+                    if (!this.TryIO(tracer, () => Directory.CreateDirectory(enlistment.WorkingDirectoryBackingRoot), "Create new src folder", out errorMessage) ||
                         !this.TryIO(tracer, () => Directory.Move(Path.Combine(backupSrc, ".git"), enlistment.DotGitRoot), "Keep existing .git folder", out errorMessage))
                     {
                         return false;
