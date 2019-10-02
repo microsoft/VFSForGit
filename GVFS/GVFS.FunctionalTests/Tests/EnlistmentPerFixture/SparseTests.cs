@@ -598,10 +598,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void CheckMainSparseFolder()
         {
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);
-            Array.Sort(directories, FileSystemHelpers.PathComparer);
             directories.Length.ShouldEqual(2);
-            directories[0].ShouldEqual(Path.Combine(this.Enlistment.RepoRoot, ".git"));
-            directories[1].ShouldEqual(Path.Combine(this.Enlistment.RepoRoot, "GVFS"));
+            directories.ShouldContain(x => x == Path.Combine(this.Enlistment.RepoRoot, ".git"));
+            directories.ShouldContain(x => x == Path.Combine(this.Enlistment.RepoRoot, "GVFS"));
 
             string folder = this.Enlistment.GetVirtualPathTo(this.mainSparseFolder);
             folder.ShouldBeADirectory(this.fileSystem);
