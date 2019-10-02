@@ -166,6 +166,13 @@ Folders need to be relative to the repos root directory.")
                         {
                             needToChangeProjection = true;
                             foldersToRemove.AddRange(directories);
+                            directories.Clear();
+                        }
+
+                        // Need to add folders that will be in the projection back into directories for the status check
+                        foreach (string folder in folders)
+                        {
+                            directories.Add(folder);
                         }
                     }
                     else
