@@ -106,6 +106,15 @@ Folders need to be relative to the repos root directory.")
                     EventLevel.Informational,
                     Keywords.Any);
 
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(this.Set), this.Set);
+                metadata.Add(nameof(this.File), this.File);
+                metadata.Add(nameof(this.Add), this.Add);
+                metadata.Add(nameof(this.Remove), this.Remove);
+                metadata.Add(nameof(this.Prune), this.Prune);
+                metadata.Add(nameof(this.Disable), this.Disable);
+                tracer.RelatedInfo(metadata, $"Running sparse");
+
                 HashSet<string> directories;
                 bool needToChangeProjection = false;
                 using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase()))
@@ -120,6 +129,7 @@ Folders need to be relative to the repos root directory.")
                     {
                         if (directories.Count > 0)
                         {
+                            this.WriteMessage(tracer, "Removing all folders from sparse list. When the sparse list is empty, all folders are projected.");
                             needToChangeProjection = true;
                             foldersToRemove.AddRange(directories);
                             directories.Clear();
