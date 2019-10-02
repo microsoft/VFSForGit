@@ -162,8 +162,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             int.TryParse(majorVersion.ShouldNotBeNull(), out majorVersionNum).ShouldEqual(true);
             int.TryParse(minorVersion.ShouldNotBeNull(), out minorVersionNum).ShouldEqual(true);
 
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (majorVersionNum - 1).ToString(), "0");
-            this.DehydrateShouldFail(new[] { "disk layout version doesn't match current version" }, noStatus: true);
+            int previousMajorVersionNum = majorVersionNum - 1;
+            if (previousMajorVersionNum >= GVFSHelpers.GetCurrentDiskLayoutMinimumMajorVersion())
+            {
+                GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, previousMajorVersionNum.ToString(), "0");
+                this.DehydrateShouldFail(new[] { "disk layout version doesn't match current version" }, noStatus: true);
+            }
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (majorVersionNum + 1).ToString(), "0");
             this.DehydrateShouldFail(new[] { "Changes to GVFS disk layout do not allow mounting after downgrade." }, noStatus: true);

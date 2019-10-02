@@ -10,30 +10,7 @@ namespace GVFS.FunctionalTests.Tests
     [Category(Categories.ExtraCoverage)]
     public class DiskLayoutVersionTests : TestsWithEnlistmentPerTestCase
     {
-        private const int WindowsCurrentDiskLayoutMajorVersion = 19;
-        private const int MacCurrentDiskLayoutMajorVersion = 19;
-        private const int WindowsCurrentDiskLayoutMinimumMajorVersion = 7;
-        private const int MacCurrentDiskLayoutMinimumMajorVersion = 18;
         private const int CurrentDiskLayoutMinorVersion = 0;
-        private int currentDiskMajorVersion;
-        private int currentDiskMinimumMajorVersion;
-
-        [SetUp]
-        public override void CreateEnlistment()
-        {
-            base.CreateEnlistment();
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                this.currentDiskMajorVersion = MacCurrentDiskLayoutMajorVersion;
-                this.currentDiskMinimumMajorVersion = MacCurrentDiskLayoutMinimumMajorVersion;
-            }
-            else
-            {
-                this.currentDiskMajorVersion = WindowsCurrentDiskLayoutMajorVersion;
-                this.currentDiskMinimumMajorVersion = WindowsCurrentDiskLayoutMinimumMajorVersion;
-            }
-        }
 
         [TestCase]
         public void MountSucceedsIfMinorVersionHasAdvancedButNotMajorVersion()
@@ -42,7 +19,7 @@ namespace GVFS.FunctionalTests.Tests
             this.Enlistment.UnmountGVFS();
             GVFSHelpers.SaveDiskLayoutVersion(
                 this.Enlistment.DotGVFSRoot,
-                this.currentDiskMajorVersion.ToString(),
+                GVFSHelpers.GetCurrentDiskLayoutMajorVersion().ToString(),
                 (CurrentDiskLayoutMinorVersion + 1).ToString());
             this.Enlistment.TryMountGVFS().ShouldBeTrue("Mount should succeed because only the minor version advanced");
 
@@ -50,7 +27,7 @@ namespace GVFS.FunctionalTests.Tests
             this.Enlistment.UnmountGVFS();
             GVFSHelpers.SaveDiskLayoutVersion(
                 this.Enlistment.DotGVFSRoot,
-                (this.currentDiskMajorVersion + 1).ToString(),
+                (GVFSHelpers.GetCurrentDiskLayoutMajorVersion() + 1).ToString(),
                 CurrentDiskLayoutMinorVersion.ToString());
             this.Enlistment.TryMountGVFS().ShouldBeFalse("Mount should fail because the major version has advanced");
         }
@@ -62,7 +39,7 @@ namespace GVFS.FunctionalTests.Tests
             this.Enlistment.UnmountGVFS();
             GVFSHelpers.SaveDiskLayoutVersion(
                 this.Enlistment.DotGVFSRoot,
-                (this.currentDiskMinimumMajorVersion - 1).ToString(),
+                (GVFSHelpers.GetCurrentDiskLayoutMinimumMajorVersion() - 1).ToString(),
                 CurrentDiskLayoutMinorVersion.ToString());
             this.Enlistment.TryMountGVFS().ShouldBeFalse("Mount should fail because we are before minimum version");
         }
