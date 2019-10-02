@@ -85,6 +85,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             enlistment.UnmountAndDeleteAll();
         }
 
+        [TestCase]
+        public void CloneCreatesCorrectFilesInRoot()
+        {
+            GVFSFunctionalTestEnlistment enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS);
+            try
+            {
+                string[] files = Directory.GetFiles(enlistment.EnlistmentRoot);
+                files.Length.ShouldEqual(1);
+                files.ShouldContain(x => Path.GetFileName(x).Equals("git.cmd", StringComparison.Ordinal));
+                string[] directories = Directory.GetDirectories(enlistment.EnlistmentRoot);
+                directories.Length.ShouldEqual(2);
+                directories.ShouldContain(x => Path.GetFileName(x).Equals(".gvfs", StringComparison.Ordinal));
+                directories.ShouldContain(x => Path.GetFileName(x).Equals("src", StringComparison.Ordinal));
+            }
+            finally
+            {
+                enlistment.UnmountAndDeleteAll();
+            }
+        }
+
         private void SubfolderCloneShouldFail()
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);

@@ -32,20 +32,21 @@ namespace GVFS.Platform.Mac
 
         public override bool IsFileSystemSupported(string path, out string error)
         {
-            string lowerCaseFile = Guid.NewGuid().ToString().ToLower();
-            string upperCaseFile = lowerCaseFile.ToUpper();
             error = null;
 
             try
             {
-                File.Create(Path.Combine(path, lowerCaseFile));
-                if (File.Exists(Path.Combine(path, upperCaseFile)))
+                string lowerCaseFilePath = Path.Combine(path, $"casetest{Guid.NewGuid().ToString()}");
+                string upperCaseFilePath = lowerCaseFilePath.ToUpper();
+
+                File.Create(lowerCaseFilePath);
+                if (File.Exists(upperCaseFilePath))
                 {
-                    File.Delete(lowerCaseFile);
+                    File.Delete(lowerCaseFilePath);
                     return true;
                 }
 
-                File.Delete(lowerCaseFile);
+                File.Delete(lowerCaseFilePath);
                 error = "VFS for Git does not support case sensitive filesystems";
                 return false;
             }
