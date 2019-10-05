@@ -36,8 +36,10 @@ namespace GVFS.FunctionalTests.Tools
 
         private const int WindowsCurrentDiskLayoutMajorVersion = 19;
         private const int MacCurrentDiskLayoutMajorVersion = 19;
+        private const int LinuxCurrentDiskLayoutMajorVersion = 19;
         private const int WindowsCurrentDiskLayoutMinimumMajorVersion = 7;
         private const int MacCurrentDiskLayoutMinimumMajorVersion = 18;
+        private const int LinuxCurrentDiskLayoutMinimumMajorVersion = 19;
 
         public static string ConvertPathToGitFormat(string path)
         {
@@ -228,6 +230,10 @@ namespace GVFS.FunctionalTests.Tools
             {
                 return MacCurrentDiskLayoutMajorVersion;
             }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return LinuxCurrentDiskLayoutMajorVersion;
+            }
             else
             {
                 return WindowsCurrentDiskLayoutMajorVersion;
@@ -239,6 +245,10 @@ namespace GVFS.FunctionalTests.Tools
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 return MacCurrentDiskLayoutMinimumMajorVersion;
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return LinuxCurrentDiskLayoutMinimumMajorVersion;
             }
             else
             {
