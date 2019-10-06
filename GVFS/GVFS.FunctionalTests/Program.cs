@@ -127,6 +127,10 @@ namespace GVFS.FunctionalTests
             {
                 excludeCategories.Add(Categories.RepositoryMountsSameFileSystem);
 
+                // TODO(Linux): add partial folder support or blocking
+                excludeCategories.Add(Categories.PartialFolderRenamesAllowed);
+                excludeCategories.Add(Categories.PartialFolderRenamesBlocked);
+
                 excludeCategories.Add(Categories.LinuxTODO.NeedsContentionFreeFileLock);
                 excludeCategories.Add(Categories.LinuxTODO.NeedsConsistentBufferedWrites);
 
