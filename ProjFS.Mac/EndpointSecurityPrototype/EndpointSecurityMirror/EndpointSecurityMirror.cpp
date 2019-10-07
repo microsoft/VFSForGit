@@ -188,9 +188,13 @@ static void HandleSecurityEvent(
 			{
 				if (PathLiesWithinTarget(eventPath))
 				{
-					const char* processFilename = FilenameFromPath(eventPath);
-					if (0 == strcmp("mdworker_shared", processFilename)
-					    || 0 == strcmp("mds", processFilename))
+					const char* processFilename =
+						(message->process && message->process->executable && message->process->executable->path.data)
+						? FilenameFromPath(message->process->executable->path.data)
+						: nullptr;
+					if (processFilename != nullptr &&
+							(0 == strcmp("mdworker_shared", processFilename)
+					     || 0 == strcmp("mds", processFilename)))
 					{
 						//printf("Denying crawler process %u (%s) access to empty file '%s'\n", audit_token_to_pid(message->proc.audit_token), processFilename, eventPath);
 						es_respond_result_t result = es_respond_flags_result(client, message, 0x0, false /* don't cache */);
