@@ -108,7 +108,7 @@
 		4A6A653722C227BA00E207E2 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1100;
+				LastUpgradeCheck = 1110;
 				ORGANIZATIONNAME = "Microsoft Corporation";
 				TargetAttributes = {
 					4A6A653E22C227BA00E207E2 = {
@@ -259,10 +259,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = EndpointSecurityMirror/EndpointSecurityMirror.entitlements;
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = PLT8TQHCAJ;
 				ENABLE_HARDENED_RUNTIME = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.mirrorprovider.endpointsecurityprototype;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -271,10 +273,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = EndpointSecurityMirror/EndpointSecurityMirror.entitlements;
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = PLT8TQHCAJ;
 				ENABLE_HARDENED_RUNTIME = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.mirrorprovider.endpointsecurityprototype;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
