@@ -207,6 +207,7 @@ static void HandleSecurityEvent(
 					}
 					else
 					{
+						printf("Hydration event to '%s' caused by '%s'\n", eventPath, processFilename);
 						HydrateFileOrAwaitHydration(eventPath, message);
 					}
 					return;
@@ -315,11 +316,13 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 			uint64_t responseMachDuration = responseMachTime - messageCopy->mach_time;
 			int64_t responseMachDeadlineDelta = responseMachTime - messageCopy->deadline;
 	
-			printf("Hydrating '%s' done; response took %llu µs, %lld µs %s deadline\n",
+			printf("Hydrating '%s' done; response took %llu µs, %lld µs %s deadline; triggered by access from process %d ('%s')\n",
 				eventPath.c_str(),
 				usecFromMachDuration(responseMachDuration),
 				std::abs(usecFromMachDuration(responseMachDeadlineDelta)),
-				responseMachDeadlineDelta <= 0 ? "before" : "after");
+				responseMachDeadlineDelta <= 0 ? "before" : "after",
+				audit_token_to_pid(messageCopy->process->audit_token),
+				messageCopy->process ? messageCopy->process->executable->path.data : "[NULL]");
 
 			free(messageCopy);
 			
