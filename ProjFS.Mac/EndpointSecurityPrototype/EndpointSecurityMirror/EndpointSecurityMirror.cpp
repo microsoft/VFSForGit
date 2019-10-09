@@ -23,6 +23,8 @@ using std::atomic_uint;
 
 typedef std::lock_guard<mutex> Guard;
 
+static pid_t selfpid;
+
 static constexpr const char* EmptyFileXattr = "org.vfsforgit.endpointsecuritymirror.emptyfile";
 
 static es_client_t* client = nullptr;
@@ -74,6 +76,7 @@ static const char* FilenameFromPath(const char* path)
 
 int main(int argc, const char* argv[])
 {
+	selfpid = getpid();
 	mach_timebase_info(&s_machTimebase);
 	
 	if (argc < 3)
@@ -181,12 +184,22 @@ static void HandleSecurityEvent(
 	{
 		if (message->event_type == ES_EVENT_TYPE_AUTH_OPEN)
 		{
-			char xattrBuffer[16];
-            const char* eventPath = message->event.open.file->path.data;
-			ssize_t xattrBytes = getxattr(eventPath, EmptyFileXattr, xattrBuffer, sizeof(xattrBuffer), 0 /* offset */, 0 /* options */);
-			if (xattrBytes >= 0)
+			pid_t pid = audit_token_to_pid(message->process->audit_token);
+			if (pid == selfpid)
 			{
-				if (PathLiesWithinTarget(eventPath))
+				printf("Muting events from self (pid %d)\n", pid);
+				es_mute_process(client, &message->process->audit_token);
+				es_respond_result_t result = es_respond_flags_result(client, message, 0x7fffffff, false /* don't cache */);
+				assert(result == ES_RESPOND_RESULT_SUCCESS);
+				return;
+			}
+			
+			const char* eventPath = message->event.open.file->path.data;
+			if (PathLiesWithinTarget(eventPath))
+			{
+				char xattrBuffer[16];
+				ssize_t xattrBytes = getxattr(eventPath, EmptyFileXattr, xattrBuffer, sizeof(xattrBuffer), 0 /* offset */, 0 /* options */);
+				if (xattrBytes >= 0)
 				{
 					const char* processFilename =
 						(message->process && message->process->executable && message->process->executable->path.data)
@@ -214,8 +227,8 @@ static void HandleSecurityEvent(
 				}
 				else
 				{
-					fprintf(stderr, "File tagged as empty found outside target directory: '%s'\n", eventPath);
-					es_respond_result_t result = es_respond_flags_result(client, message, 0x0, false /* don't cache */);
+					//fprintf(stderr, "File tagged as empty found outside target directory: '%s'\n", eventPath);
+					es_respond_result_t result = es_respond_flags_result(client, message, 0x7fffffff, false /* don't cache */);
 					assert(result == ES_RESPOND_RESULT_SUCCESS);
 					unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
 					if (count != 1)
