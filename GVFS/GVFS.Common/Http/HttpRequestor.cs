@@ -255,10 +255,11 @@ namespace GVFS.Common.Http
 
         private static bool ShouldRetry(HttpStatusCode statusCode)
         {
-            // Retry timeout, Unauthorized, and 5xx errors
+            // Retry timeout, Unauthorized, 429 (Too Many Requests), and 5xx errors
             int statusInt = (int)statusCode;
             if (statusCode == HttpStatusCode.RequestTimeout ||
                 statusCode == HttpStatusCode.Unauthorized ||
+                statusInt == 429 ||
                 (statusInt >= 500 && statusInt < 600))
             {
                 return true;
