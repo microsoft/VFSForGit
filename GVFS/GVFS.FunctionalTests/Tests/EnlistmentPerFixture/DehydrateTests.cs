@@ -186,15 +186,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.DehydrateShouldSucceed(new[] { $"GVFS {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
             this.Enlistment.UnmountGVFS();
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                pathToEnumerate.ShouldNotExistOnDisk(this.fileSystem);
-            }
-            else
-            {
-                pathToEnumerate.ShouldBeADirectory(this.fileSystem);
-            }
-
+            this.CheckDehydratedFolderAfterUnmount(pathToEnumerate);
             subFolderToEnumerate.ShouldNotExistOnDisk(this.fileSystem);
         }
 
@@ -209,15 +201,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.DehydrateShouldSucceed(new[] { $"GVFS {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
             this.Enlistment.UnmountGVFS();
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                pathToReadFiles.ShouldNotExistOnDisk(this.fileSystem);
-            }
-            else
-            {
-                pathToReadFiles.ShouldBeADirectory(this.fileSystem);
-            }
-
+            this.CheckDehydratedFolderAfterUnmount(pathToReadFiles);
             fileToRead.ShouldNotExistOnDisk(this.fileSystem);
         }
 
@@ -232,15 +216,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.DehydrateShouldSucceed(new[] { $"GVFS {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
             this.Enlistment.UnmountGVFS();
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                pathToReadFiles.ShouldNotExistOnDisk(this.fileSystem);
-            }
-            else
-            {
-                pathToReadFiles.ShouldBeADirectory(this.fileSystem);
-            }
-
+            this.CheckDehydratedFolderAfterUnmount(pathToReadFiles);
             fileToRead.ShouldNotExistOnDisk(this.fileSystem);
         }
 
@@ -255,15 +231,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.DehydrateShouldSucceed(new[] { $"GVFS {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
             this.Enlistment.UnmountGVFS();
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                pathToWriteFiles.ShouldNotExistOnDisk(this.fileSystem);
-            }
-            else
-            {
-                pathToWriteFiles.ShouldBeADirectory(this.fileSystem);
-            }
-
+            this.CheckDehydratedFolderAfterUnmount(pathToWriteFiles);
             fileToWriteTo.ShouldNotExistOnDisk(this.fileSystem);
         }
 
@@ -276,15 +244,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.DehydrateShouldSucceed(new[] { $"Scripts {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "Scripts");
             this.Enlistment.UnmountGVFS();
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                pathToDelete.ShouldNotExistOnDisk(this.fileSystem);
-            }
-            else
-            {
-                pathToDelete.ShouldBeADirectory(this.fileSystem);
-                Path.Combine(pathToDelete, "RunUnitTests.bat").ShouldNotExistOnDisk(this.fileSystem);
-            }
+            this.CheckDehydratedFolderAfterUnmount(pathToDelete);
+            Path.Combine(pathToDelete, "RunUnitTests.bat").ShouldNotExistOnDisk(this.fileSystem);
         }
 
         [TestCase]
@@ -493,15 +454,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.UnmountGVFS();
             fileToCreate.ShouldNotExistOnDisk(this.fileSystem);
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                directoryToCreate.ShouldNotExistOnDisk(this.fileSystem);
-            }
-            else
-            {
-                directoryToCreate.ShouldBeADirectory(this.fileSystem);
-            }
+            this.CheckDehydratedFolderAfterUnmount(directoryToCreate);
         }
 
         private void PlaceholdersShouldContain(params string[] paths)
@@ -537,6 +490,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 .OrderByDescending(x => x);
 
             onDiskItems.ShouldMatchInOrder(fileOrFolders.OrderByDescending(x => x));
+        }
+
+        private void CheckDehydratedFolderAfterUnmount(string path)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                path.ShouldNotExistOnDisk(this.fileSystem);
+            }
+            else
+            {
+                path.ShouldBeADirectory(this.fileSystem);
+            }
         }
 
         private void DehydrateShouldSucceed(string[] expectedInOutput, bool confirm, bool noStatus, params string[] foldersToDehydrate)
