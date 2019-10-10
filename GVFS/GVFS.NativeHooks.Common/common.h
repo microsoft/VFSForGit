@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstring>
+#include <string>
 
 #ifdef __APPLE__
 typedef std::string PATH_STRING;
