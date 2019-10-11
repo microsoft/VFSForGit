@@ -240,7 +240,20 @@ Folders need to be relative to the repos root directory.")
 
         private void PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, SparseTable sparseTable)
         {
-            string[] directoriesToDehydrate = this.GetDirectoriesOutsideSparse(enlistment.WorkingDirectoryBackingRoot, sparseTable);
+            string[] directoriesToDehydrate = new string[0];
+            if (!this.ShowStatusWhileRunning(
+                () =>
+                {
+                    directoriesToDehydrate = this.GetDirectoriesOutsideSparse(enlistment.WorkingDirectoryBackingRoot, sparseTable);
+                    return true;
+                },
+                "Finding folders to prune"))
+            {
+                this.ReportErrorAndExit(tracer, "Failed to prune.");
+            }
+
+            this.WriteMessage(tracer, $"Found {directoriesToDehydrate.Length} folders to prune.");
+
             if (directoriesToDehydrate.Length > 0)
             {
                 if (!this.ShowStatusWhileRunning(
