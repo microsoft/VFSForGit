@@ -895,14 +895,18 @@ You can specify a URL, a name of a configured cache server, or the special names
                             configureVerb?.Invoke(verb);
                         });
 
-                    tracer.RelatedEvent(
-                        EventLevel.Informational,
-                        typeof(TVerb).Name,
-                        new EventMetadata
-                        {
-                            { "Output", commandOutput?.ToString() },
-                            { "ReturnCode", returnCode }
-                        });
+                    EventMetadata metadata = new EventMetadata();
+                    if (commandOutput != null)
+                    {
+                        metadata.Add("Output", commandOutput.ToString());
+                    }
+                    else
+                    {
+                        metadata.Add("Output", $"Check {new TVerb().VerbName} logs for output");
+                    }
+
+                    metadata.Add("ReturnCode", returnCode);
+                    tracer.RelatedEvent(EventLevel.Informational, typeof(TVerb).Name, metadata);
 
                     return returnCode;
                 }
