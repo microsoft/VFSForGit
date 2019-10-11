@@ -256,20 +256,16 @@ Folders need to be relative to the repos root directory.")
 
             if (directoriesToDehydrate.Length > 0)
             {
-                if (!this.ShowStatusWhileRunning(
-                    () =>
+                ReturnCode verbReturnCode = this.ExecuteGVFSVerb<DehydrateVerb>(
+                    tracer,
+                    verb =>
                     {
-                        ReturnCode verbReturnCode = this.ExecuteGVFSVerb<DehydrateVerb>(
-                            tracer,
-                            verb =>
-                            {
-                                verb.Confirmed = true;
-                                verb.Folders = string.Join(FolderListSeparator, directoriesToDehydrate);
-                            });
-
-                        return verbReturnCode == ReturnCode.Success;
+                        verb.Confirmed = true;
+                        verb.Folders = string.Join(FolderListSeparator, directoriesToDehydrate);
                     },
-                    "Pruning folders"))
+                    this.Output);
+
+                if (verbReturnCode != ReturnCode.Success)
                 {
                     this.ReportErrorAndExit(tracer, "Failed to prune.");
                 }

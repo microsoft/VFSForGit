@@ -874,31 +874,34 @@ You can specify a URL, a name of a configured cache server, or the special names
                 RepoMetadata.Shutdown();
             }
 
-            protected ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer, Action<TVerb> configureVerb = null)
+            protected ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer, Action<TVerb> configureVerb = null, TextWriter outputWriter = null)
                 where TVerb : GVFSVerb, new()
             {
+                StringBuilder commandOutput = null;
+                if (outputWriter == null)
+                {
+                    commandOutput = new StringBuilder();
+                    outputWriter = new StringWriter(commandOutput);
+                }
+
                 try
                 {
                     ReturnCode returnCode;
-                    StringBuilder commandOutput = new StringBuilder();
-                    using (StringWriter writer = new StringWriter(commandOutput))
-                    {
-                        returnCode = this.Execute<TVerb>(
-                            this.EnlistmentRootPathParameter,
-                            verb =>
-                            {
-                                verb.Output = writer;
-                                configureVerb?.Invoke(verb);
-                            });
-                    }
+                    returnCode = this.Execute<TVerb>(
+                        this.EnlistmentRootPathParameter,
+                        verb =>
+                        {
+                            verb.Output = outputWriter;
+                            configureVerb?.Invoke(verb);
+                        });
 
                     tracer.RelatedEvent(
                         EventLevel.Informational,
                         typeof(TVerb).Name,
                         new EventMetadata
                         {
-                        { "Output", commandOutput.ToString() },
-                        { "ReturnCode", returnCode }
+                            { "Output", commandOutput?.ToString() },
+                            { "ReturnCode", returnCode }
                         });
 
                     return returnCode;
@@ -908,12 +911,19 @@ You can specify a URL, a name of a configured cache server, or the special names
                     tracer.RelatedError(
                         new EventMetadata
                         {
-                        { "Verb", typeof(TVerb).Name },
-                        { "Exception", e.ToString() }
+                            { "Verb", typeof(TVerb).Name },
+                            { "Exception", e.ToString() }
                         },
                         "ExecuteGVFSVerb: Caught exception");
 
                     return ReturnCode.GenericError;
+                }
+                finally
+                {
+                    if (commandOutput != null)
+                    {
+                        outputWriter?.Dispose();
+                    }
                 }
             }
 
