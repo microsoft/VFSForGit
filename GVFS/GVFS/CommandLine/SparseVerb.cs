@@ -24,6 +24,7 @@ Folders need to be relative to the repos root directory.")
         private const string FolderListSeparator = ";";
         private const char StatusPathSeparatorToken = '\0';
         private const char StatusRenameToken = 'R';
+        private const string PruneOptionName = "prune";
 
         [Option(
             's',
@@ -67,7 +68,7 @@ Folders need to be relative to the repos root directory.")
 
         [Option(
             'p',
-            "prune",
+            PruneOptionName,
             Required = false,
             Default = false,
             HelpText = "Remove any folders that are not in the list of sparse folders.")]
@@ -247,12 +248,12 @@ Folders need to be relative to the repos root directory.")
                     directoriesToDehydrate = this.GetDirectoriesOutsideSparse(enlistment.WorkingDirectoryBackingRoot, sparseTable);
                     return true;
                 },
-                "Finding folders to prune"))
+                $"Finding folders to {PruneOptionName}"))
             {
-                this.ReportErrorAndExit(tracer, "Failed to prune.");
+                this.ReportErrorAndExit(tracer, $"Failed to {PruneOptionName}.");
             }
 
-            this.WriteMessage(tracer, $"Found {directoriesToDehydrate.Length} folders to prune.");
+            this.WriteMessage(tracer, $"Found {directoriesToDehydrate.Length} folders to {PruneOptionName}.");
 
             if (directoriesToDehydrate.Length > 0)
             {
@@ -260,6 +261,8 @@ Folders need to be relative to the repos root directory.")
                     tracer,
                     verb =>
                     {
+                        verb.RunningVerbName = this.VerbName;
+                        verb.DisplayName = PruneOptionName;
                         verb.Confirmed = true;
                         verb.Folders = string.Join(FolderListSeparator, directoriesToDehydrate);
                     },
@@ -267,7 +270,7 @@ Folders need to be relative to the repos root directory.")
 
                 if (verbReturnCode != ReturnCode.Success)
                 {
-                    this.ReportErrorAndExit(tracer, "Failed to prune.");
+                    this.ReportErrorAndExit(tracer, $"Failed to {PruneOptionName}.");
                 }
             }
         }

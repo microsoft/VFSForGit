@@ -46,6 +46,9 @@ namespace GVFS.CommandLine
             HelpText = "A semicolon (" + FolderListSeparator + ") delimited list of folders to dehydrate. Each folder must be relative to the repository root.")]
         public string Folders { get; set; }
 
+        public string RunningVerbName { get; set; } = DehydrateVerbName;
+        public string DisplayName { get; set; } = DehydrateVerbName;
+
         protected override string VerbName
         {
             get { return DehydrateVerb.DehydrateVerbName; }
@@ -160,10 +163,10 @@ from a parent of the folders list.
 
                 if (fullDehydrate)
                 {
-                    this.WriteMessage(tracer, "Starting dehydration. All of your existing files will be backed up in " + backupRoot);
+                    this.WriteMessage(tracer, $"Starting dehydrate. All of your existing files will be backed up in " + backupRoot);
                 }
 
-                this.WriteMessage(tracer, "WARNING: If you abort the dehydrate after this point, the repo may become corrupt");
+                this.WriteMessage(tracer, $"WARNING: If you abort the {this.RunningVerbName} after this point, the repo may become corrupt");
 
                 this.Output.WriteLine();
 
@@ -206,12 +209,12 @@ from a parent of the folders list.
                         }
                         else
                         {
-                            this.ReportErrorAndExit("Cannot dehydrate: must have a clean git status.");
+                            this.ReportErrorAndExit($"Cannot {this.DisplayName}: must have a clean git status.");
                         }
                     }
                     else
                     {
-                        this.ReportErrorAndExit("No folders to dehydrate.");
+                        this.ReportErrorAndExit($"No folders to {this.DisplayName}.");
                     }
                 }
             }
@@ -243,7 +246,7 @@ from a parent of the folders list.
                             string normalizedPath = GVFSDatabase.NormalizePath(folder);
                             if (!this.IsFolderValid(normalizedPath))
                             {
-                                this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': invalid folder path.");
+                                this.WriteMessage(tracer, $"Cannot {this.DisplayName} folder '{folder}': invalid folder path.");
                             }
                             else
                             {
@@ -251,7 +254,7 @@ from a parent of the folders list.
                                 // dehydration will not do any good with a parent folder there
                                 if (modifiedPaths.ContainsParentFolder(folder, out string parentFolder))
                                 {
-                                    this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': parent folder '{parentFolder}' must be dehydrated.");
+                                    this.WriteMessage(tracer, $"Cannot {this.DisplayName} folder '{folder}': Must {this.DisplayName} parent folder '{parentFolder}'.");
                                 }
                                 else
                                 {
@@ -260,7 +263,7 @@ from a parent of the folders list.
                                     {
                                         if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting '{fullPath}'", out ioError))
                                         {
-                                            this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': removing '{folder}' failed.");
+                                            this.WriteMessage(tracer, $"Cannot {this.DisplayName} folder '{folder}': removing '{folder}' failed.");
                                             this.WriteMessage(tracer, "Ensure no applications are accessing the folder and retry.");
                                             this.WriteMessage(tracer, $"More details: {ioError}");
                                         }
@@ -271,7 +274,7 @@ from a parent of the folders list.
                                     }
                                     else
                                     {
-                                        this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': '{folder}' does not exist.");
+                                        this.WriteMessage(tracer, $"Cannot {this.DisplayName} folder '{folder}': '{folder}' does not exist.");
 
                                         // Still add to foldersToDehydrate so that any placeholders or modified paths get cleaned up
                                         foldersToDehydrate.Add(folder);
@@ -285,7 +288,7 @@ from a parent of the folders list.
                 },
                 "Cleaning up folders"))
             {
-                this.ReportErrorAndExit(tracer, "Dehydrate for folders failed.");
+                this.ReportErrorAndExit(tracer, $"{this.DisplayName} for folders failed.");
             }
 
             this.Mount(tracer);
@@ -334,12 +337,12 @@ from a parent of the folders list.
             {
                 foreach (string folder in response.SuccessfulFolders)
                 {
-                    this.WriteMessage(tracer, $"{folder} folder successfully dehydrated.");
+                    this.WriteMessage(tracer, $"{folder} folder {this.DisplayName} successful.");
                 }
 
                 foreach (string folder in response.FailedFolders)
                 {
-                    this.WriteMessage(tracer, $"{folder} folder failed to dehydrate. You may need to reset the working directory by deleting {folder}, running `git reset --hard`, and retry the dehydrate.");
+                    this.WriteMessage(tracer, $"{folder} folder failed to {this.DisplayName}. You may need to reset the working directory by deleting {folder}, running `git reset --hard`, and retry the {this.DisplayName}.");
                 }
             }
         }
@@ -373,10 +376,10 @@ from a parent of the folders list.
         {
             if (!this.NoStatus)
             {
-                this.WriteMessage(tracer, "Running git status before dehydrating to make sure you don't have any pending changes.");
+                this.WriteMessage(tracer, $"Running git status before {this.DisplayName} to make sure you don't have any pending changes.");
                 if (fullDehydrate)
                 {
-                    this.WriteMessage(tracer, "If this takes too long, you can abort and run dehydrate with --no-status to skip this safety check.");
+                    this.WriteMessage(tracer, $"If this takes too long, you can abort and run {this.RunningVerbName} with --no-status to skip this safety check.");
                 }
 
                 this.Output.WriteLine();
@@ -430,7 +433,7 @@ from a parent of the folders list.
                         this.WriteMessage(tracer, "git status reported that you have dirty files");
                         if (fullDehydrate)
                         {
-                            this.WriteMessage(tracer, "Either commit your changes or run dehydrate with --no-status");
+                            this.WriteMessage(tracer, $"Either commit your changes or run {this.RunningVerbName} with --no-status");
                         }
                         else
                         {
@@ -438,7 +441,7 @@ from a parent of the folders list.
                         }
                     }
 
-                    this.ReportErrorAndExit(tracer, "Dehydrate was aborted");
+                    this.ReportErrorAndExit(tracer, $"Aborted {this.DisplayName}");
                     return false;
                 }
                 else
