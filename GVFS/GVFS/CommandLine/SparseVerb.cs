@@ -289,13 +289,16 @@ Folders need to be relative to the repos root directory.")
                 foreach (string directory in fileSystem.EnumerateDirectories(folderToEnumerate))
                 {
                     string enlistmentRootRelativeFolderPath = GVFSDatabase.NormalizePath(directory.Substring(rootPath.Length));
-                    if (sparseFolders.Any(x => x.StartsWith(enlistmentRootRelativeFolderPath + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison)))
+                    if (!enlistmentRootRelativeFolderPath.Equals(GVFSConstants.DotGit.Root, GVFSPlatform.Instance.Constants.PathComparison))
                     {
-                        foldersToEnumerate.Enqueue(directory);
-                    }
-                    else if (!sparseFolders.Contains(enlistmentRootRelativeFolderPath))
-                    {
-                        foldersOutsideSparse.Add(enlistmentRootRelativeFolderPath);
+                        if (sparseFolders.Any(x => x.StartsWith(enlistmentRootRelativeFolderPath + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison)))
+                        {
+                            foldersToEnumerate.Enqueue(directory);
+                        }
+                        else if (!sparseFolders.Contains(enlistmentRootRelativeFolderPath))
+                        {
+                            foldersOutsideSparse.Add(enlistmentRootRelativeFolderPath);
+                        }
                     }
                 }
             }
