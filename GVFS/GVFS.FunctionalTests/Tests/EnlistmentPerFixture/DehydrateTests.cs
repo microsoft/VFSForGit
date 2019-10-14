@@ -183,7 +183,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string subFolderToEnumerate = Path.Combine(pathToEnumerate, "GVFS");
             this.fileSystem.EnumerateDirectory(subFolderToEnumerate);
 
-            this.DehydrateShouldSucceed(new[] { "GVFS folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldSucceed(new[] { "GVFS folder dehydrate successful." }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
             this.Enlistment.UnmountGVFS();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -206,7 +206,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
             }
 
-            this.DehydrateShouldSucceed(new[] { "GVFS folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldSucceed(new[] { "GVFS folder dehydrate successful." }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
             this.Enlistment.UnmountGVFS();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -229,7 +229,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.fileSystem.EnumerateDirectory(pathToReadFiles);
 
-            this.DehydrateShouldSucceed(new[] { "GVFS folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldSucceed(new[] { "GVFS folder dehydrate successful." }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
             this.Enlistment.UnmountGVFS();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -252,7 +252,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "add .");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
 
-            this.DehydrateShouldSucceed(new[] { "GVFS folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldSucceed(new[] { "GVFS folder dehydrate successful." }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
             this.Enlistment.UnmountGVFS();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -273,7 +273,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteDirectory(pathToDelete);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout -- Scripts");
 
-            this.DehydrateShouldSucceed(new[] { "Scripts folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: "Scripts");
+            this.DehydrateShouldSucceed(new[] { "Scripts folder dehydrate successful." }, confirm: true, noStatus: false, foldersToDehydrate: "Scripts");
             this.Enlistment.UnmountGVFS();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -302,7 +302,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.AppendAllText(fileNotDehydrated2, "Append content");
             GitProcess.Invoke(this.Enlistment.RepoRoot, $"reset --hard");
 
-            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} folder dehydrate successful." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
 
             this.PlaceholdersShouldNotContain(folderToDehydrate, Path.Combine(folderToDehydrate, "Program.cs"));
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, Path.Combine(folderToDehydrate, "App.config").Replace(Path.DirectorySeparatorChar, TestConstants.GitPathSeparator));
@@ -329,7 +329,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.ReadAllText(fileToRead2);
 
             this.DehydrateShouldSucceed(
-                new[] { $"{folderToDehydrate1} folder successfully dehydrated.", $"{folderToDehydrate2} folder successfully dehydrated." },
+                new[] { $"{folderToDehydrate1} folder dehydrate successful.", $"{folderToDehydrate2} folder dehydrate successful." },
                 confirm: true,
                 noStatus: false,
                 foldersToDehydrate: string.Join(";", folderToDehydrate1, folderToDehydrate2));
@@ -351,7 +351,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.ReadAllText(fileToRead2);
 
             this.DehydrateShouldSucceed(
-                new[] { $"{folderToDehydrate1} folder successfully dehydrated.", $"Cannot dehydrate folder '{folderToDehydrate2}': '{folderToDehydrate2}' does not exist." },
+                new[] { $"{folderToDehydrate1} folder dehydrate successful.", $"Cannot dehydrate folder '{folderToDehydrate2}': '{folderToDehydrate2}' does not exist." },
                 confirm: true,
                 noStatus: false,
                 foldersToDehydrate: string.Join(";", folderToDehydrate1, folderToDehydrate2));
@@ -372,7 +372,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
             this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
 
-            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': parent folder 'GitCommandsTests/' must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': Must dehydrate parent folder 'GitCommandsTests/'." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]
@@ -414,7 +414,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
             this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
 
-            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': parent folder 'GitCommandsTests/' must be dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': Must dehydrate parent folder 'GitCommandsTests/'." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]
@@ -427,7 +427,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout -f HEAD~1");
 
             string folderToDehydrate = "TrailingSlashTests";
-            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} folder dehydrate successful." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
 
             pathToDelete.ShouldBeADirectory(this.fileSystem);
         }
@@ -440,7 +440,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -a -m \"Delete a directory\"");
 
             string folderToDehydrate = "TrailingSlashTests";
-            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} folder successfully dehydrated." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} folder dehydrate successful." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
 
             pathToDelete.ShouldNotExistOnDisk(this.fileSystem);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout HEAD~1");
@@ -488,7 +488,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "add .");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
 
-            this.DehydrateShouldSucceed(new[] { "NewFolder folder successfully dehydrated" }, confirm: true, noStatus: false, foldersToDehydrate: "NewFolder");
+            this.DehydrateShouldSucceed(new[] { "NewFolder folder dehydrate successful" }, confirm: true, noStatus: false, foldersToDehydrate: "NewFolder");
 
             this.Enlistment.UnmountGVFS();
             fileToCreate.ShouldNotExistOnDisk(this.fileSystem);
