@@ -22,6 +22,7 @@ if not exist c:\Windows\System32\drivers\gvflt.sys goto :removePrjFlt
 del c:\Windows\System32\drivers\gvflt.sys
 
 :removePrjFlt
+if not "%2"=="--remove-prjflt" goto :runInstallers
 if not exist c:\Windows\System32\drivers\PrjFlt.sys goto :runInstallers
 sc delete prjflt
 verify >nul
