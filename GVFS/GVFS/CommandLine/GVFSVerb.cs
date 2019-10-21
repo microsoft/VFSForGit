@@ -24,6 +24,8 @@ namespace GVFS.CommandLine
         public GVFSVerb(bool validateOrigin = true)
         {
             this.Output = Console.Out;
+
+            // Currently stderr is only being used for machine readable output for failures in sparse --prune
             this.ErrorOutput = Console.Error;
             this.ReturnCode = ReturnCode.Success;
             this.validateOriginURL = validateOrigin;
@@ -901,6 +903,8 @@ You can specify a URL, a name of a configured cache server, or the special names
                     }
                     else
                     {
+                        // If a parent verb is redirecting the output of its child, include a reminder
+                        // that the child verb's activity was recorded in its own log file
                         metadata.Add("Output", $"Check {new TVerb().VerbName} logs for output");
                     }
 
