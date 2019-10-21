@@ -270,7 +270,7 @@ Folders need to be relative to the repos root directory.")
 
                 if (verbReturnCode != ReturnCode.Success)
                 {
-                    this.ReportErrorAndExit(tracer, $"Failed to {PruneOptionName}.");
+                    this.ReportErrorAndExit(tracer, verbReturnCode, $"Failed to {PruneOptionName}. Exit Code: {verbReturnCode}");
                 }
             }
         }

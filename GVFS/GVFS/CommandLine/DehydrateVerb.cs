@@ -223,6 +223,7 @@ from a parent of the folders list.
         private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string[] folders)
         {
             List<string> foldersToDehydrate = new List<string>();
+            List<string> folderErrors = new List<string>();
 
             if (!this.ShowStatusWhileRunning(
                 () =>
@@ -266,6 +267,7 @@ from a parent of the folders list.
                                             this.WriteMessage(tracer, $"Cannot {this.DisplayName} folder '{folder}': removing '{folder}' failed.");
                                             this.WriteMessage(tracer, "Ensure no applications are accessing the folder and retry.");
                                             this.WriteMessage(tracer, $"More details: {ioError}");
+                                            folderErrors.Add($"{folder}\0{ioError}");
                                         }
                                         else
                                         {
@@ -293,7 +295,17 @@ from a parent of the folders list.
 
             this.Mount(tracer);
 
-            this.SendDehydrateMessage(tracer, enlistment, foldersToDehydrate.ToArray());
+            this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate.ToArray());
+
+            if (folderErrors.Count > 0)
+            {
+                foreach (string folderError in folderErrors)
+                {
+                    this.ErrorOutput.WriteLine(folderError);
+                }
+
+                this.ReportErrorAndExit(tracer, ReturnCode.DehydrateFolderFailures, $"Failed to dehydrate {folderErrors.Count} folder(s).");
+            }
         }
 
         private bool IsFolderValid(string folderPath)
@@ -310,7 +322,7 @@ from a parent of the folders list.
             return true;
         }
 
-        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, string[] folders)
+        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, List<string> folderErrors, string[] folders)
         {
             NamedPipeMessages.DehydrateFolders.Response response = null;
 
@@ -343,6 +355,7 @@ from a parent of the folders list.
                 foreach (string folder in response.FailedFolders)
                 {
                     this.WriteMessage(tracer, $"{folder} folder failed to {this.DisplayName}. You may need to reset the working directory by deleting {folder}, running `git reset --hard`, and retry the {this.DisplayName}.");
+                    folderErrors.Add(folder);
                 }
             }
         }

@@ -24,6 +24,7 @@ namespace GVFS.CommandLine
         public GVFSVerb(bool validateOrigin = true)
         {
             this.Output = Console.Out;
+            this.ErrorOutput = Console.Error;
             this.ReturnCode = ReturnCode.Success;
             this.validateOriginURL = validateOrigin;
             this.ServiceName = GVFSConstants.Service.ServiceName;
@@ -92,6 +93,7 @@ namespace GVFS.CommandLine
         }
 
         public TextWriter Output { get; set; }
+        public TextWriter ErrorOutput { get; set; }
 
         public ReturnCode ReturnCode { get; private set; }
 
