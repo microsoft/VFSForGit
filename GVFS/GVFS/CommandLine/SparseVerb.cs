@@ -262,7 +262,7 @@ Folders need to be relative to the repos root directory.")
                     verb =>
                     {
                         verb.RunningVerbName = this.VerbName;
-                        verb.DisplayName = PruneOptionName;
+                        verb.ActionName = PruneOptionName;
                         verb.Confirmed = true;
                         verb.Folders = string.Join(FolderListSeparator, directoriesToDehydrate);
                     },
