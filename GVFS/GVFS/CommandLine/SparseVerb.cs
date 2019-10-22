@@ -24,6 +24,7 @@ Folders need to be relative to the repos root directory.")
         private const string FolderListSeparator = ";";
         private const char StatusPathSeparatorToken = '\0';
         private const char StatusRenameToken = 'R';
+        private const string PruneOptionName = "prune";
 
         [Option(
             's',
@@ -67,7 +68,7 @@ Folders need to be relative to the repos root directory.")
 
         [Option(
             'p',
-            "prune",
+            PruneOptionName,
             Required = false,
             Default = false,
             HelpText = "Remove any folders that are not in the list of sparse folders.")]
@@ -240,25 +241,36 @@ Folders need to be relative to the repos root directory.")
 
         private void PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, SparseTable sparseTable)
         {
-            string[] directoriesToDehydrate = this.GetDirectoriesOutsideSparse(enlistment.WorkingDirectoryBackingRoot, sparseTable);
+            string[] directoriesToDehydrate = new string[0];
+            if (!this.ShowStatusWhileRunning(
+                () =>
+                {
+                    directoriesToDehydrate = this.GetDirectoriesOutsideSparse(enlistment.WorkingDirectoryBackingRoot, sparseTable);
+                    return true;
+                },
+                $"Finding folders to {PruneOptionName}"))
+            {
+                this.ReportErrorAndExit(tracer, $"Failed to {PruneOptionName}.");
+            }
+
+            this.WriteMessage(tracer, $"Found {directoriesToDehydrate.Length} folders to {PruneOptionName}.");
+
             if (directoriesToDehydrate.Length > 0)
             {
-                if (!this.ShowStatusWhileRunning(
-                    () =>
+                ReturnCode verbReturnCode = this.ExecuteGVFSVerb<DehydrateVerb>(
+                    tracer,
+                    verb =>
                     {
-                        ReturnCode verbReturnCode = this.ExecuteGVFSVerb<DehydrateVerb>(
-                            tracer,
-                            verb =>
-                            {
-                                verb.Confirmed = true;
-                                verb.Folders = string.Join(FolderListSeparator, directoriesToDehydrate);
-                            });
-
-                        return verbReturnCode == ReturnCode.Success;
+                        verb.RunningVerbName = this.VerbName;
+                        verb.ActionName = PruneOptionName;
+                        verb.Confirmed = true;
+                        verb.Folders = string.Join(FolderListSeparator, directoriesToDehydrate);
                     },
-                    "Pruning folders"))
+                    this.Output);
+
+                if (verbReturnCode != ReturnCode.Success)
                 {
-                    this.ReportErrorAndExit(tracer, "Failed to prune.");
+                    this.ReportErrorAndExit(tracer, verbReturnCode, $"Failed to {PruneOptionName}. Exit Code: {verbReturnCode}");
                 }
             }
         }
@@ -277,13 +289,16 @@ Folders need to be relative to the repos root directory.")
                 foreach (string directory in fileSystem.EnumerateDirectories(folderToEnumerate))
                 {
                     string enlistmentRootRelativeFolderPath = GVFSDatabase.NormalizePath(directory.Substring(rootPath.Length));
-                    if (sparseFolders.Any(x => x.StartsWith(enlistmentRootRelativeFolderPath + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison)))
+                    if (!enlistmentRootRelativeFolderPath.Equals(GVFSConstants.DotGit.Root, GVFSPlatform.Instance.Constants.PathComparison))
                     {
-                        foldersToEnumerate.Enqueue(directory);
-                    }
-                    else if (!sparseFolders.Contains(enlistmentRootRelativeFolderPath))
-                    {
-                        foldersOutsideSparse.Add(enlistmentRootRelativeFolderPath);
+                        if (sparseFolders.Any(x => x.StartsWith(enlistmentRootRelativeFolderPath + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison)))
+                        {
+                            foldersToEnumerate.Enqueue(directory);
+                        }
+                        else if (!sparseFolders.Contains(enlistmentRootRelativeFolderPath))
+                        {
+                            foldersOutsideSparse.Add(enlistmentRootRelativeFolderPath);
+                        }
                     }
                 }
             }

@@ -645,7 +645,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             modifiedPath.ShouldBeAFile(this.fileSystem);
 
             output = this.gvfsProcess.Sparse($"--set Scripts --prune", shouldSucceed: true);
-            output.ShouldContain("No folders to update in sparse set.", "Pruning folders...Succeeded");
+            output.ShouldContain("No folders to update in sparse set.", "Found 1 folders to prune.", "Cleaning up folders...Succeeded", "GVFS folder prune successful.");
             this.ValidateFoldersInSparseList("Scripts");
             modifiedPath.ShouldNotExistOnDisk(this.fileSystem);
         }

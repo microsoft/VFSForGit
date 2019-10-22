@@ -24,6 +24,9 @@ namespace GVFS.CommandLine
         public GVFSVerb(bool validateOrigin = true)
         {
             this.Output = Console.Out;
+
+            // Currently stderr is only being used for machine readable output for failures in sparse --prune
+            this.ErrorOutput = Console.Error;
             this.ReturnCode = ReturnCode.Success;
             this.validateOriginURL = validateOrigin;
             this.ServiceName = GVFSConstants.Service.ServiceName;
@@ -92,6 +95,7 @@ namespace GVFS.CommandLine
         }
 
         public TextWriter Output { get; set; }
+        public TextWriter ErrorOutput { get; set; }
 
         public ReturnCode ReturnCode { get; private set; }
 
@@ -874,7 +878,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 RepoMetadata.Shutdown();
             }
 
-            protected ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer, Action<TVerb> configureVerb = null)
+            protected ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer, Action<TVerb> configureVerb = null, TextWriter outputWriter = null)
                 where TVerb : GVFSVerb, new()
             {
                 try
@@ -887,19 +891,25 @@ You can specify a URL, a name of a configured cache server, or the special names
                             this.EnlistmentRootPathParameter,
                             verb =>
                             {
-                                verb.Output = writer;
+                                verb.Output = outputWriter ?? writer;
                                 configureVerb?.Invoke(verb);
                             });
                     }
 
-                    tracer.RelatedEvent(
-                        EventLevel.Informational,
-                        typeof(TVerb).Name,
-                        new EventMetadata
-                        {
-                        { "Output", commandOutput.ToString() },
-                        { "ReturnCode", returnCode }
-                        });
+                    EventMetadata metadata = new EventMetadata();
+                    if (outputWriter == null)
+                    {
+                        metadata.Add("Output", commandOutput.ToString());
+                    }
+                    else
+                    {
+                        // If a parent verb is redirecting the output of its child, include a reminder
+                        // that the child verb's activity was recorded in its own log file
+                        metadata.Add("Output", $"Check {new TVerb().VerbName} logs for output");
+                    }
+
+                    metadata.Add("ReturnCode", returnCode);
+                    tracer.RelatedEvent(EventLevel.Informational, typeof(TVerb).Name, metadata);
 
                     return returnCode;
                 }
@@ -908,8 +918,8 @@ You can specify a URL, a name of a configured cache server, or the special names
                     tracer.RelatedError(
                         new EventMetadata
                         {
-                        { "Verb", typeof(TVerb).Name },
-                        { "Exception", e.ToString() }
+                            { "Verb", typeof(TVerb).Name },
+                            { "Exception", e.ToString() }
                         },
                         "ExecuteGVFSVerb: Caught exception");
 

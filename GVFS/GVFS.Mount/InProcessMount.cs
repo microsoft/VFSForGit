@@ -291,13 +291,13 @@ namespace GVFS.Mount
                 string[] folders = request.Folders.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (string folder in folders)
                 {
-                    if (this.fileSystemCallbacks.TryDehydrateFolder(folder))
+                    if (this.fileSystemCallbacks.TryDehydrateFolder(folder, out string errorMessage))
                     {
                         response.SuccessfulFolders.Add(folder);
                     }
                     else
                     {
-                        response.FailedFolders.Add(folder);
+                        response.FailedFolders.Add($"{folder}\0{errorMessage}");
                     }
                 }
 
