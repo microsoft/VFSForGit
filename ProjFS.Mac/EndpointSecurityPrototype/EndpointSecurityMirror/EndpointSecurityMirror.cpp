@@ -337,7 +337,7 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 				audit_token_to_pid(messageCopy->process->audit_token),
 				messageCopy->process ? messageCopy->process->executable->path.data : "[NULL]");
 
-			free(messageCopy);
+			es_free_message(messageCopy);
 			
 			vector<es_message_t*> waitingMessages;
 			
@@ -357,7 +357,8 @@ static void HydrateFileOrAwaitHydration(string eventPath, const es_message_t* me
 				
 				es_respond_result_t response_result = es_respond_flags_result(client, waitingMessage, responseFlags, false /* don't cache */);
 				assert(response_result == ES_RESPOND_RESULT_SUCCESS);
-				free(waitingMessage);
+				es_free_message(waitingMessage);
+				
 				unsigned count = std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
 				if (count != 1)
 				{
