@@ -385,6 +385,24 @@ from a parent of the folders list.
             }
         }
 
+        private void Mount(ITracer tracer)
+        {
+            if (!this.ShowStatusWhileRunning(
+                () =>
+                {
+                    return this.ExecuteGVFSVerb<MountVerb>(
+                        tracer,
+                        verb =>
+                        {
+                            verb.SkipInstallHooks = true;
+                        }) == ReturnCode.Success;
+                },
+                "Mounting"))
+            {
+                this.ReportErrorAndExit(tracer, "Failed to mount.");
+            }
+        }
+
         private bool CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment, bool fullDehydrate)
         {
             if (!this.NoStatus)
