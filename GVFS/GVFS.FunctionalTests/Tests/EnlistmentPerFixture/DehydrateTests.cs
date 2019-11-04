@@ -255,7 +255,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string fileToRead = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate, "Program.cs"));
             string fileToWrite = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate, "App.config"));
             this.fileSystem.ReadAllText(fileToRead);
-            this.fileSystem.AppendAllText(this.Enlistment.GetVirtualPathTo(fileToWrite), "Append content");
+            this.fileSystem.AppendAllText(fileToWrite, "Append content");
 
             string folderNotDehydrated = Path.Combine("GVFS", "GVFS.Common");
             string fileNotDehydrated = this.Enlistment.GetVirtualPathTo(Path.Combine(folderNotDehydrated, "GVFSLock.cs"));
