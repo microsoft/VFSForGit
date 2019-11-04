@@ -179,12 +179,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateFolderThatWasEnumerated()
         {
-            string folderToEnumerateVirtualPath = this.Enlistment.GetVirtualPathTo("GVFS");
+            string folderToDehydrate = "GVFS";
+            string folderToEnumerateVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate);
             this.fileSystem.EnumerateDirectory(folderToEnumerateVirtualPath);
             string subFolderToEnumerateVirtualPath = Path.Combine(folderToEnumerateVirtualPath, "GVFS");
             this.fileSystem.EnumerateDirectory(subFolderToEnumerateVirtualPath);
 
-            this.DehydrateShouldSucceed(new[] { $"GVFS {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
             this.Enlistment.UnmountGVFS();
             this.CheckDehydratedFolderAfterUnmount(folderToEnumerateVirtualPath);
             subFolderToEnumerateVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -193,13 +194,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateFolderWithFilesThatWerePlaceholders()
         {
-            string folderToReadFilesVirtualPath = this.Enlistment.GetVirtualPathTo("GVFS");
+            string folderToDehydrate = "GVFS";
+            string folderToReadFilesVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate);
             string fileToReadVirtualPath = Path.Combine(folderToReadFilesVirtualPath, "GVFS", "Program.cs");
             using (File.OpenRead(fileToReadVirtualPath))
             {
             }
 
-            this.DehydrateShouldSucceed(new[] { $"GVFS {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
             this.Enlistment.UnmountGVFS();
             this.CheckDehydratedFolderAfterUnmount(folderToReadFilesVirtualPath);
             fileToReadVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -208,13 +210,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateFolderWithFilesThatWereRead()
         {
-            string folderToReadFilesVirtualPath = this.Enlistment.GetVirtualPathTo("GVFS");
+            string folderToDehydrate = "GVFS";
+            string folderToReadFilesVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate);
             string fileToReadVirtualPath = Path.Combine(folderToReadFilesVirtualPath, "GVFS", "Program.cs");
             this.fileSystem.ReadAllText(fileToReadVirtualPath);
 
             this.fileSystem.EnumerateDirectory(folderToReadFilesVirtualPath);
 
-            this.DehydrateShouldSucceed(new[] { $"GVFS {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
             this.Enlistment.UnmountGVFS();
             this.CheckDehydratedFolderAfterUnmount(folderToReadFilesVirtualPath);
             fileToReadVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -223,13 +226,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateFolderWithFilesThatWereWrittenTo()
         {
-            string folderToWriteFilesVirtualPath = this.Enlistment.GetVirtualPathTo("GVFS");
+            string folderToDehydrate = "GVFS";
+            string folderToWriteFilesVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate);
             string fileToWriteVirtualPath = Path.Combine(folderToWriteFilesVirtualPath, "GVFS", "Program.cs");
             this.fileSystem.AppendAllText(fileToWriteVirtualPath, "Append content");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "add .");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
 
-            this.DehydrateShouldSucceed(new[] { $"GVFS {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
             this.Enlistment.UnmountGVFS();
             this.CheckDehydratedFolderAfterUnmount(folderToWriteFilesVirtualPath);
             fileToWriteVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -238,11 +242,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateFolderThatWasDeleted()
         {
-            string folderToDeleteVirtualPath = this.Enlistment.GetVirtualPathTo("Scripts");
+            string folderToDehydrate = "Scripts";
+            string folderToDeleteVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate);
             this.fileSystem.DeleteDirectory(folderToDeleteVirtualPath);
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout -- Scripts");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, $"checkout -- {folderToDehydrate}");
 
-            this.DehydrateShouldSucceed(new[] { $"Scripts {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "Scripts");
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
             this.Enlistment.UnmountGVFS();
             this.CheckDehydratedFolderAfterUnmount(folderToDeleteVirtualPath);
             Path.Combine(folderToDeleteVirtualPath, "RunUnitTests.bat").ShouldNotExistOnDisk(this.fileSystem);
@@ -327,35 +332,38 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateParentFolderInModifiedPathsShouldOutputMessage()
         {
-            string folderToDeleteVirtualPath = this.Enlistment.GetVirtualPathTo("GitCommandsTests");
+            string folderToDelete = "GitCommandsTests";
+            string folderToDeleteVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDelete);
             this.fileSystem.DeleteDirectory(folderToDeleteVirtualPath);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
 
-            string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
+            string folderToDehydrate = Path.Combine(folderToDelete, "DeleteFileTests");
             this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
 
-            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': Must dehydrate parent folder 'GitCommandsTests/'." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': Must dehydrate parent folder '{folderToDelete}/'." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]
         public void FolderDehydrateDirtyStatusShouldFail()
         {
-            string fileToCreateVirtualPath = this.Enlistment.GetVirtualPathTo(Path.Combine("GVFS", $"{nameof(this.FolderDehydrateDirtyStatusShouldFail)}.txt"));
+            string folderToDehydrate = "GVFS";
+            string fileToCreateVirtualPath = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate, $"{nameof(this.FolderDehydrateDirtyStatusShouldFail)}.txt"));
             this.fileSystem.WriteAllText(fileToCreateVirtualPath, "new file contents");
             fileToCreateVirtualPath.ShouldBeAFile(this.fileSystem);
 
-            this.DehydrateShouldFail(new[] { "Running git status...Failed", "Untracked files:", "git status reported that you have dirty files" }, noStatus: false, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldFail(new[] { "Running git status...Failed", "Untracked files:", "git status reported that you have dirty files" }, noStatus: false, foldersToDehydrate: folderToDehydrate);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
         }
 
         [TestCase]
         public void FolderDehydrateDirtyStatusWithNoStatusShouldFail()
         {
-            string fileToCreateVirtualPath = this.Enlistment.GetVirtualPathTo(Path.Combine("GVFS", $"{nameof(this.FolderDehydrateDirtyStatusWithNoStatusShouldFail)}.txt"));
+            string folderToDehydrate = "GVFS";
+            string fileToCreateVirtualPath = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate, $"{nameof(this.FolderDehydrateDirtyStatusWithNoStatusShouldFail)}.txt"));
             this.fileSystem.WriteAllText(fileToCreateVirtualPath, "new file contents");
             fileToCreateVirtualPath.ShouldBeAFile(this.fileSystem);
 
-            this.DehydrateShouldFail(new[] { "Dehydrate --no-status not valid with --folders" }, noStatus: true, foldersToDehydrate: "GVFS");
+            this.DehydrateShouldFail(new[] { "Dehydrate --no-status not valid with --folders" }, noStatus: true, foldersToDehydrate: folderToDehydrate);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
         }
 
@@ -369,13 +377,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydratePreviouslyDeletedFolder()
         {
-            string folderToDeleteVirtualPath = this.Enlistment.GetVirtualPathTo("TrailingSlashTests");
+            string folderToDehydrate = "TrailingSlashTests";
+            string folderToDeleteVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate);
             this.fileSystem.DeleteDirectory(folderToDeleteVirtualPath);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -a -m \"Delete a directory\"");
 
             GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout -f HEAD~1");
 
-            string folderToDehydrate = "TrailingSlashTests";
             this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
 
             folderToDeleteVirtualPath.ShouldBeADirectory(this.fileSystem);
@@ -384,11 +392,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateTombstone()
         {
-            string folderToDeleteVirtualPath = this.Enlistment.GetVirtualPathTo("TrailingSlashTests");
+            string folderToDehydrate = "TrailingSlashTests";
+            string folderToDeleteVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate);
             this.fileSystem.DeleteDirectory(folderToDeleteVirtualPath);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -a -m \"Delete a directory\"");
 
-            string folderToDehydrate = "TrailingSlashTests";
             this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
 
             folderToDeleteVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -430,14 +438,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateNewlyCreatedFolderAndFile()
         {
-            string folderToCreateVirtualPath = this.Enlistment.GetVirtualPathTo("NewFolder");
+            string folderToDehydrate = "NewFolder";
+            string folderToCreateVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate);
             this.fileSystem.CreateDirectory(folderToCreateVirtualPath);
             string fileToCreateVirtualPath = Path.Combine(folderToCreateVirtualPath, "newfile.txt");
             this.fileSystem.WriteAllText(fileToCreateVirtualPath, "Test content");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "add .");
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
 
-            this.DehydrateShouldSucceed(new[] { $"NewFolder {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: "NewFolder");
+            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
 
             this.Enlistment.UnmountGVFS();
             fileToCreateVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
