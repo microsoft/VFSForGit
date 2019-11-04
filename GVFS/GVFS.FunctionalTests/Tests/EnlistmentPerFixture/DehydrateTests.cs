@@ -367,19 +367,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void FolderDehydrateCreatedDirectoryParentFolderInModifiedPathsShouldOutputMessage()
-        {
-            string pathToDelete = this.Enlistment.GetVirtualPathTo("GitCommandsTests");
-            this.fileSystem.DeleteDirectory(pathToDelete);
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "reset --hard");
-
-            string folderToDehydrate = Path.Combine("GitCommandsTests", "DeleteFileTests");
-            this.Enlistment.GetVirtualPathTo(folderToDehydrate).ShouldBeADirectory(this.fileSystem);
-
-            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': Must dehydrate parent folder 'GitCommandsTests/'." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
-        }
-
-        [TestCase]
         public void FolderDehydratePreviouslyDeletedFolder()
         {
             string pathToDelete = this.Enlistment.GetVirtualPathTo("TrailingSlashTests");
