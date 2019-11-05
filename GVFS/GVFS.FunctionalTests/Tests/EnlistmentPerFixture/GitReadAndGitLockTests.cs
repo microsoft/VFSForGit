@@ -63,7 +63,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string alias = nameof(this.GitAliasNamedAfterKnownCommandAcquiresLock);
 
             int pid;
-            GitHelpers.AcquireGVFSLock(this.Enlistment, out pid, resetTimeout: 3000);
+            int tenSeconds = 10 * 1000;
+            GitHelpers.AcquireGVFSLock(this.Enlistment, out pid, resetTimeout: tenSeconds);
             GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local alias." + alias + " status");
             ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, alias, removeWaitingMessages: false);
             statusWait.Errors.ShouldContain(ExpectedStatusWaitingText);
@@ -75,7 +76,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string alias = nameof(this.GitAliasInSubfolderNamedAfterKnownCommandAcquiresLock);
 
             int pid;
-            GitHelpers.AcquireGVFSLock(this.Enlistment, out pid, resetTimeout: 3000);
+            int tenSeconds = 10 * 1000;
+            GitHelpers.AcquireGVFSLock(this.Enlistment, out pid, resetTimeout: tenSeconds);
             GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local alias." + alias + " rebase");
             ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(
                 Path.Combine(this.Enlistment.RepoRoot, "GVFS"),
