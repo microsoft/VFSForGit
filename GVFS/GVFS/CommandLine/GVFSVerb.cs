@@ -943,19 +943,6 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }
             }
 
-            protected void Mount(ITracer tracer)
-            {
-                if (!this.ShowStatusWhileRunning(
-                    () =>
-                    {
-                        return this.ExecuteGVFSVerb<MountVerb>(tracer) == ReturnCode.Success;
-                    },
-                    "Mounting"))
-                {
-                    this.ReportErrorAndExit(tracer, "Failed to mount.");
-                }
-            }
-
             private void InitializeCachePathsFromRepoMetadata(
                 ITracer tracer,
                 GVFSEnlistment enlistment)
