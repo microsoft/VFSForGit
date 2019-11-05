@@ -4,6 +4,8 @@ namespace GVFS.Platform.Windows
 {
     public class HResultExtensions
     {
+        public const int GenericProjFSError = -2147024579; // returned by ProjFS::DeleteFile() on Win server 2016 while deleting a partial file
+
         private const int FacilityNtBit = 0x10000000; // FACILITY_NT_BIT
         private const int FacilityWin32 = 7;          // FACILITY_WIN32
 
