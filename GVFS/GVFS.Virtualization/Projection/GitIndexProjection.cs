@@ -1737,6 +1737,7 @@ namespace GVFS.Virtualization.Projection
 
                     break;
 
+                case FSResult.GenericProjFSError when failureReason == UpdateFailureReason.DirtyData:
                 case FSResult.VirtualizationInvalidOperation:
                     // GVFS attempted to update\delete a file that is no longer partial.
                     // This can occur if:
@@ -1780,31 +1781,19 @@ namespace GVFS.Virtualization.Projection
 
                 default:
                     {
+                        string gitPath;
+                        this.AddFileToUpdateDeletePlaceholderFailureReport(deleteOperation, placeholder, out gitPath);
                         this.ScheduleBackgroundTaskForFailedUpdateDeletePlaceholder(placeholder, deleteOperation);
                         this.AddParentFoldersToListToKeep(parentKey, folderPlaceholdersToKeep);
 
                         metadata = CreateEventMetadata();
                         metadata.Add("deleteOperation", deleteOperation);
                         metadata.Add("virtualPath", placeholder.Path);
+                        metadata.Add("gitPath", gitPath);
                         metadata.Add("result.Result", result.ToString());
                         metadata.Add("result.RawResult", result.RawResult);
                         metadata.Add("failureReason", failureReason.ToString());
-
-                        bool logOnly = result.Result == FSResult.GenericProjFSError && failureReason == UpdateFailureReason.DirtyData;
-                        if (logOnly)
-                        {
-                            metadata.Add("backgroundCount", this.backgroundFileSystemTaskRunner.Count);
-                            metadata.Add(TracingConstants.MessageKey.InfoMessage, "UpdateOrDeletePlaceholder: attempted an invalid operation");
-                            this.context.Tracer.RelatedEvent(EventLevel.Informational, "UpdatePlaceholders_InvalidOperation", metadata);
-                        }
-                        else
-                        {
-                            string gitPath = null;
-                            this.AddFileToUpdateDeletePlaceholderFailureReport(deleteOperation, placeholder, out gitPath);
-
-                            metadata.Add("gitPath", gitPath);
-                            this.context.Tracer.RelatedWarning(metadata, "UpdateOrDeletePlaceholder: did not succeed");
-                        }
+                        this.context.Tracer.RelatedWarning(metadata, "UpdateOrDeletePlaceholder: did not succeed");
                     }
 
                     break;
