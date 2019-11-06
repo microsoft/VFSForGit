@@ -48,38 +48,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFileUpdate4Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate4Contents);
             testFileDelete4Path.ShouldBeAFile(this.fileSystem).WithContents(testFileDelete4Contents);
 
-            if (this.CanUpdateAndDeletePlaceholdersWithOpenHandles())
+            using (FileStream testFileUpdate4 = File.Open(testFileUpdate4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+            using (FileStream testFileDelete4 = File.Open(testFileDelete4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
             {
-                using (FileStream testFileUpdate4 = File.Open(testFileUpdate4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
-                using (FileStream testFileDelete4 = File.Open(testFileDelete4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
-                {
-                    this.GitCheckoutCommitId(OldCommitId);
-                    this.GitStatusShouldBeClean(OldCommitId);
-                }
-            }
-            else
-            {
-                using (FileStream testFileUpdate4Handle = File.Open(testFileUpdate4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
-                using (FileStream testFileDelete4Handle = File.Open(testFileDelete4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
-                {
-                    ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + OldCommitId);
-                    checkoutResult.Errors.ShouldContain(
-                        "HEAD is now at " + OldCommitId,
-                        "GVFS was unable to update the following files. To recover, close all handles to the files and run these commands:",
-                        "git checkout -- Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test4.txt");
-
-                    GitHelpers.CheckGitCommandAgainstGVFSRepo(
-                        this.Enlistment.RepoRoot,
-                        "status",
-                        "HEAD detached at " + OldCommitId,
-                        "modified:   Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test4.txt",
-                        "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n");
-                }
-
-                this.GitCheckoutToDiscardChanges(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
+                this.GitCheckoutCommitId(OldCommitId);
                 this.GitStatusShouldBeClean(OldCommitId);
-
-                GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
             }
 
             testFileUpdate4Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate4OldContents);
@@ -171,25 +144,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void GitCheckoutCommitId(string commitId)
         {
             this.InvokeGitAgainstGVFSRepo("checkout " + commitId).Errors.ShouldContain("HEAD is now at " + commitId);
-        }
-
-        private bool CanUpdateAndDeletePlaceholdersWithOpenHandles()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                // https://msdn.microsoft.com/en-us/library/windows/desktop/ms724429(v=vs.85).aspx
-                FileVersionInfo kernel32Info = FileVersionInfo.GetVersionInfo(Path.Combine(Environment.SystemDirectory, "kernel32.dll"));
-
-                // 16248 is first build with support - see 12658248 for details
-                if (kernel32Info.FileBuildPart >= 16248)
-                {
-                    return true;
-                }
-
-                return false;
-            }
-
-            return true;
         }
     }
 }

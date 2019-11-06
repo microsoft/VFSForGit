@@ -1737,6 +1737,7 @@ namespace GVFS.Virtualization.Projection
 
                     break;
 
+                case FSResult.GenericProjFSError when failureReason == UpdateFailureReason.DirtyData:
                 case FSResult.VirtualizationInvalidOperation:
                     // GVFS attempted to update\delete a file that is no longer partial.
                     // This can occur if:

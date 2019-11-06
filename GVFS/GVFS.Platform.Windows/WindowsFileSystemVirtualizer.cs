@@ -104,6 +104,9 @@ namespace GVFS.Platform.Windows
                 case HResult.VirtualizationInvalidOp:
                     return FSResult.VirtualizationInvalidOperation;
 
+                case (HResult)HResultExtensions.GenericProjFSError:
+                    return FSResult.GenericProjFSError;
+
                 default:
                     return FSResult.IOError;
             }
