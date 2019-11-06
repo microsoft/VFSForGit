@@ -143,7 +143,7 @@ namespace GVFS.CommandLine
                 { "core.hookspath", expectedHooksPath },
                 { GitConfigSetting.CredentialUseHttpPath, "true" },
                 { "credential.validate", "false" },
-                { "diff.autoRefreshIndex", "false" },
+                { "diff.autoRefreshIndex", "true" },
                 { "gc.auto", "0" },
                 { "gui.gcwarning", "false" },
                 { "index.threads", "true" },

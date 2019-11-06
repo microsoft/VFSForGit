@@ -1020,6 +1020,27 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        public void ChangeTimestampAndDiff()
+        {
+            // User scenario -
+            // 1. Enlistment's "diff.autoRefreshIndex" config is set to false
+            // 2. A checked out file got into a state where it differs from the git copy
+            // only in its LastWriteTime metadata (no change in file contents.)
+            // Repro steps - This happens when user edits a file, saves it and later decides
+            // to undo the edit and save the file again.
+            // Once in this state, the unchanged file (only its timestamp has changed) shows
+            // up in `git difftool` creating noise. It also shows up in `git diff --raw` command,
+            // (but not in `git status` or `git diff`.)
+
+            // Change the timestamp - The lastwrite time can be close to the time this test method gets
+            // run. Changing (Subtracting) it to the past so there will always be a difference.
+            this.AdjustLastWriteTime(GitCommandsTests.EditFilePath, TimeSpan.FromDays(-10));
+            this.ValidateGitCommand("diff --raw");
+            this.ValidateGitCommand($"checkout {GitCommandsTests.EditFilePath}");
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
         public void UseAlias()
         {
             this.ValidateGitCommand("config --local alias.potato status");
