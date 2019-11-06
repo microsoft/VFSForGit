@@ -173,7 +173,7 @@ namespace GVFS.Common.Git
 
             string stdinConfig = sb.ToString();
 
-            Result result = this.InvokeGitOutsideEnlistment(
+            Result result = this.InvokeGitAgainstDotGitFolder(
                 GenerateCredentialVerbCommand("reject"),
                 stdin => stdin.Write(stdinConfig),
                 null);
@@ -200,7 +200,7 @@ namespace GVFS.Common.Git
 
             string stdinConfig = sb.ToString();
 
-            Result result = this.InvokeGitOutsideEnlistment(
+            Result result = this.InvokeGitAgainstDotGitFolder(
                 GenerateCredentialVerbCommand("approve"),
                 stdin => stdin.Write(stdinConfig),
                 null);
