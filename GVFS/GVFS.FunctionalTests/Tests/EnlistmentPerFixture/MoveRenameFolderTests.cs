@@ -128,7 +128,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         {
             string fileContents = "Test contents for MoveFullFolderToFullFolderInDotGitFolder";
             string testFileName = "MoveFullFolderToFullFolderInDotGitFolder.txt";
-            string oldFolderPath = this.Enlistment.GetVirtualPathTo("MoveFullFolderToFullFolderInDotGitFolder");
+            string oldFolderPath = this.Enlistment.GetVirtualPathTo("MoveSourceFolder");
             oldFolderPath.ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.CreateDirectory(oldFolderPath);
             oldFolderPath.ShouldBeADirectory(this.fileSystem);
@@ -137,7 +137,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.fileSystem.WriteAllText(oldFilePath, fileContents);
             oldFilePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents);
 
-            string newFolderName = "NewMoveFullFolderToFullFolderInDotGitFolder";
+            string newFolderName = "MoveTargetFolder";
             string newFolderPath = this.Enlistment.GetVirtualPathTo(".git", newFolderName);
             newFolderPath.ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.CreateDirectory(newFolderPath);
