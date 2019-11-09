@@ -213,12 +213,10 @@ namespace GVFS.Common
             this.BlobSizesRoot = blobSizesRoot;
         }
 
-        public bool TryCreateEnlistmentFolders()
+        public bool TryCreateEnlistmentSubFolders()
         {
             try
             {
-                Directory.CreateDirectory(this.EnlistmentRoot);
-                GVFSPlatform.Instance.InitializeEnlistmentACLs(this.EnlistmentRoot);
                 Directory.CreateDirectory(this.WorkingDirectoryRoot);
                 this.CreateHiddenDirectory(this.DotGVFSRoot);
             }

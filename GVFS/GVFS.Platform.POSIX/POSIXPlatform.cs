@@ -183,10 +183,6 @@ namespace GVFS.Platform.POSIX
             return result;
         }
 
-        public override void InitializeEnlistmentACLs(string enlistmentPath)
-        {
-        }
-
         public override string GetGVFSServiceNamedPipeName(string serviceName)
         {
             // Pipes are stored as files on POSIX, use a rooted pipe name

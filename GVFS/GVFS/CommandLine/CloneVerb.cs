@@ -125,6 +125,12 @@ namespace GVFS.CommandLine
                     cloneResult = this.TryCreateEnlistment(fullEnlistmentRootPathParameter, normalizedEnlistmentRootPath, out enlistment);
                     if (cloneResult.Success)
                     {
+                        // Create the enlistment root explicitly with CreateDirectoryAccessibleByAuthUsers before calling
+                        // AddLogFileEventListener to ensure that elevated and non-elevated users have access to the root.
+                        // But first create the ancestors of the enlistment root with the default ACLs (in case they're not on disk already)
+                        Directory.CreateDirectory(Path.GetDirectoryName(enlistment.EnlistmentRoot));
+                        GVFSPlatform.Instance.FileSystem.CreateDirectoryAccessibleByAuthUsers(enlistment.EnlistmentRoot);
+
                         tracer.AddLogFileEventListener(
                             GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Clone),
                             EventLevel.Informational,
@@ -371,7 +377,7 @@ namespace GVFS.CommandLine
                         }
                     }
 
-                    if (!enlistment.TryCreateEnlistmentFolders())
+                    if (!enlistment.TryCreateEnlistmentSubFolders())
                     {
                         string error = "Could not create enlistment directory";
                         tracer.RelatedError(error);
@@ -392,6 +398,8 @@ namespace GVFS.CommandLine
                         return new Result(localCacheError);
                     }
 
+                    // There's no need to use CreateDirectoryAccessibleByAuthUsers as these directories will inherit
+                    // the ACLs used to create LocalCacheRoot
                     Directory.CreateDirectory(enlistment.GitObjectsRoot);
                     Directory.CreateDirectory(enlistment.GitPackRoot);
                     Directory.CreateDirectory(enlistment.BlobSizesRoot);

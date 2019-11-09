@@ -132,11 +132,6 @@ namespace GVFS.UnitTests.Mock.Common
             return this.GetUpgradeProtectedDataDirectory();
         }
 
-        public override void InitializeEnlistmentACLs(string enlistmentPath)
-        {
-            throw new NotSupportedException();
-        }
-
         public override bool IsConsoleOutputRedirectedToFile()
         {
             throw new NotSupportedException();

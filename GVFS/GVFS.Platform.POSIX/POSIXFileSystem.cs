@@ -54,6 +54,11 @@ namespace GVFS.Platform.POSIX
 
         public abstract bool IsSocket(string fileName);
 
+        public void CreateDirectoryAccessibleByAuthUsers(string directoryPath)
+        {
+            Directory.CreateDirectory(directoryPath);
+        }
+
         public bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
         {
             throw new NotImplementedException();
