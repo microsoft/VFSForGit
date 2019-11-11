@@ -127,8 +127,6 @@ namespace GVFS.CommandLine
                     {
                         // Create the enlistment root explicitly with CreateDirectoryAccessibleByAuthUsers before calling
                         // AddLogFileEventListener to ensure that elevated and non-elevated users have access to the root.
-                        // But first create the ancestors of the enlistment root with the default ACLs (in case they're not on disk already)
-                        Directory.CreateDirectory(Path.GetDirectoryName(enlistment.EnlistmentRoot));
                         GVFSPlatform.Instance.FileSystem.CreateDirectoryAccessibleByAuthUsers(enlistment.EnlistmentRoot);
 
                         tracer.AddLogFileEventListener(
