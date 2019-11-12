@@ -27,7 +27,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(1)]
         public void ExpireClonePack()
         {
-            this.GetPackSizes(out int packCount, out long maxSize, out long totalSize);
+            this.GetPackSizes(out int packCount, out long maxSize, out long minSize, out long totalSize);
 
             // We should have at least two packs:
             //
@@ -75,13 +75,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // Run the step to ensure we don't have any packs that will be expired during the repack step
             this.Enlistment.PackfileMaintenanceStep();
 
-            this.GetPackSizes(out int afterPrefetchPackCount, out long maxSize, out long totalSize);
+            this.GetPackSizes(out int afterPrefetchPackCount, out long maxSize, out long minSize, out long totalSize);
 
             // Cannot be sure of the count, as the prefetch uses parallel threads to get multiple packs
             afterPrefetchPackCount.ShouldBeAtLeast(2);
 
-            this.Enlistment.PackfileMaintenanceStep(batchSize: totalSize - 1);
-            this.GetPackSizes(out int packCount, out maxSize, out totalSize);
+            this.Enlistment.PackfileMaintenanceStep(batchSize: totalSize - minSize + 1);
+            this.GetPackSizes(out int packCount, out maxSize, out minSize, out totalSize);
 
             // We should not have expired any packs, but created a new one with repack
             packCount.ShouldEqual(afterPrefetchPackCount + 1, $"incorrect number of packs after repack step: {packCount}");
@@ -110,10 +110,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             return Directory.GetFiles(this.PackRoot, "*.pack").ToList();
         }
 
-        private void GetPackSizes(out int packCount, out long maxSize, out long totalSize)
+        private void GetPackSizes(out int packCount, out long maxSize, out long minSize, out long totalSize)
         {
             totalSize = 0;
             maxSize = 0;
+            minSize = long.MaxValue;
             packCount = 0;
 
             foreach (string file in this.GetPackfiles())
@@ -125,6 +126,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 if (size > maxSize)
                 {
                     maxSize = size;
+                }
+
+                if (size < minSize)
+                {
+                    minSize = size;
                 }
             }
         }
