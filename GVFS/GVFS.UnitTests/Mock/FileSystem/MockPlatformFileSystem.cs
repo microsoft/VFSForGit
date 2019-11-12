@@ -30,6 +30,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
             return true;
         }
 
+        public void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime)
+        {
+            throw new NotSupportedException();
+        }
+
         public bool HydrateFile(string fileName, byte[] buffer)
         {
             throw new NotSupportedException();

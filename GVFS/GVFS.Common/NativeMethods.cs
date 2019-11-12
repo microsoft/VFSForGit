@@ -98,6 +98,37 @@ namespace GVFS.Common
             }
         }
 
+        public static void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime)
+        {
+            // We can't use Directory.SetLastWriteTime as it requests GENERIC_WRITE access
+            // which will fail for directory placeholders.  The only access requried by SetFileTime
+            // is FILE_WRITE_ATTRIBUTES (which ProjFS does allow for placeholders)
+
+            using (SafeFileHandle handle = CreateFile(
+                path,
+                FileAccess.FILE_WRITE_ATTRIBUTES,
+                FileShare.ReadWrite | FileShare.Delete,
+                IntPtr.Zero,
+                FileMode.Open,
+                FileAttributes.FILE_FLAG_BACKUP_SEMANTICS,
+                IntPtr.Zero))
+            {
+                if (handle.IsInvalid)
+                {
+                    ThrowLastWin32Exception($"{nameof(SetDirectoryLastWriteTime)}: Failed to open handle for '{path}'");
+                }
+
+                // SetFileTime will not update times with value 0
+                long creationFileTime = 0;
+                long lastAccessFileTime = 0;
+                long lastWriteFileTime = lastWriteTime.ToFileTime();
+                if (!SetFileTime(handle, ref creationFileTime, ref lastAccessFileTime, ref lastWriteFileTime))
+                {
+                    ThrowLastWin32Exception($"{nameof(SetDirectoryLastWriteTime)}: Failed to update last write time for '{path}'");
+                }
+            }
+        }
+
         /// <summary>
         /// Get the build number of the OS
         /// </summary>
@@ -200,6 +231,13 @@ namespace GVFS.Common
 
         [DllImport("kernel32.dll")]
         private static extern ulong GetTickCount64();
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetFileTime(
+            SafeFileHandle hFile,
+            [In] ref long creationTime,
+            [In] ref long lastAccessTime,
+            [In] ref long lastWriteTime);
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct REPARSE_DATA_BUFFER

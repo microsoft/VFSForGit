@@ -48,6 +48,11 @@ namespace GVFS.Platform.POSIX
             return POSIXFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
         }
 
+        public void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime)
+        {
+            Directory.SetLastWriteTime(path, lastWriteTime);
+        }
+
         public abstract bool HydrateFile(string fileName, byte[] buffer);
 
         public abstract bool IsExecutable(string fileName);
