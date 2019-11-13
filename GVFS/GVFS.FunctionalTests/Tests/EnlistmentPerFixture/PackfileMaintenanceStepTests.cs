@@ -60,6 +60,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(2)]
+        [Category(Categories.WinServer16Disabled)]
         public void RepackAllToOnePack()
         {
             // Create new pack(s) by prefetching blobs for a folder.
@@ -88,6 +89,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(3)]
+        [Category(Categories.WinServer16Disabled)]
         public void ExpireAllButOneAndKeep()
         {
             string prefetchPack = Directory.GetFiles(this.PackRoot, "prefetch-*.pack")

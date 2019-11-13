@@ -5,6 +5,7 @@
         public const string ExtraCoverage = "ExtraCoverage";
         public const string FastFetch = "FastFetch";
         public const string GitCommands = "GitCommands";
+        public const string WinServer16Disabled = "WinServer16Disabled";
 
         // Linux uses a separate device mount for its repository, and so is unable to rename(2) inodes
         // in or out of the repository filesystem; attempts to do so fail with errno set to EXDEV.
