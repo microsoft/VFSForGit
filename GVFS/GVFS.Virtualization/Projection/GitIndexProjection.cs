@@ -804,11 +804,10 @@ namespace GVFS.Virtualization.Projection
             {
                 this.sparseFoldersNeedingRefresh = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
-                // Always refresh the root directory
+                // To avoid a lot of no-op adds, always refresh the root
                 this.sparseFoldersNeedingRefresh.Add(string.Empty);
 
                 Dictionary<string, SparseFolderData> parentFolder = this.rootSparseFolder.Children;
-
                 HashSet<string> oldSparsePaths = this.sparsePaths;
                 this.sparsePaths = this.sparseCollection.GetAll();
                 foreach (string directoryPath in this.sparsePaths)
@@ -816,12 +815,24 @@ namespace GVFS.Virtualization.Projection
                     string[] folders = directoryPath.Split(new[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
                     if (oldSparsePaths != null && !oldSparsePaths.Remove(directoryPath))
                     {
-                        // directoryPath is a new entry, add its parent to updatedFolders
-
-                        // No need to add the parent of children in the root directory, as the root is always refreshed
-                        if (folders.Length > 1)
+                        // directoryPath is a new entry
+                        // Add its ancestors to sparseFoldersNeedingRefresh
+                        // Note: This approach could result in refreshing folders
+                        // that do not require a refresh.
+                        //
+                        // Example: If the previous set contained:
+                        //    - A\B\C
+                        //
+                        // And now it contains:
+                        //    - A\B\C
+                        //    - A\B\D
+                        //
+                        // There is no need to refresh A, but with the code below we will
+                        // (assuming that A is on disk)
+                        int parentLevels = folders.Length - 1;
+                        for (int i = parentLevels; i > 0; --i)
                         {
-                            this.sparseFoldersNeedingRefresh.Add(string.Join($"{Path.DirectorySeparatorChar}", folders, startIndex: 0, count: folders.Length - 1));
+                            this.sparseFoldersNeedingRefresh.Add(string.Join($"{Path.DirectorySeparatorChar}", folders, startIndex: 0, count: i));
                         }
                     }
 
@@ -851,16 +862,30 @@ namespace GVFS.Virtualization.Projection
                     parentFolder = this.rootSparseFolder.Children;
                 }
 
-                // Any paths left in oldSparsePaths has been removed from the sparse set,
-                // and the parents of those paths should be refreshed
+                // Any paths left in oldSparsePaths have been removed from the sparse set.
+                // Refresh the ancestors of those paths.  Note: This could result in
+                // refreshing folders that don't need to be:
+                //
+                // Example: If the previous sparse set contained:
+                //   - A\B\C\D
+                //   - A\B\E\F
+                //
+                // And the new sparse set contains:
+                //   - A\B\E\F
+                //
+                // There is no need to refresh A, but with the code below we will
+                // (assuming that A is on disk)
                 if (oldSparsePaths != null)
                 {
                     foreach (string path in oldSparsePaths)
                     {
                         int lastSeparatorIndex = path.LastIndexOf(Path.DirectorySeparatorChar);
-                        if (lastSeparatorIndex > 0)
+                        string parentPath = path;
+                        while (lastSeparatorIndex > 0)
                         {
-                            this.sparseFoldersNeedingRefresh.Add(path.Substring(0, lastSeparatorIndex));
+                            parentPath = parentPath.Substring(0, lastSeparatorIndex);
+                            this.sparseFoldersNeedingRefresh.Add(parentPath);
+                            lastSeparatorIndex = parentPath.LastIndexOf(Path.DirectorySeparatorChar);
                         }
                     }
                 }
