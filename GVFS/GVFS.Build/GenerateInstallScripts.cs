@@ -50,7 +50,7 @@ namespace GVFS.PreBuild
 
         public string GetGitInstallCommand()
         {
-            return "%~dp0\\" + this.GitInstallerFilename + @" /DIR=""C:\Program Files\Git"" /NOICONS /COMPONENTS=""ext,ext\shellhere,ext\guihere,assoc,assoc_sh"" /GROUP=""Git"" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART";
+            return "%~dp0\\" + this.GitInstallerFilename + @" /DIR=""C:\Program Files\Git"" /NOICONS /COMPONENTS=""ext,ext\shellhere,ext\guihere,assoc,assoc_sh"" /GROUP=""Git"" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLOWDOWNGRADE=1";
         }
 
         public string GetVFSForGitInstallCommand()
