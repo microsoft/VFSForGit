@@ -127,7 +127,11 @@ namespace GVFS.CommandLine
                     {
                         // Create the enlistment root explicitly with CreateDirectoryAccessibleByAuthUsers before calling
                         // AddLogFileEventListener to ensure that elevated and non-elevated users have access to the root.
-                        GVFSPlatform.Instance.FileSystem.CreateDirectoryAccessibleByAuthUsers(enlistment.EnlistmentRoot);
+                        string createDirectoryError;
+                        if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryAccessibleByAuthUsers(enlistment.EnlistmentRoot, out createDirectoryError))
+                        {
+                            this.ReportErrorAndExit($"Failed to create '{enlistment.EnlistmentRoot}': {createDirectoryError}");
+                        }
 
                         tracer.AddLogFileEventListener(
                             GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Clone),
@@ -377,7 +381,7 @@ namespace GVFS.CommandLine
 
                     if (!enlistment.TryCreateEnlistmentSubFolders())
                     {
-                        string error = "Could not create enlistment directory";
+                        string error = "Could not create enlistment directories";
                         tracer.RelatedError(error);
                         return new Result(error);
                     }

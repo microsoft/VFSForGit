@@ -127,7 +127,11 @@ namespace GVFS.Platform.Windows
         ///  - Adjusts the ACLs of 'directoryPath' (the ancestors' ACLs are not
         ///    modified).
         /// </summary>
-        /// <param name="directoryPath"></param>
+        /// <returns>
+        /// - true if the directory already exists -or- the directory was successfully created
+        ///   with the proper ACLS
+        /// - false otherwise
+        /// </returns>
         /// <remarks>
         /// The following permissions are typically present on deskop and missing on Server.
         /// These are the permissions added by this method.
@@ -141,31 +145,51 @@ namespace GVFS.Platform.Windows
         ///        GENERIC_WRITE
         ///        GENERIC_READ
         /// </remarks>
-        public void CreateDirectoryAccessibleByAuthUsers(string directoryPath)
+        public bool TryCreateDirectoryAccessibleByAuthUsers(string directoryPath, out string error, ITracer tracer = null)
         {
             if (Directory.Exists(directoryPath))
             {
-                return;
+                error = null;
+                return true;
             }
 
-            // Create the directory first and then adjust the ACLs as needed
-            Directory.CreateDirectory(directoryPath);
+            try
+            {
+                // Create the directory first and then adjust the ACLs as needed
+                Directory.CreateDirectory(directoryPath);
 
-            // Use AccessRuleFactory rather than creating a FileSystemAccessRule because the NativeMethods.FileAccess flags
-            // we're specifying are not valid for the FileSystemRights parameter of the FileSystemAccessRule constructor
-            DirectorySecurity directorySecurity = Directory.GetAccessControl(directoryPath);
-            AccessRule authenticatedUsersAccessRule = directorySecurity.AccessRuleFactory(
-                new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
-                unchecked((int)(NativeMethods.FileAccess.DELETE | NativeMethods.FileAccess.GENERIC_EXECUTE | NativeMethods.FileAccess.GENERIC_WRITE | NativeMethods.FileAccess.GENERIC_READ)),
-                true,
-                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                PropagationFlags.None,
-                AccessControlType.Allow);
+                // Use AccessRuleFactory rather than creating a FileSystemAccessRule because the NativeMethods.FileAccess flags
+                // we're specifying are not valid for the FileSystemRights parameter of the FileSystemAccessRule constructor
+                DirectorySecurity directorySecurity = Directory.GetAccessControl(directoryPath);
+                AccessRule authenticatedUsersAccessRule = directorySecurity.AccessRuleFactory(
+                    new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
+                    unchecked((int)(NativeMethods.FileAccess.DELETE | NativeMethods.FileAccess.GENERIC_EXECUTE | NativeMethods.FileAccess.GENERIC_WRITE | NativeMethods.FileAccess.GENERIC_READ)),
+                    true,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow);
 
-            // The return type of the AccessRuleFactory method is the base class, AccessRule, but the return value can be cast safely to the derived class.
-            // https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.filesystemsecurity.accessrulefactory(v=vs.110).aspx
-            directorySecurity.AddAccessRule((FileSystemAccessRule)authenticatedUsersAccessRule);
-            Directory.SetAccessControl(directoryPath, directorySecurity);
+                // The return type of the AccessRuleFactory method is the base class, AccessRule, but the return value can be cast safely to the derived class.
+                // https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.filesystemsecurity.accessrulefactory(v=vs.110).aspx
+                directorySecurity.AddAccessRule((FileSystemAccessRule)authenticatedUsersAccessRule);
+                Directory.SetAccessControl(directoryPath, directorySecurity);
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is SystemException)
+            {
+                if (tracer != null)
+                {
+                    EventMetadata metadataData = new EventMetadata();
+                    metadataData.Add("Exception", e.ToString());
+                    metadataData.Add(nameof(directoryPath), directoryPath);
+                    tracer.RelatedError(metadataData, $"{nameof(this.TryCreateDirectoryAccessibleByAuthUsers)}: Failed to create and configure directory");
+                }
+
+                error = e.Message;
+                return false;
+            }
+
+            error = null;
+            return true;
         }
 
         public bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)

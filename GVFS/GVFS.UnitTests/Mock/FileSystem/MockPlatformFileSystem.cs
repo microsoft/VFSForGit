@@ -45,7 +45,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public void CreateDirectoryAccessibleByAuthUsers(string directoryPath)
+        public bool TryCreateDirectoryAccessibleByAuthUsers(string directoryPath, out string error, ITracer tracer = null)
         {
             throw new NotSupportedException();
         }

@@ -54,9 +54,27 @@ namespace GVFS.Platform.POSIX
 
         public abstract bool IsSocket(string fileName);
 
-        public void CreateDirectoryAccessibleByAuthUsers(string directoryPath)
+        public bool TryCreateDirectoryAccessibleByAuthUsers(string directoryPath, out string error, ITracer tracer = null)
         {
-            Directory.CreateDirectory(directoryPath);
+            try
+            {
+                Directory.CreateDirectory(directoryPath);
+                error = null;
+                return true;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                if (tracer != null)
+                {
+                    EventMetadata metadataData = new EventMetadata();
+                    metadataData.Add("Exception", e.ToString());
+                    metadataData.Add(nameof(directoryPath), directoryPath);
+                    tracer.RelatedError(metadataData, $"{nameof(this.TryCreateDirectoryAccessibleByAuthUsers)}: Failed to create directory");
+                }
+
+                error = e.Message;
+                return false;
+            }
         }
 
         public bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
