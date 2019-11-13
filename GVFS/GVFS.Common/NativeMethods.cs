@@ -104,14 +104,15 @@ namespace GVFS.Common
             // which will fail for directory placeholders.  The only access requried by SetFileTime
             // is FILE_WRITE_ATTRIBUTES (which ProjFS does allow for placeholders)
 
-            using (SafeFileHandle handle = CreateFile(
-                path,
-                FileAccess.FILE_WRITE_ATTRIBUTES,
-                FileShare.ReadWrite | FileShare.Delete,
-                IntPtr.Zero,
-                FileMode.Open,
-                FileAttributes.FILE_FLAG_BACKUP_SEMANTICS,
-                IntPtr.Zero))
+            using (SafeFileHandle handle =
+                CreateFile(
+                    path,
+                    FileAccess.FILE_WRITE_ATTRIBUTES,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    IntPtr.Zero,
+                    FileMode.Open,
+                    FileAttributes.FILE_FLAG_BACKUP_SEMANTICS,
+                    IntPtr.Zero))
             {
                 if (handle.IsInvalid)
                 {

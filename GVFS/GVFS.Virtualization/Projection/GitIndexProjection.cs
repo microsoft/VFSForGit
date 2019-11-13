@@ -802,6 +802,8 @@ namespace GVFS.Virtualization.Projection
             this.rootSparseFolder.Children.Clear();
             if (this.sparseCollection != null)
             {
+                string pathSeparatorString = Path.DirectorySeparatorChar.ToString();
+
                 this.sparseFoldersNeedingRefresh = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
                 // To avoid a lot of no-op adds, always refresh the root
@@ -832,7 +834,7 @@ namespace GVFS.Virtualization.Projection
                         int parentLevels = folders.Length - 1;
                         for (int i = parentLevels; i > 0; --i)
                         {
-                            this.sparseFoldersNeedingRefresh.Add(string.Join($"{Path.DirectorySeparatorChar}", folders, startIndex: 0, count: i));
+                            this.sparseFoldersNeedingRefresh.Add(string.Join(pathSeparatorString, folders, startIndex: 0, count: i));
                         }
                     }
 
