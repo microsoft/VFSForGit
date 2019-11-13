@@ -221,7 +221,7 @@ int main(int argc, const char* argv[])
 
 	es_clear_cache(client); // This may no longer be necessary; without it, early macOS 10.15 betas would drop events.
 	
-	es_event_type_t subscribe_events[] = { ES_EVENT_TYPE_AUTH_OPEN };
+	es_event_type_t subscribe_events[] = { ES_EVENT_TYPE_AUTH_OPEN, ES_EVENT_TYPE_NOTIFY_LOOKUP };
 	if (ES_RETURN_SUCCESS != es_subscribe(client, subscribe_events, extent<decltype(subscribe_events)>::value))
 	{
 		fprintf(stderr, "es_subscribe failed\n");
@@ -246,6 +246,7 @@ static void HandleSecurityEvent(
 				es_mute_process(client, &message->process->audit_token);
 				es_respond_result_t result = es_respond_flags_result(client, message, 0x7fffffff, false /* don't cache */);
 				assert(result == ES_RESPOND_RESULT_SUCCESS);
+				std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
 				return;
 			}
 			
@@ -317,6 +318,24 @@ static void HandleSecurityEvent(
 		else
 		{
 			fprintf(stderr, "Unexpected event type: %u\n", message->event_type);
+		}
+	}
+	else if (message->action_type == ES_ACTION_TYPE_NOTIFY)
+	{
+		if (message->event_type == ES_EVENT_TYPE_NOTIFY_LOOKUP)
+		{
+			pid_t pid = audit_token_to_pid(message->process->audit_token);
+			if (pid != selfpid)
+			{
+				const char* eventPath = message->event.lookup.source_dir->path.data;
+				if (PathLiesWithinTarget(eventPath))
+				{
+					printf("ES_EVENT_TYPE_NOTIFY_LOOKUP event for item '%s' in path '%s'\n", message->event.lookup.relative_target.data, eventPath);
+				}
+			}
+			
+			std::atomic_fetch_sub(&s_pendingAuthCount, 1u);
+			return;
 		}
 	}
 	else
