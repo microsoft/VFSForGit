@@ -56,7 +56,13 @@ namespace GVFS.Common
             {
                 // A lock is required because FileBasedDictionary is not multi-process safe, neither is the act of adding a new cache
                 string lockPath = Path.Combine(localCacheRoot, MappingFile + ".lock");
-                this.fileSystem.CreateDirectory(localCacheRoot);
+
+                string createDirectoryError;
+                if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryAccessibleByAuthUsers(localCacheRoot, out createDirectoryError, tracer))
+                {
+                    errorMessage = $"Failed to create '{localCacheRoot}': {createDirectoryError}";
+                    return false;
+                }
 
                 using (FileBasedLock mappingLock = GVFSPlatform.Instance.CreateFileBasedLock(
                     this.fileSystem,
