@@ -155,6 +155,9 @@ namespace GVFS.CommandLine
                 { "receive.autogc", "false" },
                 { "reset.quiet", "true" },
                 { "status.deserializePath", gitStatusCachePath },
+                { "feature.manyFiles", "false" },
+                { "feature.experimental", "false" },
+                { "fetch.writeCommitGraph", "false" },
             };
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
