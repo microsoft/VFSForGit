@@ -14,6 +14,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -57,17 +58,8 @@ namespace GVFS.Virtualization.Projection
 
         private BlobSizes blobSizes;
         private IPlaceholderCollection placeholderDatabase;
-
         private ISparseCollection sparseCollection;
         private SparseFolderData rootSparseFolder;
-        private HashSet<string> sparsePaths;
-
-        // The set of sparse folders that had child folders added or removed
-        // during the last projection refresh.  If there are placeholders
-        // on disk for these folders we will update their last write time to
-        // force a refresh of the folders in File Explorer.
-        private HashSet<string> sparseFoldersNeedingRefresh;
-
         private GVFSGitObjects gitObjects;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private ReaderWriterLockSlim projectionReadWriteLock;
@@ -798,46 +790,13 @@ namespace GVFS.Virtualization.Projection
 
         private void RefreshSparseFolders()
         {
-            this.sparseFoldersNeedingRefresh = null;
             this.rootSparseFolder.Children.Clear();
             if (this.sparseCollection != null)
             {
-                string pathSeparatorString = Path.DirectorySeparatorChar.ToString();
-
-                this.sparseFoldersNeedingRefresh = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
-
-                // To avoid a lot of no-op adds, always refresh the root
-                this.sparseFoldersNeedingRefresh.Add(string.Empty);
-
                 Dictionary<string, SparseFolderData> parentFolder = this.rootSparseFolder.Children;
-                HashSet<string> oldSparsePaths = this.sparsePaths;
-                this.sparsePaths = this.sparseCollection.GetAll();
-                foreach (string directoryPath in this.sparsePaths)
+                foreach (string directoryPath in this.sparseCollection.GetAll())
                 {
                     string[] folders = directoryPath.Split(new[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
-                    if (oldSparsePaths != null && !oldSparsePaths.Remove(directoryPath))
-                    {
-                        // directoryPath is a new entry
-                        // Add its ancestors to sparseFoldersNeedingRefresh
-                        // Note: This approach could result in refreshing folders
-                        // that do not require a refresh.
-                        //
-                        // Example: If the previous set contained:
-                        //    - A\B\C
-                        //
-                        // And now it contains:
-                        //    - A\B\C
-                        //    - A\B\D
-                        //
-                        // There is no need to refresh A, but with the code below we will
-                        // (assuming that A is on disk)
-                        int parentLevels = folders.Length - 1;
-                        for (int i = parentLevels; i > 0; --i)
-                        {
-                            this.sparseFoldersNeedingRefresh.Add(string.Join(pathSeparatorString, folders, startIndex: 0, count: i));
-                        }
-                    }
-
                     for (int i = 0; i < folders.Length; i++)
                     {
                         SparseFolderData folderData;
@@ -862,34 +821,6 @@ namespace GVFS.Virtualization.Projection
                     }
 
                     parentFolder = this.rootSparseFolder.Children;
-                }
-
-                // Any paths left in oldSparsePaths have been removed from the sparse set.
-                // Refresh the ancestors of those paths.  Note: This could result in
-                // refreshing folders that don't need to be:
-                //
-                // Example: If the previous sparse set contained:
-                //   - A\B\C\D
-                //   - A\B\E\F
-                //
-                // And the new sparse set contains:
-                //   - A\B\E\F
-                //
-                // There is no need to refresh A, but with the code below we will
-                // (assuming that A is on disk)
-                if (oldSparsePaths != null)
-                {
-                    foreach (string path in oldSparsePaths)
-                    {
-                        int lastSeparatorIndex = path.LastIndexOf(Path.DirectorySeparatorChar);
-                        string parentPath = path;
-                        while (lastSeparatorIndex > 0)
-                        {
-                            parentPath = parentPath.Substring(0, lastSeparatorIndex);
-                            this.sparseFoldersNeedingRefresh.Add(parentPath);
-                            lastSeparatorIndex = parentPath.LastIndexOf(Path.DirectorySeparatorChar);
-                        }
-                    }
                 }
             }
         }
@@ -1391,42 +1322,7 @@ namespace GVFS.Virtualization.Projection
                 long millisecondsUpdatingFolderPlaceholders = stopwatch.ElapsedMilliseconds;
 
                 stopwatch.Restart();
-                DateTime updateTime = DateTime.Now;
-                int folderPlaceholdersRefreshAttempts = 0;
-                int folderPlaceholdersRefreshed = 0;
-                foreach (string folderPlaceholderPath in folderPlaceholdersToKeep)
-                {
-                    if (this.sparseFoldersNeedingRefresh.Contains(folderPlaceholderPath))
-                    {
-                        string folderFullPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, folderPlaceholderPath);
-                        try
-                        {
-                            ++folderPlaceholdersRefreshAttempts;
 
-                            // File Explorer will refresh the folder its displaying when that folder's
-                            // last write time is updated
-                            this.context.FileSystem.SetDirectoryLastWriteTime(folderFullPath, updateTime);
-                            ++folderPlaceholdersRefreshed;
-                        }
-                        catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is Win32Exception)
-                        {
-                            EventMetadata exceptionMetadata = CreateEventMetadata(e);
-                            exceptionMetadata.Add(nameof(folderFullPath), folderFullPath);
-                            exceptionMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.UpdatePlaceholders)}: Failed to update folder write time");
-                            this.context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.UpdatePlaceholders)}_FailedWriteTimeUpdate", exceptionMetadata);
-                        }
-                    }
-                }
-
-                stopwatch.Stop();
-                long millisecondsRefreshingFolderPlaceholders = stopwatch.ElapsedMilliseconds;
-                EventMetadata refreshPlaceholderData = CreateEventMetadata();
-                refreshPlaceholderData.Add(nameof(folderPlaceholdersRefreshAttempts), folderPlaceholdersRefreshAttempts);
-                refreshPlaceholderData.Add(nameof(folderPlaceholdersRefreshed), folderPlaceholdersRefreshed);
-                refreshPlaceholderData.Add(nameof(millisecondsRefreshingFolderPlaceholders), millisecondsRefreshingFolderPlaceholders);
-                this.context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.UpdatePlaceholders)}_RefreshedFolderPlaceholders", refreshPlaceholderData);
-
-                stopwatch.Restart();
                 this.repoMetadata.SetPlaceholdersNeedUpdate(false);
 
                 stopwatch.Stop();
@@ -1437,7 +1333,6 @@ namespace GVFS.Virtualization.Projection
                     (long)duration.TotalMilliseconds,
                     millisecondsUpdatingFilePlaceholders,
                     millisecondsUpdatingFolderPlaceholders,
-                    millisecondsRefreshingFolderPlaceholders,
                     millisecondsWriteAndFlush,
                     deleteFolderPlaceholderAttempted,
                     folderPlaceholdersDeleted,

@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -15,6 +16,9 @@ namespace GVFS.Common
         private const uint FSCTL_GET_REPARSE_POINT = 0x000900a8;
 
         private const int ReparseDataPathBufferLength = 1000;
+
+        private const int ERROR_FILE_NOT_FOUND = 0x2;
+        private const int ERROR_PATH_NOT_FOUND = 0x3;
 
         [Flags]
         public enum MoveFileFlags : uint
@@ -98,7 +102,7 @@ namespace GVFS.Common
             }
         }
 
-        public static void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime)
+        public static bool SetDirectoryLastWriteTimeIfOnDisk(string path, DateTime lastWriteTime)
         {
             // We can't use Directory.SetLastWriteTime as it requests GENERIC_WRITE access
             // which will fail for directory placeholders.  The only access requried by SetFileTime
@@ -116,7 +120,13 @@ namespace GVFS.Common
             {
                 if (handle.IsInvalid)
                 {
-                    ThrowLastWin32Exception($"{nameof(SetDirectoryLastWriteTime)}: Failed to open handle for '{path}'");
+                    int error = Marshal.GetLastWin32Error();
+                    if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND)
+                    {
+                        return false;
+                    }
+
+                    throw new Win32Exception(error, $"{nameof(SetDirectoryLastWriteTimeIfOnDisk)}: Failed to open handle for '{path}'");
                 }
 
                 // SetFileTime will not update times with value 0
@@ -125,9 +135,11 @@ namespace GVFS.Common
                 long lastWriteFileTime = lastWriteTime.ToFileTime();
                 if (!SetFileTime(handle, ref creationFileTime, ref lastAccessFileTime, ref lastWriteFileTime))
                 {
-                    ThrowLastWin32Exception($"{nameof(SetDirectoryLastWriteTime)}: Failed to update last write time for '{path}'");
+                    ThrowLastWin32Exception($"{nameof(SetDirectoryLastWriteTimeIfOnDisk)}: Failed to update last write time for '{path}'");
                 }
             }
+
+            return true;
         }
 
         /// <summary>

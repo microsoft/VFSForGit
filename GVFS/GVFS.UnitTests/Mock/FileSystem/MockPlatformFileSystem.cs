@@ -30,7 +30,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             return true;
         }
 
-        public void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime)
+        public bool SetDirectoryLastWriteTimeIfOnDisk(string path, DateTime lastWriteTime)
         {
             throw new NotSupportedException();
         }

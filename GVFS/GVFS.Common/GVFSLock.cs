@@ -266,7 +266,6 @@ namespace GVFS.Common
             private long placeholderTotalUpdateTimeMs;
             private long placeholderUpdateFilesTimeMs;
             private long placeholderUpdateFoldersTimeMs;
-            private long placeholderRefreshingFolderTimeMs;
             private long placeholderWriteAndFlushTimeMs;
             private int deleteFolderPlacehoderAttempted;
             private int folderPlaceholdersDeleted;
@@ -297,7 +296,6 @@ namespace GVFS.Common
                 long durationMs,
                 long updateFilesMs,
                 long updateFoldersMs,
-                long refreshingFoldersMs,
                 long writeAndFlushMs,
                 int deleteFolderPlacehoderAttempted,
                 int folderPlaceholdersDeleted,
@@ -306,7 +304,6 @@ namespace GVFS.Common
                 this.placeholderTotalUpdateTimeMs = durationMs;
                 this.placeholderUpdateFilesTimeMs = updateFilesMs;
                 this.placeholderUpdateFoldersTimeMs = updateFoldersMs;
-                this.placeholderRefreshingFolderTimeMs = refreshingFoldersMs;
                 this.placeholderWriteAndFlushTimeMs = writeAndFlushMs;
                 this.deleteFolderPlacehoderAttempted = deleteFolderPlacehoderAttempted;
                 this.folderPlaceholdersDeleted = folderPlaceholdersDeleted;
@@ -354,7 +351,6 @@ namespace GVFS.Common
                 metadata.Add("DeleteFolderPlacehoderAttempted", this.deleteFolderPlacehoderAttempted);
                 metadata.Add("FolderPlaceholdersDeleted", this.folderPlaceholdersDeleted);
                 metadata.Add("FolderPlaceholdersPathNotFound", this.folderPlaceholdersPathNotFound);
-                metadata.Add("PlaceholderRefreshingFolderMS", this.placeholderRefreshingFolderTimeMs);
                 metadata.Add("PlaceholdersWriteAndFlushMS", this.placeholderWriteAndFlushTimeMs);
                 metadata.Add("ProjectionWriteLockHeldMs", this.projectionWriteLockHeldMs);
 

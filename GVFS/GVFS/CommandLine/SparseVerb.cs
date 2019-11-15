@@ -7,6 +7,8 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -235,7 +237,102 @@ Folders need to be relative to the repos root directory.")
                     {
                         this.PruneFoldersOutsideSparse(tracer, enlistment, sparseTable);
                     }
+
+                    if (needToChangeProjection || this.Prune)
+                    {
+                        // Update the last write times of the parents of folders being added/removed
+                        // so that File Explorer will refresh them
+                        UpdateParentFolderLastWriteTimes(tracer, enlistment.WorkingDirectoryBackingRoot, foldersToRemove, foldersToAdd);
+                    }
                 }
+            }
+        }
+
+        private static void UpdateParentFolderLastWriteTimes(ITracer tracer, string rootPath, List<string> foldersToRemove, List<string> foldersToAdd)
+        {
+            Stopwatch updateTime = Stopwatch.StartNew();
+
+            HashSet<string> foldersToRefresh = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
+            foreach (string path in foldersToRemove)
+            {
+                AddNonRootParentPathsToSet(foldersToRefresh, path);
+            }
+
+            foreach (string path in foldersToAdd)
+            {
+                AddNonRootParentPathsToSet(foldersToRefresh, path);
+            }
+
+            DateTime refreshTime = DateTime.Now;
+            int foldersRefreshed = 0;
+            int refreshErrors = 0;
+            bool refreshFailed;
+
+            // Always refresh the root
+            if (SetFolderLastWriteTimeIfOnDisk(tracer, rootPath, refreshTime, out refreshFailed))
+            {
+                ++foldersRefreshed;
+            }
+            else if (refreshFailed)
+            {
+                ++refreshErrors;
+            }
+
+            string folderPathPrefix = $"{rootPath}{Path.DirectorySeparatorChar}";
+            foreach (string path in foldersToRefresh)
+            {
+                if (SetFolderLastWriteTimeIfOnDisk(tracer, folderPathPrefix + path, refreshTime, out refreshFailed))
+                {
+                    ++foldersRefreshed;
+                }
+                else if (refreshFailed)
+                {
+                    ++refreshErrors;
+                }
+            }
+
+            updateTime.Stop();
+
+            // Note foldersToRefresh might be larger than foldersRefreshed + refreshErrors as
+            // it could include folders that are not on disk
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("foldersToRefresh", foldersToRefresh.Count + 1); // +1 for the root
+            metadata.Add(nameof(foldersRefreshed), foldersRefreshed);
+            metadata.Add(nameof(refreshErrors), refreshErrors);
+            metadata.Add(nameof(updateTime.ElapsedMilliseconds), updateTime.ElapsedMilliseconds);
+            metadata.Add(TracingConstants.MessageKey.InfoMessage, "Updated folder last write times");
+            tracer.RelatedEvent(EventLevel.Informational, $"{nameof(UpdateParentFolderLastWriteTimes)}_Summary", metadata);
+        }
+
+        private static void AddNonRootParentPathsToSet(HashSet<string> set, string path)
+        {
+            int lastSeparatorIndex = path.LastIndexOf(Path.DirectorySeparatorChar);
+            string parentPath = path;
+            while (lastSeparatorIndex > 0)
+            {
+                parentPath = parentPath.Substring(0, lastSeparatorIndex);
+                set.Add(parentPath);
+                lastSeparatorIndex = parentPath.LastIndexOf(Path.DirectorySeparatorChar);
+            }
+        }
+
+        private static bool SetFolderLastWriteTimeIfOnDisk(ITracer tracer, string folderPath, DateTime time, out bool failed)
+        {
+            try
+            {
+                failed = false;
+                return GVFSPlatform.Instance.FileSystem.SetDirectoryLastWriteTimeIfOnDisk(folderPath, time);
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is Win32Exception)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                metadata.Add(nameof(folderPath), folderPath);
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(SetFolderLastWriteTimeIfOnDisk)}: Failed to update folder write time");
+                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(SetFolderLastWriteTimeIfOnDisk)}_FailedWriteTimeUpdate", metadata);
+
+                failed = true;
+                return false;
             }
         }
 
