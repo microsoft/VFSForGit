@@ -53,36 +53,63 @@ namespace GVFS.FunctionalTests.Tools
             return this.IsEnlistmentMounted();
         }
 
-        public string AddSparseFolders(params string[] folders)
+        public string PruneSparseNoFolders()
         {
-            return this.SparseCommand(addFolders: true, shouldSucceed: true, folders: folders);
+            return this.SparseCommand(addFolders: true, shouldPrune: true, shouldSucceed: true, folders: new string[0]);
         }
 
-        public string AddSparseFolders(bool shouldSucceed, params string[] folders)
+        public string AddSparseFolders(params string[] folders)
         {
-            return this.SparseCommand(addFolders: true, shouldSucceed: shouldSucceed, folders: folders);
+            return this.SparseCommand(addFolders: true, shouldPrune: false, shouldSucceed: true, folders: folders);
+        }
+
+        public string AddSparseFolders(bool shouldPrune, params string[] folders)
+        {
+            return this.SparseCommand(addFolders: true, shouldPrune: shouldPrune, shouldSucceed: true, folders: folders);
+        }
+
+        public string AddSparseFolders(bool shouldPrune, bool shouldSucceed, params string[] folders)
+        {
+            return this.SparseCommand(addFolders: true, shouldPrune: shouldPrune, shouldSucceed: shouldSucceed, folders: folders);
         }
 
         public string RemoveSparseFolders(params string[] folders)
         {
-            return this.SparseCommand(addFolders: false, shouldSucceed: true, folders: folders);
+            return this.SparseCommand(addFolders: false, shouldPrune: false, shouldSucceed: true, folders: folders);
         }
 
-        public string RemoveSparseFolders(bool shouldSucceed, params string[] folders)
+        public string RemoveSparseFolders(bool shouldPrune, params string[] folders)
         {
-            return this.SparseCommand(addFolders: false, shouldSucceed: shouldSucceed, folders: folders);
+            return this.SparseCommand(addFolders: false, shouldPrune: shouldPrune, shouldSucceed: true, folders: folders);
         }
 
-        public string SparseCommand(bool addFolders, bool shouldSucceed, params string[] folders)
+        public string RemoveSparseFolders(bool shouldPrune, bool shouldSucceed, params string[] folders)
         {
-            string action = addFolders ? "-a" : "-r";
-            string folderList = string.Join(";", folders);
-            if (folderList.Contains(" "))
+            return this.SparseCommand(addFolders: false, shouldPrune: shouldPrune, shouldSucceed: shouldSucceed, folders: folders);
+        }
+
+        public string SparseCommand(bool addFolders, bool shouldPrune, bool shouldSucceed, params string[] folders)
+        {
+            string action = string.Empty;
+            string folderList = string.Empty;
+            string pruneArg = shouldPrune ? "--prune" : string.Empty;
+
+            if (folders.Length > 0)
             {
-                folderList = $"\"{folderList}\"";
+                action = addFolders ? "-a" : "-r";
+                folderList = string.Join(";", folders);
+                if (folderList.Contains(" "))
+                {
+                    folderList = $"\"{folderList}\"";
+                }
             }
 
-            return this.CallGVFS($"sparse {this.enlistmentRoot} {action} {folderList}", expectedExitCode: shouldSucceed ? SuccessExitCode : ExitCodeShouldNotBeZero);
+            return this.Sparse($"{pruneArg} {action} {folderList}", shouldSucceed);
+        }
+
+        public string Sparse(string arguments, bool shouldSucceed)
+        {
+            return this.CallGVFS($"sparse {this.enlistmentRoot} {arguments}", expectedExitCode: shouldSucceed ? SuccessExitCode : ExitCodeShouldNotBeZero);
         }
 
         public string[] GetSparseFolders()

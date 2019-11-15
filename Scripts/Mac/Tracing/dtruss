@@ -321,6 +321,9 @@ dtrace='
  syscall::openat:entry,
  syscall::unlinkat:entry,
  syscall::getattrlistat:entry,
+ syscall::getattrlistbulk:entry,
+ syscall::fstatat:entry,
+ syscall::fstatat64:entry,
  syscall::readlinkat:entry,
  syscall::linkat:entry,
  syscall::fchownat:entry,
@@ -517,7 +520,8 @@ proc::posix_spawn:*-failure
  syscall::removexattr:return,
  syscall::unlink:return,
  syscall::open:return,
- syscall::open_nocancel:return
+ syscall::open_nocancel:return,
+ syscall::shm_open:return
  /self->start/
  {
 	/* calculate elapsed time */
@@ -745,9 +749,10 @@ proc::posix_spawn:*-failure
 	self->arg2 = 0;
  }
 
- /* print 1 arg output */
+ /* print 1 decimal arg output */
  syscall::close:return,
- syscall::close_nocancel:return
+ syscall::close_nocancel:return,
+ syscall::fchdir:return
  /self->start/
  {
 	/* calculate elapsed time */
@@ -765,8 +770,37 @@ proc::posix_spawn:*-failure
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
  
 	/* print main data */
-	printf("%s(0x%X)\t\t = %d %s%d\n",probefunc,self->arg0,
+	printf("%s(%d)\t\t = %d %s%d\n",probefunc,(int)self->arg0,
 	    (int)arg0,self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+ }
+
+ /* print 1 string arg output */
+ syscall::chdir:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(\"%S\")\t\t = %d %s%d\n",probefunc,
+		self->arg0 ? copyinstr(self->arg0) : "[NULL]",
+		(int)arg0,self->code,(int)errno);
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
 	self->arg0 = 0;
@@ -833,12 +867,72 @@ proc::posix_spawn:*-failure
 	self->arg3 = 0;
  }
 
- /* print 4 args, arg1 as string */
+ /* print 4 args, arg0 as string, arg1 as string, arg2 as decimal, arg3 as hex */
+ syscall::listxattr:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(\"%S\", \"%S\", %u, 0x%X)\t\t = %d %s%d\n",probefunc,
+	    copyinstr(self->arg0), self->arg1 ? copyinstr(self->arg1) : "[NULL]", self->arg2, self->arg3, (int)arg0,
+	    self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg3 = 0;
+ }
+
+ /* print 4 args, arg0 as string, arg3 as decimal: int lstat64_extended(user_addr_t path, user_addr_t ub, user_addr_t xsecurity, user_addr_t xsecurity_size) */
+ syscall::lstat64_extended:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(\"%S\", 0x%X, 0x%X, %u)\t\t = %d %s%d\n",probefunc,
+	    copyinstr(self->arg0), self->arg1,self->arg2,self->arg3,(int)arg0,
+	    self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg3 = 0;
+ }
+
+
+ /* print 4 args, arg0 as decimal FD, arg1 as string */
  syscall::openat:return,
  syscall::faccessat:return,
  syscall::fchmodat:return,
  syscall::readlinkat:return,
- syscall::fstatat:return
+ syscall::fstatat:return,
+ syscall::fstatat64:return
  /self->start/
  {
 	/* calculate elapsed time */
@@ -856,8 +950,8 @@ proc::posix_spawn:*-failure
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
 
 	/* print main data */
-	printf("%s(0x%X, \"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
-	    self->arg0, copyinstr(self->arg1),self->arg2,self->arg3,(int)arg0,
+	printf("%s(%d%s, \"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
+	    (int32_t)self->arg0, self->arg0 == -2 ? " (AT_FDCWD)" : "", copyinstr(self->arg1),self->arg2,self->arg3,(int)arg0,
 	    self->code,(int)errno);
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
@@ -1070,6 +1164,47 @@ proc::posix_spawn:*-failure
 	self->arg4 = 0;
  }
 
+ /* getattrlistbulk has 5 unusual arguments: */
+ syscall::getattrlistbulk:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	this->attrs = (struct attrlist*)(self->arg1 ? copyin(self->arg1, sizeof(struct attrlist)) : NULL);
+	/* print main data */
+	printf("%s(%d, 0x%X { .bitmapcount = %d, .reserved = 0x%x, .commonattr = 0x%x, .volattr = 0x%x, .dirattr = 0x%x, .fileattr = 0x%x, .forkattr = 0x%x }, 0x%X, 0x%X, 0x%X)\t\t = %d %s%d\n", probefunc,
+		(int32_t)self->arg0,
+		// attrlist
+		self->arg1,
+		this->attrs ? this->attrs->bitmapcount : 0,
+		this->attrs ? this->attrs->reserved : 0,
+		this->attrs ? this->attrs->commonattr : 0,
+		this->attrs ? this->attrs->volattr : 0,
+		this->attrs ? this->attrs->dirattr : 0,
+		this->attrs ? this->attrs->fileattr : 0,
+		this->attrs ? this->attrs->forkattr : 0,
+		self->arg2,self->arg3,self->arg4,(int)arg0,self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg3 = 0;
+	self->arg4 = 0;
+ }
+
+
  /* getattrlistat has 6 arguments */
  syscall::getattrlistat:return
  /self->start/
@@ -1099,6 +1234,34 @@ proc::posix_spawn:*-failure
 	self->arg3 = 0;
 	self->arg4 = 0;
 	self->arg5 = 0;
+ }
+
+ /* fstat and fstat64 have 2 args: file descriptor and pointer */
+ syscall::fstat:return,
+ syscall::fstat64:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(%d, 0x%X)\t\t = %d %s%d\n",probefunc,self->arg0,
+	    self->arg1,(int)arg0,self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
  }
 
  /* kill has 2 args that should be shown as decimal*/

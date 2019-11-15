@@ -5,6 +5,7 @@ using GVFS.Common.Tracing;
 using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
@@ -27,13 +28,15 @@ namespace GVFS.Service
         private RepoRegistry repoRegistry;
         private ProductUpgradeTimer productUpgradeTimer;
         private WindowsRequestHandler requestHandler;
+        private INotificationHandler notificationHandler;
 
         public GVFSService(JsonTracer tracer)
         {
             this.tracer = tracer;
             this.serviceName = GVFSConstants.Service.ServiceName;
             this.CanHandleSessionChangeEvent = true;
-            this.productUpgradeTimer = new ProductUpgradeTimer(tracer);
+            this.notificationHandler = new NotificationHandler(tracer);
+            this.productUpgradeTimer = new ProductUpgradeTimer(tracer, this.notificationHandler);
         }
 
         public void Run()
@@ -49,7 +52,7 @@ namespace GVFS.Service
                     new PhysicalFileSystem(),
                     this.serviceDataLocation,
                     new GVFSMountProcess(this.tracer),
-                    new NotificationHandler(this.tracer));
+                    this.notificationHandler);
                 this.repoRegistry.Upgrade();
                 this.requestHandler = new WindowsRequestHandler(this.tracer, EtwArea, this.repoRegistry);
 
@@ -139,6 +142,9 @@ namespace GVFS.Service
                     if (changeDescription.Reason == SessionChangeReason.SessionLogon)
                     {
                         this.tracer.RelatedInfo("SessionLogon detected, sessionId: {0}", changeDescription.SessionId);
+
+                        this.LaunchServiceUIIfNotRunning(changeDescription.SessionId);
+
                         using (ITracer activity = this.tracer.StartActivity("LogonAutomount", EventLevel.Informational))
                         {
                             this.repoRegistry.AutoMountRepos(
@@ -323,23 +329,22 @@ namespace GVFS.Service
             Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
 
             // Special rules for the upgrader logs, as non-elevated users need to be be able to write
-            this.CreateAndConfigureUpgradeLogDirectory();
+            this.CreateAndConfigureLogDirectory(ProductUpgraderInfo.GetLogDirectoryPath());
+            this.CreateAndConfigureLogDirectory(GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.UIName));
         }
 
-        private void CreateAndConfigureUpgradeLogDirectory()
+        private void CreateAndConfigureLogDirectory(string path)
         {
-            string upgradeLogsPath = ProductUpgraderInfo.GetLogDirectoryPath();
-
             string error;
-            if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(upgradeLogsPath, out error))
+            if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(path, out error))
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", EtwArea);
-                metadata.Add(nameof(upgradeLogsPath), upgradeLogsPath);
+                metadata.Add(nameof(path), path);
                 metadata.Add(nameof(error), error);
                 this.tracer.RelatedWarning(
                     metadata,
-                    $"{nameof(this.CreateAndConfigureUpgradeLogDirectory)}: Failed to create upgrade logs directory",
+                    $"{nameof(this.CreateAndConfigureLogDirectory)}: Failed to create logs directory",
                     Keywords.Telemetry);
             }
         }
@@ -367,6 +372,52 @@ namespace GVFS.Service
             WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(serviceDataRootSecurity);
 
             return serviceDataRootSecurity;
+        }
+
+        private void LaunchServiceUIIfNotRunning(int sessionId)
+        {
+            NamedPipeClient client;
+            using (client = new NamedPipeClient(GVFSConstants.Service.UIName))
+            {
+                if (!client.Connect())
+                {
+                    this.tracer.RelatedError($"Could not connect with {GVFSConstants.Service.UIName}. Attempting to relaunch.");
+
+                    this.TerminateExistingProcess(GVFSConstants.Service.UIName, sessionId);
+
+                    CurrentUser currentUser = new CurrentUser(this.tracer, sessionId);
+                    if (!currentUser.RunAs(
+                        Configuration.Instance.GVFSServiceUILocation,
+                        string.Empty))
+                    {
+                        this.tracer.RelatedError("Could not start " + GVFSConstants.Service.UIName);
+                    }
+                    else
+                    {
+                        this.tracer.RelatedInfo($"Successfully launched {GVFSConstants.Service.UIName}. ");
+                    }
+                }
+            }
+        }
+
+        private void TerminateExistingProcess(string processName, int sessionId)
+        {
+            try
+            {
+                foreach (Process process in Process.GetProcessesByName(processName))
+                {
+                    if (process.SessionId == sessionId)
+                    {
+                        this.tracer.RelatedInfo($"{nameof(this.TerminateExistingProcess)}- Stopping {processName}, in session {sessionId}.");
+
+                        process.Kill();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                this.tracer.RelatedError("Could not find and kill existing instances of {0}: {1}", processName, ex.Message);
+            }
         }
     }
 }

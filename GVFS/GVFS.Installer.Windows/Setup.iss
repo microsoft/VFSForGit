@@ -27,6 +27,7 @@
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 #define FileSystemKey "SYSTEM\CurrentControlSet\Control\FileSystem"
 #define GvFltAutologgerKey "SYSTEM\CurrentControlSet\Control\WMI\Autologger\Microsoft-Windows-Git-Filter-Log"
+#define ServiceUIName "VFS For Git"
 
 [Setup]
 AppId={{489CA581-F131-4C28-BE04-4FB178933E6D}
@@ -130,10 +131,11 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Platform.Windows
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.pdb"
 
 ; GVFS.Service.UI Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe" 
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe.config" 
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GitVirtualFileSystem.ico"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\System.Runtime.dll"
 
 ; GVFS Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\CommandLine.dll"
@@ -176,6 +178,9 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\System.IO.Compression
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe.config"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
+
+[Icons]
+Name: "{commonstartmenu}\{#ServiceUIName}"; Filename: "{app}\GVFS.Service.UI.exe"; AppUserModelID: "GVFS"
 
 [UninstallDelete]
 ; Deletes the entire installation directory, including files and subdirectories
@@ -350,6 +355,34 @@ begin
   if InstallSuccessful = False then
     begin
       RaiseException('Fatal: An error occured while installing GVFS.Service.');
+    end;
+end;
+
+procedure StartGVFSServiceUI();
+var
+  ResultCode: integer;
+begin
+  if ExecAsOriginalUser(ExpandConstant('{app}\GVFS.Service.UI.exe'), '', '', SW_HIDE, ewNoWait, ResultCode) then
+    begin
+      Log('StartGVFSServiceUI: Successfully launched GVFS.Service.UI');
+    end
+  else
+    begin
+      Log('StartGVFSServiceUI: Failed to launch GVFS.Service.UI');
+    end;
+end;
+
+procedure StopGVFSServiceUI();
+var
+  ResultCode: integer;
+begin
+  if Exec('powershell.exe', '-NoProfile "Stop-Process -Name GVFS.Service.UI"', '', SW_HIDE, ewNoWait, ResultCode) then
+    begin
+      Log('StopGVFSServiceUI: Successfully stopped GVFS.Service.UI');
+    end
+  else
+    begin
+      RaiseException('Fatal: Could not stop process: GVFS.Service.UI');
     end;
 end;
 
@@ -730,6 +763,7 @@ begin
       begin
         if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
           begin
+            StartGVFSServiceUI();
             MountRepos();
           end
       end;
@@ -746,6 +780,7 @@ begin
   case CurStep of
     usUninstall:
       begin
+        StopGVFSServiceUI();
         UninstallService('GVFS.Service', False);
         RemovePath(ExpandConstant('{app}'));
       end;
@@ -769,6 +804,7 @@ begin
       Abort();
     end;
   StopService('GVFS.Service');
+  StopGVFSServiceUI();
   UninstallGvFlt();
   UninstallProjFSIfNecessary();
 end;

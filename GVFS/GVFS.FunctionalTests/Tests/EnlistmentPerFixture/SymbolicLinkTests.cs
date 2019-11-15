@@ -7,8 +7,8 @@ using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    // MacOnly until issue #297 (add SymLink support for Windows) is complete
-    [Category(Categories.MacOnly)]
+    // POSIXOnly until issue #297 (add SymLink support for Windows) is complete
+    [Category(Categories.POSIXOnly)]
     [TestFixture]
     public class SymbolicLinkTests : TestsWithEnlistmentPerFixture
     {

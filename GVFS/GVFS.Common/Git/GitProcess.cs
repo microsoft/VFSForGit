@@ -173,7 +173,7 @@ namespace GVFS.Common.Git
 
             string stdinConfig = sb.ToString();
 
-            Result result = this.InvokeGitOutsideEnlistment(
+            Result result = this.InvokeGitAgainstDotGitFolder(
                 GenerateCredentialVerbCommand("reject"),
                 stdin => stdin.Write(stdinConfig),
                 null);
@@ -200,7 +200,7 @@ namespace GVFS.Common.Git
 
             string stdinConfig = sb.ToString();
 
-            Result result = this.InvokeGitOutsideEnlistment(
+            Result result = this.InvokeGitAgainstDotGitFolder(
                 GenerateCredentialVerbCommand("approve"),
                 stdin => stdin.Write(stdinConfig),
                 null);
@@ -480,6 +480,12 @@ namespace GVFS.Common.Git
             }
 
             return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: allowObjectDownloads);
+        }
+
+        public Result StatusPorcelain()
+        {
+            string command = "status -uall --porcelain -z";
+            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: false);
         }
 
         public Result SerializeStatus(bool allowObjectDownloads, string serializePath)

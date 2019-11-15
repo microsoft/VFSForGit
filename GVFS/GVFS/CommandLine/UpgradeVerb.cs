@@ -68,7 +68,7 @@ namespace GVFS.CommandLine
             "no-verify",
             Default = false,
             Required = false,
-            HelpText = "This parameter is reserved for internal use.")]
+            HelpText = "Do not verify NuGet packages after downloading them. Some platforms do not support NuGet verification.")]
         public bool NoVerify { get; set; }
 
         protected override string VerbName
@@ -195,6 +195,18 @@ namespace GVFS.CommandLine
                 {
                     this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: {message}");
                     this.Output.WriteLine(errorOutputFormat, message);
+                    return false;
+                }
+
+                // If we are on a platform that does not support nuget verification, and user has not
+                // specified the --no-verify flag, then print a helpful message here.
+                if (!GVFSPlatform.Instance.UnderConstruction.SupportsNuGetVerification && !this.NoVerify)
+                {
+                    string packageVerificationNotSupportedMessage = @"
+NuGet package verification is not supported on this platform. In order to run upgrade, you must run upgrade without NuGet package verification.
+To run upgrade without NuGet verification include the --no-verify option.
+";
+                    this.ReportInfoToConsole(packageVerificationNotSupportedMessage);
                     return false;
                 }
 

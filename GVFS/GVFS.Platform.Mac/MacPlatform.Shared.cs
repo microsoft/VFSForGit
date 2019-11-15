@@ -8,7 +8,7 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform
     {
         public const string DotGVFSRoot = ".gvfs";
-        public const string UpgradeConfirmMessage = "`sudo gvfs upgrade --confirm`";
+        public const string UpgradeConfirmMessage = "`sudo gvfs upgrade --confirm --no-verify`";
 
         public static string GetDataRootForGVFSImplementation()
         {

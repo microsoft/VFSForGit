@@ -46,6 +46,9 @@ namespace GVFS.CommandLine
             HelpText = "A semicolon (" + FolderListSeparator + ") delimited list of folders to dehydrate. Each folder must be relative to the repository root.")]
         public string Folders { get; set; }
 
+        public string RunningVerbName { get; set; } = DehydrateVerbName;
+        public string ActionName { get; set; } = DehydrateVerbName;
+
         protected override string VerbName
         {
             get { return DehydrateVerb.DehydrateVerbName; }
@@ -160,10 +163,10 @@ from a parent of the folders list.
 
                 if (fullDehydrate)
                 {
-                    this.WriteMessage(tracer, "Starting dehydration. All of your existing files will be backed up in " + backupRoot);
+                    this.WriteMessage(tracer, $"Starting {this.RunningVerbName}. All of your existing files will be backed up in " + backupRoot);
                 }
 
-                this.WriteMessage(tracer, "WARNING: If you abort the dehydrate after this point, the repo may become corrupt");
+                this.WriteMessage(tracer, $"WARNING: If you abort the {this.RunningVerbName} after this point, the repo may become corrupt");
 
                 this.Output.WriteLine();
 
@@ -206,12 +209,12 @@ from a parent of the folders list.
                         }
                         else
                         {
-                            this.ReportErrorAndExit("Cannot dehydrate: must have a clean git status.");
+                            this.ReportErrorAndExit($"Cannot {this.ActionName}: must have a clean git status.");
                         }
                     }
                     else
                     {
-                        this.ReportErrorAndExit("No folders to dehydrate.");
+                        this.ReportErrorAndExit($"No folders to {this.ActionName}.");
                     }
                 }
             }
@@ -220,6 +223,7 @@ from a parent of the folders list.
         private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string[] folders)
         {
             List<string> foldersToDehydrate = new List<string>();
+            List<string> folderErrors = new List<string>();
 
             if (!this.ShowStatusWhileRunning(
                 () =>
@@ -243,7 +247,7 @@ from a parent of the folders list.
                             string normalizedPath = GVFSDatabase.NormalizePath(folder);
                             if (!this.IsFolderValid(normalizedPath))
                             {
-                                this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': invalid folder path.");
+                                this.WriteMessage(tracer, $"Cannot {this.ActionName} folder '{folder}': invalid folder path.");
                             }
                             else
                             {
@@ -251,18 +255,19 @@ from a parent of the folders list.
                                 // dehydration will not do any good with a parent folder there
                                 if (modifiedPaths.ContainsParentFolder(folder, out string parentFolder))
                                 {
-                                    this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': parent folder '{parentFolder}' must be dehydrated.");
+                                    this.WriteMessage(tracer, $"Cannot {this.ActionName} folder '{folder}': Must {this.ActionName} parent folder '{parentFolder}'.");
                                 }
                                 else
                                 {
-                                    string fullPath = Path.Combine(enlistment.WorkingDirectoryRoot, folder);
+                                    string fullPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, folder);
                                     if (this.fileSystem.DirectoryExists(fullPath))
                                     {
                                         if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting '{fullPath}'", out ioError))
                                         {
-                                            this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': removing '{folder}' failed.");
+                                            this.WriteMessage(tracer, $"Cannot {this.ActionName} folder '{folder}': removing '{folder}' failed.");
                                             this.WriteMessage(tracer, "Ensure no applications are accessing the folder and retry.");
                                             this.WriteMessage(tracer, $"More details: {ioError}");
+                                            folderErrors.Add($"{folder}\0{ioError}");
                                         }
                                         else
                                         {
@@ -271,7 +276,7 @@ from a parent of the folders list.
                                     }
                                     else
                                     {
-                                        this.WriteMessage(tracer, $"Cannot dehydrate folder '{folder}': '{folder}' does not exist.");
+                                        this.WriteMessage(tracer, $"Cannot {this.ActionName} folder '{folder}': '{folder}' does not exist.");
 
                                         // Still add to foldersToDehydrate so that any placeholders or modified paths get cleaned up
                                         foldersToDehydrate.Add(folder);
@@ -285,12 +290,22 @@ from a parent of the folders list.
                 },
                 "Cleaning up folders"))
             {
-                this.ReportErrorAndExit(tracer, "Dehydrate for folders failed.");
+                this.ReportErrorAndExit(tracer, $"{this.ActionName} for folders failed.");
             }
 
             this.Mount(tracer);
 
-            this.SendDehydrateMessage(tracer, enlistment, foldersToDehydrate.ToArray());
+            this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate.ToArray());
+
+            if (folderErrors.Count > 0)
+            {
+                foreach (string folderError in folderErrors)
+                {
+                    this.ErrorOutput.WriteLine(folderError);
+                }
+
+                this.ReportErrorAndExit(tracer, ReturnCode.DehydrateFolderFailures, $"Failed to dehydrate {folderErrors.Count} folder(s).");
+            }
         }
 
         private bool IsFolderValid(string folderPath)
@@ -307,7 +322,7 @@ from a parent of the folders list.
             return true;
         }
 
-        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, string[] folders)
+        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, List<string> folderErrors, string[] folders)
         {
             NamedPipeMessages.DehydrateFolders.Response response = null;
 
@@ -334,12 +349,13 @@ from a parent of the folders list.
             {
                 foreach (string folder in response.SuccessfulFolders)
                 {
-                    this.WriteMessage(tracer, $"{folder} folder successfully dehydrated.");
+                    this.WriteMessage(tracer, $"{folder} folder {this.ActionName} successful.");
                 }
 
                 foreach (string folder in response.FailedFolders)
                 {
-                    this.WriteMessage(tracer, $"{folder} folder failed to dehydrate. You may need to reset the working directory by deleting {folder}, running `git reset --hard`, and retry the dehydrate.");
+                    this.WriteMessage(tracer, $"{folder} folder failed to {this.ActionName}. You may need to reset the working directory by deleting {folder}, running `git reset --hard`, and retry the {this.ActionName}.");
+                    folderErrors.Add(folder);
                 }
             }
         }
@@ -369,14 +385,32 @@ from a parent of the folders list.
             }
         }
 
+        private void Mount(ITracer tracer)
+        {
+            if (!this.ShowStatusWhileRunning(
+                () =>
+                {
+                    return this.ExecuteGVFSVerb<MountVerb>(
+                        tracer,
+                        verb =>
+                        {
+                            verb.SkipInstallHooks = true;
+                        }) == ReturnCode.Success;
+                },
+                "Mounting"))
+            {
+                this.ReportErrorAndExit(tracer, "Failed to mount.");
+            }
+        }
+
         private bool CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment, bool fullDehydrate)
         {
             if (!this.NoStatus)
             {
-                this.WriteMessage(tracer, "Running git status before dehydrating to make sure you don't have any pending changes.");
+                this.WriteMessage(tracer, $"Running git status before {this.ActionName} to make sure you don't have any pending changes.");
                 if (fullDehydrate)
                 {
-                    this.WriteMessage(tracer, "If this takes too long, you can abort and run dehydrate with --no-status to skip this safety check.");
+                    this.WriteMessage(tracer, $"If this takes too long, you can abort and run {this.RunningVerbName} with --no-status to skip this safety check.");
                 }
 
                 this.Output.WriteLine();
@@ -430,7 +464,7 @@ from a parent of the folders list.
                         this.WriteMessage(tracer, "git status reported that you have dirty files");
                         if (fullDehydrate)
                         {
-                            this.WriteMessage(tracer, "Either commit your changes or run dehydrate with --no-status");
+                            this.WriteMessage(tracer, $"Either commit your changes or run {this.RunningVerbName} with --no-status");
                         }
                         else
                         {
@@ -438,7 +472,7 @@ from a parent of the folders list.
                         }
                     }
 
-                    this.ReportErrorAndExit(tracer, "Dehydrate was aborted");
+                    this.ReportErrorAndExit(tracer, $"Aborted {this.ActionName}");
                     return false;
                 }
                 else
@@ -448,35 +482,6 @@ from a parent of the folders list.
             }
 
             return false;
-        }
-
-        private void Unmount(ITracer tracer)
-        {
-            if (!this.ShowStatusWhileRunning(
-                () =>
-                {
-                    return
-                        this.ExecuteGVFSVerb<StatusVerb>(tracer) != ReturnCode.Success ||
-                        this.ExecuteGVFSVerb<UnmountVerb>(tracer) == ReturnCode.Success;
-                },
-                "Unmounting",
-                suppressGvfsLogMessage: true))
-            {
-                this.ReportErrorAndExit(tracer, "Unable to unmount.");
-            }
-        }
-
-        private void Mount(ITracer tracer)
-        {
-            if (!this.ShowStatusWhileRunning(
-                () =>
-                {
-                    return this.ExecuteGVFSVerb<MountVerb>(tracer) == ReturnCode.Success;
-                },
-                "Mounting"))
-            {
-                this.ReportErrorAndExit(tracer, "Failed to mount after dehydrating.");
-            }
         }
 
         private void PrepareSrcFolder(ITracer tracer, GVFSEnlistment enlistment)
@@ -519,7 +524,7 @@ from a parent of the folders list.
                     }
 
                     // Move the current src folder to the backup location...
-                    if (!this.TryIO(tracer, () => Directory.Move(enlistment.WorkingDirectoryRoot, backupSrc), "Move the src folder", out ioError))
+                    if (!this.TryIO(tracer, () => Directory.Move(enlistment.WorkingDirectoryBackingRoot, backupSrc), "Move the src folder", out ioError))
                     {
                         errorMessage = "Failed to move the src folder: " + ioError + Environment.NewLine;
                         errorMessage += "Make sure you have no open handles or running processes in the src folder";
@@ -527,7 +532,7 @@ from a parent of the folders list.
                     }
 
                     // ... but move the .git folder back to the new src folder so we can preserve objects, refs, logs...
-                    if (!this.TryIO(tracer, () => Directory.CreateDirectory(enlistment.WorkingDirectoryRoot), "Create new src folder", out errorMessage) ||
+                    if (!this.TryIO(tracer, () => Directory.CreateDirectory(enlistment.WorkingDirectoryBackingRoot), "Create new src folder", out errorMessage) ||
                         !this.TryIO(tracer, () => Directory.Move(Path.Combine(backupSrc, ".git"), enlistment.DotGitRoot), "Keep existing .git folder", out errorMessage))
                     {
                         return false;
@@ -679,43 +684,6 @@ from a parent of the folders list.
                 {
                     { TracingConstants.MessageKey.InfoMessage, message }
                 });
-        }
-
-        private ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer)
-            where TVerb : GVFSVerb, new()
-        {
-            try
-            {
-                ReturnCode returnCode;
-                StringBuilder commandOutput = new StringBuilder();
-                using (StringWriter writer = new StringWriter(commandOutput))
-                {
-                    returnCode = this.Execute<TVerb>(this.EnlistmentRootPathParameter, verb => verb.Output = writer);
-                }
-
-                tracer.RelatedEvent(
-                    EventLevel.Informational,
-                    typeof(TVerb).Name,
-                    new EventMetadata
-                    {
-                        { "Output", commandOutput.ToString() },
-                        { "ReturnCode", returnCode }
-                    });
-
-                return returnCode;
-            }
-            catch (Exception e)
-            {
-                tracer.RelatedError(
-                    new EventMetadata
-                    {
-                        { "Verb", typeof(TVerb).Name },
-                        { "Exception", e.ToString() }
-                    },
-                    "ExecuteGVFSVerb: Caught exception");
-
-                return ReturnCode.GenericError;
-            }
         }
 
         private bool TryIO(ITracer tracer, Action action, string description, out string error)

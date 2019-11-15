@@ -16,69 +16,31 @@ namespace GVFS.Service.Handlers
             this.tracer = tracer;
         }
 
-        public void SendNotification(int sessionId, NamedPipeMessages.Notification.Request request)
+        public void SendNotification(NamedPipeMessages.Notification.Request request)
         {
-            NamedPipeClient client;
-            if (!this.TryOpenConnectionToUIProcess(out client))
+            using (NamedPipeClient client = new NamedPipeClient(GVFSConstants.Service.UIName))
             {
-                this.TerminateExistingProcess(GVFSConstants.Service.UIName);
-
-                CurrentUser currentUser = new CurrentUser(this.tracer, sessionId);
-                if (!currentUser.RunAs(
-                    Configuration.Instance.GVFSServiceUILocation,
-                    string.Empty))
+                if (client.Connect())
                 {
-                    this.tracer.RelatedError("Could not start " + GVFSConstants.Service.UIName);
-                    return;
+                    try
+                    {
+                        if (!client.TrySendRequest(request.ToMessage()))
+                        {
+                            this.tracer.RelatedInfo("Failed to send notification request to " + GVFSConstants.Service.UIName);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Exception", ex.ToString());
+                        metadata.Add("Identifier", request.Id);
+                        this.tracer.RelatedError(metadata, $"{nameof(this.SendNotification)}- Could not send notification request({request.Id}. {ex.ToString()}");
+                    }
                 }
-
-                this.TryOpenConnectionToUIProcess(out client);
-            }
-
-            if (client == null)
-            {
-                this.tracer.RelatedError("Failed to connect to " + GVFSConstants.Service.UIName);
-                return;
-            }
-
-            try
-            {
-                if (!client.TrySendRequest(request.ToMessage()))
+                else
                 {
-                    this.tracer.RelatedInfo("Failed to send notification request to " + GVFSConstants.Service.UIName);
+                    this.tracer.RelatedError($"{nameof(this.SendNotification)}- Could not connect with GVFS.Service.UI, failed to send notification request({request.Id}.");
                 }
-            }
-            finally
-            {
-                client.Dispose();
-            }
-        }
-
-        private bool TryOpenConnectionToUIProcess(out NamedPipeClient client)
-        {
-            client = new NamedPipeClient(GVFSConstants.Service.UIName);
-            if (client.Connect())
-            {
-                return true;
-            }
-
-            client.Dispose();
-            client = null;
-            return false;
-        }
-
-        private void TerminateExistingProcess(string processName)
-        {
-            try
-            {
-                foreach (Process process in Process.GetProcessesByName(processName))
-                {
-                    process.Kill();
-                }
-            }
-            catch (Exception ex)
-            {
-                this.tracer.RelatedError("Could not find and kill existing instances of {0}: {1}", processName, ex.Message);
             }
         }
     }

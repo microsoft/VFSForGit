@@ -80,7 +80,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.RestartService();
 
             bool timerScheduled = false;
-            for (int trialCount = 0; trialCount < 15; trialCount++)
+
+            // Service starts upgrade checks after 60 seconds.
+            Thread.Sleep(TimeSpan.FromSeconds(60));
+            for (int trialCount = 0; trialCount < 30; trialCount++)
             {
                 Thread.Sleep(TimeSpan.FromSeconds(1));
                 if (this.ServiceLogContainsUpgradeMessaging())

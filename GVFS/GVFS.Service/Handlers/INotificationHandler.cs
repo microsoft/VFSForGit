@@ -4,6 +4,6 @@ namespace GVFS.Service.Handlers
 {
     public interface INotificationHandler
     {
-        void SendNotification(int sessionId, NamedPipeMessages.Notification.Request request);
+        void SendNotification(NamedPipeMessages.Notification.Request request);
     }
 }

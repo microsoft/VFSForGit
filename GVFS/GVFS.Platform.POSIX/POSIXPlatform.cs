@@ -23,7 +23,8 @@ namespace GVFS.Platform.POSIX
             underConstruction: new UnderConstructionFlags(
                 supportsGVFSUpgrade: false,
                 supportsGVFSConfig: false,
-                supportsNuGetEncryption: false))
+                supportsNuGetEncryption: false,
+                supportsNuGetVerification: false))
         {
         }
 

@@ -52,8 +52,7 @@ namespace GVFS.Common.Maintenance
 
                 if (GitObjects.IsLooseObjectsDirectory(directoryName))
                 {
-                    string dirPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, directoryPath);
-                    List<DirectoryItemInfo> dirItems = this.Context.FileSystem.ItemsInDirectory(dirPath).ToList();
+                    List<DirectoryItemInfo> dirItems = this.Context.FileSystem.ItemsInDirectory(directoryPath).ToList();
                     count += dirItems.Count;
                     size += dirItems.Sum(item => item.Length);
                 }

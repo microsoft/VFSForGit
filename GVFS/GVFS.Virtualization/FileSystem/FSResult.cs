@@ -9,5 +9,6 @@
         FileOrPathNotFound,
         IoReparseTagNotHandled,
         VirtualizationInvalidOperation,
+        GenericProjFSError,
     }
 }

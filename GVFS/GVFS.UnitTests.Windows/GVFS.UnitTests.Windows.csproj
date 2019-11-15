@@ -115,6 +115,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Windows\Mock\WindowsFileSystemVirtualizerTester.cs" />
+    <Compile Include="Windows\ServiceUI\GVFSToastRequestHandlerTests.cs" />
     <Compile Include="Windows\Upgrader\WindowsNuGetUpgraderTests.cs" />
     <Compile Include="Windows\Mock\MockProcessLauncher.cs" />
     <Compile Include="Windows\Mock\MockVirtualizationInstance.cs" />
@@ -157,6 +158,10 @@
     <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj">
       <Project>{4ce404e7-d3fc-471c-993c-64615861ea63}</Project>
       <Name>GVFS.Platform.Windows</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GVFS.Service.UI\GVFS.Service.UI.csproj">
+      <Project>{93b403fd-dafb-46c5-9636-b122792a548a}</Project>
+      <Name>GVFS.Service.UI</Name>
     </ProjectReference>
     <ProjectReference Include="..\GVFS.Service\GVFS.Service.Mac.csproj">
       <Project>{03769a07-f216-456b-886b-e07caf6c5e81}</Project>

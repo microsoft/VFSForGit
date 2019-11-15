@@ -416,6 +416,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFileFromOutsideRepoToInsideRepoAndAdd()
         {
             string testFileContents = "0123456789";
@@ -449,6 +450,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFolderFromOutsideRepoToInsideRepoAndAdd()
         {
             string testFileContents = "0123456789";
@@ -486,6 +488,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFileFromInsideRepoToOutsideRepoAndCommit()
         {
             string newBranchName = "tests/functional/MoveFileFromInsideRepoToOutsideRepoAndCommit";
@@ -559,9 +562,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: this.MoveFolder);
         }
 
-        // MacOnly because Windows does not support file mode
+        // Mac and Linux only because Windows does not support file mode
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.POSIXOnly)]
         public void UpdateFileModeOnly()
         {
             const string TestFileName = "test-file-mode";
@@ -1014,6 +1017,27 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             // Confirm that the entry was added to the modified paths database
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.FileSystem, relativeGitPath);
+        }
+
+        [TestCase]
+        public void ChangeTimestampAndDiff()
+        {
+            // User scenario -
+            // 1. Enlistment's "diff.autoRefreshIndex" config is set to false
+            // 2. A checked out file got into a state where it differs from the git copy
+            // only in its LastWriteTime metadata (no change in file contents.)
+            // Repro steps - This happens when user edits a file, saves it and later decides
+            // to undo the edit and save the file again.
+            // Once in this state, the unchanged file (only its timestamp has changed) shows
+            // up in `git difftool` creating noise. It also shows up in `git diff --raw` command,
+            // (but not in `git status` or `git diff`.)
+
+            // Change the timestamp - The lastwrite time can be close to the time this test method gets
+            // run. Changing (Subtracting) it to the past so there will always be a difference.
+            this.AdjustLastWriteTime(GitCommandsTests.EditFilePath, TimeSpan.FromDays(-10));
+            this.ValidateGitCommand("diff --raw");
+            this.ValidateGitCommand($"checkout {GitCommandsTests.EditFilePath}");
+            this.ValidateGitCommand("status");
         }
 
         [TestCase]

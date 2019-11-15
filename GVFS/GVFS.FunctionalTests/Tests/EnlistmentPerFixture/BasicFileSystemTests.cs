@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
@@ -447,9 +448,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             fileSystem.DeleteFile(filePath);
         }
 
-        // WindowsOnly due to differences between POSIX and Windows delete
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.CanDeleteFilesWhileTheyAreOpenRunners))]
-        [Category(Categories.WindowsOnly)]
         public void CanDeleteFilesWhileTheyAreOpen(FileSystemRunner fileSystem, string parentFolder)
         {
             string filename = Path.Combine(parentFolder, "CanDeleteFilesWhileTheyAreOpen");
@@ -470,7 +469,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
                     readBuffer.ShouldMatchInOrder(buffer);
 
                     fileSystem.DeleteFile(filePath);
-                    filePath.ShouldBeAFile(fileSystem);
+                    this.VerifyExistenceAfterDeleteWhileOpen(filePath, fileSystem);
 
                     deletableWriteStream.Write(buffer, 0, buffer.Length);
                     deletableWriteStream.Flush();
@@ -480,9 +479,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             filePath.ShouldNotExistOnDisk(fileSystem);
         }
 
-        // WindowsOnly due to differences between POSIX and Windows delete
         [TestCase]
-        [Category(Categories.WindowsOnly)]
         public void CanDeleteHydratedFilesWhileTheyAreOpenForWrite()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -499,16 +496,13 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
                 line.Length.ShouldNotEqual(0);
 
                 File.Delete(virtualPath);
-
-                // Open deleted files should still exist
-                virtualPath.ShouldBeAFile(fileSystem);
+                this.VerifyExistenceAfterDeleteWhileOpen(virtualPath, fileSystem);
 
                 using (StreamWriter writer = new StreamWriter(stream))
                 {
                     writer.WriteLine("newline!");
                     writer.Flush();
-
-                    virtualPath.ShouldBeAFile(fileSystem);
+                    this.VerifyExistenceAfterDeleteWhileOpen(virtualPath, fileSystem);
                 }
             }
 
@@ -825,7 +819,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         // separately from the DeleteIndexFileFails() test case
         // This test is failing on Windows because the CmdRunner succeeds in moving the index file
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.POSIXOnly)]
         public void MoveIndexFileFails(FileSystemRunner fileSystem)
         {
             string indexFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index"));
@@ -920,7 +914,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.POSIXOnly)]
         public void RunPythonExecutable()
         {
             GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout FunctionalTests/PythonExecutable");
@@ -941,7 +935,38 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             result.Output.ShouldContain("3.14");
 
             GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
-       }
+        }
+
+        private void VerifyExistenceAfterDeleteWhileOpen(string filePath, FileSystemRunner fileSystem)
+        {
+            if (this.SupportsPosixDelete())
+            {
+                filePath.ShouldNotExistOnDisk(fileSystem);
+            }
+            else
+            {
+                filePath.ShouldBeAFile(fileSystem);
+            }
+        }
+
+        private bool SupportsPosixDelete()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                // https://msdn.microsoft.com/en-us/library/windows/desktop/ms724429(v=vs.85).aspx
+                FileVersionInfo kernel32Info = FileVersionInfo.GetVersionInfo(Path.Combine(Environment.SystemDirectory, "kernel32.dll"));
+
+                // 18362 is first build with posix delete as the default in windows
+                if (kernel32Info.FileBuildPart >= 18362)
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
+            return true;
+        }
 
         private class FileRunnersAndFolders
         {

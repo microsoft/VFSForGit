@@ -4,6 +4,7 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -44,7 +45,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             "foo.cpp", // Changes to a folder in one test
             "FilenameEncoding",
             "GitCommandsTests",
-            "GVFLT_MultiThreadTest",
+            "GVFLT_MultiThreadTest", // Required by DeleteFolderAndChangeBranchToFolderWithDifferentCase test in sparse mode
             "GVFlt_BugRegressionTest",
             "GVFlt_DeleteFileTest",
             "GVFlt_DeleteFolderTest",
@@ -347,6 +348,15 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             File.SetAttributes(virtualFile, File.GetAttributes(virtualFile) | FileAttributes.ReadOnly);
             File.SetAttributes(virtualFile, File.GetAttributes(controlFile) | FileAttributes.ReadOnly);
+        }
+
+        protected void AdjustLastWriteTime(string filePath, TimeSpan timestamp)
+        {
+            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
+            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
+
+            File.SetLastWriteTime(virtualFile, File.GetLastWriteTime(virtualFile).Add(timestamp));
+            File.SetLastWriteTime(controlFile, File.GetLastWriteTime(controlFile).Add(timestamp));
         }
 
         protected void MoveFile(string pathFrom, string pathTo)

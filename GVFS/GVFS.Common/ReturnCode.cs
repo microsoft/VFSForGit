@@ -8,6 +8,7 @@
         GenericError = 3,
         FilterError = 4,
         NullRequestData = 5,
-        UnableToRegisterForOfflineIO = 6
+        UnableToRegisterForOfflineIO = 6,
+        DehydrateFolderFailures = 7,
     }
 }

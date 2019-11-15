@@ -396,6 +396,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(18)]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void HardlinkFromOutsideRepoToInside()
         {
             string fileName = "OutsideRepoToInside_FileForHardlink.txt";
@@ -415,6 +416,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(19)]
+        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void HardlinkFromInsideRepoToOutside()
         {
             string fileName = "Readme.md";

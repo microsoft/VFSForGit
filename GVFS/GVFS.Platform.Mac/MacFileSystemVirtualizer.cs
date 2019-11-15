@@ -242,7 +242,7 @@ namespace GVFS.Platform.Mac
             return result;
         }
 
-        protected override bool TryStart(out string error)
+        public override bool TryStart(out string error)
         {
             error = string.Empty;
 

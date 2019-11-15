@@ -156,6 +156,7 @@ namespace GVFS.Virtualization
 
         public bool TryStart(out string error)
         {
+            this.fileSystemVirtualizer.Initialize(this);
             this.modifiedPaths.RemoveEntriesWithParentFolderEntry(this.context.Tracer);
             this.modifiedPaths.WriteAllEntriesAndFlush();
 
@@ -168,7 +169,7 @@ namespace GVFS.Virtualization
 
             this.backgroundFileSystemTaskRunner.Start();
 
-            if (!this.fileSystemVirtualizer.TryStart(this, out error))
+            if (!this.fileSystemVirtualizer.TryStart(out error))
             {
                 return false;
             }
@@ -296,11 +297,11 @@ namespace GVFS.Virtualization
             return metadata;
         }
 
-        public bool TryDehydrateFolder(string relativePath)
+        public bool TryDehydrateFolder(string relativePath, out string errorMessage)
         {
             List<IPlaceholderData> removedPlaceholders = null;
             List<string> removedModifiedPaths = null;
-            bool successful = false;
+            errorMessage = string.Empty;
 
             try
             {
@@ -308,21 +309,20 @@ namespace GVFS.Virtualization
                 removedPlaceholders = this.placeholderDatabase.RemoveAllEntriesForFolder(relativePath);
                 removedModifiedPaths = this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
                 FileSystemResult result = this.fileSystemVirtualizer.DehydrateFolder(relativePath);
-                successful = result.Result == FSResult.Ok;
-
-                if (!successful)
+                if (result.Result != FSResult.Ok)
                 {
-                    this.context.Tracer.RelatedError($"{nameof(this.TryDehydrateFolder)} failed with {result.Result}");
+                    errorMessage = $"{nameof(this.TryDehydrateFolder)} failed with {result.Result}";
+                    this.context.Tracer.RelatedError(errorMessage);
                 }
             }
             catch (Exception ex)
             {
+                errorMessage = $"{nameof(this.TryDehydrateFolder)} threw an exception - {ex.Message}";
                 EventMetadata metadata = this.CreateEventMetadata(relativePath, ex);
-                this.context.Tracer.RelatedError(metadata, $"{nameof(this.TryDehydrateFolder)} threw an exception");
-                successful = false;
+                this.context.Tracer.RelatedError(metadata, errorMessage);
             }
 
-            if (!successful)
+            if (!string.IsNullOrEmpty(errorMessage))
             {
                 if (removedPlaceholders != null)
                 {
@@ -352,7 +352,7 @@ namespace GVFS.Virtualization
                 }
             }
 
-            return successful;
+            return string.IsNullOrEmpty(errorMessage);
         }
 
         public void ForceIndexProjectionUpdate(bool invalidateProjection, bool invalidateModifiedPaths)

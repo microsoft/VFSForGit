@@ -104,6 +104,9 @@ namespace GVFS.Platform.Windows
                 case HResult.VirtualizationInvalidOp:
                     return FSResult.VirtualizationInvalidOperation;
 
+                case (HResult)HResultExtensions.GenericProjFSError:
+                    return FSResult.GenericProjFSError;
+
                 default:
                     return FSResult.IOError;
             }
@@ -551,7 +554,7 @@ namespace GVFS.Platform.Windows
             return HResult.Pending;
         }
 
-        protected override bool TryStart(out string error)
+        public override bool TryStart(out string error)
         {
             error = string.Empty;
 

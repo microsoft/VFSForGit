@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security;
+using System.Text;
 
 namespace GVFS.CommandLine
 {
@@ -23,6 +24,9 @@ namespace GVFS.CommandLine
         public GVFSVerb(bool validateOrigin = true)
         {
             this.Output = Console.Out;
+
+            // Currently stderr is only being used for machine readable output for failures in sparse --prune
+            this.ErrorOutput = Console.Error;
             this.ReturnCode = ReturnCode.Success;
             this.validateOriginURL = validateOrigin;
             this.ServiceName = GVFSConstants.Service.ServiceName;
@@ -91,6 +95,7 @@ namespace GVFS.CommandLine
         }
 
         public TextWriter Output { get; set; }
+        public TextWriter ErrorOutput { get; set; }
 
         public ReturnCode ReturnCode { get; private set; }
 
@@ -138,7 +143,7 @@ namespace GVFS.CommandLine
                 { "core.hookspath", expectedHooksPath },
                 { GitConfigSetting.CredentialUseHttpPath, "true" },
                 { "credential.validate", "false" },
-                { "diff.autoRefreshIndex", "false" },
+                { "diff.autoRefreshIndex", "true" },
                 { "gc.auto", "0" },
                 { "gui.gcwarning", "false" },
                 { "index.threads", "true" },
@@ -871,6 +876,71 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }
 
                 RepoMetadata.Shutdown();
+            }
+
+            protected ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer, Action<TVerb> configureVerb = null, TextWriter outputWriter = null)
+                where TVerb : GVFSVerb, new()
+            {
+                try
+                {
+                    ReturnCode returnCode;
+                    StringBuilder commandOutput = new StringBuilder();
+                    using (StringWriter writer = new StringWriter(commandOutput))
+                    {
+                        returnCode = this.Execute<TVerb>(
+                            this.EnlistmentRootPathParameter,
+                            verb =>
+                            {
+                                verb.Output = outputWriter ?? writer;
+                                configureVerb?.Invoke(verb);
+                            });
+                    }
+
+                    EventMetadata metadata = new EventMetadata();
+                    if (outputWriter == null)
+                    {
+                        metadata.Add("Output", commandOutput.ToString());
+                    }
+                    else
+                    {
+                        // If a parent verb is redirecting the output of its child, include a reminder
+                        // that the child verb's activity was recorded in its own log file
+                        metadata.Add("Output", $"Check {new TVerb().VerbName} logs for output");
+                    }
+
+                    metadata.Add("ReturnCode", returnCode);
+                    tracer.RelatedEvent(EventLevel.Informational, typeof(TVerb).Name, metadata);
+
+                    return returnCode;
+                }
+                catch (Exception e)
+                {
+                    tracer.RelatedError(
+                        new EventMetadata
+                        {
+                            { "Verb", typeof(TVerb).Name },
+                            { "Exception", e.ToString() }
+                        },
+                        "ExecuteGVFSVerb: Caught exception");
+
+                    return ReturnCode.GenericError;
+                }
+            }
+
+            protected void Unmount(ITracer tracer)
+            {
+                if (!this.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        return
+                            this.ExecuteGVFSVerb<StatusVerb>(tracer) != ReturnCode.Success ||
+                            this.ExecuteGVFSVerb<UnmountVerb>(tracer) == ReturnCode.Success;
+                    },
+                    "Unmounting",
+                    suppressGvfsLogMessage: true))
+                {
+                    this.ReportErrorAndExit(tracer, "Unable to unmount.");
+                }
             }
 
             private void InitializeCachePathsFromRepoMetadata(

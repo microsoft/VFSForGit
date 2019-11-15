@@ -47,7 +47,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.POSIXOnly)]
         public void CloneWithDefaultLocalCacheLocation()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -83,6 +83,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             GVFSFunctionalTestEnlistment enlistment = GVFSFunctionalTestEnlistment.CloneAndMountEnlistmentWithSpacesInPath(GVFSTestConfig.PathToGVFS);
             enlistment.UnmountAndDeleteAll();
+        }
+
+        [TestCase]
+        public void CloneCreatesCorrectFilesInRoot()
+        {
+            GVFSFunctionalTestEnlistment enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS);
+            try
+            {
+                string[] files = Directory.GetFiles(enlistment.EnlistmentRoot);
+                files.Length.ShouldEqual(1);
+                files.ShouldContain(x => Path.GetFileName(x).Equals("git.cmd", StringComparison.Ordinal));
+                string[] directories = Directory.GetDirectories(enlistment.EnlistmentRoot);
+                directories.Length.ShouldEqual(2);
+                directories.ShouldContain(x => Path.GetFileName(x).Equals(".gvfs", StringComparison.Ordinal));
+                directories.ShouldContain(x => Path.GetFileName(x).Equals("src", StringComparison.Ordinal));
+            }
+            finally
+            {
+                enlistment.UnmountAndDeleteAll();
+            }
         }
 
         private void SubfolderCloneShouldFail()

@@ -13,6 +13,7 @@ namespace MirrorProvider.Windows
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations = new ConcurrentDictionary<Guid, ActiveEnumeration>();
 
         protected override StringComparison PathComparison => StringComparison.OrdinalIgnoreCase;
+        protected override StringComparer PathComparer => StringComparer.OrdinalIgnoreCase;
 
         public override bool TryConvertVirtualizationRoot(string directory, out string error)
         {
@@ -76,7 +77,7 @@ namespace MirrorProvider.Windows
             // what is on disk, and it assumes that both lists are already sorted.
             ActiveEnumeration activeEnumeration = new ActiveEnumeration(
                 this.GetChildItems(relativePath)
-                .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(file => file.Name, PathComparer)
                 .ToList());
 
             if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
@@ -272,7 +273,7 @@ namespace MirrorProvider.Windows
 
             string parentDirectory = Path.GetDirectoryName(relativePath);
             string childName = Path.GetFileName(relativePath);
-            if (this.GetChildItems(parentDirectory).Any(child => child.Name.Equals(childName, StringComparison.OrdinalIgnoreCase)))
+            if (this.GetChildItems(parentDirectory).Any(child => child.Name.Equals(childName, PathComparison)))
             {
                 return HResult.Ok;
             }

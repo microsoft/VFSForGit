@@ -6,8 +6,15 @@
         public const string FastFetch = "FastFetch";
         public const string GitCommands = "GitCommands";
 
+        // Linux uses a separate device mount for its repository, and so is unable to rename(2) inodes
+        // in or out of the repository filesystem; attempts to do so fail with errno set to EXDEV.
+        // Therefore, tests which move files or directories across the repository boundary should
+        // be flagged with this category so they will be excluded on Linux.
+        public const string RepositoryMountsSameFileSystem = "RepositoryMountsSameFileSystem";
+
         public const string WindowsOnly = "WindowsOnly";
         public const string MacOnly = "MacOnly";
+        public const string POSIXOnly = "POSIXOnly";
 
         public static class MacTODO
         {

@@ -158,9 +158,25 @@ namespace GVFS.Common.NamedPipes
                     this.UpdatedSkipWorktreeBits = message.Body[1] == '1';
                 }
 
+                public Request(bool updatedWorkingDirectory, bool updatedSkipWorktreeBits)
+                {
+                    this.UpdatedWorkingDirectory = updatedWorkingDirectory;
+                    this.UpdatedSkipWorktreeBits = updatedSkipWorktreeBits;
+                }
+
                 public bool UpdatedWorkingDirectory { get; }
 
                 public bool UpdatedSkipWorktreeBits { get; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(NotificationRequest, $"{this.BoolToString(this.UpdatedWorkingDirectory)}{this.BoolToString(this.UpdatedSkipWorktreeBits)}");
+                }
+
+                private string BoolToString(bool value)
+                {
+                    return value ? "1" : "0";
+                }
             }
 
             public class Response

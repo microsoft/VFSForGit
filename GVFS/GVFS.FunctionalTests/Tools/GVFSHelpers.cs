@@ -28,10 +28,16 @@ namespace GVFS.FunctionalTests.Tools
         private const string DiskLayoutMinorVersionKey = "DiskLayoutMinorVersion";
         private const string LocalCacheRootKey = "LocalCacheRoot";
         private const string GitObjectsRootKey = "GitObjectsRoot";
+        private const string PlaceholdersNeedUpdate = "PlaceholdersNeedUpdate";
         private const string BlobSizesRootKey = "BlobSizesRoot";
 
         private const string PrjFSLibPath = "libPrjFSLib.dylib";
         private const int PrjFSResultSuccess = 1;
+
+        private const int WindowsCurrentDiskLayoutMajorVersion = 19;
+        private const int MacCurrentDiskLayoutMajorVersion = 19;
+        private const int WindowsCurrentDiskLayoutMinimumMajorVersion = 7;
+        private const int MacCurrentDiskLayoutMinimumMajorVersion = 18;
 
         public static string ConvertPathToGitFormat(string path)
         {
@@ -63,6 +69,11 @@ namespace GVFS.FunctionalTests.Tools
         public static void SaveGitObjectsRoot(string dotGVFSRoot, string value)
         {
             SavePersistedValue(dotGVFSRoot, GitObjectsRootKey, value);
+        }
+
+        public static void SetPlaceholderUpdatesRequired(string dotGVFSRoot, bool isUpdateRequired)
+        {
+            SavePersistedValue(dotGVFSRoot, PlaceholdersNeedUpdate, isUpdateRequired.ToString());
         }
 
         public static string GetPersistedGitObjectsRoot(string dotGVFSRoot)
@@ -134,6 +145,16 @@ namespace GVFS.FunctionalTests.Tools
             });
         }
 
+        public static void DeletePlaceholder(string placeholdersDbPath, string path)
+        {
+            RunSqliteCommand(placeholdersDbPath, command =>
+            {
+                command.CommandText = "DELETE FROM Placeholder WHERE path = @path";
+                command.Parameters.AddWithValue("@path", path);
+                return command.ExecuteNonQuery();
+            });
+        }
+
         public static string ReadAllTextFromWriteLockedFile(string filename)
         {
             // File.ReadAllText and others attempt to open for read and FileShare.None, which always fail on
@@ -198,6 +219,30 @@ namespace GVFS.FunctionalTests.Tools
             {
                 uint result = PrjFSUnregisterForOfflineIO();
                 result.ShouldEqual<uint>(PrjFSResultSuccess, $"{nameof(RegisterForOfflineIO)} failed (result = {result})");
+            }
+        }
+
+        public static int GetCurrentDiskLayoutMajorVersion()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return MacCurrentDiskLayoutMajorVersion;
+            }
+            else
+            {
+                return WindowsCurrentDiskLayoutMajorVersion;
+            }
+        }
+
+        public static int GetCurrentDiskLayoutMinimumMajorVersion()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return MacCurrentDiskLayoutMinimumMajorVersion;
+            }
+            else
+            {
+                return WindowsCurrentDiskLayoutMinimumMajorVersion;
             }
         }
 

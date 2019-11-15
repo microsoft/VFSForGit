@@ -328,7 +328,7 @@ namespace GVFS.Service
             request.Enlistment = enlistment;
             request.EnlistmentCount = enlistmentCount;
 
-            this.notificationHandler.SendNotification(sessionId, request);
+            this.notificationHandler.SendNotification(request);
         }
 
         private void WriteRegistry(Dictionary<string, RepoRegistration> registry)

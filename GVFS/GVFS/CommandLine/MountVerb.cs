@@ -36,6 +36,7 @@ namespace GVFS.CommandLine
 
         public bool SkipMountedCheck { get; set; }
         public bool SkipVersionCheck { get; set; }
+        public bool SkipInstallHooks { get; set; }
         public CacheServerInfo ResolvedCacheServer { get; set; }
         public ServerGVFSConfig DownloadedGVFSConfig { get; set; }
 
@@ -89,7 +90,7 @@ namespace GVFS.CommandLine
                 GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
                 GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
 
-                if (!HooksInstaller.InstallHooks(context, out errorMessage))
+                if (!this.SkipInstallHooks && !HooksInstaller.InstallHooks(context, out errorMessage))
                 {
                     this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
                 }

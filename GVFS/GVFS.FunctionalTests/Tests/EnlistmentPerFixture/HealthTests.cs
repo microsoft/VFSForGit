@@ -188,7 +188,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             // Regex to extract the total number of files and percentage they represent (should always be 100)
             // "Total files in HEAD commit:           <count> | <percentage>%"
-            Match lineMatch = Regex.Match(outputLine, @"^Total files in HEAD commit:\s*([\d,]+)\s*\|\s*(\d+)%$");
+            Match lineMatch = Regex.Match(outputLine, @"^Total files in HEAD commit:\s*([\d,]+)\s*\|\s*(\d+)\s*%$");
 
             int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedTotalFiles).ShouldBeTrue();
             int.TryParse(lineMatch.Groups[2].Value, out int outputtedTotalFilePercent).ShouldBeTrue();
@@ -201,7 +201,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             // Regex to extract the total number of fast files and percentage they represent
             // "Files managed by VFS for Git (fast):    <count> | <percentage>%"
-            Match lineMatch = Regex.Match(outputLine, @"^Files managed by VFS for Git \(fast\):\s*([\d,]+)\s*\|\s*(\d+)%$");
+            Match lineMatch = Regex.Match(outputLine, @"^Files managed by VFS for Git \(fast\):\s*([\d,]+)\s*\|\s*(\d+)\s*%$");
 
             int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedFastFiles).ShouldBeTrue();
             int.TryParse(lineMatch.Groups[2].Value, out int outputtedFastFilesPercent).ShouldBeTrue();
@@ -214,7 +214,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             // Regex to extract the total number of slow files and percentage they represent
             // "Files managed by git (slow):                <count> | <percentage>%"
-            Match lineMatch = Regex.Match(outputLine, @"^Files managed by Git:\s*([\d,]+)\s*\|\s*(\d+)%$");
+            Match lineMatch = Regex.Match(outputLine, @"^Files managed by Git:\s*([\d,]+)\s*\|\s*(\d+)\s*%$");
 
             int.TryParse(lineMatch.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.CurrentCulture.NumberFormat, out int outputtedSlowFiles).ShouldBeTrue();
             int.TryParse(lineMatch.Groups[2].Value, out int outputtedSlowFilesPercent).ShouldBeTrue();
@@ -227,7 +227,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             // Regex to extract the total hydration percentage of the enlistment
             // "Total hydration percentage:            <percentage>%
-            Match lineMatch = Regex.Match(outputLine, @"^Total hydration percentage:\s*(\d+)%$");
+            Match lineMatch = Regex.Match(outputLine, @"^Total hydration percentage:\s*(\d+)\s*%$");
 
             int.TryParse(lineMatch.Groups[1].Value, out int outputtedTotalHydration).ShouldBeTrue();
 

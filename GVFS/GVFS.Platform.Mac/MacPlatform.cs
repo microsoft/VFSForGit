@@ -23,7 +23,8 @@ namespace GVFS.Platform.Mac
              underConstruction: new UnderConstructionFlags(
                 supportsGVFSUpgrade: true,
                 supportsGVFSConfig: true,
-                supportsNuGetEncryption: false))
+                supportsNuGetEncryption: false,
+                supportsNuGetVerification: false))
         {
         }
 

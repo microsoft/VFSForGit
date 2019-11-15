@@ -126,7 +126,7 @@ namespace GVFS.Common
             string entry = this.NormalizeEntryString(path, isFolder: true);
             foreach (string modifiedPath in this.modifiedPaths)
             {
-                if (modifiedPath.StartsWith(entry, StringComparison.OrdinalIgnoreCase))
+                if (modifiedPath.StartsWith(entry, GVFSPlatform.Instance.Constants.PathComparison))
                 {
                     if (this.modifiedPaths.TryRemove(modifiedPath))
                     {
