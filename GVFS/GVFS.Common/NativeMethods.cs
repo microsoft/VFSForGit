@@ -102,7 +102,7 @@ namespace GVFS.Common
             }
         }
 
-        public static bool SetDirectoryLastWriteTimeIfOnDisk(string path, DateTime lastWriteTime)
+        public static void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime, out bool directoryExists)
         {
             // We can't use Directory.SetLastWriteTime as it requests GENERIC_WRITE access
             // which will fail for directory placeholders.  The only access requried by SetFileTime
@@ -123,10 +123,11 @@ namespace GVFS.Common
                     int error = Marshal.GetLastWin32Error();
                     if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND)
                     {
-                        return false;
+                        directoryExists = false;
+                        return;
                     }
 
-                    throw new Win32Exception(error, $"{nameof(SetDirectoryLastWriteTimeIfOnDisk)}: Failed to open handle for '{path}'");
+                    throw new Win32Exception(error, $"{nameof(SetDirectoryLastWriteTime)}: Failed to open handle for '{path}'");
                 }
 
                 // SetFileTime will not update times with value 0
@@ -135,11 +136,12 @@ namespace GVFS.Common
                 long lastWriteFileTime = lastWriteTime.ToFileTime();
                 if (!SetFileTime(handle, ref creationFileTime, ref lastAccessFileTime, ref lastWriteFileTime))
                 {
-                    ThrowLastWin32Exception($"{nameof(SetDirectoryLastWriteTimeIfOnDisk)}: Failed to update last write time for '{path}'");
+                    ThrowLastWin32Exception($"{nameof(SetDirectoryLastWriteTime)}: Failed to update last write time for '{path}'");
                 }
             }
 
-            return true;
+            directoryExists = true;
+            return;
         }
 
         /// <summary>

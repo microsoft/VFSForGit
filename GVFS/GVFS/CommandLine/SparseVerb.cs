@@ -28,6 +28,13 @@ Folders need to be relative to the repos root directory.")
         private const char StatusRenameToken = 'R';
         private const string PruneOptionName = "prune";
 
+        private enum SetDirectoryTimeResult
+        {
+            Success,
+            Failure,
+            DirectoryDoesNotExist
+        }
+
         [Option(
             's',
             "set",
@@ -233,110 +240,141 @@ Folders need to be relative to the repos root directory.")
                         this.WriteMessage(tracer, "No folders to update in sparse set.");
                     }
 
+                    string[] foldersPruned;
                     if (this.Prune && directories.Count > 0)
                     {
-                        this.PruneFoldersOutsideSparse(tracer, enlistment, sparseTable);
+                        foldersPruned = this.PruneFoldersOutsideSparse(tracer, enlistment, sparseTable);
+                    }
+                    else
+                    {
+                        foldersPruned = Array.Empty<string>();
                     }
 
                     if (needToChangeProjection || this.Prune)
                     {
                         // Update the last write times of the parents of folders being added/removed
                         // so that File Explorer will refresh them
-                        UpdateParentFolderLastWriteTimes(tracer, enlistment.WorkingDirectoryBackingRoot, foldersToRemove, foldersToAdd);
+                        UpdateParentFolderLastWriteTimes(tracer, enlistment.WorkingDirectoryBackingRoot, foldersToRemove, foldersToAdd, foldersPruned);
                     }
                 }
             }
         }
 
-        private static void UpdateParentFolderLastWriteTimes(ITracer tracer, string rootPath, List<string> foldersToRemove, List<string> foldersToAdd)
+        private static void UpdateParentFolderLastWriteTimes(
+            ITracer tracer,
+            string rootPath,
+            IEnumerable<string> foldersRemoved,
+            IEnumerable<string> foldersAdded,
+            IEnumerable<string> foldersPruned)
         {
             Stopwatch updateTime = Stopwatch.StartNew();
 
-            HashSet<string> foldersToRefresh = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
-            foreach (string path in foldersToRemove)
-            {
-                AddNonRootParentPathsToSet(foldersToRefresh, path);
-            }
-
-            foreach (string path in foldersToAdd)
-            {
-                AddNonRootParentPathsToSet(foldersToRefresh, path);
-            }
+            HashSet<string> foldersToUpdate = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
+            AddNonRootParentPathsToSet(foldersToUpdate, foldersRemoved);
+            AddNonRootParentPathsToSet(foldersToUpdate, foldersAdded);
+            AddNonRootParentPathsToSet(foldersToUpdate, foldersPruned);
 
             DateTime refreshTime = DateTime.Now;
-            int foldersRefreshed = 0;
-            int refreshErrors = 0;
-            bool refreshFailed;
+            int foldersUpdated = 0;
+            int foldersNotFound = 0;
+            int folderErrors = 0;
 
             // Always refresh the root
-            if (SetFolderLastWriteTimeIfOnDisk(tracer, rootPath, refreshTime, out refreshFailed))
-            {
-                ++foldersRefreshed;
-            }
-            else if (refreshFailed)
-            {
-                ++refreshErrors;
-            }
+            SetFolderLastWriteTime(
+                tracer,
+                rootPath,
+                refreshTime,
+                ref foldersUpdated,
+                ref folderErrors,
+                ref foldersNotFound);
 
             string folderPathPrefix = $"{rootPath}{Path.DirectorySeparatorChar}";
-            foreach (string path in foldersToRefresh)
+            foreach (string path in foldersToUpdate)
             {
-                if (SetFolderLastWriteTimeIfOnDisk(tracer, folderPathPrefix + path, refreshTime, out refreshFailed))
-                {
-                    ++foldersRefreshed;
-                }
-                else if (refreshFailed)
-                {
-                    ++refreshErrors;
-                }
+                SetFolderLastWriteTime(
+                    tracer,
+                    folderPathPrefix + path,
+                    refreshTime,
+                    ref foldersUpdated,
+                    ref folderErrors,
+                    ref foldersNotFound);
             }
 
             updateTime.Stop();
 
-            // Note foldersToRefresh might be larger than foldersRefreshed + refreshErrors as
-            // it could include folders that are not on disk
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("foldersToRefresh", foldersToRefresh.Count + 1); // +1 for the root
-            metadata.Add(nameof(foldersRefreshed), foldersRefreshed);
-            metadata.Add(nameof(refreshErrors), refreshErrors);
+            metadata.Add("foldersToRefresh", foldersToUpdate.Count + 1); // +1 for the root
+            metadata.Add(nameof(foldersUpdated), foldersUpdated);
+            metadata.Add(nameof(folderErrors), folderErrors);
+            metadata.Add(nameof(foldersNotFound), foldersNotFound);
             metadata.Add(nameof(updateTime.ElapsedMilliseconds), updateTime.ElapsedMilliseconds);
             metadata.Add(TracingConstants.MessageKey.InfoMessage, "Updated folder last write times");
             tracer.RelatedEvent(EventLevel.Informational, $"{nameof(UpdateParentFolderLastWriteTimes)}_Summary", metadata);
         }
 
-        private static void AddNonRootParentPathsToSet(HashSet<string> set, string path)
+        private static void AddNonRootParentPathsToSet(HashSet<string> set, IEnumerable<string> folderPaths)
         {
-            int lastSeparatorIndex = path.LastIndexOf(Path.DirectorySeparatorChar);
-            string parentPath = path;
-            while (lastSeparatorIndex > 0)
+            foreach (string folderPath in folderPaths)
             {
-                parentPath = parentPath.Substring(0, lastSeparatorIndex);
-                set.Add(parentPath);
-                lastSeparatorIndex = parentPath.LastIndexOf(Path.DirectorySeparatorChar);
+                int lastSeparatorIndex = folderPath.LastIndexOf(Path.DirectorySeparatorChar);
+                string parentPath = folderPath;
+                while (lastSeparatorIndex > 0)
+                {
+                    parentPath = parentPath.Substring(0, lastSeparatorIndex);
+                    set.Add(parentPath);
+                    lastSeparatorIndex = parentPath.LastIndexOf(Path.DirectorySeparatorChar);
+                }
             }
         }
 
-        private static bool SetFolderLastWriteTimeIfOnDisk(ITracer tracer, string folderPath, DateTime time, out bool failed)
+        private static void SetFolderLastWriteTime(
+            ITracer tracer,
+            string path,
+            DateTime time,
+            ref int successCount,
+            ref int failureCount,
+            ref int directoryNotFoundCount)
+        {
+            SetDirectoryTimeResult result = SetFolderLastWriteTime(tracer, path, time);
+            switch (result)
+            {
+                case SetDirectoryTimeResult.Success:
+                    ++successCount;
+                    break;
+                case SetDirectoryTimeResult.Failure:
+                    ++failureCount;
+                    break;
+                case SetDirectoryTimeResult.DirectoryDoesNotExist:
+                    ++directoryNotFoundCount;
+                    break;
+            }
+        }
+
+        private static SetDirectoryTimeResult SetFolderLastWriteTime(ITracer tracer, string folderPath, DateTime time)
         {
             try
             {
-                failed = false;
-                return GVFSPlatform.Instance.FileSystem.SetDirectoryLastWriteTimeIfOnDisk(folderPath, time);
+                GVFSPlatform.Instance.FileSystem.SetDirectoryLastWriteTime(folderPath, time, out bool directoryExists);
+                if (directoryExists)
+                {
+                    return SetDirectoryTimeResult.Success;
+                }
+
+                return SetDirectoryTimeResult.DirectoryDoesNotExist;
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is Win32Exception)
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Exception", e.ToString());
                 metadata.Add(nameof(folderPath), folderPath);
-                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(SetFolderLastWriteTimeIfOnDisk)}: Failed to update folder write time");
-                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(SetFolderLastWriteTimeIfOnDisk)}_FailedWriteTimeUpdate", metadata);
-
-                failed = true;
-                return false;
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(SetFolderLastWriteTime)}: Failed to update folder write time");
+                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(SetFolderLastWriteTime)}_FailedWriteTimeUpdate", metadata);
             }
+
+            return SetDirectoryTimeResult.Failure;
         }
 
-        private void PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, SparseTable sparseTable)
+        private string[] PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, SparseTable sparseTable)
         {
             string[] directoriesToDehydrate = new string[0];
             if (!this.ShowStatusWhileRunning(
@@ -370,6 +408,8 @@ Folders need to be relative to the repos root directory.")
                     this.ReportErrorAndExit(tracer, verbReturnCode, $"Failed to {PruneOptionName}. Exit Code: {verbReturnCode}");
                 }
             }
+
+            return directoriesToDehydrate;
         }
 
         private string[] GetDirectoriesOutsideSparse(string rootPath, SparseTable sparseTable)

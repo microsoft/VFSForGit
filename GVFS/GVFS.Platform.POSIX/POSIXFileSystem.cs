@@ -48,15 +48,13 @@ namespace GVFS.Platform.POSIX
             return POSIXFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
         }
 
-        public bool SetDirectoryLastWriteTimeIfOnDisk(string path, DateTime lastWriteTime)
+        public void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime, out bool directoryExists)
         {
-            if (Directory.Exists(path))
+            directoryExists = Directory.Exists(path);
+            if (directoryExists)
             {
                 Directory.SetLastWriteTime(path, lastWriteTime);
-                return true;
             }
-
-            return false;
         }
 
         public abstract bool HydrateFile(string fileName, byte[] buffer);
