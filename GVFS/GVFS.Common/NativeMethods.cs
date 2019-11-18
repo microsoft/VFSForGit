@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -15,6 +16,9 @@ namespace GVFS.Common
         private const uint FSCTL_GET_REPARSE_POINT = 0x000900a8;
 
         private const int ReparseDataPathBufferLength = 1000;
+
+        private const int ERROR_FILE_NOT_FOUND = 0x2;
+        private const int ERROR_PATH_NOT_FOUND = 0x3;
 
         [Flags]
         public enum MoveFileFlags : uint
@@ -96,6 +100,48 @@ namespace GVFS.Common
             {
                 ThrowLastWin32Exception($"Failed to move '{existingFileName}' to '{newFileName}'");
             }
+        }
+
+        public static void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime, out bool directoryExists)
+        {
+            // We can't use Directory.SetLastWriteTime as it requests GENERIC_WRITE access
+            // which will fail for directory placeholders.  The only access requried by SetFileTime
+            // is FILE_WRITE_ATTRIBUTES (which ProjFS does allow for placeholders)
+
+            using (SafeFileHandle handle =
+                CreateFile(
+                    path,
+                    FileAccess.FILE_WRITE_ATTRIBUTES,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    IntPtr.Zero,
+                    FileMode.Open,
+                    FileAttributes.FILE_FLAG_BACKUP_SEMANTICS,
+                    IntPtr.Zero))
+            {
+                if (handle.IsInvalid)
+                {
+                    int error = Marshal.GetLastWin32Error();
+                    if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND)
+                    {
+                        directoryExists = false;
+                        return;
+                    }
+
+                    throw new Win32Exception(error, $"{nameof(SetDirectoryLastWriteTime)}: Failed to open handle for '{path}'");
+                }
+
+                // SetFileTime will not update times with value 0
+                long creationFileTime = 0;
+                long lastAccessFileTime = 0;
+                long lastWriteFileTime = lastWriteTime.ToFileTime();
+                if (!SetFileTime(handle, ref creationFileTime, ref lastAccessFileTime, ref lastWriteFileTime))
+                {
+                    ThrowLastWin32Exception($"{nameof(SetDirectoryLastWriteTime)}: Failed to update last write time for '{path}'");
+                }
+            }
+
+            directoryExists = true;
+            return;
         }
 
         /// <summary>
@@ -200,6 +246,13 @@ namespace GVFS.Common
 
         [DllImport("kernel32.dll")]
         private static extern ulong GetTickCount64();
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetFileTime(
+            SafeFileHandle hFile,
+            [In] ref long creationTime,
+            [In] ref long lastAccessTime,
+            [In] ref long lastWriteTime);
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct REPARSE_DATA_BUFFER

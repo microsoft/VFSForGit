@@ -92,6 +92,11 @@ namespace GVFS.Platform.Windows
                 NativeMethods.MoveFileFlags.MoveFileReplaceExisting);
         }
 
+        public void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime, out bool directoryExists)
+        {
+            NativeMethods.SetDirectoryLastWriteTime(path, lastWriteTime, out directoryExists);
+        }
+
         public void ChangeMode(string path, ushort mode)
         {
         }
