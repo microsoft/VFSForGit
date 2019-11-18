@@ -122,14 +122,14 @@ namespace GVFS.CommandLine
 
                         // service
                         this.CopyAllFiles(
-                            GVFSPlatform.Instance.GetDataRootForGVFS(),
+                            GVFSPlatform.Instance.GetLogsRootForGVFS(),
                             archiveFolderPath,
                             this.ServiceName,
                             copySubFolders: true);
 
                         // service ui
                         this.CopyAllFiles(
-                            GVFSPlatform.Instance.GetDataRootForGVFS(),
+                            GVFSPlatform.Instance.GetLogsRootForGVFS(),
                             archiveFolderPath,
                             GVFSConstants.Service.UIName,
                             copySubFolders: true);

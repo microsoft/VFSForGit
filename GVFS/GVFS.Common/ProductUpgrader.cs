@@ -179,7 +179,9 @@ namespace GVFS.Common
             error = null;
             try
             {
-                this.fileSystem.CopyDirectoryRecursive(currentPath, upgradeApplicationDirectory);
+                HashSet<string> directoriesToExclude = new HashSet<string>();
+                directoriesToExclude.Add(GVFSPlatform.Instance.GetDataRootForGVFS());
+                this.fileSystem.CopyDirectoryRecursive(currentPath, upgradeApplicationDirectory, directoriesToExclude);
             }
             catch (UnauthorizedAccessException e)
             {

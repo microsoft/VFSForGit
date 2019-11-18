@@ -179,9 +179,7 @@ namespace GVFS.Service
                 this.serviceName = serviceName.Substring(ServiceNameArgPrefix.Length);
             }
 
-            string serviceLogsDirectoryPath = Path.Combine(
-                    GVFSPlatform.Instance.GetDataRootForGVFSComponent(this.serviceName),
-                    GVFSConstants.Service.LogDirectory);
+            string serviceLogsDirectoryPath = GVFSPlatform.Instance.GetLogsDirectoryForGVFSComponent(this.serviceName);
 
             // Create the logs directory explicitly *before* creating a log file event listener to ensure that it
             // and its ancestor directories are created with the correct ACLs.

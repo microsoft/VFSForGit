@@ -71,6 +71,16 @@ namespace GVFS.Platform.Mac
             return MacPlatform.GetDataRootForGVFSComponentImplementation(componentName);
         }
 
+        public override string GetLogsRootForGVFS()
+        {
+            return this.GetDataRootForGVFS();
+        }
+
+        public override string GetLogsDirectoryForGVFSComponent(string componentName)
+        {
+            return Path.Combine(this.GetLogsRootForGVFS(), componentName);
+        }
+
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return MacPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);

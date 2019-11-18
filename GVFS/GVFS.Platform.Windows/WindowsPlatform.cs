@@ -128,6 +128,18 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.GetDataRootForGVFSComponentImplementation(componentName);
         }
 
+        public override string GetLogsRootForGVFS()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
+                "GVFS");
+        }
+
+        public override string GetLogsDirectoryForGVFSComponent(string componentName)
+        {
+            return Path.Combine(this.GetLogsRootForGVFS(), componentName);
+        }
+
         public override void StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args)
         {
             string programArguments = string.Empty;
@@ -325,7 +337,7 @@ namespace GVFS.Platform.Windows
 
         public override string GetUpgradeLogDirectoryParentDirectory()
         {
-            return this.GetUpgradeProtectedDataDirectory();
+            return this.GetLogsDirectoryForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
         }
 
         public override string GetSystemInstallerLogPath()

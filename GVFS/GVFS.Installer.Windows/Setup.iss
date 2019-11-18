@@ -595,6 +595,19 @@ begin
     end;
 end;
 
+procedure MigrageVFSForGitConfigFile();
+begin
+  Log('Migrating gvfs.config file from previous installation.');
+  if FileExists(ExpandConstant('{commonappdata}\GVFS\gvfs.config')) and not FileExists(ExpandConstant('{app}\ProgramData\gvfs.config')) then
+      begin
+        Log('Copying file ' + ExpandConstant('{commonappdata}\GVFS\gvfs.config') + ' to ' + ExpandConstant('{app}\ProgramData\gvfs.config'));
+        if (not FileCopy(ExpandConstant('{commonappdata}\GVFS\gvfs.config'),ExpandConstant('{app}\ProgramData\gvfs.config'),True)) then
+            Log('Could not copy gvfs.config file; continuing anyway');
+      end
+  else
+    Log('Migration of VFSForGit config is not needed');
+end;
+
 function ConfirmUnmountAll(): Boolean;
 var
   MsgBoxResult: integer;
@@ -763,6 +776,7 @@ begin
       begin
         if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
           begin
+            MigrageVFSForGitConfigFile();
             StartGVFSServiceUI();
             MountRepos();
           end

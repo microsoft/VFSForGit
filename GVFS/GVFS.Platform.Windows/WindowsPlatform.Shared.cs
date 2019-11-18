@@ -78,8 +78,9 @@ namespace GVFS.Platform.Windows
         public static string GetDataRootForGVFSImplementation()
         {
             return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
-                "GVFS");
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolderOption.Create),
+                 "GVFS",
+                 "ProgramData");
         }
 
         public static string GetDataRootForGVFSComponentImplementation(string componentName)

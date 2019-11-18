@@ -39,9 +39,17 @@ namespace GVFS.Common.FileSystem
             directory.Delete();
         }
 
-        public virtual void CopyDirectoryRecursive(string srcDirectoryPath, string dstDirectoryPath)
+        public virtual void CopyDirectoryRecursive(
+            string srcDirectoryPath,
+            string dstDirectoryPath,
+            HashSet<string> excludeDirectories = null)
         {
             DirectoryInfo srcDirectory = new DirectoryInfo(srcDirectoryPath);
+
+            if (excludeDirectories != null && excludeDirectories.Contains(srcDirectoryPath))
+            {
+                return;
+            }
 
             if (!this.DirectoryExists(dstDirectoryPath))
             {
@@ -55,7 +63,7 @@ namespace GVFS.Common.FileSystem
 
             foreach (DirectoryInfo subDirectory in srcDirectory.EnumerateDirectories())
             {
-                this.CopyDirectoryRecursive(subDirectory.FullName, Path.Combine(dstDirectoryPath, subDirectory.Name));
+                this.CopyDirectoryRecursive(subDirectory.FullName, Path.Combine(dstDirectoryPath, subDirectory.Name), excludeDirectories);
             }
         }
 
