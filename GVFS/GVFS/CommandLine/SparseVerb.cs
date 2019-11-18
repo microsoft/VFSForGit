@@ -240,14 +240,14 @@ Folders need to be relative to the repos root directory.")
                         this.WriteMessage(tracer, "No folders to update in sparse set.");
                     }
 
-                    string[] foldersPruned;
+                    List<string> foldersPruned;
                     if (this.Prune && directories.Count > 0)
                     {
                         foldersPruned = this.PruneFoldersOutsideSparse(tracer, enlistment, sparseTable);
                     }
                     else
                     {
-                        foldersPruned = Array.Empty<string>();
+                        foldersPruned = new List<string>();
                     }
 
                     if (needToChangeProjection || this.Prune)
@@ -374,9 +374,9 @@ Folders need to be relative to the repos root directory.")
             return SetDirectoryTimeResult.Failure;
         }
 
-        private string[] PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, SparseTable sparseTable)
+        private List<string> PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, SparseTable sparseTable)
         {
-            string[] directoriesToDehydrate = new string[0];
+            List<string> directoriesToDehydrate = new List<string>();
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
@@ -388,9 +388,9 @@ Folders need to be relative to the repos root directory.")
                 this.ReportErrorAndExit(tracer, $"Failed to {PruneOptionName}.");
             }
 
-            this.WriteMessage(tracer, $"Found {directoriesToDehydrate.Length} folders to {PruneOptionName}.");
+            this.WriteMessage(tracer, $"Found {directoriesToDehydrate.Count} folders to {PruneOptionName}.");
 
-            if (directoriesToDehydrate.Length > 0)
+            if (directoriesToDehydrate.Count > 0)
             {
                 ReturnCode verbReturnCode = this.ExecuteGVFSVerb<DehydrateVerb>(
                     tracer,
@@ -412,7 +412,7 @@ Folders need to be relative to the repos root directory.")
             return directoriesToDehydrate;
         }
 
-        private string[] GetDirectoriesOutsideSparse(string rootPath, SparseTable sparseTable)
+        private List<string> GetDirectoriesOutsideSparse(string rootPath, SparseTable sparseTable)
         {
             HashSet<string> sparseFolders = sparseTable.GetAll();
             PhysicalFileSystem fileSystem = new PhysicalFileSystem();
@@ -440,7 +440,7 @@ Folders need to be relative to the repos root directory.")
                 }
             }
 
-            return foldersOutsideSparse.ToArray();
+            return foldersOutsideSparse;
         }
 
         private void UpdateSparseFolders(ITracer tracer, SparseTable sparseTable, List<string> foldersToRemove, List<string> foldersToAdd)
