@@ -129,14 +129,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 .ShouldBeAFile(this.fileSystem)
                 .WithContents()
                 .Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            mergedPreCommandHooksLines.Length.ShouldEqual(2);
+            mergedPreCommandHooksLines.Length.ShouldEqual(2, $"Expected 2 lines, actual: {string.Join("\n", mergedPreCommandHooksLines)}");
             mergedPreCommandHooksLines[0].ShouldEqual(dummyCommandHookBin);
 
             string[] mergedPostCommandHooksLines = localGitPostCommandHooks
                 .ShouldBeAFile(this.fileSystem)
                 .WithContents()
                 .Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            mergedPreCommandHooksLines.Length.ShouldEqual(2);
+            mergedPreCommandHooksLines.Length.ShouldEqual(2, $"Expected 2 lines, actual: {string.Join("\n", mergedPostCommandHooksLines)}");
             mergedPreCommandHooksLines[1].ShouldEqual(dummyCommandHookBin);
         }
 
