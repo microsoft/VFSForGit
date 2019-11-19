@@ -399,6 +399,7 @@ Folders need to be relative to the repos root directory.")
                         verb.RunningVerbName = this.VerbName;
                         verb.ActionName = PruneOptionName;
                         verb.Confirmed = true;
+                        verb.StatusChecked = true;
                         verb.Folders = string.Join(FolderListSeparator, directoriesToDehydrate);
                     },
                     this.Output);
@@ -571,6 +572,7 @@ Folders need to be relative to the repos root directory.")
         private void CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment, HashSet<string> sparseFolders)
         {
             GitProcess.Result statusResult = null;
+            HashSet<string> dirtyPathsNotInSparseSet = null;
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
@@ -581,12 +583,8 @@ Folders need to be relative to the repos root directory.")
                         return false;
                     }
 
-                    if (this.ContainsPathNotCoveredBySparseFolders(statusResult.Output, sparseFolders))
-                    {
-                        return false;
-                    }
-
-                    return true;
+                    dirtyPathsNotInSparseSet = this.GetPathsNotCoveredBySparseFolders(statusResult.Output, sparseFolders);
+                    return dirtyPathsNotInSparseSet.Count == 0;
                 },
                 "Running git status",
                 suppressGvfsLogMessage: true))
@@ -599,9 +597,17 @@ Folders need to be relative to the repos root directory.")
                 }
                 else
                 {
-                    this.WriteMessage(tracer, statusResult.Output);
-                    this.WriteMessage(tracer, "git status reported that you have dirty files");
-                    this.WriteMessage(tracer, "Either commit your changes or reset and clean");
+                    StringBuilder dirtyFilesMessage = new StringBuilder();
+                    dirtyFilesMessage.AppendLine("git status reported that you have dirty files:");
+                    dirtyFilesMessage.AppendLine();
+                    foreach (string path in dirtyPathsNotInSparseSet)
+                    {
+                        dirtyFilesMessage.AppendLine($"    {path}");
+                    }
+
+                    dirtyFilesMessage.AppendLine();
+                    dirtyFilesMessage.Append("Either commit your changes or reset and clean");
+                    this.WriteMessage(tracer, dirtyFilesMessage.ToString());
                 }
 
                 this.Output.WriteLine();
@@ -609,35 +615,38 @@ Folders need to be relative to the repos root directory.")
             }
         }
 
-        private bool ContainsPathNotCoveredBySparseFolders(string statusOutput, HashSet<string> sparseFolders)
+        private HashSet<string> GetPathsNotCoveredBySparseFolders(string statusOutput, HashSet<string> sparseFolders)
         {
+            HashSet<string> uncoveredPaths = new HashSet<string>();
             int index = 0;
             while (index < statusOutput.Length - 1)
             {
                 bool isRename = statusOutput[index] == StatusRenameToken || statusOutput[index + 1] == StatusRenameToken;
                 index = index + 3;
-                if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders))
+
+                string gitPath;
+                if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders, out gitPath))
                 {
-                    return true;
+                    uncoveredPaths.Add(gitPath);
                 }
 
                 if (isRename)
                 {
-                    if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders))
+                    if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders, out gitPath))
                     {
-                        return true;
+                        uncoveredPaths.Add(gitPath);
                     }
                 }
             }
 
-            return false;
+            return uncoveredPaths;
         }
 
-        private bool PathCoveredBySparseFolders(ref int index, string statusOutput, HashSet<string> sparseFolders)
+        private bool PathCoveredBySparseFolders(ref int index, string statusOutput, HashSet<string> sparseFolders, out string gitPath)
         {
             int endOfPathIndex = statusOutput.IndexOf(StatusPathSeparatorToken, index);
-            string filePath = statusOutput.Substring(index, endOfPathIndex - index)
-                .Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+            gitPath = statusOutput.Substring(index, endOfPathIndex - index);
+            string filePath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
             index = endOfPathIndex + 1;
             return sparseFolders.Any(x => filePath.StartsWith(x + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison));
         }
