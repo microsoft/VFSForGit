@@ -99,26 +99,22 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void MountMergesLocalPrePostHooksConfig()
         {
             // Create some dummy pre/post command hooks
-            string dummyPreCommandHookBin = Path.Combine(this.Enlistment.EnlistmentRoot, "DummyPreCommandHook.bat");
-            this.fileSystem.WriteAllText(dummyPreCommandHookBin, "@echo off && exit 0");
-
-            string dummyPostCommandHookBin = Path.Combine(this.Enlistment.EnlistmentRoot, "DummyPostCommandHook.bat");
-            this.fileSystem.WriteAllText(dummyPreCommandHookBin, "@echo off && exit 0");
+            string dummyCommandHookBin = "cmd.exe /c exit 0";
 
             // Confirm git is not already using the dummy hooks
             string localGitPreCommandHooks = this.Enlistment.GetVirtualPathTo(".git", "hooks", "pre-command.hooks");
-            localGitPreCommandHooks.ShouldBeAFile(this.fileSystem).WithContents().Contains(dummyPreCommandHookBin).ShouldBeFalse();
+            localGitPreCommandHooks.ShouldBeAFile(this.fileSystem).WithContents().Contains(dummyCommandHookBin).ShouldBeFalse();
 
             string localGitPostCommandHooks = this.Enlistment.GetVirtualPathTo(".git", "hooks", "post-command.hooks");
-            localGitPreCommandHooks.ShouldBeAFile(this.fileSystem).WithContents().Contains(dummyPostCommandHookBin).ShouldBeFalse();
+            localGitPreCommandHooks.ShouldBeAFile(this.fileSystem).WithContents().Contains(dummyCommandHookBin).ShouldBeFalse();
 
             this.Enlistment.UnmountGVFS();
 
             // Create dummy-<pre/post>-command.hooks and set them in the local git config
             string dummyPreCommandHooksConfig = Path.Combine(this.Enlistment.EnlistmentRoot, "dummy-pre-command.hooks");
-            this.fileSystem.WriteAllText(dummyPreCommandHooksConfig, dummyPreCommandHookBin);
+            this.fileSystem.WriteAllText(dummyPreCommandHooksConfig, dummyCommandHookBin);
             string dummyOostCommandHooksConfig = Path.Combine(this.Enlistment.EnlistmentRoot, "dummy-post-command.hooks");
-            this.fileSystem.WriteAllText(dummyOostCommandHooksConfig, dummyPostCommandHookBin);
+            this.fileSystem.WriteAllText(dummyOostCommandHooksConfig, dummyCommandHookBin);
 
             // Configure the hooks locally
             GitProcess.Invoke(this.Enlistment.RepoRoot, $"config gvfs.clone.default-pre-command {dummyPreCommandHooksConfig}");
@@ -134,14 +130,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 .WithContents()
                 .Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             mergedPreCommandHooksLines.Length.ShouldEqual(2);
-            mergedPreCommandHooksLines[0].ShouldEqual(dummyPreCommandHookBin);
+            mergedPreCommandHooksLines[0].ShouldEqual(dummyCommandHookBin);
 
             string[] mergedPostCommandHooksLines = localGitPostCommandHooks
                 .ShouldBeAFile(this.fileSystem)
                 .WithContents()
                 .Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             mergedPreCommandHooksLines.Length.ShouldEqual(2);
-            mergedPreCommandHooksLines[1].ShouldEqual(dummyPostCommandHookBin);
+            mergedPreCommandHooksLines[1].ShouldEqual(dummyCommandHookBin);
         }
 
         [TestCase]
