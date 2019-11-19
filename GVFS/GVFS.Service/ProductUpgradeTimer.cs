@@ -218,7 +218,10 @@ namespace GVFS.Service
 
                     info.RecordHighestAvailableVersion(highestAvailableVersion: newerVersion);
 
-                    this.DisplayUpgradeAvailableToast(newerVersion.ToString());
+                    if (newerVersion != null)
+                    {
+                        this.DisplayUpgradeAvailableToast(newerVersion.ToString());
+                    }
                 }
                 catch (Exception ex) when (
                     ex is IOException ||
