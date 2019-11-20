@@ -43,7 +43,8 @@ namespace GVFS.Platform.Windows
             string filename;
             string[] defaultHooksLines = { };
 
-            if (configProcess.TryGetFromConfig(configSettingName, forceOutsideEnlistment: true, value: out filename) && filename != null)
+            // Pass false for forceOutsideEnlistment to allow hooks to be configured at the per-repo level
+            if (configProcess.TryGetFromConfig(configSettingName, forceOutsideEnlistment: false, value: out filename) && filename != null)
             {
                 filename = filename.Trim(' ', '\n');
                 defaultHooksLines = File.ReadAllLines(filename);
