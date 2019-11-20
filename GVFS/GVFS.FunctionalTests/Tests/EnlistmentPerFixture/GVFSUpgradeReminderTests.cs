@@ -29,8 +29,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.fileSystem = new SystemIORunner();
             this.upgradeDownloadsDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolderOption.Create),
                 "GVFS",
+                "ProgramData",
                 "GVFS.Upgrade",
                 "Downloads");
         }
@@ -136,8 +137,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string serviceLogFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "GVFS",
-                GVFSServiceProcess.TestServiceName,
-                "Logs");
+                GVFSServiceProcess.TestServiceName);
             DirectoryInfo logsDirectory = new DirectoryInfo(serviceLogFolder);
             FileInfo logFile = logsDirectory.GetFiles()
                 .OrderByDescending(f => f.LastWriteTime)
