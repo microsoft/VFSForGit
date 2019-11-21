@@ -49,6 +49,11 @@ namespace GVFS.CommandLine
         public string RunningVerbName { get; set; } = DehydrateVerbName;
         public string ActionName { get; set; } = DehydrateVerbName;
 
+        /// <summary>
+        /// True if another verb (e.g. 'gvfs sparse') has already validated that status is clean
+        /// </summary>
+        public bool StatusChecked { get; set; }
+
         protected override string VerbName
         {
             get { return DehydrateVerb.DehydrateVerbName; }
@@ -156,7 +161,7 @@ from a parent of the folders list.
                     return;
                 }
 
-                bool cleanStatus = this.CheckGitStatus(tracer, enlistment, fullDehydrate);
+                bool cleanStatus = this.StatusChecked || this.CheckGitStatus(tracer, enlistment, fullDehydrate);
 
                 string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 this.Output.WriteLine();
