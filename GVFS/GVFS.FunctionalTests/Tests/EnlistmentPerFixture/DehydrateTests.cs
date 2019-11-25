@@ -312,13 +312,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string childFolderToDehydrate = Path.Combine("GVFS", "GVFS.Mount");
             string parentFolderToDehydrate = "GVFS";
             string fileToReadInChildFolder = Path.Combine(childFolderToDehydrate, "Program.cs");
-            string fileToReadInParentFolder = Path.Combine(parentFolderToDehydrate, "GVFS.UnitTests", "Program.cs");
+            string fileToReadInOtherChildFolder = Path.Combine(parentFolderToDehydrate, "GVFS.UnitTests", "Program.cs");
             string fileToReadInChildFolderVirtualPath = this.Enlistment.GetVirtualPathTo(fileToReadInChildFolder);
             string fileToReadInChildFolderBackingPath = this.Enlistment.GetBackingPathTo(fileToReadInChildFolder);
-            string fileToReadInParentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(fileToReadInParentFolder);
-            string fileToReadInParentFolderBackingPath = this.Enlistment.GetBackingPathTo(fileToReadInParentFolder);
+            string fileToReadInOtherChildFolderVirtualPath = this.Enlistment.GetVirtualPathTo(fileToReadInOtherChildFolder);
+            string fileToReadInOtherChildFolderBackingPath = this.Enlistment.GetBackingPathTo(fileToReadInOtherChildFolder);
             this.fileSystem.ReadAllText(fileToReadInChildFolderVirtualPath);
-            this.fileSystem.ReadAllText(fileToReadInParentFolderVirtualPath);
+            this.fileSystem.ReadAllText(fileToReadInOtherChildFolderVirtualPath);
 
             this.DehydrateShouldSucceed(
                 new[] { $"{childFolderToDehydrate} {FolderDehydrateSuccessfulMessage}", $"{parentFolderToDehydrate} {FolderDehydrateSuccessfulMessage}" },
@@ -329,7 +329,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.UnmountGVFS();
 
             fileToReadInChildFolderBackingPath.ShouldNotExistOnDisk(this.fileSystem);
-            fileToReadInParentFolderBackingPath.ShouldNotExistOnDisk(this.fileSystem);
+            fileToReadInOtherChildFolderBackingPath.ShouldNotExistOnDisk(this.fileSystem);
         }
 
         [TestCase]
@@ -337,13 +337,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string parentFolderToDehydrate = "GVFS";
             string childFolderToDehydrate = Path.Combine("GVFS", "GVFS.Mount");
-            string fileToReadInParentFolder = Path.Combine(parentFolderToDehydrate, "GVFS.UnitTests", "Program.cs");
+            string fileToReadInOtherChildFolder = Path.Combine(parentFolderToDehydrate, "GVFS.UnitTests", "Program.cs");
             string fileToReadInChildFolder = Path.Combine(childFolderToDehydrate, "Program.cs");
-            string fileToReadInParentFolderVirtualPath = this.Enlistment.GetVirtualPathTo(fileToReadInParentFolder);
-            string fileToReadInParentFolderBackingPath = this.Enlistment.GetBackingPathTo(fileToReadInParentFolder);
+            string fileToReadInOtherChildFolderVirtualPath = this.Enlistment.GetVirtualPathTo(fileToReadInOtherChildFolder);
+            string fileToReadInOtherChildFolderBackingPath = this.Enlistment.GetBackingPathTo(fileToReadInOtherChildFolder);
             string fileToReadInChildFolderVirtualPath = this.Enlistment.GetVirtualPathTo(fileToReadInChildFolder);
             string fileToReadInChildFolderBackingPath = this.Enlistment.GetBackingPathTo(fileToReadInChildFolder);
-            this.fileSystem.ReadAllText(fileToReadInParentFolderVirtualPath);
+            this.fileSystem.ReadAllText(fileToReadInOtherChildFolderVirtualPath);
             this.fileSystem.ReadAllText(fileToReadInChildFolderVirtualPath);
 
             this.DehydrateShouldSucceed(
@@ -354,7 +354,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.UnmountGVFS();
 
-            fileToReadInParentFolderBackingPath.ShouldNotExistOnDisk(this.fileSystem);
+            fileToReadInOtherChildFolderBackingPath.ShouldNotExistOnDisk(this.fileSystem);
             fileToReadInChildFolderBackingPath.ShouldNotExistOnDisk(this.fileSystem);
         }
 
