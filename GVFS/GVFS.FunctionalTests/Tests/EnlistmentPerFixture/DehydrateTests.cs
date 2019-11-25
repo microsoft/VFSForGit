@@ -407,7 +407,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteDirectory(secondFolderToDelete.VirtualPath);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -a -m \"Delete directories\"");
 
+            folderToDelete.VirtualPath.ShouldNotExistOnDisk(this.fileSystem);
+            secondFolderToDelete.VirtualPath.ShouldNotExistOnDisk(this.fileSystem);
+
             GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout -f HEAD~1");
+
+            folderToDelete.VirtualPath.ShouldBeADirectory(this.fileSystem);
+            secondFolderToDelete.VirtualPath.ShouldBeADirectory(this.fileSystem);
 
             this.DehydrateShouldSucceed(
                 new[]
