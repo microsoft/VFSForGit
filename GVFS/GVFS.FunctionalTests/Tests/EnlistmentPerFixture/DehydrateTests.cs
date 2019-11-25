@@ -306,7 +306,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void FolderDehydrateNestedFoldersChildBeforeParent()
         {
             string parentFolderToDehydrate = "GVFS";
-            string childFolderToDehydrate = Path.Combine("GVFS", "GVFS.Mount");
+            string childFolderToDehydrate = Path.Combine(parentFolderToDehydrate, "GVFS.Mount");
             TestPath fileToReadInChildFolder = new TestPath(this.Enlistment, Path.Combine(childFolderToDehydrate, "Program.cs"));
             TestPath fileToReadInOtherChildFolder = new TestPath(this.Enlistment, Path.Combine(parentFolderToDehydrate, "GVFS.UnitTests", "Program.cs"));
             this.fileSystem.ReadAllText(fileToReadInChildFolder.VirtualPath);
@@ -330,7 +330,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void FolderDehydrateNestedFoldersParentBeforeChild()
         {
             string parentFolderToDehydrate = "GVFS";
-            string childFolderToDehydrate = Path.Combine("GVFS", "GVFS.Mount");
+            string childFolderToDehydrate = Path.Combine(parentFolderToDehydrate, "GVFS.Mount");
             TestPath fileToReadInChildFolder = new TestPath(this.Enlistment, Path.Combine(childFolderToDehydrate, "Program.cs"));
             TestPath fileToReadInOtherChildFolder = new TestPath(this.Enlistment, Path.Combine(parentFolderToDehydrate, "GVFS.UnitTests", "Program.cs"));
             this.fileSystem.ReadAllText(fileToReadInChildFolder.VirtualPath);
