@@ -291,7 +291,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             // Replace '/' with Path.DirectorySeparatorChar to ensure that any
             // Git paths are converted to system paths
-            return Path.Combine(this.RepoRoot, path.Replace('/', Path.DirectorySeparatorChar));
+            return Path.Combine(this.RepoRoot, path.Replace(TestConstants.GitPathSeparator, Path.DirectorySeparatorChar));
         }
 
         public string GetVirtualPathTo(params string[] pathParts)
@@ -303,7 +303,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             // Replace '/' with Path.DirectorySeparatorChar to ensure that any
             // Git paths are converted to system paths
-            return Path.Combine(this.RepoBackingRoot, path.Replace('/', Path.DirectorySeparatorChar));
+            return Path.Combine(this.RepoBackingRoot, path.Replace(TestConstants.GitPathSeparator, Path.DirectorySeparatorChar));
         }
 
         public string GetBackingPathTo(params string[] pathParts)
