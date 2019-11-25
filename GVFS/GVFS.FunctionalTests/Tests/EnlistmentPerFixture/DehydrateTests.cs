@@ -376,7 +376,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void FolderDehydrateDirtyStatusShouldFail()
         {
             string folderToDehydrate = "GVFS";
-            string fileToCreateVirtualPath = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate, $"{nameof(this.FolderDehydrateDirtyStatusShouldFail)}.txt"));
+            string fileToCreateVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate, $"{nameof(this.FolderDehydrateDirtyStatusShouldFail)}.txt");
             this.fileSystem.WriteAllText(fileToCreateVirtualPath, "new file contents");
             fileToCreateVirtualPath.ShouldBeAFile(this.fileSystem);
 
@@ -388,7 +388,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void FolderDehydrateDirtyStatusWithNoStatusShouldFail()
         {
             string folderToDehydrate = "GVFS";
-            string fileToCreateVirtualPath = this.Enlistment.GetVirtualPathTo(Path.Combine(folderToDehydrate, $"{nameof(this.FolderDehydrateDirtyStatusWithNoStatusShouldFail)}.txt"));
+            string fileToCreateVirtualPath = this.Enlistment.GetVirtualPathTo(folderToDehydrate, $"{nameof(this.FolderDehydrateDirtyStatusWithNoStatusShouldFail)}.txt");
             this.fileSystem.WriteAllText(fileToCreateVirtualPath, "new file contents");
             fileToCreateVirtualPath.ShouldBeAFile(this.fileSystem);
 
