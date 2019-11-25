@@ -396,18 +396,31 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void FolderDehydratePreviouslyDeletedFolder()
+        public void FolderDehydratePreviouslyDeletedFolders()
         {
             string folderToDehydrate = "TrailingSlashTests";
             TestPath folderToDelete = new TestPath(this.Enlistment, folderToDehydrate);
+            string secondFolderToDehydrate = "FilenameEncoding";
+            TestPath secondFolderToDelete = new TestPath(this.Enlistment, secondFolderToDehydrate);
+
             this.fileSystem.DeleteDirectory(folderToDelete.VirtualPath);
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -a -m \"Delete a directory\"");
+            this.fileSystem.DeleteDirectory(secondFolderToDelete.VirtualPath);
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -a -m \"Delete directories\"");
 
             GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout -f HEAD~1");
 
-            this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            this.DehydrateShouldSucceed(
+                new[]
+                {
+                    $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}",
+                    $"{secondFolderToDehydrate} {FolderDehydrateSuccessfulMessage}",
+                },
+                confirm: true,
+                noStatus: false,
+                foldersToDehydrate: new[] { folderToDehydrate, secondFolderToDehydrate });
 
             folderToDelete.VirtualPath.ShouldBeADirectory(this.fileSystem);
+            secondFolderToDelete.VirtualPath.ShouldBeADirectory(this.fileSystem);
         }
 
         [TestCase]
