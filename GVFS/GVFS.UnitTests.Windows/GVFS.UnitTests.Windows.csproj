@@ -114,6 +114,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Windows\CommandLine\SparseVerbTests.cs" />
     <Compile Include="Windows\Mock\WindowsFileSystemVirtualizerTester.cs" />
     <Compile Include="Windows\ServiceUI\GVFSToastRequestHandlerTests.cs" />
     <Compile Include="Windows\Upgrader\WindowsNuGetUpgraderTests.cs" />

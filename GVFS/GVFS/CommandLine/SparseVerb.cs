@@ -22,9 +22,9 @@ Folders need to be relative to the repos root directory.")
     ]
     public class SparseVerb : GVFSVerb.ForExistingEnlistment
     {
+        internal const char StatusPathSeparatorToken = '\0';
         private const string SparseVerbName = "sparse";
         private const string FolderListSeparator = ";";
-        private const char StatusPathSeparatorToken = '\0';
         private const char StatusRenameToken = 'R';
         private const string PruneOptionName = "prune";
 
@@ -92,6 +92,44 @@ Folders need to be relative to the repos root directory.")
         public bool Disable { get; set; }
 
         protected override string VerbName => SparseVerbName;
+
+        internal static bool PathCoveredBySparseFolders(ref int index, string statusOutput, HashSet<string> sparseFolders, out string gitPath)
+        {
+            int endOfPathIndex = statusOutput.IndexOf(StatusPathSeparatorToken, index);
+            gitPath = statusOutput.Substring(index, endOfPathIndex - index);
+            index = endOfPathIndex + 1;
+
+            string filePath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+            if (sparseFolders.Any(x => filePath.StartsWith(x + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison)))
+            {
+                // Path is covered by a recursive entry
+                return true;
+            }
+
+            int pathSeparatorIndex = filePath.LastIndexOf(Path.DirectorySeparatorChar);
+            if (pathSeparatorIndex < 0)
+            {
+                // Path is in the root, and root entries are always in the sparse set
+                return true;
+            }
+
+            // Get the parent path (including the path separator)
+            string parentPath = filePath.Substring(startIndex: 0, length: pathSeparatorIndex + 1);
+            if (sparseFolders.Any(x => x.StartsWith(parentPath, GVFSPlatform.Instance.Constants.PathComparison)))
+            {
+                // Path is a child of a non-recursive entry
+                //
+                // Example:
+                //  - Sparse set: A\B\C
+                //  - filePath: A\B\d.txt
+                //
+                // This file is in the sparse set because its parent ("A\B\") is an ancestory of a recursive
+                // entry ("A\B\C\") in the sparse set
+                return true;
+            }
+
+            return false;
+        }
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
@@ -625,14 +663,14 @@ Folders need to be relative to the repos root directory.")
                 index = index + 3;
 
                 string gitPath;
-                if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders, out gitPath))
+                if (!PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders, out gitPath))
                 {
                     uncoveredPaths.Add(gitPath);
                 }
 
                 if (isRename)
                 {
-                    if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders, out gitPath))
+                    if (!PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders, out gitPath))
                     {
                         uncoveredPaths.Add(gitPath);
                     }
@@ -640,15 +678,6 @@ Folders need to be relative to the repos root directory.")
             }
 
             return uncoveredPaths;
-        }
-
-        private bool PathCoveredBySparseFolders(ref int index, string statusOutput, HashSet<string> sparseFolders, out string gitPath)
-        {
-            int endOfPathIndex = statusOutput.IndexOf(StatusPathSeparatorToken, index);
-            gitPath = statusOutput.Substring(index, endOfPathIndex - index);
-            string filePath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
-            index = endOfPathIndex + 1;
-            return sparseFolders.Any(x => filePath.StartsWith(x + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison));
         }
 
         private void WriteMessage(ITracer tracer, string message)
