@@ -469,8 +469,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitProcess.Invoke(this.Enlistment.RepoRoot, "commit -m Test");
 
             // Modify a file that's in the sparse set
+            string modifiedFileContents = "New Contents";
             string modifiedPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "Program.cs");
-            this.fileSystem.WriteAllText(modifiedPath, "New Contents");
+            this.fileSystem.WriteAllText(modifiedPath, modifiedFileContents);
+            string expecetedStatusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
 
             // Remove and prune folderToCreateFileIn
             string output = this.gvfsProcess.RemoveSparseFolders(shouldPrune: true, folders: folderToCreateFileIn);
@@ -481,6 +483,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderPath = Path.Combine(this.Enlistment.RepoRoot, folderToCreateFileIn);
             folderPath.ShouldNotExistOnDisk(this.fileSystem);
             fileToCreate.ShouldNotExistOnDisk(this.fileSystem);
+
+            // Confirm the changes to the modified file are preserved and that status does not change
+            modifiedPath.ShouldBeAFile(this.fileSystem).WithContents(modifiedFileContents);
+            string statusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
+            statusOutput.ShouldEqual(expecetedStatusOutput, "Status output should not change.");
         }
 
         [TestCase, Order(23)]

@@ -300,7 +300,10 @@ from a parent of the folders list.
 
             this.Mount(tracer);
 
-            this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate.ToArray());
+            if (foldersToDehydrate.Count > 0)
+            {
+                this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate);
+            }
 
             if (folderErrors.Count > 0)
             {
@@ -327,7 +330,7 @@ from a parent of the folders list.
             return true;
         }
 
-        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, List<string> folderErrors, string[] folders)
+        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, List<string> folderErrors, List<string> folders)
         {
             NamedPipeMessages.DehydrateFolders.Response response = null;
 
