@@ -22,9 +22,9 @@ Folders need to be relative to the repos root directory.")
     ]
     public class SparseVerb : GVFSVerb.ForExistingEnlistment
     {
-        internal const char StatusPathSeparatorToken = '\0';
         private const string SparseVerbName = "sparse";
         private const string FolderListSeparator = ";";
+        private const char StatusPathSeparatorToken = '\0';
         private const char StatusRenameToken = 'R';
         private const string PruneOptionName = "prune";
 
@@ -123,7 +123,7 @@ Folders need to be relative to the repos root directory.")
                 //  - Sparse set: A\B\C
                 //  - filePath: A\B\d.txt
                 //
-                // This file is in the sparse set because its parent ("A\B\") is an ancestory of a recursive
+                // This file is in the sparse set because its parent ("A\B\") is an ancestor of a recursive
                 // entry ("A\B\C\") in the sparse set
                 return true;
             }
