@@ -485,7 +485,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // Remove and prune folderToCreateFileIn
             string output = this.gvfsProcess.RemoveSparseFolders(shouldPrune: true, folders: folderToCreateFileIn);
             output.ShouldContain("Running git status...Succeeded");
-            this.ValidateFoldersInSparseList(this.mainSparseFolder);
+            this.ValidateFoldersInSparseList(this.mainSparseFolder, additionalSparseFolder);
 
             // Confirm the prune succeeded
             string folderPath = Path.Combine(this.Enlistment.RepoRoot, folderToCreateFileIn);
