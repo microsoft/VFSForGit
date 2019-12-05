@@ -137,7 +137,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string serviceLogFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "GVFS",
-                GVFSServiceProcess.TestServiceName);
+                GVFSServiceProcess.TestServiceName,
+                "Logs");
             DirectoryInfo logsDirectory = new DirectoryInfo(serviceLogFolder);
             FileInfo logFile = logsDirectory.GetFiles()
                 .OrderByDescending(f => f.LastWriteTime)

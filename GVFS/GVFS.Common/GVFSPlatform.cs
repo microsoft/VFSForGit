@@ -73,7 +73,7 @@ namespace GVFS.Common
         public abstract string GetOSVersionInformation();
         public abstract string GetDataRootForGVFS();
         public abstract string GetDataRootForGVFSComponent(string componentName);
-        public abstract string GetLogsRootForGVFS();
+        public abstract string GetCommonAppDataRootForGVFS();
         public abstract string GetLogsDirectoryForGVFSComponent(string componentName);
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
