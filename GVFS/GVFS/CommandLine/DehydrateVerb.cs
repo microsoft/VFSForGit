@@ -298,7 +298,12 @@ from a parent of the folders list.
                 this.ReportErrorAndExit(tracer, $"{this.ActionName} for folders failed.");
             }
 
-            this.Mount(tracer);
+            // We can skip the version check because dehydrating folders requires that a git status
+            // be run first, and running git status requires that the repo already be mounted (meaning
+            // we don't need to perform another version check again)
+            this.Mount(
+                tracer,
+                skipVersionCheck: true);
 
             if (foldersToDehydrate.Count > 0)
             {
@@ -377,7 +382,12 @@ from a parent of the folders list.
                 {
                     // Converting the src folder to partial must be the final step before mount
                     this.PrepareSrcFolder(tracer, enlistment);
-                    this.Mount(tracer);
+
+                    // We can skip the version check if git status was run because git status requires
+                    // that the repo already be mounted (meaning we don't need to perform another version check again)
+                    this.Mount(
+                        tracer,
+                        skipVersionCheck: !this.NoStatus);
 
                     this.Output.WriteLine();
                     this.WriteMessage(tracer, "The repo was successfully dehydrated and remounted");
@@ -388,12 +398,17 @@ from a parent of the folders list.
                 this.Output.WriteLine();
                 this.WriteMessage(tracer, "ERROR: Backup failed. We will attempt to mount, but you may need to reclone if that fails");
 
-                this.Mount(tracer);
+                // We can skip the version check if git status was run because git status requires
+                // that the repo already be mounted (meaning we don't need to perform another version check again)
+                this.Mount(
+                        tracer,
+                        skipVersionCheck: !this.NoStatus);
+
                 this.WriteMessage(tracer, "Dehydrate failed, but remounting succeeded");
             }
         }
 
-        private void Mount(ITracer tracer)
+        private void Mount(ITracer tracer, bool skipVersionCheck)
         {
             if (!this.ShowStatusWhileRunning(
                 () =>
@@ -403,6 +418,8 @@ from a parent of the folders list.
                         verb =>
                         {
                             verb.SkipInstallHooks = true;
+                            verb.SkipVersionCheck = skipVersionCheck;
+                            verb.SkipMountedCheck = true;
                         }) == ReturnCode.Success;
                 },
                 "Mounting"))
