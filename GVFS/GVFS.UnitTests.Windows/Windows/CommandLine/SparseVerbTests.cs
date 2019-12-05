@@ -17,50 +17,71 @@ namespace GVFS.UnitTests.Windows.Windows.CommandLine
         private static readonly HashSet<string> EmptySparseSet = new HashSet<string>();
 
         [TestCase]
+        public void GetNextGitPathGetsPaths()
+        {
+            string testStatusOutput = $"a.txt{StatusPathSeparatorToken}";
+            ConfirmGitPathsParsed(testStatusOutput, new List<string>() { "a.txt" });
+
+            testStatusOutput = $"a.txt{StatusPathSeparatorToken}b.txt{StatusPathSeparatorToken}c.txt{StatusPathSeparatorToken}";
+            ConfirmGitPathsParsed(testStatusOutput, new List<string>() { "a.txt", "b.txt", "c.txt" });
+
+            testStatusOutput = $"a.txt{StatusPathSeparatorToken}d/b.txt{StatusPathSeparatorToken}d/c.txt{StatusPathSeparatorToken}";
+            ConfirmGitPathsParsed(testStatusOutput, new List<string>() { "a.txt", "d/b.txt", "d/c.txt" });
+        }
+
+        [TestCase]
         public void PathCoveredBySparseFolders_RootPaths()
         {
-            string rootPaths = $"a.txt{StatusPathSeparatorToken}b.txt{StatusPathSeparatorToken}c.txt{StatusPathSeparatorToken}";
+            List<string> testPaths = new List<string>()
+            {
+                "a.txt",
+                "b.txt",
+                "c.txt"
+            };
 
-            ConfirmAllPathsCovered(rootPaths, EmptySparseSet);
-            ConfirmAllPathsCovered(rootPaths, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A" });
-            ConfirmAllPathsCovered(rootPaths, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A", @"B\C" });
+            ConfirmAllPathsCovered(testPaths, EmptySparseSet);
+            ConfirmAllPathsCovered(testPaths, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A" });
+            ConfirmAllPathsCovered(testPaths, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A", @"B\C" });
         }
 
         [TestCase]
         public void PathCoveredBySparseFolders_RecursivelyCoveredPaths()
         {
-            StringBuilder rootPaths = new StringBuilder();
-            rootPaths.Append($"A/a.txt{StatusPathSeparatorToken}");
-            rootPaths.Append($"A/B/B.txt{StatusPathSeparatorToken}");
+            List<string> testPaths = new List<string>()
+            {
+                "A/a.txt",
+                "A/B/B.txt"
+            };
 
             HashSet<string> singleFolderSparseSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A" };
             HashSet<string> twoFolderSparseSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A", @"B\C" };
 
-            ConfirmAllPathsCovered(rootPaths.ToString(), singleFolderSparseSet);
-            ConfirmAllPathsCovered(rootPaths.ToString(), twoFolderSparseSet);
+            ConfirmAllPathsCovered(testPaths, singleFolderSparseSet);
+            ConfirmAllPathsCovered(testPaths, twoFolderSparseSet);
 
             // Root entries should always be covered
-            rootPaths.Append($"d.txt{StatusPathSeparatorToken}");
-            rootPaths.Append($"e.txt{StatusPathSeparatorToken}");
+            testPaths.Add("d.txt");
+            testPaths.Add("e.txt");
+            ConfirmAllPathsCovered(testPaths, singleFolderSparseSet);
+            ConfirmAllPathsCovered(testPaths, twoFolderSparseSet);
 
-            ConfirmAllPathsCovered(rootPaths.ToString(), singleFolderSparseSet);
-            ConfirmAllPathsCovered(rootPaths.ToString(), twoFolderSparseSet);
-
-            rootPaths.Append($"B/C/e.txt{StatusPathSeparatorToken}");
-            rootPaths.Append($"B/C/F/g.txt{StatusPathSeparatorToken}");
-            ConfirmAllPathsCovered(rootPaths.ToString(), twoFolderSparseSet);
+            testPaths.Add("B/C/e.txt");
+            testPaths.Add("B/C/F/g.txt");
+            ConfirmAllPathsCovered(testPaths, twoFolderSparseSet);
         }
 
         [TestCase]
         public void PathCoveredBySparseFolders_NonRecursivelyCoveredPaths()
         {
-            StringBuilder rootPaths = new StringBuilder();
-            rootPaths.Append($"A/B/B.txt{StatusPathSeparatorToken}");
-            rootPaths.Append($"A/C.txt{StatusPathSeparatorToken}");
-            rootPaths.Append($"A/D/E/C.txt{StatusPathSeparatorToken}");
+            List<string> testPaths = new List<string>()
+            {
+                "A/B/B.txt",
+                "A/C.txt",
+                "A/D/E/C.txt"
+            };
 
             ConfirmAllPathsCovered(
-                rootPaths.ToString(),
+                testPaths,
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
                     @"A\B\C\D",
@@ -68,11 +89,11 @@ namespace GVFS.UnitTests.Windows.Windows.CommandLine
                 });
 
             // Root entries should always be covered
-            rootPaths.Append($"d.txt{StatusPathSeparatorToken}");
-            rootPaths.Append($"e.txt{StatusPathSeparatorToken}");
+            testPaths.Add("d.txt");
+            testPaths.Add("e.txt");
 
             ConfirmAllPathsCovered(
-                rootPaths.ToString(),
+                testPaths,
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
                     @"A\B\C\D",
@@ -83,36 +104,47 @@ namespace GVFS.UnitTests.Windows.Windows.CommandLine
         [TestCase]
         public void PathCoveredBySparseFolders_PathsNotCovered()
         {
-            StringBuilder rootPaths = new StringBuilder();
-            rootPaths.Append($"A/B/B.txt{StatusPathSeparatorToken}");
-            rootPaths.Append($"A/D/E/C.txt{StatusPathSeparatorToken}");
+            List<string> testPaths = new List<string>()
+            {
+                "A/B/B.txt",
+                "A/D/E/C.txt"
+            };
 
-            ConfirmAllPathsNotCovered(rootPaths.ToString(), EmptySparseSet);
-            ConfirmAllPathsNotCovered(rootPaths.ToString(), new HashSet<string>(StringComparer.OrdinalIgnoreCase) { @"A\C" });
-            ConfirmAllPathsNotCovered(rootPaths.ToString(), new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "B" });
-            ConfirmAllPathsNotCovered(rootPaths.ToString(), new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "B", @"C\D" });
+            ConfirmAllPathsNotCovered(testPaths, EmptySparseSet);
+            ConfirmAllPathsNotCovered(testPaths, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { @"A\C" });
+            ConfirmAllPathsNotCovered(testPaths, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "B" });
+            ConfirmAllPathsNotCovered(testPaths, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "B", @"C\D" });
         }
 
-        private static void ConfirmAllPathsCovered(string paths, HashSet<string> sparseSet)
+        private static void ConfirmAllPathsCovered(List<string> paths, HashSet<string> sparseSet)
         {
             CheckIfPathsCovered(paths, sparseSet, shouldBeCovered: true);
         }
 
-        private static void ConfirmAllPathsNotCovered(string paths, HashSet<string> sparseSet)
+        private static void ConfirmAllPathsNotCovered(List<string> paths, HashSet<string> sparseSet)
         {
             CheckIfPathsCovered(paths, sparseSet, shouldBeCovered: false);
         }
 
-        private static void CheckIfPathsCovered(string paths, HashSet<string> sparseSet, bool shouldBeCovered)
+        private static void ConfirmGitPathsParsed(string paths, List<string> expectedPaths)
         {
             int index = 0;
+            int listIndex = 0;
             while (index < paths.Length - 1)
             {
                 int nextSeparatorIndex = paths.IndexOf(StatusPathSeparatorToken, index);
-                string expectedGitPath = paths.Substring(index, nextSeparatorIndex - index);
-                SparseVerb.PathCoveredBySparseFolders(ref index, paths, sparseSet, out string gitPath).ShouldEqual(shouldBeCovered);
+                string expectedGitPath = expectedPaths[listIndex];
+                SparseVerb.GetNextGitPath(ref index, paths).ShouldEqual(expectedGitPath);
                 index.ShouldEqual(nextSeparatorIndex + 1);
-                gitPath.ShouldEqual(expectedGitPath);
+                ++listIndex;
+            }
+        }
+
+        private static void CheckIfPathsCovered(List<string> paths, HashSet<string> sparseSet, bool shouldBeCovered)
+        {
+            foreach (string path in paths)
+            {
+                SparseVerb.PathCoveredBySparseFolders(path, sparseSet).ShouldEqual(shouldBeCovered);
             }
         }
     }

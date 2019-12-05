@@ -93,12 +93,16 @@ Folders need to be relative to the repos root directory.")
 
         protected override string VerbName => SparseVerbName;
 
-        internal static bool PathCoveredBySparseFolders(ref int index, string statusOutput, HashSet<string> sparseFolders, out string gitPath)
+        internal static string GetNextGitPath(ref int index, string statusOutput)
         {
             int endOfPathIndex = statusOutput.IndexOf(StatusPathSeparatorToken, index);
-            gitPath = statusOutput.Substring(index, endOfPathIndex - index);
+            string gitPath = statusOutput.Substring(index, endOfPathIndex - index);
             index = endOfPathIndex + 1;
+            return gitPath;
+        }
 
+        internal static bool PathCoveredBySparseFolders(string gitPath, HashSet<string> sparseFolders)
+        {
             string filePath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
             if (sparseFolders.Any(x => filePath.StartsWith(x + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison)))
             {
@@ -662,15 +666,16 @@ Folders need to be relative to the repos root directory.")
                 bool isRename = statusOutput[index] == StatusRenameToken || statusOutput[index + 1] == StatusRenameToken;
                 index = index + 3;
 
-                string gitPath;
-                if (!PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders, out gitPath))
+                string gitPath = GetNextGitPath(ref index, statusOutput);
+                if (!PathCoveredBySparseFolders(gitPath, sparseFolders))
                 {
                     uncoveredPaths.Add(gitPath);
                 }
 
                 if (isRename)
                 {
-                    if (!PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders, out gitPath))
+                    gitPath = GetNextGitPath(ref index, statusOutput);
+                    if (!PathCoveredBySparseFolders(gitPath, sparseFolders))
                     {
                         uncoveredPaths.Add(gitPath);
                     }
