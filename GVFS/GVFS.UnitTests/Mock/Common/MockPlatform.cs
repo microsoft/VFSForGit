@@ -114,7 +114,10 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string GetLogsDirectoryForGVFSComponent(string componentName)
         {
-            return Path.Combine(this.GetCommonAppDataRootForGVFS(), componentName);
+            return Path.Combine(
+                this.GetCommonAppDataRootForGVFS(),
+                componentName,
+                "Logs");
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
