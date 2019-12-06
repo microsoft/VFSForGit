@@ -124,39 +124,112 @@ namespace GVFS.CommandLine
             //
             Dictionary<string, string> requiredSettings = new Dictionary<string, string>
             {
+                 // When running 'git am' it will remove the CRs from the patch file by default. This causes the patch to fail to apply because the
+                 // file that is getting the patch applied will still have the CRs. There is a --keep-cr option that you can pass the 'git am' command
+                 // but since we always want to keep CRs it is better to just set the config setting to always keep them so the user doesn't have to
+                 // remember to pass the flag. https://mseng.visualstudio.com/VSOnline/_git/GVFS/pullrequest/244891?_a=overview.
                 { "am.keepcr", "true" },
+
+                // Update git settings to enable optimizations in git 2.20
+                // Set 'checkout.optimizeNewBranch=true' to enable optimized 'checkout -b'
                 { "checkout.optimizenewbranch", "true" },
+
+                // Needed to prevent line ending conversion. Prevents git from auto-replacing line endings with Crlf.
                 { "core.autocrlf", "false" },
+
+                // commit graph. https://dev.azure.com/mseng/AzureDevOps/_git/GVFS/pullrequest/299081
                 { "core.commitGraph", "true" },
+
+                // Perf - Git for Windows uses this to bulk-read and cache lstat data of entire directories (instead of doing lstat file by file).
                 { "core.fscache", "true" },
+
+                // Turns on all special gvfs logic. https://github.com/microsoft/scalar/blob/935c50110b31c440aae8e1cdc4ffea72bc3be01f/Scalar/CommandLine/ScalarVerb.cs#L35
                 { "core.gvfs", "true" },
+
+                // Use 'multi-pack-index' builtin instead of 'midx' to match upstream implementation
                 { "core.multiPackIndex", "true" },
+
+                // Perf - Enable parallel index preload for operations like git diff
                 { "core.preloadIndex", "true" },
                 { "core.safecrlf", "false" },
+
+                // Possibly cause hydration while creating untrackedCache.
                 { "core.untrackedCache", "false" },
                 { "core.repositoryformatversion", "0" },
+
+                // Support file modes onr Mac & Linux.
                 { "core.filemode", GVFSPlatform.Instance.FileSystem.SupportsFileMode ? "true" : "false" },
+
+                // For consistency with git init. https://dev.azure.com/mseng/AzureDevOps/_git/GVFS/pullrequest/235679
                 { "core.bare", "false" },
+
+                // For consistency with git init. https://dev.azure.com/mseng/AzureDevOps/_git/GVFS/pullrequest/235679
                 { "core.logallrefupdates", "true" },
+
+                // Git to download objects on demand.
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
+
+                // Configure hook that git calls to ask GVFS abvout what fiels it cares about
                 { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
+
+                // Ensure hooks path is configured correctly.
                 { "core.hookspath", expectedHooksPath },
+
+                // Hostname is no longer sufficent for VSTS authentication. VSTS now requires dev.azure.com/account to determine the tenant.
+                // By setting useHttpPath, credential managers will get the path which contains the account as the first parameter. They can then use this information for auth appropriately.
                 { GitConfigSetting.CredentialUseHttpPath, "true" },
                 { "credential.validate", "false" },
+
+                // This setting is not needed anymore, because current version of gvfs does not use index.lock.
+                // (This change was introduced initially to prevent `git diff` from acquiring index.lock file.)
                 { "diff.autoRefreshIndex", "true" },
+
+                // Turn off of git garbage collection. Git garbage collection does not work with virtualized object. Check with Stolee - probably not needed.
                 { "gc.auto", "0" },
+
+                // Prevent git GUI from displaying a GC warning. https://mseng.visualstudio.com/AzureDevOps/_git/GVFS/pullrequest/184856?_a=overview
                 { "gui.gcwarning", "false" },
+
+                // Update git settings to enable optimizations in git 2.20
+                // Set 'index.threads=true' to enable multi-threaded index reads
                 { "index.threads", "true" },
+
+                // gvfs index parser would work only with index versions 4 and above.
                 { "index.version", "4" },
+
+                // Turned off for performance reasons.
                 { "merge.stat", "false" },
+
+                // Update git version to 2.18.0.gvfs.1.26.gf61ade4 - This updates the git version to 2.18.0 which includes changes to the rename detection to use
+                // config setting which was previously turned off with a patch in git.
                 { "merge.renames", "false" },
+
+                // Don't use bitmaps to determine pack file contents, b'coz we use MIDX for this.
                 { "pack.useBitmaps", "false" },
+
+                // Update Git to include sparse push algorithm
                 { "pack.useSparse", "true" },
+
+                // Stop automatic git GC
                 { "receive.autogc", "false" },
+
+                // Update git settings to enable optimizations in git 2.20
+                // Set 'reset.quiet=true' to speed up 'git reset <foo>"
                 { "reset.quiet", "true" },
+
+                // Configure git to use our serialize status file
                 { "status.deserializePath", gitStatusCachePath },
+
+                // In Git 2.24.0, some new config settings were created. Disable them locally in VFS for Git repos in case a user has set them globally.
+                // https://github.com/microsoft/VFSForGit/pull/1594
                 { "feature.manyFiles", "false" },
+
+                // In Git 2.24.0, some new config settings were created. Disable them locally in VFS for Git repos in case a user has set them globally.
+                // https://github.com/microsoft/VFSForGit/pull/1594
                 { "feature.experimental", "false" },
+
+                // In Git 2.24.0, some new config settings were created. Disable them locally in VFS for Git repos in case a user has set them globally.
+                // https://github.com/microsoft/VFSForGit/pull/1594
                 { "fetch.writeCommitGraph", "false" },
             };
 
