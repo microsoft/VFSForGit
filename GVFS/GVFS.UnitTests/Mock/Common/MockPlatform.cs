@@ -97,9 +97,11 @@ namespace GVFS.UnitTests.Mock.Common
         public override string GetDataRootForGVFS()
         {
             // TODO: Update this method to return non existant file path.
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "GVFS");
+            // return Path.Combine(
+            //    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            //    "GVFS");
+
+            return "mock:\\DataRoot";
         }
 
         public override string GetDataRootForGVFSComponent(string componentName)
