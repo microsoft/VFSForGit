@@ -3,7 +3,7 @@
 
   <PropertyGroup Label="Parameters">
     <GVFSVersion>0.2.173.2</GVFSVersion>
-    <GitPackageVersion>2.20191112.3</GitPackageVersion>
+    <GitPackageVersion>2.20191121.10</GitPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Label="DefaultSettings">
