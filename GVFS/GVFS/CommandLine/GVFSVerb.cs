@@ -152,7 +152,7 @@ namespace GVFS.CommandLine
                 // Perf - Enable parallel index preload for operations like git diff
                 { "core.preloadIndex", "true" },
 
-                // We don't support line ending conversions - there is no reason to validate line endings.
+                // VFS4G never wants git to adjust line endings (causes un-necessary hydration of files)- explicitly setting core.safecrlf to false.
                 { "core.safecrlf", "false" },
 
                 // Possibly cause hydration while creating untrackedCache.
