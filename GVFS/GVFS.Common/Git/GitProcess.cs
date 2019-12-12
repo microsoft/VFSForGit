@@ -466,6 +466,11 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot("checkout -f " + target, useReadObjectHook: false);
         }
 
+        public Result Reset(string target, string paths)
+        {
+            return this.InvokeGitInWorkingDirectoryRoot($"reset {target} {paths}", useReadObjectHook: false);
+        }
+
         public Result Status(bool allowObjectDownloads, bool useStatusCache, bool showUntracked = false)
         {
             string command = "status";
@@ -533,7 +538,9 @@ namespace GVFS.Common.Git
         /// </summary>
         public Result WriteCommitGraph(string objectDir, List<string> packs)
         {
-            string command = "commit-graph write --stdin-packs --split --size-multiple=4 --object-dir \"" + objectDir + "\"";
+            // Do not expire commit-graph files that have been modified in the last hour.
+            // This will prevent deleting any commit-graph files that are currently in the commit-graph-chain.
+            string command = $"commit-graph write --stdin-packs --split --size-multiple=4 --expire-time={1 * 60 * 60} --object-dir \"{objectDir}\"";
             return this.InvokeGitInWorkingDirectoryRoot(
                 command,
                 useReadObjectHook: true,

@@ -49,6 +49,11 @@ namespace GVFS.CommandLine
         public string RunningVerbName { get; set; } = DehydrateVerbName;
         public string ActionName { get; set; } = DehydrateVerbName;
 
+        /// <summary>
+        /// True if another verb (e.g. 'gvfs sparse') has already validated that status is clean
+        /// </summary>
+        public bool StatusChecked { get; set; }
+
         protected override string VerbName
         {
             get { return DehydrateVerb.DehydrateVerbName; }
@@ -156,7 +161,7 @@ from a parent of the folders list.
                     return;
                 }
 
-                bool cleanStatus = this.CheckGitStatus(tracer, enlistment, fullDehydrate);
+                bool cleanStatus = this.StatusChecked || this.CheckGitStatus(tracer, enlistment, fullDehydrate);
 
                 string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 this.Output.WriteLine();
@@ -293,9 +298,17 @@ from a parent of the folders list.
                 this.ReportErrorAndExit(tracer, $"{this.ActionName} for folders failed.");
             }
 
-            this.Mount(tracer);
+            // We can skip the version check because dehydrating folders requires that a git status
+            // be run first, and running git status requires that the repo already be mounted (meaning
+            // we don't need to perform another version check again)
+            this.Mount(
+                tracer,
+                skipVersionCheck: true);
 
-            this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate.ToArray());
+            if (foldersToDehydrate.Count > 0)
+            {
+                this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate);
+            }
 
             if (folderErrors.Count > 0)
             {
@@ -322,7 +335,7 @@ from a parent of the folders list.
             return true;
         }
 
-        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, List<string> folderErrors, string[] folders)
+        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, List<string> folderErrors, List<string> folders)
         {
             NamedPipeMessages.DehydrateFolders.Response response = null;
 
@@ -369,7 +382,12 @@ from a parent of the folders list.
                 {
                     // Converting the src folder to partial must be the final step before mount
                     this.PrepareSrcFolder(tracer, enlistment);
-                    this.Mount(tracer);
+
+                    // We can skip the version check if git status was run because git status requires
+                    // that the repo already be mounted (meaning we don't need to perform another version check again)
+                    this.Mount(
+                        tracer,
+                        skipVersionCheck: !this.NoStatus);
 
                     this.Output.WriteLine();
                     this.WriteMessage(tracer, "The repo was successfully dehydrated and remounted");
@@ -380,12 +398,17 @@ from a parent of the folders list.
                 this.Output.WriteLine();
                 this.WriteMessage(tracer, "ERROR: Backup failed. We will attempt to mount, but you may need to reclone if that fails");
 
-                this.Mount(tracer);
+                // We can skip the version check if git status was run because git status requires
+                // that the repo already be mounted (meaning we don't need to perform another version check again)
+                this.Mount(
+                        tracer,
+                        skipVersionCheck: !this.NoStatus);
+
                 this.WriteMessage(tracer, "Dehydrate failed, but remounting succeeded");
             }
         }
 
-        private void Mount(ITracer tracer)
+        private void Mount(ITracer tracer, bool skipVersionCheck)
         {
             if (!this.ShowStatusWhileRunning(
                 () =>
@@ -395,6 +418,8 @@ from a parent of the folders list.
                         verb =>
                         {
                             verb.SkipInstallHooks = true;
+                            verb.SkipVersionCheck = skipVersionCheck;
+                            verb.SkipMountedCheck = true;
                         }) == ReturnCode.Success;
                 },
                 "Mounting"))

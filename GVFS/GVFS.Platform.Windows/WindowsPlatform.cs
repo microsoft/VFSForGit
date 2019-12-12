@@ -97,33 +97,6 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public override void InitializeEnlistmentACLs(string enlistmentPath)
-        {
-            // The following permissions are typically present on deskop and missing on Server
-            //
-            //   ACCESS_ALLOWED_ACE_TYPE: NT AUTHORITY\Authenticated Users
-            //          [OBJECT_INHERIT_ACE]
-            //          [CONTAINER_INHERIT_ACE]
-            //          [INHERIT_ONLY_ACE]
-            //        DELETE
-            //        GENERIC_EXECUTE
-            //        GENERIC_WRITE
-            //        GENERIC_READ
-            DirectorySecurity rootSecurity = Directory.GetAccessControl(enlistmentPath);
-            AccessRule authenticatedUsersAccessRule = rootSecurity.AccessRuleFactory(
-                new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
-                unchecked((int)(NativeMethods.FileAccess.DELETE | NativeMethods.FileAccess.GENERIC_EXECUTE | NativeMethods.FileAccess.GENERIC_WRITE | NativeMethods.FileAccess.GENERIC_READ)),
-                true,
-                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                PropagationFlags.None,
-                AccessControlType.Allow);
-
-            // The return type of the AccessRuleFactory method is the base class, AccessRule, but the return value can be cast safely to the derived class.
-            // https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.filesystemsecurity.accessrulefactory(v=vs.110).aspx
-            rootSecurity.AddAccessRule((FileSystemAccessRule)authenticatedUsersAccessRule);
-            Directory.SetAccessControl(enlistmentPath, rootSecurity);
-        }
-
         public override string GetOSVersionInformation()
         {
             StringBuilder sb = new StringBuilder();

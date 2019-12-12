@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading;
 
 namespace GVFS.Mount
@@ -42,6 +43,10 @@ namespace GVFS.Mount
         private MountState currentState;
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
+
+        // True if InProcessMount is calling git reset as part of processing
+        // a folder dehydrate request
+        private volatile bool resetForDehydrateInProgress;
 
         public InProcessMount(ITracer tracer, GVFSEnlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig, GitStatusCacheConfig gitStatusCacheConfig, bool showDebugWindow)
         {
@@ -282,13 +287,17 @@ namespace GVFS.Mount
         {
             NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(message);
 
-            this.tracer.RelatedInfo($"Received dehydrate folders request with body {message.Body}");
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add(nameof(request.Folders), request.Folders);
+            metadata.Add(TracingConstants.MessageKey.InfoMessage, "Received dehydrate folders request");
+            this.tracer.RelatedEvent(EventLevel.Informational, nameof(this.HandleDehydrateFolders), metadata);
 
             NamedPipeMessages.DehydrateFolders.Response response;
             if (this.currentState == MountState.Ready)
             {
                 response = new NamedPipeMessages.DehydrateFolders.Response(NamedPipeMessages.DehydrateFolders.DehydratedResult);
                 string[] folders = request.Folders.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                StringBuilder resetFolderPaths = new StringBuilder();
                 foreach (string folder in folders)
                 {
                     if (this.fileSystemCallbacks.TryDehydrateFolder(folder, out string errorMessage))
@@ -299,11 +308,36 @@ namespace GVFS.Mount
                     {
                         response.FailedFolders.Add($"{folder}\0{errorMessage}");
                     }
+
+                    resetFolderPaths.Append($"\"{folder.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator)}\" ");
                 }
 
-                // Since placeholders and modified paths could have changed with the dehydrate, the index needs to be rebuilt
+                // Since modified paths could have changed with the dehydrate, the paths that were dehydrated need to be reset in the index
+                string resetPaths = resetFolderPaths.ToString();
                 GitProcess gitProcess = new GitProcess(this.enlistment);
-                gitProcess.ForceCheckout(GVFSConstants.DotGit.HeadName);
+
+                EventMetadata resetIndexMetadata = new EventMetadata();
+                resetIndexMetadata.Add(nameof(resetPaths), resetPaths);
+
+                GitProcess.Result refreshIndexResult;
+                this.resetForDehydrateInProgress = true;
+                try
+                {
+                    // Because we've set resetForDehydrateInProgress to true, this call to 'git reset' will also force
+                    // the projection to be updated (required because 'git reset' will adjust the skip worktree bits in
+                    // the index).
+                    refreshIndexResult = gitProcess.Reset(GVFSConstants.DotGit.HeadName, resetPaths);
+                }
+                finally
+                {
+                    this.resetForDehydrateInProgress = false;
+                }
+
+                resetIndexMetadata.Add(nameof(refreshIndexResult.ExitCode), refreshIndexResult.ExitCode);
+                resetIndexMetadata.Add(nameof(refreshIndexResult.Output), refreshIndexResult.Output);
+                resetIndexMetadata.Add(nameof(refreshIndexResult.Errors), refreshIndexResult.Errors);
+                resetIndexMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.HandleDehydrateFolders)}: Reset git index");
+                this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.HandleDehydrateFolders)}_ResetIndex", resetIndexMetadata);
             }
             else
             {
@@ -403,7 +437,20 @@ namespace GVFS.Mount
             }
             else
             {
-                this.fileSystemCallbacks.ForceIndexProjectionUpdate(request.UpdatedWorkingDirectory, request.UpdatedSkipWorktreeBits);
+                if (this.resetForDehydrateInProgress)
+                {
+                    // To avoid having to parse the index twice when dehydrating folders, repurpose the PostIndexChangedRequest
+                    // for git reset to rebuild the projection.  Additionally, if we were to call ForceIndexProjectionUpdate
+                    // directly in HandleDehydrateFolders we'd have a race condition where the OnIndexWriteRequiringModifiedPathsValidation
+                    // background task would be trying to parse the index at the same time as HandleDehydrateFolders
+
+                    this.fileSystemCallbacks.ForceIndexProjectionUpdate(invalidateProjection: true, invalidateModifiedPaths: false);
+                }
+                else
+                {
+                    this.fileSystemCallbacks.ForceIndexProjectionUpdate(request.UpdatedWorkingDirectory, request.UpdatedSkipWorktreeBits);
+                }
+
                 response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.PostIndexChanged.SuccessResult);
             }
 

@@ -73,7 +73,6 @@ namespace GVFS.Common
         public abstract string GetOSVersionInformation();
         public abstract string GetDataRootForGVFS();
         public abstract string GetDataRootForGVFSComponent(string componentName);
-        public abstract void InitializeEnlistmentACLs(string enlistmentPath);
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
         public abstract string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer);

@@ -125,6 +125,14 @@ namespace GVFS.CommandLine
                     cloneResult = this.TryCreateEnlistment(fullEnlistmentRootPathParameter, normalizedEnlistmentRootPath, out enlistment);
                     if (cloneResult.Success)
                     {
+                        // Create the enlistment root explicitly with CreateDirectoryAccessibleByAuthUsers before calling
+                        // AddLogFileEventListener to ensure that elevated and non-elevated users have access to the root.
+                        string createDirectoryError;
+                        if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryAccessibleByAuthUsers(enlistment.EnlistmentRoot, out createDirectoryError))
+                        {
+                            this.ReportErrorAndExit($"Failed to create '{enlistment.EnlistmentRoot}': {createDirectoryError}");
+                        }
+
                         tracer.AddLogFileEventListener(
                             GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Clone),
                             EventLevel.Informational,
@@ -371,9 +379,9 @@ namespace GVFS.CommandLine
                         }
                     }
 
-                    if (!enlistment.TryCreateEnlistmentFolders())
+                    if (!enlistment.TryCreateEnlistmentSubFolders())
                     {
-                        string error = "Could not create enlistment directory";
+                        string error = "Could not create enlistment directories";
                         tracer.RelatedError(error);
                         return new Result(error);
                     }
@@ -392,6 +400,8 @@ namespace GVFS.CommandLine
                         return new Result(localCacheError);
                     }
 
+                    // There's no need to use CreateDirectoryAccessibleByAuthUsers as these directories will inherit
+                    // the ACLs used to create LocalCacheRoot
                     Directory.CreateDirectory(enlistment.GitObjectsRoot);
                     Directory.CreateDirectory(enlistment.GitPackRoot);
                     Directory.CreateDirectory(enlistment.BlobSizesRoot);

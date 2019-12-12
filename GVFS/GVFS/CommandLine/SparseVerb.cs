@@ -7,6 +7,8 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -25,6 +27,13 @@ Folders need to be relative to the repos root directory.")
         private const char StatusPathSeparatorToken = '\0';
         private const char StatusRenameToken = 'R';
         private const string PruneOptionName = "prune";
+
+        private enum SetDirectoryTimeResult
+        {
+            Success,
+            Failure,
+            DirectoryDoesNotExist
+        }
 
         [Option(
             's',
@@ -83,6 +92,48 @@ Folders need to be relative to the repos root directory.")
         public bool Disable { get; set; }
 
         protected override string VerbName => SparseVerbName;
+
+        internal static string GetNextGitPath(ref int index, string statusOutput)
+        {
+            int endOfPathIndex = statusOutput.IndexOf(StatusPathSeparatorToken, index);
+            string gitPath = statusOutput.Substring(index, endOfPathIndex - index);
+            index = endOfPathIndex + 1;
+            return gitPath;
+        }
+
+        internal static bool PathCoveredBySparseFolders(string gitPath, HashSet<string> sparseFolders)
+        {
+            string filePath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+            if (sparseFolders.Any(x => filePath.StartsWith(x + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison)))
+            {
+                // Path is covered by a recursive entry
+                return true;
+            }
+
+            int pathSeparatorIndex = filePath.LastIndexOf(Path.DirectorySeparatorChar);
+            if (pathSeparatorIndex < 0)
+            {
+                // Path is in the root, and root entries are always in the sparse set
+                return true;
+            }
+
+            // Get the parent path (including the path separator)
+            string parentPath = filePath.Substring(startIndex: 0, length: pathSeparatorIndex + 1);
+            if (sparseFolders.Any(x => x.StartsWith(parentPath, GVFSPlatform.Instance.Constants.PathComparison)))
+            {
+                // Path is a child of a non-recursive entry
+                //
+                // Example:
+                //  - Sparse set: A\B\C
+                //  - filePath: A\B\d.txt
+                //
+                // This file is in the sparse set because its parent ("A\B\") is an ancestor of a recursive
+                // entry ("A\B\C\") in the sparse set
+                return true;
+            }
+
+            return false;
+        }
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
@@ -231,17 +282,143 @@ Folders need to be relative to the repos root directory.")
                         this.WriteMessage(tracer, "No folders to update in sparse set.");
                     }
 
+                    List<string> foldersPruned;
                     if (this.Prune && directories.Count > 0)
                     {
-                        this.PruneFoldersOutsideSparse(tracer, enlistment, sparseTable);
+                        foldersPruned = this.PruneFoldersOutsideSparse(tracer, enlistment, sparseTable);
+                    }
+                    else
+                    {
+                        foldersPruned = new List<string>();
+                    }
+
+                    if (needToChangeProjection || this.Prune)
+                    {
+                        // Update the last write times of the parents of folders being added/removed
+                        // so that File Explorer will refresh them
+                        UpdateParentFolderLastWriteTimes(tracer, enlistment.WorkingDirectoryBackingRoot, foldersToRemove, foldersToAdd, foldersPruned);
                     }
                 }
             }
         }
 
-        private void PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, SparseTable sparseTable)
+        private static void UpdateParentFolderLastWriteTimes(
+            ITracer tracer,
+            string rootPath,
+            IEnumerable<string> foldersRemoved,
+            IEnumerable<string> foldersAdded,
+            IEnumerable<string> foldersPruned)
         {
-            string[] directoriesToDehydrate = new string[0];
+            Stopwatch updateTime = Stopwatch.StartNew();
+
+            HashSet<string> foldersToUpdate = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
+            AddNonRootParentPathsToSet(foldersToUpdate, foldersRemoved);
+            AddNonRootParentPathsToSet(foldersToUpdate, foldersAdded);
+            AddNonRootParentPathsToSet(foldersToUpdate, foldersPruned);
+
+            DateTime refreshTime = DateTime.Now;
+            int foldersUpdated = 0;
+            int foldersNotFound = 0;
+            int folderErrors = 0;
+
+            // Always refresh the root
+            SetFolderLastWriteTime(
+                tracer,
+                rootPath,
+                refreshTime,
+                ref foldersUpdated,
+                ref folderErrors,
+                ref foldersNotFound);
+
+            string folderPathPrefix = $"{rootPath}{Path.DirectorySeparatorChar}";
+            foreach (string path in foldersToUpdate)
+            {
+                SetFolderLastWriteTime(
+                    tracer,
+                    folderPathPrefix + path,
+                    refreshTime,
+                    ref foldersUpdated,
+                    ref folderErrors,
+                    ref foldersNotFound);
+            }
+
+            updateTime.Stop();
+
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("foldersToRefresh", foldersToUpdate.Count + 1); // +1 for the root
+            metadata.Add(nameof(foldersUpdated), foldersUpdated);
+            metadata.Add(nameof(folderErrors), folderErrors);
+            metadata.Add(nameof(foldersNotFound), foldersNotFound);
+            metadata.Add(nameof(updateTime.ElapsedMilliseconds), updateTime.ElapsedMilliseconds);
+            metadata.Add(TracingConstants.MessageKey.InfoMessage, "Updated folder last write times");
+            tracer.RelatedEvent(EventLevel.Informational, $"{nameof(UpdateParentFolderLastWriteTimes)}_Summary", metadata);
+        }
+
+        private static void AddNonRootParentPathsToSet(HashSet<string> set, IEnumerable<string> folderPaths)
+        {
+            foreach (string folderPath in folderPaths)
+            {
+                int lastSeparatorIndex = folderPath.LastIndexOf(Path.DirectorySeparatorChar);
+                string parentPath = folderPath;
+                while (lastSeparatorIndex > 0)
+                {
+                    parentPath = parentPath.Substring(0, lastSeparatorIndex);
+                    set.Add(parentPath);
+                    lastSeparatorIndex = parentPath.LastIndexOf(Path.DirectorySeparatorChar);
+                }
+            }
+        }
+
+        private static void SetFolderLastWriteTime(
+            ITracer tracer,
+            string path,
+            DateTime time,
+            ref int successCount,
+            ref int failureCount,
+            ref int directoryNotFoundCount)
+        {
+            SetDirectoryTimeResult result = SetFolderLastWriteTime(tracer, path, time);
+            switch (result)
+            {
+                case SetDirectoryTimeResult.Success:
+                    ++successCount;
+                    break;
+                case SetDirectoryTimeResult.Failure:
+                    ++failureCount;
+                    break;
+                case SetDirectoryTimeResult.DirectoryDoesNotExist:
+                    ++directoryNotFoundCount;
+                    break;
+            }
+        }
+
+        private static SetDirectoryTimeResult SetFolderLastWriteTime(ITracer tracer, string folderPath, DateTime time)
+        {
+            try
+            {
+                GVFSPlatform.Instance.FileSystem.SetDirectoryLastWriteTime(folderPath, time, out bool directoryExists);
+                if (directoryExists)
+                {
+                    return SetDirectoryTimeResult.Success;
+                }
+
+                return SetDirectoryTimeResult.DirectoryDoesNotExist;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is Win32Exception)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                metadata.Add(nameof(folderPath), folderPath);
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(SetFolderLastWriteTime)}: Failed to update folder write time");
+                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(SetFolderLastWriteTime)}_FailedWriteTimeUpdate", metadata);
+            }
+
+            return SetDirectoryTimeResult.Failure;
+        }
+
+        private List<string> PruneFoldersOutsideSparse(ITracer tracer, Enlistment enlistment, SparseTable sparseTable)
+        {
+            List<string> directoriesToDehydrate = new List<string>();
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
@@ -253,9 +430,9 @@ Folders need to be relative to the repos root directory.")
                 this.ReportErrorAndExit(tracer, $"Failed to {PruneOptionName}.");
             }
 
-            this.WriteMessage(tracer, $"Found {directoriesToDehydrate.Length} folders to {PruneOptionName}.");
+            this.WriteMessage(tracer, $"Found {directoriesToDehydrate.Count} folders to {PruneOptionName}.");
 
-            if (directoriesToDehydrate.Length > 0)
+            if (directoriesToDehydrate.Count > 0)
             {
                 ReturnCode verbReturnCode = this.ExecuteGVFSVerb<DehydrateVerb>(
                     tracer,
@@ -264,6 +441,7 @@ Folders need to be relative to the repos root directory.")
                         verb.RunningVerbName = this.VerbName;
                         verb.ActionName = PruneOptionName;
                         verb.Confirmed = true;
+                        verb.StatusChecked = true;
                         verb.Folders = string.Join(FolderListSeparator, directoriesToDehydrate);
                     },
                     this.Output);
@@ -273,9 +451,11 @@ Folders need to be relative to the repos root directory.")
                     this.ReportErrorAndExit(tracer, verbReturnCode, $"Failed to {PruneOptionName}. Exit Code: {verbReturnCode}");
                 }
             }
+
+            return directoriesToDehydrate;
         }
 
-        private string[] GetDirectoriesOutsideSparse(string rootPath, SparseTable sparseTable)
+        private List<string> GetDirectoriesOutsideSparse(string rootPath, SparseTable sparseTable)
         {
             HashSet<string> sparseFolders = sparseTable.GetAll();
             PhysicalFileSystem fileSystem = new PhysicalFileSystem();
@@ -303,7 +483,7 @@ Folders need to be relative to the repos root directory.")
                 }
             }
 
-            return foldersOutsideSparse.ToArray();
+            return foldersOutsideSparse;
         }
 
         private void UpdateSparseFolders(ITracer tracer, SparseTable sparseTable, List<string> foldersToRemove, List<string> foldersToAdd)
@@ -434,6 +614,7 @@ Folders need to be relative to the repos root directory.")
         private void CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment, HashSet<string> sparseFolders)
         {
             GitProcess.Result statusResult = null;
+            HashSet<string> dirtyPathsNotInSparseSet = null;
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
@@ -444,12 +625,8 @@ Folders need to be relative to the repos root directory.")
                         return false;
                     }
 
-                    if (this.ContainsPathNotCoveredBySparseFolders(statusResult.Output, sparseFolders))
-                    {
-                        return false;
-                    }
-
-                    return true;
+                    dirtyPathsNotInSparseSet = this.GetPathsNotCoveredBySparseFolders(statusResult.Output, sparseFolders);
+                    return dirtyPathsNotInSparseSet.Count == 0;
                 },
                 "Running git status",
                 suppressGvfsLogMessage: true))
@@ -462,9 +639,17 @@ Folders need to be relative to the repos root directory.")
                 }
                 else
                 {
-                    this.WriteMessage(tracer, statusResult.Output);
-                    this.WriteMessage(tracer, "git status reported that you have dirty files");
-                    this.WriteMessage(tracer, "Either commit your changes or reset and clean");
+                    StringBuilder dirtyFilesMessage = new StringBuilder();
+                    dirtyFilesMessage.AppendLine("git status reported that you have dirty files:");
+                    dirtyFilesMessage.AppendLine();
+                    foreach (string path in dirtyPathsNotInSparseSet)
+                    {
+                        dirtyFilesMessage.AppendLine($"    {path}");
+                    }
+
+                    dirtyFilesMessage.AppendLine();
+                    dirtyFilesMessage.Append("Either commit your changes or reset and clean");
+                    this.WriteMessage(tracer, dirtyFilesMessage.ToString());
                 }
 
                 this.Output.WriteLine();
@@ -472,37 +657,32 @@ Folders need to be relative to the repos root directory.")
             }
         }
 
-        private bool ContainsPathNotCoveredBySparseFolders(string statusOutput, HashSet<string> sparseFolders)
+        private HashSet<string> GetPathsNotCoveredBySparseFolders(string statusOutput, HashSet<string> sparseFolders)
         {
+            HashSet<string> uncoveredPaths = new HashSet<string>();
             int index = 0;
             while (index < statusOutput.Length - 1)
             {
                 bool isRename = statusOutput[index] == StatusRenameToken || statusOutput[index + 1] == StatusRenameToken;
                 index = index + 3;
-                if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders))
+
+                string gitPath = GetNextGitPath(ref index, statusOutput);
+                if (!PathCoveredBySparseFolders(gitPath, sparseFolders))
                 {
-                    return true;
+                    uncoveredPaths.Add(gitPath);
                 }
 
                 if (isRename)
                 {
-                    if (!this.PathCoveredBySparseFolders(ref index, statusOutput, sparseFolders))
+                    gitPath = GetNextGitPath(ref index, statusOutput);
+                    if (!PathCoveredBySparseFolders(gitPath, sparseFolders))
                     {
-                        return true;
+                        uncoveredPaths.Add(gitPath);
                     }
                 }
             }
 
-            return false;
-        }
-
-        private bool PathCoveredBySparseFolders(ref int index, string statusOutput, HashSet<string> sparseFolders)
-        {
-            int endOfPathIndex = statusOutput.IndexOf(StatusPathSeparatorToken, index);
-            string filePath = statusOutput.Substring(index, endOfPathIndex - index)
-                .Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
-            index = endOfPathIndex + 1;
-            return sparseFolders.Any(x => filePath.StartsWith(x + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison));
+            return uncoveredPaths;
         }
 
         private void WriteMessage(ITracer tracer, string message)

@@ -30,6 +30,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
             return true;
         }
 
+        public void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime, out bool directoryExists)
+        {
+            throw new NotSupportedException();
+        }
+
         public bool HydrateFile(string fileName, byte[] buffer)
         {
             throw new NotSupportedException();
@@ -41,6 +46,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
         }
 
         public bool IsSocket(string fileName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool TryCreateDirectoryAccessibleByAuthUsers(string directoryPath, out string error, ITracer tracer = null)
         {
             throw new NotSupportedException();
         }

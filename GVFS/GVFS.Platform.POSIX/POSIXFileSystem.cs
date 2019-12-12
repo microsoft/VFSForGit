@@ -48,11 +48,43 @@ namespace GVFS.Platform.POSIX
             return POSIXFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
         }
 
+        public void SetDirectoryLastWriteTime(string path, DateTime lastWriteTime, out bool directoryExists)
+        {
+            directoryExists = Directory.Exists(path);
+            if (directoryExists)
+            {
+                Directory.SetLastWriteTime(path, lastWriteTime);
+            }
+        }
+
         public abstract bool HydrateFile(string fileName, byte[] buffer);
 
         public abstract bool IsExecutable(string fileName);
 
         public abstract bool IsSocket(string fileName);
+
+        public bool TryCreateDirectoryAccessibleByAuthUsers(string directoryPath, out string error, ITracer tracer = null)
+        {
+            try
+            {
+                Directory.CreateDirectory(directoryPath);
+                error = null;
+                return true;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                if (tracer != null)
+                {
+                    EventMetadata metadataData = new EventMetadata();
+                    metadataData.Add("Exception", e.ToString());
+                    metadataData.Add(nameof(directoryPath), directoryPath);
+                    tracer.RelatedError(metadataData, $"{nameof(this.TryCreateDirectoryAccessibleByAuthUsers)}: Failed to create directory");
+                }
+
+                error = e.Message;
+                return false;
+            }
+        }
 
         public bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
         {
