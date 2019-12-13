@@ -27,6 +27,9 @@
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 #define FileSystemKey "SYSTEM\CurrentControlSet\Control\FileSystem"
 #define GvFltAutologgerKey "SYSTEM\CurrentControlSet\Control\WMI\Autologger\Microsoft-Windows-Git-Filter-Log"
+#define GVFSConfigFileName "gvfs.config"
+#define GVFSStatuscacheTokenFileName "EnableGitStatusCacheToken.dat"
+#define ServiceName "GVFS.Service"
 #define ServiceUIName "VFS For Git"
 
 [Setup]
@@ -178,6 +181,9 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\System.IO.Compression
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe.config"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
+
+[Dirs]
+Name: "{app}\ProgramData\{#ServiceName}"; Permissions: users-readexec
 
 [Icons]
 Name: "{commonstartmenu}\{#ServiceUIName}"; Filename: "{app}\GVFS.Service.UI.exe"; AppUserModelID: "GVFS"
@@ -595,6 +601,37 @@ begin
     end;
 end;
 
+procedure MigrateFile(OldPath, NewPath : string);
+begin
+  Log('MigrateFile(' + OldPath + ', ' + NewPath + ')');
+  if (FileExists(OldPath)) then
+    begin
+      if (not FileExists(NewPath)) then
+        begin
+          if (not RenameFile(OldPath, NewPath)) then
+            Log('Could not move ' + OldPath + ' continuing anyway')
+          else
+            Log('Moved ' + OldPath + ' to ' + NewPath);
+        end
+      else
+        Log('Migration cancelled. Newer file exists at path ' + NewPath);
+    end
+  else
+    Log('Migration cancelled. ' + OldPath + ' does not exist');
+end;
+
+procedure MigrateConfigAndStatusCacheFiles();
+var
+  CommonAppDataDir: string;
+  SecureAppDataDir: string;
+begin
+  CommonAppDataDir := ExpandConstant('{commonappdata}\GVFS');
+  SecureAppDataDir := ExpandConstant('{app}\ProgramData');
+
+  MigrateFile(CommonAppDataDir + '\{#GVFSConfigFileName}', SecureAppDataDir + '\{#GVFSConfigFileName}');
+  MigrateFile(CommonAppDataDir + '\{#ServiceName}\{#GVFSStatuscacheTokenFileName}', SecureAppDataDir + '\{#ServiceName}\{#GVFSStatuscacheTokenFileName}');
+end;
+
 function ConfirmUnmountAll(): Boolean;
 var
   MsgBoxResult: integer;
@@ -761,9 +798,10 @@ begin
       end;
     ssPostInstall:
       begin
+        MigrateConfigAndStatusCacheFiles();
+        StartGVFSServiceUI();
         if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
           begin
-            StartGVFSServiceUI();
             MountRepos();
           end
       end;
