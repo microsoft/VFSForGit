@@ -131,6 +131,7 @@ namespace GVFS.FunctionalTests
                 excludeCategories.Add(Categories.PartialFolderRenamesAllowed);
                 excludeCategories.Add(Categories.PartialFolderRenamesBlocked);
 
+                excludeCategories.Add(Categories.LinuxTODO.NeedsServiceVerb);
                 excludeCategories.Add(Categories.LinuxTODO.NeedsContentionFreeFileLock);
                 excludeCategories.Add(Categories.LinuxTODO.NeedsConsistentBufferedWrites);
 

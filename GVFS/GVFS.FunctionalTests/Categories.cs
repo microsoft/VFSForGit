@@ -22,6 +22,9 @@
 
         public static class LinuxTODO
         {
+            // Tests that require VFS Service
+            public const string NeedsServiceVerb = "NeedsServiceVerb";
+
             // Tests that fail due to flock() contention with libprojfs
             public const string NeedsContentionFreeFileLock = "NeedsNonContendedFileLock";
 
