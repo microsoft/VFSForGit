@@ -29,8 +29,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.fileSystem = new SystemIORunner();
             this.upgradeDownloadsDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolderOption.Create),
                 "GVFS",
+                "ProgramData",
                 "GVFS.Upgrade",
                 "Downloads");
         }

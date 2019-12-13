@@ -37,9 +37,7 @@ namespace GVFS.Service
 
             GVFSPlatform gvfsPlatform = GVFSPlatform.Instance;
 
-            string logFilePath = Path.Combine(
-                gvfsPlatform.GetDataRootForGVFSComponent(serviceName),
-                GVFSConstants.Service.LogDirectory);
+            string logFilePath = GVFSPlatform.Instance.GetLogsDirectoryForGVFSComponent(serviceName);
             Directory.CreateDirectory(logFilePath);
 
             tracer.AddLogFileEventListener(
@@ -47,7 +45,7 @@ namespace GVFS.Service
                 EventLevel.Informational,
                 Keywords.Any);
 
-            string serviceDataLocation = gvfsPlatform.GetDataRootForGVFSComponent(serviceName);
+            string serviceDataLocation = gvfsPlatform.GetSecureDataRootForGVFSComponent(serviceName);
             RepoRegistry repoRegistry = new RepoRegistry(
                 tracer,
                 new PhysicalFileSystem(),
