@@ -179,7 +179,13 @@ namespace GVFS.Common
             error = null;
             try
             {
-                this.fileSystem.CopyDirectoryRecursive(currentPath, upgradeApplicationDirectory);
+                // Copying C:\Program Files\GVFS to inside of C:\Program Files\GVFS\ProgramData\GVFS.Upgrade\Tools
+                // directory causes a cycle(at some point we start copying C:\Program Files\GVFS\ProgramData\GVFS.Upgrade
+                // and its contents into C:\Program Files\GVFS\ProgramData\GVFS.Upgrade\Tools). The exclusion below is
+                // added to avoid this loop.
+               HashSet<string> directoriesToExclude = new HashSet<string>();
+                directoriesToExclude.Add(GVFSPlatform.Instance.GetSecureDataRootForGVFS());
+                this.fileSystem.CopyDirectoryRecursive(currentPath, upgradeApplicationDirectory, directoriesToExclude);
             }
             catch (UnauthorizedAccessException e)
             {

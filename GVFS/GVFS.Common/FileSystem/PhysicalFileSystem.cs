@@ -39,7 +39,10 @@ namespace GVFS.Common.FileSystem
             directory.Delete();
         }
 
-        public virtual void CopyDirectoryRecursive(string srcDirectoryPath, string dstDirectoryPath)
+        public virtual void CopyDirectoryRecursive(
+            string srcDirectoryPath,
+            string dstDirectoryPath,
+            HashSet<string> excludeDirectories = null)
         {
             DirectoryInfo srcDirectory = new DirectoryInfo(srcDirectoryPath);
 
@@ -55,7 +58,13 @@ namespace GVFS.Common.FileSystem
 
             foreach (DirectoryInfo subDirectory in srcDirectory.EnumerateDirectories())
             {
-                this.CopyDirectoryRecursive(subDirectory.FullName, Path.Combine(dstDirectoryPath, subDirectory.Name));
+                if (excludeDirectories == null || !excludeDirectories.Contains(subDirectory.FullName))
+                {
+                    this.CopyDirectoryRecursive(
+                        subDirectory.FullName,
+                        Path.Combine(dstDirectoryPath, subDirectory.Name),
+                        excludeDirectories);
+                }
             }
         }
 
