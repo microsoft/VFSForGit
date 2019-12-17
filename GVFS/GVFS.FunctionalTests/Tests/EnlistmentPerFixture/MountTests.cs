@@ -76,9 +76,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 this.Enlistment.UnmountGVFS();
 
-                GitProcess.Invoke(this.Enlistment.RepoRoot, "config --unset core.hookspath");
+                GitProcess.Invoke(this.Enlistment.RepoBackingRoot, "config --unset core.hookspath");
                 string.IsNullOrWhiteSpace(
-                    GitProcess.Invoke(this.Enlistment.RepoRoot, "config core.hookspath"))
+                    GitProcess.Invoke(this.Enlistment.RepoBackingRoot, "config core.hookspath"))
                     .ShouldBeTrue();
 
                 this.Enlistment.MountGVFS();
