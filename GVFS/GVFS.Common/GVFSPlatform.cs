@@ -71,8 +71,10 @@ namespace GVFS.Common
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
 
         public abstract string GetOSVersionInformation();
-        public abstract string GetDataRootForGVFS();
-        public abstract string GetDataRootForGVFSComponent(string componentName);
+        public abstract string GetSecureDataRootForGVFS();
+        public abstract string GetSecureDataRootForGVFSComponent(string componentName);
+        public abstract string GetCommonAppDataRootForGVFS();
+        public abstract string GetLogsDirectoryForGVFSComponent(string componentName);
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
         public abstract string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer);

@@ -94,17 +94,27 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override string GetDataRootForGVFS()
+        public override string GetSecureDataRootForGVFS()
         {
-            // TODO: Update this method to return non existant file path.
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "GVFS");
+            return "mock:\\dataRoot";
         }
 
-        public override string GetDataRootForGVFSComponent(string componentName)
+        public override string GetSecureDataRootForGVFSComponent(string componentName)
         {
-            return Path.Combine(this.GetDataRootForGVFS(), componentName);
+            return Path.Combine(this.GetSecureDataRootForGVFS(), componentName);
+        }
+
+        public override string GetCommonAppDataRootForGVFS()
+        {
+            return this.GetSecureDataRootForGVFS();
+        }
+
+        public override string GetLogsDirectoryForGVFSComponent(string componentName)
+        {
+            return Path.Combine(
+                this.GetCommonAppDataRootForGVFS(),
+                componentName,
+                "Logs");
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
@@ -114,7 +124,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string GetUpgradeProtectedDataDirectory()
         {
-            return this.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
+            return this.GetSecureDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
         }
 
         public override string GetUpgradeLogDirectoryParentDirectory()

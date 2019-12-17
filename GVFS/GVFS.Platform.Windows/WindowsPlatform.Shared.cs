@@ -75,16 +75,32 @@ namespace GVFS.Platform.Windows
             return "GVFS_" + enlistmentRoot.ToUpper().Replace(':', '_');
         }
 
-        public static string GetDataRootForGVFSImplementation()
+        public static string GetSecureDataRootForGVFSImplementation()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolderOption.Create),
+                 "GVFS",
+                 "ProgramData");
+        }
+
+        public static string GetCommonAppDataRootForGVFSImplementation()
         {
             return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
                 "GVFS");
         }
 
-        public static string GetDataRootForGVFSComponentImplementation(string componentName)
+        public static string GetLogsDirectoryForGVFSComponentImplementation(string componentName)
         {
-            return Path.Combine(GetDataRootForGVFSImplementation(), componentName);
+            return Path.Combine(
+                GetCommonAppDataRootForGVFSImplementation(),
+                componentName,
+                "Logs");
+        }
+
+        public static string GetSecureDataRootForGVFSComponentImplementation(string componentName)
+        {
+            return Path.Combine(GetSecureDataRootForGVFSImplementation(), componentName);
         }
 
         public static bool IsConsoleOutputRedirectedToFileImplementation()
@@ -114,7 +130,7 @@ namespace GVFS.Platform.Windows
 
         public static string GetUpgradeProtectedDataDirectoryImplementation()
         {
-            return Path.Combine(GetDataRootForGVFSImplementation(), ProductUpgraderInfo.UpgradeDirectoryName);
+            return Path.Combine(GetSecureDataRootForGVFSImplementation(), ProductUpgraderInfo.UpgradeDirectoryName);
         }
 
         public static string GetUpgradeHighestAvailableVersionDirectoryImplementation()

@@ -40,7 +40,7 @@ namespace GVFS.Platform.Windows
         {
             get
             {
-                string servicePath = GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName);
+                string servicePath = GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(GVFSConstants.Service.ServiceName);
                 string gvfsDirectory = Path.GetDirectoryName(servicePath);
 
                 return Path.Combine(gvfsDirectory, LocalGVFSConfig.FileName);
@@ -118,14 +118,24 @@ namespace GVFS.Platform.Windows
             return sb.ToString();
         }
 
-        public override string GetDataRootForGVFS()
+        public override string GetSecureDataRootForGVFS()
         {
-            return WindowsPlatform.GetDataRootForGVFSImplementation();
+            return WindowsPlatform.GetSecureDataRootForGVFSImplementation();
         }
 
-        public override string GetDataRootForGVFSComponent(string componentName)
+        public override string GetSecureDataRootForGVFSComponent(string componentName)
         {
-            return WindowsPlatform.GetDataRootForGVFSComponentImplementation(componentName);
+            return WindowsPlatform.GetSecureDataRootForGVFSComponentImplementation(componentName);
+        }
+
+        public override string GetCommonAppDataRootForGVFS()
+        {
+            return WindowsPlatform.GetCommonAppDataRootForGVFSImplementation();
+        }
+
+        public override string GetLogsDirectoryForGVFSComponent(string componentName)
+        {
+            return WindowsPlatform.GetLogsDirectoryForGVFSComponentImplementation(componentName);
         }
 
         public override void StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args)
@@ -325,7 +335,9 @@ namespace GVFS.Platform.Windows
 
         public override string GetUpgradeLogDirectoryParentDirectory()
         {
-            return this.GetUpgradeProtectedDataDirectory();
+            return Path.Combine(
+               this.GetCommonAppDataRootForGVFS(),
+               ProductUpgraderInfo.UpgradeDirectoryName);
         }
 
         public override string GetSystemInstallerLogPath()
@@ -352,7 +364,7 @@ namespace GVFS.Platform.Windows
 
         public override bool IsGitStatusCacheSupported()
         {
-            return File.Exists(Path.Combine(GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
+            return File.Exists(Path.Combine(GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
         }
 
         public override FileBasedLock CreateFileBasedLock(

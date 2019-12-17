@@ -187,7 +187,7 @@ namespace GVFS.Platform.POSIX
         {
             // Pipes are stored as files on POSIX, use a rooted pipe name
             // in the same location as the service to keep full control of the location of the file
-            return this.GetDataRootForGVFSComponent(serviceName) + ".pipe";
+            return this.GetSecureDataRootForGVFSComponent(serviceName) + ".pipe";
         }
 
         public override bool IsConsoleOutputRedirectedToFile()

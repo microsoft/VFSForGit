@@ -14,7 +14,7 @@ namespace GVFS.Service.UI
             using (JsonTracer tracer = new JsonTracer("Microsoft.Git.GVFS.Service.UI", "Service.UI"))
             {
                 string error;
-                string serviceUILogDirectory = GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.UIName);
+                string serviceUILogDirectory = GVFSPlatform.Instance.GetLogsDirectoryForGVFSComponent(GVFSConstants.Service.UIName);
                 if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(serviceUILogDirectory, out error))
                 {
                     EventMetadata metadata = new EventMetadata();

@@ -50,7 +50,7 @@ namespace GVFS.Service
                 this.repoRegistry = new RepoRegistry(
                     this.tracer,
                     new PhysicalFileSystem(),
-                    this.serviceDataLocation,
+                    Path.Combine(GVFSPlatform.Instance.GetCommonAppDataRootForGVFS(), this.serviceName),
                     new GVFSMountProcess(this.tracer),
                     this.notificationHandler);
                 this.repoRegistry.Upgrade();
@@ -179,9 +179,7 @@ namespace GVFS.Service
                 this.serviceName = serviceName.Substring(ServiceNameArgPrefix.Length);
             }
 
-            string serviceLogsDirectoryPath = Path.Combine(
-                    GVFSPlatform.Instance.GetDataRootForGVFSComponent(this.serviceName),
-                    GVFSConstants.Service.LogDirectory);
+            string serviceLogsDirectoryPath = GVFSPlatform.Instance.GetLogsDirectoryForGVFSComponent(this.serviceName);
 
             // Create the logs directory explicitly *before* creating a log file event listener to ensure that it
             // and its ancestor directories are created with the correct ACLs.
@@ -193,7 +191,7 @@ namespace GVFS.Service
 
             try
             {
-                this.serviceDataLocation = GVFSPlatform.Instance.GetDataRootForGVFSComponent(this.serviceName);
+                this.serviceDataLocation = GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(this.serviceName);
                 this.CreateAndConfigureProgramDataDirectories();
                 this.Start();
             }
@@ -255,7 +253,7 @@ namespace GVFS.Service
         {
             try
             {
-                string statusCacheVersionTokenPath = Path.Combine(GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile);
+                string statusCacheVersionTokenPath = Path.Combine(GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile);
                 if (File.Exists(statusCacheVersionTokenPath))
                 {
                     this.tracer.RelatedInfo($"CheckEnableGitStatusCache: EnableGitStatusCacheToken file already exists at {statusCacheVersionTokenPath}.");
@@ -330,7 +328,7 @@ namespace GVFS.Service
 
             // Special rules for the upgrader logs, as non-elevated users need to be be able to write
             this.CreateAndConfigureLogDirectory(ProductUpgraderInfo.GetLogDirectoryPath());
-            this.CreateAndConfigureLogDirectory(GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.UIName));
+            this.CreateAndConfigureLogDirectory(GVFSPlatform.Instance.GetLogsDirectoryForGVFSComponent(GVFSConstants.Service.UIName));
         }
 
         private void CreateAndConfigureLogDirectory(string path)
