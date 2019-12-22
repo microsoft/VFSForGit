@@ -119,6 +119,7 @@ namespace GVFS.FunctionalTests
 
                 excludeCategories.Add(Categories.LinuxTODO.NeedsContentionFreeFileLock);
                 excludeCategories.Add(Categories.LinuxTODO.NeedsConsistentBufferedWrites);
+                excludeCategories.Add(Categories.LinuxTODO.NeedsServiceVerb);
 
                 excludeCategories.Add(Categories.NonWindowsTODO.NeedsGVFSConfig);
                 excludeCategories.Add(Categories.NonWindowsTODO.NeedsStatusCache);
