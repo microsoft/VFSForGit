@@ -1,8 +1,6 @@
 ﻿using GVFS.Common.FileSystem;
-using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
-using System.IO;
 
 namespace GVFS.Common
 {
@@ -21,6 +19,13 @@ namespace GVFS.Common
 
         public virtual bool TryGetAllConfig(out Dictionary<string, string> allConfig, out string error)
         {
+            if (!this.fileSystem.FileExists(this.configFile))
+            {
+                allConfig = new Dictionary<string, string>();
+                error = null;
+                return true;
+            }
+
             Dictionary<string, string> configCopy = null;
             if (!this.TryPerformAction(
                 () => configCopy = this.allSettings.GetAllKeysAndValues(),
@@ -40,6 +45,13 @@ namespace GVFS.Common
             out string value,
             out string error)
         {
+            if (!this.fileSystem.FileExists(this.configFile))
+            {
+                value = null;
+                error = null;
+                return true;
+            }
+
             string valueFromDict = null;
             if (!this.TryPerformAction(
                 () => this.allSettings.TryGetValue(name, out valueFromDict),
