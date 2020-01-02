@@ -726,6 +726,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             modifiedPath.ShouldNotExistOnDisk(this.fileSystem);
         }
 
+        [TestCase, Order(38)]
+        public void DeleteFileWithoutCommitShouldBePreservedAfterSparse()
+        {
+            string pathToChangeFiles = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS", "CommandLine");
+            this.fileSystem.DeleteFile(Path.Combine(pathToChangeFiles, "DiagnoseVerb.cs"));
+
+            string expectedStatusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
+
+            string output = this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
+            output.ShouldContain("Running git status...Succeeded");
+            this.ValidateFoldersInSparseList(this.mainSparseFolder);
+
+            output = this.gvfsProcess.RemoveSparseFolders(folders: this.mainSparseFolder);
+            output.ShouldNotContain(ignoreCase: false, unexpectedSubstrings: "Running git status");
+            this.ValidateFoldersInSparseList(NoSparseFolders);
+
+            string statusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
+            statusOutput.ShouldEqual(expectedStatusOutput, "Status output should not change.");
+        }
+
         private void CheckMainSparseFolder()
         {
             string[] directories = Directory.GetDirectories(this.Enlistment.RepoRoot);
