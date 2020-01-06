@@ -480,7 +480,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             secondModifiedPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.WriteAllText(secondModifiedPath, modifiedFileContents);
 
-            string expecetedStatusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
+            string expectedStatusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
 
             // Remove and prune folderToCreateFileIn
             string output = this.gvfsProcess.RemoveSparseFolders(shouldPrune: true, folders: folderToCreateFileIn);
@@ -496,7 +496,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             modifiedPath.ShouldBeAFile(this.fileSystem).WithContents(modifiedFileContents);
             secondModifiedPath.ShouldBeAFile(this.fileSystem).WithContents(modifiedFileContents);
             string statusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
-            statusOutput.ShouldEqual(expecetedStatusOutput, "Status output should not change.");
+            statusOutput.ShouldEqual(expectedStatusOutput, "Status output should not change.");
         }
 
         [TestCase, Order(23)]
@@ -559,7 +559,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteFile(Path.Combine(pathToChangeFiles, "DiagnoseVerb.cs"));
             this.fileSystem.MoveFile(Path.Combine(pathToChangeFiles, "LogVerb.cs"), Path.Combine(pathToChangeFiles, "LogVerbRenamed.cs"));
 
-            string expecetedStatusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
+            string expectedStatusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
 
             string output = this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
             output.ShouldContain("Running git status...Succeeded");
@@ -582,7 +582,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateFoldersInSparseList(NoSparseFolders);
 
             string statusOutput = GitProcess.Invoke(this.Enlistment.RepoRoot, "status --porcelain -uall");
-            statusOutput.ShouldEqual(expecetedStatusOutput, "Status output should not change.");
+            statusOutput.ShouldEqual(expectedStatusOutput, "Status output should not change.");
         }
 
         [TestCase, Order(26)]
