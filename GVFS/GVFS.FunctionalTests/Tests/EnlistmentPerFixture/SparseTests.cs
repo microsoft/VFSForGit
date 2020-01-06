@@ -167,7 +167,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(7)]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.POSIXOnly)]
         public void CreateFolderThenFileShouldAddToSparseListAndStartProjecting()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
@@ -301,7 +301,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(13)]
-        [Category(Categories.MacOnly)]
+        [Category(Categories.POSIXOnly)]
         public void CreateFolderAndFileThatAreExcluded()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
