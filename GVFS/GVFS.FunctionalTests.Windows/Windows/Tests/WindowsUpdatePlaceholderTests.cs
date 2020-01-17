@@ -58,6 +58,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     "HEAD detached at " + OldCommitId,
                     "Untracked files:",
                     TestParentFolderName + "/LockToPreventDelete/" + testFile1Name);
+
+                testFile1Path.ShouldBeAFile(this.fileSystem).WithContents(testFile1Contents);
             }
 
             this.GitCleanFile(TestParentFolderName + "/LockToPreventDelete/" + testFile1Name);
