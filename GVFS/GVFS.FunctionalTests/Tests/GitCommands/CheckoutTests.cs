@@ -943,6 +943,41 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 "File1.txt");
         }
 
+        [TestCase]
+        public void CheckoutByPath()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.DeepDirectoryWithOneFile);
+            this.ControlGitRepo.Fetch(GitRepoTests.DeepDirectoryWithOneDifferentFile);
+
+            this.ValidateGitCommand($"checkout {GitRepoTests.DeepDirectoryWithOneFile}");
+            this.FileShouldHaveContents(
+                "TestFile1\n",
+                "GitCommandsTests",
+                "CheckoutBranchDirectoryWithOneDeepFile",
+                "FolderDepth1",
+                "FolderDepth2",
+                "FolderDepth3",
+                "File1.txt");
+
+            this.ValidateGitCommand($"checkout origin/{GitRepoTests.DeepDirectoryWithOneDifferentFile} -- GitCommandsTests/CheckoutBranchDirectoryWithOneDeepFile/FolderDepth1/FolderDepth2/FolderDepth3/File2.txt");
+            this.FileShouldHaveContents(
+                "TestFile2\n",
+                "GitCommandsTests",
+                "CheckoutBranchDirectoryWithOneDeepFile",
+                "FolderDepth1",
+                "FolderDepth2",
+                "FolderDepth3",
+                "File2.txt");
+            this.FileShouldHaveContents(
+                "TestFile1\n",
+                "GitCommandsTests",
+                "CheckoutBranchDirectoryWithOneDeepFile",
+                "FolderDepth1",
+                "FolderDepth2",
+                "FolderDepth3",
+                "File1.txt");
+        }
+
         private static void CopyIndexAndRename(string indexPath)
         {
             string tempIndexPath = indexPath + ".lock";
