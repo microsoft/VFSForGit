@@ -267,7 +267,9 @@ from a parent of the folders list.
                                     string fullPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, folder);
                                     if (this.fileSystem.DirectoryExists(fullPath))
                                     {
-                                        if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath), $"Deleting '{fullPath}'", out ioError))
+                                        // Since directories are deleted last and will be empty at that point we can skip errors
+                                        // while trying to delete it and leave the empty directory and continue to dehydrate
+                                        if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath, ignoreDirectoryDeleteExceptions: true), $"Deleting '{fullPath}'", out ioError))
                                         {
                                             this.WriteMessage(tracer, $"Cannot {this.ActionName} folder '{folder}': removing '{folder}' failed.");
                                             this.WriteMessage(tracer, "Ensure no applications are accessing the folder and retry.");

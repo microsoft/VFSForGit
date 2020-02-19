@@ -40,7 +40,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
         /// </summary>
         public bool DeleteNonExistentFileThrowsException { get; set; }
 
-        public override void DeleteDirectory(string path, bool recursive = true)
+        public override void DeleteDirectory(string path, bool recursive = true, bool ignoreDirectoryDeleteExceptions = false)
         {
             if (!recursive)
             {
