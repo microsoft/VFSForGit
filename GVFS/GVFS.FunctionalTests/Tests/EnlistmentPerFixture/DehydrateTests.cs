@@ -2,6 +2,7 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
+using Microsoft.Win32.SafeHandles;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -18,6 +19,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     {
         private const string FolderDehydrateSuccessfulMessage = "folder dehydrate successful.";
         private const int GVFSGenericError = 3;
+        private const uint FileFlagBackupSemantics = 0x02000000;
         private FileSystemRunner fileSystem;
 
         // Set forcePerRepoObjectCache to true so that DehydrateShouldSucceedEvenIfObjectCacheIsDeleted does
@@ -266,6 +268,29 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // the virtual path is no longer accessible after unmounting.
             this.CheckDehydratedFolderAfterUnmount(folderToDelete.BackingPath);
             Path.Combine(folderToDelete.BackingPath, "RunUnitTests.bat").ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCase]
+        [Category(Categories.WindowsOnly)]
+        public void FolderDehydrateFolderThatIsLocked()
+        {
+            const string folderToDehydrate = "GVFS";
+            const string folderToLock = "GVFS.Service";
+            TestPath folderPathDehydrated = new TestPath(this.Enlistment, folderToDehydrate);
+            TestPath folderPathToLock = new TestPath(this.Enlistment, Path.Combine(folderToDehydrate, folderToLock));
+            TestPath fileToWrite = new TestPath(this.Enlistment, Path.Combine(folderToDehydrate, folderToLock, "Program.cs"));
+            this.fileSystem.AppendAllText(fileToWrite.VirtualPath, "Append content");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, $"reset --hard");
+            using (SafeFileHandle handle = this.OpenFolderHandle(folderPathToLock.VirtualPath))
+            {
+                handle.IsInvalid.ShouldEqual(false);
+                this.DehydrateShouldSucceed(new[] { $"{folderToDehydrate} {FolderDehydrateSuccessfulMessage}" }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
+            }
+
+            this.Enlistment.UnmountGVFS();
+
+            folderPathToLock.BackingPath.ShouldBeADirectory(this.fileSystem).WithNoItems();
+            folderPathDehydrated.BackingPath.ShouldBeADirectory(this.fileSystem).WithOneItem().Name.ShouldEqual(folderToLock);
         }
 
         [TestCase]
@@ -592,6 +617,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             processInfo.RedirectStandardOutput = true;
 
             return ProcessHelper.Run(processInfo);
+        }
+
+        private SafeFileHandle OpenFolderHandle(string path)
+        {
+            return NativeMethods.CreateFile(
+                path,
+                (uint)FileAccess.Read,
+                FileShare.Read,
+                IntPtr.Zero,
+                FileMode.Open,
+                FileFlagBackupSemantics,
+                IntPtr.Zero);
         }
 
         private string RunHandleProcess(string path)
