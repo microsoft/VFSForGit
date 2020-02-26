@@ -62,9 +62,7 @@ namespace GVFS.CommandLine
                 this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Repair);
                 this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Sparse);
 
-                string serviceLogsRoot = Path.Combine(
-                    GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName),
-                    GVFSConstants.Service.LogDirectory);
+                string serviceLogsRoot = GVFSPlatform.Instance.GetLogsDirectoryForGVFSComponent(GVFSConstants.Service.ServiceName);
                 this.DisplayMostRecent(serviceLogsRoot, GVFSConstants.LogFileTypes.Service);
 
                 this.DisplayMostRecent(ProductUpgraderInfo.GetLogDirectoryPath(), GVFSConstants.LogFileTypes.UpgradePrefix);

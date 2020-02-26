@@ -122,14 +122,20 @@ namespace GVFS.CommandLine
 
                         // service
                         this.CopyAllFiles(
-                            GVFSPlatform.Instance.GetDataRootForGVFS(),
+                            GVFSPlatform.Instance.GetCommonAppDataRootForGVFS(),
+                            archiveFolderPath,
+                            this.ServiceName,
+                            copySubFolders: true);
+
+                        this.CopyAllFiles(
+                            GVFSPlatform.Instance.GetSecureDataRootForGVFS(),
                             archiveFolderPath,
                             this.ServiceName,
                             copySubFolders: true);
 
                         // service ui
                         this.CopyAllFiles(
-                            GVFSPlatform.Instance.GetDataRootForGVFS(),
+                            GVFSPlatform.Instance.GetCommonAppDataRootForGVFS(),
                             archiveFolderPath,
                             GVFSConstants.Service.UIName,
                             copySubFolders: true);
@@ -160,7 +166,7 @@ namespace GVFS.CommandLine
 
                         if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSConfig)
                         {
-                            this.CopyFile(GVFSPlatform.Instance.GetDataRootForGVFS(), archiveFolderPath, LocalGVFSConfig.FileName);
+                            this.CopyFile(GVFSPlatform.Instance.GetSecureDataRootForGVFS(), archiveFolderPath, LocalGVFSConfig.FileName);
                         }
 
                         if (!GVFSPlatform.Instance.TryCopyPanicLogs(archiveFolderPath, out string errorMessage))

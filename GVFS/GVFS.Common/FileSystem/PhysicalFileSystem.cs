@@ -13,7 +13,7 @@ namespace GVFS.Common.FileSystem
     {
         public const int DefaultStreamBufferSize = 8192;
 
-        public virtual void DeleteDirectory(string path, bool recursive = true)
+        public virtual void DeleteDirectory(string path, bool recursive = true, bool ignoreDirectoryDeleteExceptions = false)
         {
             if (!Directory.Exists(path))
             {
@@ -32,14 +32,27 @@ namespace GVFS.Common.FileSystem
 
                 foreach (DirectoryInfo subDirectory in directory.GetDirectories())
                 {
-                    this.DeleteDirectory(subDirectory.FullName);
+                    this.DeleteDirectory(subDirectory.FullName, recursive, ignoreDirectoryDeleteExceptions);
                 }
             }
 
-            directory.Delete();
+            try
+            {
+                directory.Delete();
+            }
+            catch (Exception)
+            {
+                if (!ignoreDirectoryDeleteExceptions)
+                {
+                    throw;
+                }
+            }
         }
 
-        public virtual void CopyDirectoryRecursive(string srcDirectoryPath, string dstDirectoryPath)
+        public virtual void CopyDirectoryRecursive(
+            string srcDirectoryPath,
+            string dstDirectoryPath,
+            HashSet<string> excludeDirectories = null)
         {
             DirectoryInfo srcDirectory = new DirectoryInfo(srcDirectoryPath);
 
@@ -55,7 +68,13 @@ namespace GVFS.Common.FileSystem
 
             foreach (DirectoryInfo subDirectory in srcDirectory.EnumerateDirectories())
             {
-                this.CopyDirectoryRecursive(subDirectory.FullName, Path.Combine(dstDirectoryPath, subDirectory.Name));
+                if (excludeDirectories == null || !excludeDirectories.Contains(subDirectory.FullName))
+                {
+                    this.CopyDirectoryRecursive(
+                        subDirectory.FullName,
+                        Path.Combine(dstDirectoryPath, subDirectory.Name),
+                        excludeDirectories);
+                }
             }
         }
 

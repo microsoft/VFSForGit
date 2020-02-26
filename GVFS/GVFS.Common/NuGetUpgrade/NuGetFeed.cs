@@ -116,7 +116,7 @@ namespace GVFS.Common.NuGetUpgrade
             {
                 if (downloadResourceResult.Status != DownloadResourceResultStatus.Available)
                 {
-                    throw new Exception("Download of NuGet package failed. DownloadResult Status: {downloadResourceResult.Status}");
+                    throw new Exception($"Download of NuGet package failed. DownloadResult Status: {downloadResourceResult.Status}");
                 }
 
                 using (FileStream fileStream = File.Create(downloadPath))

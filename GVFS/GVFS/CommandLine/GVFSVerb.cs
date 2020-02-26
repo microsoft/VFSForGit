@@ -36,6 +36,60 @@ namespace GVFS.CommandLine
             this.InitializeDefaultParameterValues();
         }
 
+        [Flags]
+        private enum GitCoreGVFSFlags
+        {
+            // GVFS_SKIP_SHA_ON_INDEX
+            // Disables the calculation of the sha when writing the index
+            SkipShaOnIndex = 1 << 0,
+
+            // GVFS_BLOCK_COMMANDS
+            // Blocks git commands that are not allowed in a GVFS/Scalar repo
+            BlockCommands = 1 << 1,
+
+            // GVFS_MISSING_OK
+            // Normally git write-tree ensures that the objects referenced by the
+            // directory exist in the object database.This option disables this check.
+            MissingOk = 1 << 2,
+
+            // GVFS_NO_DELETE_OUTSIDE_SPARSECHECKOUT
+            // When marking entries to remove from the index and the working
+            // directory this option will take into account what the
+            // skip-worktree bit was set to so that if the entry has the
+            // skip-worktree bit set it will not be removed from the working
+            // directory.  This will allow virtualized working directories to
+            // detect the change to HEAD and use the new commit tree to show
+            // the files that are in the working directory.
+            NoDeleteOutsideSparseCheckout = 1 << 3,
+
+            // GVFS_FETCH_SKIP_REACHABILITY_AND_UPLOADPACK
+            // While performing a fetch with a virtual file system we know
+            // that there will be missing objects and we don't want to download
+            // them just because of the reachability of the commits.  We also
+            // don't want to download a pack file with commits, trees, and blobs
+            // since these will be downloaded on demand.  This flag will skip the
+            // checks on the reachability of objects during a fetch as well as
+            // the upload pack so that extraneous objects don't get downloaded.
+            FetchSkipReachabilityAndUploadPack = 1 << 4,
+
+            // 1 << 5 has been deprecated
+
+            // GVFS_BLOCK_FILTERS_AND_EOL_CONVERSIONS
+            // With a virtual file system we only know the file size before any
+            // CRLF or smudge/clean filters processing is done on the client.
+            // To prevent file corruption due to truncation or expansion with
+            // garbage at the end, these filters must not run when the file
+            // is first accessed and brought down to the client. Git.exe can't
+            // currently tell the first access vs subsequent accesses so this
+            // flag just blocks them from occurring at all.
+            BlockFiltersAndEolConversions = 1 << 6,
+
+            // GVFS_PREFETCH_DURING_FETCH
+            // While performing a `git fetch` command, use the gvfs-helper to
+            // perform a "prefetch" of commits and trees.
+            PrefetchDuringFetch = 1 << 7,
+        }
+
         public abstract string EnlistmentRootPathParameter { get; set; }
 
         [Option(
@@ -117,6 +171,15 @@ namespace GVFS.CommandLine
                 gitStatusCachePath = Paths.ConvertPathToGitFormat(gitStatusCachePath);
             }
 
+            string coreGVFSFlags = Convert.ToInt32(
+                GitCoreGVFSFlags.SkipShaOnIndex |
+                GitCoreGVFSFlags.BlockCommands |
+                GitCoreGVFSFlags.MissingOk |
+                GitCoreGVFSFlags.NoDeleteOutsideSparseCheckout |
+                GitCoreGVFSFlags.FetchSkipReachabilityAndUploadPack |
+                GitCoreGVFSFlags.BlockFiltersAndEolConversions)
+                .ToString();
+
             // These settings are required for normal GVFS functionality.
             // They will override any existing local configuration values.
             //
@@ -124,40 +187,120 @@ namespace GVFS.CommandLine
             //
             Dictionary<string, string> requiredSettings = new Dictionary<string, string>
             {
+                 // When running 'git am' it will remove the CRs from the patch file by default. This causes the patch to fail to apply because the
+                 // file that is getting the patch applied will still have the CRs. There is a --keep-cr option that you can pass the 'git am' command
+                 // but since we always want to keep CRs it is better to just set the config setting to always keep them so the user doesn't have to
+                 // remember to pass the flag.
                 { "am.keepcr", "true" },
+
+                // Update git settings to enable optimizations in git 2.20
+                // Set 'checkout.optimizeNewBranch=true' to enable optimized 'checkout -b'
                 { "checkout.optimizenewbranch", "true" },
+
+                // We don't support line ending conversions - automatic conversion of LF to Crlf by git would cause un-necessary hydration. Disabling it.
                 { "core.autocrlf", "false" },
+
+                // Enable commit graph. https://devblogs.microsoft.com/devops/supercharging-the-git-commit-graph/
                 { "core.commitGraph", "true" },
+
+                // Perf - Git for Windows uses this to bulk-read and cache lstat data of entire directories (instead of doing lstat file by file).
                 { "core.fscache", "true" },
-                { "core.gvfs", "true" },
+
+                // Turns on all special gvfs logic. https://github.com/microsoft/git/blob/be5e0bb969495c428e219091e6976b52fb33b301/gvfs.h
+                { "core.gvfs", coreGVFSFlags },
+
+                // Use 'multi-pack-index' builtin instead of 'midx' to match upstream implementation
                 { "core.multiPackIndex", "true" },
+
+                // Perf - Enable parallel index preload for operations like git diff
                 { "core.preloadIndex", "true" },
+
+                // VFS4G never wants git to adjust line endings (causes un-necessary hydration of files)- explicitly setting core.safecrlf to false.
                 { "core.safecrlf", "false" },
+
+                // Possibly cause hydration while creating untrackedCache.
                 { "core.untrackedCache", "false" },
+
+                // This is to match what git init does.
                 { "core.repositoryformatversion", "0" },
+
+                // Turn on support for file modes on Mac & Linux.
                 { "core.filemode", GVFSPlatform.Instance.FileSystem.SupportsFileMode ? "true" : "false" },
+
+                // For consistency with git init.
                 { "core.bare", "false" },
+
+                // For consistency with git init.
                 { "core.logallrefupdates", "true" },
+
+                // Git to download objects on demand.
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
+
+                // Configure hook that git calls to get the paths git needs to consider for changes or untracked files
                 { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
+
+                // Ensure hooks path is configured correctly.
                 { "core.hookspath", expectedHooksPath },
+
+                // Hostname is no longer sufficent for VSTS authentication. VSTS now requires dev.azure.com/account to determine the tenant.
+                // By setting useHttpPath, credential managers will get the path which contains the account as the first parameter. They can then use this information for auth appropriately.
                 { GitConfigSetting.CredentialUseHttpPath, "true" },
+
+                // Turn off credential validation(https://github.com/microsoft/Git-Credential-Manager-for-Windows/blob/master/Docs/Configuration.md#validate).
+                // We already have logic to call git credential if we get back a 401, so there's no need to validate the PAT each time we ask for it.
                 { "credential.validate", "false" },
+
+                // This setting is not needed anymore, because current version of gvfs does not use index.lock.
+                // (This change was introduced initially to prevent `git diff` from acquiring index.lock file.)
+                // Explicitly setting this to true (which also is the default value) because the repo could have been
+                // cloned in the past when autoRefreshIndex used to be set to false.
                 { "diff.autoRefreshIndex", "true" },
-                { "gc.auto", "0" },
-                { "gui.gcwarning", "false" },
-                { "index.threads", "true" },
-                { "index.version", "4" },
-                { "merge.stat", "false" },
-                { "merge.renames", "false" },
-                { "pack.useBitmaps", "false" },
-                { "pack.useSparse", "true" },
-                { "receive.autogc", "false" },
-                { "reset.quiet", "true" },
-                { "status.deserializePath", gitStatusCachePath },
+
+                // In Git 2.24.0, some new config settings were created. Disable them locally in VFS for Git repos in case a user has set them globally.
+                // https://github.com/microsoft/VFSForGit/pull/1594
+                // This applies to feature.manyFiles, feature.experimental and fetch.writeCommitGraph settings.
                 { "feature.manyFiles", "false" },
                 { "feature.experimental", "false" },
                 { "fetch.writeCommitGraph", "false" },
+
+                // Turn off of git garbage collection. Git garbage collection does not work with virtualized object.
+                // We do run maintenance jobs now that do the packing of loose objects so in theory we shouldn't need
+                // this - but it is not hurting anything and it will prevent a gc from getting kicked off if for some
+                // reason the maintenance jobs have not been running and there are too many loose objects
+                { "gc.auto", "0" },
+
+                // Prevent git GUI from displaying GC warnings.
+                { "gui.gcwarning", "false" },
+
+                // Update git settings to enable optimizations in git 2.20
+                // Set 'index.threads=true' to enable multi-threaded index reads
+                { "index.threads", "true" },
+
+                // index parsing code in VFSForGit currently only supports version 4.
+                { "index.version", "4" },
+
+                // Perf - avoid un-necessary blob downloads during a merge.
+                { "merge.stat", "false" },
+
+                // Perf - avoid un-necessary blob downloads while git tries to search and find renamed files.
+                { "merge.renames", "false" },
+
+                // Don't use bitmaps to determine pack file contents, because we use MIDX for this.
+                { "pack.useBitmaps", "false" },
+
+                // Update Git to include sparse push algorithm
+                { "pack.useSparse", "true" },
+
+                // Stop automatic git GC
+                { "receive.autogc", "false" },
+
+                // Update git settings to enable optimizations in git 2.20
+                // Set 'reset.quiet=true' to speed up 'git reset <foo>"
+                { "reset.quiet", "true" },
+
+                // Configure git to use our serialize status file - make git use the serialized status file rather than compute the status by
+                // parsing the index file and going through the files to determine changes.
+                { "status.deserializePath", gitStatusCachePath }
             };
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))

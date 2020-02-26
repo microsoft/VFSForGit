@@ -61,14 +61,26 @@ namespace GVFS.Platform.Mac
             return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
         }
 
-        public override string GetDataRootForGVFS()
+        public override string GetSecureDataRootForGVFS()
         {
+            // On the Mac, unlike Windows, there is no separate secure data root directory.
             return MacPlatform.GetDataRootForGVFSImplementation();
         }
 
-        public override string GetDataRootForGVFSComponent(string componentName)
+        public override string GetSecureDataRootForGVFSComponent(string componentName)
         {
+            // On the Mac, unlike Windows, there is no separate secure data root directory.
             return MacPlatform.GetDataRootForGVFSComponentImplementation(componentName);
+        }
+
+        public override string GetCommonAppDataRootForGVFS()
+        {
+            return this.GetSecureDataRootForGVFS();
+        }
+
+        public override string GetLogsDirectoryForGVFSComponent(string componentName)
+        {
+            return Path.Combine(this.GetCommonAppDataRootForGVFS(), componentName);
         }
 
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)

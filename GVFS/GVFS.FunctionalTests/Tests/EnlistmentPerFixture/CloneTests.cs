@@ -96,7 +96,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 files.ShouldContain(x => Path.GetFileName(x).Equals("git.cmd", StringComparison.Ordinal));
                 string[] directories = Directory.GetDirectories(enlistment.EnlistmentRoot);
                 directories.Length.ShouldEqual(2);
-                directories.ShouldContain(x => Path.GetFileName(x).Equals(".gvfs", StringComparison.Ordinal));
+                directories.ShouldContain(x => Path.GetFileName(x).Equals(GVFSTestConfig.DotGVFSRoot, StringComparison.Ordinal));
                 directories.ShouldContain(x => Path.GetFileName(x).Equals("src", StringComparison.Ordinal));
             }
             finally
