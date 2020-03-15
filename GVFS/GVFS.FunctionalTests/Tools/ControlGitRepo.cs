@@ -1,7 +1,5 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
-using System;
+﻿using System;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -52,6 +50,7 @@ namespace GVFS.FunctionalTests.Tools
             Directory.CreateDirectory(this.RootPath);
             GitProcess.Invoke(this.RootPath, "init");
             GitProcess.Invoke(this.RootPath, "config core.autocrlf false");
+            GitProcess.Invoke(this.RootPath, "config core.editor true");
             GitProcess.Invoke(this.RootPath, "config merge.stat false");
             GitProcess.Invoke(this.RootPath, "config merge.renames false");
             GitProcess.Invoke(this.RootPath, "config advice.statusUoption false");
