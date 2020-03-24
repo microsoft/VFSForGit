@@ -123,6 +123,7 @@ namespace GVFS.FunctionalTests.Tools
 
             Dictionary<string, string> environmentVariables = new Dictionary<string, string>();
             environmentVariables["GIT_QUIET"] = "true";
+            environmentVariables["GIT_COMMITTER_DATE"] = "Thu Feb 16 10:07:35 2017 -0700";
 
             ProcessResult expectedResult = GitProcess.InvokeProcess(controlRepoRoot, command, environmentVariables);
             ProcessResult actualResult = GitHelpers.InvokeGitAgainstGVFSRepo(gvfsRepoRoot, command, environmentVariables);

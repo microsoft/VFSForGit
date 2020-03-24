@@ -5,7 +5,6 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -204,6 +203,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS, commitish: commitish);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "config advice.statusUoption false");
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "config core.editor true");
             this.ControlGitRepo = ControlGitRepo.Create(commitish);
             this.ControlGitRepo.Initialize();
         }
