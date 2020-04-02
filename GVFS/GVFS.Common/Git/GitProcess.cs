@@ -16,6 +16,7 @@ namespace GVFS.Common.Git
 
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
         private static bool failedToSetEncoding = false;
+        private static string expireTimeDateString;
 
         /// <summary>
         /// Lock taken for duration of running executingProcess.
@@ -78,6 +79,19 @@ namespace GVFS.Common.Git
             if (this.workingDirectoryRoot != null)
             {
                 this.dotGitRoot = Path.Combine(this.workingDirectoryRoot, GVFSConstants.DotGit.Root);
+            }
+        }
+
+        public static string ExpireTimeDateString
+        {
+            get
+            {
+                if (expireTimeDateString == null)
+                {
+                    expireTimeDateString = DateTime.Now.Subtract(TimeSpan.FromDays(1)).ToShortDateString();
+                }
+
+                return expireTimeDateString;
             }
         }
 
@@ -540,7 +554,7 @@ namespace GVFS.Common.Git
         {
             // Do not expire commit-graph files that have been modified in the last hour.
             // This will prevent deleting any commit-graph files that are currently in the commit-graph-chain.
-            string command = $"commit-graph write --stdin-packs --split --size-multiple=4 --expire-time={1 * 60 * 60} --object-dir \"{objectDir}\"";
+            string command = $"commit-graph write --stdin-packs --split --size-multiple=4 --expire-time={ExpireTimeDateString} --object-dir \"{objectDir}\"";
             return this.InvokeGitInWorkingDirectoryRoot(
                 command,
                 useReadObjectHook: true,
