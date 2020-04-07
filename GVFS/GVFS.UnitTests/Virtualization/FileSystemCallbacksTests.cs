@@ -136,7 +136,7 @@ namespace GVFS.UnitTests.Virtualization
             mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "1111122222333334444455555666667777788888")).Callback(() => ++filePlaceholderCount);
             mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "2222233333444445555566666777778888899999")).Callback(() => ++filePlaceholderCount);
             mockPlaceholderDb.Setup(x => x.AddFile("test.txt", "3333344444555556666677777888889999900000")).Callback(() => ++filePlaceholderCount);
-            mockPlaceholderDb.Setup(x => x.AddPartialFolder("foo")).Callback(() => ++folderPlaceholderCount);
+            mockPlaceholderDb.Setup(x => x.AddPartialFolder("foo", null)).Callback(() => ++folderPlaceholderCount);
             mockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(() => filePlaceholderCount);
             mockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(() => folderPlaceholderCount);
             Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);

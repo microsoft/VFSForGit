@@ -87,7 +87,7 @@ namespace GVFS.UnitTests.Common
             using (LegacyPlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
             {
                 dut1.AddFile(InputGitIgnorePath, InputGitIgnoreSHA);
-                dut1.AddPartialFolder("partialFolder");
+                dut1.AddPartialFolder("partialFolder", sha: null);
                 dut1.AddFile(InputGitAttributesPath, InputGitAttributesSHA);
                 dut1.AddExpandedFolder("expandedFolder");
                 dut1.AddFile(InputThirdFilePath, InputThirdFileSHA);
