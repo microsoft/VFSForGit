@@ -353,7 +353,13 @@ namespace GVFS.Virtualization.Projection
 
         public void OnPlaceholderFolderCreated(string virtualPath)
         {
-            this.placeholderDatabase.AddPartialFolder(virtualPath);
+            string sha = null;
+            if (this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData))
+            {
+                sha = folderData.HashedFileShas();
+            }
+
+            this.placeholderDatabase.AddPartialFolder(virtualPath, sha);
         }
 
         public void OnPossibleTombstoneFolderCreated(string virtualPath)
@@ -1304,6 +1310,23 @@ namespace GVFS.Virtualization.Projection
 
                     if (keepFolder)
                     {
+                        if (this.TryGetFolderDataFromTreeUsingPath(folderPlaceholder.Path, out FolderData folderData))
+                        {
+                            string newFolderSha = folderData.HashedFileShas();
+                            if (folderPlaceholder.Sha != newFolderSha)
+                            {
+                                // Write and delete a file so USN journal will have the folder as being changed
+                                string tempFilePath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, folderPlaceholder.Path, ".vfs_usn_folder_update.tmp");
+                                if (this.context.FileSystem.TryWriteAllText(tempFilePath, "TEMP FILE FOR USN FOLDER MODIFICATION"))
+                                {
+                                    this.context.FileSystem.DeleteFile(tempFilePath);
+                                }
+
+                                folderPlaceholder.Sha = newFolderSha;
+                                this.placeholderDatabase.AddPlaceholderData(folderPlaceholder);
+                            }
+                        }
+
                         // Remove folder placeholders before re-expansion to ensure that projection changes that convert a folder to a file work
                         // properly
                         if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories && folderPlaceholder.IsExpandedFolder)
@@ -1552,7 +1575,7 @@ namespace GVFS.Virtualization.Projection
                             result = this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
                             if (result.Result == FSResult.Ok)
                             {
-                                this.placeholderDatabase.AddPartialFolder(childRelativePath);
+                                this.placeholderDatabase.AddPartialFolder(childRelativePath, sha: null);
                             }
                             else if (result.Result == FSResult.IOError)
                             {

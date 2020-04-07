@@ -1,9 +1,11 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.BlobSize;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading;
 
 namespace GVFS.Virtualization.Projection
@@ -46,6 +48,26 @@ namespace GVFS.Virtualization.Projection
                         FolderData folderData = (FolderData)this.ChildEntries[i];
                         folderData.Include();
                     }
+                }
+            }
+
+            public string HashedFileShas()
+            {
+                byte[] sha = new byte[20];
+                using (HashAlgorithm hash = SHA1.Create())
+                {
+                    for (int i = 0; i < this.ChildEntries.Count; i++)
+                    {
+                        if (!this.ChildEntries[i].IsFolder)
+                        {
+                            FileData fileData = (FileData)this.ChildEntries[i];
+                            fileData.Sha.ToBuffer(sha);
+                            hash.TransformBlock(sha, 0, 20, null, 0);
+                        }
+                    }
+
+                    hash.TransformFinalBlock(new byte[0], 0, 0);
+                    return SHA1Util.HexStringFromBytes(hash.Hash);
                 }
             }
 

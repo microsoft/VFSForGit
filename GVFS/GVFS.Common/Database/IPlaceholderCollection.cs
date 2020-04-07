@@ -14,7 +14,7 @@ namespace GVFS.Common.Database
 
         HashSet<string> GetAllFilePaths();
 
-        void AddPartialFolder(string path);
+        void AddPartialFolder(string path, string sha);
         void AddExpandedFolder(string path);
         void AddPossibleTombstoneFolder(string path);
 

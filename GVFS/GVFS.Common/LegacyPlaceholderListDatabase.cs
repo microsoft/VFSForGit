@@ -83,7 +83,7 @@ namespace GVFS.Common
             this.AddAndFlush(path, sha);
         }
 
-        public void AddPartialFolder(string path)
+        public void AddPartialFolder(string path, string sha)
         {
             this.AddAndFlush(path, PartialFolderValue);
         }
@@ -390,7 +390,7 @@ namespace GVFS.Common
             }
 
             public string Path { get; }
-            public string Sha { get; }
+            public string Sha { get; set; }
 
             public bool IsFolder
             {

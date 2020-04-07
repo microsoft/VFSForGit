@@ -382,7 +382,7 @@ namespace GVFS.UnitTests.Common.Database
         public void AddPartialFolder()
         {
             this.TestPlaceholdersInsert(
-                placeholders => placeholders.AddPartialFolder(DefaultPath),
+                placeholders => placeholders.AddPartialFolder(DefaultPath, sha: null),
                 DefaultPath,
                 PathTypePartialFolder,
                 sha: null);
@@ -393,7 +393,7 @@ namespace GVFS.UnitTests.Common.Database
         public void AddPartialFolderThrowsGVFSDatabaseException()
         {
             GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => this.TestPlaceholdersInsert(
-                placeholders => placeholders.AddPartialFolder(DefaultPath),
+                placeholders => placeholders.AddPartialFolder(DefaultPath, sha: null),
                 DefaultPath,
                 PathTypePartialFolder,
                 sha: null,
