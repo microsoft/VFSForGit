@@ -1248,6 +1248,7 @@ namespace GVFS.Virtualization.Projection
                 int deleteFolderPlaceholderAttempted = 0;
                 int folderPlaceholdersDeleted = 0;
                 int folderPlaceholdersPathNotFound = 0;
+                int folderPlaceholdersShaUpdate = 0;
 
                 // A hash of the placeholders is only required if the platform expands directories
                 // This is using a in memory HashSet for speed in processing
@@ -1315,6 +1316,8 @@ namespace GVFS.Virtualization.Projection
                             string newFolderSha = folderData.HashedFileShas();
                             if (folderPlaceholder.Sha != newFolderSha)
                             {
+                                ++folderPlaceholdersShaUpdate;
+
                                 // Write and delete a file so USN journal will have the folder as being changed
                                 string tempFilePath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, folderPlaceholder.Path, ".vfs_usn_folder_update.tmp");
                                 if (this.context.FileSystem.TryWriteAllText(tempFilePath, "TEMP FILE FOR USN FOLDER MODIFICATION"))
@@ -1359,7 +1362,8 @@ namespace GVFS.Virtualization.Projection
                     millisecondsWriteAndFlush,
                     deleteFolderPlaceholderAttempted,
                     folderPlaceholdersDeleted,
-                    folderPlaceholdersPathNotFound);
+                    folderPlaceholdersPathNotFound,
+                    folderPlaceholdersShaUpdate);
             }
         }
 
