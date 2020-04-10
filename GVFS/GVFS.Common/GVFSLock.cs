@@ -270,6 +270,7 @@ namespace GVFS.Common
             private int deleteFolderPlacehoderAttempted;
             private int folderPlaceholdersDeleted;
             private int folderPlaceholdersPathNotFound;
+            private int folderPlaceholdersShaUpdate;
             private long parseGitIndexTimeMs;
             private long projectionWriteLockHeldMs;
 
@@ -299,7 +300,8 @@ namespace GVFS.Common
                 long writeAndFlushMs,
                 int deleteFolderPlacehoderAttempted,
                 int folderPlaceholdersDeleted,
-                int folderPlaceholdersPathNotFound)
+                int folderPlaceholdersPathNotFound,
+                int folderPlaceholdersShaUpdate)
             {
                 this.placeholderTotalUpdateTimeMs = durationMs;
                 this.placeholderUpdateFilesTimeMs = updateFilesMs;
@@ -308,6 +310,7 @@ namespace GVFS.Common
                 this.deleteFolderPlacehoderAttempted = deleteFolderPlacehoderAttempted;
                 this.folderPlaceholdersDeleted = folderPlaceholdersDeleted;
                 this.folderPlaceholdersPathNotFound = folderPlaceholdersPathNotFound;
+                this.folderPlaceholdersShaUpdate = folderPlaceholdersShaUpdate;
             }
 
             public void RecordProjectionWriteLockHeld(long durationMs)
@@ -350,6 +353,7 @@ namespace GVFS.Common
                 metadata.Add("UpdateFolderPlaceholdersMS", this.placeholderUpdateFoldersTimeMs);
                 metadata.Add("DeleteFolderPlacehoderAttempted", this.deleteFolderPlacehoderAttempted);
                 metadata.Add("FolderPlaceholdersDeleted", this.folderPlaceholdersDeleted);
+                metadata.Add("FolderPlaceholdersShaUpdate", this.folderPlaceholdersShaUpdate);
                 metadata.Add("FolderPlaceholdersPathNotFound", this.folderPlaceholdersPathNotFound);
                 metadata.Add("PlaceholdersWriteAndFlushMS", this.placeholderWriteAndFlushTimeMs);
                 metadata.Add("ProjectionWriteLockHeldMs", this.projectionWriteLockHeldMs);
