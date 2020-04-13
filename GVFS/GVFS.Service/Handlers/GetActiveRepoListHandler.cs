@@ -2,6 +2,7 @@ using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace GVFS.Service.Handlers
@@ -68,6 +69,11 @@ namespace GVFS.Service.Handlers
 
         private bool IsValidRepo(string repoRoot)
         {
+            if (!Directory.Exists(repoRoot))
+            {
+                return false;
+            }
+
             string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
 
             string hooksVersion = null;

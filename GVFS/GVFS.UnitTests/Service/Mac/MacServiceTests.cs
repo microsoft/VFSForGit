@@ -1,7 +1,5 @@
 ﻿using GVFS.Common;
-using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
-using GVFS.Platform.Mac;
 using GVFS.Service;
 using GVFS.Service.Handlers;
 using GVFS.UnitTests.Mock.Common;
@@ -38,7 +36,7 @@ namespace GVFS.UnitTests.Service.Mac
         public void ServiceStartTriggersAutoMountForCurrentUser()
         {
             Mock<IRepoRegistry> repoRegistry = new Mock<IRepoRegistry>(MockBehavior.Strict);
-            repoRegistry.Setup(r => r.AutoMountRepos(ExpectedActiveUserId.ToString(), ExpectedSessionId));
+            repoRegistry.Setup(r => r.AutoMountRepos(ExpectedActiveUserId.ToString(), ExpectedSessionId, true));
             repoRegistry.Setup(r => r.TraceStatus());
 
             GVFSService service = new GVFSService(
@@ -86,7 +84,7 @@ namespace GVFS.UnitTests.Service.Mac
                 repoMounterMock.Object,
                 null);
 
-            repoRegistry.AutoMountRepos(ExpectedActiveUserId.ToString(), ExpectedSessionId);
+            repoRegistry.AutoMountRepos(ExpectedActiveUserId.ToString(), ExpectedSessionId, checkDirectoryExists: false);
 
             repoMounterMock.VerifyAll();
         }
