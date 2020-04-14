@@ -171,7 +171,7 @@ namespace GVFS.Service
             return false;
         }
 
-        public void AutoMountRepos(string userId, int sessionId)
+        public void AutoMountRepos(string userId, int sessionId, bool checkDirectoryExists = true)
         {
             using (ITracer activity = this.tracer.StartActivity("AutoMount", EventLevel.Informational))
             {
@@ -179,6 +179,11 @@ namespace GVFS.Service
                 foreach (RepoRegistration repo in activeRepos)
                 {
                     // TODO #1089: We need to respect the elevation level of the original mount
+                    if (checkDirectoryExists && !Directory.Exists(repo.EnlistmentRoot))
+                    {
+                        continue;
+                    }
+
                     if (!this.repoMounter.MountRepository(repo.EnlistmentRoot, sessionId))
                     {
                         this.SendNotification(
