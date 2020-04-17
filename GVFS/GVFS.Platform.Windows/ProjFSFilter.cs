@@ -679,9 +679,16 @@ namespace GVFS.Platform.Windows
 
         private static ProcessResult GetProjFSOptionalFeatureStatus()
         {
-            return CallPowershellCommand(
-                "$var=(Get-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + ");  if($var -eq $null){exit " +
-                (int)ProjFSInboxStatus.NotInbox + "}else{if($var.State -eq 'Enabled'){exit " + (int)ProjFSInboxStatus.Enabled + "}else{exit " + (int)ProjFSInboxStatus.Disabled + "}}");
+            try
+            {
+                return CallPowershellCommand(
+                    "$var=(Get-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + ");  if($var -eq $null){exit " +
+                    (int)ProjFSInboxStatus.NotInbox + "}else{if($var.State -eq 'Enabled'){exit " + (int)ProjFSInboxStatus.Enabled + "}else{exit " + (int)ProjFSInboxStatus.Disabled + "}}");
+            }
+            catch (Exception)
+            {
+                return new ProcessResult(string.Empty, "Failed. Possible that powershell does not exist on system", 1);
+            }
         }
 
         private static EventMetadata CreateEventMetadata(Exception e = null)
