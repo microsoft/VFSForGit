@@ -91,7 +91,7 @@ namespace GVFS.FunctionalTests.Tools
                 IEnumerable<string> filteredErrorLines = errorLines.Where(line =>
                 {
                     if (string.IsNullOrWhiteSpace(line) ||
-                        (removeUpgradeMessages && line.StartsWith("A new version of GVFS is available.")) ||
+                        (removeUpgradeMessages && line.StartsWith("A new version of VFS for Git is available.")) ||
                         (removeWaitingMessages && line.StartsWith("Waiting for ")))
                     {
                         return false;
