@@ -12,6 +12,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
     [TestFixture]
     [Category(Categories.WindowsOnly)]
     [Category(Categories.GitCommands)]
+    [Ignore("fsutil requires WSL be enabled.  Need to find a way to enable for builds or a different way to get the USN for the folder.")]
     public class WindowsFolderUsnUpdate : TestsWithEnlistmentPerFixture
     {
         private const string StartingCommit = "ad87b3877c8fa6bebbe62330354f5c535875c4dd";
