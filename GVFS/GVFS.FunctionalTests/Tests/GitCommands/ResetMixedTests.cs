@@ -79,22 +79,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        public void ResetMixedOnlyAddedThenCheckoutWithConflicts()
-        {
-            // The warning messages changed when using skip-worktree bits
-            // versus not using them. We cannot validate the output of these
-            // commands, but we can ensure that the end results are correct.
-            this.RunGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
-            this.RunGitCommand("reset --mixed HEAD~1");
-
-            // This will reset all the files except the files that were added
-            // and are untracked to make sure we error out with those using sparse-checkout
-            this.ValidateGitCommand("checkout -f");
-            this.RunGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
-            this.FilesShouldMatchCheckoutOfTargetBranch();
-        }
-
-        [TestCase]
         public void ResetMixedAndCheckoutFile()
         {
             this.ControlGitRepo.Fetch("FunctionalTests/20170602");

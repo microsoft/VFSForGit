@@ -226,11 +226,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("ls-tree HEAD");
         }
 
-        protected void RunGitCommand(string command, params object[] args)
-        {
-            this.RunGitCommand(string.Format(command, args));
-        }
-
         /* We are using the following method for these scenarios
          * 1. Some commands compute a new commit sha, which is dependent on time and therefore
          *    won't match what is in the control repo.  For those commands, we just ensure that

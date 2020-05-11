@@ -1094,7 +1094,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileSystemAction();
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
-            this.RunGitCommand("commit -m \"Change for {0}\"", test);
+            this.RunGitCommand($"commit -m \"Change for {test}\"");
         }
 
         private void CommitChangesSwitchBranchSwitchBack(Action fileSystemAction, [CallerMemberName]string test = GitCommandsTests.UnknownTestName)
@@ -1104,7 +1104,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileSystemAction();
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
-            this.RunGitCommand("commit -m \"Change for {0}\"", branch);
+            this.RunGitCommand($"commit -m \"Change for {branch}\"");
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
                 .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
