@@ -679,9 +679,16 @@ namespace GVFS.Platform.Windows
 
         private static ProcessResult GetProjFSOptionalFeatureStatus()
         {
-            return CallPowershellCommand(
-                "$var=(Get-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + ");  if($var -eq $null){exit " +
-                (int)ProjFSInboxStatus.NotInbox + "}else{if($var.State -eq 'Enabled'){exit " + (int)ProjFSInboxStatus.Enabled + "}else{exit " + (int)ProjFSInboxStatus.Disabled + "}}");
+            try
+            {
+                return CallPowershellCommand(
+                    "$var=(Get-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + ");  if($var -eq $null){exit " +
+                    (int)ProjFSInboxStatus.NotInbox + "}else{if($var.State -eq 'Enabled'){exit " + (int)ProjFSInboxStatus.Enabled + "}else{exit " + (int)ProjFSInboxStatus.Disabled + "}}");
+            }
+            catch (PowershellNotFoundException e)
+            {
+                return new ProcessResult(string.Empty, e.Message, (int)ProjFSInboxStatus.Invalid);
+            }
         }
 
         private static EventMetadata CreateEventMetadata(Exception e = null)
@@ -698,7 +705,14 @@ namespace GVFS.Platform.Windows
 
         private static ProcessResult CallPowershellCommand(string command)
         {
-            return ProcessHelper.Run("powershell.exe", "-NonInteractive -NoProfile -Command \"& { " + command + " }\"");
+            ProcessResult whereResult = ProcessHelper.Run("where.exe", "powershell.exe");
+
+            if (whereResult.ExitCode != 0)
+            {
+                throw new PowershellNotFoundException();
+            }
+
+            return ProcessHelper.Run(whereResult.Output.Trim(), "-NonInteractive -NoProfile -Command \"& { " + command + " }\"");
         }
 
         // Using an Impl method allows TryPrepareFolderForCallbacks to catch any ProjFS dependency related exceptions
@@ -733,6 +747,14 @@ namespace GVFS.Platform.Windows
                 string volumeName,
                 StringBuilder volumePathName,
                 uint bufferLength);
+        }
+
+        private class PowershellNotFoundException : Exception
+        {
+            public PowershellNotFoundException()
+                : base("powershell.exe was not found")
+            {
+            }
         }
     }
 }
