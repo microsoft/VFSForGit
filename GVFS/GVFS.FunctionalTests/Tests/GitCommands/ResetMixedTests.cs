@@ -79,19 +79,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        public void ResetMixedOnlyAddedThenCheckoutWithConflicts()
-        {
-            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
-            this.ValidateGitCommand("reset --mixed HEAD~1");
-
-            // This will reset all the files except the files that were added
-            // and are untracked to make sure we error out with those using sparse-checkout
-            this.ValidateGitCommand("checkout -f");
-            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
-            this.FilesShouldMatchCheckoutOfTargetBranch();
-        }
-
-        [TestCase]
         public void ResetMixedAndCheckoutFile()
         {
             this.ControlGitRepo.Fetch("FunctionalTests/20170602");
