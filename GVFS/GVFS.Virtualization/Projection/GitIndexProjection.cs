@@ -356,7 +356,7 @@ namespace GVFS.Virtualization.Projection
             string sha = null;
             if (this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData))
             {
-                sha = folderData.HashedFileShas();
+                sha = folderData.HashedChildrenNamesSha();
             }
 
             this.placeholderDatabase.AddPartialFolder(virtualPath, sha);
@@ -1313,7 +1313,7 @@ namespace GVFS.Virtualization.Projection
                     {
                         if (this.TryGetFolderDataFromTreeUsingPath(folderPlaceholder.Path, out FolderData folderData))
                         {
-                            string newFolderSha = folderData.HashedFileShas();
+                            string newFolderSha = folderData.HashedChildrenNamesSha();
                             if (folderPlaceholder.Sha != newFolderSha)
                             {
                                 ++folderPlaceholdersShaUpdate;

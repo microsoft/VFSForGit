@@ -4,8 +4,10 @@ using GVFS.Common.Tracing;
 using GVFS.Virtualization.BlobSize;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 
 namespace GVFS.Virtualization.Projection
@@ -51,18 +53,32 @@ namespace GVFS.Virtualization.Projection
                 }
             }
 
-            public string HashedFileShas()
+            public string HashedChildrenNamesSha()
             {
-                byte[] sha = new byte[20];
                 using (HashAlgorithm hash = SHA1.Create())
                 {
+                    byte[] sha = new byte[20];
+
                     for (int i = 0; i < this.ChildEntries.Count; i++)
                     {
                         if (!this.ChildEntries[i].IsFolder)
                         {
                             FileData fileData = (FileData)this.ChildEntries[i];
+
+                            // Name
+                            byte[] bytes = Encoding.ASCII.GetBytes(fileData.Name.ToString());
+                            hash.TransformBlock(bytes, 0, bytes.Length, null, 0);
+
+                            // Contents
                             fileData.Sha.ToBuffer(sha);
                             hash.TransformBlock(sha, 0, 20, null, 0);
+                        }
+                        else
+                        {
+                            // Name only
+                            FolderData folderData = (FolderData)this.ChildEntries[i];
+                            byte[] bytes = Encoding.ASCII.GetBytes(folderData.Name.ToString());
+                            hash.TransformBlock(bytes, 0, bytes.Length, null, 0);
                         }
                     }
 
