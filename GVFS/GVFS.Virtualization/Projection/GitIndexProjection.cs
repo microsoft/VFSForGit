@@ -14,7 +14,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -87,6 +86,7 @@ namespace GVFS.Virtualization.Projection
         private AutoResetEvent wakeUpIndexParsingThread;
         private Task indexParsingThread;
         private bool isStopping;
+        private bool updateUsnJournal;
 
         public GitIndexProjection(
             GVFSContext context,
@@ -115,6 +115,12 @@ namespace GVFS.Virtualization.Projection
             this.modifiedPaths = modifiedPaths;
             this.rootSparseFolder = new SparseFolderData();
             this.ClearProjectionCaches();
+
+            LocalGVFSConfig config = new LocalGVFSConfig();
+            if (config.TryGetConfig(GVFSConstants.LocalGVFSConfig.USNJournalUpdates, out string value, out string error))
+            {
+                bool.TryParse(value, out this.updateUsnJournal);
+            }
         }
 
         // For Unit Testing
@@ -354,7 +360,7 @@ namespace GVFS.Virtualization.Projection
         public void OnPlaceholderFolderCreated(string virtualPath)
         {
             string sha = null;
-            if (this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData))
+            if (this.updateUsnJournal && this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData))
             {
                 sha = folderData.HashedChildrenNamesSha();
             }
@@ -1311,9 +1317,10 @@ namespace GVFS.Virtualization.Projection
 
                     if (keepFolder)
                     {
-                        if (this.TryGetFolderDataFromTreeUsingPath(folderPlaceholder.Path, out FolderData folderData))
+                        if (this.updateUsnJournal && this.TryGetFolderDataFromTreeUsingPath(folderPlaceholder.Path, out FolderData folderData))
                         {
                             string newFolderSha = folderData.HashedChildrenNamesSha();
+
                             if (folderPlaceholder.Sha != newFolderSha)
                             {
                                 ++folderPlaceholdersShaUpdate;

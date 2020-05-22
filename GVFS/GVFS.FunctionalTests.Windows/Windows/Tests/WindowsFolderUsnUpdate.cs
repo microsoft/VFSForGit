@@ -27,6 +27,11 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
         [TestCase]
         public void CheckoutUpdatesFolderUsnJournal()
         {
+            // Update config then remount.
+            this.Enlistment.WriteConfig("usn.updateDirectories", "true");
+            this.Enlistment.UnmountGVFS();
+            this.Enlistment.MountGVFS();
+
             this.GitCheckoutCommitId(StartingCommit);
             this.GitStatusShouldBeClean(StartingCommit);
 
@@ -44,6 +49,8 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             {
                 folderPath.ValidateUsnChange();
             }
+
+            this.Enlistment.WriteConfig("usn.updateDirectories", "false");
         }
 
         private static string UsnFolderId(string path)
