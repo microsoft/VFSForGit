@@ -57,29 +57,13 @@ namespace GVFS.Virtualization.Projection
             {
                 using (HashAlgorithm hash = SHA1.Create())
                 {
-                    byte[] sha = new byte[20];
-
                     for (int i = 0; i < this.ChildEntries.Count; i++)
                     {
-                        if (!this.ChildEntries[i].IsFolder)
-                        {
-                            FileData fileData = (FileData)this.ChildEntries[i];
+                        FolderEntryData entry = this.ChildEntries[i];
 
-                            // Name
-                            byte[] bytes = Encoding.ASCII.GetBytes(fileData.Name.ToString());
-                            hash.TransformBlock(bytes, 0, bytes.Length, null, 0);
-
-                            // Contents
-                            fileData.Sha.ToBuffer(sha);
-                            hash.TransformBlock(sha, 0, 20, null, 0);
-                        }
-                        else
-                        {
-                            // Name only
-                            FolderData folderData = (FolderData)this.ChildEntries[i];
-                            byte[] bytes = Encoding.ASCII.GetBytes(folderData.Name.ToString());
-                            hash.TransformBlock(bytes, 0, bytes.Length, null, 0);
-                        }
+                        // Name only
+                        byte[] bytes = Encoding.UTF8.GetBytes(entry.Name.ToString());
+                        hash.TransformBlock(bytes, 0, bytes.Length, null, 0);
                     }
 
                     hash.TransformFinalBlock(new byte[0], 0, 0);
