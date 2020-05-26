@@ -7,10 +7,15 @@
 
 ## What is VFS for Git?
 
-VFS stands for Virtual File System. VFS for Git virtualizes the file system beneath your git repo so that git and all tools
-see what appears to be a normal repo, but VFS for Git only downloads objects as they are needed. VFS for Git also manages the files that git will consider,
-to ensure that git operations like status, checkout, etc., can be as quick as possible because they will only consider the files
-that the user has accessed, not all files in the repo.
+VFS stands for Virtual File System. VFS for Git virtualizes the file system
+beneath your Git repository so that Git and all tools see what appears to be a
+regular working directory, but VFS for Git only downloads objects as they
+are needed. VFS for Git also manages the files that Git will consider, to
+ensure that Git operations such as `status`, `checkout`, etc., can be as quick
+as possible because they will only consider the files that the user has
+accessed, not all files in the repository.
+
+[See our documentation](docs/index.md) for instructions to get started.
 
 ## New name
 
@@ -22,7 +27,7 @@ built executables, and releases may still refer to the old GVFS name. See https:
 * VFS for Git requires Windows 10 Anniversary Update (Windows 10 version 1607) or later
 * Run the latest GVFS and Git for Windows installers from https://github.com/Microsoft/VFSForGit/releases
 
-## Building VFS for Git on Windows
+## Building VFS for Git
 
 If you'd like to build your own VFS for Git Windows installer:
 * Install Visual Studio 2017 Community Edition or higher (https://www.visualstudio.com/downloads/).
@@ -53,19 +58,23 @@ The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer
 
 ## Trying out VFS for Git
 
-* VFS for Git will work with any git service that supports the GVFS [protocol](Protocol.md). For example, you can create a repo in
-Azure DevOps (https://azure.microsoft.com/services/devops/), and push some contents to it. There are two constraints:
+* VFS for Git will work with any Git service that supports the
+  [GVFS protocol](Protocol.md). For example, you can create a repo in
+  [Azure DevOps](https://azure.microsoft.com/services/devops/), and push
+  some contents to it. There are two constraints:
   * Your repo must not enable any clean/smudge filters
   * Your repo must have a `.gitattributes` file in the root that includes the line `* -text`
 * `gvfs clone <URL of repo you just created>`
   * Please choose the **Clone with HTTPS** option in the `Clone Repository` dialog in Azure Repos, not **Clone with SSH**.
 * `cd <root>\src`
-* Run git commands as you normally would
+* Run Git commands as you normally would
 * `gvfs unmount` when done
 
 
 # Licenses
 
-The VFS for Git source code in this repo is available under the MIT license. See [License.md](License.md).
+The VFS for Git source code in this repo is available under the MIT license.
+See [License.md](License.md).
 
-VFS for Git relies on the PrjFlt filter driver, formerly known as the GvFlt filter driver, available as a prerelease NuGet package.
+VFS for Git relies on the PrjFlt filter driver, formerly known as the GvFlt
+filter driver, available as a prerelease NuGet package.
