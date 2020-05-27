@@ -6,7 +6,7 @@
     public interface IPlaceholderData
     {
         string Path { get; }
-        string Sha { get; }
+        string Sha { get; set; }
         bool IsFolder { get; }
         bool IsExpandedFolder { get; }
         bool IsPossibleTombstoneFolder { get; }

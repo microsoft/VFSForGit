@@ -88,7 +88,7 @@ D GVFS{Path.DirectorySeparatorChar}GVFS.Tests{Path.DirectorySeparatorChar}Proper
 
         protected string PartialFolderPlaceholderString(params string[] pathParts)
         {
-            return $"{Path.Combine(pathParts)}{GVFSHelpers.PlaceholderFieldDelimiter}{PlaceholderTablePartialFolderPathType}{GVFSHelpers.PlaceholderFieldDelimiter}";
+            return $"{Path.Combine(pathParts)}{GVFSHelpers.PlaceholderFieldDelimiter}{PlaceholderTablePartialFolderPathType}{GVFSHelpers.PlaceholderFieldDelimiter}{TestConstants.PartialFolderPlaceholderDatabaseValue}{GVFSHelpers.PlaceholderFieldDelimiter}";
         }
 
         protected void ValidatePersistedVersionMatchesCurrentVersion()

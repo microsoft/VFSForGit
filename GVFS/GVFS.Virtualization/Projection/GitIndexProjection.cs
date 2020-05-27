@@ -14,7 +14,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -87,6 +86,7 @@ namespace GVFS.Virtualization.Projection
         private AutoResetEvent wakeUpIndexParsingThread;
         private Task indexParsingThread;
         private bool isStopping;
+        private bool updateUsnJournal;
 
         public GitIndexProjection(
             GVFSContext context,
@@ -115,6 +115,12 @@ namespace GVFS.Virtualization.Projection
             this.modifiedPaths = modifiedPaths;
             this.rootSparseFolder = new SparseFolderData();
             this.ClearProjectionCaches();
+
+            LocalGVFSConfig config = new LocalGVFSConfig();
+            if (config.TryGetConfig(GVFSConstants.LocalGVFSConfig.USNJournalUpdates, out string value, out string error))
+            {
+                bool.TryParse(value, out this.updateUsnJournal);
+            }
         }
 
         // For Unit Testing
@@ -353,7 +359,13 @@ namespace GVFS.Virtualization.Projection
 
         public void OnPlaceholderFolderCreated(string virtualPath)
         {
-            this.placeholderDatabase.AddPartialFolder(virtualPath);
+            string sha = null;
+            if (this.updateUsnJournal && this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData))
+            {
+                sha = folderData.HashedChildrenNamesSha();
+            }
+
+            this.placeholderDatabase.AddPartialFolder(virtualPath, sha);
         }
 
         public void OnPossibleTombstoneFolderCreated(string virtualPath)
@@ -1242,6 +1254,7 @@ namespace GVFS.Virtualization.Projection
                 int deleteFolderPlaceholderAttempted = 0;
                 int folderPlaceholdersDeleted = 0;
                 int folderPlaceholdersPathNotFound = 0;
+                int folderPlaceholdersShaUpdate = 0;
 
                 // A hash of the placeholders is only required if the platform expands directories
                 // This is using a in memory HashSet for speed in processing
@@ -1304,6 +1317,26 @@ namespace GVFS.Virtualization.Projection
 
                     if (keepFolder)
                     {
+                        if (this.updateUsnJournal && this.TryGetFolderDataFromTreeUsingPath(folderPlaceholder.Path, out FolderData folderData))
+                        {
+                            string newFolderSha = folderData.HashedChildrenNamesSha();
+
+                            if (folderPlaceholder.Sha != newFolderSha)
+                            {
+                                ++folderPlaceholdersShaUpdate;
+
+                                // Write and delete a file so USN journal will have the folder as being changed
+                                string tempFilePath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, folderPlaceholder.Path, ".vfs_usn_folder_update.tmp");
+                                if (this.context.FileSystem.TryWriteAllText(tempFilePath, "TEMP FILE FOR USN FOLDER MODIFICATION"))
+                                {
+                                    this.context.FileSystem.DeleteFile(tempFilePath);
+                                }
+
+                                folderPlaceholder.Sha = newFolderSha;
+                                this.placeholderDatabase.AddPlaceholderData(folderPlaceholder);
+                            }
+                        }
+
                         // Remove folder placeholders before re-expansion to ensure that projection changes that convert a folder to a file work
                         // properly
                         if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories && folderPlaceholder.IsExpandedFolder)
@@ -1336,7 +1369,8 @@ namespace GVFS.Virtualization.Projection
                     millisecondsWriteAndFlush,
                     deleteFolderPlaceholderAttempted,
                     folderPlaceholdersDeleted,
-                    folderPlaceholdersPathNotFound);
+                    folderPlaceholdersPathNotFound,
+                    folderPlaceholdersShaUpdate);
             }
         }
 
@@ -1552,7 +1586,7 @@ namespace GVFS.Virtualization.Projection
                             result = this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
                             if (result.Result == FSResult.Ok)
                             {
-                                this.placeholderDatabase.AddPartialFolder(childRelativePath);
+                                this.placeholderDatabase.AddPartialFolder(childRelativePath, sha: null);
                             }
                             else if (result.Result == FSResult.IOError)
                             {
