@@ -32,7 +32,8 @@ as that is the only way to get updates to the ProjFS filesystem driver.
 
 ### TRY THIS FIRST: `gvfs repair`
 
-Some known issues can get your enlistment out of a bad state. Running
+Some known issues can get your enlistment into a bad state. Running
+
 `gvfs repair` will detect known issues and the output will mention if the
 issue is actionable or not. Then, `gvfs repair --confirm` will actually
 make the changes it thinks are necessary.
