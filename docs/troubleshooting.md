@@ -22,6 +22,132 @@ will prompt you for upgrade using a notification. To check manually, run
 `gvfs upgrade` to see if an upgrade is available. Run `gvfs upgrade --confirm`
 to actually perform the upgrade, if you wish.
 
+Common Issues
+-------------
+
+We are constantly improving VFS for Git to prevent known issues from
+reoccurring. Please make sure you are on the latest version using `gvfs upgrade`
+before raising an issue. Please also keep your version of Windows updated
+as that is the only way to get updates to the ProjFS filesystem driver.
+
+### TRY THIS FIRST: `gvfs repair`
+
+Some known issues can get your enlistment into a bad state. Running
+
+`gvfs repair` will detect known issues and the output will mention if the
+issue is actionable or not. Then, `gvfs repair --confirm` will actually
+make the changes it thinks are necessary.
+
+If `gvfs repair` detects a problem but says it cannot fix the problem,
+then that's an excellent message to include when creating an issue.
+
+### TRY THIS NEXT: `gvfs unmount`, `gvfs mount`, or restart
+
+Sometimes the `GVFS.Mount` process gets in a bad state and simply needs to
+restart to auto-heal. Since VFS for Git also interacts directly with the
+ProjFS filesystem driver, sometimes a system restart can help.
+
+### Mismatched Git version
+
+**Symptom:** Enlistment fails to mount with an error such as
+
+```
+Warning: Installed git version <X> does not match supported version of <Y>
+```
+
+**Fix:** VFS for Git is tightly coupled to
+[a custom version of Git](https://github.com/microsoft/git). This error
+happens when the installed version of Git does not match the one that was
+included in the VFS for Git installer. Please download and install the
+matching version of Git from
+[the VFS for Git releases page](https://github.com/microsoft/vfsforgit/releases).
+
+### 404 Errors, or "The Git repository with name or identifier X does not exist..."
+
+If your `gvfs clone <url>` command fails with this error, then check if you
+can access `<url>` in a web browser. If you cannot see the repository in the
+web, then you do not have permissions to read that repository. These issues
+cannot be resolved by the VFS for Git team and must be done by your repository
+administrators.
+
+If you _can_ see the repository in the web, then likely you have a stale
+credential in your credential manager that needs updating. VFS for Git
+_should_ attempt to renew your credential. If it does not, then go to
+Windows Credential Manager and delete the Git credential for that URL.
+
+### ProjFS Installation Issue
+
+**Symptoms:**
+
+- VFS for Git will not mount
+- The mount logs (or mount CLI) have a ProjFS related error.
+Examples:
+   - "Service prjflt was not found on computer".
+    - "Could not load file or assembly 'ProjectedFSLib.Managed.dll' or one
+      of its dependencies. The specified module could not be found."
+    - "Attaching the filter resulted in: 2149515283"
+    - "StartVirtualizationInstance failed: 80070057(InvalidArg)"
+
+**Fix:**
+
+The easiest way to fix ProjFS issues is to completely remove ProjFS, and 
+then rely on `GVFS.Service` to re-install (or re-enable) ProjFS.
+
+1. If `C:\Program Files\GVFS\ProjectedFSLib.dll` is present, delete it
+2. Determine if inbox ProjFS is currently enabled:
+
+*In an Administrator Command Prompt*
+
+```powershell -NonInteractive -NoProfile -Command "&{Get-WindowsOptionalFeature -Online -FeatureName Client-ProjFS}"```
+
+Check the value of `State:` in the output to see if inbox ProjFS is enabled.
+
+3. If ProjFS **is enabled**
+   - Restart machine
+   - Attempt to mount
+   - If mount fails, manually disable ProjFS:
+       - Control Panel->Programs->Turn Windows features on or off
+       - Uncheck "Windows Projected File System"
+      - Click OK
+      - Restart machine
+      - (When `GVFS.Service` starts, it will automatically re-enable the optional feature)
+    - `gvfs mount` repo
+    - If the mount still fails, restart one more time and try `gvfs mount` again
+
+4. If ProjFS **is not enabled**
+    - Manually remove ProjFS and GvFlt
+    From an Administrator command prompt:
+        - `sc stop GVFS.Service`
+       -  `sc stop gvflt`
+       -  `sc delete gvflt`
+       - `sc stop prjflt`
+      - `sc delete prjflt`
+      - `del c:\Windows\System32\drivers\prjflt.sys`
+      - `sc start GVFS.Service`
+    - `gvfs mount` repo
+
+If the above steps do not resolve the issue, and the user is on Windows
+Server, ensure they have
+[the latest version of GVFS installed](https://github.com/microsoft/vfsforgit/releases).
+
+### Unable to Move/Rename directories inside GVFS repository.
+
+**Symptom:**
+User is not able to rename or move a partial directory inside their
+VFS for Git enlistment. If rename or move is done using Windows Explorer,
+the user might see an error alert with message ```Error 0x80070032: The request is not supported.```
+
+**Fix:**
+Partial directories are directories that originate from the virtual projection.
+They exist on disk and still contain ProjFS reparse data. When an application
+enumerates a partial directory ProjFS calls VFS for Git's enumeration callbacks.
+
+VFS for Git does not support rename or move of partial directories inside an
+enlistment. However it supports rename/move of a regular directory. User can
+copy the partial directory and paste it inside the enlistment. The newly pasted
+directory is a regular directory and can be renamed or moved around inside the
+enlistment. The original partial directory can now be deleted.
+
 Diagnosing Issues
 -----------------
 
