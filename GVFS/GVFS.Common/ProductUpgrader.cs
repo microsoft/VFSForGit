@@ -184,7 +184,14 @@ namespace GVFS.Common
                 // and its contents into C:\Program Files\GVFS\ProgramData\GVFS.Upgrade\Tools). The exclusion below is
                 // added to avoid this loop.
                HashSet<string> directoriesToExclude = new HashSet<string>();
-                directoriesToExclude.Add(GVFSPlatform.Instance.GetSecureDataRootForGVFS());
+
+                string secureDataRoot = GVFSPlatform.Instance.GetSecureDataRootForGVFS();
+                directoriesToExclude.Add(secureDataRoot);
+                directoriesToExclude.Add(upgradeApplicationDirectory);
+
+                this.tracer.RelatedInfo($"Copying contents of '{currentPath}' to '{upgradeApplicationDirectory}',"
+                                        + $"excluding '{upgradeApplicationDirectory}' and '{secureDataRoot}'");
+
                 this.fileSystem.CopyDirectoryRecursive(currentPath, upgradeApplicationDirectory, directoriesToExclude);
             }
             catch (UnauthorizedAccessException e)
