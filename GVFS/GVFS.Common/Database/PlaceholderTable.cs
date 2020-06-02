@@ -117,7 +117,7 @@ namespace GVFS.Common.Database
                 }
                 else
                 {
-                    this.AddPartialFolder(data.Path);
+                    this.AddPartialFolder(data.Path, data.Sha);
                 }
             }
             else
@@ -136,9 +136,9 @@ namespace GVFS.Common.Database
             this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.File, Sha = sha });
         }
 
-        public void AddPartialFolder(string path)
+        public void AddPartialFolder(string path, string sha)
         {
-            this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PartialFolder });
+            this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PartialFolder, Sha = sha });
         }
 
         public void AddExpandedFolder(string path)

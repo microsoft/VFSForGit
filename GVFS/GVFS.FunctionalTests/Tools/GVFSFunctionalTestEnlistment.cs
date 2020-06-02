@@ -2,7 +2,6 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests;
 using GVFS.Tests.Should;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -264,6 +263,11 @@ namespace GVFS.FunctionalTests.Tools
         public bool WaitForLock(string lockCommand, int maxWaitMilliseconds = DefaultMaxWaitMSForStatusCheck)
         {
             return this.WaitForStatus(maxWaitMilliseconds, string.Format(LockHeldByGit, lockCommand));
+        }
+
+        public void WriteConfig(string key, string value)
+        {
+            this.gvfsProcess.WriteConfig(key, value);
         }
 
         public void UnmountGVFS()

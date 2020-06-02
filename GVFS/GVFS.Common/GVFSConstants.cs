@@ -45,6 +45,7 @@ namespace GVFS.Common
             public const string UpgradeFeedPackageName = "upgrade.feedpackagename";
             public const string UpgradeFeedUrl = "upgrade.feedurl";
             public const string OrgInfoServerUrl = "upgrade.orgInfoServerUrl";
+            public const string USNJournalUpdates = "usn.updateDirectories";
         }
 
         public static class GitStatusCache
