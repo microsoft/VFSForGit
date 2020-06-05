@@ -347,6 +347,7 @@ namespace GVFS.Hooks
                 case "merge-base":
                 case "multi-pack-index":
                 case "name-rev":
+                case "pack-objects":
                 case "push":
                 case "remote":
                 case "rev-list":
@@ -362,7 +363,7 @@ namespace GVFS.Hooks
                     return false;
 
                 /*
-                 * There are several git commands that are "unsupoorted" in virtualized (VFS4G)
+                 * There are several git commands that are "unsupported" in virtualized (VFS4G)
                  * enlistments that are blocked by git. Usually, these are blocked before they acquire
                  * a GVFSLock, but the submodule command is different, and is blocked after acquiring the
                  * GVFS lock. This can cause issues if another action is attempting to create placeholders.
