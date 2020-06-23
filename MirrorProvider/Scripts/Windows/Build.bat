@@ -4,10 +4,9 @@ SET SRC=%~dp0\..\..\..
 SET ROOT=%SRC%\..
 SET SLN=%SRC%\MirrorProvider\MirrorProvider.sln
 
-SET nuget="%ROOT%\.tools\nuget.exe"
-IF NOT EXIST %nuget% (
-  mkdir %nuget%\..
-  powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile %nuget%"
+FOR /F "tokens=* USEBACKQ" %%F IN (`where nuget.exe`) DO (
+	SET nuget=%%F
+	ECHO Found nuget.exe at '%%F'
 )
 
 %nuget% restore %SLN%
