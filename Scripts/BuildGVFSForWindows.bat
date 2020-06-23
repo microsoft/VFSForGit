@@ -8,10 +8,14 @@ IF "%2"=="" (SET "GVFSVersion=0.2.173.2") ELSE (SET "GVFSVersion=%2")
 
 SET SolutionConfiguration=%Configuration%.Windows
 
-SET nuget="%VFS_TOOLSDIR%\nuget.exe"
+FOR /F "tokens=* USEBACKQ" %%F IN (`where nuget.exe`) DO (
+	SET nuget=%%F
+	ECHO Found nuget.exe at '%%F'
+)
+
 IF NOT EXIST %nuget% (
-  mkdir %nuget%\..
-  powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile %nuget%"
+	ECHO ERROR: Could not find nuget.exe on the PATH
+	exit /b 10
 )
 
 :: Acquire vswhere to find dev15 installations reliably.
@@ -27,7 +31,7 @@ IF NOT EXIST "c:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0" (
 
 :: Use vswhere to find the latest VS installation with the msbuild component.
 :: See https://github.com/Microsoft/vswhere/wiki/Find-MSBuild
-for /f "usebackq tokens=*" %%i in (`%vswhere% -all -prerelease -latest -products * -requires Microsoft.Component.MSBuild Microsoft.VisualStudio.Workload.ManagedDesktop Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Workload.NetCoreTools Microsoft.Net.Core.Component.SDK.2.1 -find MSBuild\**\Bin\amd64\MSBuild.exe`) do (
+for /f "usebackq tokens=*" %%i in (`%vswhere% -all -prerelease -latest -products * -requires Microsoft.Component.MSBuild Microsoft.VisualStudio.Workload.ManagedDesktop Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.Net.Core.Component.SDK.2.1 -find MSBuild\**\Bin\amd64\MSBuild.exe`) do (
  set msbuild="%%i"
 )
 
