@@ -183,7 +183,7 @@ namespace GVFS.Common
                 // directory causes a cycle(at some point we start copying C:\Program Files\GVFS\ProgramData\GVFS.Upgrade
                 // and its contents into C:\Program Files\GVFS\ProgramData\GVFS.Upgrade\Tools). The exclusion below is
                 // added to avoid this loop.
-               HashSet<string> directoriesToExclude = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+               HashSet<string> directoriesToExclude = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
                 string secureDataRoot = GVFSPlatform.Instance.GetSecureDataRootForGVFS();
                 directoriesToExclude.Add(secureDataRoot);
