@@ -300,7 +300,12 @@ namespace GVFS.CommandLine
 
                 // Configure git to use our serialize status file - make git use the serialized status file rather than compute the status by
                 // parsing the index file and going through the files to determine changes.
-                { "status.deserializePath", gitStatusCachePath }
+                { "status.deserializePath", gitStatusCachePath },
+
+                // The GVFS Protocol forbids submodules, so prevent a user's
+                // global config of "status.submoduleSummary=true" from causing
+                // extreme slowness in "git status"
+                { "status.submoduleSummary", "false" },
             };
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))

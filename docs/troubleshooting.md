@@ -22,6 +22,18 @@ will prompt you for upgrade using a notification. To check manually, run
 `gvfs upgrade` to see if an upgrade is available. Run `gvfs upgrade --confirm`
 to actually perform the upgrade, if you wish.
 
+### Upgrade fails with
+
+**Symptom:** `gvfs upgrade` fails with the following error:
+
+> ERROR: Could not launch upgrade tool. File copy error - The specified path, file name, or both are too long"
+
+**Fix:** There is a known issue with VFS for Git v1.0.20112.1 where the
+`gvfs upgrade` command fails with a long-path error. The root cause is a
+[recursive directory copy](https://github.com/microsoft/VFSForGit/pull/1672)
+that loops the contents of that directory into the copy and it never ends.
+The only fix is to [manually upgrade to version v1.0.20154.3](https://github.com/microsoft/VFSForGit/releases/tag/v1.0.20154.3).
+
 Common Issues
 -------------
 
