@@ -4,15 +4,32 @@ Troubleshooting
 Deleting a VFS for Git repo
 ---------------------------
 
-Since a VFS for Git clone has a running `GVFS.Mount` process to track the
-Git index and watch updates from the ProjFS filesystem driver, you must
-first run `gvfs unmount` before deleting your repository. This will also
-remove the repository from the auto-mount feature of `GVFS.Service`.
+1. Un-mount the repo.
 
-If you have deleted the enlistment or its `.gvfs` folder, then you will
-likely see alerts saying "Failed to auto-mount at path `X`". To remove
-this enlistment from the auto-mount feature, remove the appropriate line
-from the `C:\ProgramData\GVFS\GVFS.Service\repo-registry` file.
+    Since a VFS for Git clone has a running `GVFS.Mount` process to track the
+    Git index and watch updates from the ProjFS filesystem driver, you must
+    first run `gvfs unmount` before deleting your repository. This will also
+    remove the repository from the auto-mount feature of `GVFS.Service`.
+
+    Make sure the current working directory of your shell is not in the VFS for Git repo and that no other processes are using files in it. For example:
+
+    ```
+    C:\Users\you\big_repo\src\> cd ..\..
+    C:\Users\you\> gvfs unmount big_repo
+    ```
+
+    If you have deleted the enlistment or its `.gvfs` folder, then you will
+    likely see alerts saying "Failed to auto-mount at path `X`". To manually remove
+    this repo from the auto-mount feature, remove the appropriate line
+    from the `C:\ProgramData\GVFS\GVFS.Service\repo-registry` file.
+
+1. Clean up the remaining folder. (Do not try to delete the repo before it is un mounted.)
+
+    Once un-mounted you can fully clean up the old repo by deleteing it. Following the example from above:
+
+    ```
+    C:\Users\you\> rmdir /S /Q big_repo
+    ```
 
 Upgrade
 -------
