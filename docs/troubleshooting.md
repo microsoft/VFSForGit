@@ -4,6 +4,12 @@ Troubleshooting
 Deleting a VFS for Git repo
 ---------------------------
 
+You must follow these steps to delete a VFS for Git repository.
+
+If you have attempted deletion before un-mounting jump to 
+[Recovering from an attempt to delete without un-mounting](#Recovering-from-an-attempt-to-delete-without-un-mounting).
+
+
 1. Un-mount the repo.
 
     Since a VFS for Git clone has a running `GVFS.Mount` process to track the
@@ -11,25 +17,41 @@ Deleting a VFS for Git repo
     first run `gvfs unmount` before deleting your repository. This will also
     remove the repository from the auto-mount feature of `GVFS.Service`.
 
-    Make sure the current working directory of your shell is not in the VFS for Git repo and that no other processes are using files in it. For example:
+    Make sure the current working directory of your shell is not in the VFS for Git 
+    repo and that no other processes are using files in it. For example:
 
     ```
     C:\Users\you\big_repo\src\> cd ..\..
     C:\Users\you\> gvfs unmount big_repo
     ```
 
-    If you have deleted the enlistment or its `.gvfs` folder, then you will
-    likely see alerts saying "Failed to auto-mount at path `X`". To manually remove
-    this repo from the auto-mount feature, remove the appropriate line
-    from the `C:\ProgramData\GVFS\GVFS.Service\repo-registry` file.
-
 1. Clean up the remaining folder. (Do not try to delete the repo before it is un mounted.)
 
-    Once un-mounted you can fully clean up the old repo by deleteing it. Following the example from above:
+    Once un-mounted you can fully clean up the old repo by deleteing it. 
+    Following the example from above:
 
     ```
     C:\Users\you\> rmdir /S /Q big_repo
     ```
+
+### Recovering from an attempt to delete without un-mounting
+
+  If you have attempted to delete the repo or its `.gvfs` folder, then you will
+  likely see alerts saying "Failed to auto-mount at path `X`".
+  
+  1. Manually remove this repo from the auto-mount feature, remove the appropriate line
+  from the `C:\ProgramData\GVFS\GVFS.Service\repo-registry` file.
+
+  1. Ensure there is no currently running mount process for the repo.
+      1. Open Task Manager.
+      1. Go the `Details` tab.
+      1. Right click in the header row (on `Name` for instance) to choose `Select Columns`.
+      1. Check the `Command line` column which will show the full command line for each process.
+      1. Look for a `GVFS.Mount.exe` process that has your repo in question in the command line arguments.
+      1. If you find said process, right click and choose `End Task` to end it.
+
+  1. Proceed with removing the directory as described above to clean up the folder 
+     with `rmdir /S /Q REPO`.
 
 Upgrade
 -------
