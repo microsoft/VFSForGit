@@ -6,9 +6,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
 {
     public class MockFileSystemWithCallbacks : PhysicalFileSystem
     {
-        public Func<bool> OnFileExists { get; set; }
+        public Func<string, bool> OnFileExists { get; set; }
 
         public Func<string, FileMode, FileAccess, Stream> OnOpenFileStream { get; set; }
+
+        public Action<string, string> OnMoveFile { get; set; }
 
         public override FileProperties GetFileProperties(string path)
         {
@@ -22,7 +24,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
                 throw new InvalidOperationException("OnFileExists should be set if it is expected to be called.");
             }
 
-            return this.OnFileExists();
+            return this.OnFileExists(path);
         }
 
         public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool flushesToDisk)
@@ -68,7 +70,12 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override void MoveFile(string sourcePath, string targetPath)
         {
-            throw new NotImplementedException();
+            if (this.OnMoveFile == null)
+            {
+                throw new InvalidOperationException("OnMoveFile should be set if it is expected to be called.");
+            }
+
+            this.OnMoveFile(sourcePath, targetPath);
         }
 
         public override string[] GetFiles(string directoryPath, string mask)

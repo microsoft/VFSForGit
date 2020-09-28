@@ -20,17 +20,22 @@ namespace GVFS.UnitTests.Git
     [TestFixture]
     public class GVFSGitObjectsTests
     {
-        private const string ValidTestObjectFileContents = "421dc4df5e1de427e363b8acd9ddb2d41385dbdf";
+        private const string ValidTestObjectFileSha1 = "c1f2535cd983afa20de0d64fcaaba06ce535aa30";
         private const string TestEnlistmentRoot = "mock:\\src";
         private const string TestLocalCacheRoot = "mock:\\.gvfs";
         private const string TestObjectRoot = "mock:\\.gvfs\\gitObjectCache";
+        private readonly byte[] validTestObjectFileContents = new byte[]
+        {
+            0x78, 0x01, 0x4B, 0xCA, 0xC9, 0x4F, 0x52, 0x30, 0x62,
+            0x48, 0xE4, 0x02, 0x00, 0x0E, 0x64, 0x02, 0x5D
+        };
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void CatchesFileNotFoundAfterFileDeleted()
         {
             MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
-            fileSystem.OnFileExists = () => true;
+            fileSystem.OnFileExists = (path) => true;
             fileSystem.OnOpenFileStream = (path, fileMode, fileAccess) =>
             {
                 if (fileAccess == FileAccess.Write)
@@ -42,13 +47,13 @@ namespace GVFS.UnitTests.Git
             };
 
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
-            using (httpObjects.InputStream = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(ValidTestObjectFileContents)))
+            using (httpObjects.InputStream = new MemoryStream(this.validTestObjectFileContents))
             {
                 httpObjects.MediaType = GVFSConstants.MediaTypes.LooseObjectMediaType;
                 GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
 
                 dut.TryCopyBlobContentStream(
-                    ValidTestObjectFileContents,
+                    ValidTestObjectFileSha1,
                     new CancellationToken(),
                     GVFSGitObjects.RequestSource.FileStreamCallback,
                     (stream, length) => Assert.Fail("Should not be able to call copy stream callback"))
@@ -60,15 +65,15 @@ namespace GVFS.UnitTests.Git
         public void SucceedsForNormalLookingLooseObjectDownloads()
         {
             MockFileSystemWithCallbacks fileSystem = new Mock.FileSystem.MockFileSystemWithCallbacks();
-            fileSystem.OnFileExists = () => true;
+            fileSystem.OnFileExists = (path) => true;
             fileSystem.OnOpenFileStream = (path, mode, access) => new MemoryStream();
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
-            using (httpObjects.InputStream = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(ValidTestObjectFileContents)))
+            using (httpObjects.InputStream = new MemoryStream(this.validTestObjectFileContents))
             {
                 httpObjects.MediaType = GVFSConstants.MediaTypes.LooseObjectMediaType;
                 GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
 
-                dut.TryDownloadAndSaveObject(ValidTestObjectFileContents, GVFSGitObjects.RequestSource.FileStreamCallback)
+                dut.TryDownloadAndSaveObject(ValidTestObjectFileSha1, GVFSGitObjects.RequestSource.FileStreamCallback)
                     .ShouldEqual(GitObjects.DownloadAndSaveObjectResult.Success);
             }
         }
@@ -80,7 +85,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(),
                 GVFSConstants.MediaTypes.LooseObjectMediaType,
-                gitObjects => gitObjects.TryDownloadAndSaveObject("aabbcc", GVFSGitObjects.RequestSource.FileStreamCallback));
+                gitObjects => gitObjects.TryDownloadAndSaveObject(ValidTestObjectFileSha1, GVFSGitObjects.RequestSource.FileStreamCallback));
         }
 
         [TestCase]
@@ -90,7 +95,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(new byte[256]),
                 GVFSConstants.MediaTypes.LooseObjectMediaType,
-                gitObjects => gitObjects.TryDownloadAndSaveObject("aabbcc", GVFSGitObjects.RequestSource.FileStreamCallback));
+                gitObjects => gitObjects.TryDownloadAndSaveObject("b376885ac8452b6cbf9ced81b1080bfd570d9b91", GVFSGitObjects.RequestSource.FileStreamCallback));
         }
 
         [TestCase]
@@ -125,7 +130,7 @@ namespace GVFS.UnitTests.Git
 
             using (ReusableMemoryStream downloadDestination = new ReusableMemoryStream(string.Empty))
             {
-                fileSystem.OnFileExists = () => false;
+                fileSystem.OnFileExists = (path) => false;
                 fileSystem.OnOpenFileStream = (path, mode, access) => downloadDestination;
 
                 GVFSGitObjects gitObjects = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
@@ -143,14 +148,8 @@ namespace GVFS.UnitTests.Git
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem, () => new MockLibGit2Repo(tracer));
 
             GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
-            GVFSGitObjects dut = new GVFSGitObjects(context, httpObjects);
+            GVFSGitObjects dut = new UnsafeGVFSGitObjects(context, httpObjects);
             return dut;
-        }
-
-        private string GetDataPath(string fileName)
-        {
-            string workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            return Path.Combine(workingDirectory, "Data", fileName);
         }
 
         private class MockHttpGitObjects : GitObjectsHttpRequestor
@@ -214,6 +213,15 @@ namespace GVFS.UnitTests.Git
             public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
             {
                 throw new NotImplementedException();
+            }
+        }
+
+        private class UnsafeGVFSGitObjects : GVFSGitObjects
+        {
+            public UnsafeGVFSGitObjects(GVFSContext context, GitObjectsHttpRequestor objectRequestor)
+                : base(context, objectRequestor)
+            {
+                this.checkData = false;
             }
         }
     }

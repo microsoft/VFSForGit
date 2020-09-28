@@ -2,6 +2,8 @@
 using GVFS.Common.Http;
 using GVFS.Common.NetworkStreams;
 using GVFS.Common.Tracing;
+using ICSharpCode.SharpZipLib;
+using ICSharpCode.SharpZipLib.Zip.Compression.Streams;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -10,6 +12,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,6 +23,11 @@ namespace GVFS.Common.Git
         protected readonly ITracer Tracer;
         protected readonly GitObjectsHttpRequestor GitObjectRequestor;
         protected readonly Enlistment Enlistment;
+
+        /// <summary>
+        /// Used only for testing.
+        /// </summary>
+        protected bool checkData;
 
         private const string EtwArea = nameof(GitObjects);
         private const string TempPackFolder = "tempPacks";
@@ -33,6 +41,7 @@ namespace GVFS.Common.Git
             this.Enlistment = enlistment;
             this.GitObjectRequestor = objectRequestor;
             this.fileSystem = fileSystem ?? new PhysicalFileSystem();
+            this.checkData = true;
         }
 
         public enum DownloadAndSaveObjectResult
@@ -179,6 +188,38 @@ namespace GVFS.Common.Git
                 using (Stream fileStream = this.OpenTempLooseObjectStream(toWrite.TempFile))
                 {
                     StreamUtil.CopyToWithBuffer(responseStream, fileStream, bufToCopyWith);
+                    fileStream.Flush();
+                }
+
+                if (this.checkData)
+                {
+                    try
+                    {
+                        using (Stream readFile = this.fileSystem.OpenFileStream(toWrite.TempFile, FileMode.Open, FileAccess.Read, FileShare.Read, true))
+                        using (InflaterInputStream inflate = new InflaterInputStream(readFile))
+                        using (HashingStream hashing = new HashingStream(inflate))
+                        using (NoOpStream devNull = new NoOpStream())
+                        {
+                            hashing.CopyTo(devNull);
+
+                            string actualSha = SHA1Util.HexStringFromBytes(hashing.Hash);
+
+                            if (!sha.Equals(actualSha, StringComparison.OrdinalIgnoreCase))
+                            {
+                                string message = $"Requested object with hash {sha} but received object with hash {actualSha}.";
+                                message += $"\nFind the incorrect data at '{toWrite.TempFile}'";
+                                this.Tracer.RelatedError(message);
+                                throw new SecurityException(message);
+                            }
+                        }
+                    }
+                    catch (SharpZipBaseException)
+                    {
+                        string message = $"Requested object with hash {sha} but received data that failed decompression.";
+                        message += $"\nFind the incorrect data at '{toWrite.TempFile}'";
+                        this.Tracer.RelatedError(message);
+                        throw new RetryableException(message);
+                    }
                 }
 
                 this.FinalizeTempFile(sha, toWrite, overwriteExistingObject);
