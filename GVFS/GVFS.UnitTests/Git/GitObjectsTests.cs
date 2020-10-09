@@ -56,7 +56,7 @@ namespace GVFS.UnitTests.Git
             }
 
             foundException.ShouldBeTrue("Failed to throw RetryableException");
-            this.openedPaths.Count.ShouldEqual(2, "Incorrect number of opened paths (one to write temp file, one to read temp file)");
+            this.openedPaths.Count.ShouldEqual(1, "Incorrect number of opened paths (one to write temp file)");
             this.openedPaths[0].IndexOf(EmptySha.Substring(2)).ShouldBeAtMost(-1, "Should not have written to the loose object location");
         }
 
@@ -92,7 +92,7 @@ namespace GVFS.UnitTests.Git
             }
 
             foundException.ShouldBeTrue("Failed to throw SecurityException");
-            this.openedPaths.Count.ShouldEqual(2, "Incorrect number of opened paths (one to write temp file, one to read temp file)");
+            this.openedPaths.Count.ShouldEqual(1, "Incorrect number of opened paths (one to write temp file)");
             this.openedPaths[0].IndexOf(EmptySha.Substring(2)).ShouldBeAtMost(-1, "Should not have written to the loose object location");
         }
 
@@ -120,7 +120,7 @@ namespace GVFS.UnitTests.Git
                 gitObjects.WriteLooseObject(stream, RealSha, true, new byte[128]);
             }
 
-            this.openedPaths.Count.ShouldEqual(3, "Incorrect number of opened paths");
+            this.openedPaths.Count.ShouldEqual(2, "Incorrect number of opened paths");
             moved.ShouldBeTrue("File was not moved");
         }
 

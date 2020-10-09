@@ -185,18 +185,13 @@ namespace GVFS.Common.Git
             {
                 LooseObjectToWrite toWrite = this.GetLooseObjectDestination(sha);
 
-                using (Stream fileStream = this.OpenTempLooseObjectStream(toWrite.TempFile))
-                {
-                    StreamUtil.CopyToWithBuffer(responseStream, fileStream, bufToCopyWith);
-                    fileStream.Flush();
-                }
-
                 if (this.checkData)
                 {
                     try
                     {
-                        using (Stream readFile = this.fileSystem.OpenFileStream(toWrite.TempFile, FileMode.Open, FileAccess.Read, FileShare.Read, true))
-                        using (InflaterInputStream inflate = new InflaterInputStream(readFile))
+                        using (Stream fileStream = this.OpenTempLooseObjectStream(toWrite.TempFile))
+                        using (SideChannelStream sideChannel = new SideChannelStream(from: responseStream, to: fileStream))
+                        using (InflaterInputStream inflate = new InflaterInputStream(sideChannel))
                         using (HashingStream hashing = new HashingStream(inflate))
                         using (NoOpStream devNull = new NoOpStream())
                         {
@@ -219,6 +214,14 @@ namespace GVFS.Common.Git
                         message += $"\nFind the incorrect data at '{toWrite.TempFile}'";
                         this.Tracer.RelatedError(message);
                         throw new RetryableException(message);
+                    }
+                }
+                else
+                {
+                    using (Stream fileStream = this.OpenTempLooseObjectStream(toWrite.TempFile))
+                    {
+                        StreamUtil.CopyToWithBuffer(responseStream, fileStream, bufToCopyWith);
+                        fileStream.Flush();
                     }
                 }
 
