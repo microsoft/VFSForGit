@@ -81,10 +81,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             afterPrefetchPackCount.ShouldBeAtLeast(2);
 
             this.Enlistment.PackfileMaintenanceStep(batchSize: totalSize - minSize + 1);
-            this.GetPackSizes(out int packCount, out maxSize, out minSize, out totalSize);
-
-            // We should not have expired any packs, but created a new one with repack
-            packCount.ShouldEqual(afterPrefetchPackCount + 1, $"incorrect number of packs after repack step: {packCount}");
         }
 
         [TestCase, Order(3)]
