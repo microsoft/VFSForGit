@@ -15,7 +15,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class PrefetchVerbTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
-        private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
+        private const string LsTreeTypeInPathBranchName = "FunctionalTests/20201014_LsTreeTypeInPath";
 
         // on case-insensitive filesystems, test case-blind matching in
         // folder lists using "gvfs/" instead of "GVFS/"

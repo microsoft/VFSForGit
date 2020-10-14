@@ -9,7 +9,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     {
         // Commit that found GvFlt Bug 12258777: Entries are sometimes skipped during
         // enumeration when they don't fit in a user's buffer
-        private const string EnumerationReproCommitish = "FunctionalTests/20170602";
+        private const string EnumerationReproCommitish = "FunctionalTests/20201014_EnumerationRepro";
 
         public EnumerationMergeTest(Settings.ValidateWorkingTreeMode validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)

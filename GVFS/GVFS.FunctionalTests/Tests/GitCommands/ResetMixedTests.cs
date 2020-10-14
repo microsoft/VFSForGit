@@ -81,10 +81,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void ResetMixedAndCheckoutFile()
         {
-            this.ControlGitRepo.Fetch("FunctionalTests/20170602");
+            this.ControlGitRepo.Fetch("FunctionalTests/20201014_ResetMixedAndCheckoutFile");
 
             // We start with a branch that deleted two files that were present in its parent commit
-            this.ValidateGitCommand("checkout FunctionalTests/20170602");
+            this.ValidateGitCommand("checkout FunctionalTests/20201014_ResetMixedAndCheckoutFile");
 
             // Then reset --mixed to the parent commit, and validate that the deleted files did not come back into the projection
             this.ValidateGitCommand("reset --mixed HEAD~1");
@@ -97,7 +97,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
 
             // And now if we checkout the original commit, the deleted files should stay deleted
-            this.ValidateGitCommand("checkout FunctionalTests/20170602");
+            this.ValidateGitCommand("checkout FunctionalTests/20201014_ResetMixedAndCheckoutFile");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
                 .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, withinPrefixes: this.pathPrefixes);
         }

@@ -77,8 +77,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void RebaseMultipleCommits()
         {
-            string sourceCommit = "FunctionalTests/20170403_rebase_multiple_source";
-            string targetCommit = "FunctionalTests/20170403_rebase_multiple_onto";
+            string sourceCommit = "FunctionalTests/20201014_rebase_multiple_source";
+            string targetCommit = "FunctionalTests/20201014_rebase_multiple_onto";
 
             this.ControlGitRepo.Fetch(sourceCommit);
             this.ControlGitRepo.Fetch(targetCommit);

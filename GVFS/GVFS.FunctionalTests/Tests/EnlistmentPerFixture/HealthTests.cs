@@ -25,7 +25,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
-                totalFiles: 1211,
+                totalFiles: 1197,
                 totalFilePercent: 100,
                 fastFiles: 1,
                 fastFilePercent: 0,
@@ -53,7 +53,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
-                totalFiles: 1211,
+                totalFiles: 1197,
                 totalFilePercent: 100,
                 fastFiles: 7,
                 fastFilePercent: 1,
@@ -78,7 +78,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
-                totalFiles: 1211,
+                totalFiles: 1197,
                 totalFilePercent: 100,
                 fastFiles: 8,
                 fastFilePercent: 1,
@@ -105,7 +105,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.ValidateHealthOutputValues(
                 directory: string.Empty,
-                totalFiles: 1211,
+                totalFiles: 1197,
                 totalFilePercent: 100,
                 fastFiles: 3,
                 fastFilePercent: 0,

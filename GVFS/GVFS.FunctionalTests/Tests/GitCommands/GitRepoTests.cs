@@ -13,14 +13,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [TestFixture]
     public abstract class GitRepoTests
     {
-        protected const string ConflictSourceBranch = "FunctionalTests/20170206_Conflict_Source";
-        protected const string ConflictTargetBranch = "FunctionalTests/20170206_Conflict_Target";
-        protected const string NoConflictSourceBranch = "FunctionalTests/20170209_NoConflict_Source";
-        protected const string DirectoryWithFileBeforeBranch = "FunctionalTests/20171025_DirectoryWithFileBefore";
-        protected const string DirectoryWithFileAfterBranch = "FunctionalTests/20171025_DirectoryWithFileAfter";
-        protected const string DirectoryWithDifferentFileAfterBranch = "FunctionalTests/20171025_DirectoryWithDifferentFile";
-        protected const string DeepDirectoryWithOneFile = "FunctionalTests/20181010_DeepFolderOneFile";
-        protected const string DeepDirectoryWithOneDifferentFile = "FunctionalTests/20181010_DeepFolderOneDifferentFile";
+        protected const string ConflictSourceBranch = "FunctionalTests/20201014_Conflict_Source";
+        protected const string ConflictTargetBranch = "FunctionalTests/20201014_Conflict_Target";
+        protected const string NoConflictSourceBranch = "FunctionalTests/20201014_NoConflict_Source";
+        protected const string DirectoryWithFileBeforeBranch = "FunctionalTests/20201014_DirectoryWithFileBefore";
+        protected const string DirectoryWithFileAfterBranch = "FunctionalTests/20201014_DirectoryWithFileAfter";
+        protected const string DirectoryWithDifferentFileAfterBranch = "FunctionalTests/20201014_DirectoryWithDifferentFile";
+        protected const string DeepDirectoryWithOneFile = "FunctionalTests/20201014_DeepFolderOneFile";
+        protected const string DeepDirectoryWithOneDifferentFile = "FunctionalTests/20201014_DeepFolderOneDifferentFile";
 
         protected string[] pathPrefixes;
 
