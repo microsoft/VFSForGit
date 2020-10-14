@@ -1155,6 +1155,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
         }
 
         [TestCase]
+        [Ignore("Disabled while ProjFS fixes a regression")]
         public void Native_ProjFS_MoveFile_LongFileName()
         {
             ProjFS_MoveFileTest.ProjFS_MoveFile_LongFileName(this.Enlistment.RepoRoot).ShouldEqual(true);
