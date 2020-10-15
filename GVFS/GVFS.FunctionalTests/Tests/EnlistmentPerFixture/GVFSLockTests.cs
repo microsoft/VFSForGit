@@ -46,7 +46,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.fileSystem.MoveFile(Path.Combine(hooksBase, preCommand), Path.Combine(hooksBase, BackupPrefix + preCommand));
                 this.fileSystem.MoveFile(Path.Combine(hooksBase, postCommand), Path.Combine(hooksBase, BackupPrefix + postCommand));
 
-                ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "checkout FunctionalTests/20170510_minor");
+                ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "checkout FunctionalTests/20201014_minor");
                 result.Errors.ShouldContain("fatal: unable to write new index file");
 
                 // Ensure that branch didnt move, note however that work dir might not be clean

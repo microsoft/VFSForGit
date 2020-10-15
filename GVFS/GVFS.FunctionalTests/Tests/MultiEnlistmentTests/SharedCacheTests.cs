@@ -20,7 +20,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         private const string WellKnownFile = "Readme.md";
 
         // This branch and commit sha should point to the same place.
-        private const string WellKnownBranch = "FunctionalTests/20170602";
+        private const string WellKnownBranch = "FunctionalTests/20201014_ResetMixedAndCheckoutFile";
         private const string WellKnownCommitSha = "42eb6632beffae26893a3d6e1a9f48d652327c6f";
 
         private string localCachePath;

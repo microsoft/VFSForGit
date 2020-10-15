@@ -35,7 +35,13 @@ namespace GVFS.FunctionalTests.Properties
                 CurrentDirectory = Path.GetFullPath(Path.GetDirectoryName(Environment.GetCommandLineArgs()[0]));
 
                 RepoToClone = @"https://gvfs.visualstudio.com/ci/_git/ForTests";
-                Commitish = @"FunctionalTests/20180214";
+
+                // HACK: This is only different from FunctionalTests/20180214
+                // in that it deletes the GVFlt_MoveFileTests/LongFileName folder,
+                // which is causing problems in all tests due to a ProjFS
+                // regression. Replace this with the expected default after
+                // ProjFS is fixed and deployed to our build machines.
+                Commitish = @"FunctionalTests/20201014";
 
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
