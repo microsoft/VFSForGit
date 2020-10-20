@@ -1050,12 +1050,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void RenameOnlyFileInFolder()
         {
-            this.ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
-            this.ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeSource");
+            this.ControlGitRepo.Fetch("FunctionalTests/20201014_RenameTestMergeTarget");
+            this.ControlGitRepo.Fetch("FunctionalTests/20201014_RenameTestMergeSource");
 
-            this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
+            this.ValidateGitCommand("checkout FunctionalTests/20201014_RenameTestMergeTarget");
             this.FileSystem.ReadAllText(this.Enlistment.GetVirtualPathTo("Test_EPF_GitCommandsTestOnlyFileFolder", "file.txt"));
-            this.ValidateGitCommand("merge origin/FunctionalTests/20170202_RenameTestMergeSource");
+            this.ValidateGitCommand("merge origin/FunctionalTests/20201014_RenameTestMergeSource");
         }
 
         [TestCase]

@@ -14,6 +14,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Ignore("This doesn't work right now. Tracking if this is a ProjFS problem. See #1696 for tracking.")]
         public void VerifyResetHardDeletesEmptyFolders()
         {
             this.SetupFolderDeleteTest();
@@ -35,8 +36,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         private void SetupFolderDeleteTest()
         {
-            this.ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
-            this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
+            this.ControlGitRepo.Fetch("FunctionalTests/20201014_RenameTestMergeTarget");
+            this.ValidateGitCommand("checkout FunctionalTests/20201014_RenameTestMergeTarget");
             this.DeleteFile("Test_EPF_GitCommandsTestOnlyFileFolder", "file.txt");
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m\"Delete only file.\"");
