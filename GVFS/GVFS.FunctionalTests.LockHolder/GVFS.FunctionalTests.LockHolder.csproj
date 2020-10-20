@@ -25,7 +25,6 @@
   <ItemGroup>
     <Compile Include="..\GVFS.Platform.POSIX\POSIXFileSystem.Shared.cs" Link="POSIXFileSystem.Shared.cs" />
     <Compile Include="..\GVFS.Platform.POSIX\POSIXPlatform.Shared.cs" Link="POSIXPlatform.Shared.cs" />
-    <Compile Include="..\GVFS.Platform.Mac\MacPlatform.Shared.cs" Link="MacPlatform.Shared.cs" />
     <Compile Include="..\GVFS.Platform.Windows\WindowsFileSystem.Shared.cs" Link="WindowsFileSystem.Shared.cs" />
   </ItemGroup>
   
