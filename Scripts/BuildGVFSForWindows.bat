@@ -41,6 +41,8 @@ IF NOT DEFINED msbuild (
   exit /b 10
 )
 
+dotnet restore %VFS_SRCDIR%
+
 %msbuild% %VFS_SRCDIR%\GVFS.sln /p:GVFSVersion=%GVFSVersion% /p:Configuration=%SolutionConfiguration% /p:Platform=x64 || exit /b 1
 
 dotnet publish %VFS_SRCDIR%\GVFS\FastFetch\FastFetch.csproj /p:Configuration=%Configuration% /p:Platform=x64 /p:SolutionDir=%VFS_SRCDIR%\ --runtime win-x64 --framework netcoreapp2.1 --self-contained --output %VFS_PUBLISHDIR%\FastFetch || exit /b 1
