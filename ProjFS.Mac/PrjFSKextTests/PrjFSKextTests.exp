@@ -1,6 +1,0 @@
-# The explicit exported symbol list allows dead code stripping to work on the
-# test bundle binary.
-
-_OBJC_CLASS_$*
-_OBJC_METACLASS_$*
-
