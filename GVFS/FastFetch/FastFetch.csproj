@@ -4,7 +4,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>FastFetch</AssemblyName>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <Platforms>x64</Platforms>
     <RunTimeIdentifiers>osx-x64;win-x64</RunTimeIdentifiers>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>

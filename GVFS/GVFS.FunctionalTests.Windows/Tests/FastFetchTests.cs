@@ -495,7 +495,7 @@ namespace GVFS.FunctionalTests.Tests
             string fastfetch;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "FastFetch.dll");
+                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netstandard2.0", "FastFetch.dll");
             }
             else
             {

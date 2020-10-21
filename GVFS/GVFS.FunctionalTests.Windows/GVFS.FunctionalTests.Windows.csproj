@@ -99,7 +99,99 @@
     <Otherwise />
   </Choose>
   <ItemGroup>
+    <Compile Include="AssemblyAttributes.cs" />
+    <Compile Include="Categories.cs" />
+    <Compile Include="FileSystemRunners\BashRunner.cs" />
+    <Compile Include="FileSystemRunners\CmdRunner.cs" />
+    <Compile Include="FileSystemRunners\FileSystemRunner.cs" />
+    <Compile Include="FileSystemRunners\PowerShellRunner.cs" />
+    <Compile Include="FileSystemRunners\ShellRunner.cs" />
+    <Compile Include="FileSystemRunners\SystemIORunner.cs" />
+    <Compile Include="GlobalSetup.cs" />
+    <Compile Include="GVFSTestConfig.cs" />
+    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Settings.cs" />
+    <Compile Include="Should\FileSystemShouldExtensions.cs" />
+    <Compile Include="Tests\DiskLayoutVersionTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\BasicFileSystemTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\CacheServerTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\CloneTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\DehydrateTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\DiagnoseTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GitBlockCommandsTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GitCorruptObjectTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GitFilesTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GitMoveRenameTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GitReadAndGitLockTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GVFSLockTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GVFSUpgradeReminderTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\HealthTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\MountTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFileTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFileTests_2.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFolderTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\MultithreadedReadWriteTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\PackfileMaintenanceStepTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\ParallelHydrationTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\PrefetchVerbTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\PrefetchVerbWithoutSharedCacheTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\SparseTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\StatusVerbTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\SymbolicLinkTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\TestsWithEnlistmentPerFixture.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\UnmountTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\UpdatePlaceholderTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\WorkingDirectoryTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\CaseOnlyFolderRenameTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\DiskLayoutUpgradeTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\LooseObjectStepTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\MacDiskLayoutUpgradeTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\ModifiedPathsTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\PersistedWorkingDirectoryTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\RepairTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\TestsWithEnlistmentPerTestCase.cs" />
+    <Compile Include="Tests\FastFetchTests.cs" />
+    <Compile Include="Tests\GitCommands\AddStageTests.cs" />
+    <Compile Include="Tests\GitCommands\CheckoutTests.cs" />
+    <Compile Include="Tests\GitCommands\CherryPickConflictTests.cs" />
+    <Compile Include="Tests\GitCommands\CreatePlaceholderTests.cs" />
+    <Compile Include="Tests\GitCommands\DeleteEmptyFolderTests.cs" />
+    <Compile Include="Tests\GitCommands\EnumerationMergeTest.cs" />
+    <Compile Include="Tests\GitCommands\GitCommandsTests.cs" />
+    <Compile Include="Tests\GitCommands\GitRepoTests.cs" />
+    <Compile Include="Tests\GitCommands\HashObjectTests.cs" />
+    <Compile Include="Tests\GitCommands\MergeConflictTests.cs" />
+    <Compile Include="Tests\GitCommands\RebaseConflictTests.cs" />
+    <Compile Include="Tests\GitCommands\RebaseTests.cs" />
+    <Compile Include="Tests\GitCommands\ResetHardTests.cs" />
+    <Compile Include="Tests\GitCommands\ResetMixedTests.cs" />
+    <Compile Include="Tests\GitCommands\ResetSoftTests.cs" />
+    <Compile Include="Tests\GitCommands\RmTests.cs" />
+    <Compile Include="Tests\GitCommands\StatusTests.cs" />
+    <Compile Include="Tests\GitCommands\UpdateIndexTests.cs" />
+    <Compile Include="Tests\GitCommands\UpdateRefTests.cs" />
+    <Compile Include="Tests\GVFSVerbTests.cs" />
+    <Compile Include="Tests\MultiEnlistmentTests\ConfigVerbTests.cs" />
+    <Compile Include="Tests\MultiEnlistmentTests\ServiceVerbTests.cs" />
+    <Compile Include="Tests\MultiEnlistmentTests\SharedCacheTests.cs" />
+    <Compile Include="Tests\MultiEnlistmentTests\TestsWithMultiEnlistment.cs" />
+    <Compile Include="Tests\PrintTestCaseStats.cs" />
+    <Compile Include="Tests\TestResultsHelper.cs" />
+    <Compile Include="Tools\ControlGitRepo.cs" />
+    <Compile Include="Tools\FileSystemHelpers.cs" />
+    <Compile Include="Tools\GitHelpers.cs" />
+    <Compile Include="Tools\GitProcess.cs" />
+    <Compile Include="Tools\GVFSFunctionalTestEnlistment.cs" />
+    <Compile Include="Tools\GVFSHelpers.cs" />
+    <Compile Include="Tools\GVFSProcess.cs" />
+    <Compile Include="Tools\GVFSServiceProcess.cs" />
+    <Compile Include="Tools\NativeMethods.cs" />
+    <Compile Include="Tools\ProcessHelper.cs" />
+    <Compile Include="Tools\ProcessResult.cs" />
+    <Compile Include="Tools\ProjFSFilterInstaller.cs" />
+    <Compile Include="Tools\RepositoryHelpers.cs" />
+    <Compile Include="Tools\TestConstants.cs" />
     <Compile Include="Windows\Tests\WindowsDiskLayoutUpgradeTests.cs" />
     <Compile Include="Windows\Tests\JunctionAndSubstTests.cs" />
     <Compile Include="Windows\Tests\WindowsFolderUsnUpdate.cs" />
@@ -192,9 +284,9 @@
       xcopy /Y $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-      mkdir  $(TargetDir)\netcoreapp2.1
-      xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\netcoreapp2.1\* $(TargetDir)\netcoreapp2.1
-      xcopy /Y $(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\netcoreapp2.1\* $(TargetDir)\netcoreapp2.1
+      mkdir  $(TargetDir)\netstandard2.0
+      xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\netstandard2.0\* $(TargetDir)\netstandard2.0
+      xcopy /Y $(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\netstandard2.0\* $(TargetDir)\netstandard2.0
 </PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>
