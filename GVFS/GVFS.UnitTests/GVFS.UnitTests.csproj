@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\GVFS.Build\GVFS.cs.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -51,10 +51,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\ProjFS.Mac\PrjFSLib.Mac.Managed\PrjFSLib.Mac.Managed.csproj" />
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
-    <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
-    <ProjectReference Include="..\GVFS.Service\GVFS.Service.Mac.csproj" />
+    <ProjectReference Include="..\GVFS.Service.UI\GVFS.Service.UI.csproj" />
+    <ProjectReference Include="..\GVFS.Service\GVFS.Service.Windows.csproj" />
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
     <ProjectReference Include="..\GVFS.Upgrader\GVFS.Upgrader.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
