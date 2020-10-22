@@ -1,3 +1,5 @@
+using GVFS.Common;
+using GVFS.Platform.Windows;
 using GVFS.Tests;
 using GVFS.UnitTests.Category;
 using System;
@@ -11,6 +13,7 @@ namespace GVFS.UnitTests
     {
         public static void Main(string[] args)
         {
+            GVFSPlatform.Register(new WindowsPlatform());
             NUnitRunner runner = new NUnitRunner(args);
             runner.AddGlobalSetupIfNeeded("GVFS.UnitTests.Setup");
 

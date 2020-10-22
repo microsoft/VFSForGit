@@ -20,14 +20,11 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
   <PropertyGroup>
-    <TargetFrameworks>net461;netcoreapp2.1</TargetFrameworks>
+    <TargetFrameworks>net461</TargetFrameworks>
     <DefineConstants>$(DefineConstants);WINDOWS_BUILD</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
-    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
-      <Link>PlatformLoader.Windows.cs</Link>
-    </Compile>
   </ItemGroup>
 
   <ItemGroup>

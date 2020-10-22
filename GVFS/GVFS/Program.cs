@@ -1,7 +1,7 @@
 using CommandLine;
 using GVFS.CommandLine;
 using GVFS.Common;
-using GVFS.PlatformLoader;
+using GVFS.Platform.Windows;
 using System;
 using System.IO;
 using System.Linq;
@@ -12,7 +12,7 @@ namespace GVFS
     {
         public static void Main(string[] args)
         {
-            GVFSPlatformLoader.Initialize();
+            GVFSPlatform.Register(new WindowsPlatform());
             if (!GVFSPlatform.Instance.KernelDriver.RegisterForOfflineIO())
             {
                 Console.WriteLine("Unable to register with the kernel for offline I/O. Ensure that VFS for Git installed successfully and try again");

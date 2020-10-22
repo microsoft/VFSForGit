@@ -1,5 +1,6 @@
 ﻿using CommandLine;
-using GVFS.PlatformLoader;
+using GVFS.Common;
+using GVFS.Platform.Windows;
 
 namespace GVFS.Upgrader
 {
@@ -7,7 +8,7 @@ namespace GVFS.Upgrader
     {
         public static void Main(string[] args)
         {
-            GVFSPlatformLoader.Initialize();
+            GVFSPlatform.Register(new WindowsPlatform());
 
             Parser.Default.ParseArguments<UpgradeOptions>(args)
                 .WithParsed(options =>  UpgradeOrchestratorFactory.Create(options).Execute());

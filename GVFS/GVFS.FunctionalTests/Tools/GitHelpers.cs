@@ -28,25 +28,13 @@ namespace GVFS.FunctionalTests.Tools
         {
             get
             {
-                // On OSX functional tests are run from inside Publish directory. Dependent
-                // assemblies including LockHolder test are available at the same level in
-                // the same directory.
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                {
-                    return Path.Combine(
-                        Settings.Default.CurrentDirectory,
-                        LockHolderCommand);
-                }
-                else
-                {
-                    // On Windows, FT is run from the Output directory of GVFS.FunctionalTest project.
-                    // LockHolder is a .netcore assembly and can be found inside netcoreapp2.1
-                    // subdirectory of GVFS.FunctionalTest Output directory.
-                    return Path.Combine(
-                        Settings.Default.CurrentDirectory,
-                        "netcoreapp2.1",
-                        LockHolderCommand);
-                }
+                // On Windows, FT is run from the Output directory of GVFS.FunctionalTest project.
+                // LockHolder is a .netcore assembly and can be found inside netstandard2.0
+                // subdirectory of GVFS.FunctionalTest Output directory.
+                return Path.Combine(
+                    Settings.Default.CurrentDirectory,
+                    "netstandard2.0",
+                    LockHolderCommand);
             }
         }
 

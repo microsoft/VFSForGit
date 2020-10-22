@@ -1,5 +1,6 @@
 ﻿using CommandLine;
-using GVFS.PlatformLoader;
+using GVFS.Common;
+using GVFS.Platform.Windows;
 using System;
 
 namespace GVFS.Mount
@@ -8,7 +9,7 @@ namespace GVFS.Mount
     {
         public static void Main(string[] args)
         {
-            GVFSPlatformLoader.Initialize();
+            GVFSPlatform.Register(new WindowsPlatform());
             try
             {
                 Parser.Default.ParseArguments<InProcessMountVerb>(args)

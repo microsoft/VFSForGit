@@ -47,9 +47,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
-      <Link>PlatformLoader.Windows.cs</Link>
-    </Compile>
     <Compile Include="Data\ActionItem.cs" />
     <Compile Include="Data\ActionsData.cs" />
     <Compile Include="Data\BindingData.cs" />

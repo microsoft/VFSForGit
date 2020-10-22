@@ -1,6 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Tracing;
-using GVFS.PlatformLoader;
+using GVFS.Platform.Windows;
 using System;
 
 namespace GVFS.Service.UI
@@ -9,7 +9,7 @@ namespace GVFS.Service.UI
     {
         public static void Main(string[] args)
         {
-            GVFSPlatformLoader.Initialize();
+            GVFSPlatform.Register(new WindowsPlatform());
 
             using (JsonTracer tracer = new JsonTracer("Microsoft.Git.GVFS.Service.UI", "Service.UI"))
             {

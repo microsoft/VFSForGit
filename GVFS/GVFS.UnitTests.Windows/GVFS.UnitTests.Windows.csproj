@@ -119,6 +119,112 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Category\CategoryConstants.cs" />
+    <Compile Include="CommandLine\HooksInstallerTests.cs" />
+    <Compile Include="Common\AzDevOpsOrgFromNuGetFeedTests.cs" />
+    <Compile Include="Common\BackgroundTaskQueueTests.cs" />
+    <Compile Include="Common\CacheServerResolverTests.cs" />
+    <Compile Include="Common\Database\GVFSDatabaseTests.cs" />
+    <Compile Include="Common\Database\PlaceholderTableTests.cs" />
+    <Compile Include="Common\Database\SparseTableTests.cs" />
+    <Compile Include="Common\Database\TableTests.cs" />
+    <Compile Include="Common\EpochConverterTests.cs" />
+    <Compile Include="Common\FileBasedDictionaryTests.cs" />
+    <Compile Include="Common\GitCommandLineParserTests.cs" />
+    <Compile Include="Common\GitConfigHelperTests.cs" />
+    <Compile Include="Common\GitObjectsTests.cs" />
+    <Compile Include="Common\GitPathConverterTests.cs" />
+    <Compile Include="Common\GitStatusCacheTests.cs" />
+    <Compile Include="Common\GitVersionTests.cs" />
+    <Compile Include="Common\Git\GitSslTests.cs" />
+    <Compile Include="Common\Git\Sha1IdTests.cs" />
+    <Compile Include="Common\GVFSEnlistmentHealthTests.cs" />
+    <Compile Include="Common\GVFSEnlistmentTests.cs" />
+    <Compile Include="Common\GVFSLockTests.cs" />
+    <Compile Include="Common\InstallManifestTests.cs" />
+    <Compile Include="Common\JsonTracerTests.cs" />
+    <Compile Include="Common\LegacyPlaceholderDatabaseTests.cs" />
+    <Compile Include="Common\LibGit2RepoInvokerTests.cs" />
+    <Compile Include="Common\ModifiedPathsDatabaseTests.cs" />
+    <Compile Include="Common\NamedPipeStreamReaderWriterTests.cs" />
+    <Compile Include="Common\NamedPipeTests.cs" />
+    <Compile Include="Common\NuGetUpgrade\NuGetUpgraderTests.cs" />
+    <Compile Include="Common\NuGetUpgrade\OrgNuGetUpgraderTests.cs" />
+    <Compile Include="Common\OrgInfoApiClientTests.cs" />
+    <Compile Include="Common\PathsTests.cs" />
+    <Compile Include="Common\PhysicalFileSystemDeleteTests.cs" />
+    <Compile Include="Common\ProductUpgraderInfoTests.cs" />
+    <Compile Include="Common\RefLogEntryTests.cs" />
+    <Compile Include="Common\RetryBackoffTests.cs" />
+    <Compile Include="Common\RetryConfigTests.cs" />
+    <Compile Include="Common\RetryWrapperTests.cs" />
+    <Compile Include="Common\SHA1UtilTests.cs" />
+    <Compile Include="Common\TryCreateProductUpgraderTests.cs" />
+    <Compile Include="Git\GitAuthenticationTests.cs" />
+    <Compile Include="Git\GitObjectsTests.cs" />
+    <Compile Include="Git\GitProcessTests.cs" />
+    <Compile Include="Git\GVFSGitObjectsTests.cs" />
+    <Compile Include="Maintenance\GitMaintenanceQueueTests.cs" />
+    <Compile Include="Maintenance\GitMaintenanceStepTests.cs" />
+    <Compile Include="Maintenance\LooseObjectStepTests.cs" />
+    <Compile Include="Maintenance\PackfileMaintenanceStepTests.cs" />
+    <Compile Include="Maintenance\PostFetchStepTests.cs" />
+    <Compile Include="Mock\Common\MockFileBasedLock.cs" />
+    <Compile Include="Mock\Common\MockGitStatusCache.cs" />
+    <Compile Include="Mock\Common\MockGVFSEnlistment.cs" />
+    <Compile Include="Mock\Common\MockLocalGVFSConfig.cs" />
+    <Compile Include="Mock\Common\MockLocalGVFSConfigBuilder.cs" />
+    <Compile Include="Mock\Common\MockPhysicalGitObjects.cs" />
+    <Compile Include="Mock\Common\MockPlatform.cs" />
+    <Compile Include="Mock\Common\MockProductUpgraderPlatformStrategy.cs" />
+    <Compile Include="Mock\Common\MockTracer.cs" />
+    <Compile Include="Mock\Common\Tracing\MockListener.cs" />
+    <Compile Include="Mock\FileSystem\ConfigurableFileSystem.cs" />
+    <Compile Include="Mock\FileSystem\MockDirectory.cs" />
+    <Compile Include="Mock\FileSystem\MockFile.cs" />
+    <Compile Include="Mock\FileSystem\MockFileSystem.cs" />
+    <Compile Include="Mock\FileSystem\MockFileSystemCallbacks.cs" />
+    <Compile Include="Mock\FileSystem\MockFileSystemWithCallbacks.cs" />
+    <Compile Include="Mock\FileSystem\MockPlatformFileSystem.cs" />
+    <Compile Include="Mock\Git\MockBatchHttpGitObjects.cs" />
+    <Compile Include="Mock\Git\MockGitInstallation.cs" />
+    <Compile Include="Mock\Git\MockGitProcess.cs" />
+    <Compile Include="Mock\Git\MockGitRepo.cs" />
+    <Compile Include="Mock\Git\MockGVFSGitObjects.cs" />
+    <Compile Include="Mock\Git\MockHttpGitObjects.cs" />
+    <Compile Include="Mock\Git\MockLibGit2Repo.cs" />
+    <Compile Include="Mock\MockCacheServerInfo.cs" />
+    <Compile Include="Mock\MockGitHubUpgrader.cs" />
+    <Compile Include="Mock\MockInstallerPreRunChecker.cs" />
+    <Compile Include="Mock\MockTextWriter.cs" />
+    <Compile Include="Mock\ReusableMemoryStream.cs" />
+    <Compile Include="Mock\Virtualization\Background\MockBackgroundTaskManager.cs" />
+    <Compile Include="Mock\Virtualization\BlobSize\MockBlobSizesDatabase.cs" />
+    <Compile Include="Mock\Virtualization\FileSystem\MockFileSystemVirtualizer.cs" />
+    <Compile Include="Mock\Virtualization\Projection\MockGitIndexProjection.cs" />
+    <Compile Include="Prefetch\BatchObjectDownloadStageTests.cs" />
+    <Compile Include="Prefetch\BlobPrefetcherTests.cs" />
+    <Compile Include="Prefetch\DiffHelperTests.cs" />
+    <Compile Include="Prefetch\DiffTreeResultTests.cs" />
+    <Compile Include="Prefetch\PrefetchPacksDeserializerTests.cs" />
+    <Compile Include="Prefetch\PrefetchTracingTests.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Service\RepoRegistryTests.cs" />
+    <Compile Include="Tracing\EventListenerTests.cs" />
+    <Compile Include="Tracing\QueuedPipeStringWriterTests.cs" />
+    <Compile Include="Tracing\TelemetryDaemonEventListenerTests.cs" />
+    <Compile Include="Upgrader\ProductUpgraderTests.cs" />
+    <Compile Include="Upgrader\UpgradeOrchestratorTests.cs" />
+    <Compile Include="Upgrader\UpgradeOrchestratorWithGitHubUpgraderTests.cs" />
+    <Compile Include="Upgrader\UpgradeTests.cs" />
+    <Compile Include="Virtualization\FileSystemCallbacksTests.cs" />
+    <Compile Include="Virtualization\Projection\GitIndexEntryTests.cs" />
+    <Compile Include="Virtualization\Projection\LazyUTF8StringTests.cs" />
+    <Compile Include="Virtualization\Projection\ObjectPoolTests.cs" />
+    <Compile Include="Virtualization\Projection\SortedFolderEntriesTests.cs" />
+    <Compile Include="Virtual\CommonRepoSetup.cs" />
+    <Compile Include="Virtual\FileSystemVirtualizerTester.cs" />
+    <Compile Include="Virtual\TestsWithCommonRepo.cs" />
     <Compile Include="Windows\CommandLine\SparseVerbTests.cs" />
     <Compile Include="Windows\Mock\WindowsFileSystemVirtualizerTester.cs" />
     <Compile Include="Windows\ServiceUI\GVFSToastRequestHandlerTests.cs" />
@@ -184,336 +290,6 @@
   </ItemGroup>
   <ItemGroup>
     <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="..\GVFS.UnitTests\Category\CategoryConstants.cs">
-      <Link>NetCore\Category\\CategoryConstants.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\CommandLine\HooksInstallerTests.cs">
-      <Link>NetCore\CommandLine\\HooksInstallerTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\AzDevOpsOrgFromNuGetFeedTests.cs">
-      <Link>NetCore\Common\\AzDevOpsOrgFromNuGetFeedTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\BackgroundTaskQueueTests.cs">
-      <Link>NetCore\Common\\BackgroundTaskQueueTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\CacheServerResolverTests.cs">
-      <Link>NetCore\Common\\CacheServerResolverTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\Database\GVFSDatabaseTests.cs">
-      <Link>NetCore\Common\Database\\GVFSDatabaseTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\Database\PlaceholderTableTests.cs">
-      <Link>NetCore\Common\Database\\PlaceholderTableTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\Database\SparseTableTests.cs">
-      <Link>NetCore\Common\Database\\SparseTableTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\Database\TableTests.cs">
-      <Link>NetCore\Common\Database\\TableTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\EpochConverterTests.cs">
-      <Link>NetCore\Common\\EpochConverterTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\FileBasedDictionaryTests.cs">
-      <Link>NetCore\Common\\FileBasedDictionaryTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\GitCommandLineParserTests.cs">
-      <Link>NetCore\Common\\GitCommandLineParserTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\GitConfigHelperTests.cs">
-      <Link>NetCore\Common\\GitConfigHelperTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\GitObjectsTests.cs">
-      <Link>NetCore\Common\\GitObjectsTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\GitPathConverterTests.cs">
-      <Link>NetCore\Common\\GitPathConverterTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\GitStatusCacheTests.cs">
-      <Link>NetCore\Common\\GitStatusCacheTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\GitVersionTests.cs">
-      <Link>NetCore\Common\\GitVersionTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\Git\GitSslTests.cs">
-      <Link>NetCore\Common\Git\\GitSslTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\Git\Sha1IdTests.cs">
-      <Link>NetCore\Common\Git\\Sha1IdTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\GVFSEnlistmentHealthTests.cs">
-      <Link>NetCore\Common\\GVFSEnlistmentHealthTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\GVFSEnlistmentTests.cs">
-      <Link>NetCore\Common\\GVFSEnlistmentTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\GVFSLockTests.cs">
-      <Link>NetCore\Common\\GVFSLockTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\InstallManifestTests.cs">
-      <Link>NetCore\Common\\InstallManifestTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\JsonTracerTests.cs">
-      <Link>NetCore\Common\\JsonTracerTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\LegacyPlaceholderDatabaseTests.cs">
-      <Link>NetCore\Common\\LegacyPlaceholderDatabaseTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\LibGit2RepoInvokerTests.cs">
-      <Link>NetCore\Common\\LibGit2RepoInvokerTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\ModifiedPathsDatabaseTests.cs">
-      <Link>NetCore\Common\\ModifiedPathsDatabaseTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\NamedPipeStreamReaderWriterTests.cs">
-      <Link>NetCore\Common\\NamedPipeStreamReaderWriterTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\NamedPipeTests.cs">
-      <Link>NetCore\Common\\NamedPipeTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\NuGetUpgrade\NuGetUpgraderTests.cs">
-      <Link>NetCore\Common\NuGetUpgrade\\NuGetUpgraderTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\NuGetUpgrade\OrgNuGetUpgraderTests.cs">
-      <Link>NetCore\Common\NuGetUpgrade\\OrgNuGetUpgraderTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\OrgInfoApiClientTests.cs">
-      <Link>NetCore\Common\\OrgInfoApiClientTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\PathsTests.cs">
-      <Link>NetCore\Common\\PathsTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\PhysicalFileSystemDeleteTests.cs">
-      <Link>NetCore\Common\\PhysicalFileSystemDeleteTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\ProductUpgraderInfoTests.cs">
-      <Link>NetCore\Common\\ProductUpgraderInfoTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\RefLogEntryTests.cs">
-      <Link>NetCore\Common\\RefLogEntryTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\RetryBackoffTests.cs">
-      <Link>NetCore\Common\\RetryBackoffTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\RetryConfigTests.cs">
-      <Link>NetCore\Common\\RetryConfigTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\RetryWrapperTests.cs">
-      <Link>NetCore\Common\\RetryWrapperTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\SHA1UtilTests.cs">
-      <Link>NetCore\Common\\SHA1UtilTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Common\TryCreateProductUpgraderTests.cs">
-      <Link>NetCore\Common\\TryCreateProductUpgraderTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Git\GitAuthenticationTests.cs">
-      <Link>NetCore\Git\\GitAuthenticationTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Git\GitObjectsTests.cs">
-      <Link>NetCore\Git\\GitObjectsTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Git\GitProcessTests.cs">
-      <Link>NetCore\Git\\GitProcessTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Git\GVFSGitObjectsTests.cs">
-      <Link>NetCore\Git\\GVFSGitObjectsTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Maintenance\GitMaintenanceQueueTests.cs">
-      <Link>NetCore\Maintenance\\GitMaintenanceQueueTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Maintenance\GitMaintenanceStepTests.cs">
-      <Link>NetCore\Maintenance\\GitMaintenanceStepTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Maintenance\LooseObjectStepTests.cs">
-      <Link>NetCore\Maintenance\\LooseObjectStepTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Maintenance\PackfileMaintenanceStepTests.cs">
-      <Link>NetCore\Maintenance\\PackfileMaintenanceStepTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Maintenance\PostFetchStepTests.cs">
-      <Link>NetCore\Maintenance\\PostFetchStepTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\MockFileBasedLock.cs">
-      <Link>NetCore\Mock\Common\\MockFileBasedLock.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\MockGitStatusCache.cs">
-      <Link>NetCore\Mock\Common\\MockGitStatusCache.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\MockGVFSEnlistment.cs">
-      <Link>NetCore\Mock\Common\\MockGVFSEnlistment.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\MockLocalGVFSConfig.cs">
-      <Link>NetCore\Mock\Common\\MockLocalGVFSConfig.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\MockLocalGVFSConfigBuilder.cs">
-      <Link>NetCore\Mock\Common\\MockLocalGVFSConfigBuilder.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\MockPhysicalGitObjects.cs">
-      <Link>NetCore\Mock\Common\\MockPhysicalGitObjects.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\MockPlatform.cs">
-      <Link>NetCore\Mock\Common\\MockPlatform.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\MockProductUpgraderPlatformStrategy.cs">
-      <Link>NetCore\Mock\Common\\MockProductUpgraderPlatformStrategy.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\MockTracer.cs">
-      <Link>NetCore\Mock\Common\\MockTracer.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Common\Tracing\MockListener.cs">
-      <Link>NetCore\Mock\Common\Tracing\\MockListener.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\FileSystem\ConfigurableFileSystem.cs">
-      <Link>NetCore\Mock\FileSystem\\ConfigurableFileSystem.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\FileSystem\MockDirectory.cs">
-      <Link>NetCore\Mock\FileSystem\\MockDirectory.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\FileSystem\MockFile.cs">
-      <Link>NetCore\Mock\FileSystem\\MockFile.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\FileSystem\MockFileSystem.cs">
-      <Link>NetCore\Mock\FileSystem\\MockFileSystem.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\FileSystem\MockFileSystemCallbacks.cs">
-      <Link>NetCore\Mock\FileSystem\\MockFileSystemCallbacks.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\FileSystem\MockFileSystemWithCallbacks.cs">
-      <Link>NetCore\Mock\FileSystem\\MockFileSystemWithCallbacks.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\FileSystem\MockPlatformFileSystem.cs">
-      <Link>NetCore\Mock\FileSystem\\MockPlatformFileSystem.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Git\MockBatchHttpGitObjects.cs">
-      <Link>NetCore\Mock\Git\\MockBatchHttpGitObjects.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Git\MockGitInstallation.cs">
-      <Link>NetCore\Mock\Git\\MockGitInstallation.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Git\MockGitProcess.cs">
-      <Link>NetCore\Mock\Git\\MockGitProcess.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Git\MockGitRepo.cs">
-      <Link>NetCore\Mock\Git\\MockGitRepo.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Git\MockGVFSGitObjects.cs">
-      <Link>NetCore\Mock\Git\\MockGVFSGitObjects.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Git\MockHttpGitObjects.cs">
-      <Link>NetCore\Mock\Git\\MockHttpGitObjects.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Git\MockLibGit2Repo.cs">
-      <Link>NetCore\Mock\Git\\MockLibGit2Repo.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\MockCacheServerInfo.cs">
-      <Link>NetCore\Mock\\MockCacheServerInfo.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\MockGitHubUpgrader.cs">
-      <Link>NetCore\Mock\\MockGitHubUpgrader.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\MockInstallerPreRunChecker.cs">
-      <Link>NetCore\Mock\\MockInstallerPreRunChecker.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\MockTextWriter.cs">
-      <Link>NetCore\Mock\\MockTextWriter.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\ReusableMemoryStream.cs">
-      <Link>NetCore\Mock\\ReusableMemoryStream.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Virtualization\Background\MockBackgroundTaskManager.cs">
-      <Link>NetCore\Mock\Virtualization\Background\\MockBackgroundTaskManager.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Virtualization\BlobSize\MockBlobSizesDatabase.cs">
-      <Link>NetCore\Mock\Virtualization\BlobSize\\MockBlobSizesDatabase.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Virtualization\FileSystem\MockFileSystemVirtualizer.cs">
-      <Link>NetCore\Mock\Virtualization\FileSystem\\MockFileSystemVirtualizer.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Mock\Virtualization\Projection\MockGitIndexProjection.cs">
-      <Link>NetCore\Mock\Virtualization\Projection\\MockGitIndexProjection.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Prefetch\BatchObjectDownloadStageTests.cs">
-      <Link>NetCore\Prefetch\\BatchObjectDownloadStageTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Prefetch\BlobPrefetcherTests.cs">
-      <Link>NetCore\Prefetch\\BlobPrefetcherTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Prefetch\DiffHelperTests.cs">
-      <Link>NetCore\Prefetch\\DiffHelperTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Prefetch\DiffTreeResultTests.cs">
-      <Link>NetCore\Prefetch\\DiffTreeResultTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Prefetch\PrefetchPacksDeserializerTests.cs">
-      <Link>NetCore\Prefetch\\PrefetchPacksDeserializerTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Prefetch\PrefetchTracingTests.cs">
-      <Link>NetCore\Prefetch\\PrefetchTracingTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Program.cs">
-      <Link>NetCore\\Program.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Service\RepoRegistryTests.cs">
-      <Link>NetCore\Service\\RepoRegistryTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Setup.cs">
-      <Link>NetCore\\Setup.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Tracing\EventListenerTests.cs">
-      <Link>NetCore\Tracing\\EventListenerTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Tracing\QueuedPipeStringWriterTests.cs">
-      <Link>NetCore\Tracing\\QueuedPipeStringWriterTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Tracing\TelemetryDaemonEventListenerTests.cs">
-      <Link>NetCore\Tracing\\TelemetryDaemonEventListenerTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Upgrader\ProductUpgraderTests.cs">
-      <Link>NetCore\Upgrader\\ProductUpgraderTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Upgrader\UpgradeOrchestratorTests.cs">
-      <Link>NetCore\Upgrader\\UpgradeOrchestratorTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Upgrader\UpgradeOrchestratorWithGitHubUpgraderTests.cs">
-      <Link>NetCore\Upgrader\\UpgradeOrchestratorWithGitHubUpgraderTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Upgrader\UpgradeTests.cs">
-      <Link>NetCore\Upgrader\\UpgradeTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Virtualization\FileSystemCallbacksTests.cs">
-      <Link>NetCore\Virtualization\\FileSystemCallbacksTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Virtualization\Projection\GitIndexEntryTests.cs">
-      <Link>NetCore\Virtualization\Projection\\GitIndexEntryTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Virtualization\Projection\LazyUTF8StringTests.cs">
-      <Link>NetCore\Virtualization\Projection\\LazyUTF8StringTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Virtualization\Projection\ObjectPoolTests.cs">
-      <Link>NetCore\Virtualization\Projection\\ObjectPoolTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Virtualization\Projection\SortedFolderEntriesTests.cs">
-      <Link>NetCore\Virtualization\Projection\\SortedFolderEntriesTests.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Virtual\CommonRepoSetup.cs">
-      <Link>NetCore\Virtual\\CommonRepoSetup.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Virtual\FileSystemVirtualizerTester.cs">
-      <Link>NetCore\Virtual\\FileSystemVirtualizerTester.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.UnitTests\Virtual\TestsWithCommonRepo.cs">
-      <Link>NetCore\Virtual\\TestsWithCommonRepo.cs</Link>
-    </Compile>
-    <None Include="..\GVFS.UnitTests\Data\**\*.*">
-      <Link>Data\%(RecursiveDir)\%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="..\GVFS.UnitTests\Readme.md">
-      <Link>Readme.md</Link>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <Analyzer Include="..\..\..\packages\StyleCop.Analyzers.1.0.2\analyzers\dotnet\cs\StyleCop.Analyzers.CodeFixes.dll" />

@@ -192,9 +192,9 @@
       xcopy /Y $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-      mkdir  $(TargetDir)\netcoreapp2.1
-      xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\netcoreapp2.1\* $(TargetDir)\netcoreapp2.1
-      xcopy /Y $(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\netcoreapp2.1\* $(TargetDir)\netcoreapp2.1
+      mkdir  $(TargetDir)\netstandard2.0
+      xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\netstandard2.0\* $(TargetDir)\netstandard2.0
+      xcopy /Y $(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\netstandard2.0\* $(TargetDir)\netstandard2.0
 </PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>

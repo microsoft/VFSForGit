@@ -1,5 +1,5 @@
 ﻿using GVFS.Common;
-using GVFS.PlatformLoader;
+using GVFS.Platform.Windows;
 using GVFS.Virtualization.Projection;
 using System;
 using System.Collections.Generic;
@@ -22,7 +22,7 @@ namespace GVFS.PerfProfiling
 
         private static void Main(string[] args)
         {
-            GVFSPlatformLoader.Initialize();
+            GVFSPlatform.Register(new WindowsPlatform());
             string enlistmentRootPath = @"M:\OS";
             if (args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
             {

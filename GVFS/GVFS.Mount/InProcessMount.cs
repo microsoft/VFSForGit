@@ -6,7 +6,7 @@ using GVFS.Common.Http;
 using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
-using GVFS.PlatformLoader;
+using GVFS.Platform.Windows;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
 using Newtonsoft.Json;
@@ -625,7 +625,7 @@ namespace GVFS.Mount
 
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(this.context.Tracer, this.context.Enlistment, cache, this.retryConfig);
             this.gitObjects = new GVFSGitObjects(this.context, objectRequestor);
-            FileSystemVirtualizer virtualizer = this.CreateOrReportAndExit(() => GVFSPlatformLoader.CreateFileSystemVirtualizer(this.context, this.gitObjects), "Failed to create src folder virtualizer");
+            FileSystemVirtualizer virtualizer = this.CreateOrReportAndExit(() => new WindowsFileSystemVirtualizer(this.context, this.gitObjects), "Failed to create src folder virtualizer");
 
             GitStatusCache gitStatusCache = (!this.context.Unattended && GVFSPlatform.Instance.IsGitStatusCacheSupported()) ? new GitStatusCache(this.context, this.gitStatusCacheConfig) : null;
             if (gitStatusCache != null)

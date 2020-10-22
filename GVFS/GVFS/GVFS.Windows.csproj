@@ -141,9 +141,6 @@
     <Compile Include="CommandLine\StatusVerb.cs" />
     <Compile Include="CommandLine\UnmountVerb.cs" />
     <Compile Include="Program.cs" />
-    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
-      <Link>PlatformLoader.Windows.cs</Link>
-    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -1,6 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Tracing;
-using GVFS.PlatformLoader;
+using GVFS.Platform.Windows;
 using System;
 using System.Diagnostics;
 using System.ServiceProcess;
@@ -11,7 +11,7 @@ namespace GVFS.Service
     {
         public static void Main(string[] args)
         {
-            GVFSPlatformLoader.Initialize();
+            GVFSPlatform.Register(new WindowsPlatform());
 
             AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionHandler;
 

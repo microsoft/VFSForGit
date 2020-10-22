@@ -74,9 +74,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
-      <Link>PlatformLoader.Windows.cs</Link>
-    </Compile>
     <Compile Include="InProcessMount.cs" />
     <Compile Include="MountAbortedException.cs" />
     <Compile Include="InProcessMountVerb.cs" />
