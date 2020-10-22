@@ -4,10 +4,9 @@
 
 #### Runnable functional test projects
 
-- `GVFS.FunctionalTests`
 - `GVFS.FunctionalTests.Windows`
 
-`GVFS.FunctionalTests` is a .NET Core project and contains all cross-platform functional tests.  `GVFS.FunctionalTests.Windows`, contains functional tests that require Windows. Additionally, `GVFS.FunctionalTests.Windows` includes all the `GVFS.FunctionalTests` allowing it to run both cross-platform and Windows-specific functional tests.
+`GVFS.FunctionalTests.Windows`, contains functional tests that require Windows. Additionally, `GVFS.FunctionalTests.Windows` includes all the `GVFS.FunctionalTests` allowing it to run both cross-platform and Windows-specific functional tests.
 
 #### Other functional test projects
 
@@ -48,26 +47,10 @@ By default, the functional tests run a subset of tests as a quick smoke test for
 
 **NOTE** `Scripts\RunFunctionalTests.bat` already uses some of these arguments.  If you run the tests using `RunFunctionalTests.bat` consider locally modifying the script rather than passing these flags as arguments to the script.
 
-### Mac
-
-1. Build VFS for Git: `Scripts/Mac/BuildGVFSForMac.sh`
-2. Run the tests: `Scripts/Mac/RunFunctionalTests.sh `
-
-If you need the VS for Mac debugger attached for a functional test run:
-
-1. Make sure you've built your latest changes
-2. Run `./ProjFS.Mac/Scripts/LoadPrjFSKext.sh`
-3. Open GVFS.sln in VS for Mac
-4. Run->Run With->Custom Configuration...
-5. Select "Start external program" and specify the published functional test binary (e.g. `/Users/<USERNAME>/Repos/VFSForGit/Publish/GVFS.FunctionalTests`)
-6. Specify any desired arguments (e.g. [a specific test](#Running-Specific-Tests) )
-7. Run Action -> "Debug - .Net Core Debugger"
-8. Click "Debug"
-
 ### Customizing the Functional Test Settings
 
 The functional tests take a set of parameters that indicate what paths and URLs to work with.  If you want to customize those settings, they
-can be found in [`GVFS.FunctionalTests\Settings.cs`](/GVFS/GVFS.FunctionalTests/Settings.cs).
+can be found in [`GVFS.FunctionalTests.Windows\Settings.cs`](/GVFS/GVFS.FunctionalTests.Windows/Settings.cs).
 
 
 ## Running Specific Tests
