@@ -19,36 +19,16 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
-
-  <!-- ItemGroup Conditions are not supported on VS for Mac and Choose/When must be
-       Used instead, see https://github.com/mono/monodevelop/issues/7417 -->
-  <Choose>
-    <When Condition="'$(OS)' == 'Windows_NT'">
-      <PropertyGroup>
-        <TargetFrameworks>net461;netcoreapp2.1</TargetFrameworks>
-	<DefineConstants>$(DefineConstants);WINDOWS_BUILD</DefineConstants>
-      </PropertyGroup>
-      <ItemGroup>
-        <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
-        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
-          <Link>PlatformLoader.Windows.cs</Link>
-        </Compile>
-      </ItemGroup>
-    </When>
-    <Otherwise>
-      <PropertyGroup>
-        <TargetFrameworks>netcoreapp2.1</TargetFrameworks>
-        <RuntimeIdentifiers>osx-x64</RuntimeIdentifiers>
-	<DefineConstants>$(DefineConstants);MACOS_BUILD</DefineConstants>
-      </PropertyGroup>
-      <ItemGroup>
-        <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
-        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
-          <Link>PlatformLoader.Mac.cs</Link>
-        </Compile>
-      </ItemGroup>
-    </Otherwise>
-  </Choose>
+  <PropertyGroup>
+    <TargetFrameworks>net461;netcoreapp2.1</TargetFrameworks>
+    <DefineConstants>$(DefineConstants);WINDOWS_BUILD</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
+    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
+      <Link>PlatformLoader.Windows.cs</Link>
+    </Compile>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />

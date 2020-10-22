@@ -6,7 +6,7 @@
     <AssemblyName>FastFetch</AssemblyName>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
-    <RunTimeIdentifiers>osx-x64;win-x64</RunTimeIdentifiers>
+    <RunTimeIdentifiers>win-x64</RunTimeIdentifiers>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -24,26 +24,12 @@
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
   </ItemGroup>
   
-  <!-- ItemGroup Conditions are not supported on VS for Mac and Choose/When must be
-       Used instead, see https://github.com/mono/monodevelop/issues/7417 -->
-  <Choose>
-    <When Condition="'$(OS)' == 'Windows_NT'">
-      <ItemGroup>
-        <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
-        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
-          <Link>PlatformLoader.Windows.cs</Link>
-        </Compile>
-      </ItemGroup>
-    </When>
-    <Otherwise>
-      <ItemGroup>
-        <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
-        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
-          <Link>PlatformLoader.Mac.cs</Link>
-        </Compile>
-      </ItemGroup>
-    </Otherwise>
-  </Choose>
+  <ItemGroup>
+    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
+    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
+      <Link>PlatformLoader.Windows.cs</Link>
+    </Compile>
+  </ItemGroup>
   
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.1.1-beta" />
