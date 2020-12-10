@@ -26,6 +26,7 @@ namespace GVFS
                 typeof(ConfigVerb),
                 typeof(DehydrateVerb),
                 typeof(DiagnoseVerb),
+                typeof(DismountVerb),
                 typeof(LogVerb),
                 typeof(SparseVerb),
                 typeof(MountVerb),

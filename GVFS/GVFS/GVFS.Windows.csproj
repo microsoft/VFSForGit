@@ -127,6 +127,7 @@
     <Compile Include="CommandLine\MountVerb.cs" />
     <Compile Include="CommandLine\PrefetchVerb.cs" />
     <Compile Include="CommandLine\SparseVerb.cs" />
+    <Compile Include="CommandLine\DismountVerb.cs" />
     <Compile Include="CommandLine\UpgradeVerb.cs" />
     <Compile Include="RepairJobs\BackgroundOperationDatabaseRepairJob.cs" />
     <Compile Include="RepairJobs\BlobSizeDatabaseRepairJob.cs" />
