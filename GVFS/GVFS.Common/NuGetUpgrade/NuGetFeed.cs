@@ -20,7 +20,8 @@ namespace GVFS.Common.NuGetUpgrade
     public class NuGetFeed : IDisposable
     {
         // This is the SHA256 Certificate Thumbrint we expect packages from Microsoft to be signed with
-        private const string TrustedMicrosoftCertFingerprint = "3F9001EA83C560D712C24CF213C3D312CB3BFF51EE89435D3430BD06B5D0EECE";
+        private const string TrustedMicrosoftCertFingerprintOld = "3F9001EA83C560D712C24CF213C3D312CB3BFF51EE89435D3430BD06B5D0EECE";
+        private const string TrustedMicrosoftCertFingerprintNew = "AA12DA22A49BCE7D5C1AE64CC1F3D892F150DA76140F210ABD2CBFFCA2C18A27";
 
         private readonly ITracer tracer;
         private readonly string feedUrl;
@@ -134,7 +135,11 @@ namespace GVFS.Common.NuGetUpgrade
             {
                 Verifications = new VerifyArgs.Verification[] { VerifyArgs.Verification.All },
                 PackagePath = packagePath,
-                CertificateFingerprint = new List<string>() { TrustedMicrosoftCertFingerprint },
+                CertificateFingerprint = new List<string>
+                {
+                    TrustedMicrosoftCertFingerprintOld,
+                    TrustedMicrosoftCertFingerprintNew,
+                },
                 Logger = this.nuGetLogger
             };
 
