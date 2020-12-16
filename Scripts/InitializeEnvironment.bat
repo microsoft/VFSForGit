@@ -1,4 +1,4 @@
-@ECHO OFF
+:: @ECHO OFF
 
 REM Set environment variables for interesting paths that scripts might need access to.
 PUSHD %~dp0

@@ -1,4 +1,4 @@
-@ECHO OFF
+:: @ECHO OFF
 SETLOCAL
 setlocal enabledelayedexpansion
 CALL %~dp0\InitializeEnvironment.bat || EXIT /b 10
