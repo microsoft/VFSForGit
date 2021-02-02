@@ -894,10 +894,6 @@ You can specify a URL, a name of a configured cache server, or the special names
                         gitVersion,
                         GVFSConstants.SupportedGitVersion);
                 }
-                else if (!gitVersion.IsEqualTo(GVFSConstants.SupportedGitVersion))
-                {
-                    this.Output.WriteLine($"Warning: Installed git version {gitVersion} does not match supported version of {GVFSConstants.SupportedGitVersion}.");
-                }
             }
             else
             {
