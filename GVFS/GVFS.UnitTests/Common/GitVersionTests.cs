@@ -33,11 +33,13 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void Version_Data_Not_Enough_Numbers_Returns_False()
+        public void Version_Data_Not_Enough_Numbers_Sets_Zeroes()
         {
             GitVersion version;
             bool success = GitVersion.TryParseVersion("2.0.1.test", out version);
-            success.ShouldEqual(false);
+            success.ShouldEqual(true);
+            version.Revision.ShouldEqual(0);
+            version.MinorRevision.ShouldEqual(0);
         }
 
         [TestCase]
