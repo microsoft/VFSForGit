@@ -1,10 +1,11 @@
 using System;
+using System.Text;
 
 namespace GVFS.Common.Git
 {
     public class GitVersion
     {
-        public GitVersion(int major, int minor, int build, string platform, int revision, int minorRevision)
+        public GitVersion(int major, int minor, int build, string platform = null, int revision = 0, int minorRevision = 0)
         {
             this.Major = major;
             this.Minor = minor;
@@ -16,8 +17,8 @@ namespace GVFS.Common.Git
 
         public int Major { get; private set; }
         public int Minor { get; private set; }
-        public string Platform { get; private set; }
         public int Build { get; private set; }
+        public string Platform { get; private set; }
         public int Revision { get; private set; }
         public int MinorRevision { get; private set; }
 
@@ -59,46 +60,66 @@ namespace GVFS.Common.Git
         public static bool TryParseVersion(string input, out GitVersion version)
         {
             version = null;
-            int major, minor, build, revision, minorRevision;
+
+            int major, minor, build, revision = 0, minorRevision = 0;
+            string platform = null;
 
             if (string.IsNullOrWhiteSpace(input))
             {
                 return false;
             }
 
-            string[] parsedComponents = input.Split(new char[] { '.' });
-            int parsedComponentsLength = parsedComponents.Length;
-            if (parsedComponentsLength < 5)
+            string[] parsedComponents = input.Split('.');
+            int numComponents = parsedComponents.Length;
+
+            // We minimally accept the official Git version number format which
+            // consists of three components: "major.minor.build".
+            //
+            // The other supported formats are the Git for Windows and Microsoft Git
+            // formats which look like: "major.minor.build.platform.revision.minorRevision"
+            //      0     1     2            3        4        5
+            // len  1     2     3            4        5        6
+            //
+            if (numComponents < 3)
             {
                 return false;
             }
 
+            // Major version
             if (!TryParseComponent(parsedComponents[0], out major))
             {
                 return false;
             }
 
+            // Minor version
             if (!TryParseComponent(parsedComponents[1], out minor))
             {
                 return false;
             }
 
+            // Build number
             if (!TryParseComponent(parsedComponents[2], out build))
             {
                 return false;
             }
 
-            if (!TryParseComponent(parsedComponents[4], out revision))
+            // Take the platform component verbatim
+            if (numComponents >= 4)
             {
-                return false;
+                platform = parsedComponents[3];
             }
 
-            if (parsedComponentsLength < 6 || !TryParseComponent(parsedComponents[5], out minorRevision))
+            // Platform revision
+            if (numComponents < 5 || !TryParseComponent(parsedComponents[4], out revision))
+            {
+                revision = 0;
+            }
+
+            // Minor platform revision
+            if (numComponents < 6 || !TryParseComponent(parsedComponents[5], out minorRevision))
             {
                 minorRevision = 0;
             }
-
-            string platform = parsedComponents[3];
 
             version = new GitVersion(major, minor, build, platform, revision, minorRevision);
             return true;
