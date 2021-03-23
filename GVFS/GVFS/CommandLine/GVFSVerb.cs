@@ -306,6 +306,9 @@ namespace GVFS.CommandLine
                 // global config of "status.submoduleSummary=true" from causing
                 // extreme slowness in "git status"
                 { "status.submoduleSummary", "false" },
+
+                // Generation number v2 isn't ready for full use. Wait for v3.
+                { "commitGraph.generationVersion", "1" },
             };
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
@@ -884,31 +887,23 @@ You can specify a URL, a name of a configured cache server, or the special names
                 this.ReportErrorAndExit(tracer, "Error: Invalid version of git {0}.  Must use gvfs version.", version);
             }
 
-            if (ProcessHelper.IsDevelopmentVersion())
+            if (gitVersion.IsLessThan(GVFSConstants.SupportedGitVersion))
             {
-                if (gitVersion.IsLessThan(GVFSConstants.SupportedGitVersion))
-                {
-                    this.ReportErrorAndExit(
-                        tracer,
-                        "Error: Installed git version {0} is less than the supported version of {1}.",
-                        gitVersion,
-                        GVFSConstants.SupportedGitVersion);
-                }
-                else if (!gitVersion.IsEqualTo(GVFSConstants.SupportedGitVersion))
-                {
-                    this.Output.WriteLine($"Warning: Installed git version {gitVersion} does not match supported version of {GVFSConstants.SupportedGitVersion}.");
-                }
+                this.ReportErrorAndExit(
+                    tracer,
+                    "Error: Installed git version {0} is less than the supported version of {1}.",
+                    gitVersion,
+                    GVFSConstants.SupportedGitVersion);
             }
-            else
+            else if (gitVersion.Revision != GVFSConstants.SupportedGitVersion.Revision)
             {
-                if (!gitVersion.IsEqualTo(GVFSConstants.SupportedGitVersion))
-                {
-                    this.ReportErrorAndExit(
-                        tracer,
-                        "Error: Installed git version {0} does not match supported version of {1}.",
-                        gitVersion,
-                        GVFSConstants.SupportedGitVersion);
-                }
+                this.ReportErrorAndExit(
+                    tracer,
+                    "Error: Installed git version {0} has revision number {1} instead of {2}." +
+                     " This Git version is too new, so either downgrade Git or upgrade VFS for Git",
+                    gitVersion,
+                    gitVersion.Revision,
+                    GVFSConstants.SupportedGitVersion.Revision);
             }
         }
 
