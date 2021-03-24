@@ -306,6 +306,9 @@ namespace GVFS.CommandLine
                 // global config of "status.submoduleSummary=true" from causing
                 // extreme slowness in "git status"
                 { "status.submoduleSummary", "false" },
+
+                // Generation number v2 isn't ready for full use. Wait for v3.
+                { "commitGraph.generationVersion", "1" },
             };
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
