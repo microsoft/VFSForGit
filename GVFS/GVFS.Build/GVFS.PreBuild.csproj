@@ -31,8 +31,6 @@
   <ItemGroup>
     <Compile Include="GenerateApplicationManifests.cs" />
     <Compile Include="GenerateGVFSInstallersNuspec.cs" />
-    <Compile Include="GenerateGitVersionConstants.cs" />
-    <Compile Include="GenerateG4WNugetReference.cs" />
     <Compile Include="GenerateInstallScripts.cs" />
     <Compile Include="GenerateVersionInfo.cs" />
   </ItemGroup>
@@ -70,31 +68,9 @@
   <Target Name="SGenFilesOutputGroup" />
   <Target Name="SGenFilesOutputGroupDependencies" />
 
-  <UsingTask TaskName="GenerateG4WNugetReference" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
-    <ParameterGroup>
-      <GitPackageVersion ParameterType="System.String" Required="true" />
-    </ParameterGroup>
-    <Task>
-      <Code Type="Class" Source="GenerateG4WNugetReference.cs" />
-    </Task>
-  </UsingTask>
-
-  <UsingTask TaskName="GenerateGitVersionConstants" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
-    <ParameterGroup>
-      <GitPackageVersion ParameterType="System.String" Required="true" />
-      <PackagesPath ParameterType="System.String" Required="true" />
-      <OutputFile ParameterType="System.String" Required="true" />
-      <LatestInstaller ParameterType="System.String" Output="true" />
-      <LatestInstallerFilename ParameterType="System.String" Output="true" />
-    </ParameterGroup>
-    <Task>
-      <Code Type="Class" Source="GenerateGitVersionConstants.cs" />
-    </Task>
-  </UsingTask>
-
   <UsingTask TaskName="GenerateInstallScripts" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
     <ParameterGroup>
-      <GitInstallerFilename ParameterType="System.String" Required="true" />
+      <GitPackageVersion ParameterType="System.String" Required="true" />
       <VFSForGitSetupFilename ParameterType="System.String" Required="true" />
       <GitInstallBatPath ParameterType="System.String" Required="true" />
       <VFSForGitInstallBatPath ParameterType="System.String" Required="true" />
@@ -143,7 +119,6 @@
     <GVFSSetupFilename>SetupGVFS.$(GVFSVersion).exe</GVFSSetupFilename>
     <GVFSSetupPath>$(BuildOutputDir)\GVFS.Installer.Windows\bin\x64\$(Configuration)\SetupGVFS.$(GVFSVersion).exe</GVFSSetupPath>
     <OutDir>$(BuildOutputDir)\GVFS.Build\</OutDir>
-    <GitVersionConstantsPath>$(OutDir)GVFSConstants.GitVersion.cs</GitVersionConstantsPath>
     <G4WInstallBatPath>$(OutDir)InstallG4W.bat</G4WInstallBatPath>
     <GVFSInstallBatPath>$(OutDir)InstallGVFS.bat</GVFSInstallBatPath>
     <UnifiedInstallBatPath>$(OutDir)InstallProduct.bat</UnifiedInstallBatPath>
@@ -171,38 +146,17 @@
     <ApplicationNeedsManifest Include="GVFS.Service" />
   </ItemGroup>
 
-  <Target Name="GVFSPreBuild"
-          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateG4WNugetReference.cs;@(BuildProps)"
-          Outputs="@(GeneratedPackageConfig)">
-    <GenerateG4WNugetReference GitPackageVersion="$(GitPackageVersion)" Condition="'$(OS)' == 'Windows_NT'" />
-  </Target>
-
-  <Target Name="GVFSPackageRestore"
-          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);@(GeneratedPackageConfig)"
-          Outputs="$(RestoreTimestampPath)"
-          DependsOnTargets="GVFSPreBuild"
-          Condition="'$(OS)' == 'Windows_NT'">
-    <Exec Command="call $(MSBuildThisFileDirectory)..\..\Scripts\RestorePackages.bat $(Configuration)"
-          WorkingDirectory="$(MSBuildThisFileDirectory)../../" />
-    <Touch Files="$(RestoreTimestampPath)" AlwaysCreate="true" />
-  </Target>
-
   <Target Name="GenerateInstallScripts" 
-          DependsOnTargets="GVFSPackageRestore;$(GenerateInstallScriptsDependsOn)"
+          DependsOnTargets="$(GenerateInstallScriptsDependsOn)"
           Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateGitVersionConstants.cs;$(MSBuildThisFileDirectory)GenerateInstallScripts.cs;$(MSBuildThisFileDirectory)GenerateGVFSInstallersNuspec.cs"
-          Outputs="$(GitVersionConstantsPath);$(G4WInstallBatPath);$(GVFSInstallBatPath);$(GVFSInstallerNuspecPath);$(UnifiedInstallBatPath);$(OutDir)$(G4WInstallerFilename)"
+          Outputs="$(GitVersionConstantsPath);$(G4WInstallBatPath);$(GVFSInstallBatPath);$(GVFSInstallerNuspecPath);$(UnifiedInstallBatPath);"
           Condition="'$(OS)' == 'Windows_NT'">
-    <GenerateGitVersionConstants GitPackageVersion="$(GitPackageVersion)" PackagesPath="$(PackagesDir)" OutputFile="$(GitVersionConstantsPath)">
-      <Output TaskParameter="LatestInstaller" PropertyName="G4WInstaller" />
-      <Output TaskParameter="LatestInstallerFilename" PropertyName="G4WInstallerFilename" />
-    </GenerateGitVersionConstants>
-    <GenerateInstallScripts GitInstallerFilename="$(G4WInstallerFilename)"
+    <GenerateInstallScripts GitPackageVersion="$(GitPackageVersion)"
                             VFSForGitSetupFilename="$(GVFSSetupFilename)"
                             GitInstallBatPath="$(G4WInstallBatPath)"
                             VFSForGitInstallBatPath="$(GVFSInstallBatPath)"
                             UnifiedInstallBatPath="$(UnifiedInstallBatPath)"/>
     <GenerateGVFSInstallersNuspec GVFSSetupPath="$(GVFSSetupPath)" GitPackageVersion="$(GitPackageVersion)" PackagesPath="$(PackagesDir)" OutputFile="$(GVFSInstallerNuspecPath)" />
-    <Copy SourceFiles="$(G4WInstaller)" DestinationFiles="$(OutDir)\$(G4WInstallerFilename)" />
   </Target>
 
   <Target Name="GenerateShared"

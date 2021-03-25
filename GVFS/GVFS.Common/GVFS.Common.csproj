@@ -17,10 +17,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\..\BuildOutput\GVFS.Build\GVFSConstants.GitVersion.cs" Link="GVFSConstants.GitVersion.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.278" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="2.2.4" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />

@@ -1,5 +1,6 @@
 ﻿using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
+using System;
 using System.IO;
 using System.Text;
 
@@ -8,7 +9,7 @@ namespace GVFS.PreBuild
     public class GenerateInstallScripts : Task
     {
         [Required]
-        public string GitInstallerFilename { get; set; }
+        public string GitPackageVersion { get; set; }
 
         [Required]
         public string VFSForGitSetupFilename { get; set; }
@@ -24,7 +25,9 @@ namespace GVFS.PreBuild
 
         public override bool Execute()
         {
-            this.Log.LogMessage(MessageImportance.High, "Creating install scripts for " + this.GitInstallerFilename);
+            this.Log.LogMessage(MessageImportance.High, "Creating install scripts for Git");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(this.GitInstallBatPath));
 
             File.WriteAllText(
                 this.GitInstallBatPath,
@@ -50,7 +53,11 @@ namespace GVFS.PreBuild
 
         public string GetGitInstallCommand()
         {
-            return "%~dp0\\" + this.GitInstallerFilename + @" /DIR=""C:\Program Files\Git"" /NOICONS /COMPONENTS=""ext,ext\shellhere,ext\guihere,assoc,assoc_sh"" /GROUP=""Git"" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLOWDOWNGRADE=1";
+            return "dotnet new classlib -n GVFS.GitInstaller" + Environment.NewLine +
+                   "cd GVFS.GitInstaller" + Environment.NewLine +
+                   "dotnet add GVFS.GitInstaller.csproj package \"GitForWindows.GVFS.Installer\" --package-directory . --version \"" + this.GitPackageVersion + "\" --source \"https://pkgs.dev.azure.com/gvfs/ci/_packaging/Dependencies/nuget/v3/index.json\"" + Environment.NewLine +
+                   "copy gitforwindows.gvfs.installer\\" + this.GitPackageVersion + @"\\tools\\Git-2.*.exe git-installer.exe" + Environment.NewLine +
+                   ".\\git-installer.exe";
         }
 
         public string GetVFSForGitInstallCommand()

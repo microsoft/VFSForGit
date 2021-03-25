@@ -1,8 +1,9 @@
+using GVFS.Common.Git;
 using System.IO;
 
 namespace GVFS.Common
 {
-    public static partial class GVFSConstants
+    public static class GVFSConstants
     {
         public const int ShaStringLength = 40;
         public const int MaxPath = 260;
@@ -21,6 +22,16 @@ namespace GVFS.Common
         public const string DefaultGVFSCacheFolderName = ".gvfsCache";
 
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
+
+        /// <summary>
+        /// The SupportedGitVersion is a _minimum_ Git version string. This
+        /// VFS for Git executable is expected to work consistently with Git
+        /// versions that match the platform and revision portions,
+        /// as long as the major, minor, and build versions are larger than
+        /// this fixed version.
+        /// </summary>
+        public static readonly GitVersion SupportedGitVersion =
+            new GitVersion(2, 30, 0, platform: "vfs", revision: 0, minorRevision: 0);
 
         public static class GitConfig
         {
