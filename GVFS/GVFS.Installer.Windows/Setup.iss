@@ -5,7 +5,6 @@
 
 #define PrjFltDir PackagesDir + "\" + ProjFSNativePackage + "\filter" 
 #define ProjFSNativeLibDir PackagesDir + "\" + ProjFSNativePackage + "\lib" 
-#define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.2.0-build\lib\x64"
 #define GVFSDir BuildOutputDir + "\GVFS.Windows\bin\" + PlatformAndConfiguration
 #define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration + "\netstandard2.0"
 #define HooksDir BuildOutputDir + "\GVFS.Hooks.Windows\bin\" + PlatformAndConfiguration
@@ -75,15 +74,6 @@ Name: "full"; Description: "Full installation"; Flags: iscustom;
 Type: files; Name: "{app}\ucrtbase.dll"
 
 [Files]
-; PrjFlt Filter Files
-DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#PrjFltDir}\PrjFlt.sys"
-DestDir : "{app}\Filter"; Flags: ignoreversion; Source: "{#PrjFltDir}\prjflt.inf"
-
-; PrjFlt Native Library Files, the GVFS.Service will copy these files into the {app} directory if needed
-DestDir: "{app}\ProjFS"; Flags: ignoreversion; Source:"{#ProjFSNativeLibDir}\ProjectedFSLib.dll"
-
-; PrjFlt Managed Assembly Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\ProjectedFSLib.Managed.dll"
 
 ; GitHooks Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.pdb"
@@ -116,12 +106,6 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#VirtualFileSystemDir}\GVFS.Vir
 ; GVFS.PostIndexChangedHook files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#PostIndexChangedDir}\GVFS.PostIndexChangedHook.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#PostIndexChangedDir}\GVFS.PostIndexChangedHook.exe"
-
-; Cpp Dependencies
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140_1.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140_2.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\vcruntime140.dll"
 
 ; GVFS PDB's
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Collections.pdb"
@@ -419,117 +403,6 @@ begin
     begin
       Log('DeleteFileIfItExists: File does not exist: ' + FilePath);
       Result := True;
-    end;
-end;
-
-procedure UninstallGvFlt();
-var
-  StatusText: string;
-  UninstallSuccessful: Boolean;
-begin
-  if (FileExists(ExpandConstant('{app}\Filter\GvFlt.inf'))) then
-  begin
-    UninstallSuccessful := False;
-
-    StatusText := WizardForm.StatusLabel.Caption;
-    WizardForm.StatusLabel.Caption := 'Uninstalling GvFlt Driver.';
-    WizardForm.ProgressGauge.Style := npbstMarquee;
-
-    try
-      UninstallService('gvflt', False);
-      if DeleteFileIfItExists(ExpandConstant('{sys}\drivers\gvflt.sys')) then
-        begin
-           UninstallSuccessful := True;
-        end;
-    finally
-      WizardForm.StatusLabel.Caption := StatusText;
-      WizardForm.ProgressGauge.Style := npbstNormal;
-    end;
-
-    if UninstallSuccessful = True then
-      begin
-        if not DeleteFile(ExpandConstant('{app}\Filter\GvFlt.inf')) then
-          begin
-            Log('UninstallGvFlt: Failed to delete GvFlt.inf');
-          end;
-      end
-    else
-      begin
-          RaiseException('Fatal: An error occured while uninstalling GvFlt drivers.');
-      end;
-  end;
-end;
-
-function UninstallNonInboxProjFS(): Boolean;
-var
-  StatusText: string;
-begin
-  Result := False;
-  StatusText := WizardForm.StatusLabel.Caption;
-  WizardForm.StatusLabel.Caption := 'Uninstalling PrjFlt Driver.';
-  WizardForm.ProgressGauge.Style := npbstMarquee;
-    
-  Log('UninstallNonInboxProjFS: Uninstalling ProjFS');
-  try
-    UninstallService('prjflt', False);
-    if DeleteFileIfItExists(ExpandConstant('{app}\ProjectedFSLib.dll')) then
-      begin
-        if DeleteFileIfItExists(ExpandConstant('{sys}\drivers\prjflt.sys')) then
-          begin
-            Result := True;
-          end;        
-      end;
-  finally
-    WizardForm.StatusLabel.Caption := StatusText;
-    WizardForm.ProgressGauge.Style := npbstNormal;
-  end;
-end;
-
-procedure UninstallProjFSIfNecessary();
-var
-  ProjFSFeatureEnabledResultCode: integer;
-  UninstallSuccessful: Boolean;
-begin
-  if FileExists(ExpandConstant('{app}\Filter\PrjFlt.inf')) and FileExists(ExpandConstant('{sys}\drivers\prjflt.sys')) then
-    begin
-      UninstallSuccessful := False;
-                 
-      if Exec('powershell.exe', '-NoProfile "$var=(Get-WindowsOptionalFeature -Online -FeatureName Client-ProjFS);  if($var -eq $null){exit 2}else{if($var.State -eq ''Enabled''){exit 3}else{exit 4}}"', '', SW_HIDE, ewWaitUntilTerminated, ProjFSFeatureEnabledResultCode) then
-        begin
-          if ProjFSFeatureEnabledResultCode = 2 then
-            begin
-              // Client-ProjFS is not an optional feature
-              Log('UninstallProjFSIfNecessary: Could not locate Windows Projected File System optional feature, uninstalling ProjFS');
-              if UninstallNonInboxProjFS() then
-                begin
-                  UninstallSuccessful := True;
-                end;
-            end;
-          if ProjFSFeatureEnabledResultCode = 3 then
-            begin
-              // Client-ProjFS is already enabled. If the native ProjFS library is in the apps folder it must
-              // be deleted to ensure GVFS uses the inbox library (in System32)
-              Log('UninstallProjFSIfNecessary: Client-ProjFS already enabled');
-              if DeleteFileIfItExists(ExpandConstant('{app}\ProjectedFSLib.dll')) then
-                begin
-                  UninstallSuccessful := True;
-                end;
-            end;
-          if ProjFSFeatureEnabledResultCode = 4 then
-            begin
-              // Client-ProjFS is currently disabled but prjflt.sys is present and should be removed
-              Log('UninstallProjFSIfNecessary: Client-ProjFS is disabled, uninstalling ProjFS');
-              if UninstallNonInboxProjFS() then
-                begin
-                  UninstallSuccessful := True;
-                end;
-            end;
-        end;
-      
-      if UninstallSuccessful = False then
-      begin
-        RaiseException('Fatal: An error occured while uninstalling ProjFS.');
-      end;
     end;
 end;
 
@@ -844,6 +717,4 @@ begin
     end;
   StopService('GVFS.Service');
   StopGVFSServiceUI();
-  UninstallGvFlt();
-  UninstallProjFSIfNecessary();
 end;
