@@ -166,37 +166,45 @@ namespace GVFS.Common.Prefetch.Git
 
         private void FlushStagedQueues()
         {
-            List<string> deletedPaths = new List<string>();
-            foreach (DiffTreeResult result in this.stagedDirectoryOperations)
+            using (ITracer activity = this.tracer.StartActivity("FlushStagedQueues", EventLevel.Informational))
             {
-                // Don't enqueue deletes that will be handled by recursively deleting their parent.
-                // Git traverses diffs in pre-order, so we are guaranteed to ignore child deletes here.
-                if (result.Operation == DiffTreeResult.Operations.Delete)
+                HashSet<string> deletedDirectories =
+                    new HashSet<string>(
+                        this.stagedDirectoryOperations
+                        .Where(d => d.Operation == DiffTreeResult.Operations.Delete)
+                        .Select(d => d.TargetPath.TrimEnd(Path.DirectorySeparatorChar)),
+                        GVFSPlatform.Instance.Constants.PathComparer);
+
+                foreach (DiffTreeResult result in this.stagedDirectoryOperations)
                 {
-                    if (deletedPaths.Any(path => result.TargetPath.StartsWith(path, GVFSPlatform.Instance.Constants.PathComparison)))
+                    string parentPath = Path.GetDirectoryName(result.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
+                    if (deletedDirectories.Contains(parentPath))
                     {
-                        continue;
+                        if (result.Operation != DiffTreeResult.Operations.Delete)
+                        {
+                            EventMetadata metadata = new EventMetadata();
+                            metadata.Add(nameof(result.TargetPath), result.TargetPath);
+                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "An operation is intended to go inside of a deleted folder");
+                            activity.RelatedError("InvalidOperation", metadata);
+                        }
                     }
-
-                    deletedPaths.Add(result.TargetPath);
+                    else
+                    {
+                        this.DirectoryOperations.Enqueue(result);
+                    }
                 }
 
-                this.DirectoryOperations.Enqueue(result);
-            }
-
-            foreach (string filePath in this.stagedFileDeletes)
-            {
-                if (deletedPaths.Any(path => filePath.StartsWith(path, GVFSPlatform.Instance.Constants.PathComparison)))
+                foreach (string filePath in this.stagedFileDeletes)
                 {
-                    continue;
+                    string parentPath = Path.GetDirectoryName(filePath);
+                    if (!deletedDirectories.Contains(parentPath))
+                    {
+                        this.FileDeleteOperations.Enqueue(filePath);
+                    }
                 }
 
-                deletedPaths.Add(filePath);
-
-                this.FileDeleteOperations.Enqueue(filePath);
+                this.RequiredBlobs.CompleteAdding();
             }
-
-            this.RequiredBlobs.CompleteAdding();
         }
 
         private void EnqueueOperationsFromLsTreeLine(ITracer activity, string line)

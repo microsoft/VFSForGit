@@ -1,4 +1,4 @@
-@ECHO OFF
+@if "%_echo%"=="" (echo off) else (echo on)
 
 REM Set environment variables for interesting paths that scripts might need access to.
 PUSHD %~dp0
