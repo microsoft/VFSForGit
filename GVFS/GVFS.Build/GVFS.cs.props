@@ -25,4 +25,8 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);StyleCop.Cache;TestResults.xml</DefaultItemExcludes>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <NoError>NU1603</NoError>
+    <NoWarn>NU1603</NoWarn>
+  </PropertyGroup>
 </Project>
