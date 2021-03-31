@@ -1,4 +1,4 @@
-@ECHO OFF
+@if "%_echo%"=="" (echo off) else (echo on)
 SETLOCAL
 setlocal enabledelayedexpansion
 CALL %~dp0\InitializeEnvironment.bat || EXIT /b 10

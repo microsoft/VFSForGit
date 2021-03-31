@@ -90,10 +90,10 @@ namespace GVFS.UnitTests.Prefetch
             diffBackwards.RequiredBlobs.Count.ShouldEqual(10);
 
             // File added, folder > file, moved folder, added folder
-            diffBackwards.FileDeleteOperations.Count.ShouldEqual(4);
+            diffBackwards.FileDeleteOperations.Count.ShouldEqual(6);
 
             // Also includes, the children of: Folder added, folder renamed, file => folder
-            diffBackwards.TotalFileDeletes.ShouldEqual(7);
+            diffBackwards.TotalFileDeletes.ShouldEqual(9);
 
             // Folder created, folder edited, folder deleted, folder renamed (add + delete),
             // folder => file, file => folder, recursive delete (include subfolder)
