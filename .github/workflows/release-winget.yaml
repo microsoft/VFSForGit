@@ -2,9 +2,6 @@ name: "release-winget"
 on:
   release:
     types: [released]
-  push:
-    branches:
-      - ldennington/add-release-workflow
 
 jobs:
   release:
@@ -12,12 +9,11 @@ jobs:
     steps:
     - id: update-winget
       name: Update winget repository
-      uses: mjcheetham/update-winget@v1.1
+      uses: mjcheetham/update-winget@v1.2
       with:
         id: Microsoft.VFSforGit
         token: ${{ secrets.WINGET_TOKEN }}   
         releaseAsset: SetupGVFS.([0-9.]*)\.exe
-        repo: ldennington/winget-playground
         manifestText: |
           PackageIdentifier: {{id}}
           PackageVersion: {{version}}
@@ -37,5 +33,3 @@ jobs:
           ManifestType: singleton
           ManifestVersion: 1.0.0
         alwaysUsePullRequest: true
-        releaseRepo: 'microsoft/VFSForGit'
-        releaseTag: 'v1.0.21085.9'
