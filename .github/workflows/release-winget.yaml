@@ -1,0 +1,35 @@
+name: "release-winget"
+on:
+  release:
+    types: [released]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - id: update-winget
+      name: Update winget repository
+      uses: mjcheetham/update-winget@v1.2
+      with:
+        id: Microsoft.VFSforGit
+        token: ${{ secrets.WINGET_TOKEN }}   
+        releaseAsset: SetupGVFS.([0-9.]*)\.exe
+        manifestText: |
+          PackageIdentifier: {{id}}
+          PackageVersion: {{version}}
+          PackageName: VFS for Git
+          Publisher: Microsoft Corporation
+          Moniker: vfs-for-git
+          PackageUrl: https://aka.ms/vfs-for-git
+          Tags: [ "vfs for git", "vfs-for-git", "vfsforgit", "gvfs" ]
+          License: Copyright (C) Microsoft Corporation
+          ShortDescription: Virtual File System for Git - a tool to scale Git for monorepo scenarios.
+          Installers:
+          - Architecture: x64
+            InstallerUrl: {{url}}
+            InstallerType: inno
+            InstallerSha256: {{sha256}}
+          PackageLocale: en-US
+          ManifestType: singleton
+          ManifestVersion: 1.0.0
+        alwaysUsePullRequest: true
