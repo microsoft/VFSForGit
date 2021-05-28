@@ -6,7 +6,7 @@
     <AssemblyName>FastFetch</AssemblyName>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
-    <RunTimeIdentifiers>osx-x64;win-x64</RunTimeIdentifiers>
+    <RunTimeIdentifiers>win-x64</RunTimeIdentifiers>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
