@@ -5,6 +5,8 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>FastFetch</AssemblyName>
     <TargetFramework>netcoreapp2.1</TargetFramework>
+    <RuntimeFrameworkVersion>2.1.28</RuntimeFrameworkVersion>
+    <RunTimeIdentifiers>win-x64</RunTimeIdentifiers>
     <Platforms>x64</Platforms>
     <RunTimeIdentifiers>win-x64</RunTimeIdentifiers>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
