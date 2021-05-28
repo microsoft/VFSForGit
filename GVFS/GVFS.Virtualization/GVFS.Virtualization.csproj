@@ -2,6 +2,8 @@
   <Import Project="..\GVFS.Build\GVFS.cs.props" />
   <PropertyGroup>
     <TargetFrameworks>netcoreapp2.1;netstandard2.0</TargetFrameworks>
+    <RuntimeFrameworkVersion>2.1.28</RuntimeFrameworkVersion>
+    <RunTimeIdentifiers>win-x64</RunTimeIdentifiers>
     <Platforms>x64</Platforms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
