@@ -6,6 +6,7 @@
     <AssemblyName>GVFS.Upgrader</AssemblyName>
 
     <Platforms>x64</Platforms>
+    <RuntimeFrameworkVersion>2.1.28</RuntimeFrameworkVersion>
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>GVFS.Upgrader</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>

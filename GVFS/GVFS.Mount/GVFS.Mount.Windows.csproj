@@ -15,6 +15,7 @@
     </NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
+    <RuntimeFrameworkVersion>2.1.28</RuntimeFrameworkVersion>
     <PlatformTarget>x64</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
@@ -25,6 +26,7 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+    <RuntimeFrameworkVersion>2.1.28</RuntimeFrameworkVersion>
     <PlatformTarget>x64</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <DefineConstants>TRACE</DefineConstants>
