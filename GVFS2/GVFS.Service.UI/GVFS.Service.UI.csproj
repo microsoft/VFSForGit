@@ -1,0 +1,96 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cs.props" />
+  <PropertyGroup>
+    <ProjectGuid>{93B403FD-DAFB-46C5-9636-B122792A548A}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>GVFS.Service.UI</RootNamespace>
+    <AssemblyName>GVFS.Service.UI</AssemblyName>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
+    <RuntimeFrameworkVersion>2.1.28</RuntimeFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+    <RuntimeFrameworkVersion>2.1.28</RuntimeFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.ServiceProcess" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+    <Reference Include="Windows">
+      <HintPath>C:\Program Files (x86)\Windows Kits\10\App Certification Kit\winmds\windows81\Windows.winmd</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
+      <Link>PlatformLoader.Windows.cs</Link>
+    </Compile>
+    <Compile Include="Data\ActionItem.cs" />
+    <Compile Include="Data\ActionsData.cs" />
+    <Compile Include="Data\BindingData.cs" />
+    <Compile Include="Data\BindingItem.cs" />
+    <Compile Include="Data\VisualData.cs" />
+    <Compile Include="GVFSServiceUI.cs" />
+    <Compile Include="GVFSToastRequestHandler.cs" />
+    <Compile Include="IToastNotifier.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Data\ToastData.cs" />
+    <Compile Include="WinToastNotifier.cs" />
+    <Compile Include="XmlList.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj">
+      <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
+      <Name>GVFS.Common</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj">
+      <Project>{4ce404e7-d3fc-471c-993c-64615861ea63}</Project>
+      <Name>GVFS.Platform.Windows</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj">
+      <Project>{f468b05a-95e5-46bc-8c67-b80a78527b7d}</Project>
+      <Name>GVFS.Virtualization</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\GVFS\GitVirtualFileSystem.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Analyzer Include="..\..\..\packages\StyleCop.Analyzers.1.0.2\analyzers\dotnet\cs\StyleCop.Analyzers.CodeFixes.dll" />
+    <Analyzer Include="..\..\..\packages\StyleCop.Analyzers.1.0.2\analyzers\dotnet\cs\StyleCop.Analyzers.dll" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
