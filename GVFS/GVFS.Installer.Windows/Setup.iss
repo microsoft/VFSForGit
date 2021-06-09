@@ -369,7 +369,11 @@ procedure StartGVFSServiceUI();
 var
   ResultCode: integer;
 begin
-  if ExecAsOriginalUser(ExpandConstant('{app}\GVFS.Service.UI.exe'), '', '', SW_HIDE, ewNoWait, ResultCode) then
+  if GetEnv("GVFS_UNATTENDED") = "1" then
+    begin
+      Log('StartGVFSServiceUI: Skipping launching GVFS.Service.UI');
+    end
+  else if ExecAsOriginalUser(ExpandConstant('{app}\GVFS.Service.UI.exe'), '', '', SW_HIDE, ewNoWait, ResultCode) then
     begin
       Log('StartGVFSServiceUI: Successfully launched GVFS.Service.UI');
     end
