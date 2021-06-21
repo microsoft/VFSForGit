@@ -21,7 +21,11 @@ jobs:
           Publisher: Microsoft Corporation
           Moniker: vfs-for-git
           PackageUrl: https://aka.ms/vfs-for-git
-          Tags: [ "vfs for git", "vfs-for-git", "vfsforgit", "gvfs" ]
+          Tags:
+          - vfs for git
+          - vfs-for-git
+          - vfsforgit
+          - gvfs
           License: Copyright (C) Microsoft Corporation
           ShortDescription: Virtual File System for Git - a tool to scale Git for monorepo scenarios.
           Installers:
