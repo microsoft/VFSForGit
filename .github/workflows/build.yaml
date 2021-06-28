@@ -70,9 +70,6 @@ jobs:
     name: Functional Tests
     needs: build
 
-    # Only run the fuctional tests on pushes (not PRs)
-    if: ${{ github.event_name == 'push' }}
-
     strategy:
       matrix:
         configuration: [ Debug, Release ]
