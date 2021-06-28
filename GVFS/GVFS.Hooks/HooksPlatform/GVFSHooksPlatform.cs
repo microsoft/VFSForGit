@@ -1,4 +1,4 @@
-using GVFS.Platform.Windows;
+﻿using GVFS.Platform.Windows;
 
 namespace GVFS.Hooks.HooksPlatform
 {

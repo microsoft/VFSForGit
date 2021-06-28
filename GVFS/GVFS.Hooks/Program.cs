@@ -1,4 +1,4 @@
-using GVFS.Common;
+﻿using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Hooks.HooksPlatform;
 using System;
