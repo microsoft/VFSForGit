@@ -1,0 +1,39 @@
+<Project>
+
+  <!-- Import version props -->
+  <Import Project="Version.props" />
+
+  <!-- Common project properties -->
+  <PropertyGroup>
+    <RepoPath>$(MSBuildThisFileDirectory)</RepoPath>
+    <RepoSrcPath>$(RepoPath)</RepoSrcPath>
+    <RepoOutPath>$(RepoPath)..\out\</RepoOutPath>
+    <ProjectOutPath>$(RepoOutPath)$(MSBuildProjectName)\</ProjectOutPath>
+    <BuildPackagesPath>$(RepoPath)..\packages\</BuildPackagesPath>
+
+    <!--
+      Ensure `msbuild /t:restore` restores both PackageReference and
+      package.config styles of NuGet package references.
+      Native/C++ projects do not support the new PackageReference style,
+      but our .NET projects do.
+      -->
+    <RestorePackagesConfig>true</RestorePackagesConfig>
+  </PropertyGroup>
+
+  <!-- Managed project properties -->
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <BaseOutputPath>$(ProjectOutPath)bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(ProjectOutPath)obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+
+  <!-- Native project properties -->
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.vcxproj'">
+    <Platform>x64</Platform>
+    <OutDir>$(ProjectOutPath)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectOutPath)intermediate\$(Platform)\$(Configuration)\</IntDir>
+    <GeneratedIncludePath>$(IntDir)include\</GeneratedIncludePath>
+  </PropertyGroup>
+
+</Project>
