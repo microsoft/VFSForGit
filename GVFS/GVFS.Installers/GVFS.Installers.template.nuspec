@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>GVFS.Installers</id>
+    <version>$version$</version>
+    <authors>Microsoft</authors>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>GVFS and G4W installers</description>
+  </metadata>
+  <files>
+    <file src="SetupGVFS*.exe" target="GVFS" />
+    <file src="Git*.exe" target="G4W" />
+    <file src="PortableGit*.exe" target="G4W" />
+  </files>
+</package>

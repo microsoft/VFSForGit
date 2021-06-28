@@ -3,23 +3,8 @@
 
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
 
-#define PrjFltDir PackagesDir + "\" + ProjFSNativePackage + "\filter" 
-#define ProjFSNativeLibDir PackagesDir + "\" + ProjFSNativePackage + "\lib" 
-#define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.2.0-build\lib\x64"
-#define GVFSDir BuildOutputDir + "\GVFS.Windows\bin\" + PlatformAndConfiguration
-#define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration + "\netstandard2.0"
-#define HooksDir BuildOutputDir + "\GVFS.Hooks.Windows\bin\" + PlatformAndConfiguration
-#define HooksLoaderDir BuildOutputDir + "\GitHooksLoader\bin\" + PlatformAndConfiguration
-#define ServiceDir BuildOutputDir + "\GVFS.Service.Windows\bin\" + PlatformAndConfiguration
-#define ServiceUIDir BuildOutputDir + "\GVFS.Service.UI\bin\" + PlatformAndConfiguration
-#define GVFSMountDir BuildOutputDir + "\GVFS.Mount.Windows\bin\" + PlatformAndConfiguration
-#define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook.Windows\bin\" + PlatformAndConfiguration
-#define VirtualFileSystemDir BuildOutputDir + "\GVFS.VirtualFileSystemHook.Windows\bin\" + PlatformAndConfiguration
-#define PostIndexChangedDir BuildOutputDir + "\GVFS.PostIndexChangedHook.Windows\bin\" + PlatformAndConfiguration
-#define GVFSUpgraderDir BuildOutputDir + "\GVFS.Upgrader\bin\" + PlatformAndConfiguration + "\net461"
-
 #define MyAppName "GVFS"
-#define MyAppInstallerVersion GetFileVersion(GVFSDir + "\GVFS.exe")
+#define MyAppInstallerVersion GetFileVersion(LayoutDir + "\GVFS.exe")
 #define MyAppPublisher "Microsoft Corporation"
 #define MyAppPublisherURL "http://www.microsoft.com"
 #define MyAppURL "https://github.com/microsoft/VFSForGit"
@@ -41,7 +26,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppPublisherURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-AppCopyright=Copyright � Microsoft 2019
+AppCopyright=Copyright (c) Microsoft 2021
 BackColor=clWhite
 BackSolid=yes
 DefaultDirName={pf}\{#MyAppName}
@@ -53,14 +38,14 @@ SolidCompression=yes
 MinVersion=10.0.14374
 DisableDirPage=yes
 DisableReadyPage=yes
-SetupIconFile="{#GVFSDir}\GitVirtualFileSystem.ico"
+SetupIconFile="{#LayoutDir}\GitVirtualFileSystem.ico"
 ArchitecturesInstallIn64BitMode=x64
 ArchitecturesAllowed=x64
 WizardImageStretch=no
 WindowResizable=no
 CloseApplications=yes
 ChangesEnvironment=yes
-RestartIfNeededByRun=yes   
+RestartIfNeededByRun=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl";
@@ -75,113 +60,8 @@ Name: "full"; Description: "Full installation"; Flags: iscustom;
 Type: files; Name: "{app}\ucrtbase.dll"
 
 [Files]
-; PrjFlt Filter Files
-DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#PrjFltDir}\PrjFlt.sys"
-DestDir : "{app}\Filter"; Flags: ignoreversion; Source: "{#PrjFltDir}\prjflt.inf"
-
-; PrjFlt Native Library Files, the GVFS.Service will copy these files into the {app} directory if needed
-DestDir: "{app}\ProjFS"; Flags: ignoreversion; Source:"{#ProjFSNativeLibDir}\ProjectedFSLib.dll"
-
-; PrjFlt Managed Assembly Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\ProjectedFSLib.Managed.dll"
-
-; GitHooks Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.exe"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.exe.config"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderDir}\GitHooksLoader.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderDir}\GitHooksLoader.exe"
-
-; GVFS.Common Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSCommonDir}\git2.dll"
-
-; GVFS.Mount Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.exe"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.exe.config"
-
-; GVFS.Upgrader Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSUpgraderDir}\GVFS.Upgrader.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSUpgraderDir}\GVFS.Upgrader.exe"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSUpgraderDir}\GVFS.Upgrader.exe.config"
-
-; GVFS.ReadObjectHook files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectDir}\GVFS.ReadObjectHook.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectDir}\GVFS.ReadObjectHook.exe"
-
-; GVFS.VirtualFileSystemHook files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VirtualFileSystemDir}\GVFS.VirtualFileSystemHook.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VirtualFileSystemDir}\GVFS.VirtualFileSystemHook.exe"
-
-; GVFS.PostIndexChangedHook files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#PostIndexChangedDir}\GVFS.PostIndexChangedHook.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#PostIndexChangedDir}\GVFS.PostIndexChangedHook.exe"
-
-; Cpp Dependencies
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140_1.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140_2.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\vcruntime140.dll"
-
-; GVFS PDB's
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Collections.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Interop.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Isam.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Common.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.GVFlt.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Virtualization.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Platform.Windows.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.pdb"
-
-; GVFS.Service.UI Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe.config" 
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GitVirtualFileSystem.ico"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\System.Runtime.dll"
-
-; GVFS Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\CommandLine.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Collections.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Interop.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Isam.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Microsoft.Data.Sqlite.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\SQLitePCLRaw.batteries_green.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\SQLitePCLRaw.batteries_v2.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\SQLitePCLRaw.core.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\SQLitePCLRaw.provider.e_sqlite3.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\x64\e_sqlite3.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Common.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.GVFlt.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Virtualization.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Platform.Windows.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Newtonsoft.Json.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\ICSharpCode.SharpZipLib.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe.config"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GitVirtualFileSystem.ico"  
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe" 
-
-; NuGet support DLLs
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Commands.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Common.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Configuration.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Frameworks.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Packaging.Core.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Packaging.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Protocol.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Versioning.dll"
-
-; .NET Standard Files
-; See https://github.com/dotnet/standard/issues/415 for a discussion on why this are copied
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\netstandard.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\System.Net.Http.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\System.ValueTuple.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\System.IO.Compression.dll"
-
-; GVFS.Service Files and PDB's
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe.config"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
+DestDir: "{app}"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
 
 [Dirs]
 Name: "{app}\ProgramData\{#ServiceName}"; Permissions: users-readexec
