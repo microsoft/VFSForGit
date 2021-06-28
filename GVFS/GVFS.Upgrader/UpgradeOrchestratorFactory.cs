@@ -4,13 +4,7 @@ namespace GVFS.Upgrader
     {
         public static UpgradeOrchestrator Create(UpgradeOptions options)
         {
-#if MACOS_BUILD
-            return new MacUpgradeOrchestrator(options);
-#elif WINDOWS_BUILD
             return new WindowsUpgradeOrchestrator(options);
-#else
-            throw new NotImplementedException();
-#endif
-            }
+        }
     }
 }
