@@ -1,54 +1,37 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\GVFS.Build\GVFS.cs.props" />
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
-    <Platforms>x64</Platforms>
-    <!-- see https://github.com/NuGet/Home/issues/4837 for reference to CopyLocalLockFileAssemblies -->
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <RuntimeIdentifiers>win-x64;osx-x64</RuntimeIdentifiers>
-  </PropertyGroup>
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>GVFS.FunctionalTests</RootNamespace>
-    <AssemblyName>GVFS.FunctionalTests</AssemblyName>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Version>$(GVFSVersion)</Version>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <Version>$(GVFSVersion)</Version>
+    <TargetFramework>net461</TargetFramework>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="NUnitLite" Version="3.12.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="3.13.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="2.2.4" />
+    <PackageReference Include="Microsoft.Database.Collections.Generic" Version="1.9.4" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     <PackageReference Include="SharpZipLib" Version="1.2.0" />
-    <PackageReference Include="NUnitLite" Version="3.12.0" />
-    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="4.5.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
+    <ProjectReference Include="..\FastFetch\FastFetch.csproj" />
+    <ProjectReference Include="..\GVFS.FunctionalTests.LockHolder\GVFS.FunctionalTests.LockHolder.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>Content</OutputItemType>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="..\GVFS.NativeTests\GVFS.NativeTests.vcxproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+    <None Include="$(RepoOutPath)GVFS.NativeTests\bin\x64\$(Configuration)\GVFS.NativeTests.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="$(RepoOutPath)GVFS.NativeTests\bin\x64\$(Configuration)\GVFS.NativeTests.pdb">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
-  <ItemGroup>
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\$(Platform)\**\*.*" />
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Service.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\**\*.*" />
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\**\*.*" />
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\**\*.*" />
-  </ItemGroup>
-
-  <Target Name="CopyWindowsTestDependencies" AfterTargets="PostBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
-    <Copy SourceFiles="@(WindowsBuildOutputs)" DestinationFolder="$(TargetDir)\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" />
-  </Target>
-  
 </Project>
