@@ -1,0 +1,136 @@
+name: VFS for Git
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master, releases/shipped ]
+
+jobs:
+  build:
+    runs-on: windows-2019
+    name: Build and Unit Test
+
+    strategy:
+      matrix:
+        configuration: [ Debug, Release ]
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+      with:
+        path: src
+
+    - name: Install .NET SDK
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.201
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1.0.2
+
+    - name: Build VFS for Git
+      shell: cmd
+      run: src\scripts\Build.bat ${{ matrix.configuration }}
+
+    - name: Run unit tests
+      shell: cmd
+      run: src\scripts\RunUnitTests.bat ${{ matrix.configuration }}
+
+    - name: Create build artifacts
+      shell: cmd
+      run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts
+
+    - name: Upload functional tests drop
+      uses: actions/upload-artifact@v2
+      with:
+        name: FunctionalTests_${{ matrix.configuration }}
+        path: artifacts\GVFS.FunctionalTests
+
+    - name: Upload FastFetch drop
+      uses: actions/upload-artifact@v2
+      with:
+        name: FastFetch_${{ matrix.configuration }}
+        path: artifacts\FastFetch
+
+    - name: Upload installers
+      uses: actions/upload-artifact@v2
+      with:
+        name: Installers_${{ matrix.configuration }}
+        path: artifacts\GVFS.Installers
+
+    - name: Upload NuGet packages
+      uses: actions/upload-artifact@v2
+      with:
+        name: NuGetPackages_${{ matrix.configuration }}
+        path: artifacts\NuGetPackages
+
+  functional_test:
+    runs-on: windows-2019
+    name: Functional Tests
+    needs: build
+
+    # Only run the fuctional tests on pushes (not PRs)
+    if: ${{ github.event_name == 'push' }}
+
+    strategy:
+      matrix:
+        configuration: [ Debug, Release ]
+
+    steps:
+    - name: Download installers
+      uses: actions/download-artifact@v2
+      with:
+        name: Installers_${{ matrix.configuration }}
+        path: install
+
+    - name: Download functional tests drop
+      uses: actions/download-artifact@v2
+      with:
+        name: FunctionalTests_${{ matrix.configuration }}
+        path: ft
+
+    - name: ProjFS details (pre-install)
+      shell: cmd
+      run: install\info.bat
+
+    - name: Install product
+      shell: cmd
+      run: install\install.bat
+
+    - name: ProjFS details (post-install)
+      shell: cmd
+      run: install\info.bat
+
+    - name: Upload installation logs
+      if: always()
+      uses: actions/upload-artifact@v2
+      with:
+        name: InstallationLogs_${{ matrix.configuration }}
+        path: install\logs
+
+    - name: Run functional tests
+      shell: cmd
+      run: |
+        SET PATH=C:\Program Files\GVFS;%PATH%
+        SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
+        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci
+
+    - name: Upload functional test results
+      if: always()
+      uses: actions/upload-artifact@v2
+      with:
+        name: FunctionalTests_Results_${{ matrix.configuration }}
+        path: TestResult.xml
+
+    - name: Upload Git trace2 output
+      if: always()
+      uses: actions/upload-artifact@v2
+      with:
+        name: GitTrace2_${{ matrix.configuration }}
+        path: C:\temp\git-trace2.log
+
+    - name: ProjFS details (post-test)
+      if: always()
+      shell: cmd
+      run: install\info.bat
