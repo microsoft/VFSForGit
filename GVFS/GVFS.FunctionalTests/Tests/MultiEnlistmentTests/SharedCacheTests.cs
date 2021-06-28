@@ -80,7 +80,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.TestNeedsToLockFile)]
         public void CloneCleansUpStaleMetadataLock()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();

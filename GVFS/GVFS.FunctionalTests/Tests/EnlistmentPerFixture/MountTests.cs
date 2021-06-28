@@ -30,16 +30,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.fileSystem = new SystemIORunner();
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                this.fileDeletedBackgroundOperationCode = 16;
-                this.directoryDeletedBackgroundOperationCode = 17;
-            }
-            else
-            {
-                this.fileDeletedBackgroundOperationCode = 3;
-                this.directoryDeletedBackgroundOperationCode = 11;
-            }
+            this.fileDeletedBackgroundOperationCode = 3;
+            this.directoryDeletedBackgroundOperationCode = 11;
         }
 
         [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]
@@ -97,7 +89,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.WindowsOnly)] // Only Windows uses GitHooksLoader.exe and merges hooks
         public void MountMergesLocalPrePostHooksConfig()
         {
             // Create some dummy pre/post command hooks
@@ -379,7 +370,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         // Ported from ProjFS's BugRegressionTest
         [TestCase]
-        [Category(Categories.WindowsOnly)]
         public void ProjFS_CMDHangNoneActiveInstance()
         {
             this.Enlistment.UnmountGVFS();

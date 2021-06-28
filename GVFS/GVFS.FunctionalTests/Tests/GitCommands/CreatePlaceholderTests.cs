@@ -39,7 +39,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase("reset --stdin")]
         [TestCase("send-pack --stdin URL")]
         [TestCase("update-index --stdin")]
-        [Category(Categories.WindowsOnly)] // Mac never blocks placeholder creation
         public void BlocksPlaceholderCreationWhileGitCommandIsRunning(string commandToRun)
         {
             this.CheckPlaceholderCreation(commandToRun, shouldAllow: false);

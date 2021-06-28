@@ -81,7 +81,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
-        [Category(Categories.WindowsOnly)]
         public void NewFileAttributesAreUpdated(string parentFolder)
         {
             string filename = Path.Combine(parentFolder, "FileAttributesAreUpdated");
@@ -109,7 +108,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
-        [Category(Categories.WindowsOnly)]
         public void NewFolderAttributesAreUpdated(string parentFolder)
         {
             string folderName = Path.Combine(parentFolder, "FolderAttributesAreUpdated");
@@ -136,7 +134,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
-        [Category(Categories.WindowsOnly)]
         public void ExpandedFileAttributesAreUpdated()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -182,7 +179,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
-        [Category(Categories.WindowsOnly)]
         public void UnhydratedFolderAttributesAreUpdated()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -509,10 +505,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             virtualPath.ShouldNotExistOnDisk(fileSystem);
         }
 
-        // WindowsOnly because file timestamps on Mac are set to the time at which
-        // placeholders are written
         [TestCase]
-        [Category(Categories.WindowsOnly)]
         public void ProjectedBlobFileTimesMatchHead()
         {
             // TODO: 467539 - Update all runners to support getting create/modify/access times
@@ -536,7 +529,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
-        [Category(Categories.WindowsOnly)]
         public void ProjectedBlobFolderTimesMatchHead()
         {
             // TODO: 467539 - Update all runners to support getting create/modify/access times
@@ -814,23 +806,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             indexFilePath.ShouldBeAFile(fileSystem);
         }
 
-        // On some platforms, a pre-rename event may be delivered prior to a
-        // file rename rather than a pre-delete event, so we check this
-        // separately from the DeleteIndexFileFails() test case
-        // This test is failing on Windows because the CmdRunner succeeds in moving the index file
-        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
-        [Category(Categories.POSIXOnly)]
-        public void MoveIndexFileFails(FileSystemRunner fileSystem)
-        {
-            string indexFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index"));
-            string indexTargetFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index_target"));
-            indexFilePath.ShouldBeAFile(fileSystem);
-            indexTargetFilePath.ShouldNotExistOnDisk(fileSystem);
-            fileSystem.ReplaceFile_AccessShouldBeDenied(indexFilePath, indexTargetFilePath);
-            indexFilePath.ShouldBeAFile(fileSystem);
-            indexTargetFilePath.ShouldNotExistOnDisk(fileSystem);
-        }
-
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Runners))]
         public void MoveVirtualNTFSFolderIntoInvalidFolder(FileSystemRunner fileSystem, string parentFolder)
         {
@@ -880,7 +855,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
-        [Category(Categories.WindowsOnly)]
         public void CreateFileInheritsParentDirectoryAttributes(string parentFolder)
         {
             string parentDirectoryPath = this.Enlistment.GetVirtualPathTo(Path.Combine(parentFolder, "CreateFileInheritsParentDirectoryAttributes"));
@@ -897,7 +871,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
-        [Category(Categories.WindowsOnly)]
         public void CreateDirectoryInheritsParentDirectoryAttributes(string parentFolder)
         {
             string parentDirectoryPath = this.Enlistment.GetVirtualPathTo(Path.Combine(parentFolder, "CreateDirectoryInheritsParentDirectoryAttributes"));
@@ -911,30 +884,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             targetDirPath.ShouldBeADirectory(FileSystemRunner.DefaultRunner).WithAttribute(FileAttributes.NoScrubData);
 
             FileSystemRunner.DefaultRunner.DeleteDirectory(parentDirectoryPath);
-        }
-
-        [TestCase]
-        [Category(Categories.POSIXOnly)]
-        public void RunPythonExecutable()
-        {
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout FunctionalTests/PythonExecutable");
-
-            // Found an issue on Mac where running a python executable that is a placeholder, fails
-            // The fix was to always hydrate executables (no placeholders for this mode)
-            // To repro this issue in the C# framework the python executable must be run via a wrapper
-            string pythonDirectory = Path.Combine(this.Enlistment.RepoRoot, "Test_Executable");
-            string pythonExecutable = Path.Combine(pythonDirectory, "python_wrapper.sh");
-
-            ProcessStartInfo startInfo = new ProcessStartInfo(pythonExecutable);
-            startInfo.RedirectStandardOutput = true;
-            startInfo.RedirectStandardError = true;
-            startInfo.WorkingDirectory = pythonDirectory;
-
-            ProcessResult result = ProcessHelper.Run(startInfo);
-            result.ExitCode.ShouldEqual(0);
-            result.Output.ShouldContain("3.14");
-
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
         }
 
         private void VerifyExistenceAfterDeleteWhileOpen(string filePath, FileSystemRunner fileSystem)

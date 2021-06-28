@@ -299,15 +299,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             string bashPath = this.ConvertWinPathToBashPath(path);
 
-            string statCommand = null;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                statCommand = string.Format("-c \"stat -f \"%z\" '{0}'\"", bashPath);
-            }
-            else
-            {
-                statCommand = string.Format("-c \"stat --format \"%s\" '{0}'\"", bashPath);
-            }
+            string statCommand = string.Format("-c \"stat --format \"%s\" '{0}'\"", bashPath);
 
             return long.Parse(this.RunProcess(statCommand));
         }

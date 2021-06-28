@@ -9,7 +9,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GVFS.FunctionalTests.Tests
@@ -492,21 +491,13 @@ namespace GVFS.FunctionalTests.Tests
         {
             args = args + " --verbose";
 
-            string fastfetch;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "FastFetch.dll");
-            }
-            else
-            {
-                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "FastFetch.dll");
-            }
+            string fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "FastFetch.exe");
 
             File.Exists(fastfetch).ShouldBeTrue($"{fastfetch} did not exist.");
             Console.WriteLine($"Using {fastfetch}");
 
-            ProcessStartInfo processInfo = new ProcessStartInfo("dotnet");
-            processInfo.Arguments = $"{fastfetch} {args}";
+            ProcessStartInfo processInfo = new ProcessStartInfo(fastfetch);
+            processInfo.Arguments = args;
             processInfo.WorkingDirectory = this.fastFetchRepoRoot;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
