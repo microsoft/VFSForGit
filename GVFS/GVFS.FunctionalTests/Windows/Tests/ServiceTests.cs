@@ -14,7 +14,6 @@ namespace GVFS.FunctionalTests.Windows.Tests
     [TestFixture]
     [NonParallelizable]
     [Category(Categories.ExtraCoverage)]
-    [Category(Categories.WindowsOnly)]
     public class ServiceTests : TestsWithEnlistmentPerFixture
     {
         private const string NativeLibPath = @"C:\Program Files\GVFS\ProjectedFSLib.dll";
@@ -31,11 +30,6 @@ namespace GVFS.FunctionalTests.Windows.Tests
         [TestCase]
         public void MountAsksServiceToEnsurePrjFltServiceIsHealthy()
         {
-            if (!GVFSTestConfig.TestGVFSOnPath)
-            {
-                Assert.Ignore("Skipping test, test only enabled when --test-gvfs-on-path is set");
-            }
-
             this.Enlistment.UnmountGVFS();
             StopPrjFlt();
 
@@ -53,11 +47,6 @@ namespace GVFS.FunctionalTests.Windows.Tests
         [TestCase]
         public void ServiceStartsPrjFltService()
         {
-            if (!GVFSTestConfig.TestGVFSOnPath)
-            {
-                Assert.Ignore("Skipping test, test only enabled when --test-gvfs-on-path is set");
-            }
-
             this.Enlistment.UnmountGVFS();
             StopPrjFlt();
             GVFSServiceProcess.StopService();

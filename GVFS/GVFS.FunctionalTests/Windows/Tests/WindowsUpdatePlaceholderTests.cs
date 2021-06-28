@@ -13,7 +13,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     // WindowsOnly because tests in this class depend on Windows specific file sharing behavior
     [TestFixture]
-    [Category(Categories.WindowsOnly)]
     [Category(Categories.GitCommands)]
     public class WindowsUpdatePlaceholderTests : TestsWithEnlistmentPerFixture
     {

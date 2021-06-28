@@ -16,7 +16,6 @@ using System.Threading;
 namespace GVFS.FunctionalTests.Windows.Windows.Tests
 {
     [TestFixture]
-    [Category(Categories.WindowsOnly)]
     public class WindowsFileSystemTests : TestsWithEnlistmentPerFixture
     {
         private enum CreationDisposition

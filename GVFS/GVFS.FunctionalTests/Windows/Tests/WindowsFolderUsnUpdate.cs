@@ -10,7 +10,6 @@ using System.Text.RegularExpressions;
 namespace GVFS.FunctionalTests.Windows.Windows.Tests
 {
     [TestFixture]
-    [Category(Categories.WindowsOnly)]
     [Category(Categories.GitCommands)]
     [Ignore("fsutil requires WSL be enabled.  Need to find a way to enable for builds or a different way to get the USN for the folder.")]
     public class WindowsFolderUsnUpdate : TestsWithEnlistmentPerFixture

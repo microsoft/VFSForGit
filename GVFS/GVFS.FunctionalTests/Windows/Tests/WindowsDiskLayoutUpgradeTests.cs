@@ -13,7 +13,6 @@ namespace GVFS.FunctionalTests.Windows.Tests
 {
     [TestFixture]
     [Category(Categories.ExtraCoverage)]
-    [Category(Categories.WindowsOnly)]
     public class WindowsDiskLayoutUpgradeTests : DiskLayoutUpgradeTests
     {
         public const int CurrentDiskLayoutMajorVersion = 19;

@@ -10,7 +10,6 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [Category(Categories.WindowsOnly)]
     [Category(Categories.GitCommands)]
     public class WindowsTombstoneTests : TestsWithEnlistmentPerFixture
     {

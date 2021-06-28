@@ -13,7 +13,6 @@ namespace GVFS.FunctionalTests.Windows.Tests
 {
     [TestFixture]
     [Category(Categories.ExtraCoverage)]
-    [Category(Categories.WindowsOnly)]
     public class JunctionAndSubstTests : TestsWithEnlistmentPerFixture
     {
         private const string SubstDrive = "Q:";
