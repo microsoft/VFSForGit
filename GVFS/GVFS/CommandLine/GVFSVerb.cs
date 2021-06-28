@@ -877,33 +877,42 @@ You can specify a URL, a name of a configured cache server, or the special names
             GitVersion gitVersion = null;
             if (string.IsNullOrEmpty(enlistment.GitBinPath) || !GitProcess.TryGetVersion(enlistment.GitBinPath, out gitVersion, out string _))
             {
-                this.ReportErrorAndExit(tracer, "Error: Unable to retrieve the git version");
+                this.ReportErrorAndExit(tracer, "Error: Unable to retrieve the Git version");
             }
 
             version = gitVersion.ToString();
 
             if (gitVersion.Platform != GVFSConstants.SupportedGitVersion.Platform)
             {
-                this.ReportErrorAndExit(tracer, "Error: Invalid version of git {0}.  Must use gvfs version.", version);
+                this.ReportErrorAndExit(tracer, "Error: Invalid version of Git {0}. Must use vfs version.", version);
             }
 
             if (gitVersion.IsLessThan(GVFSConstants.SupportedGitVersion))
             {
                 this.ReportErrorAndExit(
                     tracer,
-                    "Error: Installed git version {0} is less than the supported version of {1}.",
+                    "Error: Installed Git version {0} is less than the minimum supported version of {1}.",
                     gitVersion,
                     GVFSConstants.SupportedGitVersion);
             }
+            /* We require that the revision (Z) of the Git version string (2.X.Y.vfs.Z.W)
+             * is an exact match. We will use this to signal that a microsoft/git version introduces
+             * a breaking change that requires a VFS for Git upgrade.
+             * Using the revision part allows us to modify the other version items arbitrarily,
+             * including taking version numbers 2.X.Y from upstream and updating .W if we have any
+             * hotfixes to microsoft/git.
+             */
             else if (gitVersion.Revision != GVFSConstants.SupportedGitVersion.Revision)
             {
                 this.ReportErrorAndExit(
                     tracer,
-                    "Error: Installed git version {0} has revision number {1} instead of {2}." +
-                     " This Git version is too new, so either downgrade Git or upgrade VFS for Git",
+                    "Error: Installed Git version {0} has revision number {1} instead of {2}." +
+                     " This Git version is too new, so either downgrade Git or upgrade VFS for Git." +
+                     " The minimum supported version of Git is {3}.",
                     gitVersion,
                     gitVersion.Revision,
-                    GVFSConstants.SupportedGitVersion.Revision);
+                    GVFSConstants.SupportedGitVersion.Revision,
+                    GVFSConstants.SupportedGitVersion);
             }
         }
 
