@@ -2,7 +2,7 @@ name: VFS for Git
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [ master, releases/shipped ]
   push:
     branches: [ master, releases/shipped ]
 
