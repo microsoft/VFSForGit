@@ -206,44 +206,20 @@ namespace GVFS.FunctionalTests.Tools
 
         public static void RegisterForOfflineIO()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                uint result = PrjFSRegisterForOfflineIO();
-                result.ShouldEqual<uint>(PrjFSResultSuccess, $"{nameof(RegisterForOfflineIO)} failed (result = {result})");
-            }
         }
 
         public static void UnregisterForOfflineIO()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                uint result = PrjFSUnregisterForOfflineIO();
-                result.ShouldEqual<uint>(PrjFSResultSuccess, $"{nameof(RegisterForOfflineIO)} failed (result = {result})");
-            }
         }
 
         public static int GetCurrentDiskLayoutMajorVersion()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                return MacCurrentDiskLayoutMajorVersion;
-            }
-            else
-            {
-                return WindowsCurrentDiskLayoutMajorVersion;
-            }
+            return WindowsCurrentDiskLayoutMajorVersion;
         }
 
         public static int GetCurrentDiskLayoutMinimumMajorVersion()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                return MacCurrentDiskLayoutMinimumMajorVersion;
-            }
-            else
-            {
-                return WindowsCurrentDiskLayoutMinimumMajorVersion;
-            }
+            return WindowsCurrentDiskLayoutMinimumMajorVersion;
         }
 
         private static string GetModifiedPathsContents(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem)

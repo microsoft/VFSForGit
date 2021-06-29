@@ -1,0 +1,11 @@
+<Project>
+
+  <!-- Define common properties that rely on SDK/props-defined properties -->
+  <PropertyGroup>
+    <Version>$(GVFSVersion)</Version>
+  </PropertyGroup>
+
+  <!-- Include custom MSBuild targets/tasks -->
+  <Import Project="$(MSBuildThisFileDirectory)GVFS\GVFS.MSBuild\GVFS.targets" />
+
+</Project>

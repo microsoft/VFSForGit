@@ -143,7 +143,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(6)]
-        [Category(Categories.WindowsOnly)]
         public void CreatingFolderShouldAddToSparseListAndStartProjecting()
         {
             this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
@@ -155,33 +154,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             newFolderPath.ShouldBeADirectory(this.fileSystem);
             string[] fileSystemEntries = Directory.GetFileSystemEntries(newFolderPath);
             fileSystemEntries.Length.ShouldEqual(32);
-            this.ValidateFoldersInSparseList(this.mainSparseFolder, Path.Combine("GVFS", "GVFS.Common"));
-
-            string projectedFolder = Path.Combine(newFolderPath, "Git");
-            projectedFolder.ShouldBeADirectory(this.fileSystem);
-            fileSystemEntries = Directory.GetFileSystemEntries(projectedFolder);
-            fileSystemEntries.Length.ShouldEqual(13);
-
-            string projectedFile = Path.Combine(newFolderPath, "ReturnCode.cs");
-            projectedFile.ShouldBeAFile(this.fileSystem);
-        }
-
-        [TestCase, Order(7)]
-        [Category(Categories.MacOnly)]
-        public void CreateFolderThenFileShouldAddToSparseListAndStartProjecting()
-        {
-            this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateFoldersInSparseList(this.mainSparseFolder);
-
-            string newFolderPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Common");
-            newFolderPath.ShouldNotExistOnDisk(this.fileSystem);
-            Directory.CreateDirectory(newFolderPath);
-            string newFilePath = Path.Combine(newFolderPath, "test.txt");
-            File.WriteAllText(newFilePath, "New file content");
-            newFolderPath.ShouldBeADirectory(this.fileSystem);
-            newFilePath.ShouldBeAFile(this.fileSystem);
-            string[] fileSystemEntries = Directory.GetFileSystemEntries(newFolderPath);
-            fileSystemEntries.Length.ShouldEqual(33);
             this.ValidateFoldersInSparseList(this.mainSparseFolder, Path.Combine("GVFS", "GVFS.Common"));
 
             string projectedFolder = Path.Combine(newFolderPath, "Git");
@@ -298,33 +270,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] fileSystemEntries = Directory.GetFileSystemEntries(folderPath);
             fileSystemEntries.Length.ShouldEqual(1);
             fileToCreate.ShouldBeAFile(this.fileSystem);
-        }
-
-        [TestCase, Order(13)]
-        [Category(Categories.MacOnly)]
-        public void CreateFolderAndFileThatAreExcluded()
-        {
-            this.gvfsProcess.AddSparseFolders(this.mainSparseFolder);
-            this.ValidateFoldersInSparseList(this.mainSparseFolder);
-
-            // Create a file that should already be in the projection but excluded
-            string newFolderPath = Path.Combine(this.Enlistment.RepoRoot, "GVFS", "GVFS.Mount");
-            newFolderPath.ShouldNotExistOnDisk(this.fileSystem);
-            Directory.CreateDirectory(newFolderPath);
-            string newFilePath = Path.Combine(newFolderPath, "Program.cs");
-            File.WriteAllText(newFilePath, "New file content");
-            newFolderPath.ShouldBeADirectory(this.fileSystem);
-            newFilePath.ShouldBeAFile(this.fileSystem);
-            string[] fileSystemEntries = Directory.GetFileSystemEntries(newFolderPath);
-            fileSystemEntries.Length.ShouldEqual(7);
-
-            string projectedFolder = Path.Combine(newFolderPath, "Properties");
-            projectedFolder.ShouldBeADirectory(this.fileSystem);
-            fileSystemEntries = Directory.GetFileSystemEntries(projectedFolder);
-            fileSystemEntries.Length.ShouldEqual(1);
-
-            string projectedFile = Path.Combine(newFolderPath, "MountVerb.cs");
-            projectedFile.ShouldBeAFile(this.fileSystem);
         }
 
         [TestCase, Order(14)]

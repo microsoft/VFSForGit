@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.Build.NoTargets">
+
+  <PropertyGroup>
+    <TargetFramework>net461</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <LayoutPath>$(RepoOutPath)GVFS.Payload\bin\$(Configuration)\win-x64\</LayoutPath>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <PackageReference ExcludeAssets="all" GeneratePathProperty="true" />
+    <Content CopyToOutputDirectory="PreserveNewest" />
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tools.InnoSetup" Version="5.5.9" />
+    <PackageReference Include="GitForWindows.GVFS.Installer" Version="$(GitPackageVersion)" />
+    <PackageReference Include="GitForWindows.GVFS.Portable" Version="$(GitPackageVersion)" />
+    <PackageReference Include="MicroBuild.Core" Version="0.2.0" ExcludeAssets="none" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GVFS.Payload\GVFS.Payload.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Setup.iss" />
+    <Content Include="$(PkgGitForWindows_GVFS_Installer)\tools\*" />
+    <Content Include="$(PkgGitForWindows_GVFS_Portable)\tools\*" />
+    <Content Include="install.bat" />
+    <Content Include="info.bat" />
+    <NuspecTemplate Include="GVFS.Installers.template.nuspec"
+                    TargetPath="GVFS.Installers.nuspec"
+                    Properties="$version$=$(GVFSVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FilesToSign Include="$(OutputPath)SetupGVFS.$(GVFSVersion).exe">
+      <Authenticode>Microsoft400</Authenticode>
+      <InProject>false</InProject>
+    </FilesToSign>
+  </ItemGroup>
+
+  <Target Name="CreateInstaller" BeforeTargets="Build;SignFiles">
+    <Exec Command="$(PkgTools_InnoSetup)\tools\ISCC.exe /DLayoutDir=$(LayoutPath) /DGVFSVersion=$(GVFSVersion) Setup.iss /O$(OutputPath)" />
+  </Target>
+
+  <Target Name="CreateNuspecFile" AfterTargets="CreateInstaller">
+    <CompileTemplatedFile Template="@(NuspecTemplate)" OutputFile="$(OutputPath)\%(TargetPath)" />
+  </Target>
+
+  <Target Name="CleanInstaller" BeforeTargets="AfterClean">
+    <ItemGroup>
+      <FilesToDelete Include="$(OutputPath)**\*"/>
+    </ItemGroup>
+    <Delete Files="@(FilesToDelete)" />
+  </Target>
+
+</Project>

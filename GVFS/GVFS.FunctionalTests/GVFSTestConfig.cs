@@ -14,18 +14,13 @@ namespace GVFS.FunctionalTests
 
         public static object[] GitRepoTestsValidateWorkTree { get; set; }
 
-        public static bool TestGVFSOnPath { get; set; }
-
         public static bool ReplaceInboxProjFS { get; set; }
 
         public static string PathToGVFS
         {
             get
             {
-                return
-                    TestGVFSOnPath ?
-                    Properties.Settings.Default.PathToGVFS :
-                    Path.Combine(Properties.Settings.Default.CurrentDirectory, Properties.Settings.Default.PathToGVFS);
+                return Properties.Settings.Default.PathToGVFS;
             }
         }
 

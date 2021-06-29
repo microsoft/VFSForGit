@@ -61,7 +61,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         }
 
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
-        [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
         public void ModifiedPathsFromChangesInsideRepoSavedAfterRemount(FileSystemRunner fileSystem)
         {
             string[] expectedModifiedFilesContentsAfterRemount =
@@ -134,8 +133,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         }
 
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
-        [Category(Categories.RepositoryMountsSameFileSystem)]
-        [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
         public void ModifiedPathsFromRenamingOutsideRepoSavedAfterRemount(FileSystemRunner fileSystem)
         {
             string[] expectedModifiedFilesContentsAfterRemount =
@@ -221,7 +218,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         }
 
         [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
-        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void ModifiedPathsCorrectAfterHardLinkingOutsideRepo(FileSystemRunner fileSystem)
         {
             string[] expectedModifiedFilesContentsAfterHardlinks =

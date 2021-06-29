@@ -1,42 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\GVFS.Build\GVFS.cs.props" />
+
   <PropertyGroup>
+    <TargetFramework>net461</TargetFramework>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
-    <Platforms>x64</Platforms>
-    <!-- see https://github.com/NuGet/Home/issues/4837 for reference to CopyLocalLockFileAssemblies -->
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <RuntimeIdentifiers>win-x64;osx-x64</RuntimeIdentifiers>
-  </PropertyGroup>
-  
-  <PropertyGroup>
-    <RootNamespace>GVFS.FunctionalTests.LockHolder</RootNamespace>
-    <AssemblyName>GVFS.FunctionalTests.LockHolder</AssemblyName>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64' ">
-    <Version>$(GVFSVersion)</Version>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64' ">
-    <Version>$(GVFSVersion)</Version>
-  </PropertyGroup>
-  
-  <ItemGroup>
-    <Compile Include="..\GVFS.Platform.POSIX\POSIXFileSystem.Shared.cs" Link="POSIXFileSystem.Shared.cs" />
-    <Compile Include="..\GVFS.Platform.POSIX\POSIXPlatform.Shared.cs" Link="POSIXPlatform.Shared.cs" />
-    <Compile Include="..\GVFS.Platform.Windows\WindowsFileSystem.Shared.cs" Link="WindowsFileSystem.Shared.cs" />
-  </ItemGroup>
-  
-  <ItemGroup>
-    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
-    <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
-  </ItemGroup>
-  
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.1.1-beta" />
-    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
+    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
+    <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
+  </ItemGroup>
+
 </Project>

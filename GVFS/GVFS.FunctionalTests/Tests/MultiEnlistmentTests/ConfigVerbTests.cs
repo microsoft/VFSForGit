@@ -3,14 +3,11 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
     [Category(Categories.ExtraCoverage)]
-    [Category(Categories.MacTODO.NeedsGVFSConfig)]
     public class ConfigVerbTests : TestsWithMultiEnlistment
     {
         private const string IntegerSettingKey = "functionalTest_Integer";
