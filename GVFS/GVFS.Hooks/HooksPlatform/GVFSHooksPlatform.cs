@@ -37,19 +37,9 @@ namespace GVFS.Hooks.HooksPlatform
             return WindowsFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
         }
 
-        public static string GetUpgradeHighestAvailableVersionDirectory()
-        {
-            return WindowsPlatform.GetUpgradeHighestAvailableVersionDirectoryImplementation();
-        }
-
         public static string GetGitGuiBlockedMessage()
         {
             return "To access the 'git gui' in a GVFS repo, please invoke 'git-gui.exe' instead.";
-        }
-
-        public static string GetUpgradeReminderNotification()
-        {
-            return WindowsPlatform.GetUpgradeReminderNotificationImplementation();
         }
     }
 }

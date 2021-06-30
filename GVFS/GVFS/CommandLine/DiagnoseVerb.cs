@@ -140,30 +140,6 @@ namespace GVFS.CommandLine
                             GVFSConstants.Service.UIName,
                             copySubFolders: true);
 
-                        if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
-                        {
-                            // upgrader
-                            this.CopyAllFiles(
-                                ProductUpgraderInfo.GetParentLogDirectoryPath(),
-                                archiveFolderPath,
-                                DeprecatedUpgradeLogsDirectory,
-                                copySubFolders: true,
-                                targetFolderName: Path.Combine(ProductUpgraderInfo.UpgradeDirectoryName, DeprecatedUpgradeLogsDirectory));
-
-                            this.CopyAllFiles(
-                                ProductUpgraderInfo.GetParentLogDirectoryPath(),
-                                archiveFolderPath,
-                                ProductUpgraderInfo.LogDirectory,
-                                copySubFolders: true,
-                                targetFolderName: Path.Combine(ProductUpgraderInfo.UpgradeDirectoryName, ProductUpgraderInfo.LogDirectory));
-
-                            this.LogDirectoryEnumeration(
-                                ProductUpgraderInfo.GetUpgradeProtectedDataDirectory(),
-                                Path.Combine(archiveFolderPath, ProductUpgraderInfo.UpgradeDirectoryName),
-                                ProductUpgraderInfo.DownloadDirectory,
-                                "downloaded-assets.txt");
-                        }
-
                         if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSConfig)
                         {
                             this.CopyFile(GVFSPlatform.Instance.GetSecureDataRootForGVFS(), archiveFolderPath, LocalGVFSConfig.FileName);

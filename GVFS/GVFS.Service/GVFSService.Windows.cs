@@ -305,16 +305,14 @@ namespace GVFS.Service
 
             DirectorySecurity serviceDataRootSecurity = this.GetServiceDirectorySecurity(serviceDataRootPath);
 
-            // Create GVFS.Service and GVFS.Upgrade related directories (if they don't already exist)
+            // Create GVFS.Service related directories (if they don't already exist)
             Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
             Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
-            Directory.CreateDirectory(ProductUpgraderInfo.GetUpgradeProtectedDataDirectory(), serviceDataRootSecurity);
 
             // Ensure the ACLs are set correctly on any files or directories that were already created (e.g. after upgrading VFS4G)
             Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
 
-            // Special rules for the upgrader logs, as non-elevated users need to be be able to write
-            this.CreateAndConfigureLogDirectory(ProductUpgraderInfo.GetLogDirectoryPath());
+            // Special rules for the Service.UI logs, as non-elevated users need to be be able to write
             this.CreateAndConfigureLogDirectory(GVFSPlatform.Instance.GetLogsDirectoryForGVFSComponent(GVFSConstants.Service.UIName));
         }
 
