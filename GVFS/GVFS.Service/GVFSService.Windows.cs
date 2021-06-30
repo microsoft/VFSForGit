@@ -26,7 +26,6 @@ namespace GVFS.Service
         private string serviceName;
         private string serviceDataLocation;
         private RepoRegistry repoRegistry;
-        private ProductUpgradeTimer productUpgradeTimer;
         private WindowsRequestHandler requestHandler;
         private INotificationHandler notificationHandler;
 
@@ -36,7 +35,6 @@ namespace GVFS.Service
             this.serviceName = GVFSConstants.Service.ServiceName;
             this.CanHandleSessionChangeEvent = true;
             this.notificationHandler = new NotificationHandler(tracer);
-            this.productUpgradeTimer = new ProductUpgradeTimer(tracer, this.notificationHandler);
         }
 
         public void Run()
@@ -74,12 +72,6 @@ namespace GVFS.Service
                         EnableAndAttachProjFSHandler.TryEnablePrjFlt(activity, out error);
                     }
 
-                    // Start product upgrade timer only after attempting to enable prjflt.
-                    // On Windows server (where PrjFlt is not inboxed) this helps avoid
-                    // a race between TryEnablePrjFlt() and installer pre-check which is
-                    // performed by UpgradeTimer in parallel.
-                    this.productUpgradeTimer.Start();
-
                     this.serviceStopped.WaitOne();
                 }
             }
@@ -98,11 +90,6 @@ namespace GVFS.Service
 
             try
             {
-                if (this.productUpgradeTimer != null)
-                {
-                    this.productUpgradeTimer.Stop();
-                }
-
                 if (this.tracer != null)
                 {
                     this.tracer.RelatedInfo("Stopping");
