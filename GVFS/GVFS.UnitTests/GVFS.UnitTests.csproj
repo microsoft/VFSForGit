@@ -11,7 +11,6 @@
     <ProjectReference Include="..\GVFS.Service.UI\GVFS.Service.UI.csproj" />
     <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj" />
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
-    <ProjectReference Include="..\GVFS.Upgrader\GVFS.Upgrader.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
     <ProjectReference Include="..\GVFS\GVFS.csproj" />
   </ItemGroup>

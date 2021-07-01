@@ -65,8 +65,6 @@ namespace GVFS.Hooks
                         {
                             RunLockRequest(args, unattended, ReleaseGVFSLock);
                         }
-
-                        RunPostCommands(args, unattended);
                         break;
 
                     default:
@@ -89,30 +87,6 @@ namespace GVFS.Hooks
                 case "pull":
                     ProcessHelper.Run("gvfs", "prefetch --commits", redirectOutput: false);
                     break;
-            }
-        }
-
-        private static void RunPostCommands(string[] args, bool unattended)
-        {
-            if (!unattended)
-            {
-                RemindUpgradeAvailable();
-            }
-        }
-
-        private static void RemindUpgradeAvailable()
-        {
-            // The idea is to generate a random number between 0 and 100. To make
-            // sure that the reminder is displayed only 10% of the times a git
-            // command is run, check that the random number is between 0 and 10,
-            // which will have a probability of 10/100 == 10%.
-            int reminderFrequency = 10;
-            int randomValue = random.Next(0, 100);
-
-            if ((IsUpgradeMessageDeterministic() || randomValue <= reminderFrequency) &&
-                ProductUpgraderInfo.IsLocalUpgradeAvailable(tracer: null, highestAvailableVersionDirectory: GVFSHooksPlatform.GetUpgradeHighestAvailableVersionDirectory()))
-            {
-                Console.WriteLine(Environment.NewLine + GVFSHooksPlatform.GetUpgradeReminderNotification());
             }
         }
 

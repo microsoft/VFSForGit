@@ -24,7 +24,6 @@
     <ProjectReference Include="..\GVFS.ReadObjectHook\GVFS.ReadObjectHook.vcxproj" />
     <ProjectReference Include="..\GVFS.Service.UI\GVFS.Service.UI.csproj" />
     <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj" />
-    <ProjectReference Include="..\GVFS.Upgrader\GVFS.Upgrader.csproj" />
     <ProjectReference Include="..\GVFS.VirtualFileSystemHook\GVFS.VirtualFileSystemHook.vcxproj" />
     <ProjectReference Include="..\GVFS\GVFS.csproj" />
   </ItemGroup>
@@ -50,7 +49,6 @@
       $(OutputPath)\GVFS.ReadObjectHook.exe;
       $(OutputPath)\GVFS.Service.exe;
       $(OutputPath)\GVFS.Service.UI.exe;
-      $(OutputPath)\GVFS.Upgrader.exe;
       $(OutputPath)\GVFS.VirtualFileSystemHook.exe;
       $(OutputPath)\GVFS.Virtualization.dll;">
       <Authenticode>Microsoft400</Authenticode>
