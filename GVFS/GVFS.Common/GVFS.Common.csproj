@@ -1,38 +1,32 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <Import Project="..\LibGit2Sharp.NativeBinaries.props" />
-  <Import Project="..\GVFS.Build\GVFS.cs.props" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netcoreapp2.1;netstandard2.0</TargetFrameworks>
-    <Platforms>x64</Platforms>
+    <TargetFramework>net461</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Version>$(GVFSVersion)</Version>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <Version>$(GVFSVersion)</Version>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Include="..\..\..\BuildOutput\GVFS.Build\GVFSConstants.GitVersion.cs" Link="GVFSConstants.GitVersion.cs" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.278" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="2.2.4" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
-    <PackageReference Include="NuGet.Commands" Version="4.9.2" />
     <PackageReference Include="SharpZipLib" Version="1.2.0" />
-    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="NuGet.Protocol" Version="4.9.2" />
-    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.3.0" />
+    <PackageReference Include="NuGet.Commands" Version="4.9.2" />
   </ItemGroup>
+
   <ItemGroup>
-    <Folder Include="X509Certificates\" />
+    <Reference Include="System.Web" />
   </ItemGroup>
+
+  <Target Name="_GenerateConstantsFile" BeforeTargets="BeforeCompile">
+    <!-- Generate GVFS constants file with the minimum Git version -->
+    <GenerateGVFSConstants MinimumGitVersion="$(MinimumGitVersion)"
+                           LibGit2FileName="$(libgit2_filename)"
+                           OutputFile="$(IntermediateOutputPath)GVFSConstants.g.cs" />
+    <!-- Add the generated file to the list of file writes for MSBuild to keep track of for clean-up -->
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)GVFSConstants.g.cs" />
+      <FileWrites Include="$(IntermediateOutputPath)GVFSConstants.g.cs"/>
+    </ItemGroup>
+  </Target>
+
 </Project>

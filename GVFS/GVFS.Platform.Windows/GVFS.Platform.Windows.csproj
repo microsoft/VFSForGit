@@ -1,134 +1,25 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <Import Project="..\GVFS.Build\GVFS.cs.props" />
-  <Import Project="..\GVFS.Build\ProjFS.props" />
+<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <ProjectGuid>{4CE404E7-D3FC-471C-993C-64615861EA63}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>GVFS.Platform.Windows</RootNamespace>
-    <AssemblyName>GVFS.Platform.Windows</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
+    <TargetFramework>net461</TargetFramework>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <DebugSymbols>true</DebugSymbols>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <DebugType>full</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="Esent.Collections, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Microsoft.Database.Collections.Generic.1.9.4\lib\net40\Esent.Collections.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Esent.Interop, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\ManagedEsent.1.9.4\lib\net40\Esent.Interop.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Esent.Isam, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Microsoft.Database.Isam.1.9.4\lib\net40\Esent.Isam.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="ProjectedFSLib.Managed, Version=1.1.19156.1, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
-      <HintPath>..\..\..\packages\Microsoft.Windows.ProjFS.1.1.19156.1\lib\net461\ProjectedFSLib.Managed.dll</HintPath>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
+    <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj" />
+    <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ManagedEsent" Version="1.9.4" />
+    <PackageReference Include="Microsoft.Database.Collections.Generic" Version="1.9.4" />
+    <PackageReference Include="Microsoft.Database.Isam" Version="1.9.4" />
+    <PackageReference Include="Microsoft.Windows.ProjFS" Version="1.1.19156.1" />
+    <PackageReference Include="System.Management.Automation.dll" Version="10.0.10586.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="System.Management" />
-    <Reference Include="System.Management.Automation, Version=3.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\System.Management.Automation.dll.10.0.10586.0\lib\net40\System.Management.Automation.dll</HintPath>
-    </Reference>
     <Reference Include="System.ServiceProcess" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Xml" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="CurrentUser.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout10to11Upgrade_NewOperationType.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout11to12Upgrade_SharedLocalCache.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout12to13Upgrade_FolderPlaceholder.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout12_0To12_1Upgrade_StatusAheadBehind.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout13to14Upgrade_BlobSizes.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout14to15Upgrade_ModifiedPaths.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout15to16Upgrade_GitStatusCache.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout16to17Upgrade_FolderPlaceholderValues.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout17to18Upgrade_TombstoneFolderPlaceholders.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout18to19Upgrade_SqlitePlacholders.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout7to8Upgrade_NewOperationType.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout8to9Upgrade_RepoMetadataToJson.cs" />
-    <Compile Include="DiskLayoutUpgrades\DiskLayout9to10Upgrade_BackgroundAndPlaceholderListToFileBased.cs" />
-    <Compile Include="DiskLayoutUpgrades\WindowsDiskLayoutUpgradeData.cs" />
-    <Compile Include="ActiveEnumeration.cs" />
-    <Compile Include="HResultExtensions.cs" />
-    <Compile Include="PatternMatcher.cs">
-      <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
-    </Compile>
-    <Compile Include="ProjFSFilter.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="WindowsFileBasedLock.cs" />
-    <Compile Include="WindowsFileSystem.Shared.cs" />
-    <Compile Include="WindowsFileSystemVirtualizer.cs" />
-    <Compile Include="WindowsGitHooksInstaller.cs" />
-    <Compile Include="WindowsGitInstallation.cs" />
-    <Compile Include="WindowsPhysicalDiskInfo.cs" />
-    <Compile Include="WindowsPlatform.cs" />
-    <Compile Include="WindowsPlatform.Shared.cs" />
-    <Compile Include="WindowsProductUpgraderPlatformStrategy.cs" />
-    <Compile Include="WindowsFileSystem.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config">
-      <SubType>Designer</SubType>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj">
-      <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
-      <Name>GVFS.Common</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj">
-      <Project>{1118b427-7063-422f-83b9-5023c8ec5a7a}</Project>
-      <Name>GVFS.GVFlt</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj">
-      <Project>{f468b05a-95e5-46bc-8c67-b80a78527b7d}</Project>
-      <Name>GVFS.Virtualization</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <Analyzer Include="..\..\..\packages\StyleCop.Analyzers.1.0.2\analyzers\dotnet\cs\StyleCop.Analyzers.CodeFixes.dll" />
-    <Analyzer Include="..\..\..\packages\StyleCop.Analyzers.1.0.2\analyzers\dotnet\cs\StyleCop.Analyzers.dll" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-  </Target>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
+
 </Project>

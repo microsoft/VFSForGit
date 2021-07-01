@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests
 {
@@ -14,6 +13,11 @@ namespace GVFS.FunctionalTests
         public static void Main(string[] args)
         {
             Properties.Settings.Default.Initialize();
+            Console.WriteLine("Settings.Default.CurrentDirectory: {0}", Settings.Default.CurrentDirectory);
+            Console.WriteLine("Settings.Default.PathToGit: {0}", Settings.Default.PathToGit);
+            Console.WriteLine("Settings.Default.PathToGVFS: {0}", Settings.Default.PathToGVFS);
+            Console.WriteLine("Settings.Default.PathToGVFSService: {0}", Settings.Default.PathToGVFSService);
+
             NUnitRunner runner = new NUnitRunner(args);
             runner.AddGlobalSetupIfNeeded("GVFS.FunctionalTests.GlobalSetup");
 
@@ -21,12 +25,6 @@ namespace GVFS.FunctionalTests
             {
                 Console.WriteLine("Running without a shared git object cache");
                 GVFSTestConfig.NoSharedCache = true;
-            }
-
-            if (runner.HasCustomArg("--test-gvfs-on-path"))
-            {
-                Console.WriteLine("Running tests against GVFS on path");
-                GVFSTestConfig.TestGVFSOnPath = true;
             }
 
             if (runner.HasCustomArg("--replace-inbox-projfs"))
@@ -51,15 +49,7 @@ namespace GVFS.FunctionalTests
                 }
 
                 GVFSTestConfig.GitRepoTestsValidateWorkTree = modes.ToArray();
-
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllWindowsRunners;
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                {
-                    GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllMacRunners;
-                }
+                GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllWindowsRunners;
             }
             else
             {
@@ -89,34 +79,17 @@ namespace GVFS.FunctionalTests
                     excludeCategories.Add(Categories.ExtraCoverage);
                 }
 
+                // If we're running in CI exclude tests that are currently
+                // flakey or broken when run in a CI environment.
+                if (runner.HasCustomArg("--ci"))
+                {
+                    excludeCategories.Add(Categories.NeedsReactionInCI);
+                }
+
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
             }
 
-            if (runner.HasCustomArg("--windows-only"))
-            {
-                includeCategories.Add(Categories.WindowsOnly);
-
-                // RunTests unions all includeCategories.  Remove ExtraCoverage to
-                // ensure that we only run tests flagged as WindowsOnly
-                includeCategories.Remove(Categories.ExtraCoverage);
-            }
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                excludeCategories.Add(Categories.MacTODO.NeedsNewFolderCreateNotification);
-                excludeCategories.Add(Categories.MacTODO.NeedsGVFSConfig);
-                excludeCategories.Add(Categories.MacTODO.NeedsStatusCache);
-                excludeCategories.Add(Categories.MacTODO.TestNeedsToLockFile);
-                excludeCategories.Add(Categories.WindowsOnly);
-            }
-            else
-            {
-                // Windows excludes.
-                excludeCategories.Add(Categories.MacOnly);
-                excludeCategories.Add(Categories.POSIXOnly);
-            }
-
-            GVFSTestConfig.DotGVFSRoot = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? ".vfsforgit" : ".gvfs";
+            GVFSTestConfig.DotGVFSRoot = ".gvfs";
 
             GVFSTestConfig.RepoToClone =
                 runner.GetCustomArgWithParam("--repo-to-clone")
@@ -134,26 +107,26 @@ namespace GVFS.FunctionalTests
 
         private static void RunBeforeAnyTests()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (GVFSTestConfig.ReplaceInboxProjFS)
             {
-                if (GVFSTestConfig.ReplaceInboxProjFS)
-                {
-                    ProjFSFilterInstaller.ReplaceInboxProjFS();
-                }
+                ProjFSFilterInstaller.ReplaceInboxProjFS();
+            }
 
-                GVFSServiceProcess.InstallService();
+            GVFSServiceProcess.InstallService();
 
-                string statusCacheVersionTokenPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolderOption.Create),
-                    "GVFS",
-                    "ProgramData",
-                    "GVFS.Service",
-                    "EnableGitStatusCacheToken.dat");
+            string serviceProgramDataDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolderOption.Create),
+                "GVFS",
+                "ProgramData",
+                "GVFS.Service");
 
-                if (!File.Exists(statusCacheVersionTokenPath))
-                {
-                    File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
-                }
+            string statusCacheVersionTokenPath = Path.Combine(
+                serviceProgramDataDir, "EnableGitStatusCacheToken.dat");
+
+            if (!File.Exists(statusCacheVersionTokenPath))
+            {
+                Directory.CreateDirectory(serviceProgramDataDir);
+                File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
             }
         }
     }

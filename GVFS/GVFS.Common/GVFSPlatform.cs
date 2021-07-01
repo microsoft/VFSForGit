@@ -78,27 +78,7 @@ namespace GVFS.Common
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
         public abstract string GetUserIdFromLoginSessionId(int sessionId, ITracer tracer);
-
-        /// <summary>
-        /// Get the directory for upgrades that is permissioned to
-        /// require elevated privileges to modify. This can be used for
-        /// data that we don't want normal user accounts to modify.
-        /// </summary>
-        public abstract string GetUpgradeProtectedDataDirectory();
-
-        /// <summary>
-        /// Directory that upgrader log directory should be placed
-        /// in. There can be multiple log directories, so this is the
-        /// containing directory to place them in.
-        /// </summary>
-        public abstract string GetUpgradeLogDirectoryParentDirectory();
         public abstract string GetSystemInstallerLogPath();
-
-        /// <summary>
-        /// Directory that contains the file indicating that a new
-        /// version is available.
-        /// </summary>
-        public abstract string GetUpgradeHighestAvailableVersionDirectory();
 
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
 
@@ -124,10 +104,6 @@ namespace GVFS.Common
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             string lockPath);
-
-        public abstract ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
-            PhysicalFileSystem fileSystem,
-            ITracer tracer);
 
         public bool TryGetNormalizedPathRoot(string path, out string pathRoot, out string errorMessage)
         {
@@ -228,11 +204,6 @@ namespace GVFS.Common
             public string MountExecutableName
             {
                 get { return "GVFS.Mount" + this.ExecutableExtension; }
-            }
-
-            public string GVFSUpgraderExecutableName
-            {
-                get { return "GVFS.Upgrader" + this.ExecutableExtension; }
             }
         }
 

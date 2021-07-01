@@ -333,26 +333,9 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        public override string GetUpgradeLogDirectoryParentDirectory()
-        {
-            return Path.Combine(
-               this.GetCommonAppDataRootForGVFS(),
-               ProductUpgraderInfo.UpgradeDirectoryName);
-        }
-
         public override string GetSystemInstallerLogPath()
         {
             return null;
-        }
-
-        public override string GetUpgradeHighestAvailableVersionDirectory()
-        {
-            return this.GetUpgradeProtectedDataDirectory();
-        }
-
-        public override string GetUpgradeProtectedDataDirectory()
-        {
-            return GetUpgradeProtectedDataDirectoryImplementation();
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);
@@ -373,13 +356,6 @@ namespace GVFS.Platform.Windows
             string lockPath)
         {
             return new WindowsFileBasedLock(fileSystem, tracer, lockPath);
-        }
-
-        public override ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
-            PhysicalFileSystem fileSystem,
-            ITracer tracer)
-        {
-            return new WindowsProductUpgraderPlatformStrategy(fileSystem, tracer);
         }
 
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)

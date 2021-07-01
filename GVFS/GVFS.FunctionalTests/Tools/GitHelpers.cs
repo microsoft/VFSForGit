@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,7 +18,7 @@ namespace GVFS.FunctionalTests.Tools
         /// GVFS.FunctionalTests.LockHolder program.
         /// </summary>
         private const string LockHolderCommandName = @"GVFS.FunctionalTests.LockHolder";
-        private const string LockHolderCommand = @"GVFS.FunctionalTests.LockHolder.dll";
+        private const string LockHolderCommand = @"GVFS.FunctionalTests.LockHolder.exe";
 
         private const string WindowsPathSeparator = "\\";
         private const string GitPathSeparator = "/";
@@ -28,25 +27,9 @@ namespace GVFS.FunctionalTests.Tools
         {
             get
             {
-                // On OSX functional tests are run from inside Publish directory. Dependent
-                // assemblies including LockHolder test are available at the same level in
-                // the same directory.
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                {
-                    return Path.Combine(
-                        Settings.Default.CurrentDirectory,
-                        LockHolderCommand);
-                }
-                else
-                {
-                    // On Windows, FT is run from the Output directory of GVFS.FunctionalTest project.
-                    // LockHolder is a .netcore assembly and can be found inside netcoreapp2.1
-                    // subdirectory of GVFS.FunctionalTest Output directory.
-                    return Path.Combine(
-                        Settings.Default.CurrentDirectory,
-                        "netcoreapp2.1",
-                        LockHolderCommand);
-                }
+                // LockHolder is a .NET Framework application and can be found inside
+                // GVFS.FunctionalTest Output directory.
+                return Path.Combine(Settings.Default.CurrentDirectory, LockHolderCommand);
             }
         }
 
@@ -149,16 +132,16 @@ namespace GVFS.FunctionalTests.Tools
             int resetTimeout = Timeout.Infinite,
             bool skipReleaseLock = false)
         {
-            string args = LockHolderCommandPath;
+            string args = null;
             if (skipReleaseLock)
             {
-                args += " --skip-release-lock";
+                args = "--skip-release-lock";
             }
 
             return RunCommandWithWaitAndStdIn(
                 enlistment,
                 resetTimeout,
-                "dotnet",
+                LockHolderCommandPath,
                 args,
                 GitHelpers.LockHolderCommandName,
                 "done",

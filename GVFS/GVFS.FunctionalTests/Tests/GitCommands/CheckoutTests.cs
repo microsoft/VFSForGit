@@ -644,9 +644,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             }
         }
 
-        // WindowsOnly because the test depends on Windows specific file sharing behavior
         [TestCase]
-        [Category(Categories.WindowsOnly)]
         public void CheckoutBranchWhileOutsideToolHasExclusiveReadHandleOnDatabasesFolder()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -871,7 +869,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
         public void CreateAFolderThenCheckoutBranchWithFolder()
         {
             this.ControlGitRepo.Fetch("FunctionalTests/20201014_Checkout8");
