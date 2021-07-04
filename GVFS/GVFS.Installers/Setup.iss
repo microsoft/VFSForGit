@@ -101,7 +101,7 @@ begin
     exit;
   end;
   // look for the path with leading and trailing semicolon
-  // Pos() returns 0 if not found    
+  // Pos() returns 0 if not found
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
 end;
 
@@ -216,11 +216,11 @@ var
   InstallSuccessful: Boolean;
 begin
   InstallSuccessful := False;
-  
+
   StatusText := WizardForm.StatusLabel.Caption;
   WizardForm.StatusLabel.Caption := 'Installing GVFS.Service.';
   WizardForm.ProgressGauge.Style := npbstMarquee;
-  
+
   try
     if Exec(ExpandConstant('{sys}\SC.EXE'), ExpandConstant('create GVFS.Service binPath="{app}\GVFS.Service.exe" start=auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
       begin
@@ -249,7 +249,11 @@ procedure StartGVFSServiceUI();
 var
   ResultCode: integer;
 begin
-  if ExecAsOriginalUser(ExpandConstant('{app}\GVFS.Service.UI.exe'), '', '', SW_HIDE, ewNoWait, ResultCode) then
+  if GetEnv('GVFS_UNATTENDED') = '1' then
+    begin
+      Log('StartGVFSServiceUI: Skipping launching GVFS.Service.UI');
+    end
+  else if ExecAsOriginalUser(ExpandConstant('{app}\GVFS.Service.UI.exe'), '', '', SW_HIDE, ewNoWait, ResultCode) then
     begin
       Log('StartGVFSServiceUI: Successfully launched GVFS.Service.UI');
     end
@@ -348,7 +352,7 @@ begin
   StatusText := WizardForm.StatusLabel.Caption;
   WizardForm.StatusLabel.Caption := 'Uninstalling PrjFlt Driver.';
   WizardForm.ProgressGauge.Style := npbstMarquee;
-    
+
   Log('UninstallNonInboxProjFS: Uninstalling ProjFS');
   try
     UninstallService('prjflt', False);
@@ -357,7 +361,7 @@ begin
         if DeleteFileIfItExists(ExpandConstant('{sys}\drivers\prjflt.sys')) then
           begin
             Result := True;
-          end;        
+          end;
       end;
   finally
     WizardForm.StatusLabel.Caption := StatusText;
@@ -373,7 +377,7 @@ begin
   if FileExists(ExpandConstant('{app}\Filter\PrjFlt.inf')) and FileExists(ExpandConstant('{sys}\drivers\prjflt.sys')) then
     begin
       UninstallSuccessful := False;
-                 
+
       if Exec('powershell.exe', '-NoProfile "$var=(Get-WindowsOptionalFeature -Online -FeatureName Client-ProjFS);  if($var -eq $null){exit 2}else{if($var.State -eq ''Enabled''){exit 3}else{exit 4}}"', '', SW_HIDE, ewWaitUntilTerminated, ProjFSFeatureEnabledResultCode) then
         begin
           if ProjFSFeatureEnabledResultCode = 2 then
@@ -405,7 +409,7 @@ begin
                 end;
             end;
         end;
-      
+
       if UninstallSuccessful = False then
       begin
         RaiseException('Fatal: An error occured while uninstalling ProjFS.');
@@ -468,7 +472,7 @@ begin
   ExecWithResult(ExpandConstant('{app}') + '\gvfs.exe', 'service --mount-all', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, MountOutput);
   WizardForm.StatusLabel.Caption := StatusText;
   WizardForm.ProgressGauge.Style := npbstNormal;
-  
+
   // 4 = ReturnCode.FilterError
   if (ResultCode = 4) then
     begin
@@ -650,7 +654,7 @@ begin
   SetIfNotConfigured('upgrade.feedpackagename', FeedPackageName);
 end;
 
-// Below are EVENT FUNCTIONS -> The main entry points of InnoSetup into the code region 
+// Below are EVENT FUNCTIONS -> The main entry points of InnoSetup into the code region
 // Documentation : http://www.jrsoftware.org/ishelp/index.php?topic=scriptevents
 
 function InitializeUninstall(): Boolean;
