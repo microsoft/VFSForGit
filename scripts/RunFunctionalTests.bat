@@ -13,21 +13,18 @@ ECHO gvfs location:
 where gvfs
 IF NOT %ERRORLEVEL% == 0 (
     ECHO error: unable to locate GVFS on the PATH (has it been installed?)
-    EXIT /b 1
 )
 
 ECHO GVFS.Service location:
 where GVFS.Service
 IF NOT %ERRORLEVEL% == 0 (
     ECHO error: unable to locate GVFS.Service on the PATH (has it been installed?)
-    EXIT /b 1
 )
 
 ECHO git location:
 where git
 IF NOT %ERRORLEVEL% == 0 (
     ECHO error: unable to locate Git on the PATH (has it been installed?)
-    EXIT /b 1
 )
 
 %VFS_OUTDIR%\GVFS.FunctionalTests\bin\%CONFIGURATION%\net461\win-x64\GVFS.FunctionalTests.exe /result:TestResult.xml %2 %3 %4 %5

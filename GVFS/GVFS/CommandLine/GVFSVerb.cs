@@ -309,6 +309,9 @@ namespace GVFS.CommandLine
 
                 // Generation number v2 isn't ready for full use. Wait for v3.
                 { "commitGraph.generationVersion", "1" },
+
+                // Disable the builtin FS Monitor in case it was enabled globally.
+                { "core.useBuiltinFSMonitor", "false" },
             };
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
