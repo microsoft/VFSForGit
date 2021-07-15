@@ -213,7 +213,7 @@ namespace GVFS.Common.Prefetch.Pipeline
             {
                 List<string> blobsInChunk = new List<string>();
 
-                for (int i = 0; i < this.chunkSize; ++i)
+                for (int i = 0; i < this.chunkSize;)
                 {
                     // Only wait a short while for new work to show up, otherwise go ahead and download what we have accumulated so far
                     const int TimeoutMs = 100;
@@ -222,6 +222,10 @@ namespace GVFS.Common.Prefetch.Pipeline
                     if (this.missingBlobs.TryTake(out blobId, TimeoutMs))
                     {
                         blobsInChunk.Add(blobId);
+
+                        // Only increment if a blob was added. Otherwise, if no blobs are added during TimeoutMs * chunkSize,
+                        // this will exit early and blobs added later will not be downloaded.
+                        ++i;
                     }
                     else if (blobsInChunk.Count > 0 ||
                         this.missingBlobs.IsAddingCompleted)

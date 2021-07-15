@@ -416,7 +416,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFileFromOutsideRepoToInsideRepoAndAdd()
         {
             string testFileContents = "0123456789";
@@ -450,7 +449,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFolderFromOutsideRepoToInsideRepoAndAdd()
         {
             string testFileContents = "0123456789";
@@ -488,7 +486,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void MoveFileFromInsideRepoToOutsideRepoAndCommit()
         {
             string newBranchName = "tests/functional/MoveFileFromInsideRepoToOutsideRepoAndCommit";
@@ -552,26 +549,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         public void RenameFileCommitChangesSwitchBranchSwitchBackTest()
         {
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: this.RenameFile);
-        }
-
-        // MacOnly because renames of partial folders are blocked on Windows
-        [TestCase]
-        [Category(Categories.MacOnly)]
-        public void MoveFolderCommitChangesSwitchBranchSwitchBackTest()
-        {
-            this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: this.MoveFolder);
-        }
-
-        // Mac and Linux only because Windows does not support file mode
-        [TestCase]
-        [Category(Categories.POSIXOnly)]
-        public void UpdateFileModeOnly()
-        {
-            const string TestFileName = "test-file-mode";
-            this.CreateFile("#!/bin/bash\n", TestFileName);
-            this.ChangeMode(TestFileName, Convert.ToUInt16("755", 8));
-            this.ValidateGitCommand($"add {TestFileName}");
-            this.ValidateGitCommand($"ls-files --stage {TestFileName}");
         }
 
         [TestCase]

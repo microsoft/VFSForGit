@@ -122,24 +122,9 @@ namespace GVFS.UnitTests.Mock.Common
             return new Dictionary<string, string>();
         }
 
-        public override string GetUpgradeProtectedDataDirectory()
-        {
-            return this.GetSecureDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
-        }
-
-        public override string GetUpgradeLogDirectoryParentDirectory()
-        {
-            return this.GetUpgradeProtectedDataDirectory();
-        }
-
         public override string GetSystemInstallerLogPath()
         {
             return "MockPath";
-        }
-
-        public override string GetUpgradeHighestAvailableVersionDirectory()
-        {
-            return this.GetUpgradeProtectedDataDirectory();
         }
 
         public override bool IsConsoleOutputRedirectedToFile()
@@ -190,13 +175,6 @@ namespace GVFS.UnitTests.Mock.Common
         public override FileBasedLock CreateFileBasedLock(PhysicalFileSystem fileSystem, ITracer tracer, string lockPath)
         {
             return new MockFileBasedLock(fileSystem, tracer, lockPath);
-        }
-
-        public override ProductUpgraderPlatformStrategy CreateProductUpgraderPlatformInteractions(
-            PhysicalFileSystem fileSystem,
-            ITracer tracer)
-        {
-            return new MockProductUpgraderPlatformStrategy(fileSystem, tracer);
         }
 
         public override bool TryKillProcessTree(int processId, out int exitCode, out string error)

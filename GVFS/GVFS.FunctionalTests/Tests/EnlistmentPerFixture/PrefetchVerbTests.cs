@@ -115,9 +115,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.Prefetch("--files *").ShouldContain("Nothing new to prefetch.");
         }
 
-        // TODO(#1219): Handle that lock files are not deleted on Mac, they are simply unlocked
         [TestCase, Order(11)]
-        [Category(Categories.MacTODO.TestNeedsToLockFile)]
         public void PrefetchCleansUpStalePrefetchLock()
         {
             this.Enlistment.Prefetch("--commits");
@@ -162,6 +160,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(13)]
+        [Category(Categories.NeedsReactionInCI)]
         public void PrefetchFilesFromFileListStdIn()
         {
             // on case-insensitive filesystems, test case-blind matching
@@ -178,6 +177,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(14)]
+        [Category(Categories.NeedsReactionInCI)]
         public void PrefetchFolderListFromStdin()
         {
             string input = string.Join(Environment.NewLine, PrefetchFolderList);

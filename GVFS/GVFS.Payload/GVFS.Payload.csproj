@@ -1,0 +1,59 @@
+﻿<Project Sdk="Microsoft.Build.NoTargets">
+
+  <PropertyGroup>
+    <TargetFramework>net461</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <PackageReference ExcludeAssets="all" GeneratePathProperty="true" />
+    <ProjectReference Private="false" ReferenceOutputAssembly="false" />
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GVFS.ProjFS" Version="2019.411.1" />
+    <PackageReference Include="GVFS.VCRuntime" Version="0.2.0-build" />
+    <PackageReference Include="MicroBuild.Core" Version="0.2.0" ExcludeAssets="none" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GitHooksLoader\GitHooksLoader.vcxproj" />
+    <ProjectReference Include="..\GVFS.Hooks\GVFS.Hooks.csproj" />
+    <ProjectReference Include="..\GVFS.Mount\GVFS.Mount.csproj" />
+    <ProjectReference Include="..\GVFS.PostIndexChangedHook\GVFS.PostIndexChangedHook.vcxproj" />
+    <ProjectReference Include="..\GVFS.ReadObjectHook\GVFS.ReadObjectHook.vcxproj" />
+    <ProjectReference Include="..\GVFS.Service.UI\GVFS.Service.UI.csproj" />
+    <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj" />
+    <ProjectReference Include="..\GVFS.VirtualFileSystemHook\GVFS.VirtualFileSystemHook.vcxproj" />
+    <ProjectReference Include="..\GVFS\GVFS.csproj" />
+  </ItemGroup>
+
+  <Target Name="CreatePayload" AfterTargets="CoreBuild" BeforeTargets="SignFiles">
+    <Exec Command="$(MSBuildThisFileDirectory)layout.bat $(Configuration) $(GVFSVersion) $(PkgGVFS_ProjFS) $(PkgGVFS_VCRuntime) $(OutputPath)" />
+  </Target>
+
+  <Target Name="CleanPayload" BeforeTargets="AfterClean">
+    <RemoveDir Directories="$(OutputPath)" />
+  </Target>
+
+  <ItemGroup>
+    <FilesToSign Include="
+      $(OutputPath)\GitHooksLoader.exe;
+      $(OutputPath)\GVFS.Common.dll;
+      $(OutputPath)\GVFS.exe;
+      $(OutputPath)\GVFS.GVFlt.dll;
+      $(OutputPath)\GVFS.Hooks.exe;
+      $(OutputPath)\GVFS.Mount.exe;
+      $(OutputPath)\GVFS.Platform.Windows.dll;
+      $(OutputPath)\GVFS.PostIndexChangedHook.exe;
+      $(OutputPath)\GVFS.ReadObjectHook.exe;
+      $(OutputPath)\GVFS.Service.exe;
+      $(OutputPath)\GVFS.Service.UI.exe;
+      $(OutputPath)\GVFS.VirtualFileSystemHook.exe;
+      $(OutputPath)\GVFS.Virtualization.dll;">
+      <Authenticode>Microsoft400</Authenticode>
+      <InProject>false</InProject>
+    </FilesToSign>
+  </ItemGroup>
+
+</Project>

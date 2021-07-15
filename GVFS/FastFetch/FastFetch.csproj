@@ -1,55 +1,31 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\GVFS.Build\GVFS.cs.props" />
-  <Import Project="..\LibGit2Sharp.NativeBinaries.props" />
+<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <AssemblyName>FastFetch</AssemblyName>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
-    <Platforms>x64</Platforms>
-    <RunTimeIdentifiers>osx-x64;win-x64</RunTimeIdentifiers>
-    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net461</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Version>$(GVFSVersion)</Version>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <Version>$(GVFSVersion)</Version>
-  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
-    <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
-  </ItemGroup>
-  
-  <!-- ItemGroup Conditions are not supported on VS for Mac and Choose/When must be
-       Used instead, see https://github.com/mono/monodevelop/issues/7417 -->
-  <Choose>
-    <When Condition="'$(OS)' == 'Windows_NT'">
-      <ItemGroup>
-        <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
-        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
-          <Link>PlatformLoader.Windows.cs</Link>
-        </Compile>
-      </ItemGroup>
-    </When>
-    <Otherwise>
-      <ItemGroup>
-        <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
-        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
-          <Link>PlatformLoader.Mac.cs</Link>
-        </Compile>
-      </ItemGroup>
-    </Otherwise>
-  </Choose>
-  
-  <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.1.1-beta" />
-    <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.278" />
-    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="MicroBuild.Core" Version="0.2.0" ExcludeAssets="none" />
   </ItemGroup>
+
+  <ItemGroup>
+    <FilesToSign Include="
+      $(OutputPath)\FastFetch.exe;
+      $(OutputPath)\GVFS.Common.dll;
+      $(OutputPath)\GVFS.GVFlt.dll;
+      $(OutputPath)\GVFS.Platform.Windows.dll;
+      $(OutputPath)\GVFS.Virtualization.dll;">
+      <Authenticode>Microsoft400</Authenticode>
+      <InProject>false</InProject>
+    </FilesToSign>
+  </ItemGroup>
+
 </Project>

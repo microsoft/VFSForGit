@@ -64,7 +64,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.RepositoryMountsSameFileSystem)]
         public void LockPreventsRenameFromOutsideRootOnTopOfIndex()
         {
             this.OverwritingIndexShouldFail(Path.Combine(this.Enlistment.EnlistmentRoot, "LockPreventsRenameFromOutsideRootOnTopOfIndex.txt"));

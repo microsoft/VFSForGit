@@ -398,7 +398,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         [TestCase, Order(13)]
         [Category(Categories.GitCommands)]
-        [Category(Categories.MacTODO.NeedsNewFolderCreateNotification)]
         public void FolderContentsProjectedAfterFolderCreateAndCheckout()
         {
             string folderName = "GVFlt_MultiThreadTest";
@@ -548,29 +547,15 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             objectPath.ShouldBeAFile(this.fileSystem);
             new FileInfo(objectPath).Length.ShouldEqual(objectLength - 16);
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                // Mac can't correct corrupt objects, but it should detect them and add to ModifiedPaths.dat
-                this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem);
+            // Windows should correct a corrupt obect
+            // Read the original path and verify its contents are correct
+            this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
 
-                GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, modifedFile);
-                GitHelpers.CheckGitCommandAgainstGVFSRepo(
-                    this.Enlistment.RepoRoot,
-                    "status",
-                    $"modified:   {modifedFile}");
-            }
-            else
-            {
-                // Windows should correct a corrupt obect
-                // Read the original path and verify its contents are correct
-                this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
+            // Confirm there's a new item in the corrupt objects folder
+            corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().Count().ShouldEqual(initialCorruptObjectCount + 1);
 
-                // Confirm there's a new item in the corrupt objects folder
-                corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().Count().ShouldEqual(initialCorruptObjectCount + 1);
-
-                // File should not be in ModifiedPaths.dat
-                GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, "Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded.txt");
-            }
+            // File should not be in ModifiedPaths.dat
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, "Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded.txt");
         }
 
         [TestCase, Order(18)]
@@ -625,44 +610,12 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         private void EnumerateAndReadShouldNotChangeEnumerationOrder(string folderRelativePath)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                NativeTests.EnumerateAndReadDoesNotChangeEnumerationOrder(folderRelativePath).ShouldEqual(true);
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                string[] entries = Directory.GetFileSystemEntries(folderRelativePath);
-                foreach (string entry in entries)
-                {
-                    File.ReadAllText(entry);
-                }
-
-                string[] postReadEntries = Directory.GetFileSystemEntries(folderRelativePath);
-                Enumerable.SequenceEqual(entries, postReadEntries)
-                    .ShouldBeTrue($"Entries are not the same after reading. Orignial list:\n{string.Join(",", entries)}\n\nAfter read:\n{string.Join(",", postReadEntries)}");
-            }
-            else
-            {
-                Assert.Fail("Unsupported platform");
-            }
+            NativeTests.EnumerateAndReadDoesNotChangeEnumerationOrder(folderRelativePath).ShouldEqual(true);
         }
 
         private bool PlaceholderHasVersionInfo(string relativePath, int version, string sha)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return NativeTests.PlaceHolderHasVersionInfo(relativePath, version, sha);
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                // TODO(#1360): Add a version of PlaceHolderHasVersionInfo that works on Mac
-                return true;
-            }
-            else
-            {
-                Assert.Fail("Unsupported platform");
-                return false;
-            }
+            return NativeTests.PlaceHolderHasVersionInfo(relativePath, version, sha);
         }
 
         private class NativeTests

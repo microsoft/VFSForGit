@@ -11,7 +11,7 @@ using System.Text.RegularExpressions;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    [TestFixture, Category(Categories.WindowsOnly)]
+    [TestFixture]
     public class HealthTests : TestsWithEnlistmentPerFixture
     {
         [TestCase, Order(0)]

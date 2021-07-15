@@ -128,21 +128,6 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public static string GetUpgradeProtectedDataDirectoryImplementation()
-        {
-            return Path.Combine(GetSecureDataRootForGVFSImplementation(), ProductUpgraderInfo.UpgradeDirectoryName);
-        }
-
-        public static string GetUpgradeHighestAvailableVersionDirectoryImplementation()
-        {
-            return GetUpgradeProtectedDataDirectoryImplementation();
-        }
-
-        public static string GetUpgradeReminderNotificationImplementation()
-        {
-            return $"A new version of VFS for Git is available. Run {UpgradeConfirmMessage} from an elevated command prompt to upgrade.";
-        }
-
         [DllImport("kernel32.dll")]
         private static extern IntPtr GetStdHandle(StdHandle std);
 

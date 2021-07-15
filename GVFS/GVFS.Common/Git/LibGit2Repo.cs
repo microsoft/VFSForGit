@@ -174,7 +174,7 @@ namespace GVFS.Common.Git
         {
             public const uint SuccessCode = 0;
 
-            public const string Git2NativeLibName = "git2";
+            public const string Git2NativeLibName = GVFSConstants.LibGit2LibraryName;
 
             public enum ObjectTypes
             {

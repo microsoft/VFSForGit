@@ -1,0 +1,6 @@
+<Project>
+
+  <!-- Import common build props for solution builds -->
+  <Import Project="Directory.Build.props" />
+
+</Project>

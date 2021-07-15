@@ -6,6 +6,7 @@ using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace GVFS.UnitTests.Prefetch
 {
@@ -72,6 +73,48 @@ namespace GVFS.UnitTests.Prefetch
             output.Take().ShouldEqual(obj2Sha);
             obj1Count.ShouldEqual(1);
             obj2Count.ShouldEqual(2);
+        }
+
+        [TestCase]
+        public void DoesNotExitEarlyIfInputTakesLongerThanChunkSizeToGetFirstBlob()
+        {
+            BlockingCollection<string> input = new BlockingCollection<string>();
+            string objSha = new string('1', 40);
+
+            int objCount = 0;
+
+            Func<string, string> objectResolver = (oid) =>
+            {
+                if (oid.Equals(objSha))
+                {
+                    objCount++;
+                    return "Object1Contents";
+                }
+
+                return null;
+            };
+
+            BlockingCollection<string> output = new BlockingCollection<string>();
+            MockTracer tracer = new MockTracer();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            MockBatchHttpGitObjects httpObjects = new MockBatchHttpGitObjects(tracer, enlistment, objectResolver);
+
+            BatchObjectDownloadStage dut = new BatchObjectDownloadStage(
+                MaxParallel,
+                1,
+                input,
+                output,
+                tracer,
+                enlistment,
+                httpObjects,
+                new MockPhysicalGitObjects(tracer, null, enlistment, httpObjects));
+
+            dut.Start();
+            Thread.Sleep(TimeSpan.FromMilliseconds(110));
+            input.Add(objSha);
+            input.CompleteAdding();
+            dut.WaitForCompletion();
+            objCount.ShouldEqual(1);
         }
     }
 }
