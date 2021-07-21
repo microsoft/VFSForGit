@@ -25,7 +25,7 @@
        (such as CI machines) we must include the native library for the tests -->
   <ItemGroup>
     <PackageReference Include="GVFS.ProjFS" Version="2019.411.1"
-                      ExcludeAssets="all" GeneratePathProperty="true" />
+                      GeneratePathProperty="true" />
     <None Include="$(PkgGVFS_ProjFS)\lib\ProjectedFSLib.dll">
       <Link>ProjectedFSLib.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
