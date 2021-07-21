@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemDefinitionGroup>
-    <ProjectReference Private="false" ReferenceOutputAssembly="false" />
+    <ProjectReference ReferenceOutputAssembly="false" />
   </ItemDefinitionGroup>
 
   <ItemGroup>
