@@ -24,8 +24,7 @@
   <!-- Because the unit tests may run on a machine without ProjFS installed
        (such as CI machines) we must include the native library for the tests -->
   <ItemGroup>
-    <PackageReference Include="GVFS.ProjFS" Version="2019.411.1"
-                      GeneratePathProperty="true" />
+    <PackageReference Include="GVFS.ProjFS" Version="2019.411.1" />
     <None Include="$(PkgGVFS_ProjFS)\lib\ProjectedFSLib.dll">
       <Link>ProjectedFSLib.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

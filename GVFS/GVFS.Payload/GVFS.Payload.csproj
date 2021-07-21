@@ -6,7 +6,6 @@
   </PropertyGroup>
 
   <ItemDefinitionGroup>
-    <PackageReference GeneratePathProperty="true" />
     <ProjectReference Private="false" ReferenceOutputAssembly="false" />
   </ItemDefinitionGroup>
 
