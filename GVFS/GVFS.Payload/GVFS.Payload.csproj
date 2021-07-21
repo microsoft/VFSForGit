@@ -5,10 +5,6 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
-  <ItemDefinitionGroup>
-    <ProjectReference ReferenceOutputAssembly="false" />
-  </ItemDefinitionGroup>
-
   <ItemGroup>
     <PackageReference Include="GVFS.ProjFS" Version="2019.411.1" />
     <PackageReference Include="GVFS.VCRuntime" Version="0.2.0-build" />

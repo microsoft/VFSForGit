@@ -7,7 +7,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Hooks\GVFS.Hooks.csproj">
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <OutputItemType>Content</OutputItemType>
       <Targets>Build;DebugSymbolsProjectOutputGroup</Targets>
     </ProjectReference>
