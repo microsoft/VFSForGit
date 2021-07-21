@@ -27,22 +27,17 @@
     <PackageReference Include="GVFS.ProjFS" Version="2019.411.1" />
     <None Include="$(PkgGVFS_ProjFS)\lib\ProjectedFSLib.dll">
       <Link>ProjectedFSLib.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
   <ItemGroup>
     <None Include="Data\backward.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="Data\caseChange.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="Data\forward.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="Data\index_v4">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 

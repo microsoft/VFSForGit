@@ -15,7 +15,6 @@
 
   <ItemGroup>
     <Content Include="..\GVFS\GitVirtualFileSystem.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 

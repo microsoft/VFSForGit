@@ -9,7 +9,6 @@
     <ProjectReference Include="..\GVFS.Hooks\GVFS.Hooks.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <OutputItemType>Content</OutputItemType>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Targets>Build;DebugSymbolsProjectOutputGroup</Targets>
     </ProjectReference>
     <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
@@ -21,7 +20,6 @@
 
   <ItemGroup>
     <Content Include="GitVirtualFileSystem.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net461</TargetFramework>
@@ -21,16 +21,13 @@
     <ProjectReference Include="..\GVFS.FunctionalTests.LockHolder\GVFS.FunctionalTests.LockHolder.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <OutputItemType>Content</OutputItemType>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </ProjectReference>
     <ProjectReference Include="..\GVFS.NativeTests\GVFS.NativeTests.vcxproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
     <None Include="$(RepoOutPath)GVFS.NativeTests\bin\x64\$(Configuration)\GVFS.NativeTests.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="$(RepoOutPath)GVFS.NativeTests\bin\x64\$(Configuration)\GVFS.NativeTests.pdb">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
