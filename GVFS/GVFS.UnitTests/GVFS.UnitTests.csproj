@@ -21,17 +21,6 @@
     <PackageReference Include="Moq" Version="4.10.1" />
   </ItemGroup>
 
-  <!-- Because the unit tests may run on a machine without ProjFS installed
-       (such as CI machines) we must include the native library for the tests -->
-  <ItemGroup>
-    <PackageReference Include="GVFS.ProjFS" Version="2019.411.1"
-                      ExcludeAssets="all" GeneratePathProperty="true" />
-    <None Include="$(PkgGVFS_ProjFS)\lib\ProjectedFSLib.dll">
-      <Link>ProjectedFSLib.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
   <ItemGroup>
     <None Include="Data\backward.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
