@@ -13,7 +13,7 @@
     <PackageReference Include="ManagedEsent" Version="1.9.4" />
     <PackageReference Include="Microsoft.Database.Collections.Generic" Version="1.9.4" />
     <PackageReference Include="Microsoft.Database.Isam" Version="1.9.4" />
-    <PackageReference Include="Microsoft.Windows.ProjFS" Version="1.1.19156.1" />
+    <PackageReference Include="Microsoft.Windows.ProjFS" Version="1.2.21147.3" />
     <PackageReference Include="System.Management.Automation.dll" Version="10.0.10586.0" />
   </ItemGroup>
 
