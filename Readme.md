@@ -15,12 +15,10 @@ ensure that Git operations such as `status`, `checkout`, etc., can be as quick
 as possible because they will only consider the files that the user has
 accessed, not all files in the repository.
 
-[See our documentation](docs/index.md) for instructions to get started.
-
-## New name
-
-This project was formerly known as GVFS (Git Virtual File System). It is undergoing a rename to VFS for Git. While the rename is in progress, the code, protocol,
-built executables, and releases may still refer to the old GVFS name. See https://github.com/Microsoft/VFSForGit/projects/4 for the latest status of the rename effort.
+Note: for new deployments, we strongly recommend you consider
+[Scalar](https://github.com/microsoft/scalar) instead of VFS for Git. By
+combining the lessons from operating VFS for Git at scale with new developments
+in Git, Scalar offers a clearer path forward for all large monorepos.
 
 ## Installing VFS for Git
 
@@ -59,7 +57,7 @@ The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer
 
 ## Trying out VFS for Git
 
-* VFS for Git will work with any Git service that supports the
+* VFS for Git requires a Git service that supports the
   [GVFS protocol](Protocol.md). For example, you can create a repo in
   [Azure DevOps](https://azure.microsoft.com/services/devops/), and push
   some contents to it. There are two constraints:
@@ -71,6 +69,10 @@ The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer
 * Run Git commands as you normally would
 * `gvfs unmount` when done
 
+## Note on naming
+
+This project was formerly known as GVFS (Git Virtual File System). You may occasionally
+see collateral, including code and protocol names, which refer to the previous name.
 
 # Licenses
 
