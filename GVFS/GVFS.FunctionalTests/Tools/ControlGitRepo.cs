@@ -66,6 +66,9 @@ namespace GVFS.FunctionalTests.Tools
             GitProcess.Invoke(this.RootPath, "branch --set-upstream " + this.Commitish + " origin/" + this.Commitish);
             GitProcess.Invoke(this.RootPath, "checkout " + this.Commitish);
             GitProcess.Invoke(this.RootPath, "branch --unset-upstream");
+
+            // Enable the ORT merge strategy
+            GitProcess.Invoke(this.RootPath, "config pull.twohead ort");
         }
 
         public void Fetch(string commitish)
