@@ -11,10 +11,6 @@
 
 #### Other functional test projects
 
-*GVFS.NativeTests*
-
-`GVFS.NativeTests` contains tests written in C++ that use the Windows API directly.  These tests are called from the managed tests (see above) using PInvoke.
-
 *GVFS.FunctionalTests.LockHolder*
 
 The `LockHolder` is a small program that allows the functional tests to request and release the `GVFSLock`.  `LockHolder` is useful for simulating different timing/race conditions.

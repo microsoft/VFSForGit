@@ -294,15 +294,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             targetFolderVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
         }
 
-        [TestCase, Order(6)]
-        public void EnumerateAndReadDoesNotChangeEnumerationOrder()
-        {
-            string folderVirtualPath = this.Enlistment.GetVirtualPathTo("EnumerateAndReadTestFiles");
-            this.EnumerateAndReadShouldNotChangeEnumerationOrder(folderVirtualPath);
-            folderVirtualPath.ShouldBeADirectory(this.fileSystem);
-            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems();
-        }
-
         [TestCase, Order(7)]
         public void HydratingFileUsesNameCaseFromRepo()
         {
@@ -370,30 +361,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         {
             string testFilePath = Path.Combine("Test_EPF_WorkingDirectoryTests", "1", "2", "3", "4", "ReadDeepProjectedFile.cpp");
             this.Enlistment.GetVirtualPathTo(testFilePath).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
-        }
-
-        [TestCase, Order(11)]
-        public void FilePlaceHolderHasVersionInfo()
-        {
-            string sha = "BB1C8B9ADA90D6B8F6C88F12C6DDB07C186155BD";
-            string virtualFilePath = this.Enlistment.GetVirtualPathTo("GVFlt_BugRegressionTest", "GVFlt_ModifyFileInScratchAndDir", "ModifyFileInScratchAndDir.txt");
-            virtualFilePath.ShouldBeAFile(this.fileSystem).WithContents();
-
-            ProcessResult revParseHeadResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse HEAD");
-            string commitID = revParseHeadResult.Output.Trim();
-
-            this.PlaceholderHasVersionInfo(virtualFilePath, CurrentPlaceholderVersion, sha).ShouldEqual(true);
-        }
-
-        [TestCase, Order(12), Ignore("Results in an access violation in the functional test on the build server")]
-        public void FolderPlaceHolderHasVersionInfo()
-        {
-            string virtualFilePath = this.Enlistment.GetVirtualPathTo("GVFlt_BugRegressionTest", "GVFlt_ModifyFileInScratchAndDir");
-
-            ProcessResult revParseHeadResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse HEAD");
-            string commitID = revParseHeadResult.Output.Trim();
-
-            this.PlaceholderHasVersionInfo(virtualFilePath, CurrentPlaceholderVersion, string.Empty).ShouldEqual(true);
         }
 
         [TestCase, Order(13)]
@@ -606,28 +573,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             folderEntries.Count().ShouldEqual(1);
             FileSystemInfo singleEntry = folderEntries.First();
             singleEntry.Name.ShouldEqual(expectedEntryName, $"Actual name: {singleEntry.Name} does not equal expected name {expectedEntryName}");
-        }
-
-        private void EnumerateAndReadShouldNotChangeEnumerationOrder(string folderRelativePath)
-        {
-            NativeTests.EnumerateAndReadDoesNotChangeEnumerationOrder(folderRelativePath).ShouldEqual(true);
-        }
-
-        private bool PlaceholderHasVersionInfo(string relativePath, int version, string sha)
-        {
-            return NativeTests.PlaceHolderHasVersionInfo(relativePath, version, sha);
-        }
-
-        private class NativeTests
-        {
-            [DllImport("GVFS.NativeTests.dll")]
-            public static extern bool EnumerateAndReadDoesNotChangeEnumerationOrder(string folderVirtualPath);
-
-            [DllImport("GVFS.NativeTests.dll", CharSet = CharSet.Ansi)]
-            public static extern bool PlaceHolderHasVersionInfo(
-                string virtualPath,
-                int version,
-                [MarshalAs(UnmanagedType.LPWStr)]string sha);
         }
     }
 }

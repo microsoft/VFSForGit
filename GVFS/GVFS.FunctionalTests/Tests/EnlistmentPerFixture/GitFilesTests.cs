@@ -332,27 +332,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyWorktreeBit(fileToOverwriteEntry, LsFilesStatus.Cached);
         }
 
-        [TestCase, Order(15)]
-        public void SupersededFileAddedToModifiedPathsAndSkipWorktreeBitCleared()
-        {
-            string fileToSupersedeEntry = "GVFlt_FileOperationTest/WriteAndVerify.txt";
-            string fileToSupersedePath = this.Enlistment.GetVirtualPathTo("GVFlt_FileOperationTest\\WriteAndVerify.txt");
-            this.VerifyWorktreeBit(fileToSupersedeEntry, LsFilesStatus.SkipWorktree);
-
-            string newContent = $"{nameof(this.SupersededFileAddedToModifiedPathsAndSkipWorktreeBitCleared)} test new contents";
-
-            SupersedeFile(fileToSupersedePath, newContent).ShouldEqual(true);
-            this.Enlistment.WaitForBackgroundOperations();
-
-            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToSupersedeEntry);
-
-            // Verify skip-worktree cleared
-            this.VerifyWorktreeBit(fileToSupersedeEntry, LsFilesStatus.Cached);
-
-            // Verify new content written
-            fileToSupersedePath.ShouldBeAFile(this.fileSystem).WithContents(newContent);
-        }
-
         [TestCase, Order(16)]
         public void FileMovedFromOutsideRepoToInside()
         {
@@ -464,9 +443,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             fileInsideRepo.ShouldBeAFile(this.fileSystem);
             fileLinkInsideRepo.ShouldBeAFile(this.fileSystem);
         }
-
-        [DllImport("GVFS.NativeTests.dll", CharSet = CharSet.Unicode)]
-        private static extern bool SupersedeFile(string path, [MarshalAs(UnmanagedType.LPStr)]string newContent);
 
         private void VerifyWorktreeBit(string path, char expectedStatus)
         {
