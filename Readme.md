@@ -33,8 +33,9 @@ winget install microsoft-git
 winget install gvfs
 ```
 
-You will need to continue using the `microsoft/git` version of Git, and it has
+You will need to continue using the `microsoft/git` version of Git, and it
 will notify you when new versions are available.
+
 
 ## Building VFS for Git
 
