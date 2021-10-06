@@ -22,8 +22,20 @@ in Git, Scalar offers a clearer path forward for all large monorepos.
 
 ## Installing VFS for Git
 
-* VFS for Git requires Windows 10 Anniversary Update (Windows 10 version 1607) or later
-* Run the latest GVFS and Git for Windows installers from https://github.com/Microsoft/VFSForGit/releases
+VFS for Git requires Windows 10 Anniversary Update (Windows 10 version 1607) or later.
+
+To install, use [`winget`](https://github.com/microsoft/winget) to install the
+[`microsoft/git` fork of Git](https://github.com/microsoft/git) and VFS for Git
+using:
+
+```
+winget install microsoft-git
+winget install gvfs
+```
+
+You will need to continue using the `microsoft/git` version of Git, and it
+will notify you when new versions are available.
+
 
 ## Building VFS for Git
 
