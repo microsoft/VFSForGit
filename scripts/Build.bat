@@ -1,5 +1,5 @@
 @ECHO OFF
-CALL %~dp0\InitializeEnvironment.bat || EXIT /b 10
+CALL "%~dp0\InitializeEnvironment.bat" || EXIT /b 10
 SETLOCAL
 SETLOCAL EnableDelayedExpansion
 
@@ -44,7 +44,7 @@ IF NOT EXIST "%NUGET_EXEC%" (
 REM Acquire vswhere to find VS installations reliably
 SET VSWHERE_VER=2.6.7
 "%NUGET_EXEC%" install vswhere -Version %VSWHERE_VER% || exit /b 1
-SET VSWHERE_EXEC=%VFS_PACKAGESDIR%\vswhere.%VSWHERE_VER%\tools\vswhere.exe
+SET VSWHERE_EXEC="%VFS_PACKAGESDIR%\vswhere.%VSWHERE_VER%\tools\vswhere.exe"
 
 REM Assumes default installation location for Windows 10 SDKs
 IF NOT EXIST "C:\Program Files (x86)\Windows Kits\10\Include\10.0.16299.0" (
@@ -69,7 +69,7 @@ IF NOT DEFINED MSBUILD_EXEC (
 ECHO ^**********************
 ECHO ^* Restoring Packages *
 ECHO ^**********************
-"%MSBUILD_EXEC%" %VFS_SRCDIR%\GVFS.sln ^
+"%MSBUILD_EXEC%" "%VFS_SRCDIR%\GVFS.sln" ^
         /t:Restore ^
         /v:%VERBOSITY% ^
         /p:Configuration=%CONFIGURATION% || GOTO ERROR
@@ -77,7 +77,7 @@ ECHO ^**********************
 ECHO ^*********************
 ECHO ^* Building Solution *
 ECHO ^*********************
-"%MSBUILD_EXEC%" %VFS_SRCDIR%\GVFS.sln ^
+"%MSBUILD_EXEC%" "%VFS_SRCDIR%\GVFS.sln" ^
         /t:Build ^
         /v:%VERBOSITY% ^
         /p:Configuration=%CONFIGURATION% || GOTO ERROR

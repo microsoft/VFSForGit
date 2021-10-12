@@ -41,7 +41,7 @@
   </ItemGroup>
 
   <Target Name="CreateInstaller" BeforeTargets="Build;SignFiles">
-    <Exec Command="$(PkgTools_InnoSetup)\tools\ISCC.exe /DLayoutDir=$(LayoutPath) /DGVFSVersion=$(GVFSVersion) Setup.iss /O$(OutputPath)" />
+    <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) Setup.iss /O"$(OutputPath)"' />
   </Target>
 
   <Target Name="CreateNuspecFile" AfterTargets="CreateInstaller">
