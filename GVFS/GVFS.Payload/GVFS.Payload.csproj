@@ -29,7 +29,7 @@
   </ItemGroup>
 
   <Target Name="CreatePayload" AfterTargets="CoreBuild" BeforeTargets="SignFiles">
-    <Exec Command="$(MSBuildThisFileDirectory)layout.bat $(Configuration) $(GVFSVersion) $(PkgGVFS_ProjFS) $(PkgGVFS_VCRuntime) $(OutputPath)" />
+    <Exec Command='"$(MSBuildThisFileDirectory)layout.bat" $(Configuration) $(GVFSVersion) "$(PkgGVFS_ProjFS)" "$(PkgGVFS_VCRuntime)" "$(OutputPath)"' />
   </Target>
 
   <Target Name="CleanPayload" BeforeTargets="AfterClean">
