@@ -29,7 +29,7 @@ To install, use [`winget`](https://github.com/microsoft/winget) to install the
 using:
 
 ```
-winget install microsoft-git
+winget install -s winget microsoft-git
 winget install gvfs
 ```
 
