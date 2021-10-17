@@ -29,8 +29,8 @@ To install, use [`winget`](https://github.com/microsoft/winget) to install the
 using:
 
 ```
-winget install microsoft-git
-winget install gvfs
+winget install --id Microsoft.Git
+winget install --id Microsoft.VFSforGit
 ```
 
 You will need to continue using the `microsoft/git` version of Git, and it
