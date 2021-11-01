@@ -3,10 +3,10 @@ SETLOCAL
 
 SET SYS_PRJFLT=C:\Windows\System32\drivers\prjflt.sys
 SET SYS_PROJFSLIB=C:\Windows\System32\ProjectedFSLib.dll
-SET VFS_PROJFSLIB=C:\Program Files\GVFS\ProjectedFSLib.dll
-SET VFS_BUND_PRJFLT=C:\Program Files\GVFS\Filter\PrjFlt.sys
-SET VFS_BUND_PROJFSLIB=C:\Program Files\GVFS\ProjFS\ProjectedFSLib.dll
-SET VFS_EXEC=C:\Program Files\GVFS\GVFS.exe
+SET VFS_PROJFSLIB=C:\Program Files\VFS for Git\ProjectedFSLib.dll
+SET VFS_BUND_PRJFLT=C:\Program Files\VFS for Git\Filter\PrjFlt.sys
+SET VFS_BUND_PROJFSLIB=C:\Program Files\VFS for Git\ProjFS\ProjectedFSLib.dll
+SET VFS_EXEC=C:\Program Files\VFS for Git\GVFS.exe
 SET GIT_EXEC=C:\Program Files\Git\cmd\git.exe
 
 ECHO Checking ProjFS Windows feature...

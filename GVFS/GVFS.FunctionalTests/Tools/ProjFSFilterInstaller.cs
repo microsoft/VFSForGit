@@ -9,7 +9,7 @@ namespace GVFS.FunctionalTests.Tools
         private const string GVFSServiceName = "GVFS.Service";
         private const string ProjFSServiceName = "prjflt";
         private const string OptionalFeatureName = "Client-ProjFS";
-        private const string GVFSInstallPath = @"C:\Program Files\GVFS";
+        private const string GVFSInstallPath = @"C:\Program Files\VFS for Git";
         private const string NativeProjFSLibInstallLocation = GVFSInstallPath + @"\ProjFS\ProjectedFSLib.dll";
 
         private const string PrjfltInfName = "prjflt.inf";

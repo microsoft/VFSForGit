@@ -45,7 +45,7 @@ namespace GVFS.FunctionalTests.Properties
                 Commitish = @"FunctionalTests/20201014";
 
                 EnlistmentRoot = @"C:\Repos\GVFSFunctionalTests\enlistment";
-                PathToGVFS = @"C:\Program Files\GVFS\GVFS.exe";
+                PathToGVFS = @"C:\Program Files\VFS for Git\GVFS.exe";
                 PathToGit = @"C:\Program Files\Git\cmd\git.exe";
                 PathToBash = @"C:\Program Files\Git\bin\bash.exe";
 
@@ -53,7 +53,7 @@ namespace GVFS.FunctionalTests.Properties
                 FastFetchBaseRoot = @"C:\Repos\GVFSFunctionalTests\FastFetch";
                 FastFetchRoot = Path.Combine(FastFetchBaseRoot, "test");
                 FastFetchControl = Path.Combine(FastFetchBaseRoot, "control");
-                PathToGVFSService = @"C:\Program Files\GVFS\GVFS.Service.exe";
+                PathToGVFSService = @"C:\Program Files\VFS for Git\GVFS.Service.exe";
                 BinaryFileNameExtension = ".exe";
             }
         }
