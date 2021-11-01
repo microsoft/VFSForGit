@@ -5,7 +5,7 @@ IF "%1"=="" (SET "CONFIGURATION=Debug") ELSE (SET "CONFIGURATION=%1")
 
 REM Ensure GVFS installation is on the PATH for the Functional Tests to find
 SETLOCAL
-SET PATH=C:\Program Files\GVFS;C:\Program Files\Git\cmd;%PATH%
+SET PATH=C:\Program Files\VFS for Git\;C:\Program Files\GVFS;C:\Program Files\Git\cmd;%PATH%
 
 ECHO PATH = %PATH%
 
