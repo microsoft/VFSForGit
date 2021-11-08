@@ -7,33 +7,16 @@ jobs:
   release:
     runs-on: windows-latest
     steps:
-    - id: update-winget
-      name: Update winget repository
-      uses: mjcheetham/update-winget@v1.4
-      with:
-        id: Microsoft.VFSforGit
-        token: ${{ secrets.WINGET_TOKEN }}   
-        releaseAsset: SetupGVFS.([0-9.]*)\.exe
-        manifestText: |
-          PackageIdentifier: {{id}}
-          PackageVersion: {{version}}
-          PackageName: VFS for Git
-          Publisher: Microsoft Corporation
-          Moniker: vfs-for-git
-          PackageUrl: https://aka.ms/vfs-for-git
-          Tags:
-          - vfs for git
-          - vfs-for-git
-          - vfsforgit
-          - gvfs
-          License: Copyright (C) Microsoft Corporation
-          ShortDescription: Virtual File System for Git - a tool to scale Git for monorepo scenarios.
-          Installers:
-          - Architecture: x64
-            InstallerUrl: {{url}}
-            InstallerType: inno
-            InstallerSha256: {{sha256}}
-          PackageLocale: en-US
-          ManifestType: singleton
-          ManifestVersion: 1.0.0
-        alwaysUsePullRequest: true
+      - name: Publish manifest with winget-create
+        run: |
+          # Get correct release asset
+          $github = Get-Content '${{ github.event_path }}' | ConvertFrom-Json
+          $asset = $github.release.assets | Where-Object -Property name -match 'SetupGVFS[\d\.]*.exe'
+
+          # Remove 'v' from the version
+          $version = $github.release.tag_name -replace ".v",""
+
+          # Download and run wingetcreate
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          .\wingetcreate.exe update Microsoft.VFSforGit -u $asset.browser_download_url -v $version -o manifests -t "${{ secrets.WINGET_TOKEN }}" -s
+        shell: powershell
