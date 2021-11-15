@@ -16,7 +16,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
     [Category(Categories.ExtraCoverage)]
     public class ServiceTests : TestsWithEnlistmentPerFixture
     {
-        private const string NativeLibPath = @"C:\Program Files\GVFS\ProjectedFSLib.dll";
+        private const string NativeLibPath = @"C:\Program Files\VFS for Git\ProjectedFSLib.dll";
         private const string PrjFltAutoLoggerKey = "SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\Microsoft-Windows-ProjFS-Filter-Log";
         private const string PrjFltAutoLoggerStartValue = "Start";
 
