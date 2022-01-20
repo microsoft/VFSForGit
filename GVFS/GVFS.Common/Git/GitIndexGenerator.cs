@@ -53,7 +53,17 @@ namespace GVFS.Common.Git
             this.enlistment = enlistment;
             this.shouldHashIndex = shouldHashIndex;
 
-            this.indexLockPath = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName + GVFSConstants.DotGit.LockExtension);
+            // The extension 'lock2' is chosen simply to not be '.lock' because, although this class reasonably
+            // conforms to how index.lock is supposed to be used, its callers continue to do things to the tree
+            // and the working tree and even the before this class comes along and after this class has been released.
+            // FastFetch.IndexLock bodges around this by creating an empty file in the index.lock position, so we
+            // need to create a different file.  See FastFetch.IndexLock for a proposed design to fix this.
+            //
+            // Note that there are two callers of this - one is from FastFetch, which we just discussed, and the
+            // other is from the 'gvfs repair' verb.  That environment is special in that it only runs on unmounted
+            // repo's, so 'index.lock' is irrelevant as a locking mechanism in that context.  There can't be git
+            // commands to lock out.
+            this.indexLockPath = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName + ".lock2");
         }
 
         public bool HasFailures { get; private set; }
