@@ -319,7 +319,6 @@ namespace FastFetch
                 }
             }
 
-            this.tracer.RelatedEvent(EventLevel.Informational, "MoveUpdatedIndexToFinalLocation", new EventMetadata() { { "UpdatedIndex", this.updatedIndexPath }, { "Index", this.indexPath } });
             File.Delete(this.indexPath);
             File.Move(this.updatedIndexPath, this.indexPath);
 

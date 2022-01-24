@@ -115,6 +115,40 @@ namespace FastFetch
 
                 if (!this.SkipConfigUpdate && !this.HasFailures)
                 {
+                    bool shouldSignIndex = !this.GetIsIndexSigningOff();
+
+                    // Update the index - note that this will take some time
+                    EventMetadata updateIndexMetadata = new EventMetadata();
+                    updateIndexMetadata.Add("IndexSigningIsOff", shouldSignIndex);
+                    using (ITracer activity = this.Tracer.StartActivity("UpdateIndex", EventLevel.Informational, Keywords.Telemetry, updateIndexMetadata))
+                    {
+                        Index sourceIndex = this.GetSourceIndex();
+                        GitIndexGenerator indexGen = new GitIndexGenerator(this.Tracer, this.Enlistment, shouldSignIndex);
+                        indexGen.CreateFromRef(commitToFetch, indexVersion: 2, isFinal: false);
+                        this.HasFailures |= indexGen.HasFailures;
+
+                        if (!indexGen.HasFailures)
+                        {
+                            Index newIndex = new Index(
+                                this.Enlistment.EnlistmentRoot,
+                                this.Tracer,
+                                indexGen.TemporaryIndexFilePath,
+                                readOnly: false);
+
+                            // Update from disk only if the caller says it is ok via command line
+                            // or if we updated the whole tree and know that all files are up to date
+                            bool allowIndexMetadataUpdateFromWorkingTree = this.allowIndexMetadataUpdateFromWorkingTree || checkout.UpdatedWholeTree;
+                            newIndex.UpdateFileSizesAndTimes(checkout.AddedOrEditedLocalFiles, allowIndexMetadataUpdateFromWorkingTree, shouldSignIndex, sourceIndex);
+
+                            // All the slow stuff is over, so we will now move the final index into .git\index, shortly followed by
+                            // updating the ref files and releasing index.lock.
+                            string indexPath = Path.Combine(this.Enlistment.DotGitRoot,  GVFSConstants.DotGit.IndexName);
+                            this.Tracer.RelatedEvent(EventLevel.Informational, "MoveUpdatedIndexToFinalLocation", new EventMetadata() { { "UpdatedIndex", indexGen.TemporaryIndexFilePath }, { "Index", indexPath } });
+                            File.Delete(indexPath);
+                            File.Move(indexGen.TemporaryIndexFilePath, indexPath);
+                        }
+                    }
+
                     this.UpdateRefs(branchOrCommit, isBranch, refs);
 
                     if (isBranch)
@@ -132,33 +166,6 @@ namespace FastFetch
                                 activity.RelatedError("Could not set upstream for {0} to {1}: {2}", branchOrCommit, remoteBranch, result.Errors);
                                 this.HasFailures = true;
                             }
-                        }
-                    }
-
-                    bool shouldSignIndex = !this.GetIsIndexSigningOff();
-
-                    // Update the index
-                    EventMetadata updateIndexMetadata = new EventMetadata();
-                    updateIndexMetadata.Add("IndexSigningIsOff", shouldSignIndex);
-                    using (ITracer activity = this.Tracer.StartActivity("UpdateIndex", EventLevel.Informational, Keywords.Telemetry, updateIndexMetadata))
-                    {
-                        Index sourceIndex = this.GetSourceIndex();
-                        GitIndexGenerator indexGen = new GitIndexGenerator(this.Tracer, this.Enlistment, shouldSignIndex);
-                        indexGen.CreateFromHeadTree(indexVersion: 2);
-                        this.HasFailures |= indexGen.HasFailures;
-
-                        if (!indexGen.HasFailures)
-                        {
-                            Index newIndex = new Index(
-                                this.Enlistment.EnlistmentRoot,
-                                this.Tracer,
-                                Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName),
-                                readOnly: false);
-
-                            // Update from disk only if the caller says it is ok via command line
-                            // or if we updated the whole tree and know that all files are up to date
-                            bool allowIndexMetadataUpdateFromWorkingTree = this.allowIndexMetadataUpdateFromWorkingTree || checkout.UpdatedWholeTree;
-                            newIndex.UpdateFileSizesAndTimes(checkout.AddedOrEditedLocalFiles, allowIndexMetadataUpdateFromWorkingTree, shouldSignIndex, sourceIndex);
                         }
                     }
                 }
@@ -200,18 +207,10 @@ namespace FastFetch
         private Index GetSourceIndex()
         {
             string indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
-            string backupIndexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName + ".backup");
 
             if (File.Exists(indexPath))
             {
-                // Note that this moves the current index, leaving nothing behind
-                // This is intentional as we only need it for the purpose of updating the
-                // new index and leaving it behind can make updating slower.
-                this.Tracer.RelatedEvent(EventLevel.Informational, "CreateBackup", new EventMetadata() { { "BackupIndexName", backupIndexPath } });
-                File.Delete(backupIndexPath);
-                File.Move(indexPath, backupIndexPath);
-
-                Index output = new Index(this.Enlistment.EnlistmentRoot, this.Tracer, backupIndexPath, readOnly: true);
+                Index output = new Index(this.Enlistment.EnlistmentRoot, this.Tracer, indexPath, readOnly: true);
                 output.Parse();
                 return output;
             }

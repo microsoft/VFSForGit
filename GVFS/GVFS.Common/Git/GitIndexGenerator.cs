@@ -66,18 +66,30 @@ namespace GVFS.Common.Git
             this.indexLockPath = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName + ".lock2");
         }
 
+        public string TemporaryIndexFilePath => this.indexLockPath;
+
         public bool HasFailures { get; private set; }
 
-        public void CreateFromHeadTree(uint indexVersion)
+        /// <summary>Builds an index from scratch based on the current head pointer.</summary>
+        /// <param name="indexVersion">The index version see https://git-scm.com/docs/index-format for details on what this means.</param>
+        /// <param name="isFinal">
+        /// If true, the index file will be written during this operation.  If not, the new index will be
+        /// left in <see cref="TemporaryIndexFilePath"/>.
+        /// </param>
+        /// <remarks>
+        /// The index created by this class has no data from the working tree, so when 'git status' is run, it
+        /// will calculate the hash of everything in the working tree.
+        /// </remarks>
+        public void CreateFromRef(string refName, uint indexVersion, bool isFinal)
         {
             using (ITracer updateIndexActivity = this.tracer.StartActivity("CreateFromHeadTree", EventLevel.Informational))
             {
-                Thread entryWritingThread = new Thread(() => this.WriteAllEntries(indexVersion));
+                Thread entryWritingThread = new Thread(() => this.WriteAllEntries(indexVersion, isFinal));
                 entryWritingThread.Start();
 
                 GitProcess git = new GitProcess(this.enlistment);
                 GitProcess.Result result = git.LsTree(
-                    GVFSConstants.DotGit.HeadName,
+                    refName,
                     this.EnqueueEntriesFromLsTree,
                     recursive: true,
                     showAllTrees: false);
@@ -102,7 +114,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        private void WriteAllEntries(uint version)
+        private void WriteAllEntries(uint version, bool isFinal)
         {
             try
             {
@@ -127,24 +139,16 @@ namespace GVFS.Common.Git
                 }
 
                 this.AppendIndexSha();
-                this.ReplaceExistingIndex();
+                if (isFinal)
+                {
+                    this.ReplaceExistingIndex();
+                }
             }
             catch (Exception e)
             {
                 this.tracer.RelatedError("Failed to generate index: {0}", e.ToString());
                 this.HasFailures = true;
             }
-        }
-
-        private string GetDirectoryNameForGitPath(string filename)
-        {
-            int idx = filename.LastIndexOf('/');
-            if (idx < 0)
-            {
-                return "/";
-            }
-
-            return filename.Substring(0, idx + 1);
         }
 
         private void WriteEntry(BinaryWriter writer, uint version, string sha, string filename, ref uint lastStringLength)
