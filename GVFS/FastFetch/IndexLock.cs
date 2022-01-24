@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using System;
 using System.IO;
@@ -8,7 +9,8 @@ namespace FastFetch
 {
     /// <summary>
     ///   A mechanism for holding the 'index.lock' on a repository for the time it takes to update the index
-    ///   and working tree.
+    ///   and working tree.  It attempts to create the file in the constructor and throws if that fails.
+    ///   It closes and deletes index.lock on dispose.
     /// </summary>
     /// <remarks>
     ///   <para>
@@ -48,38 +50,22 @@ namespace FastFetch
         private string lockFilePath;
         private FileStream lockFileStream;
 
-        private IndexLock(string lockFilePath, FileStream lockFileStream)
+        public IndexLock(string repositoryRoot, ITracer tracer)
         {
-            this.lockFilePath = lockFilePath;
-            this.lockFileStream = lockFileStream;
-        }
-
-        /// <summary>
-        ///   Attempts to get the index.lock.  If it succeeds, it returns an object that must be released
-        ///   when the operation completes with the git repository in good shape.  Note that simply disposing
-        ///   the object will not release the lock.
-        /// </summary>
-        public static bool TryGetLock(string repositoryRoot, ITracer tracer, out IndexLock lockHolder)
-        {
-            string lockFilePath = Path.Combine(repositoryRoot, GVFSConstants.DotGit.IndexLock);
+            this.lockFilePath = Path.Combine(repositoryRoot, GVFSConstants.DotGit.IndexLock);
             try
             {
-                FileStream lockFileStream = File.Open(lockFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-                lockHolder = new IndexLock(lockFilePath, lockFileStream);
-                return true;
+                this.lockFileStream = File.Open(lockFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
             }
             catch (Exception ex)
             {
                 tracer.RelatedError("Unable to create: {0}: {1}", lockFilePath, ex.Message);
-                lockHolder = null;
-                return false;
+                throw new BlobPrefetcher.FetchException("Could not acquire index.lock.");
             }
         }
 
-        /// <summary>
-        ///   Release the lock, indicating that the index and the working tree are safe for other git operations to use.
-        /// </summary>
-        public void Release()
+        /// <inheritdoc/>>
+        public void Dispose()
         {
             if (this.lockFilePath == null)
             {
@@ -96,13 +82,6 @@ namespace FastFetch
 
             File.Delete(this.lockFilePath);
             this.lockFilePath = null;
-        }
-
-        /// <inheritdoc/>>
-        public void Dispose()
-        {
-            this.lockFileStream?.Dispose();
-            this.lockFileStream = null;
         }
     }
 }

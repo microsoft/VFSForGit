@@ -72,13 +72,7 @@ namespace FastFetch
                 commitToFetch = branchOrCommit;
             }
 
-            if (!IndexLock.TryGetLock(this.Enlistment.EnlistmentRoot, this.Tracer, out var indexLock))
-            {
-                this.HasFailures = true;
-                throw new FetchException("Could not acquire index.lock.");
-            }
-
-            using (indexLock)
+            using (new IndexLock(this.Enlistment.EnlistmentRoot, this.Tracer))
             {
                 this.DownloadMissingCommit(commitToFetch, this.GitObjects);
 
@@ -142,7 +136,7 @@ namespace FastFetch
 
                             // All the slow stuff is over, so we will now move the final index into .git\index, shortly followed by
                             // updating the ref files and releasing index.lock.
-                            string indexPath = Path.Combine(this.Enlistment.DotGitRoot,  GVFSConstants.DotGit.IndexName);
+                            string indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
                             this.Tracer.RelatedEvent(EventLevel.Informational, "MoveUpdatedIndexToFinalLocation", new EventMetadata() { { "UpdatedIndex", indexGen.TemporaryIndexFilePath }, { "Index", indexPath } });
                             File.Delete(indexPath);
                             File.Move(indexGen.TemporaryIndexFilePath, indexPath);
@@ -150,34 +144,29 @@ namespace FastFetch
                         }
                     }
 
-                    this.UpdateRefs(branchOrCommit, isBranch, refs);
-
-                    if (isBranch)
+                    if (!this.HasFailures)
                     {
-                        // Update the refspec before setting the upstream or git will complain the remote branch doesn't exist
-                        this.HasFailures |= !this.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
+                        this.UpdateRefs(branchOrCommit, isBranch, refs);
 
-                        using (ITracer activity = this.Tracer.StartActivity("SetUpstream", EventLevel.Informational))
+                        if (isBranch)
                         {
-                            string remoteBranch = refs.GetBranchRefPairs().Single().Key;
-                            GitProcess git = new GitProcess(this.Enlistment);
-                            GitProcess.Result result = git.SetUpstream(branchOrCommit, remoteBranch);
-                            if (result.ExitCodeIsFailure)
+                            // Update the refspec before setting the upstream or git will complain the remote branch doesn't exist
+                            this.HasFailures |= !this.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
+
+                            using (ITracer activity = this.Tracer.StartActivity("SetUpstream", EventLevel.Informational))
                             {
-                                activity.RelatedError("Could not set upstream for {0} to {1}: {2}", branchOrCommit, remoteBranch, result.Errors);
-                                this.HasFailures = true;
+                                string remoteBranch = refs.GetBranchRefPairs().Single().Key;
+                                GitProcess git = new GitProcess(this.Enlistment);
+                                GitProcess.Result result = git.SetUpstream(branchOrCommit, remoteBranch);
+                                if (result.ExitCodeIsFailure)
+                                {
+                                    activity.RelatedError("Could not set upstream for {0} to {1}: {2}", branchOrCommit, remoteBranch, result.Errors);
+                                    this.HasFailures = true;
+                                }
                             }
                         }
                     }
                 }
-
-                indexLock.Release();
-                // Note that this releases the lock even if we had failures, and thus even if the index/working-tree
-                // might need to be repaired.  It is up to our caller to monitor the exit code and repair/discard the
-                // enlistment as-appropriate.  If we have an unhandled exception or are killed, the file will be left
-                // around as well.  The thinking here is that if we are killed, it's like our parent is too and thus
-                // will not be able to take those recovery steps, and leaving the file around ends up being a flag to
-                // the next command that's run after the machine recovers to sort it out.
             }
         }
 
