@@ -39,9 +39,7 @@ namespace FastFetch
 
         private readonly bool readOnly;
 
-        // Index paths
         private readonly string indexPath;
-        private readonly string updatedIndexPath;
 
         private readonly ITracer tracer;
         private readonly string repoRoot;
@@ -63,15 +61,6 @@ namespace FastFetch
             this.indexPath = indexFullPath;
             this.readOnly = readOnly;
 
-            if (this.readOnly)
-            {
-                this.updatedIndexPath = this.indexPath;
-            }
-            else
-            {
-                this.updatedIndexPath = Path.Combine(repoRoot, GVFSConstants.DotGit.Root, UpdatedIndexName);
-            }
-
             this.versionMarkerFile = Path.Combine(this.repoRoot, GVFSConstants.DotGit.Root, ".fastfetch", "VersionMarker");
         }
 
@@ -92,8 +81,8 @@ namespace FastFetch
         /// </summary>
         /// <param name="addedOrEditedLocalFiles">A collection of added or edited files</param>
         /// <param name="allowUpdateFromWorkingTree">Set to true if the working tree is known good and can be used during the update.</param>
-        /// <param name="backupIndex">An optional index to source entry values from</param>
-        public void UpdateFileSizesAndTimes(BlockingCollection<string> addedOrEditedLocalFiles, bool allowUpdateFromWorkingTree, bool shouldSignIndex, Index backupIndex = null)
+        /// <param name="sourceIndex">An optional index to source entry values from</param>
+        public void UpdateFileSizesAndTimes(BlockingCollection<string> addedOrEditedLocalFiles, bool allowUpdateFromWorkingTree, bool shouldSignIndex, Index sourceIndex = null)
         {
             if (this.readOnly)
             {
@@ -102,8 +91,6 @@ namespace FastFetch
 
             using (ITracer activity = this.tracer.StartActivity("UpdateFileSizesAndTimes", EventLevel.Informational, Keywords.Telemetry, null))
             {
-                File.Copy(this.indexPath, this.updatedIndexPath, overwrite: true);
-
                 this.Parse();
 
                 bool anyEntriesUpdated = false;
@@ -113,13 +100,13 @@ namespace FastFetch
                 {
                     // Only populate from the previous index if we believe it's good to populate from
                     // For now, a current FastFetch version marker is the only criteria
-                    if (backupIndex != null)
+                    if (sourceIndex != null)
                     {
                         if (this.IsFastFetchVersionMarkerCurrent())
                         {
                             using (this.tracer.StartActivity("UpdateFileInformationFromPreviousIndex", EventLevel.Informational, Keywords.Telemetry, null))
                             {
-                                anyEntriesUpdated |= this.UpdateFileInformationForAllEntries(indexView, backupIndex, allowUpdateFromWorkingTree);
+                                anyEntriesUpdated |= this.UpdateFileInformationForAllEntries(indexView, sourceIndex, allowUpdateFromWorkingTree);
                             }
 
                             if (addedOrEditedLocalFiles != null)
@@ -139,22 +126,18 @@ namespace FastFetch
                     indexView.Flush();
                 }
 
-                if (anyEntriesUpdated)
+                if (shouldSignIndex)
                 {
-                    this.MoveUpdatedIndexToFinalLocation(shouldSignIndex);
-                }
-                else
-                {
-                    File.Delete(this.updatedIndexPath);
+                    this.SignIndex();
                 }
             }
         }
 
         public void Parse()
         {
-            using (ITracer activity = this.tracer.StartActivity("ParseIndex", EventLevel.Informational, Keywords.Telemetry, new EventMetadata() { { "Index", this.updatedIndexPath } }))
+            using (ITracer activity = this.tracer.StartActivity("ParseIndex", EventLevel.Informational, Keywords.Telemetry, new EventMetadata() { { "Index", this.indexPath } }))
             {
-                using (Stream indexStream = new FileStream(this.updatedIndexPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (Stream indexStream = new FileStream(this.indexPath, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
                     this.ParseIndex(indexStream);
                 }
@@ -173,7 +156,7 @@ namespace FastFetch
 
         private MemoryMappedFile GetMemoryMappedFile()
         {
-            return MemoryMappedFile.CreateFromFile(this.updatedIndexPath, FileMode.Open);
+            return MemoryMappedFile.CreateFromFile(this.indexPath, FileMode.Open);
         }
 
         private bool UpdateFileInformationFromWorkingTree(MemoryMappedViewAccessor indexView)
@@ -296,36 +279,28 @@ namespace FastFetch
             return (updatedEntriesFromOtherIndex > 0) || (updatedEntriesFromDisk > 0);
         }
 
-        private void MoveUpdatedIndexToFinalLocation(bool shouldSignIndex)
+        private void SignIndex()
         {
-            if (shouldSignIndex)
+            using (ITracer activity = this.tracer.StartActivity("SignIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
             {
-                using (ITracer activity = this.tracer.StartActivity("SignIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
+                using (FileStream fs = File.Open(this.indexPath, FileMode.Open, FileAccess.ReadWrite))
                 {
-                    using (FileStream fs = File.Open(this.updatedIndexPath, FileMode.Open, FileAccess.ReadWrite))
+                    // Truncate the old hash off. The Index class is expected to preserve any existing hash.
+                    fs.SetLength(fs.Length - 20);
+                    using (HashingStream hashStream = new HashingStream(fs))
                     {
-                        // Truncate the old hash off. The Index class is expected to preserve any existing hash.
-                        fs.SetLength(fs.Length - 20);
-                        using (HashingStream hashStream = new HashingStream(fs))
-                        {
-                            fs.Position = 0;
-                            hashStream.CopyTo(Stream.Null);
-                            byte[] hash = hashStream.Hash;
+                        fs.Position = 0;
+                        hashStream.CopyTo(Stream.Null);
+                        byte[] hash = hashStream.Hash;
 
-                            // The fs pointer is now where the old hash used to be. Perfect. :)
-                            fs.Write(hash, 0, hash.Length);
-                        }
+                        // The fs pointer is now where the old hash used to be. Perfect. :)
+                        fs.Write(hash, 0, hash.Length);
                     }
                 }
             }
-
-            File.Delete(this.indexPath);
-            File.Move(this.updatedIndexPath, this.indexPath);
-
-            this.WriteFastFetchIndexVersionMarker();
         }
 
-        private void WriteFastFetchIndexVersionMarker()
+        public void WriteFastFetchIndexVersionMarker()
         {
             if (File.Exists(this.versionMarkerFile))
             {
@@ -374,7 +349,7 @@ namespace FastFetch
 
             this.entryCount = this.ReadUInt32(buffer, indexStream);
 
-            this.tracer.RelatedEvent(EventLevel.Informational, "IndexData", new EventMetadata() { { "Index", this.updatedIndexPath }, { "Version", this.IndexVersion }, { "entryCount", this.entryCount } }, Keywords.Telemetry);
+            this.tracer.RelatedEvent(EventLevel.Informational, "IndexData", new EventMetadata() { { "Index", this.indexPath }, { "Version", this.IndexVersion }, { "entryCount", this.entryCount } }, Keywords.Telemetry);
 
             this.indexEntryOffsets = new Dictionary<string, long>((int)this.entryCount, GVFSPlatform.Instance.Constants.PathComparer);
 

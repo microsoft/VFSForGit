@@ -146,6 +146,7 @@ namespace FastFetch
                             this.Tracer.RelatedEvent(EventLevel.Informational, "MoveUpdatedIndexToFinalLocation", new EventMetadata() { { "UpdatedIndex", indexGen.TemporaryIndexFilePath }, { "Index", indexPath } });
                             File.Delete(indexPath);
                             File.Move(indexGen.TemporaryIndexFilePath, indexPath);
+                            newIndex.WriteFastFetchIndexVersionMarker();
                         }
                     }
 
