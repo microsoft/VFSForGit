@@ -72,85 +72,99 @@ namespace FastFetch
                 commitToFetch = branchOrCommit;
             }
 
-            this.DownloadMissingCommit(commitToFetch, this.GitObjects);
-
-            // Configure pipeline
-            // Checkout uses DiffHelper when running checkout.Start(), which we use instead of LsTreeHelper
-            // Checkout diff output => FindBlobs => BatchDownload => IndexPack => Checkout available blobs
-            CheckoutStage checkout = new CheckoutStage(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment, this.forceCheckout);
-            FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
-            BatchObjectDownloadStage downloader = new BatchObjectDownloadStage(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
-            IndexPackStage packIndexer = new IndexPackStage(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);
-
-            // Start pipeline
-            downloader.Start();
-            blobFinder.Start();
-            checkout.Start();
-
-            blobFinder.WaitForCompletion();
-            this.HasFailures |= blobFinder.HasFailures;
-
-            // Delay indexing. It interferes with FindMissingBlobs, and doesn't help Bootstrapping.
-            packIndexer.Start();
-
-            downloader.WaitForCompletion();
-            this.HasFailures |= downloader.HasFailures;
-
-            packIndexer.WaitForCompletion();
-            this.HasFailures |= packIndexer.HasFailures;
-
-            // Since pack indexer is the last to finish before checkout finishes, it should propagate completion.
-            // This prevents availableObjects from completing before packIndexer can push its objects through this link.
-            checkout.AvailableBlobShas.CompleteAdding();
-            checkout.WaitForCompletion();
-            this.HasFailures |= checkout.HasFailures;
-
-            if (!this.SkipConfigUpdate && !this.HasFailures)
+            using (new IndexLock(this.Enlistment.EnlistmentRoot, this.Tracer))
             {
-                this.UpdateRefs(branchOrCommit, isBranch, refs);
+                this.DownloadMissingCommit(commitToFetch, this.GitObjects);
 
-                if (isBranch)
+                // Configure pipeline
+                // Checkout uses DiffHelper when running checkout.Start(), which we use instead of LsTreeHelper
+                // Checkout diff output => FindBlobs => BatchDownload => IndexPack => Checkout available blobs
+                CheckoutStage checkout = new CheckoutStage(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment, this.forceCheckout);
+                FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
+                BatchObjectDownloadStage downloader = new BatchObjectDownloadStage(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
+                IndexPackStage packIndexer = new IndexPackStage(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);
+
+                // Start pipeline
+                downloader.Start();
+                blobFinder.Start();
+                checkout.Start();
+
+                blobFinder.WaitForCompletion();
+                this.HasFailures |= blobFinder.HasFailures;
+
+                // Delay indexing. It interferes with FindMissingBlobs, and doesn't help Bootstrapping.
+                packIndexer.Start();
+
+                downloader.WaitForCompletion();
+                this.HasFailures |= downloader.HasFailures;
+
+                packIndexer.WaitForCompletion();
+                this.HasFailures |= packIndexer.HasFailures;
+
+                // Since pack indexer is the last to finish before checkout finishes, it should propagate completion.
+                // This prevents availableObjects from completing before packIndexer can push its objects through this link.
+                checkout.AvailableBlobShas.CompleteAdding();
+                checkout.WaitForCompletion();
+                this.HasFailures |= checkout.HasFailures;
+
+                if (!this.SkipConfigUpdate && !this.HasFailures)
                 {
-                    // Update the refspec before setting the upstream or git will complain the remote branch doesn't exist
-                    this.HasFailures |= !this.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
+                    bool shouldSignIndex = !this.GetIsIndexSigningOff();
 
-                    using (ITracer activity = this.Tracer.StartActivity("SetUpstream", EventLevel.Informational))
+                    // Update the index - note that this will take some time
+                    EventMetadata updateIndexMetadata = new EventMetadata();
+                    updateIndexMetadata.Add("IndexSigningIsOff", shouldSignIndex);
+                    using (ITracer activity = this.Tracer.StartActivity("UpdateIndex", EventLevel.Informational, Keywords.Telemetry, updateIndexMetadata))
                     {
-                        string remoteBranch = refs.GetBranchRefPairs().Single().Key;
-                        GitProcess git = new GitProcess(this.Enlistment);
-                        GitProcess.Result result = git.SetUpstream(branchOrCommit, remoteBranch);
-                        if (result.ExitCodeIsFailure)
+                        Index sourceIndex = this.GetSourceIndex();
+                        GitIndexGenerator indexGen = new GitIndexGenerator(this.Tracer, this.Enlistment, shouldSignIndex);
+                        indexGen.CreateFromRef(commitToFetch, indexVersion: 2, isFinal: false);
+                        this.HasFailures |= indexGen.HasFailures;
+
+                        if (!indexGen.HasFailures)
                         {
-                            activity.RelatedError("Could not set upstream for {0} to {1}: {2}", branchOrCommit, remoteBranch, result.Errors);
-                            this.HasFailures = true;
+                            Index newIndex = new Index(
+                                this.Enlistment.EnlistmentRoot,
+                                this.Tracer,
+                                indexGen.TemporaryIndexFilePath,
+                                readOnly: false);
+
+                            // Update from disk only if the caller says it is ok via command line
+                            // or if we updated the whole tree and know that all files are up to date
+                            bool allowIndexMetadataUpdateFromWorkingTree = this.allowIndexMetadataUpdateFromWorkingTree || checkout.UpdatedWholeTree;
+                            newIndex.UpdateFileSizesAndTimes(checkout.AddedOrEditedLocalFiles, allowIndexMetadataUpdateFromWorkingTree, shouldSignIndex, sourceIndex);
+
+                            // All the slow stuff is over, so we will now move the final index into .git\index, shortly followed by
+                            // updating the ref files and releasing index.lock.
+                            string indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
+                            this.Tracer.RelatedEvent(EventLevel.Informational, "MoveUpdatedIndexToFinalLocation", new EventMetadata() { { "UpdatedIndex", indexGen.TemporaryIndexFilePath }, { "Index", indexPath } });
+                            File.Delete(indexPath);
+                            File.Move(indexGen.TemporaryIndexFilePath, indexPath);
+                            newIndex.WriteFastFetchIndexVersionMarker();
                         }
                     }
-                }
 
-                bool shouldSignIndex = !this.GetIsIndexSigningOff();
-
-                // Update the index
-                EventMetadata updateIndexMetadata = new EventMetadata();
-                updateIndexMetadata.Add("IndexSigningIsOff", shouldSignIndex);
-                using (ITracer activity = this.Tracer.StartActivity("UpdateIndex", EventLevel.Informational, Keywords.Telemetry, updateIndexMetadata))
-                {
-                    Index sourceIndex = this.GetSourceIndex();
-                    GitIndexGenerator indexGen = new GitIndexGenerator(this.Tracer, this.Enlistment, shouldSignIndex);
-                    indexGen.CreateFromHeadTree(indexVersion: 2);
-                    this.HasFailures |= indexGen.HasFailures;
-
-                    if (!indexGen.HasFailures)
+                    if (!this.HasFailures)
                     {
-                        Index newIndex = new Index(
-                            this.Enlistment.EnlistmentRoot,
-                            this.Tracer,
-                            Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName),
-                            readOnly: false);
+                        this.UpdateRefs(branchOrCommit, isBranch, refs);
 
-                        // Update from disk only if the caller says it is ok via command line
-                        // or if we updated the whole tree and know that all files are up to date
-                        bool allowIndexMetadataUpdateFromWorkingTree = this.allowIndexMetadataUpdateFromWorkingTree || checkout.UpdatedWholeTree;
-                        newIndex.UpdateFileSizesAndTimes(checkout.AddedOrEditedLocalFiles, allowIndexMetadataUpdateFromWorkingTree, shouldSignIndex, sourceIndex);
+                        if (isBranch)
+                        {
+                            // Update the refspec before setting the upstream or git will complain the remote branch doesn't exist
+                            this.HasFailures |= !this.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
+
+                            using (ITracer activity = this.Tracer.StartActivity("SetUpstream", EventLevel.Informational))
+                            {
+                                string remoteBranch = refs.GetBranchRefPairs().Single().Key;
+                                GitProcess git = new GitProcess(this.Enlistment);
+                                GitProcess.Result result = git.SetUpstream(branchOrCommit, remoteBranch);
+                                if (result.ExitCodeIsFailure)
+                                {
+                                    activity.RelatedError("Could not set upstream for {0} to {1}: {2}", branchOrCommit, remoteBranch, result.Errors);
+                                    this.HasFailures = true;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -183,18 +197,10 @@ namespace FastFetch
         private Index GetSourceIndex()
         {
             string indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
-            string backupIndexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName + ".backup");
 
             if (File.Exists(indexPath))
             {
-                // Note that this moves the current index, leaving nothing behind
-                // This is intentional as we only need it for the purpose of updating the
-                // new index and leaving it behind can make updating slower.
-                this.Tracer.RelatedEvent(EventLevel.Informational, "CreateBackup", new EventMetadata() { { "BackupIndexName", backupIndexPath } });
-                File.Delete(backupIndexPath);
-                File.Move(indexPath, backupIndexPath);
-
-                Index output = new Index(this.Enlistment.EnlistmentRoot, this.Tracer, backupIndexPath, readOnly: true);
+                Index output = new Index(this.Enlistment.EnlistmentRoot, this.Tracer, indexPath, readOnly: true);
                 output.Parse();
                 return output;
             }

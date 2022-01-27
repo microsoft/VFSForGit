@@ -46,7 +46,7 @@ namespace GVFS.RepairJobs
             }
 
             GitIndexGenerator indexGen = new GitIndexGenerator(this.Tracer, this.Enlistment, shouldHashIndex: false);
-            indexGen.CreateFromHeadTree(indexVersion: 4);
+            indexGen.CreateFromRef(GVFSConstants.DotGit.HeadName, indexVersion: 4, isFinal: true);
 
             if (indexGen.HasFailures || this.TryParseIndex(this.indexPath, messages) != IssueType.None)
             {
