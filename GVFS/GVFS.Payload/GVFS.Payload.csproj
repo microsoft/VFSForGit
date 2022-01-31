@@ -13,7 +13,7 @@
   <ItemGroup>
     <PackageReference Include="GVFS.ProjFS" Version="2019.411.1" />
     <PackageReference Include="GVFS.VCRuntime" Version="0.2.0-build" />
-    <PackageReference Include="MicroBuild.Core" Version="0.2.0" ExcludeAssets="none" />
+    <PackageReference Include="Microsoft.VisualStudioEng.MicroBuild.Core" Version="1.0.0" ExcludeAssets="none" />
   </ItemGroup>
 
   <ItemGroup>
