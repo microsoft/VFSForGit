@@ -9,7 +9,7 @@
     <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.278" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="2.2.4" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
-    <PackageReference Include="SharpZipLib" Version="1.2.0" />
+    <PackageReference Include="SharpZipLib" Version="1.3.3" />
     <PackageReference Include="NuGet.Commands" Version="4.9.2" />
   </ItemGroup>
 
