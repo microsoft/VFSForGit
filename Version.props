@@ -18,7 +18,7 @@
        including taking version numbers 2.X.Y from upstream and updating .W if we have any
        hotfixes to microsoft/git.
     -->
-    <GitPackageVersion>2.20211115.1</GitPackageVersion>
+    <GitPackageVersion>2.20220411.2-pr</GitPackageVersion>
     <MinimumGitVersion>v2.31.0.vfs.0.1</MinimumGitVersion>
   </PropertyGroup>
 
