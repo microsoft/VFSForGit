@@ -27,7 +27,10 @@ namespace GVFS.Common.FileSystem
                 foreach (FileInfo file in directory.GetFiles())
                 {
                     file.Attributes = FileAttributes.Normal;
-                    file.Delete();
+                    if(file.Exists)
+                    {
+                        file.Delete();
+                    }
                 }
 
                 foreach (DirectoryInfo subDirectory in directory.GetDirectories())
