@@ -26,10 +26,13 @@ namespace GVFS.Common.FileSystem
             {
                 foreach (FileInfo file in directory.GetFiles())
                 {
-                    file.Attributes = FileAttributes.Normal;
-                    if(file.Exists)
+                    try
                     {
+                        file.Attributes = FileAttributes.Normal;
                         file.Delete();
+                    }
+                    catch(Exception ex)
+                    {
                     }
                 }
 
