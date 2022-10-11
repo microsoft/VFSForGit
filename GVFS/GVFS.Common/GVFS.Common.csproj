@@ -10,7 +10,7 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="2.2.4" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     <PackageReference Include="SharpZipLib" Version="1.2.0" />
-    <PackageReference Include="NuGet.Commands" Version="4.9.2" />
+    <PackageReference Include="NuGet.Commands" Version="4.9.6+a32bce39889f724fbd11cfd12e946f802168b583" />
   </ItemGroup>
 
   <ItemGroup>
