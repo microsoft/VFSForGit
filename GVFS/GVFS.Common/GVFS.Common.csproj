@@ -9,7 +9,7 @@
     <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.278" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="2.2.4" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="SharpZipLib" Version="1.2.0" />
+    <PackageReference Include="SharpZipLib" Version="1.3.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,13 +18,11 @@
 
   <Target Name="_GenerateConstantsFile" BeforeTargets="BeforeCompile">
     <!-- Generate GVFS constants file with the minimum Git version -->
-    <GenerateGVFSConstants MinimumGitVersion="$(MinimumGitVersion)"
-                           LibGit2FileName="$(libgit2_filename)"
-                           OutputFile="$(IntermediateOutputPath)GVFSConstants.g.cs" />
+    <GenerateGVFSConstants MinimumGitVersion="$(MinimumGitVersion)" LibGit2FileName="$(libgit2_filename)" OutputFile="$(IntermediateOutputPath)GVFSConstants.g.cs" />
     <!-- Add the generated file to the list of file writes for MSBuild to keep track of for clean-up -->
     <ItemGroup>
       <Compile Include="$(IntermediateOutputPath)GVFSConstants.g.cs" />
-      <FileWrites Include="$(IntermediateOutputPath)GVFSConstants.g.cs"/>
+      <FileWrites Include="$(IntermediateOutputPath)GVFSConstants.g.cs" />
     </ItemGroup>
   </Target>
 
