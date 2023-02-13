@@ -238,8 +238,8 @@ namespace GVFS.Virtualization.Projection
                 uint entryCount = this.ReadFromIndexHeader();
 
                 // Don't want to flood the logs on large indexes so only log every 500ms
-                const int LoggingTicksThreshold = 5000000;
-                long nextLogTicks = DateTime.UtcNow.Ticks + LoggingTicksThreshold;
+                const int LoggingTicksThreshold = 500;
+                int nextLogTicks = Environment.TickCount + LoggingTicksThreshold;
 
                 SortedFolderEntries.InitializePools(tracer, entryCount);
                 LazyUTF8String.InitializePools(tracer, entryCount);
@@ -329,10 +329,11 @@ namespace GVFS.Virtualization.Projection
                         return result;
                     }
 
-                    if (DateTime.UtcNow.Ticks > nextLogTicks)
+                    int curTicks = Environment.TickCount;
+                    if (curTicks - nextLogTicks > 0)
                     {
                         tracer.RelatedInfo($"{i}/{entryCount} index entries parsed.");
-                        nextLogTicks = DateTime.UtcNow.Ticks + LoggingTicksThreshold;
+                        nextLogTicks = curTicks + LoggingTicksThreshold;
                     }
                 }
 
