@@ -91,9 +91,27 @@ namespace GVFS.Common.Git
         {
             lock (this.gitAuthLock)
             {
+                var cachedCredentialAtStartOfReject = this.cachedCredentialString;
                 // Don't stomp a different credential
-                if (credentialString == this.cachedCredentialString && this.cachedCredentialString != null)
+                if (credentialString == cachedCredentialAtStartOfReject && cachedCredentialAtStartOfReject != null)
                 {
+                    // We can't assume that the credential store's cached credential is the same as the one we have.
+                    // Reload the credential from the store to ensure we're rejecting the correct one.
+                    var attemptsBeforeCheckingExistingCredential = this.numberOfAttempts;
+                    if (this.TryCallGitCredential(tracer, out string getCredentialError))
+                    {
+                        if (this.cachedCredentialString != cachedCredentialAtStartOfReject)
+                        {
+                            // If the store already had a different credential, we don't want to reject it without trying it.
+                            this.isCachedCredentialStringApproved = false;
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        tracer.RelatedWarning(getCredentialError);
+                    }
+
                     // If we can we should pass the actual username/password values we used (and found to be invalid)
                     // to `git-credential reject` so the credential helpers can attempt to check if they're erasing
                     // the expected credentials, if they so choose to.
@@ -121,7 +139,12 @@ namespace GVFS.Common.Git
 
                     this.cachedCredentialString = null;
                     this.isCachedCredentialStringApproved = false;
-                    this.UpdateBackoff();
+
+                    // Backoff may have already been incremented by a failure in TryCallGitCredential
+                    if (attemptsBeforeCheckingExistingCredential == this.numberOfAttempts)
+                    {
+                        this.UpdateBackoff();
+                    }
                 }
             }
         }
