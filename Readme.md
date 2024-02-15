@@ -62,7 +62,13 @@ For details, see the build script in the previous step.
 
 Visual Studio 2019 will [automatically prompt you to install these dependencies](https://devblogs.microsoft.com/setup/configure-visual-studio-across-your-organization-with-vsconfig/) when you open the solution. The .vsconfig file that is present in the root of the repository specifies all required components _except_ the Windows 10 SDK (10.0.16299.91) as this component is no longer shipped with VS2019 - **you'll still need to install that separately**.
 
-The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer.Windows\bin\x64\[Debug|Release]\SetupGVFS.<version>.exe`
+The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer.Windows\bin\x64\[Debug|Release]\SetupGVFS.<version>.exe`.
+
+### Running Tests
+
+Unit tests can be run after any build using the `scripts\RunUnitTests.bat` script.
+
+Functional tests are much more involved and require you to install your version of VFS for Git and the `microsoft/git` fork of Git. When those are installed, you can then run `scripts\RunFunctionalTests.bat`.
 
 ## Trying out VFS for Git
 
