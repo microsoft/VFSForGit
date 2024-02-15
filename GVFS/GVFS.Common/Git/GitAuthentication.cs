@@ -91,13 +91,13 @@ namespace GVFS.Common.Git
         {
             lock (this.gitAuthLock)
             {
-                var cachedCredentialAtStartOfReject = this.cachedCredentialString;
+                string cachedCredentialAtStartOfReject = this.cachedCredentialString;
                 // Don't stomp a different credential
                 if (credentialString == cachedCredentialAtStartOfReject && cachedCredentialAtStartOfReject != null)
                 {
                     // We can't assume that the credential store's cached credential is the same as the one we have.
                     // Reload the credential from the store to ensure we're rejecting the correct one.
-                    var attemptsBeforeCheckingExistingCredential = this.numberOfAttempts;
+                    int attemptsBeforeCheckingExistingCredential = this.numberOfAttempts;
                     if (this.TryCallGitCredential(tracer, out string getCredentialError))
                     {
                         if (this.cachedCredentialString != cachedCredentialAtStartOfReject)
