@@ -49,7 +49,7 @@ If you'd like to build your own VFS for Git Windows installer:
     * .NET Core cross-platform development
   * Include the following additional components:
     * .NET Core runtime
-    * Windows 10 SDK (10.0.10240.0)
+    * Windows 10 SDK (10.0.16299.91)
 * Install the .NET Core 2.1 SDK (https://www.microsoft.com/net/download/dotnet-core/2.1)
 * Install [`nuget.exe`](https://www.nuget.org/downloads)
 * Create a folder to clone into, e.g. `C:\Repos\VFSForGit`
@@ -63,7 +63,7 @@ You can also use Visual Studio 2019. There are a couple of options for getting a
 * You can install Visual Studio 2017 side by side with Visual Studio 2019, and make sure that you have all the dependencies from Visual Studio 2017 installed
 * Alternatively, if you only want to have Visual Studio 2019 installed, install the following extra dependencies:
   * MSVC v141 VS 2017 C++ build tools via the optional components in the Visual Studio 2019 installer. It is under the "Desktop Development with C++" heading.
-  * Windows 10 SDK (10.0.10240.0) via the archived SDK page: https://developer.microsoft.com/en-us/windows/downloads/sdk-archive
+  * Windows 10 SDK (10.0.16299.91) via the archived SDK page: https://developer.microsoft.com/en-us/windows/downloads/sdk-archive
 
 Visual Studio 2019 will [automatically prompt you to install these dependencies](https://devblogs.microsoft.com/setup/configure-visual-studio-across-your-organization-with-vsconfig/) when you open the solution. The .vsconfig file that is present in the root of the repository specifies all required components _except_ the Windows 10 SDK (10.0.10240.0) as this component is no longer shipped with VS2019 - **you'll still need to install that separately**.
 
