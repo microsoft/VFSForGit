@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- Default GVFS version number if not specified at build time -->
-    <GVFSVersion Condition="'$(GVFSVersion)' == ''" >0.2.173.2</GVFSVersion>
+    <GVFSVersion Condition="'$(GVFSVersion)' == ''" >0.2.253.3</GVFSVersion>
 
     <!--
        Update the GitPackageVersion for the version that is shipped and tested with Scalar.
