@@ -311,7 +311,7 @@ namespace GVFS.CommandLine
                 { "commitGraph.generationVersion", "1" },
 
                 // Disable the builtin FS Monitor in case it was enabled globally.
-                { "core.useBuiltinFSMonitor", "false" },
+                { "core.fsmonitor", "false" },
             };
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
