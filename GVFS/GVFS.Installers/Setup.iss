@@ -221,8 +221,12 @@ begin
   WizardForm.StatusLabel.Caption := 'Installing GVFS.Service.';
   WizardForm.ProgressGauge.Style := npbstMarquee;
 
+  // Spaces after the equal signs are REQUIRED.
+  // https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create#remarks
   try
-    if Exec(ExpandConstant('{sys}\SC.EXE'), ExpandConstant('create GVFS.Service binPath="{app}\GVFS.Service.exe" start=auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+    // We must add additional quotes to the binPath to ensure that they survive argument parsing.
+    // Without quotes, sc.exe will try to start a file located at C:\Program if it exists.
+    if Exec(ExpandConstant('{sys}\SC.EXE'), ExpandConstant('create GVFS.Service binPath= "\"{app}\GVFS.Service.exe\"" start= auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
       begin
         if Exec(ExpandConstant('{sys}\SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
           begin
