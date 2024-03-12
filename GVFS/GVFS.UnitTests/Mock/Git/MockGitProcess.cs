@@ -5,6 +5,7 @@ using GVFS.UnitTests.Mock.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace GVFS.UnitTests.Mock.Git
@@ -91,7 +92,7 @@ namespace GVFS.UnitTests.Mock.Git
                 return new Result(string.Empty, string.Empty, Result.GenericFailureCode);
             }
 
-            Predicate<CommandInfo> commandMatchFunction =
+            Func<CommandInfo, bool> commandMatchFunction =
                 (CommandInfo commandInfo) =>
                 {
                     if (commandInfo.MatchPrefix)
@@ -104,7 +105,7 @@ namespace GVFS.UnitTests.Mock.Git
                     }
                 };
 
-            CommandInfo matchedCommand = this.expectedCommandInfos.Find(commandMatchFunction);
+            CommandInfo matchedCommand = this.expectedCommandInfos.Last(commandMatchFunction);
             matchedCommand.ShouldNotBeNull("Unexpected command: " + command);
 
             return matchedCommand.Result();
