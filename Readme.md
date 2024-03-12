@@ -1,5 +1,7 @@
 # VFS for Git
 
+**Notice:** With the release of VFS for Git 2.32, VFS for Git is in maintenance mode. Only required updates as a reaction to critical security vulnerabilities will prompt a release.
+
 |Branch|Unit Tests|Functional Tests|Large Repo Perf|Large Repo Build|
 |:--:|:--:|:--:|:--:|:--:|
 |**master**|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows?branchName=master)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=7&branchName=master)|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows%20-%20Full%20Functional%20Tests?branchName=master)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=6&branchName=master)|[![Build status](https://dev.azure.com/mseng/AzureDevOps/_apis/build/status/GVFS/GitHub%20VFSForGit%20Large%20Repo%20Perf%20Tests?branchName=master)](https://dev.azure.com/mseng/AzureDevOps/_build/latest?definitionId=7179&branchName=master)|[![Build status](https://dev.azure.com/mseng/AzureDevOps/_apis/build/status/GVFS/GitHub%20VFSForGit%20Large%20Repo%20Build?branchName=master)](https://dev.azure.com/mseng/AzureDevOps/_build/latest?definitionId=7180&branchName=master)|
@@ -22,8 +24,20 @@ in Git, Scalar offers a clearer path forward for all large monorepos.
 
 ## Installing VFS for Git
 
-* VFS for Git requires Windows 10 Anniversary Update (Windows 10 version 1607) or later
-* Run the latest GVFS and Git for Windows installers from https://github.com/Microsoft/VFSForGit/releases
+VFS for Git requires Windows 10 Anniversary Update (Windows 10 version 1607) or later.
+
+To install, use [`winget`](https://github.com/microsoft/winget-cli) to install the
+[`microsoft/git` fork of Git](https://github.com/microsoft/git) and VFS for Git
+using:
+
+```
+winget install --id Microsoft.Git
+winget install --id Microsoft.VFSforGit
+```
+
+You will need to continue using the `microsoft/git` version of Git, and it
+will notify you when new versions are available.
+
 
 ## Building VFS for Git
 

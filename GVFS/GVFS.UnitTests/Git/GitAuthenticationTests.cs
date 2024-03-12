@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using GVFS.Common.Git;
 using GVFS.Tests;
@@ -243,6 +244,33 @@ namespace GVFS.UnitTests.Git
             gitProcess.CredentialRejections.Count.ShouldEqual(0);
             gitProcess.StoredCredentials.Count.ShouldEqual(1);
             gitProcess.StoredCredentials.Single().Key.ShouldEqual("mock://repoUrl");
+        }
+
+        [TestCase]
+        public void RejectionShouldNotBeSentIfUnderlyingTokenHasChanged()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            // Get and store an initial value that will be cached
+            string authString;
+            dut.TryGetCredentials(tracer, out authString, out _).ShouldBeTrue();
+            dut.ApproveCredentials(tracer, authString);
+
+            // Change the underlying token
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result("username=username\r\npassword=password" + Guid.NewGuid() + "\r\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            // Try and reject it. We should get a new token, but without forwarding the rejection to the
+            // underlying credential store
+            dut.RejectCredentials(tracer, authString);
+            dut.TryGetCredentials(tracer, out var newAuthString, out _).ShouldBeTrue();
+            newAuthString.ShouldNotEqual(authString);
+            gitProcess.CredentialRejections.ShouldBeEmpty();
         }
 
         private MockGitProcess GetGitProcess()

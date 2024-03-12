@@ -312,6 +312,11 @@ namespace GVFS.CommandLine
 
                 // Disable the builtin FS Monitor in case it was enabled globally.
                 { "core.useBuiltinFSMonitor", "false" },
+
+                // Set the GCM credential method to use OAuth tokens.
+                // See https://github.com/git-ecosystem/git-credential-manager/blob/release/docs/configuration.md#credentialazreposcredentialtype
+                // for more information.
+                { "credential.azreposCredentialType", "oauth" },
             };
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))

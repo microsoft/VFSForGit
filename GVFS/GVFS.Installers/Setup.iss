@@ -3,9 +3,9 @@
 
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
 
-#define MyAppName "GVFS"
+#define MyAppName "VFS for Git"
 #define MyAppInstallerVersion GetFileVersion(LayoutDir + "\GVFS.exe")
-#define MyAppPublisher "Microsoft Corporation"
+#define MyAppPublisher "Microsoft"
 #define MyAppPublisherURL "http://www.microsoft.com"
 #define MyAppURL "https://github.com/microsoft/VFSForGit"
 #define MyAppExeName "GVFS.exe"
