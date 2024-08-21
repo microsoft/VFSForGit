@@ -2,12 +2,12 @@
   "version": "1.0",
   "components": [
     "Microsoft.Component.MSBuild",
-    "Microsoft.VisualStudio.Workload.NativeDesktop"
+    "Microsoft.VisualStudio.Workload.NativeDesktop",
     "Microsoft.VisualStudio.Workload.ManagedDesktop",
     "Microsoft.VisualStudio.Workload.NetCoreTools",
     "Microsoft.Net.Core.Component.SDK.2.1",
     "Microsoft.VisualStudio.Component.VC.v141.x86.x64",
     "Microsoft.Net.Component.4.6.1.TargetingPack",
-    "Microsoft.Net.Component.4.6.1.SDK",
+    "Microsoft.Net.Component.4.6.1.SDK"
   ]
 }
