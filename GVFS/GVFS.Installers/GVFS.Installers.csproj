@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.Build.NoTargets">
+﻿<Project Sdk="Microsoft.Build.NoTargets">
 
   <PropertyGroup>
     <TargetFramework>net461</TargetFramework>
@@ -28,9 +28,7 @@
     <Content Include="$(PkgGitForWindows_GVFS_Portable)\tools\*" />
     <Content Include="install.bat" />
     <Content Include="info.bat" />
-    <NuspecTemplate Include="GVFS.Installers.template.nuspec"
-                    TargetPath="GVFS.Installers.nuspec"
-                    Properties="$version$=$(GVFSVersion)" />
+    <NuspecTemplate Include="GVFS.Installers.template.nuspec" TargetPath="GVFS.Installers.nuspec" Properties="$version$=$(GVFSVersion)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,7 +39,7 @@
   </ItemGroup>
 
   <Target Name="CreateInstaller" BeforeTargets="Build;SignFiles">
-    <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) Setup.iss /O"$(OutputPath)"' />
+    <Exec Command="&quot;$(PkgTools_InnoSetup)\tools\ISCC.exe&quot; /DLayoutDir=&quot;$(LayoutPath)&quot; /DGVFSVersion=$(GVFSVersion) Setup.iss /O&quot;$(OutputPath)&quot;" />
   </Target>
 
   <Target Name="CreateNuspecFile" AfterTargets="CreateInstaller">
@@ -50,7 +48,7 @@
 
   <Target Name="CleanInstaller" BeforeTargets="AfterClean">
     <ItemGroup>
-      <FilesToDelete Include="$(OutputPath)**\*"/>
+      <FilesToDelete Include="$(OutputPath)**\*" />
     </ItemGroup>
     <Delete Files="@(FilesToDelete)" />
   </Target>
