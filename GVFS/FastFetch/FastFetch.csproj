@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -17,12 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <FilesToSign Include="
-      $(OutputPath)\FastFetch.exe;
-      $(OutputPath)\GVFS.Common.dll;
-      $(OutputPath)\GVFS.GVFlt.dll;
-      $(OutputPath)\GVFS.Platform.Windows.dll;
-      $(OutputPath)\GVFS.Virtualization.dll;">
+    <FilesToSign Include="&#xD;&#xA;      $(OutputPath)\FastFetch.exe;&#xD;&#xA;      $(OutputPath)\GVFS.Common.dll;&#xD;&#xA;      $(OutputPath)\GVFS.GVFlt.dll;&#xD;&#xA;      $(OutputPath)\GVFS.Platform.Windows.dll;&#xD;&#xA;      $(OutputPath)\GVFS.Virtualization.dll;">
       <Authenticode>Microsoft400</Authenticode>
       <InProject>false</InProject>
     </FilesToSign>
