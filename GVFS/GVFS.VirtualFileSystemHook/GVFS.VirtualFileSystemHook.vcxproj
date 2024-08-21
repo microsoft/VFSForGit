@@ -14,7 +14,7 @@
     <ProjectGuid>{2D23AB54-541F-4ABC-8DCA-08C199E97ABB}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>GVFSVirtualFileSystemHook</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>GVFS.VirtualFileSystemHook</ProjectName>
     <TargetName>GVFS.VirtualFileSystemHook</TargetName>
   </PropertyGroup>

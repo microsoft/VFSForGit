@@ -14,7 +14,7 @@
     <ProjectGuid>{5A6656D5-81C7-472C-9DC8-32D071CB2258}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>readobject</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>GVFS.ReadObjectHook</ProjectName>
     <TargetName>GVFS.ReadObjectHook</TargetName>
   </PropertyGroup>
