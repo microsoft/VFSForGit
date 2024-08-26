@@ -12,7 +12,7 @@
   </ItemDefinitionGroup>
 
   <ItemGroup>
-    <PackageReference Include="Tools.InnoSetup" Version="5.5.9" />
+    <PackageReference Include="Tools.InnoSetup" Version="6.2.1" />
     <PackageReference Include="GitForWindows.GVFS.Installer" Version="$(GitPackageVersion)" />
     <PackageReference Include="GitForWindows.GVFS.Portable" Version="$(GitPackageVersion)" />
     <PackageReference Include="MicroBuild.Core" Version="0.2.0" ExcludeAssets="none" />
