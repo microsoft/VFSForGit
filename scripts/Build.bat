@@ -10,7 +10,7 @@ IF "%~1"=="" (
 )
 
 IF "%~2"=="" (
-    SET GVFSVERSION=0.2.173.2
+    SET GVFSVERSION=0.2.253.3
 ) ELSE (
     SET GVFSVERSION=%2
 )
@@ -88,7 +88,7 @@ GOTO :EOF
 ECHO usage: %~n0%~x0 [^<configuration^>] [^<version^>] [^<verbosity^>]
 ECHO.
 ECHO   configuration    Solution configuration (default: Debug).
-ECHO   version          GVFS version (default: 0.2.173.2).
+ECHO   version          GVFS version (default: 0.2.253.3).
 ECHO   verbosity        MSBuild verbosity (default: minimal).
 ECHO.
 EXIT 1

@@ -102,7 +102,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                         fakeBlobFolder,
                         "01234567890123456789012345678901234567");
             this.fileSystem.CreateDirectory(fakeBlobFolder);
-            this.fileSystem.CreateEmptyFile(fakeBlob);
+
+            // TODO: Fix the problem with zero-length files here.
+            // this.fileSystem.CreateEmptyFile(fakeBlob);
+            // Git will complain about an empty file here.
+            this.fileSystem.WriteAllText(fakeBlob, "bogus content");
 
             // This step should fail to place the objects, but
             // succeed in deleting the given file.
