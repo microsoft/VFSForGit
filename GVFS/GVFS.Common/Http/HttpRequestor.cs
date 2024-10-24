@@ -134,6 +134,14 @@ namespace GVFS.Common.Http
                 {
                     response = this.client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).GetAwaiter().GetResult();
                 }
+                catch (HttpRequestException httpRequestException) when (TryGetResponseMessageFromHttpRequestException(httpRequestException, request, out response))
+                {
+                    /* HttpClientHandler will automatically resubmit in certain circumstances, such as a 401 unauthorized response when UseDefaultCredentials
+                     * is true but another credential was provided. This resubmit can throw (instead of returning a proper status code) in some case cases, such
+                     * as when there is an exception loading the default credentials.
+                     * If we can extract the original response message from the exception, we can continue and process the original failed status code. */
+                    Tracer.RelatedWarning(responseMetadata, $"An exception occurred while resubmitting the request, but the original response is available.");
+                }
                 finally
                 {
                     responseWaitTime = requestStopwatch.Elapsed;
@@ -277,6 +285,49 @@ namespace GVFS.Common.Http
             }
 
             return string.Empty;
+        }
+
+        /// <summary>
+        /// This method is based on a private method System.Net.Http.HttpClientHandler.CreateResponseMessage
+        /// </summary>
+        private static bool TryGetResponseMessageFromHttpRequestException(HttpRequestException httpRequestException, HttpRequestMessage request, out HttpResponseMessage httpResponseMessage)
+        {
+            var webResponse = (httpRequestException?.InnerException as WebException)?.Response as HttpWebResponse;
+            if (webResponse == null)
+            {
+                httpResponseMessage = null;
+                return false;
+            }
+
+            httpResponseMessage = new HttpResponseMessage(webResponse.StatusCode);
+            httpResponseMessage.ReasonPhrase = webResponse.StatusDescription;
+            httpResponseMessage.Version = webResponse.ProtocolVersion;
+            httpResponseMessage.RequestMessage = request;
+            httpResponseMessage.Content = new StreamContent(webResponse.GetResponseStream());
+            request.RequestUri = webResponse.ResponseUri;
+            WebHeaderCollection rawHeaders = webResponse.Headers;
+            HttpContentHeaders responseContentHeaders = httpResponseMessage.Content.Headers;
+            HttpResponseHeaders responseHeaders = httpResponseMessage.Headers;
+            if (webResponse.ContentLength >= 0)
+            {
+                responseContentHeaders.ContentLength = webResponse.ContentLength;
+            }
+
+            for (int i = 0; i < rawHeaders.Count; i++)
+            {
+                string key = rawHeaders.GetKey(i);
+                if (string.Compare(key, "Content-Length", StringComparison.OrdinalIgnoreCase) != 0)
+                {
+                    string[] values = rawHeaders.GetValues(i);
+                    if (!responseHeaders.TryAddWithoutValidation(key, values))
+                    {
+                        bool flag = responseContentHeaders.TryAddWithoutValidation(key, values);
+                    }
+                }
+            }
+
+            return true;
+
         }
     }
 }

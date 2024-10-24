@@ -17,17 +17,17 @@ jobs:
 
     steps:
     - name: Checkout source
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         path: src
 
     - name: Install .NET SDK
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 5.0.201
 
     - name: Add MSBuild to PATH
-      uses: microsoft/setup-msbuild@v1.0.2
+      uses: microsoft/setup-msbuild@v2.0.0
 
     - name: Build VFS for Git
       shell: cmd
@@ -42,25 +42,25 @@ jobs:
       run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts
 
     - name: Upload functional tests drop
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: FunctionalTests_${{ matrix.configuration }}
         path: artifacts\GVFS.FunctionalTests
 
     - name: Upload FastFetch drop
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: FastFetch_${{ matrix.configuration }}
         path: artifacts\FastFetch
 
     - name: Upload installers
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: Installers_${{ matrix.configuration }}
         path: artifacts\GVFS.Installers
 
     - name: Upload NuGet packages
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: NuGetPackages_${{ matrix.configuration }}
         path: artifacts\NuGetPackages
@@ -76,13 +76,13 @@ jobs:
 
     steps:
     - name: Download installers
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: Installers_${{ matrix.configuration }}
         path: install
 
     - name: Download functional tests drop
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: FunctionalTests_${{ matrix.configuration }}
         path: ft
@@ -101,7 +101,7 @@ jobs:
 
     - name: Upload installation logs
       if: always()
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: InstallationLogs_${{ matrix.configuration }}
         path: install\logs
@@ -115,14 +115,14 @@ jobs:
 
     - name: Upload functional test results
       if: always()
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: FunctionalTests_Results_${{ matrix.configuration }}
         path: TestResult.xml
 
     - name: Upload Git trace2 output
       if: always()
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: GitTrace2_${{ matrix.configuration }}
         path: C:\temp\git-trace2.log
