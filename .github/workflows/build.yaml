@@ -27,7 +27,7 @@ jobs:
         dotnet-version: 5.0.201
 
     - name: Add MSBuild to PATH
-      uses: microsoft/setup-msbuild@v1.0.2
+      uses: microsoft/setup-msbuild@v2.0.0
 
     - name: Build VFS for Git
       shell: cmd
