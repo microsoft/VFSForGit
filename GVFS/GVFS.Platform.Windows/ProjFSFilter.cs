@@ -378,14 +378,14 @@ namespace GVFS.Platform.Windows
 
             string pathRoot = Path.GetPathRoot(normalizedEnlistmentRootPath);
             DriveInfo rootDriveInfo = DriveInfo.GetDrives().FirstOrDefault(x => x.Name == pathRoot);
-            string requiredFormat = "NTFS";
+            string[] requiredFormats = new[] { "NTFS", "ReFS" };
             if (rootDriveInfo == null)
             {
-                warning = $"Unable to ensure that '{normalizedEnlistmentRootPath}' is an {requiredFormat} volume.";
+                warning = $"Unable to ensure that '{normalizedEnlistmentRootPath}' is an {string.Join(" or ", requiredFormats)} volume.";
             }
-            else if (!string.Equals(rootDriveInfo.DriveFormat, requiredFormat, StringComparison.OrdinalIgnoreCase))
+            else if (!requiredFormats.Any(requiredFormat => string.Equals(rootDriveInfo.DriveFormat, requiredFormat, StringComparison.OrdinalIgnoreCase)))
             {
-                error = $"Error: Currently only {requiredFormat} volumes are supported.  Ensure repo is located into an {requiredFormat} volume.";
+                error = $"Only {string.Join(" and ", requiredFormats)} volumes are supported.  Ensure your repo is located in an {string.Join(" or ", requiredFormats)} volume.";
                 return false;
             }
 
