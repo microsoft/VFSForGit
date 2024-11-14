@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,9 +28,15 @@ namespace GVFS.Common.Http
 
         static HttpRequestor()
         {
-            ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
-            ServicePointManager.DefaultConnectionLimit = Environment.ProcessorCount;
-            availableConnections = new SemaphoreSlim(ServicePointManager.DefaultConnectionLimit);
+            /* If machine.config is locked, then initializing ServicePointManager will fail and be unrecoverable.
+             * Machine.config locking is typically very brief (~1ms by the antivirus scanner) so we can attempt to lock
+             * it ourselves (by opening it for read) *beforehand and briefly wait if it's locked */
+            using (var machineConfigLock = GetMachineConfigLock())
+            {
+                ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
+                ServicePointManager.DefaultConnectionLimit = Environment.ProcessorCount;
+                availableConnections = new SemaphoreSlim(ServicePointManager.DefaultConnectionLimit);
+            }
         }
 
         protected HttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment)
@@ -328,6 +335,29 @@ namespace GVFS.Common.Http
 
             return true;
 
+        }
+
+        private static FileStream GetMachineConfigLock()
+        {
+            var machineConfigLocation = RuntimeEnvironment.SystemConfigurationFile;
+            var tries = 0;
+            var maxTries = 3;
+            while (tries++ < maxTries)
+            {
+                try
+                {
+                    /* Opening with FileShare.Read will fail if another process (eg antivirus) has opened the file for write,
+                     but will still let ServicePointManager read the file.*/
+                    FileStream stream = File.Open(machineConfigLocation, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    return stream;
+                }
+                catch (IOException e) when ((uint)e.HResult == 0x80070020) // SHARING_VIOLATION
+                {
+                    Thread.Sleep(10);
+                }
+            }
+            /* Couldn't get the lock - the process will likely fail. */
+            return null;
         }
     }
 }
