@@ -117,6 +117,18 @@ int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc
     si.dwFlags = STARTF_USESTDHANDLES;
 
     ZeroMemory(&pi, sizeof(pi));
+
+    /* The child process will inherit ErrorMode from this process.
+     * SEM_FAILCRITICALERRORS will prevent the .NET runtime from
+     * creating a dialog box for critical errors - in particular
+     * if antivirus has locked the machine.config file.
+     * Disabling the dialog box lets the child process (typically GVFS.Hooks.exe)
+     * continue trying to run, and if it still needs machine.config then it
+     * can handle the exception at that time (whereas the dialog box would
+     * hang the app until clicked, and is not handleable by our code).
+     */
+    UINT previousErrorMode = SetErrorMode(SEM_FAILCRITICALERRORS);
+
     if (!CreateProcess(
         NULL,           // Application name
         const_cast<LPWSTR>(commandLine.c_str()),
@@ -131,8 +143,10 @@ int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc
         )
     {
         fwprintf(stderr, L"Could not execute '%s'. CreateProcess error (%d).\n", applicationName.c_str(), GetLastError());
+        SetErrorMode(previousErrorMode);
         exit(3);
     }
+    SetErrorMode(previousErrorMode);
 
     // Wait until child process exits.
     WaitForSingleObject(pi.hProcess, INFINITE);
