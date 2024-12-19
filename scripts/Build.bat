@@ -43,7 +43,7 @@ IF NOT EXIST "%NUGET_EXEC%" (
 
 REM Acquire vswhere to find VS installations reliably
 SET VSWHERE_VER=2.6.7
-"%NUGET_EXEC%" install vswhere -Version %VSWHERE_VER% || exit /b 1
+"%NUGET_EXEC%" install vswhere -Version %VSWHERE_VER% -OutputDirectory %VFS_PACKAGESDIR% || exit /b 1
 SET VSWHERE_EXEC="%VFS_PACKAGESDIR%\vswhere.%VSWHERE_VER%\tools\vswhere.exe"
 
 REM Assumes default installation location for Windows 10 SDKs
