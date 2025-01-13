@@ -70,5 +70,10 @@ namespace GVFS.UnitTests.Mock.FileSystem
             error = null;
             return true;
         }
+
+        public void EnsureDirectoryIsOwnedByCurrentUser(string workingDirectoryRoot)
+        {
+            throw new NotSupportedException();
+        }
     }
 }
