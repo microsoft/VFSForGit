@@ -272,6 +272,34 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
+        /// <summary>
+        /// On Windows, if the current user is elevated, the owner of the directory will be the Administrators group by default.
+        /// This runs afoul of the git "dubious ownership" check, which can fail if either the .git directory or the working directory
+        /// are not owned by the current user.
+        ///
+        /// At the moment git for windows does not consider a non-elevated admin to be the owner of a directory owned by the Administrators group,
+        /// though a fix is in progress in the microsoft fork of git. Libgit2(sharp) also does not have this fix.
+        ///
+        /// Also, even if the fix were in place, automount would still fail because it runs under SYSTEM account.
+        ///
+        /// This method ensures that the directory is owned by the current user (which is verified to work for SYSTEM account for automount).
+        /// </summary>
+        public void EnsureDirectoryIsOwnedByCurrentUser(string directoryPath)
+        {
+            // Ensure directory exists, inheriting all other ACLS
+            Directory.CreateDirectory(directoryPath);
+            // If the user is currently elevated, the owner of the directory will be the Administrators group.
+            DirectorySecurity directorySecurity = Directory.GetAccessControl(directoryPath);
+            IdentityReference directoryOwner = directorySecurity.GetOwner(typeof(SecurityIdentifier));
+            SecurityIdentifier administratorsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            if (directoryOwner == administratorsSid)
+            {
+                WindowsIdentity currentUser = WindowsIdentity.GetCurrent();
+                directorySecurity.SetOwner(currentUser.User);
+                Directory.SetAccessControl(directoryPath, directorySecurity);
+            }
+        }
+
         private class NativeFileReader
         {
             private const uint GenericRead = 0x80000000;

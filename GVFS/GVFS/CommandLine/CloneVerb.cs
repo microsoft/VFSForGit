@@ -716,6 +716,17 @@ git %*
                 return new Result(error);
             }
 
+            try
+            {
+                GVFSPlatform.Instance.FileSystem.EnsureDirectoryIsOwnedByCurrentUser(enlistmentToInit.DotGitRoot);
+            }
+            catch (IOException e)
+            {
+                string error = string.Format("Could not ensure .git directory is owned by current user: {0}", e.Message);
+                tracer.RelatedError(error);
+                return new Result(error);
+            }
+
             GitProcess.Result remoteAddResult = new GitProcess(enlistmentToInit).RemoteAdd("origin", enlistmentToInit.RepoUrl);
             if (remoteAddResult.ExitCodeIsFailure)
             {
