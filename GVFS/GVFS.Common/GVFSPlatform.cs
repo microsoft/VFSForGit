@@ -87,8 +87,6 @@ namespace GVFS.Common
         public abstract bool TryGetGVFSHooksVersion(out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
-        public abstract bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error);
-
         public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly);
 
         public abstract bool IsConsoleOutputRedirectedToFile();

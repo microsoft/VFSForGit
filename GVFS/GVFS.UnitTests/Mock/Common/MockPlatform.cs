@@ -59,11 +59,6 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error)
-        {
-            throw new NotImplementedException();
-        }
-
         public override string GetNamedPipeName(string enlistmentRoot)
         {
             return "GVFS_Mock_PipeName";
