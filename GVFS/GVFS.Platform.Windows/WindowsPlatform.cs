@@ -11,7 +11,6 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
-using System.Management.Automation;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.ServiceProcess;
@@ -292,30 +291,6 @@ namespace GVFS.Platform.Windows
             }
 
             return true;
-        }
-
-        public override bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error)
-        {
-            using (PowerShell powershell = PowerShell.Create())
-            {
-                powershell.AddScript($"Get-AuthenticodeSignature -FilePath {path}");
-
-                Collection<PSObject> results = powershell.Invoke();
-                if (powershell.HadErrors || results.Count <= 0)
-                {
-                    subject = null;
-                    issuer = null;
-                    error = $"Powershell Get-AuthenticodeSignature failed, could not verify authenticode for {path}.";
-                    return false;
-                }
-
-                Signature signature = results[0].BaseObject as Signature;
-                bool isValid = signature.Status == SignatureStatus.Valid;
-                subject = signature.SignerCertificate.SubjectName.Name;
-                issuer = signature.SignerCertificate.IssuerName.Name;
-                error = isValid == false ? signature.StatusMessage : null;
-                return isValid;
-            }
         }
 
         public override string GetCurrentUser()

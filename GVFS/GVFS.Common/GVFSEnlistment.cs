@@ -217,7 +217,7 @@ namespace GVFS.Common
         {
             try
             {
-                Directory.CreateDirectory(this.WorkingDirectoryRoot);
+                GVFSPlatform.Instance.FileSystem.EnsureDirectoryIsOwnedByCurrentUser(this.WorkingDirectoryRoot);
                 this.CreateHiddenDirectory(this.DotGVFSRoot);
             }
             catch (IOException)

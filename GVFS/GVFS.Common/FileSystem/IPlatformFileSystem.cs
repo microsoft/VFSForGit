@@ -18,5 +18,6 @@ namespace GVFS.Common.FileSystem
         bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error);
         bool TryCreateOrUpdateDirectoryToAdminModifyPermissions(ITracer tracer, string directoryPath, out string error);
         bool IsFileSystemSupported(string path, out string error);
+        void EnsureDirectoryIsOwnedByCurrentUser(string workingDirectoryRoot);
     }
 }
