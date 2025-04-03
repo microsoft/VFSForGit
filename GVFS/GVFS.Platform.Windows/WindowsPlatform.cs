@@ -236,7 +236,7 @@ namespace GVFS.Platform.Windows
                  * revisited in the future if VS changes how it stores this. */
                 var vsVersions = Registry.CurrentUser.OpenSubKey(VSRegistryKeyRoot)
                     ?.GetSubKeyNames()
-                    .Where(name => float.TryParse(name, out var version) && version >= 15.0)
+                    .Where(name => Version.TryParse(name, out var version) && version.Major >= 15)
                     .ToArray() ?? Array.Empty<string>();
 
                 foreach (string version in vsVersions)
