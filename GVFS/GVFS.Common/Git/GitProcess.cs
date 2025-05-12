@@ -462,7 +462,9 @@ namespace GVFS.Common.Git
 
         public ConfigResult GetOriginUrl()
         {
-            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local remote.origin.url"), "remote.origin.url");
+            /* Disable precommand hook because this config call is used during mounting process
+             * which needs to be able to fix a bad precommand hook configuration. */
+            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local remote.origin.url", usePreCommandHook: false), "remote.origin.url");
         }
 
         public Result DiffTree(string sourceTreeish, string targetTreeish, Action<string> onResult)
@@ -670,7 +672,7 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 -c repack.packKeptObjects=true multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize} --no-progress");
         }
 
-        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory)
+        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory, bool usePreCommandHook)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);
             processInfo.WorkingDirectory = workingDirectory;
@@ -719,6 +721,11 @@ namespace GVFS.Common.Git
                 command = "-c " + GitConfigSetting.CoreVirtualizeObjectsName + "=false " + command;
             }
 
+            if (!usePreCommandHook)
+            {
+                processInfo.EnvironmentVariables["COMMAND_HOOK_LOCK"] = "true";
+            }
+
             if (!string.IsNullOrEmpty(dotGitDirectory))
             {
                 command = "--git-dir=\"" + dotGitDirectory + "\" " + command;
@@ -740,7 +747,8 @@ namespace GVFS.Common.Git
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine,
             int timeoutMs,
-            string gitObjectsDirectory = null)
+            string gitObjectsDirectory = null,
+            bool usePreCommandHook = true)
         {
             if (failedToSetEncoding && writeStdIn != null)
             {
@@ -752,7 +760,7 @@ namespace GVFS.Common.Git
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx
                 // To avoid deadlocks, use asynchronous read operations on at least one of the streams.
                 // Do not perform a synchronous read to the end of both redirected streams.
-                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, redirectStandardError: true, gitObjectsDirectory: gitObjectsDirectory))
+                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, redirectStandardError: true, gitObjectsDirectory: gitObjectsDirectory, usePreCommandHook: usePreCommandHook))
                 {
                     StringBuilder output = new StringBuilder();
                     StringBuilder errors = new StringBuilder();
@@ -904,15 +912,16 @@ namespace GVFS.Common.Git
         /// Invokes git.exe against an enlistment's .git folder.
         /// This method should be used only with git-commands that ignore the working directory
         /// </summary>
-        private Result InvokeGitAgainstDotGitFolder(string command)
+        private Result InvokeGitAgainstDotGitFolder(string command, bool usePreCommandHook = true)
         {
-            return this.InvokeGitAgainstDotGitFolder(command, null, null);
+            return this.InvokeGitAgainstDotGitFolder(command, null, null, usePreCommandHook: usePreCommandHook);
         }
 
         private Result InvokeGitAgainstDotGitFolder(
             string command,
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine,
+            bool usePreCommandHook = true,
             string gitObjectsDirectory = null)
         {
             // This git command should not need/use the working directory of the repo.
@@ -926,7 +935,8 @@ namespace GVFS.Common.Git
                 writeStdIn: writeStdIn,
                 parseStdOutLine: parseStdOutLine,
                 timeoutMs: -1,
-                gitObjectsDirectory: gitObjectsDirectory);
+                gitObjectsDirectory: gitObjectsDirectory,
+                usePreCommandHook: usePreCommandHook);
         }
 
         public class Result
