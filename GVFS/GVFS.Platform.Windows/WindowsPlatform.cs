@@ -258,14 +258,14 @@ namespace GVFS.Platform.Windows
         {
             error = null;
             hooksVersion = null;
-            string hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-            if (hooksPath == null)
+            string hooksPath = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            if (hooksPath == null || !File.Exists(hooksPath))
             {
                 error = "Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName;
                 return false;
             }
 
-            FileVersionInfo hooksFileVersionInfo = FileVersionInfo.GetVersionInfo(Path.Combine(hooksPath, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName));
+            FileVersionInfo hooksFileVersionInfo = FileVersionInfo.GetVersionInfo(hooksPath);
             hooksVersion = hooksFileVersionInfo.ProductVersion;
             return true;
         }
@@ -442,11 +442,6 @@ namespace GVFS.Platform.Windows
             public override string GVFSExecutableName
             {
                 get { return "GVFS" + this.ExecutableExtension; }
-            }
-
-            public override string ProgramLocaterCommand
-            {
-                get { return "where"; }
             }
 
             public override HashSet<string> UpgradeBlockingProcesses
