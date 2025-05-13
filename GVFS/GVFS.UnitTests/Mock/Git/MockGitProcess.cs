@@ -83,7 +83,8 @@ namespace GVFS.UnitTests.Mock.Git
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine,
             int timeoutMs,
-            string gitObjectsDirectory = null)
+            string gitObjectsDirectory = null,
+            bool usePrecommandHook = true)
         {
             this.CommandsRun.Add(command);
 
