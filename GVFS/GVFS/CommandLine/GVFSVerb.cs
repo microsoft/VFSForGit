@@ -926,8 +926,14 @@ You can specify a URL, a name of a configured cache server, or the special names
 
             using (ITracer activity = tracer.StartActivity("ValidateGVFSVersion", EventLevel.Informational))
             {
-                Version currentVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
+                if (ProcessHelper.IsDevelopmentVersion())
+                {
+                    /* Development Version will start with 0 and include a "+{commitID}" suffix
+                     * so it won't ever be valid, but it needs to be able to run so we can test it. */
+                    return true;
+                }
 
+                Version currentVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
                 IEnumerable<ServerGVFSConfig.VersionRange> allowedGvfsClientVersions =
                     config != null
                     ? config.AllowedGVFSClientVersions
