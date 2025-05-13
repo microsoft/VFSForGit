@@ -28,7 +28,8 @@ namespace GVFS.Common.FileSystem
         public static string MergeHooksData(string[] defaultHooksLines, string filename, string hookName)
         {
             IEnumerable<string> valuableHooksLines = defaultHooksLines.Where(line => !string.IsNullOrEmpty(line.Trim()));
-            string absolutePathToHooksExecutable = Path.Combine(ExecutingDirectory, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            /* Wrap in quotes to handle spaces in the path */
+            string absolutePathToHooksExecutable = $"\"{Path.Combine(ExecutingDirectory, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName)}\"";
 
             if (valuableHooksLines.Contains(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName, GVFSPlatform.Instance.Constants.PathComparer))
             {
