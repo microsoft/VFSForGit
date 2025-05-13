@@ -143,7 +143,6 @@ namespace GVFS.Common
 
             public abstract string GVFSExecutableName { get; }
 
-            public abstract string ProgramLocaterCommand { get; }
 
             /// <summary>
             /// Different platforms can have different requirements
