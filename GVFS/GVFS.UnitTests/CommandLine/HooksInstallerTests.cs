@@ -16,9 +16,7 @@ namespace GVFS.UnitTests.CommandLine
     {
         private const string Filename = "hooksfile";
         private readonly string expectedAbsoluteGvfsHookPath =
-            Path.Combine(
-                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
-                GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            $"\"{Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), GVFSPlatform.Instance.Constants.GVFSHooksExecutableName)}\"";
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
