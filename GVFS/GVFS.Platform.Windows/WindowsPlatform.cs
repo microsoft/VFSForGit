@@ -220,25 +220,28 @@ namespace GVFS.Platform.Windows
             try
             {
                 const string GitBinPathEnd = "\\cmd\\git.exe";
-                string[] gitVSRegistryKeyNames =
-                {
-                    "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl",
-                    "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\16.0\\TeamFoundation\\GitSourceControl"
-                };
+                const string VSRegistryKeyRoot = @"Software\Microsoft\VSCommon";
+                const string GitVSRegistrySubKey = @"TeamFoundation\GitSourceControl";
                 const string GitVSRegistryValueName = "GitPath";
 
                 if (!gitBinPath.EndsWith(GitBinPathEnd))
                 {
-                    tracer.RelatedWarning(
-                        "Unable to configure Visual Studio’s GitSourceControl regkey because invalid git.exe path found: " + gitBinPath,
-                        Keywords.Telemetry);
-
                     return;
                 }
 
                 string regKeyValue = gitBinPath.Substring(0, gitBinPath.Length - GitBinPathEnd.Length);
-                foreach (string registryKeyName in gitVSRegistryKeyNames)
+
+                /* Get all versions of Visual Studio that exist in the registry at least 15.0.
+                 * This attempts to future proof (current version is 17.0), but may need to be
+                 * revisited in the future if VS changes how it stores this. */
+                var vsVersions = Registry.CurrentUser.OpenSubKey(VSRegistryKeyRoot)
+                    ?.GetSubKeyNames()
+                    .Where(name => Version.TryParse(name, out var version) && version.Major >= 15)
+                    .ToArray() ?? Array.Empty<string>();
+
+                foreach (string version in vsVersions)
                 {
+                    var registryKeyName = $@"{Registry.CurrentUser.Name}\{VSRegistryKeyRoot}\{version}\{GitVSRegistrySubKey}";
                     Registry.SetValue(registryKeyName, GitVSRegistryValueName, regKeyValue);
                 }
             }
@@ -255,14 +258,14 @@ namespace GVFS.Platform.Windows
         {
             error = null;
             hooksVersion = null;
-            string hooksPath = ProcessHelper.GetProgramLocation(GVFSPlatform.Instance.Constants.ProgramLocaterCommand, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
-            if (hooksPath == null)
+            string hooksPath = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            if (hooksPath == null || !File.Exists(hooksPath))
             {
                 error = "Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName;
                 return false;
             }
 
-            FileVersionInfo hooksFileVersionInfo = FileVersionInfo.GetVersionInfo(Path.Combine(hooksPath, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName));
+            FileVersionInfo hooksFileVersionInfo = FileVersionInfo.GetVersionInfo(hooksPath);
             hooksVersion = hooksFileVersionInfo.ProductVersion;
             return true;
         }
@@ -439,11 +442,6 @@ namespace GVFS.Platform.Windows
             public override string GVFSExecutableName
             {
                 get { return "GVFS" + this.ExecutableExtension; }
-            }
-
-            public override string ProgramLocaterCommand
-            {
-                get { return "where"; }
             }
 
             public override HashSet<string> UpgradeBlockingProcesses
