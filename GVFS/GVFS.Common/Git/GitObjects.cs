@@ -706,64 +706,53 @@ namespace GVFS.Common.Git
 
                     bytesDownloaded += packLength;
 
-                    // We will try to build an index if the server does not send one
-                    if (pack.IndexStream == null)
+                    // We can't trust the index file from the server, so we will always build our own.
+                    // We still need to consume and handle any exceptions from the index stream though.
+                    var canContinue = true;
+                    GitProcess.Result result;
+                    if (this.TryBuildIndex(activity, packTempPath, out result, gitProcess))
                     {
-                        GitProcess.Result result;
-                        if (!this.TryBuildIndex(activity, packTempPath, out result, gitProcess))
-                        {
-                            if (packFlushTask != null)
-                            {
-                                packFlushTask.Wait();
-                            }
-
-                            // Move whatever has been successfully downloaded so far
-                            Exception moveException;
-                            this.TryFlushAndMoveTempPacks(tempPacks, ref latestTimestamp, out moveException);
-
-                            return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
-                        }
-
                         tempPacks.Add(new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask, idxName, idxTempPath, idxFlushTask: null));
+                        if (pack.IndexStream != null)
+                        {
+                            try
+                            {
+                                bytesDownloaded += pack.IndexStream.Length;
+                                if (pack.IndexStream.CanSeek)
+                                {
+                                    pack.IndexStream.Seek(0, SeekOrigin.End);
+                                }
+                                else
+                                {
+                                    pack.IndexStream.CopyTo(Stream.Null);
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                canContinue = false;
+                                EventMetadata metadata = CreateEventMetadata(e);
+                                activity.RelatedWarning(metadata, "Failed to read to end of index stream");
+                            }
+                        }
                     }
                     else
                     {
-                        Task indexFlushTask;
-                        if (this.TryWriteTempFile(activity, pack.IndexStream, idxTempPath, out indexLength, out indexFlushTask))
-                        {
-                            tempPacks.Add(new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask, idxName, idxTempPath, indexFlushTask));
-                        }
-                        else
-                        {
-                            bytesDownloaded += indexLength;
-
-                            // Try to build the index manually, then retry the prefetch
-                            GitProcess.Result result;
-                            if (this.TryBuildIndex(activity, packTempPath, out result, gitProcess))
-                            {
-                                // If we were able to recreate the failed index
-                                // we can start the prefetch at the next timestamp
-                                tempPacks.Add(new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask, idxName, idxTempPath, idxFlushTask: null));
-                            }
-                            else
-                            {
-                                if (packFlushTask != null)
-                                {
-                                    packFlushTask.Wait();
-                                }
-                            }
-
-                            // Move whatever has been successfully downloaded so far
-                            Exception moveException;
-                            this.TryFlushAndMoveTempPacks(tempPacks, ref latestTimestamp, out moveException);
-
-                            // The download stream will not be in a good state if the index download fails.
-                            // So we have to restart the prefetch
-                            return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
-                        }
+                        canContinue = false;
                     }
 
-                    bytesDownloaded += indexLength;
+                    if (!canContinue)
+                    {
+                        if (packFlushTask != null)
+                        {
+                            packFlushTask.Wait();
+                        }
+
+                        // Move whatever has been successfully downloaded so far
+                        Exception moveException;
+                        this.TryFlushAndMoveTempPacks(tempPacks, ref latestTimestamp, out moveException);
+
+                        return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
+                    }
                 }
 
                 Exception exception = null;
