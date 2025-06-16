@@ -233,7 +233,7 @@ namespace GVFS.Common.Git
             {
                 if (this.GitSsl != null && !this.GitSsl.ShouldVerify)
                 {
-                    httpClientHandler.ServerCertificateCustomValidationCallback =
+                    httpClientHandler.ServerCertificateCustomValidationCallback = // CodeQL [SM02184] TLS verification can be disabled by Git itself, so this is just mirroring a feature already exposed.
                         (httpRequestMessage, c, cetChain, policyErrors) =>
                         {
                             return true;
