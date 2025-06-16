@@ -580,7 +580,11 @@ namespace GVFS.Common.Git
 
         public Result IndexPack(string packfilePath, string idxOutputPath)
         {
-            return this.InvokeGitAgainstDotGitFolder($"index-pack -o \"{idxOutputPath}\" \"{packfilePath}\"");
+            /* Git's default thread count is Environment.ProcessorCount / 2, with a maximum of 20.
+             * Testing shows that we can get a 5% decrease in gvfs clone time for large repositories by using more threads, but
+             * we won't go over ProcessorCount or 20. */
+            var threadCount = Math.Min(Environment.ProcessorCount, 20);
+            return this.InvokeGitAgainstDotGitFolder($"index-pack --threads={threadCount} -o \"{idxOutputPath}\" \"{packfilePath}\"");
         }
 
         /// <summary>
