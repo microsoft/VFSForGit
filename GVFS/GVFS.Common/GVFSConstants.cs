@@ -37,6 +37,10 @@ namespace GVFS.Common
             public const string GVFSTelemetryPipe = GitConfig.GVFSPrefix + "telemetry-pipe";
             public const string IKey = GitConfig.GVFSPrefix + "ikey";
             public const string HooksExtension = ".hooks";
+
+            /* Intended to be a temporary config to allow testing of distrusting pack indexes from cache server
+             * before it is enabled by default. */
+            public const string TrustPackIndexes = GVFSPrefix + "trust-pack-indexes";
         }
 
         public static class LocalGVFSConfig

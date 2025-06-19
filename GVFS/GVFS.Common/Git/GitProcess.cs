@@ -584,7 +584,13 @@ namespace GVFS.Common.Git
              * Testing shows that we can get a 5% decrease in gvfs clone time for large repositories by using more threads, but
              * we won't go over ProcessorCount or 20. */
             var threadCount = Math.Min(Environment.ProcessorCount, 20);
-            return this.InvokeGitAgainstDotGitFolder($"index-pack --threads={threadCount} -o \"{idxOutputPath}\" \"{packfilePath}\"");
+            string command = $"index-pack --threads={threadCount} -o \"{idxOutputPath}\" \"{packfilePath}\"";
+
+            // If index-pack is invoked within an enlistment, then it reads all the other objects and pack indexes available
+            // in the enlistment in order to verify references from within this pack file, even if --verify or similar
+            // options are not passed.
+            // Since we aren't verifying, we invoke index-pack outside the enlistment for performance.
+            return this.InvokeGitOutsideEnlistment(command);
         }
 
         /// <summary>
