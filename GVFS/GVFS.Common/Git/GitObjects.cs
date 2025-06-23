@@ -406,7 +406,6 @@ namespace GVFS.Common.Git
                     gitProcess = new GitProcess(this.Enlistment);
                 }
 
-
                 GitProcess.Result result = gitProcess.IndexPack(packfilePath, tempIdxPath);
                 if (result.ExitCodeIsFailure)
                 {
