@@ -131,11 +131,23 @@ namespace GVFS.Common.Git
             {
                 long bytesDownloaded = 0;
 
+                /* Distrusting the indexes from the server is a security feature to prevent a compromised server from sending a
+                 * pack file and an index file that do not match.
+                 * Eventually we will make this the default, but it has a high performance cost for the first prefetch after
+                 * cloning a large repository, so it must be explicitly enabled for now. */
+                bool trustPackIndexes = true;
+                if (gitProcess.TryGetFromConfig(GVFSConstants.GitConfig.TrustPackIndexes, forceOutsideEnlistment: false, out var valueString)
+                    && bool.TryParse(valueString, out var trustPackIndexesConfig))
+                {
+                    trustPackIndexes = trustPackIndexesConfig;
+                }
+                metadata.Add("trustPackIndexes", trustPackIndexes);
+
                 long requestId = HttpRequestor.GetNewRequestId();
                 List<string> innerPackIndexes = null;
                 RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
                     requestId: requestId,
-                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp, ref bytesDownloaded, ref innerPackIndexes, gitProcess),
+                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp, ref bytesDownloaded, ref innerPackIndexes, gitProcess, trustPackIndexes),
                     onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, requestId, "TryDownloadPrefetchPacks"),
                     method: HttpMethod.Get,
                     endPointGenerator: () => new Uri(
@@ -662,7 +674,8 @@ namespace GVFS.Common.Git
            ref long latestTimestamp,
            ref long bytesDownloaded,
            ref List<string> packIndexes,
-           GitProcess gitProcess)
+           GitProcess gitProcess,
+           bool trustPackIndexes)
         {
             if (packIndexes == null)
             {
@@ -676,11 +689,16 @@ namespace GVFS.Common.Git
                 string tempPackFolderPath = Path.Combine(this.Enlistment.GitPackRoot, TempPackFolder);
                 this.fileSystem.CreateDirectory(tempPackFolderPath);
 
-                List<TempPrefetchPackAndIdx> tempPacks = new List<TempPrefetchPackAndIdx>();
-                foreach (PrefetchPacksDeserializer.PackAndIndex pack in deserializer.EnumeratePacks())
+                var tempPacksTasks = new List<Task<TempPrefetchPackAndIdx>>();
+                // Future: We could manage cancellation of index building tasks if one fails (to stop indexing of later
+                // files if an early one fails), but in practice the first pack file takes the majority of the time and
+                // all the others will finish long before it so there would be no benefit to doing so.
+                bool allSucceeded = true;
+
+                // Read each pack from the stream to a temp file, and start a task to index it.
+                foreach (PrefetchPacksDeserializer.PackAndIndex packHandle in deserializer.EnumeratePacks())
                 {
-                    // The advertised size may not match the actual, on-disk size.
-                    long indexLength = 0;
+                    var pack = packHandle; // Capture packHandle in a new variable to avoid closure issues with async index task
                     long packLength;
 
                     // Write the temp and index to a temp folder to avoid putting corrupt files in the pack folder
@@ -701,75 +719,91 @@ namespace GVFS.Common.Git
                     if (!this.TryWriteTempFile(activity, pack.PackStream, packTempPath, out packLength, out packFlushTask))
                     {
                         bytesDownloaded += packLength;
-                        return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
+                        allSucceeded = false;
+                        break;
                     }
 
                     bytesDownloaded += packLength;
 
-                    // We will try to build an index if the server does not send one
-                    if (pack.IndexStream == null)
+                    if (trustPackIndexes
+                        && pack.IndexStream != null)
                     {
-                        GitProcess.Result result;
-                        if (!this.TryBuildIndex(activity, packTempPath, out result, gitProcess))
+                        // The server provided an index stream, we can trust it, and were able to read it successfully, so we just need to wait for the index to flush.
+                        if (this.TryWriteTempFile(activity, pack.IndexStream, idxTempPath, out var indexLength, out var indexFlushTask))
                         {
-                            if (packFlushTask != null)
-                            {
-                                packFlushTask.Wait();
-                            }
-
-                            // Move whatever has been successfully downloaded so far
-                            Exception moveException;
-                            this.TryFlushAndMoveTempPacks(tempPacks, ref latestTimestamp, out moveException);
-
-                            return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
-                        }
-
-                        tempPacks.Add(new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask, idxName, idxTempPath, idxFlushTask: null));
-                    }
-                    else
-                    {
-                        Task indexFlushTask;
-                        if (this.TryWriteTempFile(activity, pack.IndexStream, idxTempPath, out indexLength, out indexFlushTask))
-                        {
-                            tempPacks.Add(new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask, idxName, idxTempPath, indexFlushTask));
+                            bytesDownloaded += indexLength;
+                            tempPacksTasks.Add(Task.FromResult(
+                                new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask, idxName, idxTempPath, indexFlushTask)));
                         }
                         else
                         {
                             bytesDownloaded += indexLength;
-
-                            // Try to build the index manually, then retry the prefetch
-                            GitProcess.Result result;
-                            if (this.TryBuildIndex(activity, packTempPath, out result, gitProcess))
-                            {
-                                // If we were able to recreate the failed index
-                                // we can start the prefetch at the next timestamp
-                                tempPacks.Add(new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask, idxName, idxTempPath, idxFlushTask: null));
-                            }
-                            else
-                            {
-                                if (packFlushTask != null)
-                                {
-                                    packFlushTask.Wait();
-                                }
-                            }
-
-                            // Move whatever has been successfully downloaded so far
-                            Exception moveException;
-                            this.TryFlushAndMoveTempPacks(tempPacks, ref latestTimestamp, out moveException);
-
-                            // The download stream will not be in a good state if the index download fails.
-                            // So we have to restart the prefetch
-                            return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
+                            // we can try to build the index ourself, and if it's successful then on the retry we can pick up from that point.
+                            var indexTask = StartPackIndexAsync(activity, pack, packName, packTempPath, idxName, idxTempPath, packFlushTask);
+                            tempPacksTasks.Add(indexTask);
+                            // but we need to stop trying to read from the download stream as that has failed.
+                            allSucceeded = false;
+                            break;
                         }
                     }
+                    else
+                    {
+                        // Either we can't trust the index file from the server, or the server didn't provide one, so we will build our own.
+                        // For performance, we run the index build in the background while we continue downloading the next pack.
+                        var indexTask = StartPackIndexAsync(activity, pack, packName, packTempPath, idxName, idxTempPath, packFlushTask);
+                        tempPacksTasks.Add(indexTask);
 
-                    bytesDownloaded += indexLength;
+                        // If the server provided an index stream, we still need to consume and handle any exceptions it even
+                        // though we are otherwise ignoring it.
+                        if (pack.IndexStream != null)
+                        {
+                            try
+                            {
+                                bytesDownloaded += pack.IndexStream.Length;
+                                if (pack.IndexStream.CanSeek)
+                                {
+                                    pack.IndexStream.Seek(0, SeekOrigin.End);
+                                }
+                                else
+                                {
+                                    pack.IndexStream.CopyTo(Stream.Null);
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                EventMetadata metadata = CreateEventMetadata(e);
+                                activity.RelatedWarning(metadata, "Failed to read to end of index stream");
+                                allSucceeded = false;
+                                break;
+                            }
+                        }
+                    }
                 }
+
+                // Wait for the index tasks to complete. If any fail, we still copy the prior successful ones
+                // to the pack folder so that the retry will be incremental from where the failure occurred.
+                var tempPacks = new List<TempPrefetchPackAndIdx>();
+                bool indexTasksSucceededSoFar = true;
+                foreach (var task in tempPacksTasks)
+                {
+                    TempPrefetchPackAndIdx tempPack = task.Result;
+                    if (tempPack != null && indexTasksSucceededSoFar)
+                    {
+                        tempPacks.Add(tempPack);
+                    }
+                    else
+                    {
+                        indexTasksSucceededSoFar = false;
+                        tempPack?.PackFlushTask.Wait();
+                        break;
+                    }
+                }
+                allSucceeded = allSucceeded && indexTasksSucceededSoFar;
 
                 Exception exception = null;
                 if (!this.TryFlushAndMoveTempPacks(tempPacks, ref latestTimestamp, out exception))
                 {
-                    return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(exception, true);
+                    allSucceeded = false;
                 }
 
                 foreach (TempPrefetchPackAndIdx tempPack in tempPacks)
@@ -777,9 +811,37 @@ namespace GVFS.Common.Git
                     packIndexes.Add(tempPack.IdxName);
                 }
 
-                return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(
-                    new GitObjectsHttpRequestor.GitObjectTaskResult(success: true));
+                if (allSucceeded)
+                {
+                    return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(
+                        new GitObjectsHttpRequestor.GitObjectTaskResult(success: true));
+                }
+                else
+                {
+                    return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(exception, shouldRetry: true);
+                }
             }
+        }
+
+        private Task<TempPrefetchPackAndIdx> StartPackIndexAsync(ITracer activity, PrefetchPacksDeserializer.PackAndIndex pack, string packName, string packTempPath, string idxName, string idxTempPath, Task packFlushTask)
+        {
+            var indexTask = Task.Run(async () =>
+            {
+                // GitProcess only permits one process per instance at a time, so we need to duplicate it to run the index build in parallel.
+                // This is safe because each process is only accessing the pack file we direct it to which is not yet part
+                // of the enlistment.
+                GitProcess gitProcessForIndex = new GitProcess(this.Enlistment);
+                if (this.TryBuildIndex(activity, packTempPath, out var _, gitProcessForIndex))
+                {
+                    return new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask, idxName, idxTempPath, idxFlushTask: null);
+                }
+                else
+                {
+                    await packFlushTask;
+                    return null;
+                }
+            });
+            return indexTask;
         }
 
         private bool TryFlushAndMoveTempPacks(List<TempPrefetchPackAndIdx> tempPacks, ref long latestTimestamp, out Exception exception)

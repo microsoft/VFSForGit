@@ -580,7 +580,17 @@ namespace GVFS.Common.Git
 
         public Result IndexPack(string packfilePath, string idxOutputPath)
         {
-            return this.InvokeGitAgainstDotGitFolder($"index-pack -o \"{idxOutputPath}\" \"{packfilePath}\"");
+            /* Git's default thread count is Environment.ProcessorCount / 2, with a maximum of 20.
+             * Testing shows that we can get a 5% decrease in gvfs clone time for large repositories by using more threads, but
+             * we won't go over ProcessorCount or 20. */
+            var threadCount = Math.Min(Environment.ProcessorCount, 20);
+            string command = $"index-pack --threads={threadCount} -o \"{idxOutputPath}\" \"{packfilePath}\"";
+
+            // If index-pack is invoked within an enlistment, then it reads all the other objects and pack indexes available
+            // in the enlistment in order to verify references from within this pack file, even if --verify or similar
+            // options are not passed.
+            // Since we aren't verifying, we invoke index-pack outside the enlistment for performance.
+            return this.InvokeGitOutsideEnlistment(command);
         }
 
         /// <summary>
