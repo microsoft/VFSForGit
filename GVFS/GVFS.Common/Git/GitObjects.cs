@@ -135,12 +135,7 @@ namespace GVFS.Common.Git
                  * pack file and an index file that do not match.
                  * Eventually we will make this the default, but it has a high performance cost for the first prefetch after
                  * cloning a large repository, so it must be explicitly enabled for now. */
-                bool trustPackIndexes = true;
-                if (gitProcess.TryGetFromConfig(GVFSConstants.GitConfig.TrustPackIndexes, forceOutsideEnlistment: false, out var valueString)
-                    && bool.TryParse(valueString, out var trustPackIndexesConfig))
-                {
-                    trustPackIndexes = trustPackIndexesConfig;
-                }
+                bool trustPackIndexes = this.Enlistment.GetTrustPackIndexesConfig();
                 metadata.Add("trustPackIndexes", trustPackIndexes);
 
                 long requestId = HttpRequestor.GetNewRequestId();

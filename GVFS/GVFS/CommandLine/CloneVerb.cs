@@ -215,20 +215,40 @@ namespace GVFS.CommandLine
                 {
                     if (!this.NoPrefetch)
                     {
-                        ReturnCode result = this.Execute<PrefetchVerb>(
-                            enlistment,
-                            verb =>
-                            {
-                                verb.Commits = true;
-                                verb.SkipVersionCheck = true;
-                                verb.ResolvedCacheServer = cacheServer;
-                                verb.ServerGVFSConfig = serverGVFSConfig;
-                            });
-
-                        if (result != ReturnCode.Success)
+                        bool trustPackIndexes = enlistment.GetTrustPackIndexesConfig();
+                        /* If pack indexes are not trusted, the prefetch can take a long time.
+                         * We will run the prefetch command in the background.
+                         */
+                        if (trustPackIndexes)
                         {
-                            this.Output.WriteLine("\r\nError during prefetch @ {0}", fullEnlistmentRootPathParameter);
-                            exitCode = (int)result;
+                            ReturnCode result = this.Execute<PrefetchVerb>(
+                                enlistment,
+                                verb =>
+                                {
+                                    verb.Commits = true;
+                                    verb.SkipVersionCheck = true;
+                                    verb.ResolvedCacheServer = cacheServer;
+                                    verb.ServerGVFSConfig = serverGVFSConfig;
+                                });
+
+                            if (result != ReturnCode.Success)
+                            {
+                                this.Output.WriteLine("\r\nError during prefetch @ {0}", fullEnlistmentRootPathParameter);
+                                exitCode = (int)result;
+                            }
+                        }
+
+                        else
+                        {
+                            Process.Start(new ProcessStartInfo(
+                                fileName: "gvfs",
+                                arguments: "prefetch --commits")
+                            {
+                                UseShellExecute = true,
+                                WindowStyle = ProcessWindowStyle.Hidden,
+                                WorkingDirectory = enlistment.EnlistmentRoot
+                            });
+                            this.Output.WriteLine("\r\nPrefetch of commit graph has been started as a background process. Git operations involving history may be slower until prefetch has completed.\r\n");
                         }
                     }
 
