@@ -4,6 +4,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using static GVFS.Common.Git.LibGit2Repo;
 
 namespace GVFS.Common.Git
 {
@@ -60,9 +61,9 @@ namespace GVFS.Common.Git
             this.libgit2RepoInvoker?.InitializeSharedRepo();
         }
 
-        public bool TryGetIsBlob(string sha, out bool isBlob)
+        public bool TryGetObjectType(string sha, out Native.ObjectTypes? objectType)
         {
-            return this.libgit2RepoInvoker.TryInvoke(repo => repo.IsBlob(sha), out isBlob);
+            return this.libgit2RepoInvoker.TryInvoke(repo => repo.GetObjectType(sha), out objectType);
         }
 
         public virtual bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
@@ -86,10 +87,12 @@ namespace GVFS.Common.Git
             return copyBlobResult;
         }
 
-        public virtual bool CommitAndRootTreeExists(string commitSha)
+        public virtual bool CommitAndRootTreeExists(string commitSha, out string rootTreeSha)
         {
             bool output = false;
-            this.libgit2RepoInvoker.TryInvoke(repo => repo.CommitAndRootTreeExists(commitSha), out output);
+            string treeShaLocal = null;
+            this.libgit2RepoInvoker.TryInvoke(repo => repo.CommitAndRootTreeExists(commitSha, out treeShaLocal), out output);
+            rootTreeSha = treeShaLocal;
             return output;
         }
 

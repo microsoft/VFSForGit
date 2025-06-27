@@ -16,6 +16,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
+using static GVFS.Common.Git.LibGit2Repo;
 
 namespace GVFS.Mount
 {
@@ -43,6 +44,8 @@ namespace GVFS.Mount
         private MountState currentState;
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
+
+        private readonly Dictionary<string, string> treesWithRecentlyDownloadedCommits = new Dictionary<string,string>();
 
         // True if InProcessMount is calling git reset as part of processing
         // a folder dehydrate request
@@ -504,7 +507,21 @@ namespace GVFS.Mount
                 else
                 {
                     Stopwatch downloadTime = Stopwatch.StartNew();
-                    if (this.gitObjects.TryDownloadAndSaveObject(objectSha, GVFSGitObjects.RequestSource.NamedPipeMessage) == GitObjects.DownloadAndSaveObjectResult.Success)
+
+                    /* If this is the root tree for a commit that was was just downloaded, assume that more
+                     * trees will be needed soon and download them as well by using the download commit API.
+                     *
+                     * Otherwise, or as a fallback if the commit download fails, download the object directly.
+                     */
+                    if (this.treesWithRecentlyDownloadedCommits.TryGetValue(objectSha, out string commitSha)
+                        && this.gitObjects.TryDownloadCommit(commitSha))
+                    {
+                        this.treesWithRecentlyDownloadedCommits.Remove(objectSha);
+                        response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
+                        // FUTURE: Should the stats be updated to reflect all the trees in the pack?
+                        // FUTURE: Should we try to clean up duplicate trees or increase depth of the commit download?
+                    }
+                    else if (this.gitObjects.TryDownloadAndSaveObject(objectSha, GVFSGitObjects.RequestSource.NamedPipeMessage) == GitObjects.DownloadAndSaveObjectResult.Success)
                     {
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
                     }
@@ -513,9 +530,20 @@ namespace GVFS.Mount
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.DownloadFailed);
                     }
 
-                    bool isBlob;
-                    this.context.Repository.TryGetIsBlob(objectSha, out isBlob);
-                    this.context.Repository.GVFSLock.Stats.RecordObjectDownload(isBlob, downloadTime.ElapsedMilliseconds);
+                    Native.ObjectTypes? objectType;
+                    this.context.Repository.TryGetObjectType(objectSha, out objectType);
+                    this.context.Repository.GVFSLock.Stats.RecordObjectDownload(objectType == Native.ObjectTypes.Blob, downloadTime.ElapsedMilliseconds);
+
+                    if (objectType == Native.ObjectTypes.Commit
+                        && !this.context.Repository.CommitAndRootTreeExists(objectSha, out var treeSha)
+                        && !string.IsNullOrEmpty(treeSha))
+                    {
+                        /* If a commit is downloaded but its tree doesn't exist, it means the commit hadn't been prefetched and all its trees 
+                         * may be needed soon depending on the context. e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
+                         * save the tree/commit so if the tree is requested soon we can download all the trees for the commit in a batch.
+                         */
+                        this.treesWithRecentlyDownloadedCommits[treeSha] = objectSha;
+                    }
                 }
             }
 
