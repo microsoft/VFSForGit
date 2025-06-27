@@ -12,8 +12,9 @@ namespace GVFS.UnitTests.Mock.Git
         {
         }
 
-        public override bool CommitAndRootTreeExists(string commitish)
+        public override bool CommitAndRootTreeExists(string commitish, out string treeSha)
         {
+            treeSha = string.Empty;
             return false;
         }
 

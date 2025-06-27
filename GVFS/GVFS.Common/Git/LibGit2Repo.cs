@@ -41,24 +41,17 @@ namespace GVFS.Common.Git
         protected ITracer Tracer { get; }
         protected IntPtr RepoHandle { get; private set; }
 
-        public bool IsBlob(string sha)
+        public Native.ObjectTypes? GetObjectType(string sha)
         {
             IntPtr objHandle;
             if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.SuccessCode)
             {
-                return false;
+                return null;
             }
 
             try
             {
-                switch (Native.Object.GetType(objHandle))
-                {
-                    case Native.ObjectTypes.Blob:
-                        return true;
-
-                    default:
-                        return false;
-                }
+                return Native.Object.GetType(objHandle);
             }
             finally
             {
@@ -91,9 +84,9 @@ namespace GVFS.Common.Git
             return null;
         }
 
-        public virtual bool CommitAndRootTreeExists(string commitish)
+        public virtual bool CommitAndRootTreeExists(string commitish, out string treeSha)
         {
-            string treeSha = this.GetTreeSha(commitish);
+            treeSha = this.GetTreeSha(commitish);
             if (treeSha == null)
             {
                 return false;
