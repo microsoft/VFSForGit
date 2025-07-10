@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using static GVFS.Common.Git.LibGit2Repo;
@@ -45,7 +46,8 @@ namespace GVFS.Mount
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
-        private readonly Dictionary<string, string> treesWithRecentlyDownloadedCommits = new Dictionary<string,string>();
+        private readonly Dictionary<string, string> treesWithDownloadedCommits = new Dictionary<string,string>();
+        private DateTime lastCommitPackDownloadTime = DateTime.MinValue;
 
         // True if InProcessMount is calling git reset as part of processing
         // a folder dehydrate request
@@ -513,10 +515,10 @@ namespace GVFS.Mount
                      *
                      * Otherwise, or as a fallback if the commit download fails, download the object directly.
                      */
-                    if (this.treesWithRecentlyDownloadedCommits.TryGetValue(objectSha, out string commitSha)
+                    if (this.ShouldDownloadCommitPack(objectSha, out string commitSha)
                         && this.gitObjects.TryDownloadCommit(commitSha))
                     {
-                        this.treesWithRecentlyDownloadedCommits.Remove(objectSha);
+                        this.DownloadedCommitPack(objectSha: objectSha, commitSha: commitSha);
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
                         // FUTURE: Should the stats be updated to reflect all the trees in the pack?
                         // FUTURE: Should we try to clean up duplicate trees or increase depth of the commit download?
@@ -530,24 +532,57 @@ namespace GVFS.Mount
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.DownloadFailed);
                     }
 
+
                     Native.ObjectTypes? objectType;
                     this.context.Repository.TryGetObjectType(objectSha, out objectType);
                     this.context.Repository.GVFSLock.Stats.RecordObjectDownload(objectType == Native.ObjectTypes.Blob, downloadTime.ElapsedMilliseconds);
 
                     if (objectType == Native.ObjectTypes.Commit
+                        && !this.PrefetchHasBeenDone()
                         && !this.context.Repository.CommitAndRootTreeExists(objectSha, out var treeSha)
                         && !string.IsNullOrEmpty(treeSha))
                     {
-                        /* If a commit is downloaded but its tree doesn't exist, it means the commit hadn't been prefetched and all its trees 
-                         * may be needed soon depending on the context. e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
-                         * save the tree/commit so if the tree is requested soon we can download all the trees for the commit in a batch.
+                        /* If a commit is downloaded, it wasn't prefetched.
+                         * If any prefetch has been done, there is probably a commit in the prefetch packs that is close enough that
+                         * loose object download of missing trees will be faster than downloading a pack of all the trees for the commit.
+                         * Otherwise, the trees for the commit may be needed soon depending on the context. 
+                         * e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
+                         * 
+                         * Save the tree/commit so if the tree is requested soon we can download all the trees for the commit in a batch.
                          */
-                        this.treesWithRecentlyDownloadedCommits[treeSha] = objectSha;
+                        this.treesWithDownloadedCommits[treeSha] = objectSha;
                     }
                 }
             }
 
             connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private bool PrefetchHasBeenDone()
+        {
+            var prefetchPacks = this.gitObjects.ReadPackFileNames(this.enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
+            return prefetchPacks.Length > 0;
+        }
+
+        private bool ShouldDownloadCommitPack(string objectSha, out string commitSha)
+        {
+
+            if (!this.treesWithDownloadedCommits.TryGetValue(objectSha, out commitSha)
+                || this.PrefetchHasBeenDone())
+            {
+                return false;
+            }
+
+            /* This is a heuristic to prevent downloading multiple packs related to git history commands,
+             * since commits downloaded close together likely have similar trees. */
+            var timePassed = DateTime.UtcNow - this.lastCommitPackDownloadTime;
+            return (timePassed > TimeSpan.FromMinutes(5));
+        }
+
+        private void DownloadedCommitPack(string objectSha, string commitSha)
+        {
+            this.lastCommitPackDownloadTime = DateTime.UtcNow;
+            this.treesWithDownloadedCommits.Remove(objectSha);
         }
 
         private void HandlePostFetchJobRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
