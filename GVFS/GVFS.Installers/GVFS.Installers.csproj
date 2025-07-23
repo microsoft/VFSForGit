@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.Build.NoTargets">
 
   <PropertyGroup>
-    <TargetFramework>net461</TargetFramework>
+    <TargetFramework>net471</TargetFramework>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <LayoutPath>$(RepoOutPath)GVFS.Payload\bin\$(Configuration)\win-x64\</LayoutPath>
   </PropertyGroup>
