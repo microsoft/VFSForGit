@@ -49,7 +49,7 @@ ECHO ^************************
 ECHO Collecting FastFetch...
 mkdir %OUTROOT%\FastFetch
 xcopy /S /Y ^
-    %VFS_OUTDIR%\FastFetch\bin\%CONFIGURATION%\net461\win-x64 ^
+    %VFS_OUTDIR%\FastFetch\bin\%CONFIGURATION%\net48\win-x64 ^
     %OUTROOT%\FastFetch\ || GOTO ERROR
 
 ECHO ^***********************************
@@ -57,7 +57,7 @@ ECHO ^* Collecting GVFS.FunctionalTests *
 ECHO ^***********************************
 mkdir %OUTROOT%\GVFS.FunctionalTests
 xcopy /S /Y ^
-    %VFS_OUTDIR%\GVFS.FunctionalTests\bin\%CONFIGURATION%\net461\win-x64 ^
+    %VFS_OUTDIR%\GVFS.FunctionalTests\bin\%CONFIGURATION%\net48\win-x64 ^
     %OUTROOT%\GVFS.FunctionalTests\ || GOTO ERROR
 
 ECHO ^*************************************

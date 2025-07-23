@@ -28,10 +28,6 @@
     <BaseIntermediateOutputPath>$(ProjectOutPath)obj\</BaseIntermediateOutputPath>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
-  </ItemGroup>
-
   <!-- Native project properties -->
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.vcxproj'">
     <Platform>x64</Platform>
