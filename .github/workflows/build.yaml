@@ -21,12 +21,12 @@ jobs:
       with:
         path: src
 
-    - name: Install .NET 4.7.2 SDK
+    - name: Install .NET 4.6.1 SDK
       shell: pwsh
       working-directory: "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer"
       run: |
         $InstallPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
-        $WorkLoads = '--add Microsoft.Net.Component.4.7.2.SDK --add Microsoft.Net.Component.4.7.2.TargetingPack'
+        $WorkLoads = '--add Microsoft.Net.Component.4.6.1.SDK --add Microsoft.Net.Component.4.6.1.TargetingPack'
         vs_installer.exe modify --installPath $InstallPath $WorkLoads --quiet --norestart --nocache
 
     - name: Install .NET SDK
