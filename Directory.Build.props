@@ -30,7 +30,7 @@
 
   <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
-  </ItemGroup
+  </ItemGroup>
 
   <!-- Native project properties -->
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.vcxproj'">
