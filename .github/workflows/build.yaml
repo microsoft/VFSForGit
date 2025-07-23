@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: windows-2025
     name: Build and Unit Test
 
     strategy:
@@ -20,6 +20,14 @@ jobs:
       uses: actions/checkout@v4
       with:
         path: src
+
+    - name: Install .NET 4.7.2 SDK
+      shell: pwsh
+      working-directory: "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer"
+      run: |
+        $InstallPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
+        $WorkLoads = '--add Microsoft.Net.Component.4.7.2.SDK --add Microsoft.Net.Component.4.7.2.TargetingPack'
+        vs_installer.exe modify --installPath $InstallPath $WorkLoads --quiet --norestart --nocache
 
     - name: Install .NET SDK
       uses: actions/setup-dotnet@v4
@@ -66,7 +74,7 @@ jobs:
         path: artifacts\NuGetPackages
 
   functional_test:
-    runs-on: windows-2022
+    runs-on: windows-2025
     name: Functional Tests
     needs: build
 
