@@ -21,6 +21,11 @@
     <PackageReference Include="Moq" Version="4.10.1" />
   </ItemGroup>
 
+
+    <ItemGroup>
+        <Reference Include="System.Net.Http" />
+    </ItemGroup>
+
   <!-- Because the unit tests may run on a machine without ProjFS installed
        (such as CI machines) we must include the native library for the tests -->
   <ItemGroup>
