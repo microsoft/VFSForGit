@@ -66,12 +66,23 @@ namespace GVFS.FunctionalTests.Tools
             bool removeUpgradeMessages = true)
         {
             ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command, environmentVariables);
-            string errors = result.Errors;
+            string errors = FilterMessages(result.Errors, removeWaitingMessages, removeUpgradeMessages);
 
-            if (!string.IsNullOrEmpty(errors) && (removeWaitingMessages || removeUpgradeMessages))
+            return new ProcessResult(
+                result.Output,
+                errors,
+                result.ExitCode);
+        }
+
+        private static string FilterMessages(
+            string input,
+            bool removeWaitingMessages,
+            bool removeUpgradeMessages)
+        {
+            if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages))
             {
-                IEnumerable<string> errorLines = errors.Split(new string[] { Environment.NewLine }, StringSplitOptions.None);
-                IEnumerable<string> filteredErrorLines = errorLines.Where(line =>
+                IEnumerable<string> lines = input.Split(new string[] { Environment.NewLine }, StringSplitOptions.None);
+                IEnumerable<string> filteredLines = lines.Where(line =>
                 {
                     if (string.IsNullOrWhiteSpace(line) ||
                         (removeUpgradeMessages && line.StartsWith("A new version of VFS for Git is available.")) ||
@@ -85,13 +96,10 @@ namespace GVFS.FunctionalTests.Tools
                     }
                 });
 
-                errors = filteredErrorLines.Any() ? string.Join(Environment.NewLine, filteredErrorLines) : string.Empty;
+                return filteredLines.Any() ? string.Join(Environment.NewLine, filteredLines) : string.Empty;
             }
 
-            return new ProcessResult(
-                result.Output,
-                errors,
-                result.ExitCode);
+            return input;
         }
 
         public static void ValidateGitCommand(
