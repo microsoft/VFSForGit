@@ -5,6 +5,16 @@ on:
     branches: [ master, releases/shipped ]
   push:
     branches: [ master, releases/shipped ]
+  workflow_dispatch:
+    inputs:
+      git_version:
+        description: 'Microsoft Git version tag to include in the build'
+        required: false
+        default: 'v2.50.1.vfs.0.0'
+        type: string
+
+env:
+  GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.50.1.vfs.0.0' }}
 
 jobs:
   build:
@@ -40,6 +50,13 @@ jobs:
     - name: Create build artifacts
       shell: cmd
       run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts
+
+    - name: Download microsoft/git installers
+      shell: cmd
+      run: |
+        gh release download ${{ env.GIT_VERSION }} --repo microsoft/git --pattern "Git*.exe" --dir artifacts\GVFS.Installers
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload functional tests drop
       uses: actions/upload-artifact@v4
