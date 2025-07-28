@@ -63,13 +63,15 @@ namespace GVFS.FunctionalTests.Tools
             string command,
             Dictionary<string, string> environmentVariables = null,
             bool removeWaitingMessages = true,
-            bool removeUpgradeMessages = true)
+            bool removeUpgradeMessages = true,
+            bool removePartialHydrationMessages = true)
         {
             ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command, environmentVariables);
-            string errors = FilterMessages(result.Errors, true, removeWaitingMessages, removeUpgradeMessages);
+            string output = FilterMessages(result.Output, false, false, false, removePartialHydrationMessages);
+            string errors = FilterMessages(result.Errors, true, removeWaitingMessages, removeUpgradeMessages, removePartialHydrationMessages);
 
             return new ProcessResult(
-                result.Output,
+                output,
                 errors,
                 result.ExitCode);
         }
@@ -95,16 +97,18 @@ namespace GVFS.FunctionalTests.Tools
             string input,
             bool removeEmptyLines,
             bool removeWaitingMessages,
-            bool removeUpgradeMessages)
+            bool removeUpgradeMessages,
+            bool removePartialHydrationMessages)
         {
-            if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages))
+            if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages || removePartialHydrationMessages))
             {
                 IEnumerable<string> lines = SplitLinesKeepingNewlines(input);
                 IEnumerable<string> filteredLines = lines.Where(line =>
                 {
                     if ((removeEmptyLines && string.IsNullOrWhiteSpace(line)) ||
                         (removeUpgradeMessages && line.StartsWith("A new version of VFS for Git is available.")) ||
-                        (removeWaitingMessages && line.StartsWith("Waiting for ")))
+                        (removeWaitingMessages && line.StartsWith("Waiting for ")) ||
+                        (removePartialHydrationMessages && line.StartsWith("You are in a partially-hydrated checkout with ")))
                     {
                         return false;
                     }
