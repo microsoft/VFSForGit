@@ -5,11 +5,38 @@ on:
     branches: [ master, releases/shipped ]
   push:
     branches: [ master, releases/shipped ]
+  workflow_dispatch:
+    inputs:
+      git_version:
+        description: 'Microsoft Git version tag to include in the build (leave empty for default)'
+        required: false
+        type: string
+
+env:
+  GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.50.1.vfs.0.1' }}
 
 jobs:
+  validate:
+    runs-on: windows-2025
+    name: Validation
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+
+    - name: Validate Microsoft Git version
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        & "$env:GITHUB_WORKSPACE\.github\workflows\scripts\validate_release.ps1" `
+          -Repository microsoft/git `
+          -Tag $env:GIT_VERSION && `
+        Write-Host ::notice title=Validation::Using microsoft/git version $env:GIT_VERSION
+
   build:
     runs-on: windows-2025
     name: Build and Unit Test
+    needs: validate
 
     strategy:
       matrix:
@@ -40,6 +67,13 @@ jobs:
     - name: Create build artifacts
       shell: cmd
       run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts
+
+    - name: Download microsoft/git installers
+      shell: cmd
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release download %GIT_VERSION% --repo microsoft/git --pattern "Git*.exe" --dir artifacts\GVFS.Installers
 
     - name: Upload functional tests drop
       uses: actions/upload-artifact@v4
