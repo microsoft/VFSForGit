@@ -77,13 +77,14 @@ jobs:
         path: artifacts\GVFS.Installers
 
   functional_test:
-    runs-on: windows-2025
+    runs-on: ${{ matrix.architecture == 'arm64' && 'windows-11-arm' || 'windows-2025' }}
     name: Functional Tests
     needs: build
 
     strategy:
       matrix:
         configuration: [ Debug, Release ]
+        architecture: [ x86_64, arm64 ]
 
     steps:
     - name: Download installers
@@ -114,7 +115,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: InstallationLogs_${{ matrix.configuration }}
+        name: InstallationLogs_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: install\logs
 
     - name: Run functional tests
@@ -128,14 +129,14 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: FunctionalTests_Results_${{ matrix.configuration }}
+        name: FunctionalTests_Results_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: TestResult.xml
 
     - name: Upload Git trace2 output
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: GitTrace2_${{ matrix.configuration }}
+        name: GitTrace2_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: C:\temp\git-trace2.log
 
     - name: ProjFS details (post-test)
