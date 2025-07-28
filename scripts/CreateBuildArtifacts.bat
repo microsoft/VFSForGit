@@ -14,13 +14,6 @@ IF "%~2"=="" (
     SET OUTROOT=%2
 )
 
-REM Check NuGet is on the PATH
-where /q nuget.exe
-IF ERRORLEVEL 1 (
-    ECHO ERROR: Could not find nuget.exe on the PATH
-    EXIT /B 1
-)
-
 IF EXIST %OUTROOT% (
   rmdir /s /q %OUTROOT%
 )
@@ -59,19 +52,6 @@ mkdir %OUTROOT%\GVFS.FunctionalTests
 xcopy /S /Y ^
     %VFS_OUTDIR%\GVFS.FunctionalTests\bin\%CONFIGURATION%\net471\win-x64 ^
     %OUTROOT%\GVFS.FunctionalTests\ || GOTO ERROR
-
-ECHO ^*************************************
-ECHO ^* Creating Installers NuGet Package *
-ECHO ^*************************************
-mkdir %OUTROOT%\NuGetPackages
-nuget.exe pack ^
-    %VFS_OUTDIR%\GVFS.Installers\bin\%CONFIGURATION%\win-x64\GVFS.Installers.nuspec ^
-    -BasePath %VFS_OUTDIR%\GVFS.Installers\bin\%CONFIGURATION%\win-x64 ^
-    -OutputDirectory %OUTROOT%\NuGetPackages || GOTO ERROR
-
-REM Move the nuspec file to the NuGetPackages artifact directory
-move %OUTROOT%\GVFS.Installers\GVFS.Installers.nuspec ^
-    %OUTROOT%\NuGetPackages
 
 GOTO :EOF
 

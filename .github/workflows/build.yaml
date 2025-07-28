@@ -59,12 +59,6 @@ jobs:
         name: Installers_${{ matrix.configuration }}
         path: artifacts\GVFS.Installers
 
-    - name: Upload NuGet packages
-      uses: actions/upload-artifact@v4
-      with:
-        name: NuGetPackages_${{ matrix.configuration }}
-        path: artifacts\NuGetPackages
-
   functional_test:
     runs-on: windows-2025
     name: Functional Tests
