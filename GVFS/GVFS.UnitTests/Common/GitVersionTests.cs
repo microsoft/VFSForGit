@@ -119,6 +119,46 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void Compare_ReleaseCandidate_Less()
+        {
+            GitVersion version1 = new GitVersion(1, 2, 3, 1, "test", 4, 1);
+            GitVersion version2 = new GitVersion(1, 2, 3, 2, "test", 4, 1);
+
+            version1.IsLessThan(version2).ShouldEqual(true);
+            version1.IsEqualTo(version2).ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void Compare_ReleaseCandidate_Greater()
+        {
+            GitVersion version1 = new GitVersion(1, 2, 3, 2, "test", 4, 1);
+            GitVersion version2 = new GitVersion(1, 2, 3, 1, "test", 4, 1);
+
+            version1.IsLessThan(version2).ShouldEqual(false);
+            version1.IsEqualTo(version2).ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void Compare_ReleaseCandidate_NonRC_Less()
+        {
+            GitVersion version1 = new GitVersion(1, 2, 3, 0, "test", 4, 1);
+            GitVersion version2 = new GitVersion(1, 2, 3, null, "test", 4, 1);
+
+            version1.IsLessThan(version2).ShouldEqual(true);
+            version1.IsEqualTo(version2).ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void Compare_ReleaseCandidate_NonRC_Greater()
+        {
+            GitVersion version1 = new GitVersion(1, 2, 3, null, "test", 4, 1);
+            GitVersion version2 = new GitVersion(1, 2, 3, 0, "test", 4, 1);
+
+            version1.IsLessThan(version2).ShouldEqual(false);
+            version1.IsEqualTo(version2).ShouldEqual(false);
+        }
+
+        [TestCase]
         public void Compare_Version_Build_Less()
         {
             GitVersion version1 = new GitVersion(1, 2, 2, "test", 4, 1);
@@ -187,6 +227,7 @@ namespace GVFS.UnitTests.Common
             version.Major.ShouldEqual(1);
             version.Minor.ShouldEqual(2);
             version.Build.ShouldEqual(3);
+            version.ReleaseCandidate.ShouldEqual(null);
             version.Platform.ShouldEqual("test");
             version.Revision.ShouldEqual(4);
             version.MinorRevision.ShouldEqual(0);
@@ -201,9 +242,25 @@ namespace GVFS.UnitTests.Common
             version.Major.ShouldEqual(1);
             version.Minor.ShouldEqual(2);
             version.Build.ShouldEqual(3);
+            version.ReleaseCandidate.ShouldEqual(null);
             version.Platform.ShouldEqual("test");
             version.Revision.ShouldEqual(4);
             version.MinorRevision.ShouldEqual(0);
+        }
+
+        [TestCase]
+        public void Allow_ReleaseCandidates()
+        {
+            GitVersion version;
+            GitVersion.TryParseVersion("1.2.3.rc2.test.4.5", out version).ShouldEqual(true);
+
+            version.Major.ShouldEqual(1);
+            version.Minor.ShouldEqual(2);
+            version.Build.ShouldEqual(3);
+            version.ReleaseCandidate.ShouldEqual(2);
+            version.Platform.ShouldEqual("test");
+            version.Revision.ShouldEqual(4);
+            version.MinorRevision.ShouldEqual(5);
         }
 
         private void ParseAndValidateInstallerVersion(string installerName)
