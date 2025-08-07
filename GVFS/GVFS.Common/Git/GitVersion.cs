@@ -41,26 +41,6 @@ namespace GVFS.Common.Git
             return TryParseVersion(input, out version);
         }
 
-        public static bool TryParseInstallerName(string input, string installerExtension, out GitVersion version)
-        {
-            // Installer name is of the form
-            // Git-2.14.1.gvfs.1.1.gb16030b-64-bit.exe
-
-            version = null;
-
-            if (!input.StartsWith("Git-", StringComparison.InvariantCultureIgnoreCase))
-            {
-                return false;
-            }
-
-            if (!input.EndsWith("-64-bit" + installerExtension, StringComparison.InvariantCultureIgnoreCase))
-            {
-                return false;
-            }
-
-            return TryParseVersion(input.Substring(4, input.Length - 15), out version);
-        }
-
         public static bool TryParseVersion(string input, out GitVersion version)
         {
             version = null;

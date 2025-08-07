@@ -1,5 +1,4 @@
-﻿using GVFS.Common;
-using GVFS.Common.Git;
+﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 
@@ -8,14 +7,6 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class GitVersionTests
     {
-        [TestCase]
-        public void TryParseInstallerName()
-        {
-            this.ParseAndValidateInstallerVersion("Git-1.2.3.gvfs.4.5.gb16030b-64-bit" + GVFSPlatform.Instance.Constants.InstallerExtension);
-            this.ParseAndValidateInstallerVersion("git-1.2.3.gvfs.4.5.gb16030b-64-bit" + GVFSPlatform.Instance.Constants.InstallerExtension);
-            this.ParseAndValidateInstallerVersion("Git-1.2.3.gvfs.4.5.gb16030b-64-bit" + GVFSPlatform.Instance.Constants.InstallerExtension);
-        }
-
         [TestCase]
         public void Version_Data_Null_Returns_False()
         {
@@ -259,20 +250,6 @@ namespace GVFS.UnitTests.Common
             version.Build.ShouldEqual(3);
             version.ReleaseCandidate.ShouldEqual(2);
             version.Platform.ShouldEqual("test");
-            version.Revision.ShouldEqual(4);
-            version.MinorRevision.ShouldEqual(5);
-        }
-
-        private void ParseAndValidateInstallerVersion(string installerName)
-        {
-            GitVersion version;
-            bool success = GitVersion.TryParseInstallerName(installerName, GVFSPlatform.Instance.Constants.InstallerExtension, out version);
-            success.ShouldBeTrue();
-
-            version.Major.ShouldEqual(1);
-            version.Minor.ShouldEqual(2);
-            version.Build.ShouldEqual(3);
-            version.Platform.ShouldEqual("gvfs");
             version.Revision.ShouldEqual(4);
             version.MinorRevision.ShouldEqual(5);
         }
