@@ -64,11 +64,12 @@ namespace GVFS.FunctionalTests.Tools
             Dictionary<string, string> environmentVariables = null,
             bool removeWaitingMessages = true,
             bool removeUpgradeMessages = true,
-            bool removePartialHydrationMessages = true)
+            bool removePartialHydrationMessages = true,
+            bool removeFSMonitorMessages = true)
         {
             ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command, environmentVariables);
-            string output = FilterMessages(result.Output, false, false, false, removePartialHydrationMessages);
-            string errors = FilterMessages(result.Errors, true, removeWaitingMessages, removeUpgradeMessages, removePartialHydrationMessages);
+            string output = FilterMessages(result.Output, false, false, false, removePartialHydrationMessages, removeFSMonitorMessages);
+            string errors = FilterMessages(result.Errors, true, removeWaitingMessages, removeUpgradeMessages, removePartialHydrationMessages, removeFSMonitorMessages);
 
             return new ProcessResult(
                 output,
@@ -98,9 +99,10 @@ namespace GVFS.FunctionalTests.Tools
             bool removeEmptyLines,
             bool removeWaitingMessages,
             bool removeUpgradeMessages,
-            bool removePartialHydrationMessages)
+            bool removePartialHydrationMessages,
+            bool removeFSMonitorMessages)
         {
-            if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages || removePartialHydrationMessages))
+            if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages || removePartialHydrationMessages || removeFSMonitorMessages))
             {
                 IEnumerable<string> lines = SplitLinesKeepingNewlines(input);
                 IEnumerable<string> filteredLines = lines.Where(line =>
@@ -108,7 +110,8 @@ namespace GVFS.FunctionalTests.Tools
                     if ((removeEmptyLines && string.IsNullOrWhiteSpace(line)) ||
                         (removeUpgradeMessages && line.StartsWith("A new version of VFS for Git is available.")) ||
                         (removeWaitingMessages && line.StartsWith("Waiting for ")) ||
-                        (removePartialHydrationMessages && line.StartsWith("You are in a partially-hydrated checkout with ")))
+                        (removePartialHydrationMessages && line.StartsWith("You are in a partially-hydrated checkout with ")) ||
+                        (removeFSMonitorMessages && line.TrimEnd().EndsWith(" is incompatible with fsmonitor")))
                     {
                         return false;
                     }
