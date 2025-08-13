@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.FunctionalTests
 {
@@ -12,6 +13,14 @@ namespace GVFS.FunctionalTests
     {
         public static void Main(string[] args)
         {
+            if (Environment.GetEnvironmentVariable("DDD") == "1")
+            {
+                Console.WriteLine($"pid: {Process.GetCurrentProcess().Id}");
+                while (!Debugger.IsAttached)
+                {
+                    Thread.Sleep(3000);
+                }
+            }
             Properties.Settings.Default.Initialize();
             Console.WriteLine("Settings.Default.CurrentDirectory: {0}", Settings.Default.CurrentDirectory);
             Console.WriteLine("Settings.Default.PathToGit: {0}", Settings.Default.PathToGit);
