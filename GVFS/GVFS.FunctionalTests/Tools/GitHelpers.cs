@@ -74,6 +74,23 @@ namespace GVFS.FunctionalTests.Tools
                 result.ExitCode);
         }
 
+        private static IEnumerable<string> SplitLinesKeepingNewlines(string input)
+        {
+            for (int start = 0;  start < input.Length; )
+            {
+                int nextLine = input.IndexOf('\n', start) + 1;
+
+                if (nextLine == 0)
+                {
+                    // No more newlines, yield the rest
+                    nextLine = input.Length;
+                }
+
+                yield return input.Substring(start, nextLine - start);
+                start = nextLine;
+            }
+        }
+
         private static string FilterMessages(
             string input,
             bool removeWaitingMessages,
@@ -81,7 +98,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages))
             {
-                IEnumerable<string> lines = input.Split(new string[] { Environment.NewLine }, StringSplitOptions.None);
+                IEnumerable<string> lines = SplitLinesKeepingNewlines(input);
                 IEnumerable<string> filteredLines = lines.Where(line =>
                 {
                     if (string.IsNullOrWhiteSpace(line) ||
@@ -96,7 +113,7 @@ namespace GVFS.FunctionalTests.Tools
                     }
                 });
 
-                return filteredLines.Any() ? string.Join(Environment.NewLine, filteredLines) : string.Empty;
+                return filteredLines.Any() ? string.Join("", filteredLines) : string.Empty;
             }
 
             return input;
