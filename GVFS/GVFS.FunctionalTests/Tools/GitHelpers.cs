@@ -66,7 +66,7 @@ namespace GVFS.FunctionalTests.Tools
             bool removeUpgradeMessages = true)
         {
             ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command, environmentVariables);
-            string errors = FilterMessages(result.Errors, removeWaitingMessages, removeUpgradeMessages);
+            string errors = FilterMessages(result.Errors, true, removeWaitingMessages, removeUpgradeMessages);
 
             return new ProcessResult(
                 result.Output,
@@ -93,6 +93,7 @@ namespace GVFS.FunctionalTests.Tools
 
         private static string FilterMessages(
             string input,
+            bool removeEmptyLines,
             bool removeWaitingMessages,
             bool removeUpgradeMessages)
         {
@@ -101,7 +102,7 @@ namespace GVFS.FunctionalTests.Tools
                 IEnumerable<string> lines = SplitLinesKeepingNewlines(input);
                 IEnumerable<string> filteredLines = lines.Where(line =>
                 {
-                    if (string.IsNullOrWhiteSpace(line) ||
+                    if ((removeEmptyLines && string.IsNullOrWhiteSpace(line)) ||
                         (removeUpgradeMessages && line.StartsWith("A new version of VFS for Git is available.")) ||
                         (removeWaitingMessages && line.StartsWith("Waiting for ")))
                     {
