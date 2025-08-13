@@ -47,6 +47,10 @@ namespace GVFS.FunctionalTests.Properties
                 EnlistmentRoot = @"C:\Repos\GVFSFunctionalTests\enlistment";
                 PathToGVFS = @"C:\Program Files\VFS for Git\GVFS.exe";
                 PathToGit = @"C:\Program Files\Git\cmd\git.exe";
+                if (Environment.GetEnvironmentVariable("DDDGIT") != null)
+                {
+                    PathToGit = Environment.GetEnvironmentVariable("DDDGIT");
+                }
                 PathToBash = @"C:\Program Files\Git\bin\bash.exe";
 
                 ControlGitRepoRoot = @"C:\Repos\GVFSFunctionalTests\ControlRepo";
