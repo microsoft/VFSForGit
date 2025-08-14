@@ -663,7 +663,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             out string error,
             bool checkLocalObjectCache = true)
         {
-            if (!checkLocalObjectCache || !repo.CommitAndRootTreeExists(commitId))
+            if (!checkLocalObjectCache || !repo.CommitAndRootTreeExists(commitId, out _))
             {
                 if (!gitObjects.TryDownloadCommit(commitId))
                 {
