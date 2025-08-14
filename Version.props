@@ -5,10 +5,8 @@
     <GVFSVersion Condition="'$(GVFSVersion)' == ''" >0.2.173.2</GVFSVersion>
 
     <!--
-       Update the GitPackageVersion for the version that is shipped and tested with Scalar.
-       The MinimumGitVersion is intentionally lower to allow side-by-side installs of
-       VFS for Git (which is less flexible). Only update that version if we rely upon a
-       new command-line interface in Git or if there is a truly broken interaction.
+       Only update the minimum version if we rely upon a new command-line interface in
+       Git or if there is a truly broken interaction.
 
        Note that we require that the revision (Z) of the Git version string (2.X.Y.vfs.Z.W)
        is an exact match. We will use this to signal that a microsoft/git version introduces
@@ -18,7 +16,6 @@
        including taking version numbers 2.X.Y from upstream and updating .W if we have any
        hotfixes to microsoft/git.
     -->
-    <GitPackageVersion>2.20220414.4</GitPackageVersion>
     <MinimumGitVersion>v2.31.0.vfs.0.1</MinimumGitVersion>
   </PropertyGroup>
 

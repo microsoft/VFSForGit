@@ -27,7 +27,7 @@ IF NOT %ERRORLEVEL% == 0 (
     ECHO error: unable to locate Git on the PATH (has it been installed?)
 )
 
-%VFS_OUTDIR%\GVFS.FunctionalTests\bin\%CONFIGURATION%\net461\win-x64\GVFS.FunctionalTests.exe /result:TestResult.xml %2 %3 %4 %5
+%VFS_OUTDIR%\GVFS.FunctionalTests\bin\%CONFIGURATION%\net471\win-x64\GVFS.FunctionalTests.exe /result:TestResult.xml %2 %3 %4 %5
 
 SET error=%ERRORLEVEL%
 CALL %VFS_SCRIPTSDIR%\StopAllServices.bat
