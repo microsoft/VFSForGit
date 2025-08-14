@@ -63,19 +63,55 @@ namespace GVFS.FunctionalTests.Tools
             string command,
             Dictionary<string, string> environmentVariables = null,
             bool removeWaitingMessages = true,
-            bool removeUpgradeMessages = true)
+            bool removeUpgradeMessages = true,
+            bool removePartialHydrationMessages = true,
+            bool removeFSMonitorMessages = true)
         {
             ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command, environmentVariables);
-            string errors = result.Errors;
+            string output = FilterMessages(result.Output, false, false, false, removePartialHydrationMessages, removeFSMonitorMessages);
+            string errors = FilterMessages(result.Errors, true, removeWaitingMessages, removeUpgradeMessages, removePartialHydrationMessages, removeFSMonitorMessages);
 
-            if (!string.IsNullOrEmpty(errors) && (removeWaitingMessages || removeUpgradeMessages))
+            return new ProcessResult(
+                output,
+                errors,
+                result.ExitCode);
+        }
+
+        private static IEnumerable<string> SplitLinesKeepingNewlines(string input)
+        {
+            for (int start = 0;  start < input.Length; )
             {
-                IEnumerable<string> errorLines = errors.Split(new string[] { Environment.NewLine }, StringSplitOptions.None);
-                IEnumerable<string> filteredErrorLines = errorLines.Where(line =>
+                int nextLine = input.IndexOf('\n', start) + 1;
+
+                if (nextLine == 0)
                 {
-                    if (string.IsNullOrWhiteSpace(line) ||
+                    // No more newlines, yield the rest
+                    nextLine = input.Length;
+                }
+
+                yield return input.Substring(start, nextLine - start);
+                start = nextLine;
+            }
+        }
+
+        private static string FilterMessages(
+            string input,
+            bool removeEmptyLines,
+            bool removeWaitingMessages,
+            bool removeUpgradeMessages,
+            bool removePartialHydrationMessages,
+            bool removeFSMonitorMessages)
+        {
+            if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages || removePartialHydrationMessages || removeFSMonitorMessages))
+            {
+                IEnumerable<string> lines = SplitLinesKeepingNewlines(input);
+                IEnumerable<string> filteredLines = lines.Where(line =>
+                {
+                    if ((removeEmptyLines && string.IsNullOrWhiteSpace(line)) ||
                         (removeUpgradeMessages && line.StartsWith("A new version of VFS for Git is available.")) ||
-                        (removeWaitingMessages && line.StartsWith("Waiting for ")))
+                        (removeWaitingMessages && line.StartsWith("Waiting for ")) ||
+                        (removePartialHydrationMessages && line.StartsWith("You are in a partially-hydrated checkout with ")) ||
+                        (removeFSMonitorMessages && line.TrimEnd().EndsWith(" is incompatible with fsmonitor")))
                     {
                         return false;
                     }
@@ -85,13 +121,10 @@ namespace GVFS.FunctionalTests.Tools
                     }
                 });
 
-                errors = filteredErrorLines.Any() ? string.Join(Environment.NewLine, filteredErrorLines) : string.Empty;
+                return filteredLines.Any() ? string.Join("", filteredLines) : string.Empty;
             }
 
-            return new ProcessResult(
-                result.Output,
-                errors,
-                result.ExitCode);
+            return input;
         }
 
         public static void ValidateGitCommand(
