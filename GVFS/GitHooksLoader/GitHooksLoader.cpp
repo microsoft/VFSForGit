@@ -112,9 +112,6 @@ int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
-    si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-    si.dwFlags = STARTF_USESTDHANDLES;
 
     ZeroMemory(&pi, sizeof(pi));
 
@@ -135,7 +132,7 @@ int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc
         NULL,           // Process handle not inheritable
         NULL,           // Thread handle not inheritable
         TRUE,           // Set handle inheritance to TRUE
-        CREATE_NO_WINDOW, // Process creation flags
+        NULL,           // Process creation flags
         NULL,           // Use parent's environment block
         NULL,           // Use parent's starting directory 
         &si,            // Pointer to STARTUPINFO structure
