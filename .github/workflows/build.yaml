@@ -105,13 +105,13 @@ jobs:
 
     steps:
     - name: Download installers
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: Installers_${{ matrix.configuration }}
         path: install
 
     - name: Download functional tests drop
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: FunctionalTests_${{ matrix.configuration }}
         path: ft
