@@ -9,19 +9,31 @@ SET VFS_BUND_PROJFSLIB=C:\Program Files\VFS for Git\ProjFS\ProjectedFSLib.dll
 SET VFS_EXEC=C:\Program Files\VFS for Git\GVFS.exe
 SET GIT_EXEC=C:\Program Files\Git\cmd\git.exe
 
+REM Lookup the current Windows version
+FOR /F "tokens=*" %%i IN ('powershell -Command "(Get-CimInstance -ClassName Win32_OperatingSystem).Version"') DO SET OS_VER=%%i
+
+ECHO Print system information...
+ECHO OS version: %OS_VER%
+ECHO CPU architecture: %PROCESSOR_ARCHITECTURE%
+
+ECHO.
 ECHO Checking ProjFS Windows feature...
 powershell -Command "Get-WindowsOptionalFeature -Online -FeatureName Client-ProjFS"
 
+ECHO.
 ECHO Checking ProjFS and GVFS services...
 ECHO GVFS.Service:
 sc query GVFS.Service
 
+ECHO.
 ECHO Test.GVFS.Service:
 sc query Test.GVFS.Service
 
+ECHO.
 ECHO prjflt:
 sc query prjflt
 
+ECHO.
 ECHO Checking ProjFS files...
 IF EXIST "%SYS_PRJFLT%" (
     ECHO [ FOUND ] %SYS_PRJFLT%
