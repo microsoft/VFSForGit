@@ -34,6 +34,15 @@
     <OutDir>$(ProjectOutPath)bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectOutPath)intermediate\$(Platform)\$(Configuration)\</IntDir>
     <GeneratedIncludePath>$(IntDir)include\</GeneratedIncludePath>
+    <!--
+      Make sure that we don't accidentally use Windows APIs only available after
+      Windows 10 build 16299 (aka '1709', 'RS3', and 'Fall Creators Update').
+      The minimum Windows version that includes the final design of the
+      Projected File System (ProjFS) APIs was actually Windows 10 version 1809
+      (build 17763), but VFS for Git also supports using the older design of the
+      ProjFS APIs from that version.
+    -->
+    <TargetPlatformMinVersion>10.0.16299.0</TargetPlatformMinVersion>
   </PropertyGroup>
 
 </Project>
