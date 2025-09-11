@@ -46,12 +46,6 @@ SET VSWHERE_VER=2.6.7
 "%NUGET_EXEC%" install vswhere -Version %VSWHERE_VER% -OutputDirectory %VFS_PACKAGESDIR% || exit /b 1
 SET VSWHERE_EXEC="%VFS_PACKAGESDIR%\vswhere.%VSWHERE_VER%\tools\vswhere.exe"
 
-REM Assumes default installation location for Windows 10 SDKs
-IF NOT EXIST "C:\Program Files (x86)\Windows Kits\10\Include\10.0.16299.0" (
-    ECHO ERROR: Could not find Windows 10 SDK Version 16299
-    EXIT /B 1
-)
-
 REM Use vswhere to find the latest VS installation with the MSBuild component
 REM See https://github.com/Microsoft/vswhere/wiki/Find-MSBuild
 FOR /F "tokens=* USEBACKQ" %%F IN (`%VSWHERE_EXEC% -all -prerelease -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\amd64\MSBuild.exe`) DO (
