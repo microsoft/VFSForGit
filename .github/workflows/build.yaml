@@ -44,6 +44,7 @@ jobs:
     strategy:
       matrix:
         configuration: [ Debug, Release ]
+      fail-fast: false
 
     steps:
     - name: Checkout source
@@ -105,6 +106,7 @@ jobs:
       matrix:
         configuration: [ Debug, Release ]
         architecture: [ x86_64, arm64 ]
+      fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
 
     steps:
     - name: Download installers
