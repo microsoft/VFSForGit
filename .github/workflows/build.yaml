@@ -20,7 +20,7 @@ jobs:
     runs-on: windows-2025
     name: Validation
     outputs:
-      skip: ${{ steps.check.outputs.result }}
+      result: ${{ steps.check.outputs.result }}
 
     steps:
     - name: look for prior successful runs
@@ -43,7 +43,35 @@ jobs:
             * _workflows_. So if those jobs are now simply skipped, the requirement isn't met and
             * the PR cannot be merged. We can't just skip the job. Instead, we need to run the job
             * _but skip every single step_ so that the job can "succeed".
+            *
+            * Further, each of those Functional Test jobs is quite costly. With GitHub's current
+            * pools, they take roughly 35 minutes for x86_64, and a whopping 1 hour 15 minutes for
+            * ARM64. And all of them fail at times due to flaky tests. Therefore, we need to
+            * search on a more granular basis than just successful _workflow runs_: We need to
+            * search for successful _workflow jobs_.
+            *
+            * Also, when a 'Build and Unit Test' job can be skipped but a dependent 'Functional
+            * Test' one must be run, we need the link to the 'Build and Unit Test' job so that
+            * the respective build artifacts can be obtained, as required for the Functional Tests
+            * to run.
             */
+            const keys =
+              ['Build and Unit Test', 'Functional Tests']
+                .flatMap((jobName) =>
+                  ['Debug', 'Release']
+                    .flatMap((configuration) =>
+                      (
+                        jobName !== 'Functional Tests'
+                        ? [configuration]
+                        : ['x86_64', 'arm64'].map((architecture) => `${configuration}, ${architecture}`)
+                      ).map((suffix) => `${jobName} (${suffix})`)
+                    )
+                )
+            const result = keys.reduce((a, e) => {
+              a[e] = { needsToRun: true }
+              return a
+            }, { skip: { build: [], functional_test: [] } })
+            let countDown = keys.length
             try {
             // Figure out workflow ID, commit and tree
             const { data: run } = await github.rest.actions.getWorkflowRun({
@@ -61,23 +89,46 @@ jobs:
               repo: context.repo.repo,
               per_page: 500,
               workflow_id,
-              status: 'success',,
             });
             for (const run of runs.workflow_runs) {
-              if (head_sha === run.head_sha) return run.html_url
-              else if (tree_id === run.head_commit?.tree_id) return run.html_url
+              let reason
+              if (head_sha === run.head_sha) reason = 'the same commit'
+              else if (tree_id === run.head_commit?.tree_id) reason = 'a tree-same commit'
+              else continue
+
+              const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id
+              })
+              for (const job of jobs.jobs) {
+                if (job.conclusion !== 'success') continue
+                const o = result[job.name]
+                if (!o || !o.needsToRun) continue
+
+                o.previousSuccessfulRun = job.html_url
+                o.reason = reason
+                o.downloadFrom = run.artifacts_url
+                o.needsToRun = false
+
+                const skipLabel = job.name.replace(/^.*\((.+)\)$/, '$1')
+                if (job.name.startsWith('Build')) result.skip.build.push(skipLabel)
+                else result.skip.functional_test.push(skipLabel)
+                countDown--
+              }
+              if (!countDown) break
             }
-            return ''
+            return result
           } catch (e) {
             core.warning(e);
           }
 
     - name: Checkout source
-      if: steps.check.outputs.result == ''
+      if: ! contains(fromJSON(steps.check.outputs.result).skip.build, 'Debug') ||  ! contains(fromJSON(steps.check.outputs.result).skip.build, 'Release')
       uses: actions/checkout@v5
 
     - name: Validate Microsoft Git version
-      if: steps.check.outputs.result == ''
+      if: ! contains(fromJSON(steps.check.outputs.result).skip.build, 'Debug') ||  ! contains(fromJSON(steps.check.outputs.result).skip.build, 'Release')
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -91,6 +142,8 @@ jobs:
     runs-on: windows-2025
     name: Build and Unit Test
     needs: validate
+    outputs:
+      download-from: ${{ steps.skip.outputs.download-from }}
 
     strategy:
       matrix:
@@ -99,12 +152,16 @@ jobs:
 
     steps:
     - name: Skip this job if there is a previous successful run
-      if: needs.validate.outputs.skip != ''
+      if: contains(fromJSON(needs.validate.outputs.result).skip.build, matrix.configuration)
       id: skip
+      env:
+        JSON: ${{ toJSON(needs.validate.outputs.result) }}
       uses: actions/github-script@v7
       with:
         script: |
-          core.info(`Skipping: There already is a successful run: ${{ needs.validate.outputs.skip }}`)
+          const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON)['${{ github.job }}']
+          core.setOutput('download-from', downloadFrom)
+          core.info(`Skipping: There already is a successful run for ${reason}: ${})
           return true
 
     - name: Checkout source
@@ -180,23 +237,46 @@ jobs:
 
     steps:
     - name: Skip this job if there is a previous successful run
-      if: needs.validate.outputs.skip != ''
+      if: contains(fromJSON(needs.validate.outputs.result).skip.functional_test, format('{0}, {1}', matrix.configuration, matrix.architecture))
       id: skip
+      env:
+        JSON: ${{ toJSON(needs.validate.outputs.result) }}
       uses: actions/github-script@v7
       with:
         script: |
-          core.info(`Skipping: There already is a successful run: ${{ needs.validate.outputs.skip }}`)
+          const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON)['${{ github.job }}']
+          core.setOutput('download-from', downloadFrom)
+          core.info(`Skipping: There already is a successful run for ${reason}: ${})
           return true
 
+    - name: Download installers and functional tests drop from previous run
+      if: steps.skip.outputs.result != 'true' && env.DOWNLOAD_FROM != ''
+      id: download
+      env:
+        DOWNLOAD_FROM: ${{ needs.build.outputs.download-from }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -x &&
+        e="$(gh api ${DOWNLOAD_FROM#*/repos/} --jq '.artifacts[] | "\(.name)=\(.archive_download_url)" &&')echo That was all, folks" &&
+        eval "$e" &&
+        download_to() {
+          curl -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -Lo "$1".zip "$2" &&
+          mkdir "$1" &&
+          $WINDIR/system32/tar.exe -C "$1" -xvf "$1".zip
+        } &&
+        download_to "$Installers_${{ matrix.configuration }}" install &&
+        download_to FunctionalTests_${{ matrix.configuration }} ft &&
+        echo "result=true" >>$GITHUB_OUTPUT
+
     - name: Download installers
-      if: steps.skip.outputs.result != 'true'
+      if: steps.skip.outputs.result != 'true' && steps.download.outputs.result != 'true'
       uses: actions/download-artifact@v5
       with:
         name: Installers_${{ matrix.configuration }}
         path: install
 
     - name: Download functional tests drop
-      if: steps.skip.outputs.result != 'true'
+      if: steps.skip.outputs.result != 'true' && steps.download.outputs.result != 'true'
       uses: actions/download-artifact@v5
       with:
         name: FunctionalTests_${{ matrix.configuration }}
