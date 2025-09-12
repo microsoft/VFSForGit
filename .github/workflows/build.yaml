@@ -271,7 +271,7 @@ jobs:
 
     steps:
     - name: Skip this job if there is a previous successful run
-      if: contains(fromJSON(needs.validate.outputs.result).skip.functional_test, format('{0}, {1}', matrix.configuration, matrix.architecture))
+      if: contains(fromJSON(needs.validate.outputs.result).skip.functional_test.*.label, format('{0}, {1}', matrix.configuration, matrix.architecture))
       id: skip
       env:
         JSON: ${{ toJSON(needs.validate.outputs.result) }}
