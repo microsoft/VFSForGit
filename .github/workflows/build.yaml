@@ -151,7 +151,7 @@ jobs:
           }
 
     - name: Checkout source
-      if: ! contains(fromJSON(steps.check.outputs.result).skip.build.*, 'Debug') ||  ! contains(fromJSON(steps.check.outputs.result).skip.build.*, 'Release')
+      if: ! contains(fromJSON(steps.check.outputs.result).skip.build.*.label, 'Debug') ||  ! contains(fromJSON(steps.check.outputs.result).skip.build.*.label, 'Release')
       uses: actions/checkout@v5
       env:
         TESTJSON: ${{ toJSON(fromJSON(steps.check.outputs.result).skip.build.*) }}
