@@ -182,7 +182,7 @@ jobs:
         script: |
           const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON)['${{ github.job }}']
           core.setOutput('download-from', downloadFrom)
-          core.info(`Skipping: There already is a successful run for ${reason}: ${})
+          core.info(`Skipping: There already is a successful run for ${reason}: ${downloadFrom}`)
           return true
 
     - name: Checkout source
@@ -267,7 +267,7 @@ jobs:
         script: |
           const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON)['${{ github.job }}']
           core.setOutput('download-from', downloadFrom)
-          core.info(`Skipping: There already is a successful run for ${reason}: ${})
+          core.info(`Skipping: There already is a successful run for ${reason}: ${downloadFrom}`)
           return true
 
     - name: Download installers and functional tests drop from previous run
