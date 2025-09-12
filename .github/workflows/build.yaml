@@ -96,6 +96,24 @@ jobs:
               else if (tree_id === run.head_commit?.tree_id) reason = 'a tree-same commit'
               else continue
 
+              if (run.status === 'in_progress') {
+                // poll until the run is done
+                const pollIntervalInSeconds = 30
+                let seconds = 0
+                for (;;) {
+                  console.log(`Found existing, in-progress run at ${run.html_url}; Waiting for it to finish (waited ${seconds} seconds so far)...`)
+                  await new Promise((resolve) => { setTimeout(resolve, pollIntervalInSeconds * 1000) })
+                  seconds += pollIntervalInSeconds
+
+                  const { data: polledRun } = await github.rest.actions.getWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id
+                  })
+                  if (polledRun.status !== 'in_progress') break
+                }
+              }
+
               const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
