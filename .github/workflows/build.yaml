@@ -58,23 +58,25 @@ jobs:
             * the respective build artifacts can be obtained, as required for the Functional Tests
             * to run.
             */
-            const keys =
-              ['Build and Unit Test', 'Functional Tests']
-                .flatMap((jobName) =>
-                  ['Debug', 'Release']
-                    .flatMap((configuration) =>
-                      (
-                        jobName !== 'Functional Tests'
-                        ? [configuration]
-                        : ['x86_64', 'arm64'].map((architecture) => `${configuration}, ${architecture}`)
-                      ).map((suffix) => `${jobName} (${suffix})`)
-                    )
-                )
-            const result = keys.reduce((a, e) => {
-              a[e] = { needsToRun: true }
-              return a
-            }, { skip: { build: [], functional_test: [] } })
-            let countDown = keys.length
+            const result = {
+              run: {
+                build: {
+                  Debug: { skip: false },
+                  Release: { skip: false },
+                },
+                functional_test: {
+                  'Debug, x86_64': { skip: false },
+                  'Release, x86_64': { skip: false },
+                  'Debug, arm64': { skip: false },
+                  'Release, arm64': { skip: false },
+                }
+              },
+              skip: {
+                build: {},
+                functional_test: {}
+              }
+            }
+            let countDown = Object.keys(result.run).flatMap((key) => Object.keys(result.run[key])).length
             try {
             // Figure out workflow ID, commit and tree
             const { data: run } = await github.rest.actions.getWorkflowRun({
@@ -126,17 +128,19 @@ jobs:
               })
               for (const job of jobs.jobs) {
                 if (job.conclusion !== 'success') continue
-                const o = result[job.name]
-                if (!o || !o.needsToRun) continue
+                const jobLabel = job.name.startsWith('Build') ? 'build' : 'functional_test'
+                const matrixLabel = job.name.replace(/^.*\((.+)\)$/, '$1')
+                const o = result.run[jobLabel][matrixLabel]
+                if (!o || o.skip !== false) continue
 
+                result.skip[jobLabel][matrixLabel] = o
+                delete result.run[jobLabel][matrixLabel]
+                o.skip = true
                 o.previousSuccessfulRun = job.html_url
                 o.reason = reason
                 o.downloadFrom = run.artifacts_url
                 o.needsToRun = false
 
-                const skipLabel = job.name.replace(/^.*\((.+)\)$/, '$1')
-                if (job.name.startsWith('Build')) result.skip.build.push(skipLabel)
-                else result.skip.functional_test.push(skipLabel)
                 countDown--
               }
               if (!countDown) break
