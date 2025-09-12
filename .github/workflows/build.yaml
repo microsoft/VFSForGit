@@ -147,7 +147,7 @@ jobs:
               }
               if (!countDown) break
             }
-            core.info(`Result: ${JSON.stringify(result, null, 2)})
+            core.info(`Result: ${JSON.stringify(result, null, 2)}`)
             return result
           } catch (e) {
             core.warning(e);
