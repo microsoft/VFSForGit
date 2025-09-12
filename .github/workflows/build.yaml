@@ -135,6 +135,7 @@ jobs:
 
                 result.skip[jobLabel][matrixLabel] = o
                 delete result.run[jobLabel][matrixLabel]
+                o.label = matrixLabel // to work around shortcomings of GitHub Actions' expressions' object filters
                 o.skip = true
                 o.previousSuccessfulRun = job.html_url
                 o.reason = reason
