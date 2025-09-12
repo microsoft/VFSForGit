@@ -304,7 +304,7 @@ jobs:
           $WINDIR/system32/tar.exe -C "$2" -xvf "$2".zip
         } &&
         download_to "$Installers_${{ matrix.configuration }}" install &&
-        download_to FunctionalTests_${{ matrix.configuration }} ft &&
+        download_to "$FunctionalTests_${{ matrix.configuration }}" ft &&
         echo "result=true" >>$GITHUB_OUTPUT
 
     - name: Download installers
