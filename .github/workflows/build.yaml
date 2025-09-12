@@ -34,6 +34,8 @@ jobs:
         script: |
           /*
             * Look for any successful run for the same commit. No need to run it again, right?
+            * Also allow for _tree-same_ commits, i.e. commits whose SHA is different, but whose
+            * top-level trees' SHA isn't.
             */
             try {
             // Figure out workflow ID, commit and tree
@@ -46,7 +48,7 @@ jobs:
             const head_sha = run.head_sha;
             const tree_id = run.head_commit.tree_id;
 
-            // See whether there is a successful run for that commit
+            // See whether there is a successful run for that commit or tree
             const { data: runs } = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -56,6 +58,7 @@ jobs:
             });
             for (const run of runs.workflow_runs) {
               if (head_sha === run.head_sha) return true
+              else if (tree_id === run.head_commit?.tree_id) return true
             }
             return false
           } catch (e) {
