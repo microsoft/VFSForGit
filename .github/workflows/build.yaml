@@ -189,7 +189,7 @@ jobs:
       if: contains(fromJSON(needs.validate.outputs.result).skip.build.*.label, matrix.configuration)
       id: skip
       env:
-        JSON: ${{ toJSON(needs.validate.outputs.result) }}
+        JSON: ${{ needs.validate.outputs.result }}
       uses: actions/github-script@v7
       with:
         script: |
@@ -275,7 +275,7 @@ jobs:
       if: contains(fromJSON(needs.validate.outputs.result).skip.functional_test.*.label, format('{0}, {1}', matrix.configuration, matrix.architecture))
       id: skip
       env:
-        JSON: ${{ toJSON(needs.validate.outputs.result) }}
+        JSON: ${{ needs.validate.outputs.result }}
       uses: actions/github-script@v7
       with:
         script: |
