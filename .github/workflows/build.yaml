@@ -155,6 +155,8 @@ jobs:
       uses: actions/checkout@v5
       env:
         TESTJSON: ${{ toJSON(fromJSON(steps.check.outputs.result).skip.build.*.label) }}
+        TESTJSON2: ${{ toJSON(fromJSON(steps.check.outputs.result).skip.build.*) }}
+        TESTJSON3: ${{ toJSON(fromJSON(steps.check.outputs.result)) }}
 
     - name: Validate Microsoft Git version
       if: ! contains(fromJSON(steps.check.outputs.result).skip.build.*.label, 'Debug') ||  ! contains(fromJSON(steps.check.outputs.result).skip.build.*.label, 'Release')
