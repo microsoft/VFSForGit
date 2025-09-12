@@ -54,7 +54,7 @@ jobs:
             * search for successful _workflow jobs_.
             *
             * Also, when a 'Build and Unit Test' job can be skipped but a dependent 'Functional
-            * Test' one must be run, we need the link to the 'Build and Unit Test' job so that
+            * Test' one must be run, we need the link to the 'Build and Unit Test' job. That way,
             * the respective build artifacts can be obtained, as required for the Functional Tests
             * to run.
             */
