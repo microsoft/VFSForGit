@@ -95,8 +95,9 @@ jobs:
               per_page: 500,
               workflow_id,
             });
-            const demoteInProgressToEnd =
-              (a, b) => ((a.status === 'in_progress' ? 1 : 0) - (b.status === 'in_progress' ? 1 : 0))
+            // first look at commit-same runs, then at finished ones, then at in-progress ones
+            const rank = (a.status === 'in_progress' ? 0 : (head_sha === a.head_sha ? 2 : 1))
+            const demoteInProgressToEnd = (a, b) => (rank(b) - rank(a))
             for (const run of runs.workflow_runs.sort(demoteInProgressToEnd)) {
               let reason
               if (head_sha === run.head_sha) reason = 'the same commit'
