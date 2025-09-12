@@ -85,8 +85,8 @@ jobs:
               run_id: context.runId,
             });
             const workflow_id = run.workflow_id;
-            const head_sha = '178616486f62c78503ffd76911f6a084f833356a' // overridden for debugging; should otherwise be run.head_sha;
-            const tree_id = 'f4483867e0813dd0a51bf7e88b47e23b48ea30fd' // overridden for debugging; should otherwise be run.head_commit.tree_id;
+            const head_sha = 'be34fe7d2a868d1638449619f9828850108e66e0' // overridden for debugging; should otherwise be run.head_sha;
+            const tree_id = '506bcce5a26ba742c60f43939b9704c91e1141f1' // overridden for debugging; should otherwise be run.head_commit.tree_id;
 
             // See whether there is a successful run for that commit or tree
             const { data: runs } = await github.rest.actions.listWorkflowRuns({
