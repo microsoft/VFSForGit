@@ -150,7 +150,8 @@ jobs:
             core.info(`Result: ${JSON.stringify(result, null, 2)}`)
             return result
           } catch (e) {
-            core.warning(e);
+            core.error(e)
+            core.warning(e)
           }
 
     - name: Checkout source
