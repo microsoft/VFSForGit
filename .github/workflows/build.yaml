@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ master, releases/shipped ]
   push:
-    branches: [ master, releases/shipped ]
+    branches: [ reuse-previous-successful-ci-jobs, master, releases/shipped ]
   workflow_dispatch:
     inputs:
       git_version:
