@@ -299,9 +299,9 @@ jobs:
         e="$(gh api repos/${DOWNLOAD_FROM#*/repos/} --jq '.artifacts[] | "\(.name)=\(.archive_download_url) &&"')echo That was all, folks" &&
         eval "$e" &&
         download_to() {
-          curl -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -Lo "$1".zip "$2" &&
-          mkdir "$1" &&
-          $WINDIR/system32/tar.exe -C "$1" -xvf "$1".zip
+          curl -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -Lo "$2".zip "$1" &&
+          mkdir "$2" &&
+          $WINDIR/system32/tar.exe -C "$2" -xvf "$2".zip
         } &&
         download_to "$Installers_${{ matrix.configuration }}" install &&
         download_to FunctionalTests_${{ matrix.configuration }} ft &&
