@@ -296,7 +296,7 @@ jobs:
       shell: bash
       run: |
         set -x &&
-        e="$(gh api ${DOWNLOAD_FROM#*/repos/} --jq '.artifacts[] | "\(.name)=\(.archive_download_url)" &&')echo That was all, folks" &&
+        e="$(gh api repos/${DOWNLOAD_FROM#*/repos/} --jq '.artifacts[] | "\(.name)=\(.archive_download_url)" &&')echo That was all, folks" &&
         eval "$e" &&
         download_to() {
           curl -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -Lo "$1".zip "$2" &&
