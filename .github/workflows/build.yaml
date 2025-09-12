@@ -64,20 +64,20 @@ jobs:
               status: 'success',,
             });
             for (const run of runs.workflow_runs) {
-              if (head_sha === run.head_sha) return true
-              else if (tree_id === run.head_commit?.tree_id) return true
+              if (head_sha === run.head_sha) return run.html_url
+              else if (tree_id === run.head_commit?.tree_id) return run.html_url
             }
-            return false
+            return ''
           } catch (e) {
             core.warning(e);
           }
 
     - name: Checkout source
-      if: steps.check.outputs.result != 'true'
+      if: steps.check.outputs.result == ''
       uses: actions/checkout@v5
 
     - name: Validate Microsoft Git version
-      if: steps.check.outputs.result != 'true'
+      if: steps.check.outputs.result == ''
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -99,12 +99,12 @@ jobs:
 
     steps:
     - name: Skip this job if there is a previous successful run
-      if: needs.validate.outputs.skip == 'true'
+      if: needs.validate.outputs.skip != ''
       id: skip
       uses: actions/github-script@v7
       with:
         script: |
-          core.info(`Skipping: There already is a successful run`)
+          core.info(`Skipping: There already is a successful run: ${{ needs.validate.outputs.skip }}`)
           return true
 
     - name: Checkout source
@@ -180,12 +180,12 @@ jobs:
 
     steps:
     - name: Skip this job if there is a previous successful run
-      if: needs.validate.outputs.skip == 'true'
+      if: needs.validate.outputs.skip != ''
       id: skip
       uses: actions/github-script@v7
       with:
         script: |
-          core.info(`Skipping: There already is a successful run`)
+          core.info(`Skipping: There already is a successful run: ${{ needs.validate.outputs.skip }}`)
           return true
 
     - name: Download installers
