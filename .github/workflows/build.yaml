@@ -66,7 +66,10 @@ jobs:
               per_page: 500,
               workflow_id,
             });
-            for (const run of runs.workflow_runs) {
+            // first look at commit-same runs, then at finished ones, then at in-progress ones
+            const rank = (a) => (a.status === 'in_progress' ? 0 : (head_sha === a.head_sha ? 2 : 1))
+            const demoteInProgressToEnd = (a, b) => (rank(b) - rank(a))
+            for (const run of runs.workflow_runs.sort(demoteInProgressToEnd)) {
               if (head_sha !== run.head_sha && tree_id !== run.head_commit?.tree_id) continue
               if (context.runId === run.id) continue // do not wait for the current run to finish ;-)
 
