@@ -65,11 +65,30 @@ jobs:
               repo: context.repo.repo,
               per_page: 500,
               workflow_id,
-              status: 'success',
             });
             for (const run of runs.workflow_runs) {
-              if (head_sha === run.head_sha) return run.html_url
-              else if (tree_id === run.head_commit?.tree_id) return run.html_url
+              if (head_sha !== run.head_sha && tree_id !== run.head_commit?.tree_id) continue
+              if (context.runId === run.id) continue // do not wait for the current run to finish ;-)
+
+              if (run.status === 'in_progress') {
+                // poll until the run is done
+                const pollIntervalInSeconds = 30
+                let seconds = 0
+                for (;;) {
+                  console.log(`Found existing, in-progress run at ${run.html_url}; Waiting for it to finish (waited ${seconds} seconds so far)...`)
+                  await new Promise((resolve) => { setTimeout(resolve, pollIntervalInSeconds * 1000) })
+                  seconds += pollIntervalInSeconds
+
+                  const { data: polledRun } = await github.rest.actions.getWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id
+                  })
+                  if (polledRun.status !== 'in_progress') break
+                }
+              }
+
+              if (run.status === 'success') return run.html_url
             }
             return ''
           } catch (e) {
