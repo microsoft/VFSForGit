@@ -33,9 +33,19 @@ jobs:
         github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
           /*
-            * Look for any successful run for the same commit. No need to run it again, right?
-            * Also allow for _tree-same_ commits, i.e. commits whose SHA is different, but whose
-            * top-level trees' SHA isn't.
+            * It would be nice if GitHub Actions offered a convenient way to avoid running
+            * successful workflow runs _again_ for the respective commit (or for a tree-same one):
+            * We would expect the same outcome in those cases, right?
+            *
+            * Let's check for such a scenario: Look for previous runs that have been successful
+            * and that correspond to the same commit, or at least a tree-same one. If there is
+            * one, skip running the build and tests _again_.
+            *
+            * There are challenges, though: We need to require those _jobs_ to succeed before PRs
+            * can be merged. You can mark workflow _jobs_ as required on GitHub, but not
+            * _workflows_. So if those jobs are now simply skipped, the requirement isn't met and
+            * the PR cannot be merged. We can't just skip the job. Instead, we need to run the job
+            * _but skip every single step_ so that the job can "succeed".
             */
             try {
             // Figure out workflow ID, commit and tree
@@ -87,38 +97,53 @@ jobs:
     needs: validate
 
     strategy:
-      if: needs.validate.outputs.skip != 'true'
       matrix:
         configuration: [ Debug, Release ]
       fail-fast: false
 
     steps:
+    - name: Skip this job if there is a previous successful run
+      if: needs.validate.outputs.skip == 'true'
+      id: skip
+      uses: actions/github-script@v7
+      with:
+        script: |
+          core.info(`Skipping: There already is a successful run`)
+          return true
+
     - name: Checkout source
+      if: steps.skip.outputs.result != 'true'
       uses: actions/checkout@v5
       with:
         path: src
 
     - name: Install .NET SDK
+      if: steps.skip.outputs.result != 'true'
       uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 8.0.413
 
     - name: Add MSBuild to PATH
+      if: steps.skip.outputs.result != 'true'
       uses: microsoft/setup-msbuild@v2.0.0
 
     - name: Build VFS for Git
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: src\scripts\Build.bat ${{ matrix.configuration }}
 
     - name: Run unit tests
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: src\scripts\RunUnitTests.bat ${{ matrix.configuration }}
 
     - name: Create build artifacts
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts
 
     - name: Download microsoft/git installers
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -126,18 +151,21 @@ jobs:
         gh release download %GIT_VERSION% --repo microsoft/git --pattern "Git*.exe" --dir artifacts\GVFS.Installers
 
     - name: Upload functional tests drop
+      if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: FunctionalTests_${{ matrix.configuration }}
         path: artifacts\GVFS.FunctionalTests
 
     - name: Upload FastFetch drop
+      if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: FastFetch_${{ matrix.configuration }}
         path: artifacts\FastFetch
 
     - name: Upload installers
+      if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: Installers_${{ matrix.configuration }}
@@ -149,45 +177,59 @@ jobs:
     needs: [validate, build]
 
     strategy:
-      if: needs.validate.outputs.skip != 'true'
       matrix:
         configuration: [ Debug, Release ]
         architecture: [ x86_64, arm64 ]
       fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
 
     steps:
+    - name: Skip this job if there is a previous successful run
+      if: needs.validate.outputs.skip == 'true'
+      id: skip
+      uses: actions/github-script@v7
+      with:
+        script: |
+          core.info(`Skipping: There already is a successful run`)
+          return true
+
     - name: Download installers
+      if: steps.skip.outputs.result != 'true'
       uses: actions/download-artifact@v5
       with:
         name: Installers_${{ matrix.configuration }}
         path: install
 
     - name: Download functional tests drop
+      if: steps.skip.outputs.result != 'true'
       uses: actions/download-artifact@v5
       with:
         name: FunctionalTests_${{ matrix.configuration }}
         path: ft
 
     - name: ProjFS details (pre-install)
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: install\info.bat
 
     - name: Install product
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: install\install.bat
 
     - name: ProjFS details (post-install)
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: install\info.bat
 
     - name: Upload installation logs
-      if: always()
+      if: always() && steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: InstallationLogs_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: install\logs
 
     - name: Run functional tests
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: |
         SET PATH=C:\Program Files\VFS for Git;%PATH%
@@ -195,20 +237,20 @@ jobs:
         ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci
 
     - name: Upload functional test results
-      if: always()
+      if: always() && steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: FunctionalTests_Results_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: TestResult.xml
 
     - name: Upload Git trace2 output
-      if: always()
+      if: always() && steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: GitTrace2_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: C:\temp\git-trace2.log
 
     - name: ProjFS details (post-test)
-      if: always()
+      if: always() && steps.skip.outputs.result != 'true'
       shell: cmd
       run: install\info.bat
