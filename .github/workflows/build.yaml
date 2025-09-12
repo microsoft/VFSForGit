@@ -157,7 +157,7 @@ jobs:
         TESTJSON: ${{ toJSON(fromJSON(steps.check.outputs.result).skip.build.*.label) }}
 
     - name: Validate Microsoft Git version
-      if: ! contains(fromJSON(steps.check.outputs.result).skip.build.*, 'Debug') ||  ! contains(fromJSON(steps.check.outputs.result).skip.build.*, 'Release')
+      if: ! contains(fromJSON(steps.check.outputs.result).skip.build.*.label, 'Debug') ||  ! contains(fromJSON(steps.check.outputs.result).skip.build.*.label, 'Release')
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
