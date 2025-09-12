@@ -20,7 +20,7 @@ jobs:
     runs-on: windows-2025
     name: Validation
     outputs:
-      result: ${{ steps.check.outputs.result }}
+      skip: ${{ steps.check.outputs.result }}
 
     steps:
     - name: look for prior successful runs
@@ -63,9 +63,11 @@ jobs:
           }
 
     - name: Checkout source
+      if: steps.check.outputs.result != 'true'
       uses: actions/checkout@v5
 
     - name: Validate Microsoft Git version
+      if: steps.check.outputs.result != 'true'
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
