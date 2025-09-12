@@ -293,6 +293,7 @@ jobs:
       env:
         DOWNLOAD_FROM: ${{ needs.build.outputs.download-from }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
       run: |
         set -x &&
         e="$(gh api ${DOWNLOAD_FROM#*/repos/} --jq '.artifacts[] | "\(.name)=\(.archive_download_url)" &&')echo That was all, folks" &&
