@@ -93,7 +93,9 @@ jobs:
               per_page: 500,
               workflow_id,
             });
-            for (const run of runs.workflow_runs) {
+            const demoteInProgressToEnd =
+              (a, b) => ((a.status === 'in_progress' ? 1 : 0) - (b.status === 'in_progress' ? 1 : 0))
+            for (const run of runs.workflow_runs.sort(demoteInProgressToEnd)) {
               let reason
               if (head_sha === run.head_sha) reason = 'the same commit'
               else if (tree_id === run.head_commit?.tree_id) reason = 'a tree-same commit'
