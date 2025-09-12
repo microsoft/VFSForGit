@@ -48,14 +48,44 @@ namespace GVFS.CommandLine
                     this.ReportErrorAndExit(tracer, "Authentication failed: " + authErrorMessage);
                 }
 
-                ServerGVFSConfig serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
-
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
+                ServerGVFSConfig serverGVFSConfig = null;
                 string error = null;
 
-                if (this.CacheToSet != null)
+                // Handle the three operation types: list, set, and get (default)
+                if (this.ListCacheServers)
                 {
+                    // For listing, require config endpoint to succeed
+                    serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+
+                    List<CacheServerInfo> cacheServers = serverGVFSConfig.CacheServers.ToList();
+
+                    if (cacheServers != null && cacheServers.Any())
+                    {
+                        this.Output.WriteLine();
+                        this.Output.WriteLine("Available cache servers for: " + enlistment.RepoUrl);
+                        foreach (CacheServerInfo cacheServerInfo in cacheServers)
+                        {
+                            this.Output.WriteLine(cacheServerInfo);
+                        }
+                    }
+                    else
+                    {
+                        this.Output.WriteLine("There are no available cache servers for: " + enlistment.RepoUrl);
+                    }
+                }
+                else if (this.CacheToSet != null)
+                {
+                    // Setting a new cache server
                     CacheServerInfo cacheServer = cacheServerResolver.ParseUrlOrFriendlyName(this.CacheToSet);
+
+                    // For set operation, allow fallback if config endpoint fails but cache server URL is valid
+                    serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
+                        tracer,
+                        enlistment,
+                        retryConfig,
+                        cacheServer);
+
                     cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
                     if (!cacheServerResolver.TrySaveUrlToLocalConfig(cacheServer, out error))
@@ -65,30 +95,21 @@ namespace GVFS.CommandLine
 
                     this.Output.WriteLine("You must remount GVFS for this to take effect.");
                 }
-                else if (this.ListCacheServers)
-                {
-                    List<CacheServerInfo> cacheServers = serverGVFSConfig.CacheServers.ToList();
-
-                    if (cacheServers != null && cacheServers.Any())
-                    {
-                        this.Output.WriteLine();
-                        this.Output.WriteLine("Available cache servers for: " + enlistment.RepoUrl);
-                        foreach (CacheServerInfo cacheServer in cacheServers)
-                        {
-                            this.Output.WriteLine(cacheServer);
-                        }
-                    }
-                    else
-                    {
-                        this.Output.WriteLine("There are no available cache servers for: " + enlistment.RepoUrl);
-                    }
-                }
                 else
                 {
-                    string cacheServerUrl = CacheServerResolver.GetUrlFromConfig(enlistment);
-                    CacheServerInfo cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, serverGVFSConfig);
+                    // Default operation: get current cache server info
+                    CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
-                    this.Output.WriteLine("Using cache server: " + cacheServer);
+                    // For get operation, allow fallback if config endpoint fails but cache server URL is valid
+                    serverGVFSConfig =this.QueryGVFSConfigWithFallbackCacheServer(
+                        tracer,
+                        enlistment,
+                        retryConfig,
+                        cacheServer);
+
+                    CacheServerInfo resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, serverGVFSConfig);
+
+                    this.Output.WriteLine("Using cache server: " + resolvedCacheServer);
                 }
             }
         }
