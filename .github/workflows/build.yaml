@@ -193,7 +193,7 @@ jobs:
       uses: actions/github-script@v7
       with:
         script: |
-          const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON)['${{ github.job }}']
+          const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON).skip.${{ github.job }}.${{ matrix.configuration }}
           core.setOutput('download-from', downloadFrom)
           core.info(`Skipping: There already is a successful run for ${reason}: ${downloadFrom}`)
           return true
@@ -278,7 +278,7 @@ jobs:
       uses: actions/github-script@v7
       with:
         script: |
-          const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON)['${{ github.job }}']
+          const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON).skip.${{ github.job }}['${{ matrix.configuration }}, ${{ matrix.architecture }}']
           core.setOutput('download-from', downloadFrom)
           core.info(`Skipping: There already is a successful run for ${reason}: ${downloadFrom}`)
           return true
