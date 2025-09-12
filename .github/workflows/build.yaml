@@ -22,11 +22,53 @@ jobs:
   validate:
     runs-on: windows-2025
     name: Validation
+    outputs:
+      skip: ${{ steps.check.outputs.result }}
+
     steps:
+    - name: Look for prior successful runs
+      id: check
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          /*
+            * Look for any successful run for the same commit. No need to run it again, right?
+            */
+            try {
+            // Figure out workflow ID, commit and tree
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            });
+            const workflow_id = run.workflow_id;
+            const head_sha = run.head_sha;
+            const tree_id = run.head_commit.tree_id;
+
+            // See whether there is a successful run for that commit
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 500,
+              workflow_id,
+              status: 'success',
+            });
+            for (const run of runs.workflow_runs) {
+              if (head_sha === run.head_sha) return true
+            }
+            return false
+          } catch (e) {
+            core.error(e)
+            core.warning(e)
+          }
+
     - name: Checkout source
+      if: steps.check.outputs.result != 'true'
       uses: actions/checkout@v5
 
     - name: Validate Microsoft Git version
+      if: steps.check.outputs.result != 'true'
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -42,6 +84,7 @@ jobs:
     needs: validate
 
     strategy:
+      if: needs.validate.outputs.skip != 'true'
       matrix:
         configuration: [ Debug, Release ]
       fail-fast: false
@@ -100,9 +143,10 @@ jobs:
   functional_test:
     runs-on: ${{ matrix.architecture == 'arm64' && 'windows-11-arm' || 'windows-2025' }}
     name: Functional Tests
-    needs: build
+    needs: [validate, build]
 
     strategy:
+      if: needs.validate.outputs.skip != 'true'
       matrix:
         configuration: [ Debug, Release ]
         architecture: [ x86_64, arm64 ]
