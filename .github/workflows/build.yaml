@@ -196,7 +196,7 @@ jobs:
           console.log(JSON.stringify(JSON.parse(process.env.JSON)))
           const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON).skip.${{ github.job }}.${{ matrix.configuration }}
           core.setOutput('download-from', downloadFrom)
-          core.notice(`Skipping: There already is a successful run for ${reason}: ${downloadFrom}`)
+          core.notice(`Skipping: There already is a successful run for ${reason}: ${previousSuccessfulRun}`)
           return true
 
     - name: Checkout source
@@ -281,7 +281,7 @@ jobs:
         script: |
           const { downloadFrom, reason, previousSuccessfulRun } = JSON.parse(process.env.JSON).skip.${{ github.job }}['${{ matrix.configuration }}, ${{ matrix.architecture }}']
           core.setOutput('download-from', downloadFrom)
-          core.notice(`Skipping: There already is a successful run for ${reason}: ${downloadFrom}`)
+          core.notice(`Skipping: There already is a successful run for ${reason}: ${previousSuccessfulRun}`)
           return true
 
     - name: Download installers and functional tests drop from previous run
