@@ -160,6 +160,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        echo "SHOULD NOT HAPPEN!" >&2
+        exit 1
         & "$env:GITHUB_WORKSPACE\.github\workflows\scripts\validate_release.ps1" `
           -Repository microsoft/git `
           -Tag $env:GIT_VERSION && `
