@@ -96,7 +96,7 @@ jobs:
               workflow_id,
             });
             // first look at commit-same runs, then at finished ones, then at in-progress ones
-            const rank = (a.status === 'in_progress' ? 0 : (head_sha === a.head_sha ? 2 : 1))
+            const rank = (a) => (a.status === 'in_progress' ? 0 : (head_sha === a.head_sha ? 2 : 1))
             const demoteInProgressToEnd = (a, b) => (rank(b) - rank(a))
             for (const run of runs.workflow_runs.sort(demoteInProgressToEnd)) {
               let reason
