@@ -28,6 +28,7 @@ jobs:
     steps:
     - name: Look for prior successful runs
       id: check
+      if: github.event.inputs.git_version == ''
       uses: actions/github-script@v7
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
@@ -72,6 +73,7 @@ jobs:
             for (const run of runs.workflow_runs.sort(demoteInProgressToEnd)) {
               if (head_sha !== run.head_sha && tree_id !== run.head_commit?.tree_id) continue
               if (context.runId === run.id) continue // do not wait for the current run to finish ;-)
+              if (run.event === 'workflow_dispatch') continue // skip runs that were started manually: they can override the Git version
 
               if (run.status === 'in_progress') {
                 // poll until the run is done
