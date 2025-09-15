@@ -4,7 +4,6 @@ on:
   pull_request:
     branches: [ master, releases/shipped ]
   push:
-    branches: [ master, releases/shipped ]
   workflow_dispatch:
     inputs:
       git_version:
