@@ -93,7 +93,7 @@ jobs:
                 }
               }
 
-              if (run.status === 'success') return run.html_url
+              if (run.status === 'completed' && run.conclusion === 'success') return run.html_url
             }
             return ''
           } catch (e) {
