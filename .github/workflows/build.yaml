@@ -205,6 +205,7 @@ jobs:
       matrix:
         configuration: [ Debug, Release ]
         architecture: [ x86_64, arm64 ]
+        nr: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] # 10 parallel jobs to speed up the tests
       fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
 
     steps:
@@ -250,7 +251,7 @@ jobs:
       if: always() && steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: InstallationLogs_${{ matrix.configuration }}_${{ matrix.architecture }}
+        name: InstallationLogs_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
         path: install\logs
 
     - name: Run functional tests
@@ -259,23 +260,46 @@ jobs:
       run: |
         SET PATH=C:\Program Files\VFS for Git;%PATH%
         SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
-        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci
+        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --slice=${{ matrix.nr }},10
 
     - name: Upload functional test results
       if: always() && steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: FunctionalTests_Results_${{ matrix.configuration }}_${{ matrix.architecture }}
+        name: FunctionalTests_Results_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
         path: TestResult.xml
 
     - name: Upload Git trace2 output
       if: always() && steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: GitTrace2_${{ matrix.configuration }}_${{ matrix.architecture }}
+        name: GitTrace2_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
         path: C:\temp\git-trace2.log
 
     - name: ProjFS details (post-test)
       if: always() && steps.skip.outputs.result != 'true'
       shell: cmd
       run: install\info.bat
+
+  ft_results:
+    runs-on: ubuntu-latest # quickest runners
+    name: Functional Tests
+    needs: [functional_test]
+
+    strategy:
+      matrix:
+        configuration: [ Debug, Release ]
+        architecture: [ x86_64, arm64 ]
+
+    steps:
+      - name: Report success! (for easier identification of successful runs in the Checks Required for Pull Requests)
+        run: echo "All functional test jobs successful for ${{ matrix.configuration }} / ${{ matrix.architecture }}!"
+
+  result:
+    runs-on: ubuntu-latest
+    name: Build, Unit and Functional Tests Successful
+    needs: [functional_test]
+
+    steps:
+      - name: Report success! (for easier identification of successful runs in the Checks Required for Pull Requests)
+        run: echo "Workflow run is successful!"
