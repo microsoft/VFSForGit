@@ -294,3 +294,12 @@ jobs:
     steps:
       - name: Success! # for easier identification of successful runs in the Checks Required for Pull Requests
         run: echo "All functional test jobs successful for ${{ matrix.configuration }} / ${{ matrix.architecture }}!"
+
+  result:
+    runs-on: ubuntu-latest
+    name: Build, Unit and Functional Tests Successful
+    needs: [functional_test]
+
+    steps:
+      - name: Success! # for easier identification of successful runs in the Checks Required for Pull Requests
+        run: echo "Workflow run is successful!"
