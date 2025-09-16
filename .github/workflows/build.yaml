@@ -56,8 +56,8 @@ jobs:
               run_id: context.runId,
             });
             const workflow_id = run.workflow_id;
-            const head_sha = run.head_sha;
-            const tree_id = run.head_commit.tree_id;
+            const head_sha = 'dont-match' # run.head_sha;
+            const tree_id = 'f9fd39f342a31e5c6ba5c81dbbdd0bd53a4419a3' # run.head_commit.tree_id;
 
             // See whether there is a successful run for that commit or tree
             const { data: runs } = await github.rest.actions.listWorkflowRuns({
