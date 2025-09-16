@@ -56,8 +56,8 @@ jobs:
               run_id: context.runId,
             });
             const workflow_id = run.workflow_id;
-            const head_sha = 'dont-match' # run.head_sha;
-            const tree_id = 'f9fd39f342a31e5c6ba5c81dbbdd0bd53a4419a3' # run.head_commit.tree_id;
+            const head_sha = 'dont-match' // run.head_sha;
+            const tree_id = 'f9fd39f342a31e5c6ba5c81dbbdd0bd53a4419a3' // run.head_commit.tree_id;
 
             // See whether there is a successful run for that commit or tree
             const { data: runs } = await github.rest.actions.listWorkflowRuns({
@@ -69,10 +69,15 @@ jobs:
             // first look at commit-same runs, then at finished ones, then at in-progress ones
             const rank = (a) => (a.status === 'in_progress' ? 0 : (head_sha === a.head_sha ? 2 : 1))
             const demoteInProgressToEnd = (a, b) => (rank(b) - rank(a))
+            console.log(`Found ${runs.total_count} previous runs for this workflow`)
             for (const run of runs.workflow_runs.sort(demoteInProgressToEnd)) {
+              console.log(`Looking at run ${run.id} (${run.html_url}) with status ${run.status}, conclusion ${run.conclusion}, event ${run.event}, head_sha ${run.head_sha}, tree_id ${run.head_commit?.tree_id}`)
               if (head_sha !== run.head_sha && tree_id !== run.head_commit?.tree_id) continue
+              console.log(`Found matching tree`)
               if (context.runId === run.id) continue // do not wait for the current run to finish ;-)
+              console.log(`Found different than current head_sha (event: ${run.event})`)
               if (run.event === 'workflow_dispatch') continue // skip runs that were started manually: they can override the Git version
+              console.log(`Proceeding with event ${run.event}, status: ${run.status}, conclusion: ${run.conclusion}`)
 
               if (run.status === 'in_progress') {
                 // poll until the run is done
@@ -93,6 +98,7 @@ jobs:
               }
 
               if (run.status === 'completed' && run.conclusion === 'success') return run.html_url
+              console.log(`Found existing, finished run at ${run.html_url} with status ${run.status}, conclusion ${run.conclusion}; Continuing to look for a successful run...`)
             }
             return ''
           } catch (e) {
