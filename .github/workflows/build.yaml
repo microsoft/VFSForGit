@@ -280,3 +280,17 @@ jobs:
       if: always() && steps.skip.outputs.result != 'true'
       shell: cmd
       run: install\info.bat
+
+  ft_results:
+    runs-on: ubuntu-latest # quickest runners
+    name: Functional Tests
+    needs: [functional_test]
+
+    strategy:
+      matrix:
+        configuration: [ Debug, Release ]
+        architecture: [ x86_64, arm64 ]
+
+    steps:
+      - name: Report success! (for easier identification of successful runs in the Checks Required for Pull Requests)
+        run: echo "All functional test jobs successful for ${{ matrix.configuration }} / ${{ matrix.architecture }}!"
