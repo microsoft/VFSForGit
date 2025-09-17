@@ -89,6 +89,25 @@ namespace GVFS.FunctionalTests
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
             }
 
+            (uint, uint)? testSlice = null;
+            string testSliceArg = runner.GetCustomArgWithParam("--slice");
+            if (testSliceArg != null)
+            {
+                // split `testSliceArg` on a comma and parse the two values as uints
+                string[] parts = testSliceArg.Split(',');
+                uint sliceNumber;
+                uint totalSlices;
+                if (parts.Length != 2 ||
+                    !uint.TryParse(parts[0], out sliceNumber) ||
+                    !uint.TryParse(parts[1], out totalSlices) ||
+                    totalSlices == 0 ||
+                    sliceNumber >= totalSlices)
+                {
+                    throw new Exception("Invalid argument to --slice. Expected format: X,Y where X is the slice number and Y is the total number of slices");
+                }
+                testSlice = (sliceNumber, totalSlices);
+            }
+
             GVFSTestConfig.DotGVFSRoot = ".gvfs";
 
             GVFSTestConfig.RepoToClone =
@@ -96,7 +115,7 @@ namespace GVFS.FunctionalTests
                 ?? Properties.Settings.Default.RepoToClone;
 
             RunBeforeAnyTests();
-            Environment.ExitCode = runner.RunTests(includeCategories, excludeCategories);
+            Environment.ExitCode = runner.RunTests(includeCategories, excludeCategories, testSlice);
 
             if (Debugger.IsAttached)
             {
