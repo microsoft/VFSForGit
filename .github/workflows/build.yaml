@@ -12,6 +12,9 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+
 env:
   GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.50.1.vfs.0.1' }}
 
@@ -19,11 +22,91 @@ jobs:
   validate:
     runs-on: windows-2025
     name: Validation
+    outputs:
+      skip: ${{ steps.check.outputs.result }}
+
     steps:
+    - name: Look for prior successful runs
+      id: check
+      if: github.event.inputs.git_version == ''
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        result-encoding: string
+        script: |
+          /*
+            * It would be nice if GitHub Actions offered a convenient way to avoid running
+            * successful workflow runs _again_ for the respective commit (or for a tree-same one):
+            * We would expect the same outcome in those cases, right?
+            *
+            * Let's check for such a scenario: Look for previous runs that have been successful
+            * and that correspond to the same commit, or at least a tree-same one. If there is
+            * one, skip running the build and tests _again_.
+            *
+            * There are challenges, though: We need to require those _jobs_ to succeed before PRs
+            * can be merged. You can mark workflow _jobs_ as required on GitHub, but not
+            * _workflows_. So if those jobs are now simply skipped, the requirement isn't met and
+            * the PR cannot be merged. We can't just skip the job. Instead, we need to run the job
+            * _but skip every single step_ so that the job can "succeed".
+            */
+            try {
+            // Figure out workflow ID, commit and tree
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            });
+            const workflow_id = run.workflow_id;
+            const head_sha = run.head_sha;
+            const tree_id = run.head_commit.tree_id;
+
+            // See whether there is a successful run for that commit or tree
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 500,
+              workflow_id,
+            });
+            // first look at commit-same runs, then at finished ones, then at in-progress ones
+            const rank = (a) => (a.status === 'in_progress' ? 0 : (head_sha === a.head_sha ? 2 : 1))
+            const demoteInProgressToEnd = (a, b) => (rank(b) - rank(a))
+            for (const run of runs.workflow_runs.sort(demoteInProgressToEnd)) {
+              if (head_sha !== run.head_sha && tree_id !== run.head_commit?.tree_id) continue
+              if (context.runId === run.id) continue // do not wait for the current run to finish ;-)
+              if (run.event === 'workflow_dispatch') continue // skip runs that were started manually: they can override the Git version
+
+              if (run.status === 'in_progress') {
+                // poll until the run is done
+                const pollIntervalInSeconds = 30
+                let seconds = 0
+                for (;;) {
+                  console.log(`Found existing, in-progress run at ${run.html_url}; Waiting for it to finish (waited ${seconds} seconds so far)...`)
+                  await new Promise((resolve) => { setTimeout(resolve, pollIntervalInSeconds * 1000) })
+                  seconds += pollIntervalInSeconds
+
+                  const { data: polledRun } = await github.rest.actions.getWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id
+                  })
+                  if (polledRun.status !== 'in_progress') break
+                }
+              }
+
+              if (run.status === 'completed' && run.conclusion === 'success') return run.html_url
+            }
+            return ''
+          } catch (e) {
+            core.error(e)
+            core.warning(e)
+          }
+
     - name: Checkout source
+      if: steps.check.outputs.result == ''
       uses: actions/checkout@v5
 
     - name: Validate Microsoft Git version
+      if: steps.check.outputs.result == ''
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -41,34 +124,51 @@ jobs:
     strategy:
       matrix:
         configuration: [ Debug, Release ]
+      fail-fast: false
 
     steps:
+    - name: Skip this job if there is a previous successful run
+      if: needs.validate.outputs.skip != ''
+      id: skip
+      uses: actions/github-script@v7
+      with:
+        script: |
+          core.info(`Skipping: There already is a successful run: ${{ needs.validate.outputs.skip }}`)
+          return true
+
     - name: Checkout source
+      if: steps.skip.outputs.result != 'true'
       uses: actions/checkout@v5
       with:
         path: src
 
     - name: Install .NET SDK
+      if: steps.skip.outputs.result != 'true'
       uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 8.0.413
 
     - name: Add MSBuild to PATH
+      if: steps.skip.outputs.result != 'true'
       uses: microsoft/setup-msbuild@v2.0.0
 
     - name: Build VFS for Git
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: src\scripts\Build.bat ${{ matrix.configuration }}
 
     - name: Run unit tests
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: src\scripts\RunUnitTests.bat ${{ matrix.configuration }}
 
     - name: Create build artifacts
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts
 
     - name: Download microsoft/git installers
+      if: steps.skip.outputs.result != 'true'
       shell: cmd
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -76,18 +176,21 @@ jobs:
         gh release download %GIT_VERSION% --repo microsoft/git --pattern "Git*.exe" --dir artifacts\GVFS.Installers
 
     - name: Upload functional tests drop
+      if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: FunctionalTests_${{ matrix.configuration }}
         path: artifacts\GVFS.FunctionalTests
 
     - name: Upload FastFetch drop
+      if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: FastFetch_${{ matrix.configuration }}
         path: artifacts\FastFetch
 
     - name: Upload installers
+      if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: Installers_${{ matrix.configuration }}
@@ -96,7 +199,92 @@ jobs:
   functional_test:
     runs-on: ${{ matrix.architecture == 'arm64' && 'windows-11-arm' || 'windows-2025' }}
     name: Functional Tests
-    needs: build
+    needs: [validate, build]
+
+    strategy:
+      matrix:
+        configuration: [ Debug, Release ]
+        architecture: [ x86_64, arm64 ]
+        nr: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] # 10 parallel jobs to speed up the tests
+      fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
+
+    steps:
+    - name: Skip this job if there is a previous successful run
+      if: needs.validate.outputs.skip != ''
+      id: skip
+      uses: actions/github-script@v7
+      with:
+        script: |
+          core.info(`Skipping: There already is a successful run: ${{ needs.validate.outputs.skip }}`)
+          return true
+
+    - name: Download installers
+      if: steps.skip.outputs.result != 'true'
+      uses: actions/download-artifact@v5
+      with:
+        name: Installers_${{ matrix.configuration }}
+        path: install
+
+    - name: Download functional tests drop
+      if: steps.skip.outputs.result != 'true'
+      uses: actions/download-artifact@v5
+      with:
+        name: FunctionalTests_${{ matrix.configuration }}
+        path: ft
+
+    - name: ProjFS details (pre-install)
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: install\info.bat
+
+    - name: Install product
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: install\install.bat
+
+    - name: ProjFS details (post-install)
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: install\info.bat
+
+    - name: Upload installation logs
+      if: always() && steps.skip.outputs.result != 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: InstallationLogs_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
+        path: install\logs
+
+    - name: Run functional tests
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: |
+        SET PATH=C:\Program Files\VFS for Git;%PATH%
+        SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
+        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --slice=${{ matrix.nr }},10
+
+    - name: Upload functional test results
+      if: always() && steps.skip.outputs.result != 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: FunctionalTests_Results_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
+        path: TestResult.xml
+
+    - name: Upload Git trace2 output
+      if: always() && steps.skip.outputs.result != 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: GitTrace2_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
+        path: C:\temp\git-trace2.log
+
+    - name: ProjFS details (post-test)
+      if: always() && steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: install\info.bat
+
+  ft_results:
+    runs-on: ubuntu-latest # quickest runners
+    name: Functional Tests
+    needs: [functional_test]
 
     strategy:
       matrix:
@@ -104,59 +292,14 @@ jobs:
         architecture: [ x86_64, arm64 ]
 
     steps:
-    - name: Download installers
-      uses: actions/download-artifact@v5
-      with:
-        name: Installers_${{ matrix.configuration }}
-        path: install
+      - name: Success! # for easier identification of successful runs in the Checks Required for Pull Requests
+        run: echo "All functional test jobs successful for ${{ matrix.configuration }} / ${{ matrix.architecture }}!"
 
-    - name: Download functional tests drop
-      uses: actions/download-artifact@v5
-      with:
-        name: FunctionalTests_${{ matrix.configuration }}
-        path: ft
+  result:
+    runs-on: ubuntu-latest
+    name: Build, Unit and Functional Tests Successful
+    needs: [functional_test]
 
-    - name: ProjFS details (pre-install)
-      shell: cmd
-      run: install\info.bat
-
-    - name: Install product
-      shell: cmd
-      run: install\install.bat
-
-    - name: ProjFS details (post-install)
-      shell: cmd
-      run: install\info.bat
-
-    - name: Upload installation logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: InstallationLogs_${{ matrix.configuration }}_${{ matrix.architecture }}
-        path: install\logs
-
-    - name: Run functional tests
-      shell: cmd
-      run: |
-        SET PATH=C:\Program Files\VFS for Git;%PATH%
-        SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
-        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci
-
-    - name: Upload functional test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: FunctionalTests_Results_${{ matrix.configuration }}_${{ matrix.architecture }}
-        path: TestResult.xml
-
-    - name: Upload Git trace2 output
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: GitTrace2_${{ matrix.configuration }}_${{ matrix.architecture }}
-        path: C:\temp\git-trace2.log
-
-    - name: ProjFS details (post-test)
-      if: always()
-      shell: cmd
-      run: install\info.bat
+    steps:
+      - name: Success! # for easier identification of successful runs in the Checks Required for Pull Requests
+        run: echo "Workflow run is successful!"
