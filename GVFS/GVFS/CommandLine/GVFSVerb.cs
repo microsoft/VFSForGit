@@ -933,7 +933,11 @@ You can specify a URL, a name of a configured cache server, or the special names
                     return true;
                 }
 
-                Version currentVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
+                string recordedVersion = ProcessHelper.GetCurrentProcessVersion();
+                // Work around the default behavior in .NET SDK 8 where the revision ID
+                // is appended after a '+' character, which cannot be parsed by `System.Version`.
+                int plus = recordedVersion.IndexOf('+');
+                Version currentVersion = new Version(plus < 0 ? recordedVersion : recordedVersion.Substring(0, plus));
                 IEnumerable<ServerGVFSConfig.VersionRange> allowedGvfsClientVersions =
                     config != null
                     ? config.AllowedGVFSClientVersions
