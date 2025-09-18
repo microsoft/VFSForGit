@@ -58,17 +58,7 @@ namespace GVFS.Common
         public static bool IsDevelopmentVersion()
         {
             string version = ProcessHelper.GetCurrentProcessVersion();
-            /* When debugging local version with VS, the version will include +{commitId} suffix, 
-             * which is not valid for Version class. */
-            var plusIndex = version.IndexOf('+');
-            if (plusIndex >= 0)
-            {
-                version = version.Substring(0, plusIndex);
-            }
-
-            Version currentVersion = new Version(version);
-
-            return currentVersion.Major == 0;
+            return version.Equals("0.2.173.2") || version.StartsWith("0.2.173.2+");
         }
 
         public static string GetProgramLocation(string programLocaterCommand, string processName)
