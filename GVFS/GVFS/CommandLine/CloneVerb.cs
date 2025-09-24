@@ -9,6 +9,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 
 namespace GVFS.CommandLine
@@ -241,7 +242,7 @@ namespace GVFS.CommandLine
                         else
                         {
                             Process.Start(new ProcessStartInfo(
-                                fileName: "gvfs",
+                                fileName: Assembly.GetExecutingAssembly().Location,
                                 arguments: "prefetch --commits")
                             {
                                 UseShellExecute = true,
