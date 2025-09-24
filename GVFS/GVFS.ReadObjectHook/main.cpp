@@ -84,13 +84,13 @@ int main(int, char *argv[])
     DisableCRLFTranslationOnStdPipes();
 
     packet_txt_read(packet_buffer, sizeof(packet_buffer));
-    if (strcmp(packet_buffer, "git-read-object-client"))
+    if (strcmp(packet_buffer, "git-read-object-client")) // CodeQL [SM01932] `packet_txt_read()` either NUL-terminates or `die()`s
     {
         die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad welcome message\n");
     }
 
     packet_txt_read(packet_buffer, sizeof(packet_buffer));
-    if (strcmp(packet_buffer, "version=1"))
+    if (strcmp(packet_buffer, "version=1")) // CodeQL [SM01932] `packet_txt_read()` either NUL-terminates or `die()`s
     {
         die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad version\n");
     }
@@ -105,7 +105,7 @@ int main(int, char *argv[])
     packet_flush();
 
     packet_txt_read(packet_buffer, sizeof(packet_buffer));
-    if (strcmp(packet_buffer, "capability=get"))
+    if (strcmp(packet_buffer, "capability=get")) // CodeQL [SM01932] `packet_txt_read()` either NUL-terminates or `die()`s
     {
         die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad capability\n");
     }
@@ -125,13 +125,13 @@ int main(int, char *argv[])
     while (1)
     {
         packet_txt_read(packet_buffer, sizeof(packet_buffer));
-        if (strcmp(packet_buffer, "command=get"))
+        if (strcmp(packet_buffer, "command=get")) // CodeQL [SM01932] `packet_txt_read()` either NUL-terminates or `die()`s
         {
             die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad command\n");
         }
 
         len = packet_txt_read(packet_buffer, sizeof(packet_buffer));
-        if ((len != SHA1_LENGTH + 5) || strncmp(packet_buffer, "sha1=", 5))
+        if ((len != SHA1_LENGTH + 5) || strncmp(packet_buffer, "sha1=", 5)) // CodeQL [SM01932] `packet_txt_read()` either NUL-terminates or `die()`s
         {
             die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad sha1 in get command\n");
         }
