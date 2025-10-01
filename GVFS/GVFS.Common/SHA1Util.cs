@@ -21,7 +21,7 @@ namespace GVFS.Common
         {
             byte[] bytes = Encoding.UTF8.GetBytes(s);
 
-            using (SHA1 sha1 = SHA1.Create())
+            using (SHA1 sha1 = SHA1.Create()) // CodeQL [SM02196] SHA-1 is acceptable here because this is Git's hashing algorithm, not used for cryptographic purposes
             {
                 return sha1.ComputeHash(bytes);
             }
