@@ -17,7 +17,7 @@ namespace GVFS.Common.Git
         {
             this.stream = stream;
 
-            this.hash = SHA1.Create();
+            this.hash = SHA1.Create(); // CodeQL [SM02196] SHA-1 is acceptable here because this is Git's hashing algorithm, not used for cryptographic purposes
             this.hashResult = null;
             this.hash.Initialize();
             this.closed = false;
