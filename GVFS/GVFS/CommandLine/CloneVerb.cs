@@ -189,7 +189,12 @@ namespace GVFS.CommandLine
                         }
 
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
-                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+
+                        serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
+                            tracer,
+                            enlistment,
+                            retryConfig,
+                            cacheServer);
 
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
@@ -237,7 +242,6 @@ namespace GVFS.CommandLine
                                 exitCode = (int)result;
                             }
                         }
-
                         else
                         {
                             Process.Start(new ProcessStartInfo(

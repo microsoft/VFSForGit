@@ -95,7 +95,8 @@ namespace GVFS.CommandLine
                     this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
                 }
 
-                CacheServerInfo cacheServer = this.ResolvedCacheServer ?? CacheServerResolver.GetCacheServerFromConfig(enlistment);
+                var resolvedCacheServer = this.ResolvedCacheServer;
+                var cacheServerFromConfig = resolvedCacheServer ?? CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountVerb),
@@ -104,7 +105,7 @@ namespace GVFS.CommandLine
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
-                    cacheServer.Url,
+                    cacheServerFromConfig.Url,
                     new EventMetadata
                     {
                         { "Unattended", this.Unattended },
@@ -134,7 +135,8 @@ namespace GVFS.CommandLine
 
                 RetryConfig retryConfig = null;
                 ServerGVFSConfig serverGVFSConfig = this.DownloadedGVFSConfig;
-                if (!this.SkipVersionCheck)
+                /* If resolved cache server was passed in, we've already checked server config and version check in previous operation. */
+                if (resolvedCacheServer == null)
                 {
                     string authErrorMessage;
                     if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
@@ -150,17 +152,21 @@ namespace GVFS.CommandLine
                             retryConfig = this.GetRetryConfig(tracer, enlistment);
                         }
 
-                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                        serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
+                            tracer,
+                            enlistment,
+                            retryConfig,
+                            cacheServerFromConfig);
                     }
 
                     this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
 
                     CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
-                    cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, serverGVFSConfig);
-                    this.Output.WriteLine("Configured cache server: " + cacheServer);
+                    resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerFromConfig.Url, serverGVFSConfig);
+                    this.Output.WriteLine("Configured cache server: " + cacheServerFromConfig);
                 }
 
-                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, cacheServer);
+                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, resolvedCacheServer);
 
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.PerformPreMountValidation(tracer, enlistment, out mountExecutableLocation, out errorMessage); },
