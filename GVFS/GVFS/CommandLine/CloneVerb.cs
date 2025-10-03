@@ -9,6 +9,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 
 namespace GVFS.CommandLine
@@ -241,14 +242,14 @@ namespace GVFS.CommandLine
                         else
                         {
                             Process.Start(new ProcessStartInfo(
-                                fileName: "gvfs",
+                                fileName: Assembly.GetExecutingAssembly().Location,
                                 arguments: "prefetch --commits")
                             {
                                 UseShellExecute = true,
-                                WindowStyle = ProcessWindowStyle.Hidden,
+                                WindowStyle = ProcessWindowStyle.Minimized,
                                 WorkingDirectory = enlistment.EnlistmentRoot
                             });
-                            this.Output.WriteLine("\r\nPrefetch of commit graph has been started as a background process. Git operations involving history may be slower until prefetch has completed.\r\n");
+                            this.Output.WriteLine("\r\nPrefetch of commit graph has been started in another window. Git operations involving history may be slower until prefetch has completed.\r\n");
                         }
                     }
 
