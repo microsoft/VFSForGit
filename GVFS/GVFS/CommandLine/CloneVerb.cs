@@ -246,10 +246,10 @@ namespace GVFS.CommandLine
                                 arguments: "prefetch --commits")
                             {
                                 UseShellExecute = true,
-                                WindowStyle = ProcessWindowStyle.Hidden,
+                                WindowStyle = ProcessWindowStyle.Minimized,
                                 WorkingDirectory = enlistment.EnlistmentRoot
                             });
-                            this.Output.WriteLine("\r\nPrefetch of commit graph has been started as a background process. Git operations involving history may be slower until prefetch has completed.\r\n");
+                            this.Output.WriteLine("\r\nPrefetch of commit graph has been started in another window. Git operations involving history may be slower until prefetch has completed.\r\n");
                         }
                     }
 
