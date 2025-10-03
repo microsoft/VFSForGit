@@ -494,8 +494,10 @@ namespace GVFS.CommandLine
         }
 
         /// <summary>
-        /// Attempts to query the GVFS config endpoint. If it fails, but a valid cache server URL is available, returns a null object.
-        /// If neither is available, . If config endpoint fails, skips minimum version check and warns (unless skip-version-check is set).
+        /// Attempts to query the GVFS config endpoint. If successful, returns the config.
+        /// If the query fails but a valid fallback cache server URL is available, returns null and continues.
+        /// (A warning will be logged later.)
+        /// If the query fails and no valid fallback is available, reports an error and exits.
         /// </summary>
         protected ServerGVFSConfig QueryGVFSConfigWithFallbackCacheServer(
             ITracer tracer,
