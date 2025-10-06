@@ -109,7 +109,7 @@ namespace GVFS.CommandLine
                     tracer.AddDiagnosticConsoleEventListener(EventLevel.Informational, Keywords.Any);
                 }
 
-                string cacheServerUrl = CacheServerResolver.GetUrlFromConfig(enlistment);
+                var cacheServerFromConfig = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Prefetch),
@@ -118,7 +118,7 @@ namespace GVFS.CommandLine
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
-                    cacheServerUrl);
+                    cacheServerFromConfig.Url);
 
                 try
                 {
@@ -151,14 +151,14 @@ namespace GVFS.CommandLine
                         }
 
                         GitObjectsHttpRequestor objectRequestor;
-                        CacheServerInfo cacheServer;
+                        CacheServerInfo resolvedCacheServer;
                         this.InitializeServerConnection(
                             tracer,
                             enlistment,
-                            cacheServerUrl,
+                            cacheServerFromConfig,
                             out objectRequestor,
-                            out cacheServer);
-                        this.PrefetchCommits(tracer, enlistment, objectRequestor, cacheServer);
+                            out resolvedCacheServer);
+                        this.PrefetchCommits(tracer, enlistment, objectRequestor, resolvedCacheServer);
                     }
                     else
                     {
@@ -176,14 +176,14 @@ namespace GVFS.CommandLine
                         else
                         {
                             GitObjectsHttpRequestor objectRequestor;
-                            CacheServerInfo cacheServer;
+                            CacheServerInfo resolvedCacheServer;
                             this.InitializeServerConnection(
                                 tracer,
                                 enlistment,
-                                cacheServerUrl,
+                                cacheServerFromConfig,
                                 out objectRequestor,
-                                out cacheServer);
-                            this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, lastPrefetchArgs, objectRequestor, cacheServer);
+                                out resolvedCacheServer);
+                            this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, lastPrefetchArgs, objectRequestor, resolvedCacheServer);
                         }
                     }
                 }
@@ -230,15 +230,18 @@ namespace GVFS.CommandLine
         private void InitializeServerConnection(
             ITracer tracer,
             GVFSEnlistment enlistment,
-            string cacheServerUrl,
+            CacheServerInfo cacheServerFromConfig,
             out GitObjectsHttpRequestor objectRequestor,
-            out CacheServerInfo cacheServer)
+            out CacheServerInfo resolvedCacheServer)
         {
             RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
 
-            cacheServer = this.ResolvedCacheServer;
+            // These this.* arguments are set if this is a follow-on operation from clone or mount.
+            resolvedCacheServer = this.ResolvedCacheServer;
             ServerGVFSConfig serverGVFSConfig = this.ServerGVFSConfig;
-            if (!this.SkipVersionCheck)
+
+            // If ResolvedCacheServer is set, then we have already tried querying the server config and checking versions.
+            if (resolvedCacheServer == null)
             {
                 string authErrorMessage;
                 if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
@@ -246,24 +249,29 @@ namespace GVFS.CommandLine
                     this.ReportErrorAndExit(tracer, "Unable to prefetch because authentication failed: " + authErrorMessage);
                 }
 
+                CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
+                
                 if (serverGVFSConfig == null)
                 {
-                    serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                    serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
+                        tracer,
+                        enlistment,
+                        retryConfig,
+                        cacheServerFromConfig);
                 }
 
-                if (cacheServer == null)
+                resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerFromConfig.Url, serverGVFSConfig);
+
+                if (!this.SkipVersionCheck)
                 {
-                    CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
-                    cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, serverGVFSConfig);
+                    this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: false);
                 }
 
-                this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: false);
-
-                this.Output.WriteLine("Configured cache server: " + cacheServer);
+                this.Output.WriteLine("Configured cache server: " + resolvedCacheServer);
             }
 
-            this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, cacheServer);
-            objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig);
+            this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, resolvedCacheServer);
+            objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, resolvedCacheServer, retryConfig);
         }
 
         private void PrefetchCommits(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor, CacheServerInfo cacheServer)

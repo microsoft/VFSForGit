@@ -54,12 +54,12 @@ namespace GVFS.Common.Http
             if (cacheServerName.Equals(CacheServerInfo.ReservedNames.Default, StringComparison.OrdinalIgnoreCase))
             {
                 cacheServer =
-                    serverGVFSConfig.CacheServers.FirstOrDefault(cache => cache.GlobalDefault)
+                    serverGVFSConfig?.CacheServers.FirstOrDefault(cache => cache.GlobalDefault)
                     ?? this.CreateNone();
             }
             else
             {
-                cacheServer = serverGVFSConfig.CacheServers.FirstOrDefault(cache =>
+                cacheServer = serverGVFSConfig?.CacheServers.FirstOrDefault(cache =>
                     cache.Name.Equals(cacheServerName, StringComparison.OrdinalIgnoreCase));
 
                 if (cacheServer == null)
@@ -87,7 +87,7 @@ namespace GVFS.Common.Http
             }
 
             return
-                serverGVFSConfig.CacheServers.FirstOrDefault(cache => cache.Url.Equals(cacheServerUrl, StringComparison.OrdinalIgnoreCase))
+                serverGVFSConfig?.CacheServers.FirstOrDefault(cache => cache.Url.Equals(cacheServerUrl, StringComparison.OrdinalIgnoreCase))
                 ?? new CacheServerInfo(cacheServerUrl, CacheServerInfo.ReservedNames.UserDefined);
         }
 

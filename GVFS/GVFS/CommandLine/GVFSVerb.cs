@@ -493,6 +493,50 @@ namespace GVFS.CommandLine
             return retryConfig;
         }
 
+        /// <summary>
+        /// Attempts to query the GVFS config endpoint. If successful, returns the config.
+        /// If the query fails but a valid fallback cache server URL is available, returns null and continues.
+        /// (A warning will be logged later.)
+        /// If the query fails and no valid fallback is available, reports an error and exits.
+        /// </summary>
+        protected ServerGVFSConfig QueryGVFSConfigWithFallbackCacheServer(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            RetryConfig retryConfig,
+            CacheServerInfo fallbackCacheServer)
+        {
+            ServerGVFSConfig serverGVFSConfig = null;
+            string errorMessage = null;
+            bool configSuccess = this.ShowStatusWhileRunning(
+                () =>
+                {
+                    using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
+                    {
+                        const bool LogErrors = true;
+                        return configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _, out errorMessage);
+                    }
+                },
+                "Querying remote for config",
+                suppressGvfsLogMessage: true);
+
+            if (!configSuccess)
+            {
+                // If a valid cache server URL is available, warn and continue
+                if (fallbackCacheServer != null && !string.IsNullOrWhiteSpace(fallbackCacheServer.Url))
+                {
+                    // Continue without config
+                    // Warning will be logged/displayed when version check is run
+                    return null;
+                }
+                else
+                {
+                    this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config" + Environment.NewLine + errorMessage);
+                }
+            }
+            return serverGVFSConfig;
+        }
+
+        // Restore original QueryGVFSConfig for other callers
         protected ServerGVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
         {
             ServerGVFSConfig serverGVFSConfig = null;

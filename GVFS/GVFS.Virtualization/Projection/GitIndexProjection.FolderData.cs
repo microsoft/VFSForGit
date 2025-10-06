@@ -54,7 +54,7 @@ namespace GVFS.Virtualization.Projection
 
             public string HashedChildrenNamesSha()
             {
-                using (HashAlgorithm hash = SHA1.Create())
+                using (HashAlgorithm hash = SHA1.Create()) // CodeQL [SM02196] SHA-1 is acceptable here because this is Git's hashing algorithm, not used for cryptographic purposes
                 {
                     for (int i = 0; i < this.ChildEntries.Count; i++)
                     {
