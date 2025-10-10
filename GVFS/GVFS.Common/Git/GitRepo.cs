@@ -113,6 +113,21 @@ namespace GVFS.Common.Git
             return this.GetLooseBlobState(blobSha, null, out size) == LooseBlobState.Exists;
         }
 
+        /// <summary>
+        /// Try to find the SHAs of subtrees missing from the given tree.
+        /// </summary>
+        /// <param name="treeSha">Tree to look up</param>
+        /// <param name="subtrees">SHAs of subtrees of this tree which are not downloaded yet.</param>
+        /// <returns></returns>
+        public virtual bool TryGetMissingSubTrees(string treeSha, out string[] subtrees)
+        {
+            string[] missingSubtrees = null;
+            var succeeded = this.libgit2RepoInvoker.TryInvoke(repo =>
+                repo.GetMissingSubTrees(treeSha), out missingSubtrees);
+            subtrees = missingSubtrees;
+            return succeeded;
+        }
+
         public void Dispose()
         {
             if (this.libgit2RepoInvoker != null)
