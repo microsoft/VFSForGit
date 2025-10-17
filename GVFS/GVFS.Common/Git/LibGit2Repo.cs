@@ -200,22 +200,20 @@ namespace GVFS.Common.Git
                 return false;
             }
 
+            var entryMode = Native.Tree.GetEntryFileMode(entryHandle);
+            if (entryMode != Native.Tree.TreeEntryFileModeDirectory)
+            {
+                return false;
+            }
+
             var entryId = Native.Tree.GetEntryId(entryHandle);
             if (entryId == IntPtr.Zero)
             {
                 return false;
             }
 
-            var entryMode = Native.Tree.GetEntryFileMode(entryHandle);
             var rawEntrySha = Native.IntPtrToGitOid(entryId);
             entrySha = rawEntrySha.ToString();
-
-            /* Trees may be listed as executable files instead of trees */
-            if (entryMode != Native.Tree.TreeEntryFileModeTree
-                && entryMode != Native.Tree.TreeEntryFileModeExecutableFile)
-            {
-                return false;
-            }
 
             if (this.ObjectExists(entrySha))
             {
@@ -343,8 +341,7 @@ namespace GVFS.Common.Git
                 [DllImport(Git2NativeLibName, EntryPoint = "git_tree_entry_filemode")]
                 public static extern uint GetEntryFileMode(IntPtr entryHandle);
 
-                public const uint TreeEntryFileModeTree = 0x4000;
-                public const uint TreeEntryFileModeExecutableFile = 0x81ED; // 100755 in Octal
+                public const uint TreeEntryFileModeDirectory = 0x4000;
 
             }
         }

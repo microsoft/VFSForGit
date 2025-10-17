@@ -29,8 +29,9 @@ namespace GVFS.Mount
         private const int MutexMaxWaitTimeMS = 500;
 
         // This is value chosen based on tested scenarios to limit the required download time for
-        // all the trees in a commit to a few seconds, while not downloading pack files for commits
-        // where only a few missing trees are needed.
+        // all the trees. This is approximately the amount of trees that can be downloaded in 1 second.
+        // Downloading an entire commit pack also takes around 1 second, so this should limit downloading
+        // all the trees in a commit to ~2-3 seconds.
         private const int MissingTreeThresholdForDownloadingCommitPack = 200;
 
         private readonly bool showDebugWindow;
