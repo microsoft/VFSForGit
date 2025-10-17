@@ -9,7 +9,6 @@ using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
-using Microsoft.Isam.Esent.Interop;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
