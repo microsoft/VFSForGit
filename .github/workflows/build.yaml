@@ -177,21 +177,21 @@ jobs:
 
     - name: Upload functional tests drop
       if: steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: FunctionalTests_${{ matrix.configuration }}
         path: artifacts\GVFS.FunctionalTests
 
     - name: Upload FastFetch drop
       if: steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: FastFetch_${{ matrix.configuration }}
         path: artifacts\FastFetch
 
     - name: Upload installers
       if: steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: Installers_${{ matrix.configuration }}
         path: artifacts\GVFS.Installers
@@ -249,7 +249,7 @@ jobs:
 
     - name: Upload installation logs
       if: always() && steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: InstallationLogs_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
         path: install\logs
@@ -264,14 +264,14 @@ jobs:
 
     - name: Upload functional test results
       if: always() && steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: FunctionalTests_Results_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
         path: TestResult.xml
 
     - name: Upload Git trace2 output
       if: always() && steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: GitTrace2_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
         path: C:\temp\git-trace2.log
