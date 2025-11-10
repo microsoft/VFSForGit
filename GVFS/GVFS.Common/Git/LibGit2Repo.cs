@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 
@@ -147,6 +148,82 @@ namespace GVFS.Common.Git
             return true;
         }
 
+        /// <summary>
+        /// Get the list of missing subtrees for the given treeSha.
+        /// </summary>
+        /// <param name="treeSha">Tree to look up</param>
+        /// <param name="missingSubtrees">SHAs of subtrees of this tree which are not downloaded yet.</param>
+        public virtual string[] GetMissingSubTrees(string treeSha)
+        {
+            List<string> missingSubtreesList = new List<string>();
+            IntPtr treeHandle;
+            if (Native.RevParseSingle(out treeHandle, this.RepoHandle, treeSha) != Native.SuccessCode
+                || treeHandle == IntPtr.Zero)
+            {
+                return Array.Empty<string>();
+            }
+
+            try
+            {
+                if (Native.Object.GetType(treeHandle) != Native.ObjectTypes.Tree)
+                {
+                    return Array.Empty<string>();
+                }
+
+                uint entryCount = Native.Tree.GetEntryCount(treeHandle);
+                for (uint i = 0; i < entryCount; i++)
+                {
+                    if (this.IsMissingSubtree(treeHandle, i, out string entrySha))
+                    {
+                        missingSubtreesList.Add(entrySha);
+                    }
+                }
+            }
+            finally
+            {
+                Native.Object.Free(treeHandle);
+            }
+
+            return missingSubtreesList.ToArray();
+        }
+
+        /// <summary>
+        /// Determine if the given index of a tree is a subtree and if it is missing.
+        /// If it is a missing subtree, return the SHA of the subtree.
+        /// </summary>
+        private bool IsMissingSubtree(IntPtr treeHandle, uint i, out string entrySha)
+        {
+            entrySha = null;
+            IntPtr entryHandle = Native.Tree.GetEntryByIndex(treeHandle, i);
+            if (entryHandle == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            var entryMode = Native.Tree.GetEntryFileMode(entryHandle);
+            if (entryMode != Native.Tree.TreeEntryFileModeDirectory)
+            {
+                return false;
+            }
+
+            var entryId = Native.Tree.GetEntryId(entryHandle);
+            if (entryId == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            var rawEntrySha = Native.IntPtrToGitOid(entryId);
+            entrySha = rawEntrySha.ToString();
+
+            if (this.ObjectExists(entrySha))
+            {
+                return false;
+            }
+            return true;
+            /* Both the entryHandle and the entryId handle are owned by the treeHandle, so we shouldn't free them or it will lead to corruption of the later entries */
+        }
+
+
         public void Dispose()
         {
             this.Dispose(true);
@@ -246,6 +323,26 @@ namespace GVFS.Common.Git
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_blob_rawcontent")]
                 public static unsafe extern byte* GetRawContent(IntPtr objectHandle);
+            }
+
+            public static class Tree
+            {
+                [DllImport(Git2NativeLibName, EntryPoint = "git_tree_entrycount")]
+                public static extern uint GetEntryCount(IntPtr treeHandle);
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_tree_entry_byindex")]
+                public static extern IntPtr GetEntryByIndex(IntPtr treeHandle, uint index);
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_tree_entry_id")]
+                public static extern IntPtr GetEntryId(IntPtr entryHandle);
+
+                /* git_tree_entry_type requires the object to exist, so we can't use it to check if
+                 * a missing entry is a tree. Instead, we can use the file mode to determine if it is a tree. */
+                [DllImport(Git2NativeLibName, EntryPoint = "git_tree_entry_filemode")]
+                public static extern uint GetEntryFileMode(IntPtr entryHandle);
+
+                public const uint TreeEntryFileModeDirectory = 0x4000;
+
             }
         }
     }

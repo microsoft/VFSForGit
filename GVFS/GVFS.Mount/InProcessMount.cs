@@ -27,6 +27,12 @@ namespace GVFS.Mount
         private const int MaxPipeNameLength = 250;
         private const int MutexMaxWaitTimeMS = 500;
 
+        // This is value chosen based on tested scenarios to limit the required download time for
+        // all the trees. This is approximately the amount of trees that can be downloaded in 1 second.
+        // Downloading an entire commit pack also takes around 1 second, so this should limit downloading
+        // all the trees in a commit to ~2-3 seconds.
+        private const int MissingTreeThresholdForDownloadingCommitPack = 200;
+
         private readonly bool showDebugWindow;
 
         private FileSystemCallbacks fileSystemCallbacks;
@@ -47,7 +53,6 @@ namespace GVFS.Mount
         private ManualResetEvent unmountEvent;
 
         private readonly Dictionary<string, string> treesWithDownloadedCommits = new Dictionary<string,string>();
-        private DateTime lastCommitPackDownloadTime = DateTime.MinValue;
 
         // True if InProcessMount is calling git reset as part of processing
         // a folder dehydrate request
@@ -518,13 +523,14 @@ namespace GVFS.Mount
                     if (this.ShouldDownloadCommitPack(objectSha, out string commitSha)
                         && this.gitObjects.TryDownloadCommit(commitSha))
                     {
-                        this.DownloadedCommitPack(objectSha: objectSha, commitSha: commitSha);
+                        this.DownloadedCommitPack(commitSha);
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
                         // FUTURE: Should the stats be updated to reflect all the trees in the pack?
                         // FUTURE: Should we try to clean up duplicate trees or increase depth of the commit download?
                     }
                     else if (this.gitObjects.TryDownloadAndSaveObject(objectSha, GVFSGitObjects.RequestSource.NamedPipeMessage) == GitObjects.DownloadAndSaveObjectResult.Success)
                     {
+                        this.UpdateTreesForDownloadedCommits(objectSha);
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
                     }
                     else
@@ -548,7 +554,7 @@ namespace GVFS.Mount
                          * Otherwise, the trees for the commit may be needed soon depending on the context. 
                          * e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
                          * 
-                         * Save the tree/commit so if the tree is requested soon we can download all the trees for the commit in a batch.
+                         * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
                          */
                         this.treesWithDownloadedCommits[treeSha] = objectSha;
                     }
@@ -561,28 +567,67 @@ namespace GVFS.Mount
         private bool PrefetchHasBeenDone()
         {
             var prefetchPacks = this.gitObjects.ReadPackFileNames(this.enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
-            return prefetchPacks.Length > 0;
+            var result = prefetchPacks.Length > 0;
+            if (result)
+            {
+                this.treesWithDownloadedCommits.Clear();
+            }
+            return result;
         }
 
         private bool ShouldDownloadCommitPack(string objectSha, out string commitSha)
         {
-
             if (!this.treesWithDownloadedCommits.TryGetValue(objectSha, out commitSha)
                 || this.PrefetchHasBeenDone())
             {
                 return false;
             }
 
-            /* This is a heuristic to prevent downloading multiple packs related to git history commands,
-             * since commits downloaded close together likely have similar trees. */
-            var timePassed = DateTime.UtcNow - this.lastCommitPackDownloadTime;
-            return (timePassed > TimeSpan.FromMinutes(5));
+            /* This is a heuristic to prevent downloading multiple packs related to git history commands.
+             * Closely related commits are likely to have similar trees, so we'll find fewer missing trees in them.
+             * Conversely, if we know (from previously downloaded missing trees) that a commit has a lot of missing
+             * trees left, we'll probably need to download many more trees for the commit so we should download the pack.
+             */
+            var commitShaLocal = commitSha; // can't use out parameter in lambda
+            int missingTreeCount = this.treesWithDownloadedCommits.Where(x => x.Value == commitShaLocal).Count();
+            return missingTreeCount > MissingTreeThresholdForDownloadingCommitPack;
         }
 
-        private void DownloadedCommitPack(string objectSha, string commitSha)
+        private void UpdateTreesForDownloadedCommits(string objectSha)
         {
-            this.lastCommitPackDownloadTime = DateTime.UtcNow;
-            this.treesWithDownloadedCommits.Remove(objectSha);
+            /* If we are downloading missing trees, we probably are missing more trees for the commit.
+             * Update our list of trees associated with the commit so we can use the # of missing trees 
+             * as a heuristic to decide whether to batch download all the trees for the commit the
+             * next time a missing one is requested.
+             */
+            if (!this.treesWithDownloadedCommits.TryGetValue(objectSha, out var commitSha)
+                || this.PrefetchHasBeenDone())
+            {
+                return;
+            }
+
+            if (!this.context.Repository.TryGetObjectType(objectSha, out var objectType)
+                || objectType != Native.ObjectTypes.Tree)
+            {
+                return;
+            }
+
+            if (this.context.Repository.TryGetMissingSubTrees(objectSha, out var missingSubTrees))
+            {
+                foreach (var missingSubTree in missingSubTrees)
+                {
+                    this.treesWithDownloadedCommits[missingSubTree] = commitSha;
+                }
+            }
+        }
+
+        private void DownloadedCommitPack(string commitSha)
+        {
+            var toRemove = this.treesWithDownloadedCommits.Where(x => x.Value == commitSha).ToList();
+            foreach (var tree in toRemove)
+            {
+                this.treesWithDownloadedCommits.Remove(tree.Key);
+            }
         }
 
         private void HandlePostFetchJobRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)

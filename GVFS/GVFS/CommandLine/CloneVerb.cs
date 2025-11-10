@@ -6,9 +6,11 @@ using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 
 namespace GVFS.CommandLine
@@ -189,7 +191,12 @@ namespace GVFS.CommandLine
                         }
 
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
-                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+
+                        serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
+                            tracer,
+                            enlistment,
+                            retryConfig,
+                            cacheServer);
 
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
@@ -237,18 +244,26 @@ namespace GVFS.CommandLine
                                 exitCode = (int)result;
                             }
                         }
-
                         else
                         {
-                            Process.Start(new ProcessStartInfo(
-                                fileName: "gvfs",
-                                arguments: "prefetch --commits")
+                            try
                             {
-                                UseShellExecute = true,
-                                WindowStyle = ProcessWindowStyle.Hidden,
-                                WorkingDirectory = enlistment.EnlistmentRoot
-                            });
-                            this.Output.WriteLine("\r\nPrefetch of commit graph has been started as a background process. Git operations involving history may be slower until prefetch has completed.\r\n");
+                                string gvfsExecutable = Assembly.GetExecutingAssembly().Location;
+                                Process.Start(new ProcessStartInfo(
+                                    fileName: gvfsExecutable,
+                                    arguments: "prefetch --commits")
+                                    {
+                                        UseShellExecute = true,
+                                        WindowStyle = ProcessWindowStyle.Minimized,
+                                        WorkingDirectory = enlistment.EnlistmentRoot
+                                    });
+                                this.Output.WriteLine("\r\nPrefetch of commit graph has been started as a background process. Git operations involving history may be slower until prefetch has completed.\r\n");
+                            }
+                            catch (Win32Exception ex)
+                            {
+                                this.Output.WriteLine("\r\nError starting prefetch: " + ex.Message);
+                                this.Output.WriteLine("Run 'gvfs prefetch --commits' from within your enlistment to prefetch the commit graph.");
+                            }
                         }
                     }
 
