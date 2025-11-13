@@ -52,6 +52,8 @@ namespace GVFS.Common
 
         private object cacheFileLock = new object();
 
+        internal static bool TEST_EnableHydrationSummary = true;
+
         public GitStatusCache(GVFSContext context, GitStatusCacheConfig config)
             : this(context, config.BackoffTime)
         {
@@ -315,6 +317,7 @@ namespace GVFS.Common
             if (needToRebuild)
             {
                 this.statistics.RecordBackgroundStatusScanRun();
+                this.UpdateHydrationSummary();
 
                 bool rebuildStatusCacheSucceeded = this.TryRebuildStatusCache();
 
@@ -333,6 +336,57 @@ namespace GVFS.Common
                 this.context.Tracer.RelatedInfo(message);
 
                 this.initialDelayTime = DateTime.MinValue;
+            }
+        }
+
+        private void UpdateHydrationSummary()
+        {
+            if (!TEST_EnableHydrationSummary)
+            {
+                return;
+            }
+
+            try
+            {
+                /* While not strictly part of git status, enlistment hydration summary is used
+                 * in "git status" pre-command hook, and can take several seconds to compute on very large repos.
+                 * Accessing it here ensures that the value is cached for when a user invokes "git status",
+                 * and this is also a convenient place to log telemetry for it.
+                 */
+                EnlistmentHydrationSummary hydrationSummary =
+                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem);
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", EtwArea);
+                if (hydrationSummary.IsValid)
+                {
+                    metadata[nameof(hydrationSummary.TotalFolderCount)] = hydrationSummary.TotalFolderCount;
+                    metadata[nameof(hydrationSummary.TotalFileCount)] = hydrationSummary.TotalFileCount;
+                    metadata[nameof(hydrationSummary.HydratedFolderCount)] = hydrationSummary.HydratedFolderCount;
+                    metadata[nameof(hydrationSummary.HydratedFileCount)] = hydrationSummary.HydratedFileCount;
+
+                    this.context.Tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        nameof(EnlistmentHydrationSummary),
+                        metadata,
+                        Keywords.Telemetry);
+                }
+                else
+                {
+                    this.context.Tracer.RelatedWarning(
+                        metadata,
+                        $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary could not be calculdated.",
+                        Keywords.Telemetry);
+                }
+            }
+            catch (Exception ex)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", EtwArea);
+                metadata.Add("Exception", ex.ToString());
+                this.context.Tracer.RelatedError(
+                    metadata,
+                    $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: Exception trying to update hydration summary cache.",
+                    Keywords.Telemetry);
             }
         }
 
