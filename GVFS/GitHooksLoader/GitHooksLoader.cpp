@@ -112,9 +112,25 @@ int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
-    si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-    si.dwFlags = STARTF_USESTDHANDLES;
+    DWORD creationFlags = 0;
+    HANDLE consoleHandle;
+
+    /* If we have a console, use it (ie allow default behavior)*/
+    if ((consoleHandle = CreateFile(L"CONOUT$", GENERIC_WRITE,
+        FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, NULL)) !=
+        INVALID_HANDLE_VALUE)
+        CloseHandle(consoleHandle);
+    else {
+        /* Otherwise, forward stdout/err in case they were redirected,
+         * but do not allow creating a window.*/
+        si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+        si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+        /* Git disallows stdin from hooks */
+        si.dwFlags = STARTF_USESTDHANDLES;
+
+        creationFlags |= CREATE_NO_WINDOW;
+    }
 
     ZeroMemory(&pi, sizeof(pi));
 
@@ -135,7 +151,7 @@ int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc
         NULL,           // Process handle not inheritable
         NULL,           // Thread handle not inheritable
         TRUE,           // Set handle inheritance to TRUE
-        CREATE_NO_WINDOW, // Process creation flags
+        creationFlags , // Process creation flags
         NULL,           // Use parent's environment block
         NULL,           // Use parent's starting directory 
         &si,            // Pointer to STARTUPINFO structure
