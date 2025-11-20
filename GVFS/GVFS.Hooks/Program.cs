@@ -87,6 +87,14 @@ namespace GVFS.Hooks
                 case "pull":
                     ProcessHelper.Run("gvfs", "prefetch --commits", redirectOutput: false);
                     break;
+                case "status":
+                    /* If status is being run to serialize for caching, skip the health display */
+                    if (!args.Any(arg => arg.StartsWith("--serialize", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        /* Display a message about the hydration status of the repo */
+                        ProcessHelper.Run("gvfs", "health --status", redirectOutput: false);
+                    }
+                    break;
             }
         }
 

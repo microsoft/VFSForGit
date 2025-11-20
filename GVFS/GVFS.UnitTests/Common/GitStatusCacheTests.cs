@@ -73,6 +73,7 @@ namespace GVFS.UnitTests.Common
                 this.fileSystem,
                 new MockGitRepo(tracer, enlistment, this.fileSystem),
                 enlistment);
+            GitStatusCache.TEST_EnableHydrationSummary = false;
         }
 
         [TearDown]
@@ -84,6 +85,7 @@ namespace GVFS.UnitTests.Common
             this.gitParentPath = null;
             this.gvfsMetadataPath = null;
             this.enlistmentDirectory = null;
+            GitStatusCache.TEST_EnableHydrationSummary = true;
         }
 
         [TestCase]

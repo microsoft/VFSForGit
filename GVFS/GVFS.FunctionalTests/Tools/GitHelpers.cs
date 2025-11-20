@@ -65,11 +65,12 @@ namespace GVFS.FunctionalTests.Tools
             bool removeWaitingMessages = true,
             bool removeUpgradeMessages = true,
             bool removePartialHydrationMessages = true,
-            bool removeFSMonitorMessages = true)
+            bool removeFSMonitorMessages = true,
+            bool removeGvfsHealthMessages = true)
         {
             ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command, environmentVariables);
-            string output = FilterMessages(result.Output, false, false, false, removePartialHydrationMessages, removeFSMonitorMessages);
-            string errors = FilterMessages(result.Errors, true, removeWaitingMessages, removeUpgradeMessages, removePartialHydrationMessages, removeFSMonitorMessages);
+            string output = FilterMessages(result.Output, false, false, false, removePartialHydrationMessages, removeFSMonitorMessages, removeGvfsHealthMessages);
+            string errors = FilterMessages(result.Errors, true, removeWaitingMessages, removeUpgradeMessages, removePartialHydrationMessages, removeFSMonitorMessages, removeGvfsHealthMessages);
 
             return new ProcessResult(
                 output,
@@ -100,7 +101,8 @@ namespace GVFS.FunctionalTests.Tools
             bool removeWaitingMessages,
             bool removeUpgradeMessages,
             bool removePartialHydrationMessages,
-            bool removeFSMonitorMessages)
+            bool removeFSMonitorMessages,
+            bool removeGvfsHealthMessages)
         {
             if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages || removePartialHydrationMessages || removeFSMonitorMessages))
             {
@@ -111,6 +113,7 @@ namespace GVFS.FunctionalTests.Tools
                         (removeUpgradeMessages && line.StartsWith("A new version of VFS for Git is available.")) ||
                         (removeWaitingMessages && line.StartsWith("Waiting for ")) ||
                         (removePartialHydrationMessages && line.StartsWith("You are in a partially-hydrated checkout with ")) ||
+                        (removeGvfsHealthMessages && line.TrimEnd().EndsWith("Run 'gvfs health' for details.")) ||
                         (removeFSMonitorMessages && line.TrimEnd().EndsWith(" is incompatible with fsmonitor")))
                     {
                         return false;
