@@ -91,10 +91,14 @@ namespace GVFS.Common
                 {
                     return -1;
                 }
-                /* The number of files in the index is a big-endian integer from bytes 9-12 of the index file. */
+                /* The number of files in the index is a big-endian integer from
+                 * the 4 bytes at offsets 8-11 of the index file. */
                 indexFile.Position = 8;
                 var bytes = new byte[4];
-                indexFile.Read(bytes, 0, 4);
+                indexFile.Read(
+                    bytes, // Destination buffer
+                    offset: 0, // Offset in destination buffer, not in indexFile
+                    count: 4);
                 if (BitConverter.IsLittleEndian)
                 {
                     Array.Reverse(bytes);
