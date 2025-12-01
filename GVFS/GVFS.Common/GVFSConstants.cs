@@ -127,6 +127,7 @@ namespace GVFS.Common
             {
                 public const string Name = "gitStatusCache";
                 public static readonly string CachePath = Path.Combine(Name, "GitStatusCache.dat");
+                public static readonly string TreeCount = Path.Combine(Name, "TreeCountCache.dat");
             }
         }
 

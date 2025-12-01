@@ -109,7 +109,20 @@ namespace GVFS.UnitTests.Mock.Git
             CommandInfo matchedCommand = this.expectedCommandInfos.Last(commandMatchFunction);
             matchedCommand.ShouldNotBeNull("Unexpected command: " + command);
 
-            return matchedCommand.Result();
+            var result = matchedCommand.Result();
+            if (parseStdOutLine != null && !string.IsNullOrEmpty(result.Output))
+            {
+                using (StringReader reader = new StringReader(result.Output))
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        parseStdOutLine(line);
+                    }
+                }
+                /* Future: result.Output should be set to null in this case */
+            }
+            return result;
         }
 
         public class Credential
