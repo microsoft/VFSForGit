@@ -103,7 +103,7 @@ jobs:
 
     - name: Checkout source
       if: steps.check.outputs.result == ''
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Validate Microsoft Git version
       if: steps.check.outputs.result == ''
@@ -138,7 +138,7 @@ jobs:
 
     - name: Checkout source
       if: steps.skip.outputs.result != 'true'
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         path: src
 

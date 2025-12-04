@@ -117,7 +117,7 @@ namespace GVFS.CommandLine
                 if (!this.Confirmed && fullDehydrate)
                 {
                     this.Output.WriteLine(
-@"WARNING: THIS IS AN EXPERIMENTAL FEATURE
+$@"WARNING: THIS IS AN EXPERIMENTAL FEATURE
 
 Dehydrate will back up your src folder, and then create a new, empty src folder 
 with a fresh virtualization of the repo. All of your downloaded objects, branches, 
@@ -130,8 +130,7 @@ you want to keep. If you choose not to, you can still find your uncommitted chan
 in the backup folder, but it will be harder to find them because 'git status' 
 will not work in the backup.
 
-To actually execute the dehydrate, run 'gvfs dehydrate --confirm' from the parent 
-of your enlistment's src folder.
+To actually execute the dehydrate, run 'gvfs dehydrate --confirm' from {enlistment.EnlistmentRoot}.
 ");
 
                     return;
@@ -152,6 +151,13 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm --folders <fold
 from a parent of the folders list.
 ");
 
+                    return;
+                }
+
+                if (fullDehydrate && Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryBackingRoot))
+                {
+                    /* If running from /src, the dehydrate would fail because of the handle we are holding on it. */
+                    this.Output.WriteLine($"Dehydrate must be run from {enlistment.EnlistmentRoot}");
                     return;
                 }
 

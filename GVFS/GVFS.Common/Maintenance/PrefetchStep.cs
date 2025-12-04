@@ -16,6 +16,7 @@ namespace GVFS.Common.Maintenance
         private const int LockWaitTimeMs = 100;
         private const int WaitingOnLockLogThreshold = 50;
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
+        private const int NoExistingPrefetchPacks = -1;
         private readonly TimeSpan timeBetweenPrefetches = TimeSpan.FromMinutes(70);
 
         public PrefetchStep(GVFSContext context, GitObjects gitObjects, bool requireCacheLock = true)
@@ -77,6 +78,18 @@ namespace GVFS.Common.Maintenance
             if (!this.TryGetMaxGoodPrefetchTimestamp(out last, out error))
             {
                 this.Context.Tracer.RelatedError(error);
+                return;
+            }
+
+            if (last == NoExistingPrefetchPacks)
+            {
+                /* If there are no existing prefetch packs, that means that either the
+                 * first prefetch is still in progress or the clone was run with "--no-prefetch".
+                 * In either case, we should not run prefetch as a maintenance task.
+                 * If users want to prefetch after cloning with "--no-prefetch", they can run
+                 * "gvfs prefetch" manually. Also, "git pull" and "git fetch" will run prefetch
+                 * as a pre-command hook. */
+                this.Context.Tracer.RelatedInfo(this.Area + ": Skipping prefetch since there are no existing prefetch packs");
                 return;
             }
 
@@ -150,7 +163,7 @@ namespace GVFS.Common.Maintenance
                 .OrderBy(packInfo => packInfo.Timestamp)
                 .ToList();
 
-            maxGoodTimestamp = -1;
+            maxGoodTimestamp = NoExistingPrefetchPacks;
 
             int firstBadPack = -1;
             for (int i = 0; i < orderedPacks.Count; ++i)
