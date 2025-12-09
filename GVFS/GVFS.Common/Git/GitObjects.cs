@@ -126,9 +126,15 @@ namespace GVFS.Common.Git
                 metadata.Add("markerPath", markerPath);
                 metadata.Add(TracingConstants.MessageKey.InfoMessage, "Deleting stale temp pack and/or idx file");
 
-                this.fileSystem.TryDeleteFile(idxPath, metadataKey: nameof(idxPath), metadata: metadata);
-                this.fileSystem.TryDeleteFile(packPath, metadataKey: nameof(packPath), metadata: metadata);
-                this.fileSystem.TryDeleteFile(markerPath, metadataKey: nameof(markerPath), metadata: metadata);
+                /* Conditionally delete the marker and index only after the pack has been deleted - if they stick
+                 * around without the pack file it won't interfere with other pack files, and they are smaller
+                 * files, but if the pack file sticks around with the index or marker it could interfere with
+                 * future prefetches and takes up more space. */
+                if (this.fileSystem.TryDeleteFile(packPath, metadataKey: nameof(packPath), metadata: metadata))
+                {
+                    this.fileSystem.TryDeleteFile(idxPath, metadataKey: nameof(idxPath), metadata: metadata);
+                    this.fileSystem.TryDeleteFile(markerPath, metadataKey: nameof(markerPath), metadata: metadata);
+                }
 
                 this.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.DeleteStaleIncompletePrefetchPackAndIdxs), metadata);
             }
