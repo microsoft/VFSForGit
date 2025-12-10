@@ -126,13 +126,11 @@ namespace GVFS.Common.Git
                 metadata.Add("markerPath", markerPath);
                 metadata.Add(TracingConstants.MessageKey.InfoMessage, "Deleting stale temp pack and/or idx file");
 
-                /* Conditionally delete the marker and index only after the pack has been deleted - if they stick
-                 * around without the pack file it won't interfere with other pack files, and they are smaller
-                 * files, but if the pack file sticks around with the index or marker it could interfere with
-                 * future prefetches and takes up more space. */
-                if (this.fileSystem.TryDeleteFile(packPath, metadataKey: nameof(packPath), metadata: metadata))
+                /* Delete the index first (which makes git stop using the pack), then the pack,
+                 * last the marker. */
+                if (this.fileSystem.TryDeleteFile(idxPath, metadataKey: nameof(idxPath), metadata: metadata)
+                    && this.fileSystem.TryDeleteFile(packPath, metadataKey: nameof(packPath), metadata: metadata))
                 {
-                    this.fileSystem.TryDeleteFile(idxPath, metadataKey: nameof(idxPath), metadata: metadata);
                     this.fileSystem.TryDeleteFile(markerPath, metadataKey: nameof(markerPath), metadata: metadata);
                 }
 
@@ -554,6 +552,10 @@ namespace GVFS.Common.Git
 
             try
             {
+                /* Make sure there's not an existing index first to prevent race condition where index may not
+                 * match the pack file.
+                 */
+                this.fileSystem.DeleteFile(targetIdxPath);
                 this.fileSystem.MoveAndOverwriteFile(sourcePackPath, targetPackPath);
                 this.fileSystem.MoveAndOverwriteFile(sourceIdxPath, targetIdxPath);
             }
@@ -567,8 +569,9 @@ namespace GVFS.Common.Git
                 metadata.Add("idxName", Path.GetFileName(sourceIdxPath));
                 metadata.Add("idxTempPath", sourceIdxPath);
 
-                this.fileSystem.TryDeleteFile(sourceIdxPath, metadataKey: nameof(sourceIdxPath), metadata: metadata);
+                /* Delete target idx first, to make sure target pack is inaccessible if present. */
                 this.fileSystem.TryDeleteFile(targetIdxPath, metadataKey: nameof(targetIdxPath), metadata: metadata);
+                this.fileSystem.TryDeleteFile(sourceIdxPath, metadataKey: nameof(sourceIdxPath), metadata: metadata);
                 this.fileSystem.TryDeleteFile(sourcePackPath, metadataKey: nameof(sourcePackPath), metadata: metadata);
                 this.fileSystem.TryDeleteFile(targetPackPath, metadataKey: nameof(targetPackPath), metadata: metadata);
 
