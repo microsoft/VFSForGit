@@ -158,7 +158,9 @@ namespace GVFS.Common.Maintenance
 
             string[] packs = this.GitObjects.ReadPackFileNames(this.Context.Enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
             List<PrefetchPackInfo> orderedPacks = packs
-                .Where(pack => GetTimestamp(pack).HasValue)
+                .Where(pack => GetTimestamp(pack).HasValue
+                    && !this.Context.FileSystem.FileExists(
+                        Path.ChangeExtension(pack, GVFSConstants.InProgressPrefetchMarkerExtension)))
                 .Select(pack => new PrefetchPackInfo(GetTimestamp(pack).Value, pack))
                 .OrderBy(packInfo => packInfo.Timestamp)
                 .ToList();
