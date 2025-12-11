@@ -100,7 +100,7 @@ namespace GVFS.UnitTests.Common
                 this.enlistmentDirectory.CreateFile(totalPathCountPath, args.CachePrecontents, createDirectories: true);
             }
 
-            this.gitProcess.SetExpectedCommandResult("show -s --format=%T HEAD",
+            this.gitProcess.SetExpectedCommandResult("rev-parse \"HEAD^{tree}\"",
                 () => new GitProcess.Result(HeadTreeId, "", 0));
             this.gitProcess.SetExpectedCommandResult("ls-tree -r -d HEAD",
                 () => new GitProcess.Result(
