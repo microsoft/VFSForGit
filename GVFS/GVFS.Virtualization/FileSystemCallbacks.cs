@@ -30,6 +30,7 @@ namespace GVFS.Virtualization
             GitCommandLineParser.Verbs.UpdateIndex;
 
         private readonly string logsHeadPath;
+        private readonly ConcurrentHashSet<string> dehydratingFolders = new ConcurrentHashSet<string>();
 
         private GVFSContext context;
         private IPlaceholderCollection placeholderDatabase;
@@ -305,6 +306,10 @@ namespace GVFS.Virtualization
 
             try
             {
+                this.dehydratingFolders.Add(relativePath);
+
+                var absolutePath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, relativePath);
+                this.context.FileSystem.DeleteDirectory(absolutePath, recursive: true);
                 relativePath = GVFSDatabase.NormalizePath(relativePath);
                 removedPlaceholders = this.placeholderDatabase.RemoveAllEntriesForFolder(relativePath);
                 removedModifiedPaths = this.modifiedPaths.RemoveAllEntriesForFolder(relativePath);
@@ -320,6 +325,10 @@ namespace GVFS.Virtualization
                 errorMessage = $"{nameof(this.TryDehydrateFolder)} threw an exception - {ex.Message}";
                 EventMetadata metadata = this.CreateEventMetadata(relativePath, ex);
                 this.context.Tracer.RelatedError(metadata, errorMessage);
+            }
+            finally
+            {
+                this.dehydratingFolders.TryRemove(relativePath);
             }
 
             if (!string.IsNullOrEmpty(errorMessage))
@@ -466,12 +475,18 @@ namespace GVFS.Virtualization
 
         public void OnFileDeleted(string relativePath)
         {
-            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileDeleted(relativePath));
+            if (!this.IsDehydrating(relativePath))
+            {
+                this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileDeleted(relativePath));
+            }
         }
 
         public void OnFilePreDelete(string relativePath)
         {
-            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFilePreDelete(relativePath));
+            if (!this.IsDehydrating(relativePath))
+            {
+                this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFilePreDelete(relativePath));
+            }
         }
 
         /// <summary>
@@ -506,17 +521,26 @@ namespace GVFS.Virtualization
 
         public void OnFolderDeleted(string relativePath)
         {
-            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderDeleted(relativePath));
+            if (!this.IsDehydrating(relativePath))
+            {
+                this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderDeleted(relativePath));
+            }
         }
 
         public void OnPossibleTombstoneFolderCreated(string relativePath)
         {
-            this.GitIndexProjection.OnPossibleTombstoneFolderCreated(relativePath);
+            if (!this.IsDehydrating(relativePath))
+            {
+                this.GitIndexProjection.OnPossibleTombstoneFolderCreated(relativePath);
+            }
         }
 
         public void OnFolderPreDelete(string relativePath)
         {
-            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderPreDelete(relativePath));
+            if (!this.IsDehydrating(relativePath))
+            {
+                this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderPreDelete(relativePath));
+            }
         }
 
         public void OnPlaceholderFileCreated(string relativePath, string sha, string triggeringProcessImageFileName)
@@ -1023,6 +1047,12 @@ namespace GVFS.Virtualization
             }
 
             return metadata;
+        }
+
+        private bool IsDehydrating(string relativePath)
+        {
+            return this.dehydratingFolders.Any(f =>
+                relativePath.StartsWith(f + GVFSConstants.GitPathSeparatorString, GVFSPlatform.Instance.Constants.PathComparison));
         }
 
         private class PlaceHolderCreateCounter

@@ -201,8 +201,14 @@ namespace GVFS.Platform.Windows
 
         public override FileSystemResult DehydrateFolder(string relativePath)
         {
-            // Don't need to do anything here because the parent will reproject the folder.
-            return new FileSystemResult(FSResult.Ok, 0);
+            // The folder should have already been deleted, but
+            // its tombstone also needs to be deleted to allow reprojection.
+            var result = this.virtualizationInstance.DeleteFile(
+                relativePath,
+                UpdateType.AllowTombstone,
+                out UpdateFailureCause failureCause);
+
+            return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
 
         // TODO: Need ProjFS 13150199 to be fixed so that GVFS doesn't leak memory if the enumeration cancelled.
