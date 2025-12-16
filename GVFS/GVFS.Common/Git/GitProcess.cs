@@ -684,7 +684,7 @@ namespace GVFS.Common.Git
 
         public Result GetHeadTreeId()
         {
-            return this.InvokeGitAgainstDotGitFolder("show -s --format=%T HEAD", usePreCommandHook: false);
+            return this.InvokeGitAgainstDotGitFolder("rev-parse \"HEAD^{tree}\"", usePreCommandHook: false);
         }
 
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory, bool usePreCommandHook)

@@ -13,6 +13,7 @@ namespace GVFS.Common
         public const char GitCommentSign = '#';
 
         public const string PrefetchPackPrefix = "prefetch";
+        public const string InProgressPrefetchMarkerExtension = ".incomplete";
 
         public const string GVFSEtwProviderName = "Microsoft.Git.GVFS";
         public const string WorkingDirectoryRootName = "src";
