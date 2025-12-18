@@ -220,14 +220,14 @@ jobs:
 
     - name: Download installers
       if: steps.skip.outputs.result != 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v7
       with:
         name: Installers_${{ matrix.configuration }}
         path: install
 
     - name: Download functional tests drop
       if: steps.skip.outputs.result != 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v7
       with:
         name: FunctionalTests_${{ matrix.configuration }}
         path: ft
