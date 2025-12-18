@@ -227,12 +227,6 @@ namespace GVFS.Virtualization
                 this.backgroundFileSystemTaskRunner.Dispose();
                 this.backgroundFileSystemTaskRunner = null;
             }
-
-            if (this.context != null)
-            {
-                this.context.Dispose();
-                this.context = null;
-            }
         }
 
         public bool IsReadyForExternalAcquireLockRequests(NamedPipeMessages.LockData requester, out string denyMessage)

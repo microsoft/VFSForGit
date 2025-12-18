@@ -119,15 +119,15 @@ namespace GVFS.CommandLine
                     this.Output.WriteLine(
 $@"WARNING: THIS IS AN EXPERIMENTAL FEATURE
 
-Dehydrate will back up your src folder, and then create a new, empty src folder 
-with a fresh virtualization of the repo. All of your downloaded objects, branches, 
-and siblings of the src folder will be preserved. Your modified working directory 
-files will be moved to the backup, and your new working directory will not have 
+Dehydrate will back up your src folder, and then create a new, empty src folder
+with a fresh virtualization of the repo. All of your downloaded objects, branches,
+and siblings of the src folder will be preserved. Your modified working directory
+files will be moved to the backup, and your new working directory will not have
 any of your uncommitted changes.
 
-Before you dehydrate, make sure you have committed any working directory changes 
-you want to keep. If you choose not to, you can still find your uncommitted changes 
-in the backup folder, but it will be harder to find them because 'git status' 
+Before you dehydrate, make sure you have committed any working directory changes
+you want to keep. If you choose not to, you can still find your uncommitted changes
+in the backup folder, but it will be harder to find them because 'git status'
 will not work in the backup.
 
 To actually execute the dehydrate, run 'gvfs dehydrate --confirm' from {enlistment.EnlistmentRoot}.
@@ -144,8 +144,9 @@ All of your downloaded objects, branches, and siblings of the src folder
 will be preserved.  This will remove the folders specified and any working directory
 files and folders even if ignored by git similar to 'git clean -xdf <path>'.
 
-Before you dehydrate, you will have to commit any working directory changes 
-you want to keep and have a clean 'git status'.
+Before you dehydrate, you will have to commit any working directory changes
+you want to keep and have a clean 'git status', or run with --no-status to
+undo any uncommitted changes.
 
 To actually execute the dehydrate, run 'gvfs dehydrate --confirm --folders <folder list>'
 from a parent of the folders list.
@@ -161,12 +162,6 @@ from a parent of the folders list.
                     return;
                 }
 
-                if (this.NoStatus && !fullDehydrate)
-                {
-                    this.ReportErrorAndExit(tracer, "Dehydrate --no-status not valid with --folders");
-                    return;
-                }
-
                 bool cleanStatus = this.StatusChecked || this.CheckGitStatus(tracer, enlistment, fullDehydrate);
 
                 string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
@@ -176,21 +171,25 @@ from a parent of the folders list.
                 {
                     this.WriteMessage(tracer, $"Starting {this.RunningVerbName}. All of your existing files will be backed up in " + backupRoot);
                 }
+                else
+                {
+                    this.WriteMessage(tracer, $"Starting {this.RunningVerbName}. Selected folders will be backed up in " + backupRoot);
+                }
 
                 this.WriteMessage(tracer, $"WARNING: If you abort the {this.RunningVerbName} after this point, the repo may become corrupt");
 
                 this.Output.WriteLine();
 
-                this.Unmount(tracer);
-
-                string error;
-                if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.EnlistmentRoot, out error))
-                {
-                    this.ReportErrorAndExit(tracer, error);
-                }
-
                 if (fullDehydrate)
                 {
+                    this.Unmount(tracer);
+
+                    string error;
+                    if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.EnlistmentRoot, out error))
+                    {
+                        this.ReportErrorAndExit(tracer, error);
+                    }
+
                     RetryConfig retryConfig;
                     if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
                     {
@@ -216,7 +215,7 @@ from a parent of the folders list.
                     {
                         if (cleanStatus)
                         {
-                            this.DehydrateFolders(tracer, enlistment, folders);
+                            this.DehydrateFolders(tracer, enlistment, folders, backupRoot);
                         }
                         else
                         {
@@ -231,8 +230,15 @@ from a parent of the folders list.
             }
         }
 
-        private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string[] folders)
+        private void DehydrateFolders(JsonTracer tracer, GVFSEnlistment enlistment, string[] folders, string backupRoot)
         {
+            if (!this.TryBackupNonSrcFiles(tracer, enlistment, backupRoot))
+            {
+                this.Output.WriteLine();
+                this.WriteMessage(tracer, "ERROR: Backup failed. ");
+                return;
+            }
+
             List<string> foldersToDehydrate = new List<string>();
             List<string> folderErrors = new List<string>();
 
@@ -241,7 +247,7 @@ from a parent of the folders list.
                 {
                     if (!ModifiedPathsDatabase.TryLoadOrCreate(
                             tracer,
-                            Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.ModifiedPaths),
+                            Path.Combine(GetBackupDatabasesPath(backupRoot), GVFSConstants.DotGVFS.Databases.ModifiedPaths),
                             this.fileSystem,
                             out ModifiedPathsDatabase modifiedPaths,
                             out string error))
@@ -271,26 +277,13 @@ from a parent of the folders list.
                                 else
                                 {
                                     string fullPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, folder);
-                                    if (this.fileSystem.DirectoryExists(fullPath))
+                                    if (!this.fileSystem.DirectoryExists(fullPath))
                                     {
-                                        // Since directories are deleted last and will be empty at that point we can skip errors
-                                        // while trying to delete it and leave the empty directory and continue to dehydrate
-                                        if (!this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(fullPath, ignoreDirectoryDeleteExceptions: true), $"Deleting '{fullPath}'", out ioError))
-                                        {
-                                            this.WriteMessage(tracer, $"Cannot {this.ActionName} folder '{folder}': removing '{folder}' failed.");
-                                            this.WriteMessage(tracer, "Ensure no applications are accessing the folder and retry.");
-                                            this.WriteMessage(tracer, $"More details: {ioError}");
-                                            folderErrors.Add($"{folder}\0{ioError}");
-                                        }
-                                        else
-                                        {
-                                            foldersToDehydrate.Add(folder);
-                                        }
+                                        this.WriteMessage(tracer, $"Cannot {this.ActionName} folder '{folder}': '{folder}' does not exist.");
+                                        foldersToDehydrate.Add(folder);
                                     }
                                     else
                                     {
-                                        this.WriteMessage(tracer, $"Cannot {this.ActionName} folder '{folder}': '{folder}' does not exist.");
-
                                         // Still add to foldersToDehydrate so that any placeholders or modified paths get cleaned up
                                         foldersToDehydrate.Add(folder);
                                     }
@@ -306,16 +299,10 @@ from a parent of the folders list.
                 this.ReportErrorAndExit(tracer, $"{this.ActionName} for folders failed.");
             }
 
-            // We can skip the version check because dehydrating folders requires that a git status
-            // be run first, and running git status requires that the repo already be mounted (meaning
-            // we don't need to perform another version check again)
-            this.Mount(
-                tracer,
-                skipVersionCheck: true);
-
             if (foldersToDehydrate.Count > 0)
             {
-                this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate);
+                string backupSrc = GetBackupSrcPath(backupRoot);
+                this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate, backupSrc);
             }
 
             if (folderErrors.Count > 0)
@@ -327,6 +314,11 @@ from a parent of the folders list.
 
                 this.ReportErrorAndExit(tracer, ReturnCode.DehydrateFolderFailures, $"Failed to dehydrate {folderErrors.Count} folder(s).");
             }
+        }
+
+        private static string GetBackupSrcPath(string backupRoot)
+        {
+            return Path.Combine(backupRoot, "src");
         }
 
         private bool IsFolderValid(string folderPath)
@@ -343,7 +335,12 @@ from a parent of the folders list.
             return true;
         }
 
-        private void SendDehydrateMessage(ITracer tracer, GVFSEnlistment enlistment, List<string> folderErrors, List<string> folders)
+        private void SendDehydrateMessage(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            List<string> folderErrors,
+            List<string> folders,
+            string backupFolder)
         {
             NamedPipeMessages.DehydrateFolders.Response response = null;
 
@@ -353,10 +350,17 @@ from a parent of the folders list.
                 {
                     if (!pipeClient.Connect())
                     {
-                        this.ReportErrorAndExit("Unable to connect to GVFS.  Try running 'gvfs mount'");
+                        this.Output.WriteLine("Mounting...");
+                        this.Mount(tracer, skipVersionCheck: false);
+                        if (!pipeClient.Connect())
+                        {
+                            this.ReportErrorAndExit("Unable to connect to GVFS.  Try running 'gvfs mount'");
+                        }
                     }
 
-                    NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(string.Join(FolderListSeparator, folders));
+                    NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(
+                        folders: string.Join(";", folders),
+                        backupFolderPath: backupFolder);
                     pipeClient.SendRequest(request.CreateMessage());
                     response = NamedPipeMessages.DehydrateFolders.Response.FromMessage(NamedPipeMessages.Message.FromString(pipeClient.ReadRawResponse()));
                 }
@@ -438,83 +442,83 @@ from a parent of the folders list.
 
         private bool CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment, bool fullDehydrate)
         {
-            if (!this.NoStatus)
+            if (NoStatus)
             {
-                this.WriteMessage(tracer, $"Running git status before {this.ActionName} to make sure you don't have any pending changes.");
-                if (fullDehydrate)
-                {
-                    this.WriteMessage(tracer, $"If this takes too long, you can abort and run {this.RunningVerbName} with --no-status to skip this safety check.");
-                }
+                return true;
+            }
 
+            this.WriteMessage(tracer, $"Running git status before {this.ActionName} to make sure you don't have any pending changes.");
+            if (fullDehydrate)
+            {
+                this.WriteMessage(tracer, $"If this takes too long, you can abort and run {this.RunningVerbName} with --no-status to skip this safety check.");
+            }
+
+            this.Output.WriteLine();
+
+            bool isMounted = false;
+            GitProcess.Result statusResult = null;
+            if (!this.ShowStatusWhileRunning(
+                () =>
+                {
+                    if (this.ExecuteGVFSVerb<StatusVerb>(tracer) != ReturnCode.Success)
+                    {
+                        return false;
+                    }
+
+                    isMounted = true;
+
+                    GitProcess git = new GitProcess(enlistment);
+                    statusResult = git.Status(allowObjectDownloads: false, useStatusCache: false, showUntracked: true);
+                    if (statusResult.ExitCodeIsFailure)
+                    {
+                        return false;
+                    }
+
+                    if (!statusResult.Output.Contains("nothing to commit, working tree clean"))
+                    {
+                        return false;
+                    }
+
+                    return true;
+                },
+                "Running git status",
+                suppressGvfsLogMessage: true))
+            {
                 this.Output.WriteLine();
 
-                bool isMounted = false;
-                GitProcess.Result statusResult = null;
-                if (!this.ShowStatusWhileRunning(
-                    () =>
-                    {
-                        if (this.ExecuteGVFSVerb<StatusVerb>(tracer) != ReturnCode.Success)
-                        {
-                            return false;
-                        }
-
-                        isMounted = true;
-
-                        GitProcess git = new GitProcess(enlistment);
-                        statusResult = git.Status(allowObjectDownloads: false, useStatusCache: false, showUntracked: true);
-                        if (statusResult.ExitCodeIsFailure)
-                        {
-                            return false;
-                        }
-
-                        if (!statusResult.Output.Contains("nothing to commit, working tree clean"))
-                        {
-                            return false;
-                        }
-
-                        return true;
-                    },
-                    "Running git status",
-                    suppressGvfsLogMessage: true))
+                if (!isMounted)
                 {
-                    this.Output.WriteLine();
-
-                    if (!isMounted)
+                    this.WriteMessage(tracer, "Failed to run git status because the repo is not mounted");
+                    if (fullDehydrate)
                     {
-                        this.WriteMessage(tracer, "Failed to run git status because the repo is not mounted");
-                        if (fullDehydrate)
-                        {
-                            this.WriteMessage(tracer, "Either mount first, or run with --no-status");
-                        }
+                        this.WriteMessage(tracer, "Either mount first, or run with --no-status");
                     }
-                    else if (statusResult.ExitCodeIsFailure)
-                    {
-                        this.WriteMessage(tracer, "Failed to run git status: " + statusResult.Errors);
-                    }
-                    else
-                    {
-                        this.WriteMessage(tracer, statusResult.Output);
-                        this.WriteMessage(tracer, "git status reported that you have dirty files");
-                        if (fullDehydrate)
-                        {
-                            this.WriteMessage(tracer, $"Either commit your changes or run {this.RunningVerbName} with --no-status");
-                        }
-                        else
-                        {
-                            this.WriteMessage(tracer, "Either commit your changes or reset and clean your working directory.");
-                        }
-                    }
-
-                    this.ReportErrorAndExit(tracer, $"Aborted {this.ActionName}");
-                    return false;
+                }
+                else if (statusResult.ExitCodeIsFailure)
+                {
+                    this.WriteMessage(tracer, "Failed to run git status: " + statusResult.Errors);
                 }
                 else
                 {
-                    return true;
+                    this.WriteMessage(tracer, statusResult.Output);
+                    this.WriteMessage(tracer, "git status reported that you have dirty files");
+                    if (fullDehydrate)
+                    {
+                        this.WriteMessage(tracer, $"Either commit your changes or run {this.RunningVerbName} with --no-status");
+                    }
+                    else
+                    {
+                        this.WriteMessage(tracer, "Either commit your changes or reset and clean your working directory.");
+                    }
                 }
-            }
 
-            return false;
+                this.ReportErrorAndExit(tracer, $"Aborted {this.ActionName}");
+                return false;
+            }
+            else
+            {
+                return true;
+            }
         }
 
         private void PrepareSrcFolder(ITracer tracer, GVFSEnlistment enlistment)
@@ -535,12 +539,83 @@ from a parent of the folders list.
             }
         }
 
-        private bool TryBackupFiles(ITracer tracer, GVFSEnlistment enlistment, string backupRoot)
+        private bool TryBackupNonSrcFiles(ITracer tracer, GVFSEnlistment enlistment, string backupRoot)
         {
-            string backupSrc = Path.Combine(backupRoot, "src");
+            string backupSrc = GetBackupSrcPath(backupRoot);
             string backupGit = Path.Combine(backupRoot, ".git");
             string backupGvfs = Path.Combine(backupRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
-            string backupDatabases = Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.Name);
+            string backupDatabases = GetBackupDatabasesPath(backupGvfs);
+
+            string errorMessage = string.Empty;
+            if (!this.ShowStatusWhileRunning(
+                () =>
+                {
+                    string ioError;
+                    if (!this.TryIO(tracer, () => Directory.CreateDirectory(backupRoot), "Create backup directory", out ioError) ||
+                        !this.TryIO(tracer, () => Directory.CreateDirectory(backupGit), "Create backup .git directory", out ioError) ||
+                        !this.TryIO(tracer, () => Directory.CreateDirectory(backupGvfs), "Create backup .gvfs directory", out ioError) ||
+                        !this.TryIO(tracer, () => Directory.CreateDirectory(backupDatabases), "Create backup .gvfs databases directory", out ioError))
+                    {
+                        errorMessage = "Failed to create backup folders at " + backupRoot + ": " + ioError;
+                        return false;
+                    }
+
+                    // ... backup the .gvfs hydration-related data structures...
+                    string databasesFolder = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.Name);
+                    if (!this.TryCopyFilesInFolder(tracer, databasesFolder, backupDatabases, searchPattern: "*", filenamesToSkip: "RepoMetadata.dat"))
+                    {
+                        return false;
+                    }
+
+                    // ... backup everything related to the .git\index...
+                    if (!this.TryIO(
+                            tracer,
+                            () => File.Copy(
+                                Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName),
+                                Path.Combine(backupGit, GVFSConstants.DotGit.IndexName)),
+                            "Backup the git index",
+                            out errorMessage) ||
+                        !this.TryIO(
+                            tracer,
+                            () => File.Copy(
+                                Path.Combine(enlistment.DotGVFSRoot, GitIndexProjection.ProjectionIndexBackupName),
+                                Path.Combine(backupGvfs, GitIndexProjection.ProjectionIndexBackupName)),
+                            "Backup GVFS_projection",
+                            out errorMessage))
+                    {
+                        return false;
+                    }
+
+                    // ... backup all .git\*.lock files
+                    if (!this.TryCopyFilesInFolder(tracer, enlistment.DotGitRoot, backupGit, searchPattern: "*.lock"))
+                    {
+                        return false;
+                    }
+
+                    return true;
+                },
+                "Backing up your files"))
+            {
+                this.Output.WriteLine();
+                this.WriteMessage(tracer, "ERROR: " + errorMessage);
+
+                return false;
+            }
+
+            return true;
+        }
+
+        private static string GetBackupDatabasesPath(string backupGvfs)
+        {
+            return Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.Name);
+        }
+
+        private bool TryBackupFiles(ITracer tracer, GVFSEnlistment enlistment, string backupRoot)
+        {
+            string backupSrc = GetBackupSrcPath(backupRoot);
+            string backupGit = Path.Combine(backupRoot, ".git");
+            string backupGvfs = Path.Combine(backupRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
+            string backupDatabases = GetBackupDatabasesPath(backupRoot);
 
             string errorMessage = string.Empty;
             if (!this.ShowStatusWhileRunning(
@@ -627,6 +702,28 @@ from a parent of the folders list.
                     if (!this.TryIO(
                         tracer,
                         () => File.Move(file, file.Replace(folderPath, backupPath)),
+                        $"Backing up {Path.GetFileName(file)}",
+                        out errorMessage))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        private bool TryCopyFilesInFolder(ITracer tracer, string folderPath, string backupPath, string searchPattern, params string[] filenamesToSkip)
+        {
+            string errorMessage;
+            foreach (string file in Directory.GetFiles(folderPath, searchPattern))
+            {
+                string fileName = Path.GetFileName(file);
+                if (!filenamesToSkip.Any(x => x.Equals(fileName, GVFSPlatform.Instance.Constants.PathComparison)))
+                {
+                    if (!this.TryIO(
+                        tracer,
+                        () => File.Copy(file, file.Replace(folderPath, backupPath)),
                         $"Backing up {Path.GetFileName(file)}",
                         out errorMessage))
                     {
