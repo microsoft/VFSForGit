@@ -295,7 +295,7 @@ namespace GVFS.Mount
 
         private void HandleDehydrateFolders(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
         {
-            NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(message);
+            NamedPipeMessages.DehydrateFolders.Request request = NamedPipeMessages.DehydrateFolders.Request.FromMessage(message);
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add(nameof(request.Folders), request.Folders);
@@ -308,7 +308,9 @@ namespace GVFS.Mount
                 response = new NamedPipeMessages.DehydrateFolders.Response(NamedPipeMessages.DehydrateFolders.DehydratedResult);
                 string[] folders = request.Folders.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
                 StringBuilder resetFolderPaths = new StringBuilder();
-                foreach (string folder in folders)
+                List<string> movedFolders = BackupFoldersWhileUnmounted(request, response, folders);
+
+                foreach (string folder in movedFolders)
                 {
                     if (this.fileSystemCallbacks.TryDehydrateFolder(folder, out string errorMessage))
                     {
@@ -355,6 +357,50 @@ namespace GVFS.Mount
             }
 
             connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private List<string> BackupFoldersWhileUnmounted(NamedPipeMessages.DehydrateFolders.Request request, NamedPipeMessages.DehydrateFolders.Response response, string[] folders)
+        {
+            /* We can't move folders while the virtual file system is mounted, so unmount it first.
+             * After moving the folders, remount the virtual file system.
+             */
+
+            var movedFolders = new List<string>();
+            try
+            {
+                /* Set to "Mounting" instead of "Unmounting" so that incoming requests
+                 * that are rejected will know they can try again soon.
+                 */
+                this.currentState = MountState.Mounting;
+                this.UnmountAndStopWorkingDirectoryCallbacks(willRemountInSameProcess: true);
+                foreach (string folder in folders)
+                {
+                    try
+                    {
+                        var source = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, folder);
+                        var destination = Path.Combine(request.BackupFolderPath, folder);
+                        var destinationParent = Path.GetDirectoryName(destination);
+                        this.context.FileSystem.CreateDirectory(destinationParent);
+                        if (this.context.FileSystem.DirectoryExists(source))
+                        {
+                            this.context.FileSystem.MoveDirectory(source, destination);
+                        }
+                        movedFolders.Add(folder);
+                    }
+                    catch (Exception ex)
+                    {
+                        response.FailedFolders.Add($"{folder}\0{ex.Message}");
+                        continue;
+                    }
+                }
+            }
+            finally
+            {
+                this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer, alreadyInitialized: true);
+                this.currentState = MountState.Ready;
+            }
+
+            return movedFolders;
         }
 
         private void HandleLockRequest(string messageBody, NamedPipeServer.Connection connection)
@@ -551,9 +597,9 @@ namespace GVFS.Mount
                         /* If a commit is downloaded, it wasn't prefetched.
                          * If any prefetch has been done, there is probably a commit in the prefetch packs that is close enough that
                          * loose object download of missing trees will be faster than downloading a pack of all the trees for the commit.
-                         * Otherwise, the trees for the commit may be needed soon depending on the context. 
+                         * Otherwise, the trees for the commit may be needed soon depending on the context.
                          * e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
-                         * 
+                         *
                          * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
                          */
                         this.treesWithDownloadedCommits[treeSha] = objectSha;
@@ -596,7 +642,7 @@ namespace GVFS.Mount
         private void UpdateTreesForDownloadedCommits(string objectSha)
         {
             /* If we are downloading missing trees, we probably are missing more trees for the commit.
-             * Update our list of trees associated with the commit so we can use the # of missing trees 
+             * Update our list of trees associated with the commit so we can use the # of missing trees
              * as a heuristic to decide whether to batch download all the trees for the commit the
              * next time a missing one is requested.
              */
@@ -723,12 +769,15 @@ namespace GVFS.Mount
             }
         }
 
-        private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache)
+        private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache, bool alreadyInitialized = false)
         {
             string error;
-            if (!this.context.Enlistment.Authentication.TryInitialize(this.context.Tracer, this.context.Enlistment, out error))
+            if (!alreadyInitialized)
             {
-                this.FailMountAndExit("Failed to obtain git credentials: " + error);
+                if (!this.context.Enlistment.Authentication.TryInitialize(this.context.Tracer, this.context.Enlistment, out error))
+                {
+                    this.FailMountAndExit("Failed to obtain git credentials: " + error);
+                }
             }
 
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(this.context.Tracer, this.context.Enlistment, cache, this.retryConfig);
@@ -763,19 +812,22 @@ namespace GVFS.Mount
                 }, "Failed to create src folder callback listener");
             this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
 
-            int majorVersion;
-            int minorVersion;
-            if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error))
+            if (!alreadyInitialized)
             {
-                this.FailMountAndExit("Error: {0}", error);
-            }
+                int majorVersion;
+                int minorVersion;
+                if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error))
+                {
+                    this.FailMountAndExit("Error: {0}", error);
+                }
 
-            if (majorVersion != GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
-            {
-                this.FailMountAndExit(
-                    "Error: On disk version ({0}) does not match current version ({1})",
-                    majorVersion,
-                    GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion);
+                if (majorVersion != GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
+                {
+                    this.FailMountAndExit(
+                        "Error: On disk version ({0}) does not match current version ({1})",
+                        majorVersion,
+                        GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion);
+                }
             }
 
             try
@@ -794,7 +846,7 @@ namespace GVFS.Mount
             this.heartbeat.Start();
         }
 
-        private void UnmountAndStopWorkingDirectoryCallbacks()
+        private void UnmountAndStopWorkingDirectoryCallbacks(bool willRemountInSameProcess = false)
         {
             if (this.maintenanceScheduler != null)
             {
@@ -817,6 +869,12 @@ namespace GVFS.Mount
 
             this.gvfsDatabase?.Dispose();
             this.gvfsDatabase = null;
+
+            if (!willRemountInSameProcess)
+            {
+                this.context?.Dispose();
+                this.context = null;
+            }
         }
     }
 }
