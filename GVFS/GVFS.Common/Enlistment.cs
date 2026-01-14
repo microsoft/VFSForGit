@@ -122,5 +122,18 @@ namespace GVFS.Common
 
             return trustPackIndexes;
         }
+
+        public bool GetStatusHydrationConfig()
+        {
+            var gitProcess = this.CreateGitProcess();
+
+            if (gitProcess.TryGetFromConfig(GVFSConstants.GitConfig.ShowHydrationStatus, forceOutsideEnlistment: false, out var valueString)
+                && bool.TryParse(valueString, out var statusHydrationConfig))
+            {
+                return statusHydrationConfig;
+            }
+
+            return GVFSConstants.GitConfig.ShowHydrationStatusDefault;
+        }
     }
 }

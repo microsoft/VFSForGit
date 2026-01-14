@@ -52,7 +52,7 @@ namespace GVFS.Common
 
         private object cacheFileLock = new object();
 
-        internal static bool TEST_EnableHydrationSummary = true;
+        internal static bool? TEST_EnableHydrationSummaryOverride = null;
 
         public GitStatusCache(GVFSContext context, GitStatusCacheConfig config)
             : this(context, config.BackoffTime)
@@ -341,7 +341,8 @@ namespace GVFS.Common
 
         private void UpdateHydrationSummary()
         {
-            if (!TEST_EnableHydrationSummary)
+            bool enabled = TEST_EnableHydrationSummaryOverride ?? this.context.Enlistment.GetStatusHydrationConfig();
+            if (!enabled)
             {
                 return;
             }
@@ -372,9 +373,10 @@ namespace GVFS.Common
                 }
                 else
                 {
+                    metadata["Exception"] = hydrationSummary.Error?.ToString();
                     this.context.Tracer.RelatedWarning(
                         metadata,
-                        $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary could not be calculdated.",
+                        $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary could not be calculated.",
                         Keywords.Telemetry);
                 }
             }

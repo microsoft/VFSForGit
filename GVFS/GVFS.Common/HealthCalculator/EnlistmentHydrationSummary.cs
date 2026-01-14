@@ -12,6 +12,8 @@ namespace GVFS.Common
         public int TotalFileCount { get; private set; }
         public int HydratedFolderCount { get; private set; }
         public int TotalFolderCount { get; private set; }
+        public Exception Error { get; private set; } = null;
+
 
         public bool IsValid
         {
@@ -28,12 +30,12 @@ namespace GVFS.Common
         {
             if (!IsValid)
             {
-                return "Error calculating hydration. Run 'gvfs health' for details.";
+                return "Error calculating hydration summary. Run 'gvfs health' at the repository root for hydration status details.";
             }
 
             int fileHydrationPercent = TotalFileCount == 0 ? 0 : (100 * HydratedFileCount) / TotalFileCount;
             int folderHydrationPercent = TotalFolderCount == 0 ? 0 : ((100 * HydratedFolderCount) / TotalFolderCount);
-            return $"{fileHydrationPercent}% of files and {folderHydrationPercent}% of folders hydrated. Run 'gvfs health' for details.";
+            return $"{fileHydrationPercent}% of files and {folderHydrationPercent}% of folders hydrated. Run 'gvfs health' at the repository root for details.";
         }
 
         public static EnlistmentHydrationSummary CreateSummary(
@@ -67,7 +69,7 @@ namespace GVFS.Common
                     TotalFolderCount = totalFolderCount,
                 };
             }
-            catch
+            catch (Exception e)
             {
                 return new EnlistmentHydrationSummary()
                 {
@@ -75,6 +77,7 @@ namespace GVFS.Common
                     HydratedFolderCount = -1,
                     TotalFileCount = -1,
                     TotalFolderCount = -1,
+                    Error = e,
                 };
             }
         }

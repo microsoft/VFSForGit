@@ -88,14 +88,39 @@ namespace GVFS.Hooks
                     ProcessHelper.Run("gvfs", "prefetch --commits", redirectOutput: false);
                     break;
                 case "status":
-                    /* If status is being run to serialize for caching, skip the health display */
-                    if (!args.Any(arg => arg.StartsWith("--serialize", StringComparison.OrdinalIgnoreCase)))
+                    /* If status is being run to serialize for caching, or if --porcelain is specified, skip the health display */
+                    if (!ArgsBlockHydrationStatus(args)
+                        && ConfigurationAllowsHydrationStatus())
                     {
                         /* Display a message about the hydration status of the repo */
                         ProcessHelper.Run("gvfs", "health --status", redirectOutput: false);
                     }
                     break;
             }
+        }
+
+        private static bool ArgsBlockHydrationStatus(string[] args)
+        {
+            return args.Any(arg =>
+                arg.StartsWith("--serialize", StringComparison.OrdinalIgnoreCase)
+                || arg.StartsWith("--porcelain", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool ConfigurationAllowsHydrationStatus()
+        {
+            try
+            {
+                ProcessResult result = ProcessHelper.Run("git", $"config --get {GVFSConstants.GitConfig.ShowHydrationStatus}");
+                bool hydrationStatusEnabled;
+                if (bool.TryParse(result.Output.Trim(), out hydrationStatusEnabled))
+                {
+                    return hydrationStatusEnabled;
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return GVFSConstants.GitConfig.ShowHydrationStatusDefault;
         }
 
         private static void ExitWithError(params string[] messages)
