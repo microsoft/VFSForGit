@@ -26,6 +26,7 @@
     <ProjectReference Include="..\GVFS.NativeTests\GVFS.NativeTests.vcxproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
+    <ProjectReference Include="..\GVFS.UnitTests\GVFS.UnitTests.csproj" />
     <None Include="$(RepoOutPath)GVFS.NativeTests\bin\x64\$(Configuration)\GVFS.NativeTests.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
