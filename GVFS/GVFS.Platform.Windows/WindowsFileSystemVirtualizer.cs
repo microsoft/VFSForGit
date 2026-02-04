@@ -1014,7 +1014,25 @@ namespace GVFS.Platform.Windows
                         GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
                         if (gitCommand.IsValidGitCommand)
                         {
-                            this.MarkDirectoryAsPlaceholder(virtualPath, triggeringProcessId, triggeringProcessImageFileName);
+                            // When git recreates a directory that was previously deleted (and is
+                            // tracked in ModifiedPaths), skip marking it as a ProjFS placeholder.
+                            // Otherwise ProjFS would immediately project all children into it,
+                            // conflicting with git's own attempt to populate the directory.
+                            //
+                            // This check is safe from races with the background task that updates
+                            // ModifiedPaths: the deletion happens from a non-git process (e.g.,
+                            // rmdir), and IsReadyForExternalAcquireLockRequests() blocks git from
+                            // acquiring the GVFS lock until the background queue is drained. When
+                            // git itself deletes a folder, the code takes the IsValidGitCommand
+                            // path in OnWorkingDirectoryFileOrFolderDeleteNotification and calls
+                            // OnPossibleTombstoneFolderCreated instead of OnFolderDeleted, so
+                            // ModifiedPaths is not involved.
+                            //
+                            // See https://github.com/microsoft/VFSForGit/issues/1901
+                            if (!this.FileSystemCallbacks.IsPathOrParentInModifiedPaths(virtualPath, isFolder: true))
+                            {
+                                this.MarkDirectoryAsPlaceholder(virtualPath, triggeringProcessId, triggeringProcessImageFileName);
+                            }
                         }
                         else
                         {

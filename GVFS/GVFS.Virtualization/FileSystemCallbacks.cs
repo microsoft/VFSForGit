@@ -368,6 +368,17 @@ namespace GVFS.Virtualization
         }
 
         /// <summary>
+        /// Checks whether the given folder path, or any of its parent folders,
+        /// is in the ModifiedPaths database. Used to determine if git/user has
+        /// taken ownership of a directory tree.
+        /// </summary>
+        public bool IsPathOrParentInModifiedPaths(string path, bool isFolder)
+        {
+            return this.modifiedPaths.Contains(path, isFolder) ||
+                   this.modifiedPaths.ContainsParentFolder(path, out _);
+        }
+
+        /// <summary>
         /// Finds index entries that are staged (differ from HEAD) matching the given
         /// pathspec, and adds them to ModifiedPaths. This prepares for an unstage operation
         /// (e.g., restore --staged) by ensuring git will clear skip-worktree for these
