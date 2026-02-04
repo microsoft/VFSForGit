@@ -21,6 +21,11 @@ namespace GVFS.FunctionalTests
             NUnitRunner runner = new NUnitRunner(args);
             runner.AddGlobalSetupIfNeeded("GVFS.FunctionalTests.GlobalSetup");
 
+            if (runner.HasCustomArg("--debug"))
+            {
+                Debugger.Launch();
+            }
+
             if (runner.HasCustomArg("--no-shared-gvfs-cache"))
             {
                 Console.WriteLine("Running without a shared git object cache");
