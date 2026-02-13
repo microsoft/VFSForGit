@@ -356,7 +356,7 @@ namespace GVFS.Common
                  * and this is also a convenient place to log telemetry for it.
                  */
                 EnlistmentHydrationSummary hydrationSummary =
-                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem);
+                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer);
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", EtwArea);
                 if (hydrationSummary.IsValid)

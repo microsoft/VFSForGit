@@ -112,7 +112,7 @@ namespace GVFS.UnitTests.Common
                 args.CachePrecontents != null,
                 this.fileSystem.FileExists(totalPathCountPath));
 
-            int result = EnlistmentHydrationSummary.GetHeadTreeCount(this.context.Enlistment, this.context.FileSystem);
+            int result = EnlistmentHydrationSummary.GetHeadTreeCount(this.context.Enlistment, this.context.FileSystem, this.context.Tracer);
 
             this.fileSystem.FileExists(totalPathCountPath).ShouldBeTrue();
             var postContents = this.fileSystem.ReadAllText(totalPathCountPath);

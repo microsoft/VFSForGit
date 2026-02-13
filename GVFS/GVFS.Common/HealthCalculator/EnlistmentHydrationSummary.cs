@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using System;
 using System.IO;
 using System.Linq;
@@ -40,18 +41,14 @@ namespace GVFS.Common
 
         public static EnlistmentHydrationSummary CreateSummary(
             GVFSEnlistment enlistment,
-            PhysicalFileSystem fileSystem)
+            PhysicalFileSystem fileSystem,
+            ITracer tracer)
         {
             try
             {
                 /* Getting all the file paths from git index is slow and we only need the total count,
                  * so we read the index file header instead of calling GetPathsFromGitIndex */
                 int totalFileCount = GetIndexFileCount(enlistment, fileSystem);
-
-                /* Getting all the directories is also slow, but not as slow as reading the entire index,
-                 * GetTotalPathCount caches the count so this is only slow occasionally,
-                 * and the GitStatusCache manager also calls this to ensure it is updated frequently. */
-                int totalFolderCount = GetHeadTreeCount(enlistment, fileSystem);
 
                 EnlistmentPathData pathData = new EnlistmentPathData();
 
@@ -61,6 +58,29 @@ namespace GVFS.Common
 
                 int hydratedFileCount = pathData.ModifiedFilePaths.Count + pathData.PlaceholderFilePaths.Count;
                 int hydratedFolderCount = pathData.ModifiedFolderPaths.Count + pathData.PlaceholderFolderPaths.Count;
+
+                /* Getting the head tree count (used for TotalFolderCount) is potentially slower than the other parts
+                 * of the operation, so we do it last and check that the other parts would succeed before running it.
+                 */
+                var soFar = new EnlistmentHydrationSummary()
+                {
+                    HydratedFileCount = hydratedFileCount,
+                    HydratedFolderCount = hydratedFolderCount,
+                    TotalFileCount = totalFileCount,
+                    TotalFolderCount = hydratedFolderCount + 1, // Not calculated yet, use a dummy valid value.
+                };
+
+                if (!soFar.IsValid)
+                {
+                    soFar.TotalFolderCount = 0; // Set to default invalid value to avoid confusion with the dummy value above.
+                    return soFar;
+                }
+
+                /* Getting all the directories is also slow, but not as slow as reading the entire index,
+                 * GetTotalPathCount caches the count so this is only slow occasionally,
+                 * and the GitStatusCache manager also calls this to ensure it is updated frequently. */
+                int totalFolderCount = GetHeadTreeCount(enlistment, fileSystem, tracer);
+
                 return new EnlistmentHydrationSummary()
                 {
                     HydratedFileCount = hydratedFileCount,
@@ -123,12 +143,13 @@ namespace GVFS.Common
         /// The number of subtrees at HEAD, which may be 0.
         /// Will return 0 if unsuccessful.
         /// </returns>
-        internal static int GetHeadTreeCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem)
+        internal static int GetHeadTreeCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem, ITracer tracer)
         {
             var gitProcess = enlistment.CreateGitProcess();
             var headResult = gitProcess.GetHeadTreeId();
             if (headResult.ExitCodeIsFailure)
             {
+                tracer.RelatedError($"Failed to get HEAD tree ID: \nOutput: {headResult.Output}\n\nError:{headResult.Errors}");
                 return 0;
             }
             var headSha = headResult.Output.Trim();
@@ -149,8 +170,9 @@ namespace GVFS.Common
                         return cachedCount;
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    tracer.RelatedWarning($"Failed to read tree count cache file at {cacheFile}: {ex}");
                     // Ignore errors reading the cache
                 }
             }
@@ -161,14 +183,22 @@ namespace GVFS.Common
                 line => totalPathCount++,
                 recursive: true,
                 showDirectories: true);
+
+            if (GitProcess.Result.SuccessCode != folderResult.ExitCode)
+            {
+                tracer.RelatedError($"Failed to get tree count from HEAD: \nOutput: {folderResult.Output}\n\nError:{folderResult.Errors}");
+                return 0;
+            }
+
             try
             {
                 fileSystem.CreateDirectory(Path.GetDirectoryName(cacheFile));
                 fileSystem.WriteAllText(cacheFile, $"{headSha}\n{totalPathCount}");
             }
-            catch
+            catch (Exception ex)
             {
                 // Ignore errors writing the cache
+                tracer.RelatedWarning($"Failed to write tree count cache file at {cacheFile}: {ex}");
             }
 
             return totalPathCount;

@@ -100,17 +100,13 @@ namespace GVFS.Common
             {
                 return;
             }
-            try
+            /* Most likely GVFS is not mounted. Give a basic effort to read the modified paths database */
+            var filePath = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.ModifiedPaths);
+            using (var file = File.Open(filePath, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read))
+            using (var reader = new StreamReader(file))
             {
-                /* Most likely GVFS is not mounted. Give a basic effort to read the modified paths database */
-                var filePath = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.ModifiedPaths);
-                using (var file = File.Open(filePath, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read))
-                using (var reader = new StreamReader(file))
-                {
-                    AddModifiedPaths(ReadModifiedPathDatabaseLines(reader));
-                }
+                AddModifiedPaths(ReadModifiedPathDatabaseLines(reader));
             }
-            catch { }
         }
 
         private IEnumerable<string> ReadModifiedPathDatabaseLines(StreamReader r)

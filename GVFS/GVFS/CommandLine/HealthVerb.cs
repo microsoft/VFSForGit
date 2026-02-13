@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -79,7 +80,7 @@ namespace GVFS.CommandLine
 
         private void OutputHydrationPercent(GVFSEnlistment enlistment)
         {
-            var summary = EnlistmentHydrationSummary.CreateSummary(enlistment, this.FileSystem);
+            var summary = EnlistmentHydrationSummary.CreateSummary(enlistment, this.FileSystem, NullTracer.Instance);
             this.Output.WriteLine(summary.ToMessage());
         }
 
