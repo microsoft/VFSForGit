@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using GVFS.Common.Tracing;
 
 namespace GVFS.Common
 {
@@ -11,7 +12,10 @@ namespace GVFS.Common
     /// </summary>
     public class MissingTreeTracker
     {
+        private const string EtwArea = nameof(MissingTreeTracker);
+
         private readonly int treeCapacity;
+        private readonly ITracer tracer;
         private readonly object syncLock = new object();
 
         // Primary storage: commit -> set of missing trees
@@ -24,8 +28,9 @@ namespace GVFS.Common
         private readonly LinkedList<string> commitOrder;
         private readonly Dictionary<string, LinkedListNode<string>> commitNodes;
 
-        public MissingTreeTracker(int treeCapacity)
+        public MissingTreeTracker(ITracer tracer, int treeCapacity)
         {
+            this.tracer = tracer;
             this.treeCapacity = treeCapacity;
             this.missingTreesByCommit = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             this.commitsByTree = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -137,6 +142,13 @@ namespace GVFS.Common
             lock (this.syncLock)
             {
                 this.RemoveCommitWithCascade(commitSha);
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", EtwArea);
+                metadata.Add("CompletedCommit", commitSha);
+                metadata.Add("RemainingCommits", this.commitNodes.Count);
+                metadata.Add("RemainingTrees", this.commitsByTree.Count);
+                this.tracer.RelatedEvent(EventLevel.Informational, nameof(this.MarkCommitComplete), metadata, Keywords.Telemetry);
             }
         }
 
@@ -190,10 +202,26 @@ namespace GVFS.Common
             var last = this.commitOrder.Last;
             if (last != null && last.Value != this.commitOrder.First.Value)
             {
-                string lruCommit = this.commitOrder.Last.Value;
+                string lruCommit = last.Value;
+                var treeCountBefore = this.commitsByTree.Count;
                 this.RemoveCommitNoCache(lruCommit);
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", EtwArea);
+                metadata.Add("EvictedCommit", lruCommit);
+                metadata.Add("TreeCountBefore", treeCountBefore);
+                metadata.Add("TreeCountAfter", this.commitsByTree.Count);
+                this.tracer.RelatedEvent(EventLevel.Informational, nameof(this.EvictLruCommit), metadata, Keywords.Telemetry);
+
                 return true;
             }
+
+            EventMetadata warnMetadata = new EventMetadata();
+            warnMetadata.Add("Area", EtwArea);
+            warnMetadata.Add("TreeCount", this.commitsByTree.Count);
+            warnMetadata.Add("CommitCount", this.commitNodes.Count);
+            this.tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.EvictLruCommit)}CouldNotEvict", warnMetadata, Keywords.Telemetry);
+
             return false;
         }
 

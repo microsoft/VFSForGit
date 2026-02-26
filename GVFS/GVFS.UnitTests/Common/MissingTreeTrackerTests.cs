@@ -1,5 +1,6 @@
 using GVFS.Common;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 
 namespace GVFS.UnitTests.Common
@@ -7,6 +8,11 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class MissingTreeTrackerTests
     {
+        private static MissingTreeTracker CreateTracker(int treeCapacity)
+        {
+            return new MissingTreeTracker(new MockTracer(), treeCapacity);
+        }
+
         // -------------------------------------------------------------------------
         // AddMissingRootTree
         // -------------------------------------------------------------------------
@@ -14,7 +20,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AddMissingRootTree_SingleTreeAndCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.AddMissingRootTree("tree1", "commit1");
 
@@ -27,7 +33,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AddMissingRootTree_MultipleTreesForSameCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit1");
@@ -48,7 +54,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AddMissingRootTree_SameTreeAddedTwiceToSameCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree1", "commit1");
@@ -59,7 +65,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AddMissingRootTree_SameTreeAddedToMultipleCommits()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree1", "commit2");
@@ -76,7 +82,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AddMissingRootTree_MultipleTrees_ChecksCount()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(1);
@@ -99,7 +105,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AddMissingSubTrees_AddsSubTreesUnderParentsCommits()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.AddMissingRootTree("rootTree", "commit1");
             tracker.AddMissingSubTrees("rootTree", new[] { "sub1", "sub2" });
@@ -116,7 +122,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AddMissingSubTrees_PropagatesAcrossAllSharingCommits()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             // Two commits share the same root tree
             tracker.AddMissingRootTree("rootTree", "commit1");
@@ -135,7 +141,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void AddMissingSubTrees_NoOp_WhenParentNotTracked()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             // Should not throw; parent is not tracked
             tracker.AddMissingSubTrees("unknownParent", new[] { "sub1" });
@@ -154,7 +160,7 @@ namespace GVFS.UnitTests.Common
             // commit2 is LRU (added to the tracker last among commit1/commit2 and then not used
             // again, while commit1 just got used), so it is evicted before we process commit2.
             // The loop must skip commit2 rather than crashing.
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 2);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 2);
 
             tracker.AddMissingRootTree("rootTree", "commit1");
             tracker.AddMissingRootTree("rootTree", "commit2");
@@ -175,7 +181,7 @@ namespace GVFS.UnitTests.Common
         {
             /* This shouldn't be possible if user has a proper threshold and is marking commits
              * as completed, but test to be safe. */
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 2);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 2);
             tracker.AddMissingRootTree("rootTree", "commit1");
             tracker.AddMissingSubTrees("rootTree", new[] { "sub1" });
             tracker.AddMissingSubTrees("rootTree", new[] { "sub2" });
@@ -189,7 +195,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void TryGetCommits_NonExistentTree()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.TryGetCommits("nonexistent", out string[] commits).ShouldEqual(false);
             commits.ShouldBeNull();
@@ -198,7 +204,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void TryGetCommits_MarksAllCommitsAsRecentlyUsed()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 3);
 
             tracker.AddMissingRootTree("sharedTree", "commit1");
             tracker.AddMissingRootTree("sharedTree", "commit2");
@@ -225,7 +231,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void GetHighestMissingTreeCount_NonExistentCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.GetHighestMissingTreeCount(new[] { "nonexistent" }, out string highest).ShouldEqual(0);
             highest.ShouldBeNull();
@@ -234,7 +240,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void GetHighestMissingTreeCount_ReturnsCommitWithMostTrees()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit1");
@@ -248,7 +254,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void GetHighestMissingTreeCount_DoesNotUpdateLru()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 3);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit2");
@@ -273,7 +279,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void MarkCommitComplete_RemovesAllTreesForCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit1");
@@ -292,7 +298,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void MarkCommitComplete_NonExistentCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             // Should not throw
             tracker.MarkCommitComplete("nonexistent");
@@ -301,7 +307,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void MarkCommitComplete_CascadesSharedTreesToOtherCommits()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             // commit1 and commit2 share tree1; commit2 also has tree2
             tracker.AddMissingRootTree("tree1", "commit1");
@@ -322,7 +328,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void MarkCommitComplete_RemovesOtherCommitWhenItBecomesEmpty()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             // commit2's only tree is shared with commit1
             tracker.AddMissingRootTree("tree1", "commit1");
@@ -338,7 +344,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void MarkCommitComplete_DoesNotAffectUnrelatedCommits()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 10);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit2");
@@ -359,7 +365,7 @@ namespace GVFS.UnitTests.Common
         public void LruEviction_EvictsOldestCommit()
         {
             // treeCapacity = 3 trees; one tree per commit
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 3);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit2");
@@ -380,7 +386,7 @@ namespace GVFS.UnitTests.Common
         public void LruEviction_DoesNotCascadeSharedTreesToOtherCommits()
         {
             // treeCapacity = 3 trees; tree1 is shared so only 2 unique trees + tree3 = 3 total
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 3);
 
             // tree1 is shared between commit1 and commit2 (counts as 1 unique tree)
             tracker.AddMissingRootTree("tree1", "commit1");
@@ -405,7 +411,7 @@ namespace GVFS.UnitTests.Common
         public void LruEviction_AddingTreeToExistingCommitUpdatesLru()
         {
             // treeCapacity = 4 trees; tree1, tree2, tree3 fill it, then tree1b re-uses commit1
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 4);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 4);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit2");
@@ -427,7 +433,7 @@ namespace GVFS.UnitTests.Common
         public void LruEviction_MultipleTreesPerCommit_EvictsEntireCommit()
         {
             // treeCapacity = 4 trees; commit1 holds 3, commit2 holds 1
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 4);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 4);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit1");
@@ -452,7 +458,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void LruEviction_CapacityOne()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 1);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 1);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(1);
@@ -468,7 +474,7 @@ namespace GVFS.UnitTests.Common
         {
             // treeCapacity = 3 trees; all trees belong to commit1
             // Adding a 4th tree must evict commit1 (the only commit) to make room
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 3);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit1");
@@ -490,7 +496,7 @@ namespace GVFS.UnitTests.Common
         public void LruEviction_TryGetCommitsUpdatesLru()
         {
             // treeCapacity = 3 trees, one per commit
-            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+            MissingTreeTracker tracker = CreateTracker(treeCapacity: 3);
 
             tracker.AddMissingRootTree("tree1", "commit1");
             tracker.AddMissingRootTree("tree2", "commit2");

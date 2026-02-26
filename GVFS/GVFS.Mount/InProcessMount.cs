@@ -58,7 +58,7 @@ namespace GVFS.Mount
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
-        private readonly MissingTreeTracker missingTreeTracker = new MissingTreeTracker(TrackedTreeCapacity);
+        private readonly MissingTreeTracker missingTreeTracker;
 
         // True if InProcessMount is calling git reset as part of processing
         // a folder dehydrate request
@@ -73,6 +73,7 @@ namespace GVFS.Mount
             this.enlistment = enlistment;
             this.showDebugWindow = showDebugWindow;
             this.unmountEvent = new ManualResetEvent(false);
+            this.missingTreeTracker = new MissingTreeTracker(tracer, TrackedTreeCapacity);
         }
 
         private enum MountState
