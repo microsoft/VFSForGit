@@ -33,8 +33,9 @@ namespace GVFS.Mount
         // all the trees in a commit to ~2-3 seconds.
         private const int MissingTreeThresholdForDownloadingCommitPack = 200;
 
-        // Allows tracking up to ~20 commits worth of missing trees before the oldest entries are evicted.
-        private const int TreesWithDownloadedCommitsCapacity = MissingTreeThresholdForDownloadingCommitPack * 20;
+        // Number of commits with missing trees to track with LRU eviction. This is to support batching tree
+        // downloads without using an unbounded amount of memory.
+        private const int TrackedCommitsCapacity = 20;
 
         private readonly bool showDebugWindow;
 
@@ -55,7 +56,7 @@ namespace GVFS.Mount
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
-        private readonly LruCache<string, string> treesWithDownloadedCommits = new LruCache<string, string>(TreesWithDownloadedCommitsCapacity);
+        private readonly MissingTreeTracker missingTreeTracker = new MissingTreeTracker(TrackedCommitsCapacity);
 
         // True if InProcessMount is calling git reset as part of processing
         // a folder dehydrate request
@@ -606,7 +607,7 @@ namespace GVFS.Mount
                          *
                          * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
                          */
-                        this.treesWithDownloadedCommits.Set(treeSha, objectSha);
+                        this.missingTreeTracker.AddMissingTree(treeSha, objectSha);
                     }
                 }
             }
@@ -616,7 +617,7 @@ namespace GVFS.Mount
 
         private bool ShouldDownloadCommitPack(string objectSha, out string commitSha)
         {
-            if (!this.treesWithDownloadedCommits.TryGetValue(objectSha, out commitSha))
+            if (!this.missingTreeTracker.TryGetCommit(objectSha, out commitSha))
             {
                 return false;
             }
@@ -626,8 +627,7 @@ namespace GVFS.Mount
              * Conversely, if we know (from previously downloaded missing trees) that a commit has a lot of missing
              * trees left, we'll probably need to download many more trees for the commit so we should download the pack.
              */
-            var commitShaLocal = commitSha; // can't use out parameter in lambda
-            int missingTreeCount = this.treesWithDownloadedCommits.GetEntries().Where(x => x.Value == commitShaLocal).Count();
+            int missingTreeCount = this.missingTreeTracker.GetMissingTreeCount(commitSha);
 
             return missingTreeCount > MissingTreeThresholdForDownloadingCommitPack;
         }
@@ -639,7 +639,7 @@ namespace GVFS.Mount
              * as a heuristic to decide whether to batch download all the trees for the commit the
              * next time a missing one is requested.
              */
-            if (!this.treesWithDownloadedCommits.TryGetValue(objectSha, out var commitSha))
+            if (!this.missingTreeTracker.TryGetCommit(objectSha, out var commitSha))
             {
                 return;
             }
@@ -654,14 +654,14 @@ namespace GVFS.Mount
             {
                 foreach (var missingSubTree in missingSubTrees)
                 {
-                    this.treesWithDownloadedCommits.Set(missingSubTree, commitSha);
+                    this.missingTreeTracker.AddMissingTree(missingSubTree, commitSha);
                 }
             }
         }
 
         private void DownloadedCommitPack(string commitSha)
         {
-            this.treesWithDownloadedCommits.RemoveAllWithValue(commitSha);
+            this.missingTreeTracker.RemoveCommit(commitSha);
         }
 
         private void HandlePostFetchJobRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
