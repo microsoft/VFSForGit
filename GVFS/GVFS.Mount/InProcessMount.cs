@@ -33,9 +33,11 @@ namespace GVFS.Mount
         // all the trees in a commit to ~2-3 seconds.
         private const int MissingTreeThresholdForDownloadingCommitPack = 200;
 
-        // Number of commits with missing trees to track with LRU eviction. This is to support batching tree
-        // downloads without using an unbounded amount of memory.
-        private const int TrackedCommitsCapacity = 20;
+        // Number of unique missing trees to track with LRU eviction. Eviction is commit-based:
+        // when capacity is reached, the LRU commit and all its unique trees are dropped to make room.
+        // Set to 20x the threshold so that enough trees can accumulate for the heuristic to
+        // reliably trigger a commit pack download.
+        private const int TrackedTreeCapacity = MissingTreeThresholdForDownloadingCommitPack * 20;
 
         private readonly bool showDebugWindow;
 
@@ -56,7 +58,7 @@ namespace GVFS.Mount
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
-        private readonly MissingTreeTracker missingTreeTracker = new MissingTreeTracker(TrackedCommitsCapacity);
+        private readonly MissingTreeTracker missingTreeTracker = new MissingTreeTracker(TrackedTreeCapacity);
 
         // True if InProcessMount is calling git reset as part of processing
         // a folder dehydrate request
@@ -607,7 +609,7 @@ namespace GVFS.Mount
                          *
                          * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
                          */
-                        this.missingTreeTracker.AddMissingTree(treeSha, objectSha);
+                        this.missingTreeTracker.AddMissingRootTree(treeSha, objectSha);
                     }
                 }
             }
@@ -617,8 +619,9 @@ namespace GVFS.Mount
 
         private bool ShouldDownloadCommitPack(string objectSha, out string commitSha)
         {
-            if (!this.missingTreeTracker.TryGetCommit(objectSha, out commitSha))
+            if (!this.missingTreeTracker.TryGetCommits(objectSha, out string[] commitShas))
             {
+                commitSha = null;
                 return false;
             }
 
@@ -627,7 +630,7 @@ namespace GVFS.Mount
              * Conversely, if we know (from previously downloaded missing trees) that a commit has a lot of missing
              * trees left, we'll probably need to download many more trees for the commit so we should download the pack.
              */
-            int missingTreeCount = this.missingTreeTracker.GetMissingTreeCount(commitSha);
+            int missingTreeCount = this.missingTreeTracker.GetHighestMissingTreeCount(commitShas, out commitSha);
 
             return missingTreeCount > MissingTreeThresholdForDownloadingCommitPack;
         }
@@ -639,7 +642,7 @@ namespace GVFS.Mount
              * as a heuristic to decide whether to batch download all the trees for the commit the
              * next time a missing one is requested.
              */
-            if (!this.missingTreeTracker.TryGetCommit(objectSha, out var commitSha))
+            if (!this.missingTreeTracker.TryGetCommits(objectSha, out _))
             {
                 return;
             }
@@ -652,16 +655,13 @@ namespace GVFS.Mount
 
             if (this.context.Repository.TryGetMissingSubTrees(objectSha, out var missingSubTrees))
             {
-                foreach (var missingSubTree in missingSubTrees)
-                {
-                    this.missingTreeTracker.AddMissingTree(missingSubTree, commitSha);
-                }
+                this.missingTreeTracker.AddMissingSubTrees(objectSha, missingSubTrees);
             }
         }
 
         private void DownloadedCommitPack(string commitSha)
         {
-            this.missingTreeTracker.RemoveCommit(commitSha);
+            this.missingTreeTracker.MarkCommitComplete(commitSha);
         }
 
         private void HandlePostFetchJobRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)

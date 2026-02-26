@@ -7,307 +7,488 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class MissingTreeTrackerTests
     {
+        // -------------------------------------------------------------------------
+        // AddMissingRootTree
+        // -------------------------------------------------------------------------
+
         [TestCase]
-        public void AddMissingTree_SingleTreeAndCommit()
+        public void AddMissingRootTree_SingleTreeAndCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            
-            tracker.TryGetCommit("tree1", out string commitSha).ShouldEqual(true);
-            commitSha.ShouldEqual("commit1");
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(1);
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+
+            tracker.TryGetCommits("tree1", out string[] commits).ShouldEqual(true);
+            commits.Length.ShouldEqual(1);
+            commits[0].ShouldEqual("commit1");
+            tracker.GetHighestMissingTreeCount(commits, out _).ShouldEqual(1);
         }
 
         [TestCase]
-        public void AddMissingTree_MultipleTreesForSameCommit()
+        public void AddMissingRootTree_MultipleTreesForSameCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree2", "commit1");
-            tracker.AddMissingTree("tree3", "commit1");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(3);
-            
-            tracker.TryGetCommit("tree1", out string commit1).ShouldEqual(true);
-            commit1.ShouldEqual("commit1");
-            
-            tracker.TryGetCommit("tree2", out string commit2).ShouldEqual(true);
-            commit2.ShouldEqual("commit1");
-            
-            tracker.TryGetCommit("tree3", out string commit3).ShouldEqual(true);
-            commit3.ShouldEqual("commit1");
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit1");
+            tracker.AddMissingRootTree("tree3", "commit1");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(3);
+
+            tracker.TryGetCommits("tree1", out string[] c1).ShouldEqual(true);
+            c1[0].ShouldEqual("commit1");
+
+            tracker.TryGetCommits("tree2", out string[] c2).ShouldEqual(true);
+            c2[0].ShouldEqual("commit1");
+
+            tracker.TryGetCommits("tree3", out string[] c3).ShouldEqual(true);
+            c3[0].ShouldEqual("commit1");
         }
 
         [TestCase]
-        public void AddMissingTree_SameTreeAddedTwiceToSameCommit()
+        public void AddMissingRootTree_SameTreeAddedTwiceToSameCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree1", "commit1");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(1);
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree1", "commit1");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(1);
         }
 
         [TestCase]
-        public void AddMissingTree_TreeReassociatedWithDifferentCommit()
+        public void AddMissingRootTree_SameTreeAddedToMultipleCommits()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            // Add tree to first commit
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(1);
-            
-            // Reassociate same tree with different commit
-            tracker.AddMissingTree("tree1", "commit2");
-            
-            // Tree should now be associated with commit2
-            tracker.TryGetCommit("tree1", out string commitSha).ShouldEqual(true);
-            commitSha.ShouldEqual("commit2");
-            
-            // commit1 should have 0 trees (and be removed)
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(0);
-            
-            // commit2 should have 1 tree
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(1);
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree1", "commit2");
+
+            // tree1 is now tracked under both commits
+            tracker.TryGetCommits("tree1", out string[] commits).ShouldEqual(true);
+            commits.Length.ShouldEqual(2);
+
+            // Both commits each have 1 tree
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
         }
 
         [TestCase]
-        public void AddMissingTree_TreeReassociatedWithDifferentCommit_OriginalCommitHasOtherTrees()
+        public void AddMissingRootTree_MultipleTrees_ChecksCount()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            // Add multiple trees to first commit
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree2", "commit1");
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(2);
-            
-            // Reassociate tree1 with different commit
-            tracker.AddMissingTree("tree1", "commit2");
-            
-            // Tree1 should now be associated with commit2
-            tracker.TryGetCommit("tree1", out string commitSha).ShouldEqual(true);
-            commitSha.ShouldEqual("commit2");
-            
-            // commit1 should still exist with 1 tree
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(1);
-            
-            // commit2 should have 1 tree
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(1);
-            
-            // tree2 should still be associated with commit1
-            tracker.TryGetCommit("tree2", out string tree2Commit).ShouldEqual(true);
-            tree2Commit.ShouldEqual("commit1");
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(1);
+
+            tracker.AddMissingRootTree("tree2", "commit1");
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(2);
+
+            tracker.AddMissingRootTree("tree3", "commit1");
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(3);
+
+            tracker.AddMissingRootTree("tree4", "commit1");
+            tracker.AddMissingRootTree("tree5", "commit1");
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(5);
+        }
+
+        // -------------------------------------------------------------------------
+        // AddMissingSubTrees
+        // -------------------------------------------------------------------------
+
+        [TestCase]
+        public void AddMissingSubTrees_AddsSubTreesUnderParentsCommits()
+        {
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.AddMissingRootTree("rootTree", "commit1");
+            tracker.AddMissingSubTrees("rootTree", new[] { "sub1", "sub2" });
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(3);
+
+            tracker.TryGetCommits("sub1", out string[] c1).ShouldEqual(true);
+            c1[0].ShouldEqual("commit1");
+
+            tracker.TryGetCommits("sub2", out string[] c2).ShouldEqual(true);
+            c2[0].ShouldEqual("commit1");
         }
 
         [TestCase]
-        public void TryGetCommit_NonExistentTree()
+        public void AddMissingSubTrees_PropagatesAcrossAllSharingCommits()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            tracker.TryGetCommit("nonexistent", out string commitSha).ShouldEqual(false);
-            commitSha.ShouldEqual(null);
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            // Two commits share the same root tree
+            tracker.AddMissingRootTree("rootTree", "commit1");
+            tracker.AddMissingRootTree("rootTree", "commit2");
+
+            tracker.AddMissingSubTrees("rootTree", new[] { "sub1" });
+
+            // sub1 should be tracked under both commits
+            tracker.TryGetCommits("sub1", out string[] commits).ShouldEqual(true);
+            commits.Length.ShouldEqual(2);
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(2);
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(2);
         }
 
         [TestCase]
-        public void GetMissingTreeCount_NonExistentCommit()
+        public void AddMissingSubTrees_NoOp_WhenParentNotTracked()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            tracker.GetMissingTreeCount("nonexistent").ShouldEqual(0);
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            // Should not throw; parent is not tracked
+            tracker.AddMissingSubTrees("unknownParent", new[] { "sub1" });
+
+            tracker.TryGetCommits("sub1", out _).ShouldEqual(false);
         }
 
         [TestCase]
-        public void RemoveCommit_RemovesAllTrees()
+        public void AddMissingSubTrees_SkipsCommitEvictedDuringLoop()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree2", "commit1");
-            tracker.AddMissingTree("tree3", "commit1");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(3);
-            
-            tracker.RemoveCommit("commit1");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(0);
-            tracker.TryGetCommit("tree1", out string _).ShouldEqual(false);
-            tracker.TryGetCommit("tree2", out string _).ShouldEqual(false);
-            tracker.TryGetCommit("tree3", out string _).ShouldEqual(false);
+            // treeCapacity = 2: rootTree fills slot 1, rootTree2 fills slot 2.
+            // commit1 and commit2 both share rootTree (1 unique tree so far).
+            // commit3 holds rootTree2 (2 unique trees, at capacity).
+            // AddMissingSubTrees(rootTree, [sub1]) must add sub1 to commit1 then commit2.
+            // Adding sub1 for commit1 fills the 3rd slot, which evicts the LRU commit.
+            // commit2 is LRU (added to the tracker last among commit1/commit2 and then not used
+            // again, while commit1 just got used), so it is evicted before we process commit2.
+            // The loop must skip commit2 rather than crashing.
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 2);
+
+            tracker.AddMissingRootTree("rootTree", "commit1");
+            tracker.AddMissingRootTree("rootTree", "commit2");
+
+            // Does not throw, and sub1 ends up under whichever commit survived eviction
+            tracker.AddMissingSubTrees("rootTree", new[] { "sub1" });
+
+            // Exactly one of commit1/commit2 was evicted; sub1 exists under the survivor
+            bool commit1HasSub1 = tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _) == 2;
+            bool commit2HasSub1 = tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _) == 2;
+            (commit1HasSub1 || commit2HasSub1).ShouldEqual(true);
+            (commit1HasSub1 && commit2HasSub1).ShouldEqual(false);
+        }
+
+        // -------------------------------------------------------------------------
+        // TryGetCommits
+        // -------------------------------------------------------------------------
+
+        [TestCase]
+        public void TryGetCommits_NonExistentTree()
+        {
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.TryGetCommits("nonexistent", out string[] commits).ShouldEqual(false);
+            commits.ShouldBeNull();
         }
 
         [TestCase]
-        public void RemoveCommit_NonExistentCommit()
+        public void TryGetCommits_MarksAllCommitsAsRecentlyUsed()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+
+            tracker.AddMissingRootTree("sharedTree", "commit1");
+            tracker.AddMissingRootTree("sharedTree", "commit2");
+            tracker.AddMissingRootTree("tree3", "commit3");
+
+            // Access commit1 and commit2 via TryGetCommits
+            tracker.TryGetCommits("sharedTree", out _);
+
+            // Adding a fourth commit should evict commit3 (oldest unused)
+            tracker.AddMissingRootTree("tree4", "commit4");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit3" }, out _).ShouldEqual(0);
+            tracker.GetHighestMissingTreeCount(new[] { "commit4" }, out _).ShouldEqual(1);
+        }
+
+        // -------------------------------------------------------------------------
+        // GetHighestMissingTreeCount
+        // -------------------------------------------------------------------------
+
+        [TestCase]
+        public void GetHighestMissingTreeCount_NonExistentCommit()
+        {
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.GetHighestMissingTreeCount(new[] { "nonexistent" }, out string highest).ShouldEqual(0);
+            highest.ShouldBeNull();
+        }
+
+        [TestCase]
+        public void GetHighestMissingTreeCount_ReturnsCommitWithMostTrees()
+        {
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit1");
+            tracker.AddMissingRootTree("tree3", "commit2");
+
+            int count = tracker.GetHighestMissingTreeCount(new[] { "commit1", "commit2" }, out string highest);
+            count.ShouldEqual(2);
+            highest.ShouldEqual("commit1");
+        }
+
+        [TestCase]
+        public void GetHighestMissingTreeCount_DoesNotUpdateLru()
+        {
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit2");
+            tracker.AddMissingRootTree("tree3", "commit3");
+
+            // Query commit1's count (should not update LRU)
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _);
+
+            // Adding a fourth commit should still evict commit1 (oldest)
+            tracker.AddMissingRootTree("tree4", "commit4");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(0);
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit3" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit4" }, out _).ShouldEqual(1);
+        }
+
+        // -------------------------------------------------------------------------
+        // MarkCommitComplete (cascade removal)
+        // -------------------------------------------------------------------------
+
+        [TestCase]
+        public void MarkCommitComplete_RemovesAllTreesForCommit()
+        {
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit1");
+            tracker.AddMissingRootTree("tree3", "commit1");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(3);
+
+            tracker.MarkCommitComplete("commit1");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(0);
+            tracker.TryGetCommits("tree1", out _).ShouldEqual(false);
+            tracker.TryGetCommits("tree2", out _).ShouldEqual(false);
+            tracker.TryGetCommits("tree3", out _).ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void MarkCommitComplete_NonExistentCommit()
+        {
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
             // Should not throw
-            tracker.RemoveCommit("nonexistent");
+            tracker.MarkCommitComplete("nonexistent");
         }
 
         [TestCase]
-        public void RemoveCommit_DoesNotAffectOtherCommits()
+        public void MarkCommitComplete_CascadesSharedTreesToOtherCommits()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree2", "commit2");
-            
-            tracker.RemoveCommit("commit1");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(0);
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(1);
-            tracker.TryGetCommit("tree2", out string commitSha).ShouldEqual(true);
-            commitSha.ShouldEqual("commit2");
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            // commit1 and commit2 share tree1; commit2 also has tree2
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree1", "commit2");
+            tracker.AddMissingRootTree("tree2", "commit2");
+
+            tracker.MarkCommitComplete("commit1");
+
+            // tree1 was in commit1, so it should be removed from commit2 as well
+            tracker.TryGetCommits("tree1", out _).ShouldEqual(false);
+
+            // tree2 is unrelated to commit1, so commit2 still has it
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
+            tracker.TryGetCommits("tree2", out string[] c2).ShouldEqual(true);
+            c2[0].ShouldEqual("commit2");
         }
+
+        [TestCase]
+        public void MarkCommitComplete_RemovesOtherCommitWhenItBecomesEmpty()
+        {
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            // commit2's only tree is shared with commit1
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree1", "commit2");
+
+            tracker.MarkCommitComplete("commit1");
+
+            // commit2 had only tree1, which was cascaded away, so commit2 should be gone too
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(0);
+            tracker.TryGetCommits("tree1", out _).ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void MarkCommitComplete_DoesNotAffectUnrelatedCommits()
+        {
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 10);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit2");
+
+            tracker.MarkCommitComplete("commit1");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(0);
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
+            tracker.TryGetCommits("tree2", out string[] c).ShouldEqual(true);
+            c[0].ShouldEqual("commit2");
+        }
+
+        // -------------------------------------------------------------------------
+        // LRU eviction (no cascade)
+        // -------------------------------------------------------------------------
 
         [TestCase]
         public void LruEviction_EvictsOldestCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 3);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree2", "commit2");
-            tracker.AddMissingTree("tree3", "commit3");
-            
-            // All three commits should exist
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(1);
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(1);
-            tracker.GetMissingTreeCount("commit3").ShouldEqual(1);
-            
-            // Adding a fourth commit should evict commit1 (oldest)
-            tracker.AddMissingTree("tree4", "commit4");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(0);
-            tracker.TryGetCommit("tree1", out string _).ShouldEqual(false);
-            
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(1);
-            tracker.GetMissingTreeCount("commit3").ShouldEqual(1);
-            tracker.GetMissingTreeCount("commit4").ShouldEqual(1);
+            // treeCapacity = 3 trees; one tree per commit
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit2");
+            tracker.AddMissingRootTree("tree3", "commit3");
+
+            // Adding a fourth tree exceeds treeCapacity, so commit1 (LRU) is evicted
+            tracker.AddMissingRootTree("tree4", "commit4");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(0);
+            tracker.TryGetCommits("tree1", out _).ShouldEqual(false);
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit3" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit4" }, out _).ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void LruEviction_DoesNotCascadeSharedTreesToOtherCommits()
+        {
+            // treeCapacity = 3 trees; tree1 is shared so only 2 unique trees + tree3 = 3 total
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+
+            // tree1 is shared between commit1 and commit2 (counts as 1 unique tree)
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree1", "commit2");
+            tracker.AddMissingRootTree("tree3", "commit3");
+
+            // tree4 is the 4th unique tree, exceeding treeCapacity; evicts commit1 (LRU)
+            tracker.AddMissingRootTree("tree4", "commit4");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(0);
+
+            // tree1 is still missing (not yet downloaded), so commit2 retains it
+            tracker.TryGetCommits("tree1", out string[] commits).ShouldEqual(true);
+            commits.Length.ShouldEqual(1);
+            commits[0].ShouldEqual("commit2");
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
         }
 
         [TestCase]
         public void LruEviction_AddingTreeToExistingCommitUpdatesLru()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 3);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree2", "commit2");
-            tracker.AddMissingTree("tree3", "commit3");
-            
-            // Access commit1 by adding another tree to it (marks it as recently used)
-            tracker.AddMissingTree("tree1b", "commit1");
-            
-            // Adding a fourth commit should evict commit2 (now oldest)
-            tracker.AddMissingTree("tree4", "commit4");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(2); // Still has tree1 and tree1b
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(0); // Evicted
-            tracker.GetMissingTreeCount("commit3").ShouldEqual(1);
-            tracker.GetMissingTreeCount("commit4").ShouldEqual(1);
+            // treeCapacity = 4 trees; tree1, tree2, tree3 fill it, then tree1b re-uses commit1
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 4);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit2");
+            tracker.AddMissingRootTree("tree3", "commit3");
+
+            // Adding tree1b to commit1 marks commit1 as recently used (it's a new unique tree)
+            tracker.AddMissingRootTree("tree1b", "commit1");
+
+            // tree4 is the 5th unique tree, exceeding treeCapacity; commit2 is now LRU
+            tracker.AddMissingRootTree("tree4", "commit4");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(2);
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(0);
+            tracker.GetHighestMissingTreeCount(new[] { "commit3" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit4" }, out _).ShouldEqual(1);
         }
 
         [TestCase]
-        public void LruEviction_TryGetCommitUpdatesLru()
+        public void LruEviction_MultipleTreesPerCommit_EvictsEntireCommit()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 3);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree2", "commit2");
-            tracker.AddMissingTree("tree3", "commit3");
-            
-            // Access commit1 via TryGetCommit (marks it as recently used)
-            tracker.TryGetCommit("tree1", out string _);
-            
-            // Adding a fourth commit should evict commit2 (now oldest)
-            tracker.AddMissingTree("tree4", "commit4");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(1); // Still exists
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(0); // Evicted
-            tracker.GetMissingTreeCount("commit3").ShouldEqual(1);
-            tracker.GetMissingTreeCount("commit4").ShouldEqual(1);
+            // treeCapacity = 4 trees; commit1 holds 3, commit2 holds 1
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 4);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit1");
+            tracker.AddMissingRootTree("tree3", "commit1");
+            tracker.AddMissingRootTree("tree4", "commit2");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(3);
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
+
+            // tree5 is the 5th unique tree; evict LRU (commit1) freeing 3 slots, then add tree5
+            tracker.AddMissingRootTree("tree5", "commit3");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(0);
+            tracker.TryGetCommits("tree1", out _).ShouldEqual(false);
+            tracker.TryGetCommits("tree2", out _).ShouldEqual(false);
+            tracker.TryGetCommits("tree3", out _).ShouldEqual(false);
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit3" }, out _).ShouldEqual(1);
         }
 
         [TestCase]
-        public void LruEviction_EvictsMultipleTrees()
+        public void LruEviction_CapacityOne()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 2);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree2", "commit1");
-            tracker.AddMissingTree("tree3", "commit1");
-            
-            tracker.AddMissingTree("tree4", "commit2");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(3);
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(1);
-            
-            // Adding a third commit should evict commit1 with all its trees
-            tracker.AddMissingTree("tree5", "commit3");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(0);
-            tracker.TryGetCommit("tree1", out string _).ShouldEqual(false);
-            tracker.TryGetCommit("tree2", out string _).ShouldEqual(false);
-            tracker.TryGetCommit("tree3", out string _).ShouldEqual(false);
-            
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(1);
-            tracker.GetMissingTreeCount("commit3").ShouldEqual(1);
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 1);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(1);
+
+            tracker.AddMissingRootTree("tree2", "commit2");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(0);
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
         }
 
         [TestCase]
-        public void Capacity_One()
+        public void LruEviction_ManyTreesOneCommit_ExceedsCapacity()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 1);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(1);
-            
-            tracker.AddMissingTree("tree2", "commit2");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(0);
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(1);
+            // treeCapacity = 3 trees; all trees belong to commit1
+            // Adding a 4th tree must evict commit1 (the only commit) to make room
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
+
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit1");
+            tracker.AddMissingRootTree("tree3", "commit1");
+
+            // tree4 exceeds the tree treeCapacity; the LRU commit (commit1) is evicted
+            // and then commit2 with tree4 is added fresh
+            tracker.AddMissingRootTree("tree4", "commit2");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(0);
+            tracker.TryGetCommits("tree1", out _).ShouldEqual(false);
+            tracker.TryGetCommits("tree2", out _).ShouldEqual(false);
+            tracker.TryGetCommits("tree3", out _).ShouldEqual(false);
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
         }
 
         [TestCase]
-        public void AddMissingTree_MultipleTrees_ChecksCount()
+        public void LruEviction_TryGetCommitsUpdatesLru()
         {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 10);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(1);
-            
-            tracker.AddMissingTree("tree2", "commit1");
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(2);
-            
-            tracker.AddMissingTree("tree3", "commit1");
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(3);
-            
-            tracker.AddMissingTree("tree4", "commit1");
-            tracker.AddMissingTree("tree5", "commit1");
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(5);
-        }
+            // treeCapacity = 3 trees, one per commit
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 3);
 
-        [TestCase]
-        public void GetMissingTreeCount_DoesNotUpdateLru()
-        {
-            MissingTreeTracker tracker = new MissingTreeTracker(capacity: 3);
-            
-            tracker.AddMissingTree("tree1", "commit1");
-            tracker.AddMissingTree("tree2", "commit2");
-            tracker.AddMissingTree("tree3", "commit3");
-            
-            // Query commit1's count (should not update LRU)
-            tracker.GetMissingTreeCount("commit1");
-            
-            // Adding a fourth commit should still evict commit1 (oldest)
-            tracker.AddMissingTree("tree4", "commit4");
-            
-            tracker.GetMissingTreeCount("commit1").ShouldEqual(0);
-            tracker.GetMissingTreeCount("commit2").ShouldEqual(1);
-            tracker.GetMissingTreeCount("commit3").ShouldEqual(1);
-            tracker.GetMissingTreeCount("commit4").ShouldEqual(1);
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit2");
+            tracker.AddMissingRootTree("tree3", "commit3");
+
+            // Access commit1 via TryGetCommits (marks it as recently used)
+            tracker.TryGetCommits("tree1", out _);
+
+            // tree4 exceeds treeCapacity; commit2 is now LRU
+            tracker.AddMissingRootTree("tree4", "commit4");
+
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(0);
+            tracker.GetHighestMissingTreeCount(new[] { "commit3" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit4" }, out _).ShouldEqual(1);
         }
     }
 }
