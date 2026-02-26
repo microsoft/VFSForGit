@@ -70,7 +70,8 @@ namespace GVFS.Common
                         {
                             continue;
                         }
-
+                        /* Ensure we don't evict this commit while trying to add a tree to it. */
+                        this.MarkCommitAsUsed(commitSha); 
                         this.AddTreeToCommit(subTreeSha, commitSha);
                     }
                 }
@@ -160,7 +161,11 @@ namespace GVFS.Common
                 // Evict LRU commits until there is room for the new tree
                 while (this.commitsByTree.Count >= this.treeCapacity)
                 {
-                    this.EvictLruCommit();
+                    // If evict fails it means we only have one commit left.
+                    if (!this.EvictLruCommit())
+                    {
+                        break;
+                    }
                 }
 
                 this.commitsByTree[treeSha] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -180,13 +185,16 @@ namespace GVFS.Common
             }
         }
 
-        private void EvictLruCommit()
+        private bool EvictLruCommit()
         {
-            if (this.commitOrder.Last != null)
+            var last = this.commitOrder.Last;
+            if (last != null && last.Value != this.commitOrder.First.Value)
             {
                 string lruCommit = this.commitOrder.Last.Value;
                 this.RemoveCommitNoCache(lruCommit);
+                return true;
             }
+            return false;
         }
 
         /// <summary>

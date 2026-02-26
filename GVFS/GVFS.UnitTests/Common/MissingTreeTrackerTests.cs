@@ -158,6 +158,7 @@ namespace GVFS.UnitTests.Common
 
             tracker.AddMissingRootTree("rootTree", "commit1");
             tracker.AddMissingRootTree("rootTree", "commit2");
+            tracker.AddMissingRootTree("rootTree2", "commit3");
 
             // Does not throw, and sub1 ends up under whichever commit survived eviction
             tracker.AddMissingSubTrees("rootTree", new[] { "sub1" });
@@ -167,6 +168,18 @@ namespace GVFS.UnitTests.Common
             bool commit2HasSub1 = tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _) == 2;
             (commit1HasSub1 || commit2HasSub1).ShouldEqual(true);
             (commit1HasSub1 && commit2HasSub1).ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void AddMissingSubTrees_DoesNotEvictIfOnlyOneCommit()
+        {
+            /* This shouldn't be possible if user has a proper threshold and is marking commits
+             * as completed, but test to be safe. */
+            MissingTreeTracker tracker = new MissingTreeTracker(treeCapacity: 2);
+            tracker.AddMissingRootTree("rootTree", "commit1");
+            tracker.AddMissingSubTrees("rootTree", new[] { "sub1" });
+            tracker.AddMissingSubTrees("rootTree", new[] { "sub2" });
+            tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(3);
         }
 
         // -------------------------------------------------------------------------
@@ -189,18 +202,20 @@ namespace GVFS.UnitTests.Common
 
             tracker.AddMissingRootTree("sharedTree", "commit1");
             tracker.AddMissingRootTree("sharedTree", "commit2");
-            tracker.AddMissingRootTree("tree3", "commit3");
+            tracker.AddMissingRootTree("tree2", "commit3");
+            tracker.AddMissingRootTree("tree3", "commit4");
 
             // Access commit1 and commit2 via TryGetCommits
             tracker.TryGetCommits("sharedTree", out _);
 
-            // Adding a fourth commit should evict commit3 (oldest unused)
-            tracker.AddMissingRootTree("tree4", "commit4");
+            // Adding a fourth tree should evict commit3 (oldest unused)
+            tracker.AddMissingRootTree("tree4", "commit5");
 
             tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(1);
             tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _).ShouldEqual(1);
             tracker.GetHighestMissingTreeCount(new[] { "commit3" }, out _).ShouldEqual(0);
             tracker.GetHighestMissingTreeCount(new[] { "commit4" }, out _).ShouldEqual(1);
+            tracker.GetHighestMissingTreeCount(new[] { "commit5" }, out _).ShouldEqual(1);
         }
 
         // -------------------------------------------------------------------------
@@ -369,10 +384,12 @@ namespace GVFS.UnitTests.Common
 
             // tree1 is shared between commit1 and commit2 (counts as 1 unique tree)
             tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit1");
             tracker.AddMissingRootTree("tree1", "commit2");
             tracker.AddMissingRootTree("tree3", "commit3");
 
             // tree4 is the 4th unique tree, exceeding treeCapacity; evicts commit1 (LRU)
+            // which removes tree2, freeing up capacity.
             tracker.AddMissingRootTree("tree4", "commit4");
 
             tracker.GetHighestMissingTreeCount(new[] { "commit1" }, out _).ShouldEqual(0);

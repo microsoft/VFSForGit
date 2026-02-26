@@ -609,7 +609,7 @@ namespace GVFS.Mount
                          *
                          * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
                          */
-                        this.missingTreeTracker.AddMissingRootTree(treeSha, objectSha);
+                        this.missingTreeTracker.AddMissingRootTree(treeSha: treeSha, commitSha: objectSha);
                     }
                 }
             }
