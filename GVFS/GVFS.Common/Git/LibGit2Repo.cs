@@ -16,19 +16,19 @@ namespace GVFS.Common.Git
         {
             this.Tracer = tracer;
 
-            Native.Init();
+            InitNative();
 
             IntPtr repoHandle;
-            if (Native.Repo.Open(out repoHandle, repoPath) != Native.ResultCode.Success)
+            if (TryOpenRepo(repoPath, out repoHandle) != Native.ResultCode.Success)
             {
-                string reason = Native.GetLastError();
+                string reason = GetLastNativeError();
                 string message = "Couldn't open repo at " + repoPath + ": " + reason;
                 tracer.RelatedWarning(message);
 
                 if (!reason.EndsWith(" is not owned by current user")
                     || !CheckSafeDirectoryConfigForCaseSensitivityIssue(tracer, repoPath, out repoHandle))
                 {
-                    Native.Shutdown();
+                    ShutdownNative();
                     throw new InvalidDataException(message);
                 }
             }
@@ -38,6 +38,7 @@ namespace GVFS.Common.Git
 
         protected LibGit2Repo()
         {
+            this.Tracer = NullTracer.Instance;
         }
 
         ~LibGit2Repo()
@@ -365,7 +366,56 @@ namespace GVFS.Common.Git
             }
         }
 
-        private bool CheckSafeDirectoryConfigForCaseSensitivityIssue(ITracer tracer, string repoPath, out IntPtr repoHandle)
+        /// <summary>
+        /// Normalize a path for case-insensitive safe.directory comparison:
+        /// replace backslashes with forward slashes, convert to upper-case,
+        /// and trim trailing slashes.
+        /// </summary>
+        internal static string NormalizePathForSafeDirectoryComparison(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return path;
+            }
+
+            string normalized = path.Replace('\\', '/').ToUpperInvariant();
+            return normalized.TrimEnd('/');
+        }
+
+        /// <summary>
+        /// Retrieve all configured safe.directory values from global and system git config.
+        /// Virtual so tests can provide fake entries without touching real config.
+        /// </summary>
+        protected virtual void GetSafeDirectoryConfigEntries(MultiVarConfigCallback callback)
+        {
+            ForEachMultiVarConfigInGlobalAndSystemConfig("safe.directory", callback);
+        }
+
+        /// <summary>
+        /// Try to open a repository at the given path.  Virtual so tests can
+        /// avoid the native P/Invoke call.
+        /// </summary>
+        protected virtual Native.ResultCode TryOpenRepo(string path, out IntPtr repoHandle)
+        {
+            return Native.Repo.Open(out repoHandle, path);
+        }
+
+        protected virtual void InitNative()
+        {
+            Native.Init();
+        }
+
+        protected virtual void ShutdownNative()
+        {
+            Native.Shutdown();
+        }
+
+        protected virtual string GetLastNativeError()
+        {
+            return Native.GetLastError();
+        }
+
+        protected bool CheckSafeDirectoryConfigForCaseSensitivityIssue(ITracer tracer, string repoPath, out IntPtr repoHandle)
         {
             /* Libgit2 has a bug where it is case sensitive for safe.directory (especially the
              * drive letter) when git.exe isn't. Until a fix can be made and propagated, work
@@ -375,30 +425,19 @@ namespace GVFS.Common.Git
              */
             repoHandle = IntPtr.Zero;
 
-            string NormalizePath(string path)
-            {
-                if (string.IsNullOrEmpty(path))
-                {
-                    return path;
-                }
-
-                string normalized = path.Replace('\\', '/').ToUpperInvariant();
-                return normalized.TrimEnd('/');
-            }
-
-            string normalizedRequestedPath = NormalizePath(repoPath);
+            string normalizedRequestedPath = NormalizePathForSafeDirectoryComparison(repoPath);
 
             string configuredMatchingDirectory = null;
-            ForEachMultiVarConfigInGlobalAndSystemConfig("safe.directory", (string value) =>
+            GetSafeDirectoryConfigEntries((string value) =>
             {
-                string normalizedConfiguredPath = NormalizePath(value);
+                string normalizedConfiguredPath = NormalizePathForSafeDirectoryComparison(value);
                 if (normalizedConfiguredPath == normalizedRequestedPath)
                 {
                     configuredMatchingDirectory = value;
                 }
             });
 
-            return configuredMatchingDirectory != null && Native.Repo.Open(out repoHandle, configuredMatchingDirectory) == Native.ResultCode.Success;
+            return configuredMatchingDirectory != null && TryOpenRepo(configuredMatchingDirectory, out repoHandle) == Native.ResultCode.Success;
         }
 
         public static class Native
