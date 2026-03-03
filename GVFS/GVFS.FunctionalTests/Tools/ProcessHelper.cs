@@ -7,6 +7,11 @@ namespace GVFS.FunctionalTests.Tools
     {
         public static ProcessResult Run(string fileName, string arguments)
         {
+            return Run(fileName, arguments, null);
+        }
+
+        public static ProcessResult Run(string fileName, string arguments, string workingDirectory)
+        {
             ProcessStartInfo startInfo = new ProcessStartInfo();
             startInfo.UseShellExecute = false;
             startInfo.RedirectStandardOutput = true;
@@ -14,6 +19,10 @@ namespace GVFS.FunctionalTests.Tools
             startInfo.CreateNoWindow = true;
             startInfo.FileName = fileName;
             startInfo.Arguments = arguments;
+            if (!string.IsNullOrEmpty(workingDirectory))
+            {
+                startInfo.WorkingDirectory = workingDirectory;
+            }
 
             return Run(startInfo);
         }

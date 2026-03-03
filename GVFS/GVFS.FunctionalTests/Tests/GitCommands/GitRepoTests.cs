@@ -269,6 +269,23 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 args);
         }
 
+        protected void ValidateNonGitCommand(string command, string args = "", bool ignoreErrors = false, bool checkStatus = true)
+        {
+            string controlRepoRoot = this.ControlGitRepo.RootPath;
+            string gvfsRepoRoot = this.Enlistment.RepoRoot;
+
+            ProcessResult expectedResult = ProcessHelper.Run(command, args, controlRepoRoot);
+            ProcessResult actualResult = ProcessHelper.Run(command, args, gvfsRepoRoot);
+            if (!ignoreErrors)
+            {
+                GitHelpers.ErrorsShouldMatch(command, expectedResult, actualResult);
+            }
+            if (checkStatus)
+            {
+                this.ValidateGitCommand("status");
+            }
+        }
+
         protected void ChangeMode(string filePath, ushort mode)
         {
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
