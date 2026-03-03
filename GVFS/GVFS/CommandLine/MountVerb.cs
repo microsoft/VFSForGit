@@ -1,15 +1,11 @@
 ﻿using CommandLine;
 using GVFS.Common;
-using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
-using GVFS.Virtualization.Projection;
 using System;
 using System.IO;
-using System.Security.Principal;
 
 namespace GVFS.CommandLine
 {
@@ -86,17 +82,11 @@ namespace GVFS.CommandLine
             string mountExecutableLocation = null;
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "ExecuteMount"))
             {
-                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-                GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
-                GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
+                // Validate these before handing them to the background process
+                // which cannot tell the user when they are bad
+                this.ValidateEnumArgs();
 
-                if (!this.SkipInstallHooks && !HooksInstaller.InstallHooks(context, out errorMessage))
-                {
-                    this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
-                }
-
-                var resolvedCacheServer = this.ResolvedCacheServer;
-                var cacheServerFromConfig = resolvedCacheServer ?? CacheServerResolver.GetCacheServerFromConfig(enlistment);
+                CacheServerInfo cacheServerFromConfig = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountVerb),
@@ -133,65 +123,11 @@ namespace GVFS.CommandLine
                     }
                 }
 
-                RetryConfig retryConfig = null;
-                ServerGVFSConfig serverGVFSConfig = this.DownloadedGVFSConfig;
-                /* If resolved cache server was passed in, we've already checked server config and version check in previous operation. */
-                if (resolvedCacheServer == null)
+                // Verify mount executable exists before launching
+                mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSPlatform.Instance.Constants.MountExecutableName);
+                if (!File.Exists(mountExecutableLocation))
                 {
-                    string authErrorMessage;
-                    if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
-                    {
-                        this.Output.WriteLine("    WARNING: " + authErrorMessage);
-                        this.Output.WriteLine("    Mount will proceed, but new files cannot be accessed until GVFS can authenticate.");
-                    }
-
-                    if (serverGVFSConfig == null)
-                    {
-                        if (retryConfig == null)
-                        {
-                            retryConfig = this.GetRetryConfig(tracer, enlistment);
-                        }
-
-                        serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
-                            tracer,
-                            enlistment,
-                            retryConfig,
-                            cacheServerFromConfig);
-                    }
-
-                    this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
-
-                    CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
-                    resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerFromConfig.Url, serverGVFSConfig);
-                    this.Output.WriteLine("Configured cache server: " + cacheServerFromConfig);
-                }
-
-                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, resolvedCacheServer);
-
-                if (!this.ShowStatusWhileRunning(
-                    () => { return this.PerformPreMountValidation(tracer, enlistment, out mountExecutableLocation, out errorMessage); },
-                    "Validating repo"))
-                {
-                    this.ReportErrorAndExit(tracer, errorMessage);
-                }
-
-                if (!this.SkipVersionCheck)
-                {
-                    string error;
-                    if (!RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out error))
-                    {
-                        this.ReportErrorAndExit(tracer, error);
-                    }
-
-                    try
-                    {
-                        GitProcess git = new GitProcess(enlistment);
-                        this.LogEnlistmentInfoAndSetConfigValues(tracer, git, enlistment);
-                    }
-                    finally
-                    {
-                        RepoMetadata.Shutdown();
-                    }
+                    this.ReportErrorAndExit(tracer, $"Could not find {GVFSPlatform.Instance.Constants.MountExecutableName}. You may need to reinstall GVFS.");
                 }
 
                 if (!this.ShowStatusWhileRunning(
@@ -220,62 +156,8 @@ namespace GVFS.CommandLine
             }
         }
 
-        private bool PerformPreMountValidation(ITracer tracer, GVFSEnlistment enlistment, out string mountExecutableLocation, out string errorMessage)
-        {
-            errorMessage = string.Empty;
-            mountExecutableLocation = string.Empty;
-
-            // We have to parse these parameters here to make sure they are valid before
-            // handing them to the background process which cannot tell the user when they are bad
-            EventLevel verbosity;
-            Keywords keywords;
-            this.ParseEnumArgs(out verbosity, out keywords);
-
-            mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSPlatform.Instance.Constants.MountExecutableName);
-            if (!File.Exists(mountExecutableLocation))
-            {
-                errorMessage = $"Could not find {GVFSPlatform.Instance.Constants.MountExecutableName}. You may need to reinstall GVFS.";
-                return false;
-            }
-
-            GitProcess git = new GitProcess(enlistment);
-            if (!git.IsValidRepo())
-            {
-                errorMessage = "The .git folder is missing or has invalid contents";
-                return false;
-            }
-
-            try
-            {
-                GitIndexProjection.ReadIndex(tracer, Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index));
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Exception", e.ToString());
-                tracer.RelatedError(metadata, "Index validation failed");
-                errorMessage = "Index validation failed, run 'gvfs repair' to repair index.";
-
-                return false;
-            }
-
-            if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(enlistment.EnlistmentRoot, out string error))
-            {
-                errorMessage = $"FileSystem unsupported: {error}";
-                return false;
-            }
-
-            return true;
-        }
-
         private bool TryMount(ITracer tracer, GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
         {
-            if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment))
-            {
-                errorMessage = "Unable to configure git repo";
-                return false;
-            }
-
             const string ParamPrefix = "--";
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {enlistment.EnlistmentRoot}");
@@ -355,14 +237,14 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void ParseEnumArgs(out EventLevel verbosity, out Keywords keywords)
+        private void ValidateEnumArgs()
         {
-            if (!Enum.TryParse(this.KeywordsCsv, out keywords))
+            if (!Enum.TryParse(this.KeywordsCsv, out Keywords _))
             {
                 this.ReportErrorAndExit("Error: Invalid logging filter keywords: " + this.KeywordsCsv);
             }
 
-            if (!Enum.TryParse(this.Verbosity, out verbosity))
+            if (!Enum.TryParse(this.Verbosity, out EventLevel _))
             {
                 this.ReportErrorAndExit("Error: Invalid logging verbosity: " + this.Verbosity);
             }
