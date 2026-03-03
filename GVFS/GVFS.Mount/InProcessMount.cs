@@ -18,6 +18,7 @@ using System.Linq;
 using System.Security;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using static GVFS.Common.Git.LibGit2Repo;
 
 namespace GVFS.Mount
@@ -84,6 +85,27 @@ namespace GVFS.Mount
         {
             this.currentState = MountState.Mounting;
 
+            // Start auth + config query immediately — these are network-bound and don't
+            // depend on repo metadata or cache paths. Every millisecond of network latency
+            // we can overlap with local I/O is a win.
+            Stopwatch parallelTimer = Stopwatch.StartNew();
+
+            var networkTask = Task.Run(() =>
+            {
+                Stopwatch sw = Stopwatch.StartNew();
+                string authError;
+                if (!this.enlistment.Authentication.TryInitialize(this.tracer, this.enlistment, out authError))
+                {
+                    this.tracer.RelatedWarning("Mount will proceed, but new files cannot be accessed until GVFS can authenticate: " + authError);
+                }
+
+                this.tracer.RelatedInfo("ParallelMount: Auth completed in {0}ms", sw.ElapsedMilliseconds);
+
+                ServerGVFSConfig config = this.QueryAndValidateGVFSConfig();
+                this.tracer.RelatedInfo("ParallelMount: Auth + config query completed in {0}ms", sw.ElapsedMilliseconds);
+                return config;
+            });
+
             // We must initialize repo metadata before starting the pipe server so it
             // can immediately handle status requests
             string error;
@@ -122,39 +144,57 @@ namespace GVFS.Mount
 
             this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
 
-            if (!this.enlistment.Authentication.TryInitialize(this.tracer, this.enlistment, out error))
+            // Local validations and git config run while we wait for the network
+            var localTask = Task.Run(() =>
             {
-                this.tracer.RelatedWarning("Mount will proceed, but new files cannot be accessed until GVFS can authenticate: " + error);
+                Stopwatch sw = Stopwatch.StartNew();
+
+                this.ValidateGitVersion();
+                this.tracer.RelatedInfo("ParallelMount: ValidateGitVersion completed in {0}ms", sw.ElapsedMilliseconds);
+
+                this.ValidateHooksVersion();
+                this.ValidateFileSystemSupportsRequiredFeatures();
+
+                GitProcess git = new GitProcess(this.enlistment);
+                if (!git.IsValidRepo())
+                {
+                    this.FailMountAndExit("The .git folder is missing or has invalid contents");
+                }
+
+                if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.EnlistmentRoot, out string fsError))
+                {
+                    this.FailMountAndExit("FileSystem unsupported: " + fsError);
+                }
+
+                this.tracer.RelatedInfo("ParallelMount: Local validations completed in {0}ms", sw.ElapsedMilliseconds);
+
+                if (!this.TrySetRequiredGitConfigSettings())
+                {
+                    this.FailMountAndExit("Unable to configure git repo");
+                }
+
+                this.LogEnlistmentInfoAndSetConfigValues();
+                this.tracer.RelatedInfo("ParallelMount: Local validations + git config completed in {0}ms", sw.ElapsedMilliseconds);
+            });
+
+            try
+            {
+                Task.WaitAll(networkTask, localTask);
+            }
+            catch (AggregateException ae)
+            {
+                this.FailMountAndExit(ae.Flatten().InnerExceptions[0].Message);
             }
 
-            this.ValidateGitVersion();
-            this.ValidateHooksVersion();
-            this.ValidateFileSystemSupportsRequiredFeatures();
+            parallelTimer.Stop();
+            this.tracer.RelatedInfo("ParallelMount: All parallel tasks completed in {0}ms", parallelTimer.ElapsedMilliseconds);
 
-            ServerGVFSConfig serverGVFSConfig = this.QueryAndValidateGVFSConfig();
+            ServerGVFSConfig serverGVFSConfig = networkTask.Result;
 
             CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
             this.cacheServer = cacheServerResolver.ResolveNameFromRemote(this.cacheServer.Url, serverGVFSConfig);
 
             this.EnsureLocalCacheIsHealthy(serverGVFSConfig);
-
-            GitProcess git = new GitProcess(this.enlistment);
-            if (!git.IsValidRepo())
-            {
-                this.FailMountAndExit("The .git folder is missing or has invalid contents");
-            }
-
-            if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.EnlistmentRoot, out error))
-            {
-                this.FailMountAndExit("FileSystem unsupported: " + error);
-            }
-
-            if (!this.TrySetRequiredGitConfigSettings())
-            {
-                this.FailMountAndExit("Unable to configure git repo");
-            }
-
-            this.LogEnlistmentInfoAndSetConfigValues();
 
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
