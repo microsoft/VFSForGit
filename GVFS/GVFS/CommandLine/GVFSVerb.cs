@@ -429,14 +429,50 @@ namespace GVFS.CommandLine
 
         protected bool TryAuthenticate(ITracer tracer, GVFSEnlistment enlistment, out string authErrorMessage)
         {
-            string authError = null;
+            return this.TryAuthenticateAndQueryGVFSConfig(tracer, enlistment, null, out _, out authErrorMessage);
+        }
+
+        /// <summary>
+        /// Combines authentication and GVFS config query into a single operation,
+        /// eliminating a redundant HTTP round-trip. If <paramref name="retryConfig"/>
+        /// is null, a default RetryConfig is used.
+        /// If the config query fails but a valid <paramref name="fallbackCacheServer"/>
+        /// URL is available, auth succeeds but <paramref name="serverGVFSConfig"/>
+        /// will be null (caller should handle this gracefully).
+        /// </summary>
+        protected bool TryAuthenticateAndQueryGVFSConfig(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            RetryConfig retryConfig,
+            out ServerGVFSConfig serverGVFSConfig,
+            out string errorMessage,
+            CacheServerInfo fallbackCacheServer = null)
+        {
+            ServerGVFSConfig config = null;
+            string error = null;
 
             bool result = this.ShowStatusWhileRunning(
-                () => enlistment.Authentication.TryInitialize(tracer, enlistment, out authError),
+                () => enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
+                    tracer,
+                    enlistment,
+                    retryConfig ?? new RetryConfig(),
+                    out config,
+                    out error),
                 "Authenticating",
                 enlistment.EnlistmentRoot);
 
-            authErrorMessage = authError;
+            if (!result && fallbackCacheServer != null && !string.IsNullOrWhiteSpace(fallbackCacheServer.Url))
+            {
+                // Auth/config query failed, but we have a fallback cache server.
+                // Allow auth to succeed so mount/clone can proceed; config will be null.
+                tracer.RelatedWarning("Config query failed but continuing with fallback cache server: " + error);
+                serverGVFSConfig = null;
+                errorMessage = null;
+                return true;
+            }
+
+            serverGVFSConfig = config;
+            errorMessage = error;
             return result;
         }
 
@@ -493,50 +529,7 @@ namespace GVFS.CommandLine
             return retryConfig;
         }
 
-        /// <summary>
-        /// Attempts to query the GVFS config endpoint. If successful, returns the config.
-        /// If the query fails but a valid fallback cache server URL is available, returns null and continues.
-        /// (A warning will be logged later.)
-        /// If the query fails and no valid fallback is available, reports an error and exits.
-        /// </summary>
-        protected ServerGVFSConfig QueryGVFSConfigWithFallbackCacheServer(
-            ITracer tracer,
-            GVFSEnlistment enlistment,
-            RetryConfig retryConfig,
-            CacheServerInfo fallbackCacheServer)
-        {
-            ServerGVFSConfig serverGVFSConfig = null;
-            string errorMessage = null;
-            bool configSuccess = this.ShowStatusWhileRunning(
-                () =>
-                {
-                    using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
-                    {
-                        const bool LogErrors = true;
-                        return configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _, out errorMessage);
-                    }
-                },
-                "Querying remote for config",
-                suppressGvfsLogMessage: true);
-
-            if (!configSuccess)
-            {
-                // If a valid cache server URL is available, warn and continue
-                if (fallbackCacheServer != null && !string.IsNullOrWhiteSpace(fallbackCacheServer.Url))
-                {
-                    // Continue without config
-                    // Warning will be logged/displayed when version check is run
-                    return null;
-                }
-                else
-                {
-                    this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config" + Environment.NewLine + errorMessage);
-                }
-            }
-            return serverGVFSConfig;
-        }
-
-        // Restore original QueryGVFSConfig for other callers
+        // QueryGVFSConfig for callers that require config to succeed (no fallback)
         protected ServerGVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
         {
             ServerGVFSConfig serverGVFSConfig = null;

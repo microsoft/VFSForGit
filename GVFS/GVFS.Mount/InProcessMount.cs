@@ -88,21 +88,34 @@ namespace GVFS.Mount
             // Start auth + config query immediately — these are network-bound and don't
             // depend on repo metadata or cache paths. Every millisecond of network latency
             // we can overlap with local I/O is a win.
+            // TryInitializeAndQueryGVFSConfig combines the anonymous probe, credential fetch,
+            // and config query into at most 2 HTTP requests (1 for anonymous repos), reusing
+            // the same HttpClient/TCP connection.
             Stopwatch parallelTimer = Stopwatch.StartNew();
 
             var networkTask = Task.Run(() =>
             {
                 Stopwatch sw = Stopwatch.StartNew();
-                string authError;
-                if (!this.enlistment.Authentication.TryInitialize(this.tracer, this.enlistment, out authError))
+                ServerGVFSConfig config;
+                string authConfigError;
+
+                if (!this.enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
+                    this.tracer, this.enlistment, this.retryConfig,
+                    out config, out authConfigError))
                 {
-                    this.tracer.RelatedWarning("Mount will proceed, but new files cannot be accessed until GVFS can authenticate: " + authError);
+                    if (this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url))
+                    {
+                        this.tracer.RelatedWarning("Mount will proceed with fallback cache server: " + authConfigError);
+                        config = null;
+                    }
+                    else
+                    {
+                        this.FailMountAndExit("Unable to query /gvfs/config" + Environment.NewLine + authConfigError);
+                    }
                 }
 
-                this.tracer.RelatedInfo("ParallelMount: Auth completed in {0}ms", sw.ElapsedMilliseconds);
-
-                ServerGVFSConfig config = this.QueryAndValidateGVFSConfig();
-                this.tracer.RelatedInfo("ParallelMount: Auth + config query completed in {0}ms", sw.ElapsedMilliseconds);
+                this.ValidateGVFSVersion(config);
+                this.tracer.RelatedInfo("ParallelMount: Auth + config completed in {0}ms", sw.ElapsedMilliseconds);
                 return config;
             });
 

@@ -185,19 +185,19 @@ namespace GVFS.CommandLine
                         this.Output.WriteLine("  Local Cache:  " + resolvedLocalCacheRoot);
                         this.Output.WriteLine("  Destination:  " + enlistment.EnlistmentRoot);
 
-                        string authErrorMessage;
-                        if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
-                        {
-                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed: " + authErrorMessage);
-                        }
-
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
 
-                        serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
+                        string authErrorMessage;
+                        if (!this.TryAuthenticateAndQueryGVFSConfig(
                             tracer,
                             enlistment,
                             retryConfig,
-                            cacheServer);
+                            out serverGVFSConfig,
+                            out authErrorMessage,
+                            fallbackCacheServer: cacheServer))
+                        {
+                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed: " + authErrorMessage);
+                        }
 
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
