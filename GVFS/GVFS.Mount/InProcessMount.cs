@@ -1255,16 +1255,6 @@ namespace GVFS.Mount
             return true;
         }
 
-        [Flags]
-        private enum GitCoreGVFSFlags
-        {
-            SkipShaOnIndex = 1 << 0,
-            BlockCommands = 1 << 1,
-            MissingOk = 1 << 2,
-            NoDeleteOutsideSparseCheckout = 1 << 3,
-            FetchSkipReachabilityAndUploadPack = 1 << 4,
-            BlockFiltersAndEolConversions = 1 << 6,
-        }
 
         private bool TrySetRequiredGitConfigSettings()
         {
