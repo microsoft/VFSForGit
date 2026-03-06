@@ -36,59 +36,6 @@ namespace GVFS.CommandLine
             this.InitializeDefaultParameterValues();
         }
 
-        [Flags]
-        private enum GitCoreGVFSFlags
-        {
-            // GVFS_SKIP_SHA_ON_INDEX
-            // Disables the calculation of the sha when writing the index
-            SkipShaOnIndex = 1 << 0,
-
-            // GVFS_BLOCK_COMMANDS
-            // Blocks git commands that are not allowed in a GVFS/Scalar repo
-            BlockCommands = 1 << 1,
-
-            // GVFS_MISSING_OK
-            // Normally git write-tree ensures that the objects referenced by the
-            // directory exist in the object database.This option disables this check.
-            MissingOk = 1 << 2,
-
-            // GVFS_NO_DELETE_OUTSIDE_SPARSECHECKOUT
-            // When marking entries to remove from the index and the working
-            // directory this option will take into account what the
-            // skip-worktree bit was set to so that if the entry has the
-            // skip-worktree bit set it will not be removed from the working
-            // directory.  This will allow virtualized working directories to
-            // detect the change to HEAD and use the new commit tree to show
-            // the files that are in the working directory.
-            NoDeleteOutsideSparseCheckout = 1 << 3,
-
-            // GVFS_FETCH_SKIP_REACHABILITY_AND_UPLOADPACK
-            // While performing a fetch with a virtual file system we know
-            // that there will be missing objects and we don't want to download
-            // them just because of the reachability of the commits.  We also
-            // don't want to download a pack file with commits, trees, and blobs
-            // since these will be downloaded on demand.  This flag will skip the
-            // checks on the reachability of objects during a fetch as well as
-            // the upload pack so that extraneous objects don't get downloaded.
-            FetchSkipReachabilityAndUploadPack = 1 << 4,
-
-            // 1 << 5 has been deprecated
-
-            // GVFS_BLOCK_FILTERS_AND_EOL_CONVERSIONS
-            // With a virtual file system we only know the file size before any
-            // CRLF or smudge/clean filters processing is done on the client.
-            // To prevent file corruption due to truncation or expansion with
-            // garbage at the end, these filters must not run when the file
-            // is first accessed and brought down to the client. Git.exe can't
-            // currently tell the first access vs subsequent accesses so this
-            // flag just blocks them from occurring at all.
-            BlockFiltersAndEolConversions = 1 << 6,
-
-            // GVFS_PREFETCH_DURING_FETCH
-            // While performing a `git fetch` command, use the gvfs-helper to
-            // perform a "prefetch" of commits and trees.
-            PrefetchDuringFetch = 1 << 7,
-        }
 
         public abstract string EnlistmentRootPathParameter { get; set; }
 
@@ -429,14 +376,50 @@ namespace GVFS.CommandLine
 
         protected bool TryAuthenticate(ITracer tracer, GVFSEnlistment enlistment, out string authErrorMessage)
         {
-            string authError = null;
+            return this.TryAuthenticateAndQueryGVFSConfig(tracer, enlistment, null, out _, out authErrorMessage);
+        }
+
+        /// <summary>
+        /// Combines authentication and GVFS config query into a single operation,
+        /// eliminating a redundant HTTP round-trip. If <paramref name="retryConfig"/>
+        /// is null, a default RetryConfig is used.
+        /// If the config query fails but a valid <paramref name="fallbackCacheServer"/>
+        /// URL is available, auth succeeds but <paramref name="serverGVFSConfig"/>
+        /// will be null (caller should handle this gracefully).
+        /// </summary>
+        protected bool TryAuthenticateAndQueryGVFSConfig(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            RetryConfig retryConfig,
+            out ServerGVFSConfig serverGVFSConfig,
+            out string errorMessage,
+            CacheServerInfo fallbackCacheServer = null)
+        {
+            ServerGVFSConfig config = null;
+            string error = null;
 
             bool result = this.ShowStatusWhileRunning(
-                () => enlistment.Authentication.TryInitialize(tracer, enlistment, out authError),
+                () => enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
+                    tracer,
+                    enlistment,
+                    retryConfig ?? new RetryConfig(),
+                    out config,
+                    out error),
                 "Authenticating",
                 enlistment.EnlistmentRoot);
 
-            authErrorMessage = authError;
+            if (!result && fallbackCacheServer != null && !string.IsNullOrWhiteSpace(fallbackCacheServer.Url))
+            {
+                // Auth/config query failed, but we have a fallback cache server.
+                // Allow auth to succeed so mount/clone can proceed; config will be null.
+                tracer.RelatedWarning("Config query failed but continuing with fallback cache server: " + error);
+                serverGVFSConfig = null;
+                errorMessage = null;
+                return true;
+            }
+
+            serverGVFSConfig = config;
+            errorMessage = error;
             return result;
         }
 
@@ -493,50 +476,7 @@ namespace GVFS.CommandLine
             return retryConfig;
         }
 
-        /// <summary>
-        /// Attempts to query the GVFS config endpoint. If successful, returns the config.
-        /// If the query fails but a valid fallback cache server URL is available, returns null and continues.
-        /// (A warning will be logged later.)
-        /// If the query fails and no valid fallback is available, reports an error and exits.
-        /// </summary>
-        protected ServerGVFSConfig QueryGVFSConfigWithFallbackCacheServer(
-            ITracer tracer,
-            GVFSEnlistment enlistment,
-            RetryConfig retryConfig,
-            CacheServerInfo fallbackCacheServer)
-        {
-            ServerGVFSConfig serverGVFSConfig = null;
-            string errorMessage = null;
-            bool configSuccess = this.ShowStatusWhileRunning(
-                () =>
-                {
-                    using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
-                    {
-                        const bool LogErrors = true;
-                        return configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _, out errorMessage);
-                    }
-                },
-                "Querying remote for config",
-                suppressGvfsLogMessage: true);
-
-            if (!configSuccess)
-            {
-                // If a valid cache server URL is available, warn and continue
-                if (fallbackCacheServer != null && !string.IsNullOrWhiteSpace(fallbackCacheServer.Url))
-                {
-                    // Continue without config
-                    // Warning will be logged/displayed when version check is run
-                    return null;
-                }
-                else
-                {
-                    this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config" + Environment.NewLine + errorMessage);
-                }
-            }
-            return serverGVFSConfig;
-        }
-
-        // Restore original QueryGVFSConfig for other callers
+        // QueryGVFSConfig for callers that require config to succeed (no fallback)
         protected ServerGVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
         {
             ServerGVFSConfig serverGVFSConfig = null;

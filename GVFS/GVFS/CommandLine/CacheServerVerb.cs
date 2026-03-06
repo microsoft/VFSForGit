@@ -42,12 +42,6 @@ namespace GVFS.CommandLine
 
             using (ITracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "CacheVerb"))
             {
-                string authErrorMessage;
-                if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
-                {
-                    this.ReportErrorAndExit(tracer, "Authentication failed: " + authErrorMessage);
-                }
-
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
                 ServerGVFSConfig serverGVFSConfig = null;
                 string error = null;
@@ -55,8 +49,12 @@ namespace GVFS.CommandLine
                 // Handle the three operation types: list, set, and get (default)
                 if (this.ListCacheServers)
                 {
-                    // For listing, require config endpoint to succeed
-                    serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                    // For listing, require config endpoint to succeed (no fallback)
+                    if (!this.TryAuthenticateAndQueryGVFSConfig(
+                        tracer, enlistment, retryConfig, out serverGVFSConfig, out error))
+                    {
+                        this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config" + Environment.NewLine + error);
+                    }
 
                     List<CacheServerInfo> cacheServers = serverGVFSConfig.CacheServers.ToList();
 
@@ -80,11 +78,12 @@ namespace GVFS.CommandLine
                     CacheServerInfo cacheServer = cacheServerResolver.ParseUrlOrFriendlyName(this.CacheToSet);
 
                     // For set operation, allow fallback if config endpoint fails but cache server URL is valid
-                    serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
-                        tracer,
-                        enlistment,
-                        retryConfig,
-                        cacheServer);
+                    if (!this.TryAuthenticateAndQueryGVFSConfig(
+                        tracer, enlistment, retryConfig, out serverGVFSConfig, out error,
+                        fallbackCacheServer: cacheServer))
+                    {
+                        this.ReportErrorAndExit(tracer, "Authentication failed: " + error);
+                    }
 
                     cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
@@ -101,11 +100,12 @@ namespace GVFS.CommandLine
                     CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
                     // For get operation, allow fallback if config endpoint fails but cache server URL is valid
-                    serverGVFSConfig =this.QueryGVFSConfigWithFallbackCacheServer(
-                        tracer,
-                        enlistment,
-                        retryConfig,
-                        cacheServer);
+                    if (!this.TryAuthenticateAndQueryGVFSConfig(
+                        tracer, enlistment, retryConfig, out serverGVFSConfig, out error,
+                        fallbackCacheServer: cacheServer))
+                    {
+                        this.ReportErrorAndExit(tracer, "Authentication failed: " + error);
+                    }
 
                     CacheServerInfo resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, serverGVFSConfig);
 
