@@ -10,21 +10,27 @@ namespace GVFS.Common.Git
     {
         private bool disposedValue = false;
 
+        public delegate void MultiVarConfigCallback(string value);
+
         public LibGit2Repo(ITracer tracer, string repoPath)
         {
             this.Tracer = tracer;
 
-            Native.Init();
+            InitNative();
 
             IntPtr repoHandle;
-            if (Native.Repo.Open(out repoHandle, repoPath) != Native.ResultCode.Success)
+            if (TryOpenRepo(repoPath, out repoHandle) != Native.ResultCode.Success)
             {
-                string reason = Native.GetLastError();
+                string reason = GetLastNativeError();
                 string message = "Couldn't open repo at " + repoPath + ": " + reason;
                 tracer.RelatedWarning(message);
 
-                Native.Shutdown();
-                throw new InvalidDataException(message);
+                if (!reason.EndsWith(" is not owned by current user")
+                    || !CheckSafeDirectoryConfigForCaseSensitivityIssue(tracer, repoPath, out repoHandle))
+                {
+                    ShutdownNative();
+                    throw new InvalidDataException(message);
+                }
             }
 
             this.RepoHandle = repoHandle;
@@ -32,6 +38,7 @@ namespace GVFS.Common.Git
 
         protected LibGit2Repo()
         {
+            this.Tracer = NullTracer.Instance;
         }
 
         ~LibGit2Repo()
@@ -246,7 +253,64 @@ namespace GVFS.Common.Git
             {
                 Native.Config.Free(configHandle);
             }
+        }
 
+        public void ForEachMultiVarConfig(string key, MultiVarConfigCallback callback)
+        {
+            if (Native.Config.GetConfig(out IntPtr configHandle, this.RepoHandle) != Native.ResultCode.Success)
+            {
+                throw new LibGit2Exception($"Failed to get config handle: {Native.GetLastError()}");
+            }
+            try
+            {
+                ForEachMultiVarConfig(configHandle, key, callback);
+            }
+            finally
+            {
+                Native.Config.Free(configHandle);
+            }
+        }
+
+        public static void ForEachMultiVarConfigInGlobalAndSystemConfig(string key, MultiVarConfigCallback callback)
+        {
+            if (Native.Config.GetGlobalAndSystemConfig(out IntPtr configHandle) != Native.ResultCode.Success)
+            {
+                throw new LibGit2Exception($"Failed to get global and system config handle: {Native.GetLastError()}");
+            }
+            try
+            {
+                ForEachMultiVarConfig(configHandle, key, callback);
+            }
+            finally
+            {
+                Native.Config.Free(configHandle);
+            }
+        }
+
+        private static void ForEachMultiVarConfig(IntPtr configHandle, string key, MultiVarConfigCallback callback)
+        {
+            Native.Config.GitConfigMultivarCallback nativeCallback = (entryPtr, payload) =>
+            {
+                try
+                {
+                    var entry = Marshal.PtrToStructure<Native.Config.GitConfigEntry>(entryPtr);
+                    callback(entry.GetValue());
+                }
+                catch (Exception)
+                {
+                    return Native.ResultCode.Failure;
+                }
+                return 0;
+            };
+            if (Native.Config.GetMultivarForeach(
+                configHandle,
+                key,
+                regex:"",
+                nativeCallback,
+                IntPtr.Zero) != Native.ResultCode.Success)
+            {
+                throw new LibGit2Exception($"Failed to get multivar config for '{key}': {Native.GetLastError()}");
+            }
         }
 
         /// <summary>
@@ -302,11 +366,86 @@ namespace GVFS.Common.Git
             }
         }
 
+        /// <summary>
+        /// Normalize a path for case-insensitive safe.directory comparison:
+        /// replace backslashes with forward slashes, convert to upper-case,
+        /// and trim trailing slashes.
+        /// </summary>
+        internal static string NormalizePathForSafeDirectoryComparison(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return path;
+            }
+
+            string normalized = path.Replace('\\', '/').ToUpperInvariant();
+            return normalized.TrimEnd('/');
+        }
+
+        /// <summary>
+        /// Retrieve all configured safe.directory values from global and system git config.
+        /// Virtual so tests can provide fake entries without touching real config.
+        /// </summary>
+        protected virtual void GetSafeDirectoryConfigEntries(MultiVarConfigCallback callback)
+        {
+            ForEachMultiVarConfigInGlobalAndSystemConfig("safe.directory", callback);
+        }
+
+        /// <summary>
+        /// Try to open a repository at the given path.  Virtual so tests can
+        /// avoid the native P/Invoke call.
+        /// </summary>
+        protected virtual Native.ResultCode TryOpenRepo(string path, out IntPtr repoHandle)
+        {
+            return Native.Repo.Open(out repoHandle, path);
+        }
+
+        protected virtual void InitNative()
+        {
+            Native.Init();
+        }
+
+        protected virtual void ShutdownNative()
+        {
+            Native.Shutdown();
+        }
+
+        protected virtual string GetLastNativeError()
+        {
+            return Native.GetLastError();
+        }
+
+        protected bool CheckSafeDirectoryConfigForCaseSensitivityIssue(ITracer tracer, string repoPath, out IntPtr repoHandle)
+        {
+            /* Libgit2 has a bug where it is case sensitive for safe.directory (especially the
+             * drive letter) when git.exe isn't. Until a fix can be made and propagated, work
+             * around it by matching the repo path we request to the configured safe directory.
+             *
+             * See https://github.com/libgit2/libgit2/issues/7037
+             */
+            repoHandle = IntPtr.Zero;
+
+            string normalizedRequestedPath = NormalizePathForSafeDirectoryComparison(repoPath);
+
+            string configuredMatchingDirectory = null;
+            GetSafeDirectoryConfigEntries((string value) =>
+            {
+                string normalizedConfiguredPath = NormalizePathForSafeDirectoryComparison(value);
+                if (normalizedConfiguredPath == normalizedRequestedPath)
+                {
+                    configuredMatchingDirectory = value;
+                }
+            });
+
+            return configuredMatchingDirectory != null && TryOpenRepo(configuredMatchingDirectory, out repoHandle) == Native.ResultCode.Success;
+        }
+
         public static class Native
         {
             public enum ResultCode : int
             {
                 Success = 0,
+                Failure = -1,
                 NotFound = -3,
             }
 
@@ -370,8 +509,63 @@ namespace GVFS.Common.Git
                 [DllImport(Git2NativeLibName, EntryPoint = "git_repository_config")]
                 public static extern ResultCode GetConfig(out IntPtr configHandle, IntPtr repoHandle);
 
+                [DllImport(Git2NativeLibName, EntryPoint = "git_config_open_default")]
+                public static extern ResultCode GetGlobalAndSystemConfig(out IntPtr configHandle);
+
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_string")]
                 public static extern ResultCode GetString(out string value, IntPtr configHandle, string name);
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_multivar_foreach")]
+                public static extern ResultCode GetMultivarForeach(
+                    IntPtr configHandle,
+                    string name,
+                    string regex,
+                    GitConfigMultivarCallback callback,
+                    IntPtr payload);
+
+                [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+                public delegate ResultCode GitConfigMultivarCallback(
+                    IntPtr entryPtr,
+                    IntPtr payload);
+
+                [StructLayout(LayoutKind.Sequential)]
+                public struct GitConfigEntry
+                {
+                    public IntPtr Name;
+                    public IntPtr Value;
+                    public IntPtr BackendType;
+                    public IntPtr OriginPath;
+                    public uint IncludeDepth;
+                    public int Level;
+
+                    public string GetValue()
+                    {
+                        return Value != IntPtr.Zero ? MarshalUtf8String(Value) : null;
+                    }
+
+                    public string GetName()
+                    {
+                        return Name != IntPtr.Zero ? MarshalUtf8String(Name) : null;
+                    }
+
+                    private static string MarshalUtf8String(IntPtr ptr)
+                    {
+                        if (ptr == IntPtr.Zero)
+                        {
+                            return null;
+                        }
+
+                        int length = 0;
+                        while (Marshal.ReadByte(ptr, length) != 0)
+                        {
+                            length++;
+                        }
+
+                        byte[] buffer = new byte[length];
+                        Marshal.Copy(ptr, buffer, 0, length);
+                        return System.Text.Encoding.UTF8.GetString(buffer);
+                    }
+                }
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_bool")]
                 public static extern ResultCode GetBool(out bool value, IntPtr configHandle, string name);
