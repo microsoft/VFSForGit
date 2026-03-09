@@ -243,22 +243,22 @@ namespace GVFS.CommandLine
             // If ResolvedCacheServer is set, then we have already tried querying the server config and checking versions.
             if (resolvedCacheServer == null)
             {
-                string authErrorMessage;
-                if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
-                {
-                    this.ReportErrorAndExit(tracer, "Unable to prefetch because authentication failed: " + authErrorMessage);
-                }
-
-                CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
-                
                 if (serverGVFSConfig == null)
                 {
-                    serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
+                    string authErrorMessage;
+                    if (!this.TryAuthenticateAndQueryGVFSConfig(
                         tracer,
                         enlistment,
                         retryConfig,
-                        cacheServerFromConfig);
+                        out serverGVFSConfig,
+                        out authErrorMessage,
+                        fallbackCacheServer: cacheServerFromConfig))
+                    {
+                        this.ReportErrorAndExit(tracer, "Unable to prefetch because authentication failed: " + authErrorMessage);
+                    }
                 }
+
+                CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
 
                 resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerFromConfig.Url, serverGVFSConfig);
 
