@@ -43,8 +43,18 @@ namespace GVFS.CommandLine
             "folders",
             Default = "",
             Required = false,
-            HelpText = "A semicolon (" + FolderListSeparator + ") delimited list of folders to dehydrate. Each folder must be relative to the repository root.")]
+            HelpText = "A semicolon (" + FolderListSeparator + ") delimited list of folders to dehydrate. "
+                + "Each folder must be relative to the repository root. "
+                + "When omitted (without --full), all root-level folders are dehydrated.")]
         public string Folders { get; set; }
+
+        [Option(
+            "full",
+            Default = false,
+            Required = false,
+            HelpText = "Perform a full dehydration that unmounts, backs up the entire src folder, and re-creates the virtualization root from scratch. "
+                + "Without this flag, the default behavior dehydrates individual folders which is faster and does not require a full unmount.")]
+        public bool Full { get; set; }
 
         public string RunningVerbName { get; set; } = DehydrateVerbName;
         public string ActionName { get; set; } = DehydrateVerbName;
@@ -75,6 +85,7 @@ namespace GVFS.CommandLine
                     {
                         { "Confirmed", this.Confirmed },
                         { "NoStatus", this.NoStatus },
+                        { "Full", this.Full },
                         { "NamedPipeName", enlistment.NamedPipeName },
                         { "Folders", this.Folders },
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
@@ -112,14 +123,20 @@ namespace GVFS.CommandLine
                     }
                 }
 
-                bool fullDehydrate = string.IsNullOrEmpty(this.Folders);
+                bool fullDehydrate = this.Full;
+                bool hasFoldersList = !string.IsNullOrEmpty(this.Folders);
+
+                if (fullDehydrate && hasFoldersList)
+                {
+                    this.ReportErrorAndExit("Cannot combine --full with --folders.");
+                }
 
                 if (!this.Confirmed && fullDehydrate)
                 {
                     this.Output.WriteLine(
 $@"WARNING: THIS IS AN EXPERIMENTAL FEATURE
 
-Dehydrate will back up your src folder, and then create a new, empty src folder
+Dehydrate --full will back up your src folder, and then create a new, empty src folder
 with a fresh virtualization of the repo. All of your downloaded objects, branches,
 and siblings of the src folder will be preserved. Your modified working directory
 files will be moved to the backup, and your new working directory will not have
@@ -130,25 +147,33 @@ you want to keep. If you choose not to, you can still find your uncommitted chan
 in the backup folder, but it will be harder to find them because 'git status'
 will not work in the backup.
 
-To actually execute the dehydrate, run 'gvfs dehydrate --confirm' from {enlistment.EnlistmentRoot}.
+To actually execute the dehydrate, run 'gvfs dehydrate --confirm --full' from {enlistment.EnlistmentRoot}.
 ");
 
                     return;
                 }
                 else if (!this.Confirmed)
                 {
+                    string folderDescription = hasFoldersList
+                        ? "the folders specified"
+                        : "all root-level folders";
+
+                    string confirmCommand = hasFoldersList
+                        ? $"'gvfs dehydrate --confirm --folders <folder list>'"
+                        : $"'gvfs dehydrate --confirm'";
+
                     this.Output.WriteLine(
-@"WARNING: THIS IS AN EXPERIMENTAL FEATURE
+$@"WARNING: THIS IS AN EXPERIMENTAL FEATURE
 
 All of your downloaded objects, branches, and siblings of the src folder
-will be preserved.  This will remove the folders specified and any working directory
+will be preserved.  This will remove {folderDescription} and any working directory
 files and folders even if ignored by git similar to 'git clean -xdf <path>'.
 
 Before you dehydrate, you will have to commit any working directory changes
 you want to keep and have a clean 'git status', or run with --no-status to
 undo any uncommitted changes.
 
-To actually execute the dehydrate, run 'gvfs dehydrate --confirm --folders <folder list>'
+To actually execute the dehydrate, run {confirmCommand}
 from a parent of the folders list.
 ");
 
@@ -158,7 +183,7 @@ from a parent of the folders list.
                 if (fullDehydrate && Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryBackingRoot))
                 {
                     /* If running from /src, the dehydrate would fail because of the handle we are holding on it. */
-                    this.Output.WriteLine($"Dehydrate must be run from {enlistment.EnlistmentRoot}");
+                    this.Output.WriteLine($"Dehydrate --full must be run from {enlistment.EnlistmentRoot}");
                     return;
                 }
 
@@ -209,7 +234,15 @@ from a parent of the folders list.
                 }
                 else
                 {
-                    string[] folders = this.Folders.Split(new[] { FolderListSeparator }, StringSplitOptions.RemoveEmptyEntries);
+                    string[] folders;
+                    if (hasFoldersList)
+                    {
+                        folders = this.Folders.Split(new[] { FolderListSeparator }, StringSplitOptions.RemoveEmptyEntries);
+                    }
+                    else
+                    {
+                        folders = this.GetRootLevelFolders(enlistment);
+                    }
 
                     if (folders.Length > 0)
                     {
@@ -308,6 +341,38 @@ from a parent of the folders list.
         private static string GetBackupSrcPath(string backupRoot)
         {
             return Path.Combine(backupRoot, "src");
+        }
+
+        private string[] GetRootLevelFolders(GVFSEnlistment enlistment)
+        {
+            HashSet<string> rootFolders = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
+            GitProcess git = new GitProcess(enlistment);
+            GitProcess.Result result = git.LsTree(
+                GVFSConstants.DotGit.HeadName,
+                line =>
+                {
+                    // ls-tree output format: "<mode> <type> <hash>\t<path>"
+                    int tabIndex = line.IndexOf('\t');
+                    if (tabIndex >= 0)
+                    {
+                        string path = line.Substring(tabIndex + 1);
+                        int separatorIndex = path.IndexOf('/');
+                        string rootFolder = separatorIndex >= 0 ? path.Substring(0, separatorIndex) : path;
+                        if (!rootFolder.Equals(GVFSConstants.DotGit.Root, StringComparison.OrdinalIgnoreCase))
+                        {
+                            rootFolders.Add(rootFolder);
+                        }
+                    }
+                },
+                recursive: false,
+                showDirectories: true);
+
+            if (result.ExitCodeIsFailure)
+            {
+                this.ReportErrorAndExit($"Failed to enumerate root-level folders from HEAD: {result.Errors}");
+            }
+
+            return rootFolders.ToArray();
         }
 
         private bool IsFolderValid(string folderPath)

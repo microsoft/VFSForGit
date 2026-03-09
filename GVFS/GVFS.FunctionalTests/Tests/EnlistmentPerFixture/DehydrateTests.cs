@@ -54,7 +54,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void DehydrateShouldSucceedInCommonCase()
         {
-            this.DehydrateShouldSucceed(new[] { "The repo was successfully dehydrated and remounted" }, confirm: true, noStatus: false);
+            this.DehydrateShouldSucceed(new[] { "folder dehydrate successful." }, confirm: true, noStatus: false);
+        }
+
+        [TestCase]
+        public void FullDehydrateShouldExitWithoutConfirm()
+        {
+            this.DehydrateShouldSucceed(new[] { "To actually execute the dehydrate, run 'gvfs dehydrate --confirm --full'" }, confirm: false, noStatus: false, full: true);
+        }
+
+        [TestCase]
+        public void FullDehydrateShouldSucceedInCommonCase()
+        {
+            this.DehydrateShouldSucceed(new[] { "The repo was successfully dehydrated and remounted" }, confirm: true, noStatus: false, full: true);
         }
 
         [TestCase]
@@ -69,13 +81,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.Enlistment.UnmountGVFS();
             RepositoryHelpers.DeleteTestDirectory(this.Enlistment.GetObjectRoot(this.fileSystem));
-            this.DehydrateShouldSucceed(new[] { "The repo was successfully dehydrated and remounted" }, confirm: true, noStatus: true);
+            this.DehydrateShouldSucceed(new[] { "The repo was successfully dehydrated and remounted" }, confirm: true, noStatus: true, full: true);
         }
 
         [TestCase]
         public void DehydrateShouldBackupFiles()
         {
-            this.DehydrateShouldSucceed(new[] { "The repo was successfully dehydrated and remounted" }, confirm: true, noStatus: false);
+            this.DehydrateShouldSucceed(new[] { "The repo was successfully dehydrated and remounted" }, confirm: true, noStatus: false, full: true);
             string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
             backupFolder.ShouldBeADirectory(this.fileSystem);
             string[] backupFolderItems = this.fileSystem.EnumerateDirectory(backupFolder).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -112,7 +124,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
             GVFSHelpers.SaveGitObjectsRoot(this.Enlistment.DotGVFSRoot, objectsRoot);
 
-            this.DehydrateShouldFail(new[] { "Failed to determine local cache path from repo metadata" }, noStatus: true);
+            this.DehydrateShouldFail(new[] { "Failed to determine local cache path from repo metadata" }, noStatus: true, full: true);
 
             this.fileSystem.DeleteFile(metadataPath);
             this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
@@ -136,7 +148,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
             GVFSHelpers.SaveLocalCacheRoot(this.Enlistment.DotGVFSRoot, localCacheRoot);
 
-            this.DehydrateShouldFail(new[] { "Failed to determine git objects root from repo metadata" }, noStatus: true);
+            this.DehydrateShouldFail(new[] { "Failed to determine git objects root from repo metadata" }, noStatus: true, full: true);
 
             this.fileSystem.DeleteFile(metadataPath);
             this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
@@ -160,11 +172,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             if (previousMajorVersionNum >= GVFSHelpers.GetCurrentDiskLayoutMinimumMajorVersion())
             {
                 GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, previousMajorVersionNum.ToString(), "0");
-                this.DehydrateShouldFail(new[] { "disk layout version doesn't match current version" }, noStatus: true);
+                this.DehydrateShouldFail(new[] { "disk layout version doesn't match current version" }, noStatus: true, full: true);
             }
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (majorVersionNum + 1).ToString(), "0");
-            this.DehydrateShouldFail(new[] { "Changes to GVFS disk layout do not allow mounting after downgrade." }, noStatus: true);
+            this.DehydrateShouldFail(new[] { "Changes to GVFS disk layout do not allow mounting after downgrade." }, noStatus: true, full: true);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersionNum.ToString(), minorVersionNum.ToString());
         }
@@ -558,9 +570,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        private void DehydrateShouldSucceed(string[] expectedInOutput, bool confirm, bool noStatus, params string[] foldersToDehydrate)
+        private void DehydrateShouldSucceed(string[] expectedInOutput, bool confirm, bool noStatus, bool full = false, params string[] foldersToDehydrate)
         {
-            ProcessResult result = this.RunDehydrateProcess(confirm, noStatus, foldersToDehydrate);
+            ProcessResult result = this.RunDehydrateProcess(confirm, noStatus, full, foldersToDehydrate);
             result.ExitCode.ShouldEqual(0, $"mount exit code was {result.ExitCode}. Output: {result.Output}");
 
             if (result.Output.Contains("Failed to move the src folder: Access to the path"))
@@ -572,14 +584,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             result.Output.ShouldContain(expectedInOutput);
         }
 
-        private void DehydrateShouldFail(string[] expectedErrorMessages, bool noStatus, params string[] foldersToDehydrate)
+        private void DehydrateShouldFail(string[] expectedErrorMessages, bool noStatus, bool full = false, params string[] foldersToDehydrate)
         {
-            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus, foldersToDehydrate: foldersToDehydrate);
+            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus, full: full, foldersToDehydrate: foldersToDehydrate);
             result.ExitCode.ShouldEqual(GVFSGenericError, $"mount exit code was not {GVFSGenericError}");
             result.Output.ShouldContain(expectedErrorMessages);
         }
 
-        private ProcessResult RunDehydrateProcess(bool confirm, bool noStatus, params string[] foldersToDehydrate)
+        private ProcessResult RunDehydrateProcess(bool confirm, bool noStatus, bool full = false, params string[] foldersToDehydrate)
         {
             string dehydrateFlags = string.Empty;
             if (confirm)
@@ -590,6 +602,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             if (noStatus)
             {
                 dehydrateFlags += " --no-status ";
+            }
+
+            if (full)
+            {
+                dehydrateFlags += " --full ";
             }
 
             if (foldersToDehydrate.Length > 0)
