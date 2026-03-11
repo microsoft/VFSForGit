@@ -23,7 +23,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.CommandBlocked("update-index --skip-worktree");
             this.CommandBlocked("update-index --no-skip-worktree");
             this.CommandBlocked("update-index --split-index");
-            this.CommandBlocked("worktree list");
+            this.CommandNotBlocked("worktree list");
         }
 
         private void CommandBlocked(string command)
