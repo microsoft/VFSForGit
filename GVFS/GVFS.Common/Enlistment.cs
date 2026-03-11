@@ -62,10 +62,18 @@ namespace GVFS.Common
         public string WorkingDirectoryRoot { get; }
         public string WorkingDirectoryBackingRoot { get; }
 
-        public string DotGitRoot { get; private set; }
+        public string DotGitRoot { get; protected set; }
         public abstract string GitObjectsRoot { get; protected set; }
         public abstract string LocalObjectsRoot { get; protected set; }
         public abstract string GitPackRoot { get; protected set; }
+
+        /// <summary>
+        /// Path to the git index file. Override for worktree-specific paths.
+        /// </summary>
+        public virtual string GitIndexPath
+        {
+            get { return Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index); }
+        }
         public string RepoUrl { get; }
         public bool FlushFileBuffersForPacks { get; }
 

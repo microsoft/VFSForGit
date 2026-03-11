@@ -87,7 +87,7 @@ namespace GVFS.Common
         /// </summary>
         internal static int GetIndexFileCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem)
         {
-            string indexPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index);
+            string indexPath = enlistment.GitIndexPath;
             using (var indexFile = fileSystem.OpenFileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, callFlushFileBuffers: false))
             {
                 if (indexFile.Length < 12)
