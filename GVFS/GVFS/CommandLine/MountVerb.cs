@@ -6,6 +6,7 @@ using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
 using System;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.CommandLine
 {
@@ -51,16 +52,53 @@ namespace GVFS.CommandLine
         {
             string errorMessage;
             string enlistmentRoot;
-            if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out enlistmentRoot, out errorMessage))
+
+            // Always check if the given path is a worktree first, before
+            // falling back to the standard .gvfs/ walk-up. A worktree dir
+            // may be under the enlistment tree, so TryGetGVFSEnlistmentRoot
+            // can succeed by walking up — but we still need worktree-specific handling.
+            string pathToCheck = string.IsNullOrEmpty(this.EnlistmentRootPathParameter)
+                ? Environment.CurrentDirectory
+                : this.EnlistmentRootPathParameter;
+
+            GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(pathToCheck);
+            if (wtInfo?.SharedGitDir != null)
+            {
+                // This is a worktree mount request. Find the primary enlistment root.
+                string srcDir = Path.GetDirectoryName(wtInfo.SharedGitDir);
+                enlistmentRoot = srcDir != null ? Path.GetDirectoryName(srcDir) : null;
+
+                if (enlistmentRoot == null)
+                {
+                    this.ReportErrorAndExit("Error: could not determine enlistment root for worktree '{0}'", pathToCheck);
+                }
+
+                // Check the worktree-specific pipe, not the primary
+                if (!this.SkipMountedCheck)
+                {
+                    string worktreePipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot) + wtInfo.PipeSuffix;
+                    using (NamedPipeClient pipeClient = new NamedPipeClient(worktreePipeName))
+                    {
+                        if (pipeClient.Connect(500))
+                        {
+                            this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.Success, error: $"The worktree at '{wtInfo.WorktreePath}' is already mounted.");
+                        }
+                    }
+                }
+            }
+            else if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out enlistmentRoot, out errorMessage))
             {
                 this.ReportErrorAndExit("Error: '{0}' is not a valid GVFS enlistment", this.EnlistmentRootPathParameter);
             }
-
-            if (!this.SkipMountedCheck)
+            else
             {
-                if (this.IsExistingPipeListening(enlistmentRoot))
+                // Primary enlistment — check primary pipe as before
+                if (!this.SkipMountedCheck)
                 {
-                    this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.Success, error: $"The repo at '{enlistmentRoot}' is already mounted.");
+                    if (this.IsExistingPipeListening(enlistmentRoot))
+                    {
+                        this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.Success, error: $"The repo at '{enlistmentRoot}' is already mounted.");
+                    }
                 }
             }
 
@@ -155,19 +193,23 @@ namespace GVFS.CommandLine
                 }
             }
         }
-
         private bool TryMount(ITracer tracer, GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
         {
             const string ParamPrefix = "--";
 
-            tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {enlistment.EnlistmentRoot}");
+            // For worktrees, pass the worktree path so GVFS.Mount.exe creates the right enlistment
+            string mountPath = enlistment.IsWorktree
+                ? enlistment.WorkingDirectoryRoot
+                : enlistment.EnlistmentRoot;
+
+            tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {mountPath}");
 
             GVFSPlatform.Instance.StartBackgroundVFS4GProcess(
                 tracer,
                 mountExecutableLocation,
                 new[]
                 {
-                    enlistment.EnlistmentRoot,
+                    mountPath,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Verbosity,
                     this.Verbosity,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Keywords,
@@ -179,7 +221,8 @@ namespace GVFS.CommandLine
                 });
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for repo to be mounted");
-            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
+
+            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.NamedPipeName, enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
@@ -187,7 +230,12 @@ namespace GVFS.CommandLine
             errorMessage = string.Empty;
 
             NamedPipeMessages.RegisterRepoRequest request = new NamedPipeMessages.RegisterRepoRequest();
-            request.EnlistmentRoot = enlistment.EnlistmentRoot;
+
+            // Worktree mounts register with their worktree path so they can be
+            // listed and unregistered independently of the primary enlistment.
+            request.EnlistmentRoot = enlistment.IsWorktree
+                ? enlistment.WorkingDirectoryRoot
+                : enlistment.EnlistmentRoot;
 
             request.OwnerSID = GVFSPlatform.Instance.GetCurrentUser();
 

@@ -48,11 +48,58 @@ namespace GVFS.Common
         {
         }
 
+        // Worktree enlistment — overrides working directory, pipe name, and metadata paths
+        private GVFSEnlistment(string enlistmentRoot, string gitBinPath, GitAuthentication authentication, WorktreeInfo worktreeInfo, string repoUrl = null)
+            : base(
+                  enlistmentRoot,
+                  worktreeInfo.WorktreePath,
+                  worktreeInfo.WorktreePath,
+                  repoUrl,
+                  gitBinPath,
+                  flushFileBuffersForPacks: true,
+                  authentication: authentication)
+        {
+            this.Worktree = worktreeInfo;
+
+            // Override DotGitRoot to point to the shared .git directory.
+            // The base constructor sets it to WorkingDirectoryBackingRoot/.git
+            // which is a file (not directory) in worktrees.
+            this.DotGitRoot = worktreeInfo.SharedGitDir;
+
+            this.DotGVFSRoot = Path.Combine(worktreeInfo.WorktreeGitDir, GVFSPlatform.Instance.Constants.DotGVFSRoot);
+            this.NamedPipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot) + worktreeInfo.PipeSuffix;
+            this.GitStatusCacheFolder = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.Name);
+            this.GitStatusCachePath = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.CachePath);
+            this.GVFSLogsRoot = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.LogName);
+            this.LocalObjectsRoot = Path.Combine(worktreeInfo.SharedGitDir, "objects");
+        }
+
         public string NamedPipeName { get; }
 
         public string DotGVFSRoot { get; }
 
         public string GVFSLogsRoot { get; }
+
+        public WorktreeInfo Worktree { get; }
+
+        public bool IsWorktree => this.Worktree != null;
+
+        /// <summary>
+        /// Path to the git index file. For worktrees this is in the
+        /// per-worktree git dir, not in the working directory.
+        /// </summary>
+        public override string GitIndexPath
+        {
+            get
+            {
+                if (this.IsWorktree)
+                {
+                    return Path.Combine(this.Worktree.WorktreeGitDir, GVFSConstants.DotGit.IndexName);
+                }
+
+                return base.GitIndexPath;
+            }
+        }
 
         public string LocalCacheRoot { get; private set; }
 
@@ -88,6 +135,31 @@ namespace GVFS.Common
         {
             if (Directory.Exists(directory))
             {
+                // Always check for worktree first. A worktree directory may
+                // be under the enlistment tree, so TryGetGVFSEnlistmentRoot
+                // can succeed by walking up — but we need a worktree enlistment.
+                WorktreeInfo wtInfo = TryGetWorktreeInfo(directory);
+                if (wtInfo?.SharedGitDir != null)
+                {
+                    string srcDir = Path.GetDirectoryName(wtInfo.SharedGitDir);
+                    if (srcDir != null)
+                    {
+                        string primaryRoot = Path.GetDirectoryName(srcDir);
+                        if (primaryRoot != null)
+                        {
+                            // Read origin URL via the shared .git dir (not the worktree's
+                            // .git file) because the base Enlistment constructor runs
+                            // git config before we can override DotGitRoot.
+                            string repoUrl = null;
+                            GitProcess git = new GitProcess(gitBinRoot, srcDir);
+                            GitProcess.ConfigResult urlResult = git.GetOriginUrl();
+                            urlResult.TryParseAsString(out repoUrl, out _);
+
+                            return CreateForWorktree(primaryRoot, gitBinRoot, authentication, wtInfo, repoUrl?.Trim());
+                        }
+                    }
+                }
+
                 string errorMessage;
                 string enlistmentRoot;
                 if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(directory, out enlistmentRoot, out errorMessage))
@@ -106,6 +178,21 @@ namespace GVFS.Common
             throw new InvalidRepoException($"Directory '{directory}' does not exist");
         }
 
+        /// <summary>
+        /// Creates a GVFSEnlistment for a git worktree. Uses the primary
+        /// enlistment root for shared config but maps working directory,
+        /// metadata, and pipe name to the worktree.
+        /// </summary>
+        public static GVFSEnlistment CreateForWorktree(
+            string primaryEnlistmentRoot,
+            string gitBinRoot,
+            GitAuthentication authentication,
+            WorktreeInfo worktreeInfo,
+            string repoUrl = null)
+        {
+            return new GVFSEnlistment(primaryEnlistmentRoot, gitBinRoot, authentication, worktreeInfo, repoUrl);
+        }
+
         public static string GetNewGVFSLogFileName(
             string logsRoot,
             string logFileType,
@@ -119,9 +206,8 @@ namespace GVFS.Common
                 fileSystem: fileSystem);
         }
 
-        public static bool WaitUntilMounted(ITracer tracer, string enlistmentRoot, bool unattended, out string errorMessage)
+        public static bool WaitUntilMounted(ITracer tracer, string pipeName, string enlistmentRoot, bool unattended, out string errorMessage)
         {
-            string pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot);
             tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Creating NamedPipeClient for pipe '{pipeName}'");
 
             errorMessage = null;

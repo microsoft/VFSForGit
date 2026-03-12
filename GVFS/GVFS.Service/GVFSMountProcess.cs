@@ -35,7 +35,19 @@ namespace GVFS.Service
                 }
 
                 string errorMessage;
-                if (!GVFSEnlistment.WaitUntilMounted(this.tracer, repoRoot, false, out errorMessage))
+                string pipeName = GVFSPlatform.Instance.GetNamedPipeName(repoRoot);
+                GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(repoRoot);
+                if (wtInfo?.SharedGitDir != null)
+                {
+                    string srcDir = System.IO.Path.GetDirectoryName(wtInfo.SharedGitDir);
+                    string enlistmentRoot = srcDir != null ? System.IO.Path.GetDirectoryName(srcDir) : null;
+                    if (enlistmentRoot != null)
+                    {
+                        pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot) + wtInfo.PipeSuffix;
+                    }
+                }
+
+                if (!GVFSEnlistment.WaitUntilMounted(this.tracer, pipeName, repoRoot, false, out errorMessage))
                 {
                     this.tracer.RelatedError(errorMessage);
                     return false;
