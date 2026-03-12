@@ -28,6 +28,16 @@ namespace GVFS.Common
         }
 
         /// <summary>
+        /// Returns true if <paramref name="path"/> is equal to or a subdirectory of
+        /// <paramref name="directory"/> (case-insensitive).
+        /// </summary>
+        public static bool IsPathInsideDirectory(string path, string directory)
+        {
+            return path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                   path.Equals(directory, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Detects if the given directory is a git worktree by checking for
         /// a .git file (not directory) containing "gitdir: path/.git/worktrees/name".
         /// Returns a pipe name suffix like "_WT_NAME" if so, or null if not a worktree.
