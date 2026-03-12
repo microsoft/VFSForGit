@@ -35,6 +35,9 @@ namespace GVFS.Hooks
             string subcommand = GetWorktreeSubcommand(args);
             switch (subcommand)
             {
+                case "add":
+                    BlockNestedWorktreeAdd(args);
+                    break;
                 case "remove":
                     HandleWorktreeRemove(args);
                     break;
@@ -120,6 +123,30 @@ namespace GVFS.Hooks
                 {
                     File.Delete(markerPath);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Block creating a worktree inside the primary VFS working directory.
+        /// ProjFS cannot handle nested virtualization roots.
+        /// </summary>
+        private static void BlockNestedWorktreeAdd(string[] args)
+        {
+            string worktreePath = GetWorktreePathArg(args);
+            if (string.IsNullOrEmpty(worktreePath))
+            {
+                return;
+            }
+
+            string fullPath = ResolvePath(worktreePath);
+            string primaryWorkingDir = Path.Combine(enlistmentRoot, "src");
+
+            if (GVFSEnlistment.IsPathInsideDirectory(fullPath, primaryWorkingDir))
+            {
+                Console.Error.WriteLine(
+                    $"error: cannot create worktree inside the VFS working directory.\n" +
+                    $"Create the worktree outside of '{primaryWorkingDir}'.");
+                Environment.Exit(1);
             }
         }
 
