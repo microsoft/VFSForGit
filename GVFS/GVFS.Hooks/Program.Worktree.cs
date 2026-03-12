@@ -160,17 +160,32 @@ namespace GVFS.Hooks
 
             string fullPath = ResolvePath(worktreePath);
             GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(fullPath);
-            if (wtInfo == null)
-            {
-                return;
-            }
 
             bool hasForce = args.Any(a =>
                 a.Equals("--force", StringComparison.OrdinalIgnoreCase) ||
                 a.Equals("-f", StringComparison.OrdinalIgnoreCase));
 
+            // Check if the worktree's GVFS mount is running by probing the pipe.
+            bool isMounted = false;
+            if (wtInfo != null)
+            {
+                string pipeName = GVFSHooksPlatform.GetNamedPipeName(enlistmentRoot) + wtInfo.PipeSuffix;
+                using (NamedPipeClient pipeClient = new NamedPipeClient(pipeName))
+                {
+                    isMounted = pipeClient.Connect(500);
+                }
+            }
+
             if (!hasForce)
             {
+                if (!isMounted)
+                {
+                    Console.Error.WriteLine(
+                        $"error: worktree '{fullPath}' is not mounted.\n" +
+                        $"Mount it with 'gvfs mount \"{fullPath}\"' or use 'git worktree remove --force'.");
+                    Environment.Exit(1);
+                }
+
                 // Check for uncommitted changes while ProjFS is still mounted.
                 ProcessResult statusResult = ProcessHelper.Run(
                     "git",
@@ -185,6 +200,11 @@ namespace GVFS.Hooks
                     Environment.Exit(1);
                 }
             }
+            else if (!isMounted)
+            {
+                // Force remove of unmounted worktree — nothing to unmount.
+                return;
+            }
 
             // Write a marker in the worktree gitdir that tells git.exe
             // to skip the cleanliness check during worktree remove.
@@ -193,7 +213,7 @@ namespace GVFS.Hooks
             File.WriteAllText(skipCleanCheck, "1");
 
             // Unmount ProjFS before git deletes the worktree directory.
-            UnmountWorktree(fullPath);
+            UnmountWorktree(fullPath, wtInfo);
         }
 
         private static void UnmountWorktree(string fullPath)
@@ -204,6 +224,11 @@ namespace GVFS.Hooks
                 return;
             }
 
+            UnmountWorktree(fullPath, wtInfo);
+        }
+
+        private static void UnmountWorktree(string fullPath, GVFSEnlistment.WorktreeInfo wtInfo)
+        {
             ProcessHelper.Run("gvfs", $"unmount \"{fullPath}\"", redirectOutput: false);
 
             // Wait for the GVFS.Mount process to fully exit by polling
