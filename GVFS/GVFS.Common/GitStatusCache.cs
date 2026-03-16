@@ -47,6 +47,8 @@ namespace GVFS.Common
         private bool isStopping;
         private bool isInitialized;
         private StatusStatistics statistics;
+        private CancellationTokenSource shutdownTokenSource;
+        private Task activeHydrationTask;
 
         private volatile CacheState cacheState = CacheState.Dirty;
 
@@ -65,6 +67,7 @@ namespace GVFS.Common
             this.backoffTime = backoffTime;
             this.serializedGitStatusFilePath = this.context.Enlistment.GitStatusCachePath;
             this.statistics = new StatusStatistics();
+            this.shutdownTokenSource = new CancellationTokenSource();
 
             this.wakeUpThread = new AutoResetEvent(false);
         }
@@ -79,6 +82,7 @@ namespace GVFS.Common
         public virtual void Shutdown()
         {
             this.isStopping = true;
+            this.shutdownTokenSource.Cancel();
 
             if (this.isInitialized && this.updateStatusCacheThread != null)
             {
@@ -176,6 +180,27 @@ namespace GVFS.Common
         public virtual void Dispose()
         {
             this.Shutdown();
+
+            // Wait for the hydration task to complete before disposing the
+            // token source it may still be using.
+            if (this.activeHydrationTask != null)
+            {
+                try
+                {
+                    this.activeHydrationTask.Wait();
+                }
+                catch (AggregateException)
+                {
+                }
+
+                this.activeHydrationTask = null;
+            }
+
+            if (this.shutdownTokenSource != null)
+            {
+                this.shutdownTokenSource.Dispose();
+                this.shutdownTokenSource = null;
+            }
 
             if (this.wakeUpThread != null)
             {
@@ -317,9 +342,28 @@ namespace GVFS.Common
             if (needToRebuild)
             {
                 this.statistics.RecordBackgroundStatusScanRun();
-                this.UpdateHydrationSummary();
+
+                // Run hydration summary in parallel with git status — they are independent
+                // operations and neither should delay the other.
+                Task hydrationTask = Task.Run(() => this.UpdateHydrationSummary());
+                this.activeHydrationTask = hydrationTask;
 
                 bool rebuildStatusCacheSucceeded = this.TryRebuildStatusCache();
+
+                // Wait for hydration to complete before logging final stats.
+                try
+                {
+                    hydrationTask.Wait();
+                }
+                catch (AggregateException ex)
+                {
+                    EventMetadata errorMetadata = new EventMetadata();
+                    errorMetadata.Add("Area", EtwArea);
+                    errorMetadata.Add("Exception", ex.InnerException?.ToString());
+                    this.context.Tracer.RelatedError(
+                        errorMetadata,
+                        $"{nameof(GitStatusCache)}.{nameof(RebuildStatusCacheIfNeeded)}: Unhandled exception in hydration summary task.");
+                }
 
                 TimeSpan delayedTime = startTime - this.initialDelayTime;
                 TimeSpan statusRunTime = DateTime.UtcNow - startTime;
@@ -356,7 +400,7 @@ namespace GVFS.Common
                  * and this is also a convenient place to log telemetry for it.
                  */
                 EnlistmentHydrationSummary hydrationSummary =
-                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem);
+                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, cancellationToken: this.shutdownTokenSource.Token);
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", EtwArea);
                 if (hydrationSummary.IsValid)
@@ -372,13 +416,19 @@ namespace GVFS.Common
                         metadata,
                         Keywords.Telemetry);
                 }
-                else
+                else if (hydrationSummary.Error != null)
                 {
-                    metadata["Exception"] = hydrationSummary.Error?.ToString();
+                    metadata["Exception"] = hydrationSummary.Error.ToString();
                     this.context.Tracer.RelatedWarning(
                         metadata,
                         $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary could not be calculated.",
                         Keywords.Telemetry);
+                }
+                else
+                {
+                    // Invalid summary with no error — likely cancelled during shutdown
+                    this.context.Tracer.RelatedInfo(
+                        $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary was cancelled.");
                 }
             }
             catch (Exception ex)
