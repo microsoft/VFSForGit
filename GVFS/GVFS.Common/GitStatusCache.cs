@@ -348,6 +348,15 @@ namespace GVFS.Common
                 return;
             }
 
+            HydrationStatusCircuitBreaker circuitBreaker = new HydrationStatusCircuitBreaker(
+                this.context.Enlistment.DotGVFSRoot,
+                this.context.Tracer);
+
+            if (circuitBreaker.IsDisabled())
+            {
+                return;
+            }
+
             try
             {
                 /* While not strictly part of git status, enlistment hydration summary is used
@@ -374,6 +383,7 @@ namespace GVFS.Common
                 }
                 else
                 {
+                    circuitBreaker.RecordFailure();
                     metadata["Exception"] = hydrationSummary.Error?.ToString();
                     this.context.Tracer.RelatedWarning(
                         metadata,
