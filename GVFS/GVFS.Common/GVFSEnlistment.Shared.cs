@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security;
 
@@ -29,12 +30,19 @@ namespace GVFS.Common
 
         /// <summary>
         /// Returns true if <paramref name="path"/> is equal to or a subdirectory of
-        /// <paramref name="directory"/> (case-insensitive).
+        /// <paramref name="directory"/> (case-insensitive). Both paths are
+        /// canonicalized with <see cref="Path.GetFullPath(string)"/> to resolve
+        /// relative segments (e.g. "/../") before comparison.
         /// </summary>
         public static bool IsPathInsideDirectory(string path, string directory)
         {
-            return path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-                   path.Equals(directory, StringComparison.OrdinalIgnoreCase);
+            string normalizedPath = Path.GetFullPath(path)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string normalizedDirectory = Path.GetFullPath(directory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            return normalizedPath.StartsWith(normalizedDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                   normalizedPath.Equals(normalizedDirectory, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -108,6 +116,46 @@ namespace GVFS.Common
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Returns the working directory paths of all worktrees registered
+        /// under <paramref name="gitDir"/>/worktrees by reading each entry's
+        /// gitdir file. The primary worktree is not included.
+        /// </summary>
+        public static string[] GetKnownWorktreePaths(string gitDir)
+        {
+            string worktreesDir = Path.Combine(gitDir, "worktrees");
+            if (!Directory.Exists(worktreesDir))
+            {
+                return new string[0];
+            }
+
+            List<string> paths = new List<string>();
+            foreach (string entry in Directory.GetDirectories(worktreesDir))
+            {
+                string gitdirFile = Path.Combine(entry, "gitdir");
+                if (!File.Exists(gitdirFile))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    string gitdirContent = File.ReadAllText(gitdirFile).Trim();
+                    gitdirContent = gitdirContent.Replace('/', Path.DirectorySeparatorChar);
+                    string worktreeDir = Path.GetDirectoryName(gitdirContent);
+                    if (!string.IsNullOrEmpty(worktreeDir))
+                    {
+                        paths.Add(Path.GetFullPath(worktreeDir));
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return paths.ToArray();
         }
 
         public class WorktreeInfo
