@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -39,47 +40,55 @@ namespace GVFS.CommandLine
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
-            if (this.StatusOnly)
+            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, HealthVerbName))
             {
-                this.OutputHydrationPercent(enlistment);
-                return;
-            }
+                tracer.AddLogFileEventListener(
+                    GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Health),
+                    EventLevel.Informational,
+                    Keywords.Any);
 
-            // Now default to the current working directory when running the verb without a specified path
-            if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
-            {
-                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, GVFSPlatform.Instance.Constants.PathComparison))
+                if (this.StatusOnly)
                 {
-                    this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
+                    this.OutputHydrationPercent(enlistment, tracer);
+                    return;
                 }
-                else
+
+                // Now default to the current working directory when running the verb without a specified path
+                if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
                 {
-                    // If the path is not under the source root, set the directory to empty
-                    this.Directory = string.Empty;
+                    if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, GVFSPlatform.Instance.Constants.PathComparison))
+                    {
+                        this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
+                    }
+                    else
+                    {
+                        // If the path is not under the source root, set the directory to empty
+                        this.Directory = string.Empty;
+                    }
                 }
+
+                this.Output.WriteLine("\nGathering repository data...");
+
+                this.Directory = this.Directory.Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
+
+                EnlistmentPathData pathData = new EnlistmentPathData();
+
+                pathData.LoadPlaceholdersFromDatabase(enlistment);
+                pathData.LoadModifiedPaths(enlistment, tracer);
+                pathData.LoadPathsFromGitIndex(enlistment);
+
+                pathData.NormalizeAllPaths();
+
+                EnlistmentHealthCalculator enlistmentHealthCalculator = new EnlistmentHealthCalculator(pathData);
+                EnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
+
+                this.PrintOutput(enlistmentHealthData);
             }
-
-            this.Output.WriteLine("\nGathering repository data...");
-
-            this.Directory = this.Directory.Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
-
-            EnlistmentPathData pathData = new EnlistmentPathData();
-
-            pathData.LoadPlaceholdersFromDatabase(enlistment);
-            pathData.LoadModifiedPaths(enlistment);
-            pathData.LoadPathsFromGitIndex(enlistment);
-
-            pathData.NormalizeAllPaths();
-
-            EnlistmentHealthCalculator enlistmentHealthCalculator = new EnlistmentHealthCalculator(pathData);
-            EnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
-
-            this.PrintOutput(enlistmentHealthData);
         }
 
-        private void OutputHydrationPercent(GVFSEnlistment enlistment)
+        private void OutputHydrationPercent(GVFSEnlistment enlistment, ITracer tracer)
         {
-            var summary = EnlistmentHydrationSummary.CreateSummary(enlistment, this.FileSystem);
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(enlistment, this.FileSystem, tracer);
             this.Output.WriteLine(summary.ToMessage());
         }
 

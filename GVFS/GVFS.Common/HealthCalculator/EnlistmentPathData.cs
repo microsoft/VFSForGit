@@ -2,6 +2,7 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -94,30 +95,39 @@ namespace GVFS.Common
             this.GitTrackingPaths.AddRange(skipWorktreeFiles);
         }
 
-        public void LoadModifiedPaths(GVFSEnlistment enlistment)
+        public void LoadModifiedPaths(GVFSEnlistment enlistment, ITracer tracer)
         {
-            if (TryLoadModifiedPathsFromPipe(enlistment))
+            if (TryLoadModifiedPathsFromPipe(enlistment, tracer))
             {
                 return;
             }
+
+            // Most likely GVFS is not mounted. Give a basic effort to read the modified paths database.
+            string filePath = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.ModifiedPaths);
             try
             {
-                /* Most likely GVFS is not mounted. Give a basic effort to read the modified paths database */
-                var filePath = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.ModifiedPaths);
-                using (var file = File.Open(filePath, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read))
-                using (var reader = new StreamReader(file))
+                using (FileStream file = File.Open(filePath, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read))
+                using (StreamReader reader = new StreamReader(file))
                 {
                     AddModifiedPaths(ReadModifiedPathDatabaseLines(reader));
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                tracer.RelatedWarning($"Failed to read modified paths file at {filePath}: {ex.Message}");
+            }
         }
 
         private IEnumerable<string> ReadModifiedPathDatabaseLines(StreamReader r)
         {
             while (!r.EndOfStream)
             {
-                var line = r.ReadLine();
+                string line = r.ReadLine();
+                if (line == null)
+                {
+                    continue;
+                }
+
                 const string LinePrefix = "A ";
                 if (line.StartsWith(LinePrefix))
                 {
@@ -133,7 +143,7 @@ namespace GVFS.Common
         /// <remarks>If/when modified paths are moved to SQLite go there instead</remarks>
         /// <param name="enlistment">The enlistment being operated on</param>
         /// <returns>An array containing all of the modified paths in string format</returns>
-        private bool TryLoadModifiedPathsFromPipe(GVFSEnlistment enlistment)
+        private bool TryLoadModifiedPathsFromPipe(GVFSEnlistment enlistment, ITracer tracer)
         {
             using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
             {
@@ -157,8 +167,9 @@ namespace GVFS.Common
 
                     modifiedPathsList = modifiedPathsResponse.Body.Split(new char[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
                 }
-                catch (BrokenPipeException e)
+                catch (Exception ex)
                 {
+                    tracer.RelatedWarning($"Failed to load modified paths via named pipe: {ex.Message}");
                     return false;
                 }
 
