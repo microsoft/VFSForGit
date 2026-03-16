@@ -127,7 +127,8 @@ namespace GVFS.Hooks
         }
 
         /// <summary>
-        /// Block creating a worktree inside the primary VFS working directory.
+        /// Block creating a worktree inside the primary VFS working directory
+        /// or inside any other existing worktree.
         /// ProjFS cannot handle nested virtualization roots.
         /// </summary>
         private static void BlockNestedWorktreeAdd(string[] args)
@@ -147,6 +148,18 @@ namespace GVFS.Hooks
                     $"error: cannot create worktree inside the VFS working directory.\n" +
                     $"Create the worktree outside of '{primaryWorkingDir}'.");
                 Environment.Exit(1);
+            }
+
+            string gitDir = Path.Combine(primaryWorkingDir, ".git");
+            foreach (string existingWorktreePath in GVFSEnlistment.GetKnownWorktreePaths(gitDir))
+            {
+                if (GVFSEnlistment.IsPathInsideDirectory(fullPath, existingWorktreePath))
+                {
+                    Console.Error.WriteLine(
+                        $"error: cannot create worktree inside an existing worktree.\n" +
+                        $"'{fullPath}' is inside worktree '{existingWorktreePath}'.");
+                    Environment.Exit(1);
+                }
             }
         }
 
