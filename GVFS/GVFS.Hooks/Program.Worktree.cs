@@ -289,7 +289,21 @@ namespace GVFS.Hooks
                     string worktreeIndex = Path.Combine(wtInfo.WorktreeGitDir, "index");
                     if (File.Exists(primaryIndex) && !File.Exists(worktreeIndex))
                     {
-                        File.Copy(primaryIndex, worktreeIndex);
+                        // Copy to a temp file first, then rename atomically.
+                        // The primary index may be updated concurrently by the
+                        // running mount; a direct copy risks a torn read on
+                        // large indexes (200MB+ in some large repos).
+                        string tempIndex = worktreeIndex + ".tmp";
+                        try
+                        {
+                            File.Copy(primaryIndex, tempIndex, overwrite: true);
+                            File.Move(tempIndex, worktreeIndex);
+                        }
+                        catch
+                        {
+                            try { File.Delete(tempIndex); } catch { }
+                            throw;
+                        }
                     }
                 }
 
@@ -303,15 +317,20 @@ namespace GVFS.Hooks
                 // doesn't exist yet, so post-index-change would fail trying
                 // to connect to a pipe that hasn't been created.
                 string emptyVfsHook = Path.Combine(fullPath, ".vfs-empty-hook");
-                File.WriteAllText(emptyVfsHook, "#!/bin/sh\nprintf \".gitattributes\\n\"\n");
-                string emptyVfsHookGitPath = emptyVfsHook.Replace('\\', '/');
+                try
+                {
+                    File.WriteAllText(emptyVfsHook, "#!/bin/sh\nprintf \".gitattributes\\n\"\n");
+                    string emptyVfsHookGitPath = emptyVfsHook.Replace('\\', '/');
 
-                ProcessHelper.Run(
-                    "git",
-                    $"-C \"{fullPath}\" -c core.virtualfilesystem=\"{emptyVfsHookGitPath}\" -c core.hookspath= checkout -f HEAD",
-                    redirectOutput: false);
-
-                File.Delete(emptyVfsHook);
+                    ProcessHelper.Run(
+                        "git",
+                        $"-C \"{fullPath}\" -c core.virtualfilesystem=\"{emptyVfsHookGitPath}\" -c core.hookspath= checkout -f HEAD",
+                        redirectOutput: false);
+                }
+                finally
+                {
+                    File.Delete(emptyVfsHook);
+                }
 
                 // Hydrate .gitattributes — copy from the primary enlistment.
                 if (wtInfo?.SharedGitDir != null)
