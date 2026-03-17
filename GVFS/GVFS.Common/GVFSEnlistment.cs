@@ -206,6 +206,12 @@ namespace GVFS.Common
                 fileSystem: fileSystem);
         }
 
+        public static bool WaitUntilMounted(ITracer tracer, string enlistmentRoot, bool unattended, out string errorMessage)
+        {
+            string pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot);
+            return WaitUntilMounted(tracer, pipeName, enlistmentRoot, unattended, out errorMessage);
+        }
+
         public static bool WaitUntilMounted(ITracer tracer, string pipeName, string enlistmentRoot, bool unattended, out string errorMessage)
         {
             tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Creating NamedPipeClient for pipe '{pipeName}'");

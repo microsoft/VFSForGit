@@ -112,7 +112,11 @@ namespace GVFS.Common
                     PipeSuffix = "_WT_" + worktreeName.ToUpper(),
                 };
             }
-            catch
+            catch (IOException)
+            {
+                return null;
+            }
+            catch (UnauthorizedAccessException)
             {
                 return null;
             }

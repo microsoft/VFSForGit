@@ -77,7 +77,7 @@ namespace GVFS.CommandLine
 
             if (!this.SkipLock)
             {
-                this.AcquireLock(pipeName);
+                this.AcquireLock(pipeName, root);
             }
 
             if (!this.ShowStatusWhileRunning(
@@ -225,7 +225,7 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void AcquireLock(string pipeName)
+        private void AcquireLock(string pipeName, string enlistmentRoot)
         {
             using (NamedPipeClient pipeClient = new NamedPipeClient(pipeName))
             {
@@ -247,7 +247,7 @@ namespace GVFS.CommandLine
                             GVFSPlatform.Instance.IsElevated(),
                             isConsoleOutputRedirectedToFile: GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
                             checkAvailabilityOnly: false,
-                            gvfsEnlistmentRoot: null,
+                            gvfsEnlistmentRoot: enlistmentRoot,
                             gitCommandSessionId: string.Empty,
                             result: out result))
                     {
