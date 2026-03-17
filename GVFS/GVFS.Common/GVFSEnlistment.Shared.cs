@@ -160,11 +160,43 @@ namespace GVFS.Common
 
         public class WorktreeInfo
         {
+            public const string EnlistmentRootFileName = "gvfs-enlistment-root";
+
             public string Name { get; set; }
             public string WorktreePath { get; set; }
             public string WorktreeGitDir { get; set; }
             public string SharedGitDir { get; set; }
             public string PipeSuffix { get; set; }
+
+            /// <summary>
+            /// Returns the primary enlistment root, either from a stored
+            /// marker file or by deriving it from SharedGitDir.
+            /// </summary>
+            public string GetEnlistmentRoot()
+            {
+                // Prefer the explicit marker written during worktree creation
+                string markerPath = Path.Combine(this.WorktreeGitDir, EnlistmentRootFileName);
+                if (File.Exists(markerPath))
+                {
+                    string root = File.ReadAllText(markerPath).Trim();
+                    if (!string.IsNullOrEmpty(root))
+                    {
+                        return root;
+                    }
+                }
+
+                // Fallback: derive from SharedGitDir (assumes <root>/src/.git)
+                if (this.SharedGitDir != null)
+                {
+                    string srcDir = Path.GetDirectoryName(this.SharedGitDir);
+                    if (srcDir != null)
+                    {
+                        return Path.GetDirectoryName(srcDir);
+                    }
+                }
+
+                return null;
+            }
         }
     }
 }

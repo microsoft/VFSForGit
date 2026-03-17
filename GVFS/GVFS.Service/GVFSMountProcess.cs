@@ -39,8 +39,7 @@ namespace GVFS.Service
                 GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(repoRoot);
                 if (wtInfo?.SharedGitDir != null)
                 {
-                    string srcDir = System.IO.Path.GetDirectoryName(wtInfo.SharedGitDir);
-                    string enlistmentRoot = srcDir != null ? System.IO.Path.GetDirectoryName(srcDir) : null;
+                    string enlistmentRoot = wtInfo.GetEnlistmentRoot();
                     if (enlistmentRoot != null)
                     {
                         pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot) + wtInfo.PipeSuffix;

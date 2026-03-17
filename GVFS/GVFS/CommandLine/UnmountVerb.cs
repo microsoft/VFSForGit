@@ -50,8 +50,7 @@ namespace GVFS.CommandLine
             GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(pathToCheck);
             if (wtInfo?.SharedGitDir != null)
             {
-                string srcDir = System.IO.Path.GetDirectoryName(wtInfo.SharedGitDir);
-                root = srcDir != null ? System.IO.Path.GetDirectoryName(srcDir) : null;
+                root = wtInfo.GetEnlistmentRoot();
                 if (root == null)
                 {
                     this.ReportErrorAndExit("Error: could not determine enlistment root for worktree '{0}'", pathToCheck);

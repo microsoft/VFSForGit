@@ -65,8 +65,7 @@ namespace GVFS.CommandLine
             if (wtInfo?.SharedGitDir != null)
             {
                 // This is a worktree mount request. Find the primary enlistment root.
-                string srcDir = Path.GetDirectoryName(wtInfo.SharedGitDir);
-                enlistmentRoot = srcDir != null ? Path.GetDirectoryName(srcDir) : null;
+                enlistmentRoot = wtInfo.GetEnlistmentRoot();
 
                 if (enlistmentRoot == null)
                 {
