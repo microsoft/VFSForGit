@@ -323,33 +323,42 @@ namespace GVFS.Mount
                 }
             }
 
-            // Bootstrap RepoMetadata from the primary enlistment's metadata
+            // Bootstrap RepoMetadata from the primary enlistment's metadata.
+            // Use try/finally to guarantee Shutdown() even if an unexpected
+            // exception occurs — the singleton must not be left pointing at
+            // the primary's metadata directory.
             string primaryDotGVFS = Path.Combine(this.enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             string error;
+            string gitObjectsRoot;
+            string localCacheRoot;
+            string blobSizesRoot;
+
             if (!RepoMetadata.TryInitialize(this.tracer, primaryDotGVFS, out error))
             {
                 this.FailMountAndExit("Failed to read primary enlistment metadata: " + error);
             }
 
-            string gitObjectsRoot;
-            if (!RepoMetadata.Instance.TryGetGitObjectsRoot(out gitObjectsRoot, out error))
+            try
             {
-                this.FailMountAndExit("Failed to read git objects root from primary metadata: " + error);
-            }
+                if (!RepoMetadata.Instance.TryGetGitObjectsRoot(out gitObjectsRoot, out error))
+                {
+                    this.FailMountAndExit("Failed to read git objects root from primary metadata: " + error);
+                }
 
-            string localCacheRoot;
-            if (!RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error))
+                if (!RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error))
+                {
+                    this.FailMountAndExit("Failed to read local cache root from primary metadata: " + error);
+                }
+
+                if (!RepoMetadata.Instance.TryGetBlobSizesRoot(out blobSizesRoot, out error))
+                {
+                    this.FailMountAndExit("Failed to read blob sizes root from primary metadata: " + error);
+                }
+            }
+            finally
             {
-                this.FailMountAndExit("Failed to read local cache root from primary metadata: " + error);
+                RepoMetadata.Shutdown();
             }
-
-            string blobSizesRoot;
-            if (!RepoMetadata.Instance.TryGetBlobSizesRoot(out blobSizesRoot, out error))
-            {
-                this.FailMountAndExit("Failed to read blob sizes root from primary metadata: " + error);
-            }
-
-            RepoMetadata.Shutdown();
 
             // Initialize cache paths on the enlistment so SaveCloneMetadata
             // can persist them into the worktree's metadata
@@ -362,8 +371,14 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Failed to initialize worktree metadata: " + error);
             }
 
-            RepoMetadata.Instance.SaveCloneMetadata(this.tracer, this.enlistment);
-            RepoMetadata.Shutdown();
+            try
+            {
+                RepoMetadata.Instance.SaveCloneMetadata(this.tracer, this.enlistment);
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
+            }
         }
 
         private NamedPipeServer StartNamedPipe()
