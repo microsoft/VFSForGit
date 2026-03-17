@@ -140,7 +140,7 @@ namespace GVFS.Hooks
             }
 
             string fullPath = ResolvePath(worktreePath);
-            string primaryWorkingDir = Path.Combine(enlistmentRoot, "src");
+            string primaryWorkingDir = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName);
 
             if (GVFSEnlistment.IsPathInsideDirectory(fullPath, primaryWorkingDir))
             {
@@ -265,6 +265,16 @@ namespace GVFS.Hooks
             if (File.Exists(dotGitFile))
             {
                 GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(fullPath);
+
+                // Store the primary enlistment root so mount/unmount can find
+                // it without deriving from path structure assumptions.
+                if (wtInfo?.WorktreeGitDir != null)
+                {
+                    string markerPath = Path.Combine(
+                        wtInfo.WorktreeGitDir,
+                        GVFSEnlistment.WorktreeInfo.EnlistmentRootFileName);
+                    File.WriteAllText(markerPath, enlistmentRoot);
+                }
 
                 // Copy the primary's index to the worktree before checkout.
                 // The primary index has all entries with correct skip-worktree

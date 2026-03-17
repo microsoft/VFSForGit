@@ -141,22 +141,22 @@ namespace GVFS.Common
                 WorktreeInfo wtInfo = TryGetWorktreeInfo(directory);
                 if (wtInfo?.SharedGitDir != null)
                 {
-                    string srcDir = Path.GetDirectoryName(wtInfo.SharedGitDir);
-                    if (srcDir != null)
+                    string primaryRoot = wtInfo.GetEnlistmentRoot();
+                    if (primaryRoot != null)
                     {
-                        string primaryRoot = Path.GetDirectoryName(srcDir);
-                        if (primaryRoot != null)
+                        // Read origin URL via the shared .git dir (not the worktree's
+                        // .git file) because the base Enlistment constructor runs
+                        // git config before we can override DotGitRoot.
+                        string srcDir = Path.GetDirectoryName(wtInfo.SharedGitDir);
+                        string repoUrl = null;
+                        if (srcDir != null)
                         {
-                            // Read origin URL via the shared .git dir (not the worktree's
-                            // .git file) because the base Enlistment constructor runs
-                            // git config before we can override DotGitRoot.
-                            string repoUrl = null;
                             GitProcess git = new GitProcess(gitBinRoot, srcDir);
                             GitProcess.ConfigResult urlResult = git.GetOriginUrl();
                             urlResult.TryParseAsString(out repoUrl, out _);
-
-                            return CreateForWorktree(primaryRoot, gitBinRoot, authentication, wtInfo, repoUrl?.Trim());
                         }
+
+                        return CreateForWorktree(primaryRoot, gitBinRoot, authentication, wtInfo, repoUrl?.Trim());
                     }
                 }
 
