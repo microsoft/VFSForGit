@@ -126,21 +126,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 try
                 {
-                    // Kill any stuck GVFS.Mount for this worktree
-                    foreach (Process p in Process.GetProcessesByName("GVFS.Mount"))
-                    {
-                        try
-                        {
-                            if (p.StartInfo.Arguments?.Contains(worktreePath) == true)
-                            {
-                                p.Kill();
-                            }
-                        }
-                        catch
-                        {
-                        }
-                    }
+                    // Unmount any running GVFS mount for this worktree
+                    Process unmount = Process.Start("gvfs", $"unmount \"{worktreePath}\"");
+                    unmount?.WaitForExit(30000);
+                }
+                catch
+                {
+                }
 
+                try
+                {
                     Directory.Delete(worktreePath, recursive: true);
                 }
                 catch
