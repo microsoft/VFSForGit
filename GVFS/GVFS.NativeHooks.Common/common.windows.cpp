@@ -58,14 +58,12 @@ PATH_STRING GetFinalPathName(const PATH_STRING& path)
 // Returns an empty string if not in a worktree.
 PATH_STRING GetWorktreePipeSuffix(const wchar_t* directory)
 {
-    wchar_t dotGitPath[MAX_PATH];
-    wcscpy_s(dotGitPath, directory);
-    size_t checkLen = wcslen(dotGitPath);
-    if (checkLen > 0 && dotGitPath[checkLen - 1] != L'\\')
-        wcscat_s(dotGitPath, L"\\");
-    wcscat_s(dotGitPath, L".git");
+    PATH_STRING dotGitPath(directory);
+    if (!dotGitPath.empty() && dotGitPath.back() != L'\\')
+        dotGitPath += L'\\';
+    dotGitPath += L".git";
 
-    DWORD dotGitAttrs = GetFileAttributesW(dotGitPath);
+    DWORD dotGitAttrs = GetFileAttributesW(dotGitPath.c_str());
     if (dotGitAttrs == INVALID_FILE_ATTRIBUTES ||
         (dotGitAttrs & FILE_ATTRIBUTE_DIRECTORY))
     {
@@ -75,11 +73,11 @@ PATH_STRING GetWorktreePipeSuffix(const wchar_t* directory)
     // .git is a file — this is a worktree. Read it to find the
     // worktree git directory (format: "gitdir: <path>")
     FILE* gitFile = NULL;
-    errno_t fopenResult = _wfopen_s(&gitFile, dotGitPath, L"r");
+    errno_t fopenResult = _wfopen_s(&gitFile, dotGitPath.c_str(), L"r");
     if (fopenResult != 0 || gitFile == NULL)
         return PATH_STRING();
 
-    char gitdirLine[MAX_PATH * 2];
+    char gitdirLine[4096];
     if (fgets(gitdirLine, sizeof(gitdirLine), gitFile) == NULL)
     {
         fclose(gitFile);
@@ -107,8 +105,15 @@ PATH_STRING GetWorktreePipeSuffix(const wchar_t* directory)
     if (lastSep == NULL)
         return PATH_STRING();
 
-    wchar_t wtName[MAX_PATH];
-    MultiByteToWideChar(CP_UTF8, 0, lastSep + 1, -1, wtName, MAX_PATH);
+    std::string nameUtf8(lastSep + 1);
+    int wideLen = MultiByteToWideChar(CP_UTF8, 0, nameUtf8.c_str(), -1, NULL, 0);
+    if (wideLen <= 0)
+        return PATH_STRING();
+
+    std::wstring wtName(wideLen, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, nameUtf8.c_str(), -1, &wtName[0], wideLen);
+    wtName.resize(wideLen - 1); // remove null terminator from string
+
     PATH_STRING suffix = L"_WT_";
     suffix += wtName;
     return suffix;

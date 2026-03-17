@@ -244,22 +244,10 @@ namespace GVFS.Hooks
         {
             ProcessHelper.Run("gvfs", $"unmount \"{fullPath}\"", redirectOutput: false);
 
-            // Wait for the GVFS.Mount process to fully exit by polling
-            // the named pipe. Once the pipe is gone, the mount process
-            // has released all file handles.
-            string pipeName = GVFSHooksPlatform.GetNamedPipeName(enlistmentRoot) + wtInfo.PipeSuffix;
-            for (int i = 0; i < 10; i++)
-            {
-                using (NamedPipeClient pipeClient = new NamedPipeClient(pipeName))
-                {
-                    if (!pipeClient.Connect(100))
-                    {
-                        return;
-                    }
-                }
-
-                System.Threading.Thread.Sleep(100);
-            }
+            // After gvfs unmount exits, ProjFS handles may still be closing.
+            // Wait briefly to allow the OS to release all handles before git
+            // attempts to delete the worktree directory.
+            System.Threading.Thread.Sleep(200);
         }
 
         private static void MountNewWorktree(string[] args)
