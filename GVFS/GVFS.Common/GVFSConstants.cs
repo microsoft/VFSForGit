@@ -134,6 +134,11 @@ namespace GVFS.Common
                 public static readonly string CachePath = Path.Combine(Name, "GitStatusCache.dat");
                 public static readonly string TreeCount = Path.Combine(Name, "TreeCountCache.dat");
             }
+
+            public static class HydrationStatus
+            {
+                public static readonly string DisabledMarkerFile = Path.Combine("gitStatusCache", "HydrationStatusDisabled.dat");
+            }
         }
 
         public static class DotGit
