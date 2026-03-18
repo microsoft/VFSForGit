@@ -85,6 +85,24 @@ namespace GVFS.Mount
         {
             this.currentState = MountState.Mounting;
 
+            string mountLockPath = Path.Combine(this.enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.MountLock);
+            using (FileBasedLock mountLock = GVFSPlatform.Instance.CreateFileBasedLock(
+                new PhysicalFileSystem(),
+                this.tracer,
+                mountLockPath))
+            {
+                if (!mountLock.TryAcquireLock())
+                {
+                    this.tracer.RelatedInfo("Mount: Another mount process is already running. Exiting.");
+                    return;
+                }
+
+                this.MountWithLockAcquired(verbosity, keywords);
+            }
+        }
+
+        private void MountWithLockAcquired(EventLevel verbosity, Keywords keywords)
+        {
             // Start auth + config query immediately — these are network-bound and don't
             // depend on repo metadata or cache paths. Every millisecond of network latency
             // we can overlap with local I/O is a win.
