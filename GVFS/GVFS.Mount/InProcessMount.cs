@@ -35,6 +35,12 @@ namespace GVFS.Mount
         // all the trees in a commit to ~2-3 seconds.
         private const int MissingTreeThresholdForDownloadingCommitPack = 200;
 
+        // Number of unique missing trees to track with LRU eviction. Eviction is commit-based:
+        // when capacity is reached, the LRU commit and all its unique trees are dropped to make room.
+        // Set to 20x the threshold so that enough trees can accumulate for the heuristic to
+        // reliably trigger a commit pack download.
+        private const int TrackedTreeCapacity = MissingTreeThresholdForDownloadingCommitPack * 20;
+
         private readonly bool showDebugWindow;
 
         private FileSystemCallbacks fileSystemCallbacks;
@@ -54,7 +60,7 @@ namespace GVFS.Mount
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
-        private readonly Dictionary<string, string> treesWithDownloadedCommits = new Dictionary<string,string>();
+        private readonly MissingTreeTracker missingTreeTracker;
 
         // True if InProcessMount is calling git reset as part of processing
         // a folder dehydrate request
@@ -69,6 +75,7 @@ namespace GVFS.Mount
             this.enlistment = enlistment;
             this.showDebugWindow = showDebugWindow;
             this.unmountEvent = new ManualResetEvent(false);
+            this.missingTreeTracker = new MissingTreeTracker(tracer, TrackedTreeCapacity);
         }
 
         private enum MountState
@@ -678,19 +685,20 @@ namespace GVFS.Mount
                     this.context.Repository.GVFSLock.Stats.RecordObjectDownload(objectType == Native.ObjectTypes.Blob, downloadTime.ElapsedMilliseconds);
 
                     if (objectType == Native.ObjectTypes.Commit
-                        && !this.PrefetchHasBeenDone()
                         && !this.context.Repository.CommitAndRootTreeExists(objectSha, out var treeSha)
                         && !string.IsNullOrEmpty(treeSha))
                     {
                         /* If a commit is downloaded, it wasn't prefetched.
-                         * If any prefetch has been done, there is probably a commit in the prefetch packs that is close enough that
-                         * loose object download of missing trees will be faster than downloading a pack of all the trees for the commit.
-                         * Otherwise, the trees for the commit may be needed soon depending on the context.
+                         * The trees for the commit may be needed soon depending on the context.
                          * e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
+                         *
+                         * If any prefetch has been done there is probably a similar commit/tree in the graph,
+                         * but in case there isn't (such as if the cache server repack maintenance job is failing)
+                         * we should still try to avoid downloading an excessive number of loose trees for a commit.
                          *
                          * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
                          */
-                        this.treesWithDownloadedCommits[treeSha] = objectSha;
+                        this.missingTreeTracker.AddMissingRootTree(treeSha: treeSha, commitSha: objectSha);
                     }
                 }
             }
@@ -698,22 +706,11 @@ namespace GVFS.Mount
             connection.TrySendResponse(response.CreateMessage());
         }
 
-        private bool PrefetchHasBeenDone()
-        {
-            var prefetchPacks = this.gitObjects.ReadPackFileNames(this.enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
-            var result = prefetchPacks.Length > 0;
-            if (result)
-            {
-                this.treesWithDownloadedCommits.Clear();
-            }
-            return result;
-        }
-
         private bool ShouldDownloadCommitPack(string objectSha, out string commitSha)
         {
-            if (!this.treesWithDownloadedCommits.TryGetValue(objectSha, out commitSha)
-                || this.PrefetchHasBeenDone())
+            if (!this.missingTreeTracker.TryGetCommits(objectSha, out string[] commitShas))
             {
+                commitSha = null;
                 return false;
             }
 
@@ -722,8 +719,8 @@ namespace GVFS.Mount
              * Conversely, if we know (from previously downloaded missing trees) that a commit has a lot of missing
              * trees left, we'll probably need to download many more trees for the commit so we should download the pack.
              */
-            var commitShaLocal = commitSha; // can't use out parameter in lambda
-            int missingTreeCount = this.treesWithDownloadedCommits.Where(x => x.Value == commitShaLocal).Count();
+            int missingTreeCount = this.missingTreeTracker.GetHighestMissingTreeCount(commitShas, out commitSha);
+
             return missingTreeCount > MissingTreeThresholdForDownloadingCommitPack;
         }
 
@@ -734,8 +731,7 @@ namespace GVFS.Mount
              * as a heuristic to decide whether to batch download all the trees for the commit the
              * next time a missing one is requested.
              */
-            if (!this.treesWithDownloadedCommits.TryGetValue(objectSha, out var commitSha)
-                || this.PrefetchHasBeenDone())
+            if (!this.missingTreeTracker.TryGetCommits(objectSha, out _))
             {
                 return;
             }
@@ -748,20 +744,13 @@ namespace GVFS.Mount
 
             if (this.context.Repository.TryGetMissingSubTrees(objectSha, out var missingSubTrees))
             {
-                foreach (var missingSubTree in missingSubTrees)
-                {
-                    this.treesWithDownloadedCommits[missingSubTree] = commitSha;
-                }
+                this.missingTreeTracker.AddMissingSubTrees(objectSha, missingSubTrees);
             }
         }
 
         private void DownloadedCommitPack(string commitSha)
         {
-            var toRemove = this.treesWithDownloadedCommits.Where(x => x.Value == commitSha).ToList();
-            foreach (var tree in toRemove)
-            {
-                this.treesWithDownloadedCommits.Remove(tree.Key);
-            }
+            this.missingTreeTracker.MarkCommitComplete(commitSha);
         }
 
         private void HandlePostFetchJobRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)

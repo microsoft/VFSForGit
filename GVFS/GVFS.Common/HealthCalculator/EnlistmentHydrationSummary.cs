@@ -5,6 +5,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.Common
 {
@@ -43,7 +44,8 @@ namespace GVFS.Common
         public static EnlistmentHydrationSummary CreateSummary(
             GVFSEnlistment enlistment,
             PhysicalFileSystem fileSystem,
-            ITracer tracer)
+            ITracer tracer,
+            CancellationToken cancellationToken = default)
         {
             Stopwatch totalStopwatch = Stopwatch.StartNew();
             Stopwatch phaseStopwatch = new Stopwatch();
@@ -56,6 +58,8 @@ namespace GVFS.Common
                 int totalFileCount = GetIndexFileCount(enlistment, fileSystem);
                 long indexReadMs = phaseStopwatch.ElapsedMilliseconds;
 
+                cancellationToken.ThrowIfCancellationRequested();
+
                 EnlistmentPathData pathData = new EnlistmentPathData();
 
                 /* FUTURE: These could be optimized to only deal with counts instead of full path lists */
@@ -63,9 +67,13 @@ namespace GVFS.Common
                 pathData.LoadPlaceholdersFromDatabase(enlistment);
                 long placeholderLoadMs = phaseStopwatch.ElapsedMilliseconds;
 
+                cancellationToken.ThrowIfCancellationRequested();
+
                 phaseStopwatch.Restart();
                 pathData.LoadModifiedPaths(enlistment, tracer);
                 long modifiedPathsLoadMs = phaseStopwatch.ElapsedMilliseconds;
+
+                cancellationToken.ThrowIfCancellationRequested();
 
                 int hydratedFileCount = pathData.ModifiedFilePaths.Count + pathData.PlaceholderFilePaths.Count;
                 int hydratedFolderCount = pathData.ModifiedFolderPaths.Count + pathData.PlaceholderFolderPaths.Count;
@@ -107,6 +115,16 @@ namespace GVFS.Common
                     HydratedFolderCount = hydratedFolderCount,
                     TotalFileCount = totalFileCount,
                     TotalFolderCount = totalFolderCount,
+                };
+            }
+            catch (OperationCanceledException)
+            {
+                return new EnlistmentHydrationSummary()
+                {
+                    HydratedFileCount = -1,
+                    HydratedFolderCount = -1,
+                    TotalFileCount = -1,
+                    TotalFolderCount = -1,
                 };
             }
             catch (Exception e)
