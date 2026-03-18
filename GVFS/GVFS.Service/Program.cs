@@ -3,25 +3,47 @@ using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.ServiceProcess;
+using System.Threading;
 
 namespace GVFS.Service
 {
     public static class Program
     {
+        private const string ConsoleFlag = "--console";
+
         public static void Main(string[] args)
         {
             GVFSPlatformLoader.Initialize();
 
             AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionHandler;
 
+            if (args.Any(arg => arg.Equals(ConsoleFlag, StringComparison.OrdinalIgnoreCase)))
+            {
+                RunAsConsoleApp(args);
+            }
+            else
+            {
+                using (JsonTracer tracer = new JsonTracer(GVFSConstants.Service.ServiceName, GVFSConstants.Service.ServiceName))
+                {
+                    using (GVFSService service = new GVFSService(tracer))
+                    {
+                        // This will fail with a popup from a command prompt. To install as a service, run:
+                        // %windir%\Microsoft.NET\Framework64\v4.0.30319\installutil GVFS.Service.exe
+                        ServiceBase.Run(service);
+                    }
+                }
+            }
+        }
+
+        private static void RunAsConsoleApp(string[] args)
+        {
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.Service.ServiceName, GVFSConstants.Service.ServiceName))
             {
                 using (GVFSService service = new GVFSService(tracer))
                 {
-                    // This will fail with a popup from a command prompt. To install as a service, run:
-                    // %windir%\Microsoft.NET\Framework64\v4.0.30319\installutil GVFS.Service.exe
-                    ServiceBase.Run(service);
+                    service.RunInConsoleMode(args);
                 }
             }
         }

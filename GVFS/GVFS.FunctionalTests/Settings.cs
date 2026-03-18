@@ -45,16 +45,30 @@ namespace GVFS.FunctionalTests.Properties
                 Commitish = @"FunctionalTests/20201014";
 
                 EnlistmentRoot = @"C:\Repos\GVFSFunctionalTests\enlistment";
-                PathToGVFS = @"C:\Program Files\VFS for Git\GVFS.exe";
-                PathToGit = @"C:\Program Files\Git\cmd\git.exe";
-                PathToBash = @"C:\Program Files\Git\bin\bash.exe";
 
                 ControlGitRepoRoot = @"C:\Repos\GVFSFunctionalTests\ControlRepo";
                 FastFetchBaseRoot = @"C:\Repos\GVFSFunctionalTests\FastFetch";
                 FastFetchRoot = Path.Combine(FastFetchBaseRoot, "test");
                 FastFetchControl = Path.Combine(FastFetchBaseRoot, "control");
-                PathToGVFSService = @"C:\Program Files\VFS for Git\GVFS.Service.exe";
                 BinaryFileNameExtension = ".exe";
+
+                string devModeOutDir = Environment.GetEnvironmentVariable("GVFS_DEV_OUT_DIR");
+                if (!string.IsNullOrEmpty(devModeOutDir))
+                {
+                    string configuration = Environment.GetEnvironmentVariable("GVFS_DEV_CONFIGURATION") ?? "Debug";
+                    string payloadDir = Path.Combine(devModeOutDir, "GVFS.Payload", "bin", configuration, "win-x64");
+
+                    PathToGVFS = Path.Combine(payloadDir, "gvfs.exe");
+                    PathToGVFSService = Path.Combine(payloadDir, "GVFS.Service.exe");
+                }
+                else
+                {
+                    PathToGVFS = @"C:\Program Files\VFS for Git\GVFS.exe";
+                    PathToGVFSService = @"C:\Program Files\VFS for Git\GVFS.Service.exe";
+                }
+
+                PathToGit = @"C:\Program Files\Git\cmd\git.exe";
+                PathToBash = @"C:\Program Files\Git\bin\bash.exe";
             }
         }
     }
