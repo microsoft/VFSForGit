@@ -1,59 +1,187 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
-using GVFS.Tests.Should;
+using GVFS.Common.Tracing;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
+using GVFS.Virtualization.Projection;
 using NUnit.Framework;
-using System.Collections.Generic;
+using System;
 using System.IO;
-using System.Linq;
+using System.Text;
+using System.Threading;
 
 namespace GVFS.UnitTests.Common
 {
     [TestFixture]
     public class EnlistmentHydrationSummaryTests
     {
-        private MockFileSystem fileSystem;
-        private MockGitProcess gitProcess;
-        private GVFSContext context;
-        private string gitParentPath;
-        private string gvfsMetadataPath;
-        private MockDirectory enlistmentDirectory;
-
-        private const string HeadTreeId = "0123456789012345678901234567890123456789";
-        private const int HeadPathCount = 42;
-
-        public static IEnumerable<(string CachePrecontents, string ExpectedCachePostContents)> HeadTreeCountCacheContents
+        [TestCase]
+        public void CountIndexFolders_FlatDirectories()
         {
-            get
+            int count = CountFoldersInIndex(new[] { "src/file1.cs", "test/file2.cs" });
+            Assert.AreEqual(2, count); // "src", "test"
+        }
+
+        [TestCase]
+        public void CountIndexFolders_NestedDirectories()
+        {
+            int count = CountFoldersInIndex(new[] { "a/b/c/file1.cs", "a/b/file2.cs", "x/file3.cs" });
+            Assert.AreEqual(4, count); // "a", "a/b", "a/b/c", "x"
+        }
+
+        [TestCase]
+        public void CountIndexFolders_RootFilesOnly()
+        {
+            int count = CountFoldersInIndex(new[] { "README.md", ".gitignore" });
+            Assert.AreEqual(0, count);
+        }
+
+        [TestCase]
+        public void CountIndexFolders_EmptyIndex()
+        {
+            int count = CountFoldersInIndex(new string[0]);
+            Assert.AreEqual(0, count);
+        }
+
+        [TestCase]
+        public void CountIndexFolders_DeepNesting()
+        {
+            int count = CountFoldersInIndex(new[] { "a/b/c/d/e/file.txt" });
+            Assert.AreEqual(5, count); // "a", "a/b", "a/b/c", "a/b/c/d", "a/b/c/d/e"
+        }
+
+        private static int CountFoldersInIndex(string[] paths)
+        {
+            byte[] indexBytes = CreateV4Index(paths);
+            using (MemoryStream stream = new MemoryStream(indexBytes))
             {
-                yield return (null, $"{HeadTreeId}\n{HeadPathCount}");
-                yield return ($"{HeadTreeId}\n{HeadPathCount}", $"{HeadTreeId}\n{HeadPathCount}");
-                yield return ($"{HeadTreeId}\n{HeadPathCount - 1}", $"{HeadTreeId}\n{HeadPathCount - 1}");
-                yield return ($"{HeadTreeId.Replace("1", "a")}\n{HeadPathCount - 1}", $"{HeadTreeId}\n{HeadPathCount}");
-                yield return ($"{HeadTreeId}\nabc", $"{HeadTreeId}\n{HeadPathCount}");
-                yield return ($"{HeadTreeId}\nabc", $"{HeadTreeId}\n{HeadPathCount}");
-                yield return ($"\n", $"{HeadTreeId}\n{HeadPathCount}");
-                yield return ($"\nabc", $"{HeadTreeId}\n{HeadPathCount}");
+                return GitIndexProjection.CountIndexFolders(new MockTracer(), stream);
             }
         }
+
+        /// <summary>
+        /// Create a minimal git index v4 binary matching the format GitIndexGenerator produces.
+        /// Uses prefix-compression for paths (v4 format).
+        /// </summary>
+        private static byte[] CreateV4Index(string[] paths)
+        {
+            // Stat entry header matching GitIndexGenerator.EntryHeader:
+            // 40 bytes with file mode 0x81A4 (regular file, 644) at offset 24-27
+            byte[] entryHeader = new byte[40];
+            entryHeader[26] = 0x81;
+            entryHeader[27] = 0xA4;
+
+            using (MemoryStream ms = new MemoryStream())
+            using (BinaryWriter bw = new BinaryWriter(ms))
+            {
+                // Header
+                bw.Write(new byte[] { (byte)'D', (byte)'I', (byte)'R', (byte)'C' });
+                WriteBigEndian32(bw, 4); // version 4
+                WriteBigEndian32(bw, (uint)paths.Length);
+
+                string previousPath = string.Empty;
+                foreach (string path in paths)
+                {
+                    // 40-byte stat entry header with valid file mode
+                    bw.Write(entryHeader);
+                    // 20 bytes SHA-1 (zeros)
+                    bw.Write(new byte[20]);
+                    // Flags: path length in low 12 bits, skip-worktree in extended
+                    byte[] pathBytes = Encoding.UTF8.GetBytes(path);
+                    ushort flags = (ushort)(Math.Min(pathBytes.Length, 0xFFF) | 0x4000); // extended bit set
+                    WriteBigEndian16(bw, flags);
+                    // Extended flags: skip-worktree bit set
+                    WriteBigEndian16(bw, 0x4000);
+
+                    // V4 prefix compression: compute common prefix with previous path
+                    int commonLen = 0;
+                    int maxCommon = Math.Min(previousPath.Length, path.Length);
+                    while (commonLen < maxCommon && previousPath[commonLen] == path[commonLen])
+                    {
+                        commonLen++;
+                    }
+
+                    int replaceLen = previousPath.Length - commonLen;
+                    string suffix = path.Substring(commonLen);
+
+                    // Write replace length as varint
+                    WriteVarint(bw, replaceLen);
+                    // Write suffix + null terminator
+                    bw.Write(Encoding.UTF8.GetBytes(suffix));
+                    bw.Write((byte)0);
+
+                    previousPath = path;
+                }
+
+                return ms.ToArray();
+            }
+        }
+
+        private static void WriteBigEndian32(BinaryWriter bw, uint value)
+        {
+            bw.Write((byte)((value >> 24) & 0xFF));
+            bw.Write((byte)((value >> 16) & 0xFF));
+            bw.Write((byte)((value >> 8) & 0xFF));
+            bw.Write((byte)(value & 0xFF));
+        }
+
+        private static void WriteBigEndian16(BinaryWriter bw, ushort value)
+        {
+            bw.Write((byte)((value >> 8) & 0xFF));
+            bw.Write((byte)(value & 0xFF));
+        }
+
+        private static void WriteVarint(BinaryWriter bw, int value)
+        {
+            // Git index v4 varint encoding (same as ReadReplaceLength in GitIndexParser)
+            if (value < 0x80)
+            {
+                bw.Write((byte)value);
+                return;
+            }
+
+            byte[] bytes = new byte[5];
+            int pos = 4;
+            bytes[pos] = (byte)(value & 0x7F);
+            value = (value >> 7) - 1;
+            while (value >= 0)
+            {
+                pos--;
+                bytes[pos] = (byte)(0x80 | (value & 0x7F));
+                value = (value >> 7) - 1;
+            }
+
+            bw.Write(bytes, pos, 5 - pos);
+        }
+    }
+
+    /// <summary>
+    /// Tests for EnlistmentHydrationSummary that require the full mock filesystem/context.
+    /// </summary>
+    [TestFixture]
+    public class EnlistmentHydrationSummaryContextTests
+    {
+        private MockFileSystem fileSystem;
+        private MockTracer tracer;
+        private GVFSContext context;
+        private string gitParentPath;
+        private MockDirectory enlistmentDirectory;
 
         [SetUp]
         public void Setup()
         {
-            MockTracer tracer = new MockTracer();
+            this.tracer = new MockTracer();
 
             string enlistmentRoot = Path.Combine("mock:", "GVFS", "UnitTests", "Repo");
             string statusCachePath = Path.Combine("mock:", "GVFS", "UnitTests", "Repo", GVFSPlatform.Instance.Constants.DotGVFSRoot, "gitStatusCache");
 
-            this.gitProcess = new MockGitProcess();
-            this.gitProcess.SetExpectedCommandResult($"--no-optional-locks status \"--serialize={statusCachePath}", () => new GitProcess.Result(string.Empty, string.Empty, 0), true);
-            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", this.gitProcess);
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult($"--no-optional-locks status \"--serialize={statusCachePath}", () => new GitProcess.Result(string.Empty, string.Empty, 0), true);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", gitProcess);
             enlistment.InitializeCachePathsFromKey("fake:\\gvfsSharedCache", "fakeCacheKey");
 
             this.gitParentPath = enlistment.WorkingDirectoryBackingRoot;
-            this.gvfsMetadataPath = enlistment.DotGVFSRoot;
 
             this.enlistmentDirectory = new MockDirectory(
                 enlistmentRoot,
@@ -74,52 +202,45 @@ namespace GVFS.UnitTests.Common
             this.fileSystem.DeleteNonExistentFileThrowsException = false;
 
             this.context = new GVFSContext(
-                tracer,
+                this.tracer,
                 this.fileSystem,
-                new MockGitRepo(tracer, enlistment, this.fileSystem),
+                new MockGitRepo(this.tracer, enlistment, this.fileSystem),
                 enlistment);
         }
 
-        [TearDown]
-        public void TearDown()
+        [TestCase]
+        public void GetIndexFileCount_IndexTooSmall_ReturnsNegativeOne()
         {
-            this.fileSystem = null;
-            this.gitProcess = null;
-            this.context = null;
-            this.gitParentPath = null;
-            this.gvfsMetadataPath = null;
-            this.enlistmentDirectory = null;
+            string indexPath = Path.Combine(this.gitParentPath, ".git", "index");
+            this.enlistmentDirectory.CreateFile(indexPath, "short", createDirectories: true);
+
+            int result = EnlistmentHydrationSummary.GetIndexFileCount(
+                this.context.Enlistment, this.context.FileSystem);
+
+            Assert.AreEqual(-1, result);
         }
 
-        [TestCaseSource("HeadTreeCountCacheContents")]
-        public void HeadTreeCountCacheTests((string CachePrecontents, string ExpectedCachePostContents) args)
+        [TestCase]
+        public void CreateSummary_CancelledToken_ReturnsInvalidSummary()
         {
-            string totalPathCountPath = Path.Combine(this.gvfsMetadataPath, GVFSConstants.DotGVFS.GitStatusCache.TreeCount);
-            if (args.CachePrecontents != null)
-            {
-                this.enlistmentDirectory.CreateFile(totalPathCountPath, args.CachePrecontents, createDirectories: true);
-            }
+            // Set up a valid index file so CreateSummary gets past GetIndexFileCount
+            // before hitting the first cancellation check.
+            string indexPath = Path.Combine(this.gitParentPath, ".git", "index");
+            byte[] indexBytes = new byte[12];
+            indexBytes[11] = 100; // file count = 100 (big-endian)
+            MockFile indexFile = new MockFile(indexPath, indexBytes);
+            MockDirectory gitDir = this.enlistmentDirectory.FindDirectory(Path.Combine(this.gitParentPath, ".git"));
+            gitDir.Files.Add(indexFile.FullName, indexFile);
 
-            this.gitProcess.SetExpectedCommandResult("rev-parse \"HEAD^{tree}\"",
-                () => new GitProcess.Result(HeadTreeId, "", 0));
-            this.gitProcess.SetExpectedCommandResult("ls-tree -r -d HEAD",
-                () => new GitProcess.Result(
-                    string.Join("\n", Enumerable.Range(0, HeadPathCount)
-                                        .Select(x => x.ToString())),
-                    "", 0));
+            CancellationTokenSource cts = new CancellationTokenSource();
+            cts.Cancel();
 
-            Assert.AreEqual(
-                args.CachePrecontents != null,
-                this.fileSystem.FileExists(totalPathCountPath));
+            Func<int> dummyProvider = () => 0;
+            EnlistmentHydrationSummary result = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, this.context.FileSystem, this.context.Tracer, dummyProvider, cts.Token);
 
-            int result = EnlistmentHydrationSummary.GetHeadTreeCount(this.context.Enlistment, this.context.FileSystem, this.context.Tracer);
-
-            this.fileSystem.FileExists(totalPathCountPath).ShouldBeTrue();
-            var postContents = this.fileSystem.ReadAllText(totalPathCountPath);
-            Assert.AreEqual(
-                args.ExpectedCachePostContents,
-                postContents);
-            Assert.AreEqual(postContents.Split('\n')[1], result.ToString());
+            Assert.IsFalse(result.IsValid);
+            Assert.IsNull(result.Error);
         }
     }
 }
