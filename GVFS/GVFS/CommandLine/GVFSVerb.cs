@@ -36,7 +36,6 @@ namespace GVFS.CommandLine
             this.InitializeDefaultParameterValues();
         }
 
-
         public abstract string EnlistmentRootPathParameter { get; set; }
 
         [Option(
@@ -104,7 +103,8 @@ namespace GVFS.CommandLine
 
         public static bool TrySetRequiredGitConfigSettings(Enlistment enlistment)
         {
-            string expectedHooksPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.Root);
+            // Use DotGitRoot (shared .git dir for worktrees) for absolute hook paths.
+            string expectedHooksPath = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName);
             expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
 
             string gitStatusCachePath = null;
@@ -124,7 +124,8 @@ namespace GVFS.CommandLine
                 GitCoreGVFSFlags.MissingOk |
                 GitCoreGVFSFlags.NoDeleteOutsideSparseCheckout |
                 GitCoreGVFSFlags.FetchSkipReachabilityAndUploadPack |
-                GitCoreGVFSFlags.BlockFiltersAndEolConversions)
+                GitCoreGVFSFlags.BlockFiltersAndEolConversions |
+                GitCoreGVFSFlags.SupportsWorktrees)
                 .ToString();
 
             // These settings are required for normal GVFS functionality.
@@ -183,8 +184,10 @@ namespace GVFS.CommandLine
                 // Git to download objects on demand.
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
 
-                // Configure hook that git calls to get the paths git needs to consider for changes or untracked files
-                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
+                // Configure hook that git calls to get the paths git needs to consider for changes or untracked files.
+                // Use absolute path so worktrees (where .git is a file) can find the hook.
+                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(
+                    Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName, GVFSConstants.DotGit.Hooks.VirtualFileSystemName)) },
 
                 // Ensure hooks path is configured correctly.
                 { "core.hookspath", expectedHooksPath },
@@ -826,7 +829,9 @@ You can specify a URL, a name of a configured cache server, or the special names
 
         private string GetAlternatesPath(GVFSEnlistment enlistment)
         {
-            return Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
+            // Use DotGitRoot (shared .git dir for worktrees) since
+            // objects/info/alternates lives in the shared git directory.
+            return Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Objects.Info.AlternatesRelativePath);
         }
 
         private void CheckFileSystemSupportsRequiredFeatures(ITracer tracer, Enlistment enlistment)

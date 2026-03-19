@@ -54,5 +54,10 @@ namespace GVFS.Common.Git
         // While performing a `git fetch` command, use the gvfs-helper to
         // perform a "prefetch" of commits and trees.
         PrefetchDuringFetch = 1 << 7,
+
+        // GVFS_SUPPORTS_WORKTREES
+        // Signals that this GVFS version supports git worktrees,
+        // allowing `git worktree add/remove` on VFS-enabled repos.
+        SupportsWorktrees = 1 << 8,
     }
 }

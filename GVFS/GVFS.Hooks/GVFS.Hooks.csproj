@@ -70,6 +70,9 @@
     <Compile Include="..\GVFS.Common\ProcessResult.cs">
       <Link>Common\ProcessResult.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\WorktreeCommandParser.cs">
+      <Link>Common\WorktreeCommandParser.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\SHA1Util.cs">
       <Link>Common\SHA1Util.cs</Link>
     </Compile>

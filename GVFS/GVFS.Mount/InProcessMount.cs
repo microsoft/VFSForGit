@@ -92,6 +92,13 @@ namespace GVFS.Mount
         {
             this.currentState = MountState.Mounting;
 
+            // For worktree mounts, create the .gvfs metadata directory and
+            // bootstrap it with cache paths from the primary enlistment
+            if (this.enlistment.IsWorktree)
+            {
+                this.InitializeWorktreeMetadata();
+            }
+
             // Start auth + config query immediately — these are network-bound and don't
             // depend on repo metadata or cache paths. Every millisecond of network latency
             // we can overlap with local I/O is a win.
@@ -125,7 +132,6 @@ namespace GVFS.Mount
                 this.tracer.RelatedInfo("ParallelMount: Auth + config completed in {0}ms", sw.ElapsedMilliseconds);
                 return config;
             });
-
             // We must initialize repo metadata before starting the pipe server so it
             // can immediately handle status requests
             string error;
@@ -233,7 +239,10 @@ namespace GVFS.Mount
                 this.ValidateMountPoints();
 
                 string errorMessage;
-                if (!HooksInstaller.TryUpdateHooks(this.context, out errorMessage))
+
+                // Worktrees share hooks with the primary enlistment via core.hookspath,
+                // so skip installation to avoid locking conflicts with the running mount.
+                if (!this.enlistment.IsWorktree && !HooksInstaller.TryUpdateHooks(this.context, out errorMessage))
                 {
                     this.FailMountAndExit(errorMessage);
                 }
@@ -281,11 +290,101 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Failed to initialize file system callbacks. Directory \"{0}\" must exist.", this.enlistment.WorkingDirectoryBackingRoot);
             }
 
-            string dotGitPath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
-            DirectoryInfo dotGitPathInfo = new DirectoryInfo(dotGitPath);
-            if (!dotGitPathInfo.Exists)
+            if (this.enlistment.IsWorktree)
             {
-                this.FailMountAndExit("Failed to mount. Directory \"{0}\" must exist.", dotGitPathInfo);
+                // Worktrees have a .git file (not directory) pointing to the shared git dir
+                string dotGitFile = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
+                if (!File.Exists(dotGitFile))
+                {
+                    this.FailMountAndExit("Failed to mount worktree. File \"{0}\" must exist.", dotGitFile);
+                }
+            }
+            else
+            {
+                string dotGitPath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
+                DirectoryInfo dotGitPathInfo = new DirectoryInfo(dotGitPath);
+                if (!dotGitPathInfo.Exists)
+                {
+                    this.FailMountAndExit("Failed to mount. Directory \"{0}\" must exist.", dotGitPathInfo);
+                }
+            }
+        }
+
+        /// <summary>
+        /// For worktree mounts, create the .gvfs metadata directory and
+        /// bootstrap RepoMetadata with cache paths from the primary enlistment.
+        /// </summary>
+        private void InitializeWorktreeMetadata()
+        {
+            string dotGVFSRoot = this.enlistment.DotGVFSRoot;
+            if (!Directory.Exists(dotGVFSRoot))
+            {
+                try
+                {
+                    Directory.CreateDirectory(dotGVFSRoot);
+                    this.tracer.RelatedInfo($"Created worktree metadata directory: {dotGVFSRoot}");
+                }
+                catch (Exception e)
+                {
+                    this.FailMountAndExit("Failed to create worktree metadata directory '{0}': {1}", dotGVFSRoot, e.Message);
+                }
+            }
+
+            // Bootstrap RepoMetadata from the primary enlistment's metadata.
+            // Use try/finally to guarantee Shutdown() even if an unexpected
+            // exception occurs — the singleton must not be left pointing at
+            // the primary's metadata directory.
+            string primaryDotGVFS = Path.Combine(this.enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
+            string error;
+            string gitObjectsRoot;
+            string localCacheRoot;
+            string blobSizesRoot;
+
+            if (!RepoMetadata.TryInitialize(this.tracer, primaryDotGVFS, out error))
+            {
+                this.FailMountAndExit("Failed to read primary enlistment metadata: " + error);
+            }
+
+            try
+            {
+                if (!RepoMetadata.Instance.TryGetGitObjectsRoot(out gitObjectsRoot, out error))
+                {
+                    this.FailMountAndExit("Failed to read git objects root from primary metadata: " + error);
+                }
+
+                if (!RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error))
+                {
+                    this.FailMountAndExit("Failed to read local cache root from primary metadata: " + error);
+                }
+
+                if (!RepoMetadata.Instance.TryGetBlobSizesRoot(out blobSizesRoot, out error))
+                {
+                    this.FailMountAndExit("Failed to read blob sizes root from primary metadata: " + error);
+                }
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
+            }
+
+            // Initialize cache paths on the enlistment so SaveCloneMetadata
+            // can persist them into the worktree's metadata
+            this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
+
+            // Initialize the worktree's own metadata with cache paths,
+            // disk layout version, and a new enlistment ID
+            if (!RepoMetadata.TryInitialize(this.tracer, dotGVFSRoot, out error))
+            {
+                this.FailMountAndExit("Failed to initialize worktree metadata: " + error);
+            }
+
+            try
+            {
+                RepoMetadata.Instance.SaveCloneMetadata(this.tracer, this.enlistment);
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
             }
         }
 
@@ -1096,7 +1195,7 @@ namespace GVFS.Mount
             if (Directory.Exists(this.enlistment.GitObjectsRoot))
             {
                 bool gitObjectsRootInAlternates = false;
-                string alternatesFilePath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
+                string alternatesFilePath = Path.Combine(this.enlistment.DotGitRoot, GVFSConstants.DotGit.Objects.Info.AlternatesRelativePath);
                 if (File.Exists(alternatesFilePath))
                 {
                     try
@@ -1232,8 +1331,8 @@ namespace GVFS.Mount
         {
             try
             {
-                string alternatesFilePath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
-                string tempFilePath = alternatesFilePath + ".tmp";
+                string alternatesFilePath = Path.Combine(this.enlistment.DotGitRoot, GVFSConstants.DotGit.Objects.Info.AlternatesRelativePath);
+                string tempFilePath= alternatesFilePath + ".tmp";
                 fileSystem.WriteAllText(tempFilePath, this.enlistment.GitObjectsRoot);
                 fileSystem.MoveAndOverwriteFile(tempFilePath, alternatesFilePath);
             }
@@ -1244,10 +1343,9 @@ namespace GVFS.Mount
             return true;
         }
 
-
         private bool TrySetRequiredGitConfigSettings()
         {
-            string expectedHooksPath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.Root);
+            string expectedHooksPath = Path.Combine(this.enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName);
             expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
 
             string gitStatusCachePath = null;
@@ -1267,7 +1365,8 @@ namespace GVFS.Mount
                 GitCoreGVFSFlags.MissingOk |
                 GitCoreGVFSFlags.NoDeleteOutsideSparseCheckout |
                 GitCoreGVFSFlags.FetchSkipReachabilityAndUploadPack |
-                GitCoreGVFSFlags.BlockFiltersAndEolConversions)
+                GitCoreGVFSFlags.BlockFiltersAndEolConversions |
+                GitCoreGVFSFlags.SupportsWorktrees)
                 .ToString();
 
             Dictionary<string, string> requiredSettings = new Dictionary<string, string>
@@ -1287,7 +1386,8 @@ namespace GVFS.Mount
                 { "core.bare", "false" },
                 { "core.logallrefupdates", "true" },
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
-                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
+                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(
+                    Path.Combine(this.enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName, GVFSConstants.DotGit.Hooks.VirtualFileSystemName)) },
                 { "core.hookspath", expectedHooksPath },
                 { GitConfigSetting.CredentialUseHttpPath, "true" },
                 { "credential.validate", "false" },
