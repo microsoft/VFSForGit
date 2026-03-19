@@ -551,6 +551,11 @@ namespace GVFS.Virtualization
             }
         }
 
+        public EnlistmentHydrationSummary GetCachedHydrationSummary()
+        {
+            return this.gitStatusCache.GetCachedHydrationSummary();
+        }
+
         public int GetProjectedFolderCount()
         {
             return this.GitIndexProjection.GetProjectedFolderCount();
