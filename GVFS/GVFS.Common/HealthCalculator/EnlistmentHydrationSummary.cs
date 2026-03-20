@@ -71,7 +71,7 @@ namespace GVFS.Common
                 long modifiedPathsLoadMs = phaseStopwatch.ElapsedMilliseconds;
                 cancellationToken.ThrowIfCancellationRequested();
 
-                int hydratedFileCount= pathData.ModifiedFilePaths.Count + pathData.PlaceholderFilePaths.Count;
+                int hydratedFileCount = pathData.ModifiedFilePaths.Count + pathData.PlaceholderFilePaths.Count;
                 int hydratedFolderCount = pathData.ModifiedFolderPaths.Count + pathData.PlaceholderFolderPaths.Count;
 
                 /* Getting the head tree count (used for TotalFolderCount) is potentially slower than the other parts
