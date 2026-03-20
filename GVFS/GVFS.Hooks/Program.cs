@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace GVFS.Hooks
 {
-    public class Program
+    public partial class Program
     {
         private const string PreCommandHook = "pre-command";
         private const string PostCommandHook = "post-command";
@@ -98,6 +98,13 @@ namespace GVFS.Hooks
                     {
                         /* Display a message about the hydration status of the repo */
                         ProcessHelper.Run("gvfs", "health --status", redirectOutput: false);
+                    }
+                    break;
+                case "restore":
+                case "checkout":
+                    if (IsUnstageOperation(command, args))
+                    {
+                        SendPrepareForUnstageMessage(command, args);
                     }
                     break;
             }
