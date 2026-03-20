@@ -21,6 +21,29 @@ namespace GVFS.Virtualization.Projection
             public bool ChildrenHaveSizes { get; private set; }
             public bool IsIncluded { get; set; } = true;
 
+            public int GetRecursiveFolderCount()
+            {
+                int count = 0;
+                Stack<FolderData> stack = new Stack<FolderData>();
+                stack.Push(this);
+
+                while (stack.Count > 0)
+                {
+                    FolderData current = stack.Pop();
+                    for (int i = 0; i < current.ChildEntries.Count; i++)
+                    {
+                        FolderData childFolder = current.ChildEntries[i] as FolderData;
+                        if (childFolder != null)
+                        {
+                            count++;
+                            stack.Push(childFolder);
+                        }
+                    }
+                }
+
+                return count;
+            }
+
             public void ResetData(LazyUTF8String name, bool isIncluded)
             {
                 this.Name = name;

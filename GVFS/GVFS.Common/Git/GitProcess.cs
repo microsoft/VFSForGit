@@ -682,11 +682,6 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 -c repack.packKeptObjects=true multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize} --no-progress");
         }
 
-        public Result GetHeadTreeId()
-        {
-            return this.InvokeGitAgainstDotGitFolder("rev-parse \"HEAD^{tree}\"", usePreCommandHook: false);
-        }
-
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory, bool usePreCommandHook)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);

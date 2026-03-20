@@ -54,6 +54,11 @@ namespace GVFS.Common
 
         public string GVFSLogsRoot { get; }
 
+        /// <summary>
+        /// Path to the git index file.
+        /// </summary>
+        public string GitIndexPath => Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index);
+
         public string LocalCacheRoot { get; private set; }
 
         public string BlobSizesRoot { get; private set; }

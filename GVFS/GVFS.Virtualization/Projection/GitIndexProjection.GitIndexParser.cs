@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace GVFS.Virtualization.Projection
 {
@@ -58,6 +59,46 @@ namespace GVFS.Virtualization.Projection
                     // ValidateIndex should always result in FileSystemTaskResult.Success (or a thrown exception)
                     throw new InvalidOperationException($"{nameof(ValidateIndex)} failed: {result.ToString()}");
                 }
+            }
+
+            /// <summary>
+            /// Count unique directories in the index by scanning entry paths for separators.
+            /// Uses the existing index parser to read entries, avoiding a custom index parser.
+            /// </summary>
+            public static int CountIndexFolders(ITracer tracer, Stream indexStream)
+            {
+                HashSet<string> dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                GitIndexParser indexParser = new GitIndexParser(null);
+
+                FileSystemTaskResult result = indexParser.ParseIndex(
+                    tracer,
+                    indexStream,
+                    indexParser.resuableProjectionBuildingIndexEntry,
+                    entry =>
+                    {
+                        // Extract unique parent directories from the raw path buffer
+                        string path = Encoding.UTF8.GetString(entry.PathBuffer, 0, entry.PathLength);
+                        int lastSlash = path.LastIndexOf('/');
+                        while (lastSlash > 0)
+                        {
+                            string dir = path.Substring(0, lastSlash);
+                            if (!dirs.Add(dir))
+                            {
+                                break;
+                            }
+
+                            lastSlash = dir.LastIndexOf('/');
+                        }
+
+                        return FileSystemTaskResult.Success;
+                    });
+
+                if (result != FileSystemTaskResult.Success)
+                {
+                    throw new InvalidOperationException($"{nameof(CountIndexFolders)} failed: {result}");
+                }
+
+                return dirs.Count;
             }
 
             public void RebuildProjection(ITracer tracer, Stream indexStream)

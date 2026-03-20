@@ -88,7 +88,10 @@ namespace GVFS.CommandLine
 
         private void OutputHydrationPercent(GVFSEnlistment enlistment, ITracer tracer)
         {
-            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(enlistment, this.FileSystem, tracer);
+            Func<int> folderCountProvider = () =>
+                GVFS.Virtualization.Projection.GitIndexProjection.CountIndexFolders(tracer, enlistment.GitIndexPath);
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                enlistment, this.FileSystem, tracer, folderCountProvider);
             this.Output.WriteLine(summary.ToMessage());
         }
 
