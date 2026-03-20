@@ -49,6 +49,9 @@
     <Compile Include="..\GVFS.Common\NamedPipes\LockNamedPipeMessages.cs">
       <Link>Common\NamedPipes\LockNamedPipeMessages.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\UnstageNamedPipeMessages.cs">
+      <Link>Common\NamedPipes\UnstageNamedPipeMessages.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeClient.cs">
       <Link>Common\NamedPipes\NamedPipeClient.cs</Link>
     </Compile>
