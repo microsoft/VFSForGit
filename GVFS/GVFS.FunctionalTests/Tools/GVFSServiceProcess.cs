@@ -18,7 +18,8 @@ namespace GVFS.FunctionalTests.Tools
         {
             get
             {
-                return "Test.GVFS.Service";
+                string name = Environment.GetEnvironmentVariable("GVFS_TEST_SERVICE_NAME");
+                return string.IsNullOrWhiteSpace(name) ? "Test.GVFS.Service" : name;
             }
         }
 
