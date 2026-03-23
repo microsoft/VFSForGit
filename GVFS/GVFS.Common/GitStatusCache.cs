@@ -50,6 +50,8 @@ namespace GVFS.Common
         private CancellationTokenSource shutdownTokenSource;
         private Task activeHydrationTask;
 
+        private Func<int> projectedFolderCountProvider;
+
         private volatile CacheState cacheState = CacheState.Dirty;
 
         private object cacheFileLock = new object();
@@ -70,6 +72,23 @@ namespace GVFS.Common
             this.shutdownTokenSource = new CancellationTokenSource();
 
             this.wakeUpThread = new AutoResetEvent(false);
+        }
+
+        /// <summary>
+        /// Sets the provider used to get the total projected folder count for hydration
+        /// summary computation. Must be called before <see cref="Initialize"/> for
+        /// hydration summary to function.
+        /// </summary>
+        /// <remarks>
+        /// This is set post-construction because of a circular dependency:
+        /// InProcessMount creates GitStatusCache before FileSystemCallbacks,
+        /// but the provider requires GitIndexProjection, which is created
+        /// inside FileSystemCallbacks. FileSystemCallbacks calls this method
+        /// after GitIndexProjection is available.
+        /// </remarks>
+        public void SetProjectedFolderCountProvider(Func<int> provider)
+        {
+            this.projectedFolderCountProvider = provider;
         }
 
         public virtual void Initialize()
@@ -183,17 +202,16 @@ namespace GVFS.Common
 
             // Wait for the hydration task to complete before disposing the
             // token source it may still be using.
-            if (this.activeHydrationTask != null)
+            Task hydrationTask = Interlocked.Exchange(ref this.activeHydrationTask, null);
+            if (hydrationTask != null)
             {
                 try
                 {
-                    this.activeHydrationTask.Wait();
+                    hydrationTask.Wait(TimeSpan.FromSeconds(5));
                 }
                 catch (AggregateException)
                 {
                 }
-
-                this.activeHydrationTask = null;
             }
 
             if (this.shutdownTokenSource != null)
@@ -346,11 +364,12 @@ namespace GVFS.Common
                 // Run hydration summary in parallel with git status — they are independent
                 // operations and neither should delay the other.
                 Task hydrationTask = Task.Run(() => this.UpdateHydrationSummary());
-                this.activeHydrationTask = hydrationTask;
+                Interlocked.Exchange(ref this.activeHydrationTask, hydrationTask);
 
                 bool rebuildStatusCacheSucceeded = this.TryRebuildStatusCache();
 
                 // Wait for hydration to complete before logging final stats.
+                // Exceptions are observed here to avoid unobserved task exceptions.
                 try
                 {
                     hydrationTask.Wait();
@@ -385,6 +404,11 @@ namespace GVFS.Common
 
         private void UpdateHydrationSummary()
         {
+            if (this.projectedFolderCountProvider == null)
+            {
+                return;
+            }
+
             bool enabled = TEST_EnableHydrationSummaryOverride
                 ?? this.context.Repository.LibGit2RepoInvoker.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
             if (!enabled)
@@ -409,7 +433,7 @@ namespace GVFS.Common
                  * and this is also a convenient place to log telemetry for it.
                  */
                 EnlistmentHydrationSummary hydrationSummary =
-                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer, cancellationToken: this.shutdownTokenSource.Token);
+                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer, this.projectedFolderCountProvider, this.shutdownTokenSource.Token);
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", EtwArea);
                 if (hydrationSummary.IsValid)

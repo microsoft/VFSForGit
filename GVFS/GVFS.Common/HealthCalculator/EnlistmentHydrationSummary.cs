@@ -1,10 +1,8 @@
 using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Threading;
 
 namespace GVFS.Common
@@ -45,6 +43,7 @@ namespace GVFS.Common
             GVFSEnlistment enlistment,
             PhysicalFileSystem fileSystem,
             ITracer tracer,
+            Func<int> projectedFolderCountProvider,
             CancellationToken cancellationToken = default)
         {
             Stopwatch totalStopwatch = Stopwatch.StartNew();
@@ -57,7 +56,6 @@ namespace GVFS.Common
                 phaseStopwatch.Restart();
                 int totalFileCount = GetIndexFileCount(enlistment, fileSystem);
                 long indexReadMs = phaseStopwatch.ElapsedMilliseconds;
-
                 cancellationToken.ThrowIfCancellationRequested();
 
                 EnlistmentPathData pathData = new EnlistmentPathData();
@@ -66,13 +64,11 @@ namespace GVFS.Common
                 phaseStopwatch.Restart();
                 pathData.LoadPlaceholdersFromDatabase(enlistment);
                 long placeholderLoadMs = phaseStopwatch.ElapsedMilliseconds;
-
                 cancellationToken.ThrowIfCancellationRequested();
 
                 phaseStopwatch.Restart();
                 pathData.LoadModifiedPaths(enlistment, tracer);
                 long modifiedPathsLoadMs = phaseStopwatch.ElapsedMilliseconds;
-
                 cancellationToken.ThrowIfCancellationRequested();
 
                 int hydratedFileCount = pathData.ModifiedFilePaths.Count + pathData.PlaceholderFilePaths.Count;
@@ -100,11 +96,12 @@ namespace GVFS.Common
                     return soFar;
                 }
 
-                /* Getting all the directories is also slow, but not as slow as reading the entire index,
-                 * GetTotalPathCount caches the count so this is only slow occasionally,
-                 * and the GitStatusCache manager also calls this to ensure it is updated frequently. */
+                /* Get the total folder count from the caller-provided function.
+                 * In the mount process, this comes from the in-memory projection (essentially free).
+                 * In gvfs health --status fallback, this parses the git index via GitIndexProjection. */
+                cancellationToken.ThrowIfCancellationRequested();
                 phaseStopwatch.Restart();
-                int totalFolderCount = GetHeadTreeCount(enlistment, fileSystem, tracer);
+                int totalFolderCount = projectedFolderCountProvider();
                 long treeCountMs = phaseStopwatch.ElapsedMilliseconds;
 
                 EmitDurationTelemetry(tracer, totalStopwatch.ElapsedMilliseconds, indexReadMs, placeholderLoadMs, modifiedPathsLoadMs, treeCountMs, earlyExit: false);
@@ -169,7 +166,7 @@ namespace GVFS.Common
         /// </summary>
         internal static int GetIndexFileCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem)
         {
-            string indexPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index);
+            string indexPath = enlistment.GitIndexPath;
             using (var indexFile = fileSystem.OpenFileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, callFlushFileBuffers: false))
             {
                 if (indexFile.Length < 12)
@@ -193,77 +190,5 @@ namespace GVFS.Common
             }
         }
 
-        /// <summary>
-        /// Get the total number of trees in the repo at HEAD.
-        /// </summary>
-        /// <remarks>
-        /// This is used as the denominator in displaying percentage of hydrated
-        /// directories as part of git status pre-command hook.
-        /// It can take several seconds to calculate, so we cache it near the git status cache.
-        /// </remarks>
-        /// <returns>
-        /// The number of subtrees at HEAD, which may be 0.
-        /// Will return 0 if unsuccessful.
-        /// </returns>
-        internal static int GetHeadTreeCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem, ITracer tracer)
-        {
-            var gitProcess = enlistment.CreateGitProcess();
-            var headResult = gitProcess.GetHeadTreeId();
-            if (headResult.ExitCodeIsFailure)
-            {
-                tracer.RelatedError($"Failed to get HEAD tree ID: \nOutput: {headResult.Output}\n\nError:{headResult.Errors}");
-                return 0;
-            }
-            var headSha = headResult.Output.Trim();
-            var cacheFile = Path.Combine(
-                enlistment.DotGVFSRoot,
-                GVFSConstants.DotGVFS.GitStatusCache.TreeCount);
-
-            // Load from cache if cache matches current HEAD.
-            if (fileSystem.FileExists(cacheFile))
-            {
-                try
-                {
-                    var lines = fileSystem.ReadLines(cacheFile).ToArray();
-                    if (lines.Length == 2
-                        && lines[0] == headSha
-                        && int.TryParse(lines[1], out int cachedCount))
-                    {
-                        return cachedCount;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tracer.RelatedWarning($"Failed to read tree count cache file at {cacheFile}: {ex}");
-                    // Ignore errors reading the cache
-                }
-            }
-
-            int totalPathCount = 0;
-            GitProcess.Result folderResult = gitProcess.LsTree(
-                GVFSConstants.DotGit.HeadName,
-                line => totalPathCount++,
-                recursive: true,
-                showDirectories: true);
-
-            if (GitProcess.Result.SuccessCode != folderResult.ExitCode)
-            {
-                tracer.RelatedError($"Failed to get tree count from HEAD: \nOutput: {folderResult.Output}\n\nError:{folderResult.Errors}");
-                return 0;
-            }
-
-            try
-            {
-                fileSystem.CreateDirectory(Path.GetDirectoryName(cacheFile));
-                fileSystem.WriteAllText(cacheFile, $"{headSha}\n{totalPathCount}");
-            }
-            catch (Exception ex)
-            {
-                // Ignore errors writing the cache
-                tracer.RelatedWarning($"Failed to write tree count cache file at {cacheFile}: {ex}");
-            }
-
-            return totalPathCount;
-        }
     }
 }
