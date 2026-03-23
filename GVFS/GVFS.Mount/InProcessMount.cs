@@ -92,6 +92,28 @@ namespace GVFS.Mount
         {
             this.currentState = MountState.Mounting;
 
+            string mountLockPath = Path.Combine(this.enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.MountLock);
+            using (FileBasedLock mountLock = GVFSPlatform.Instance.CreateFileBasedLock(
+                new PhysicalFileSystem(),
+                this.tracer,
+                mountLockPath))
+            {
+                if (!mountLock.TryAcquireLock(out Exception lockException))
+                {
+                    if (lockException is IOException)
+                    {
+                        this.FailMountAndExit(ReturnCode.MountAlreadyRunning, "Mount: Another mount process is already running.");
+                    }
+
+                    this.FailMountAndExit("Mount: Failed to acquire mount lock: {0}", lockException.Message);
+                }
+
+                this.MountWithLockAcquired(verbosity, keywords);
+            }
+        }
+
+        private void MountWithLockAcquired(EventLevel verbosity, Keywords keywords)
+        {
             // Start auth + config query immediately — these are network-bound and don't
             // depend on repo metadata or cache paths. Every millisecond of network latency
             // we can overlap with local I/O is a win.
@@ -304,6 +326,11 @@ namespace GVFS.Mount
 
         private void FailMountAndExit(string error, params object[] args)
         {
+            this.FailMountAndExit(ReturnCode.GenericError, error, args);
+        }
+
+        private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
+        {
             this.currentState = MountState.MountFailed;
 
             this.tracer.RelatedError(error, args);
@@ -319,7 +346,7 @@ namespace GVFS.Mount
                 this.fileSystemCallbacks = null;
             }
 
-            Environment.Exit((int)ReturnCode.GenericError);
+            Environment.Exit((int)returnCode);
         }
 
         private T CreateOrReportAndExit<T>(Func<T> factory, string reportMessage)

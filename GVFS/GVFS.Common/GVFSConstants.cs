@@ -117,6 +117,7 @@ namespace GVFS.Common
         {
             public const string CorruptObjectsName = "CorruptObjects";
             public const string LogName = "logs";
+            public const string MountLock = "mount.lock";
 
             public static class Databases
             {
