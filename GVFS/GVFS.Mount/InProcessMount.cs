@@ -396,6 +396,10 @@ namespace GVFS.Mount
                     this.HandlePostIndexChangedRequest(message, connection);
                     break;
 
+                case NamedPipeMessages.PrepareForUnstage.Request:
+                    this.HandlePrepareForUnstageRequest(message, connection);
+                    break;
+
                 case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
                     this.HandlePostFetchJobRequest(message, connection);
                     break;
@@ -630,6 +634,53 @@ namespace GVFS.Mount
                 }
 
                 response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.PostIndexChanged.SuccessResult);
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
+        /// <summary>
+        /// Handles a request to prepare for an unstage operation (e.g., restore --staged).
+        /// Finds index entries that are staged (not in HEAD) with skip-worktree set and adds
+        /// them to ModifiedPaths so that git will clear skip-worktree and process them.
+        /// Also forces a projection update to fix stale placeholders for modified/deleted files.
+        /// </summary>
+        private void HandlePrepareForUnstageRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.PrepareForUnstage.Response response;
+
+            if (this.currentState != MountState.Ready)
+            {
+                response = new NamedPipeMessages.PrepareForUnstage.Response(NamedPipeMessages.MountNotReadyResult);
+            }
+            else
+            {
+                try
+                {
+                    string pathspec = message.Body;
+                    bool success = this.fileSystemCallbacks.AddStagedFilesToModifiedPaths(pathspec, out int addedCount);
+
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("addedToModifiedPaths", addedCount);
+                    metadata.Add("pathspec", pathspec ?? "(all)");
+                    metadata.Add("success", success);
+                    this.tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        nameof(this.HandlePrepareForUnstageRequest),
+                        metadata);
+
+                    response = new NamedPipeMessages.PrepareForUnstage.Response(
+                        success
+                            ? NamedPipeMessages.PrepareForUnstage.SuccessResult
+                            : NamedPipeMessages.PrepareForUnstage.FailureResult);
+                }
+                catch (Exception e)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Exception", e.ToString());
+                    this.tracer.RelatedError(metadata, nameof(this.HandlePrepareForUnstageRequest) + " failed");
+                    response = new NamedPipeMessages.PrepareForUnstage.Response(NamedPipeMessages.PrepareForUnstage.FailureResult);
+                }
             }
 
             connection.TrySendResponse(response.CreateMessage());

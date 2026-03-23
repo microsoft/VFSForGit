@@ -367,6 +367,158 @@ namespace GVFS.Virtualization
             return this.modifiedPaths.GetAllModifiedPaths();
         }
 
+        /// <summary>
+        /// Finds index entries that are staged (differ from HEAD) matching the given
+        /// pathspec, and adds them to ModifiedPaths. This prepares for an unstage operation
+        /// (e.g., restore --staged) by ensuring git will clear skip-worktree for these
+        /// entries so it can detect their working tree state correctly.
+        /// Files that were added (not in HEAD) are also written to disk from the git object
+        /// store as full files, so they persist after projection changes.
+        /// </summary>
+        /// <param name="messageBody">
+        /// IPC message body. Formats:
+        ///   null/empty           — all staged files
+        ///   "path1\0path2"       — inline pathspecs (null-separated)
+        ///   "\nF\n{filepath}"    — --pathspec-from-file (forwarded to git)
+        ///   "\nFZ\n{filepath}"   — --pathspec-from-file with --pathspec-file-nul
+        /// File-reference bodies may include inline pathspecs after a 4th \n field.
+        /// </param>
+        /// <param name="addedCount">Number of paths added to ModifiedPaths.</param>
+        /// <returns>True if all operations succeeded, false if any failed.</returns>
+        public bool AddStagedFilesToModifiedPaths(string messageBody, out int addedCount)
+        {
+            addedCount = 0;
+            bool success = true;
+
+            // Use a dedicated GitProcess instance to avoid serialization with other
+            // concurrent pipe message handlers that may also be running git commands.
+            GitProcess gitProcess = new GitProcess(this.context.Enlistment);
+
+            // Parse message body to extract pathspec arguments for git diff --cached
+            string[] pathspecs = null;
+            string pathspecFromFile = null;
+            bool pathspecFileNul = false;
+
+            if (!string.IsNullOrEmpty(messageBody))
+            {
+                if (messageBody.StartsWith("\n"))
+                {
+                    // File-reference format: "\n{F|FZ}\n<filepath>[\n<inline-pathspecs>]"
+                    string[] fields = messageBody.Split(new[] { '\n' }, 4, StringSplitOptions.None);
+                    if (fields.Length >= 3)
+                    {
+                        pathspecFileNul = fields[1] == "FZ";
+                        pathspecFromFile = fields[2];
+
+                        if (fields.Length >= 4 && !string.IsNullOrEmpty(fields[3]))
+                        {
+                            pathspecs = fields[3].Split('\0');
+                        }
+                    }
+                }
+                else
+                {
+                    pathspecs = messageBody.Split('\0');
+                }
+            }
+
+            // Query all staged files in one call using --name-status -z.
+            // Output format: "A\0path1\0M\0path2\0D\0path3\0"
+            GitProcess.Result result = gitProcess.DiffCachedNameStatus(pathspecs, pathspecFromFile, pathspecFileNul);
+            if (result.ExitCodeIsSuccess && !string.IsNullOrEmpty(result.Output))
+            {
+                string[] parts = result.Output.Split(new[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
+                List<string> addedFilePaths = new List<string>();
+
+                // Parts alternate: status, path, status, path, ...
+                for (int i = 0; i + 1 < parts.Length; i += 2)
+                {
+                    string status = parts[i];
+                    string gitPath = parts[i + 1];
+
+                    if (string.IsNullOrEmpty(gitPath))
+                    {
+                        continue;
+                    }
+
+                    string platformPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+                    if (this.modifiedPaths.TryAdd(platformPath, isFolder: false, isRetryable: out _))
+                    {
+                        addedCount++;
+                    }
+
+                    // Added files (in index but not in HEAD) are ProjFS placeholders that
+                    // would vanish when the projection reverts to HEAD. Collect them for
+                    // hydration below.
+                    if (status.StartsWith("A"))
+                    {
+                        addedFilePaths.Add(gitPath);
+                    }
+                }
+
+                // Write added files from the git object store to disk as full files
+                // so they persist across projection changes. Batched into as few git
+                // process invocations as possible.
+                if (addedFilePaths.Count > 0)
+                {
+                    if (!this.WriteStagedFilesToWorkingDirectory(gitProcess, addedFilePaths))
+                    {
+                        success = false;
+                    }
+                }
+            }
+            else if (!result.ExitCodeIsSuccess)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("ExitCode", result.ExitCode);
+                metadata.Add("Errors", result.Errors ?? string.Empty);
+                this.context.Tracer.RelatedError(
+                    metadata,
+                    nameof(this.AddStagedFilesToModifiedPaths) + ": git diff --cached failed");
+                success = false;
+            }
+
+            return success;
+        }
+
+        /// <summary>
+        /// Writes the staged (index) versions of files to the working directory as
+        /// full files, bypassing ProjFS. Uses "git checkout-index --force" with
+        /// batched paths to minimize process invocations.
+        /// Returns true if all batches succeeded, false if any failed.
+        /// </summary>
+        private bool WriteStagedFilesToWorkingDirectory(GitProcess gitProcess, List<string> gitPaths)
+        {
+            bool allSucceeded = true;
+            try
+            {
+                List<GitProcess.Result> results = gitProcess.CheckoutIndexForFiles(gitPaths);
+                foreach (GitProcess.Result result in results)
+                {
+                    if (!result.ExitCodeIsSuccess)
+                    {
+                        allSucceeded = false;
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("pathCount", gitPaths.Count);
+                        metadata.Add("error", result.Errors);
+                        this.context.Tracer.RelatedWarning(
+                            metadata,
+                            nameof(this.WriteStagedFilesToWorkingDirectory) + ": git checkout-index failed");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                allSucceeded = false;
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("pathCount", gitPaths.Count);
+                metadata.Add("Exception", e.ToString());
+                this.context.Tracer.RelatedWarning(metadata, nameof(this.WriteStagedFilesToWorkingDirectory) + ": Failed to write files");
+            }
+
+            return allSucceeded;
+        }
+
         public virtual void OnIndexFileChange()
         {
             string lockedGitCommand = this.context.Repository.GVFSLock.GetLockedGitCommand();
