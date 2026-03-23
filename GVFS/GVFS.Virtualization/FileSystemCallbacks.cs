@@ -115,6 +115,8 @@ namespace GVFS.Virtualization
             // If the status cache is not enabled, create a dummy GitStatusCache that will never be initialized
             // This lets us from having to add null checks to callsites into GitStatusCache.
             this.gitStatusCache = gitStatusCache ?? new GitStatusCache(context, TimeSpan.Zero);
+            this.gitStatusCache.SetProjectedFolderCountProvider(
+                () => this.GitIndexProjection.GetProjectedFolderCount());
 
             this.logsHeadPath = Path.Combine(this.context.Enlistment.DotGitRoot, GVFSConstants.DotGit.Logs.HeadRelativePath);
 
@@ -395,6 +397,11 @@ namespace GVFS.Virtualization
             {
                 this.gitStatusCache.RefreshAsynchronously();
             }
+        }
+
+        public int GetProjectedFolderCount()
+        {
+            return this.GitIndexProjection.GetProjectedFolderCount();
         }
 
         public virtual void OnLogsHeadChange()

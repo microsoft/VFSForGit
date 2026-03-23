@@ -10,5 +10,6 @@
         NullRequestData = 5,
         UnableToRegisterForOfflineIO = 6,
         DehydrateFolderFailures = 7,
+        MountAlreadyRunning = 8,
     }
 }

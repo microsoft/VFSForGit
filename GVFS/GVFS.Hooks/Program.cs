@@ -104,7 +104,8 @@ namespace GVFS.Hooks
                 case "status":
                     /* If status is being run to serialize for caching, or if --porcelain is specified, skip the health display */
                     if (!ArgsBlockHydrationStatus(args)
-                        && ConfigurationAllowsHydrationStatus())
+                        && ConfigurationAllowsHydrationStatus()
+                        && !IsHydrationStatusCircuitBreakerTripped())
                     {
                         /* Display a message about the hydration status of the repo */
                         ProcessHelper.Run("gvfs", "health --status", redirectOutput: false);
@@ -155,6 +156,13 @@ namespace GVFS.Hooks
             {
                 return repo.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
             }
+        }
+
+        private static bool IsHydrationStatusCircuitBreakerTripped()
+        {
+            string gvfsRoot = Path.Combine(enlistmentRoot, ".gvfs");
+            HydrationStatusCircuitBreaker circuitBreaker = new HydrationStatusCircuitBreaker(gvfsRoot, NullTracer.Instance);
+            return circuitBreaker.IsDisabled();
         }
 
         private static void ExitWithError(params string[] messages)

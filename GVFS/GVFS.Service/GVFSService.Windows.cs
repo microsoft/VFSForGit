@@ -152,6 +152,53 @@ namespace GVFS.Service
             }
         }
 
+        public void RunInConsoleMode(string[] args)
+        {
+            if (this.serviceThread != null)
+            {
+                throw new InvalidOperationException("Cannot start service twice in a row.");
+            }
+
+            string serviceName = args.FirstOrDefault(arg => arg.StartsWith(ServiceNameArgPrefix));
+            if (serviceName != null)
+            {
+                this.serviceName = serviceName.Substring(ServiceNameArgPrefix.Length);
+            }
+
+            string serviceLogsDirectoryPath = GVFSPlatform.Instance.GetLogsDirectoryForGVFSComponent(this.serviceName);
+
+            Directory.CreateDirectory(serviceLogsDirectoryPath);
+            this.tracer.AddLogFileEventListener(
+                GVFSEnlistment.GetNewGVFSLogFileName(serviceLogsDirectoryPath, GVFSConstants.LogFileTypes.Service),
+                EventLevel.Verbose,
+                Keywords.Any);
+
+            try
+            {
+                this.serviceDataLocation = GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(this.serviceName);
+                Directory.CreateDirectory(this.serviceDataLocation);
+                Directory.CreateDirectory(Path.GetDirectoryName(this.serviceDataLocation));
+
+                this.serviceStopped = new ManualResetEvent(false);
+
+                Console.WriteLine($"GVFS.Service running in console mode as '{this.serviceName}'");
+                Console.WriteLine("Press Ctrl+C to stop.");
+
+                Console.CancelKeyPress += (sender, e) =>
+                {
+                    e.Cancel = true;
+                    this.StopRunning();
+                };
+
+                this.Run();
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedError($"Console mode failed: {e}");
+                throw;
+            }
+        }
+
         protected override void OnStart(string[] args)
         {
             if (this.serviceThread != null)

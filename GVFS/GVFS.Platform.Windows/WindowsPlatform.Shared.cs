@@ -77,6 +77,12 @@ namespace GVFS.Platform.Windows
 
         public static string GetSecureDataRootForGVFSImplementation()
         {
+            string envOverride = Environment.GetEnvironmentVariable("GVFS_SECURE_DATA_ROOT");
+            if (!string.IsNullOrEmpty(envOverride))
+            {
+                return envOverride;
+            }
+
             return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolderOption.Create),
                  "GVFS",
@@ -85,6 +91,12 @@ namespace GVFS.Platform.Windows
 
         public static string GetCommonAppDataRootForGVFSImplementation()
         {
+            string envOverride = Environment.GetEnvironmentVariable("GVFS_COMMON_APPDATA_ROOT");
+            if (!string.IsNullOrEmpty(envOverride))
+            {
+                return envOverride;
+            }
+
             return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
                 "GVFS");

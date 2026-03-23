@@ -99,6 +99,7 @@ namespace GVFS.Common
 
             public const string Clone = "clone";
             public const string Dehydrate = "dehydrate";
+            public const string Health = "health";
             public const string MountVerb = MountPrefix + "_verb";
             public const string MountProcess = MountPrefix + "_process";
             public const string MountUpgrade = MountPrefix + "_repoupgrade";
@@ -116,6 +117,7 @@ namespace GVFS.Common
         {
             public const string CorruptObjectsName = "CorruptObjects";
             public const string LogName = "logs";
+            public const string MountLock = "mount.lock";
 
             public static class Databases
             {
@@ -132,7 +134,11 @@ namespace GVFS.Common
             {
                 public const string Name = "gitStatusCache";
                 public static readonly string CachePath = Path.Combine(Name, "GitStatusCache.dat");
-                public static readonly string TreeCount = Path.Combine(Name, "TreeCountCache.dat");
+            }
+
+            public static class HydrationStatus
+            {
+                public static readonly string DisabledMarkerFile = Path.Combine("gitStatusCache", "HydrationStatusDisabled.dat");
             }
         }
 

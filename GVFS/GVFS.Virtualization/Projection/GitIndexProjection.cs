@@ -309,6 +309,45 @@ namespace GVFS.Virtualization.Projection
             return this.projectionParseComplete.IsSet;
         }
 
+        /// <summary>
+        /// Get the total number of directories in the projection.
+        /// This is computed from the in-memory tree built during index parsing,
+        /// so it is essentially free (no I/O, no process spawn).
+        /// </summary>
+        public virtual int GetProjectedFolderCount()
+        {
+            this.projectionReadWriteLock.EnterReadLock();
+            try
+            {
+                return this.rootFolderData.GetRecursiveFolderCount();
+            }
+            finally
+            {
+                this.projectionReadWriteLock.ExitReadLock();
+            }
+        }
+
+        /// <summary>
+        /// Count unique directories by parsing the index file directly.
+        /// This is a fallback for when the in-memory projection is not available
+        /// (e.g., when running gvfs health --status without a mount process).
+        /// </summary>
+        public static int CountIndexFolders(ITracer tracer, string indexPath)
+        {
+            using (FileStream indexStream = new FileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                return CountIndexFolders(tracer, indexStream);
+            }
+        }
+
+        /// <summary>
+        /// Count unique directories by parsing an index stream.
+        /// </summary>
+        public static int CountIndexFolders(ITracer tracer, Stream indexStream)
+        {
+            return GitIndexParser.CountIndexFolders(tracer, indexStream);
+        }
+
         public virtual void InvalidateProjection()
         {
             this.context.Tracer.RelatedEvent(EventLevel.Informational, "InvalidateProjection", null);
