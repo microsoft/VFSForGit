@@ -76,6 +76,13 @@ namespace GVFS.Virtualization.Projection
                     indexParser.resuableProjectionBuildingIndexEntry,
                     entry =>
                     {
+                        // Match the same filter as AddIndexEntryToProjection so the
+                        // fallback folder count agrees with the mounted projection.
+                        if (!((entry.MergeState != MergeStage.CommonAncestor && entry.SkipWorktree) || entry.MergeState == MergeStage.Yours))
+                        {
+                            return FileSystemTaskResult.Success;
+                        }
+
                         // Extract unique parent directories from the raw path buffer
                         string path = Encoding.UTF8.GetString(entry.PathBuffer, 0, entry.PathLength);
                         int lastSlash = path.LastIndexOf('/');

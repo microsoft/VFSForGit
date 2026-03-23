@@ -10,6 +10,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading;
+using static GVFS.Virtualization.Projection.GitIndexProjection.GitIndexParser;
 
 namespace GVFS.UnitTests.Common
 {
@@ -51,9 +52,61 @@ namespace GVFS.UnitTests.Common
             Assert.AreEqual(5, count); // "a", "a/b", "a/b/c", "a/b/c/d", "a/b/c/d/e"
         }
 
+        [TestCase]
+        public void CountIndexFolders_ExcludesNonSkipWorktree()
+        {
+            // Entries without skip-worktree and with NoConflicts merge state are not
+            // projected, so their directories should not be counted.
+            IndexEntryInfo[] entries = new[]
+            {
+                new IndexEntryInfo("src/file1.cs", skipWorktree: true),
+                new IndexEntryInfo("vendor/lib/file2.cs", skipWorktree: false),
+            };
+
+            int count = CountFoldersInIndex(entries);
+            Assert.AreEqual(1, count); // only "src"
+        }
+
+        [TestCase]
+        public void CountIndexFolders_ExcludesCommonAncestor()
+        {
+            // CommonAncestor entries are excluded even when skip-worktree is set.
+            IndexEntryInfo[] entries = new[]
+            {
+                new IndexEntryInfo("src/file1.cs", skipWorktree: true),
+                new IndexEntryInfo("conflict/file2.cs", skipWorktree: true, mergeState: MergeStage.CommonAncestor),
+            };
+
+            int count = CountFoldersInIndex(entries);
+            Assert.AreEqual(1, count); // only "src"
+        }
+
+        [TestCase]
+        public void CountIndexFolders_IncludesYoursMergeState()
+        {
+            // Yours merge-state entries are projected even without skip-worktree.
+            IndexEntryInfo[] entries = new[]
+            {
+                new IndexEntryInfo("src/file1.cs", skipWorktree: true),
+                new IndexEntryInfo("merge/file2.cs", skipWorktree: false, mergeState: MergeStage.Yours),
+            };
+
+            int count = CountFoldersInIndex(entries);
+            Assert.AreEqual(2, count); // "src" and "merge"
+        }
+
         private static int CountFoldersInIndex(string[] paths)
         {
             byte[] indexBytes = CreateV4Index(paths);
+            using (MemoryStream stream = new MemoryStream(indexBytes))
+            {
+                return GitIndexProjection.CountIndexFolders(new MockTracer(), stream);
+            }
+        }
+
+        private static int CountFoldersInIndex(IndexEntryInfo[] entries)
+        {
+            byte[] indexBytes = CreateV4Index(entries);
             using (MemoryStream stream = new MemoryStream(indexBytes))
             {
                 return GitIndexProjection.CountIndexFolders(new MockTracer(), stream);
@@ -65,6 +118,17 @@ namespace GVFS.UnitTests.Common
         /// Uses prefix-compression for paths (v4 format).
         /// </summary>
         private static byte[] CreateV4Index(string[] paths)
+        {
+            IndexEntryInfo[] entries = new IndexEntryInfo[paths.Length];
+            for (int i = 0; i < paths.Length; i++)
+            {
+                entries[i] = new IndexEntryInfo(paths[i], skipWorktree: true);
+            }
+
+            return CreateV4Index(entries);
+        }
+
+        private static byte[] CreateV4Index(IndexEntryInfo[] entries)
         {
             // Stat entry header matching GitIndexGenerator.EntryHeader:
             // 40 bytes with file mode 0x81A4 (regular file, 644) at offset 24-27
@@ -78,32 +142,33 @@ namespace GVFS.UnitTests.Common
                 // Header
                 bw.Write(new byte[] { (byte)'D', (byte)'I', (byte)'R', (byte)'C' });
                 WriteBigEndian32(bw, 4); // version 4
-                WriteBigEndian32(bw, (uint)paths.Length);
+                WriteBigEndian32(bw, (uint)entries.Length);
 
                 string previousPath = string.Empty;
-                foreach (string path in paths)
+                foreach (IndexEntryInfo entry in entries)
                 {
                     // 40-byte stat entry header with valid file mode
                     bw.Write(entryHeader);
                     // 20 bytes SHA-1 (zeros)
                     bw.Write(new byte[20]);
-                    // Flags: path length in low 12 bits, skip-worktree in extended
-                    byte[] pathBytes = Encoding.UTF8.GetBytes(path);
-                    ushort flags = (ushort)(Math.Min(pathBytes.Length, 0xFFF) | 0x4000); // extended bit set
+                    // Flags: path length in low 12 bits, merge state in bits 12-13, extended bit 14
+                    byte[] pathBytes = Encoding.UTF8.GetBytes(entry.Path);
+                    ushort flags = (ushort)(Math.Min(pathBytes.Length, 0xFFF) | 0x4000 | ((ushort)entry.MergeState << 12));
                     WriteBigEndian16(bw, flags);
-                    // Extended flags: skip-worktree bit set
-                    WriteBigEndian16(bw, 0x4000);
+                    // Extended flags: skip-worktree bit
+                    ushort extendedFlags = entry.SkipWorktree ? (ushort)0x4000 : (ushort)0;
+                    WriteBigEndian16(bw, extendedFlags);
 
                     // V4 prefix compression: compute common prefix with previous path
                     int commonLen = 0;
-                    int maxCommon = Math.Min(previousPath.Length, path.Length);
-                    while (commonLen < maxCommon && previousPath[commonLen] == path[commonLen])
+                    int maxCommon = Math.Min(previousPath.Length, entry.Path.Length);
+                    while (commonLen < maxCommon && previousPath[commonLen] == entry.Path[commonLen])
                     {
                         commonLen++;
                     }
 
                     int replaceLen = previousPath.Length - commonLen;
-                    string suffix = path.Substring(commonLen);
+                    string suffix = entry.Path.Substring(commonLen);
 
                     // Write replace length as varint
                     WriteVarint(bw, replaceLen);
@@ -111,10 +176,24 @@ namespace GVFS.UnitTests.Common
                     bw.Write(Encoding.UTF8.GetBytes(suffix));
                     bw.Write((byte)0);
 
-                    previousPath = path;
+                    previousPath = entry.Path;
                 }
 
                 return ms.ToArray();
+            }
+        }
+
+        private struct IndexEntryInfo
+        {
+            public string Path;
+            public bool SkipWorktree;
+            public MergeStage MergeState;
+
+            public IndexEntryInfo(string path, bool skipWorktree, MergeStage mergeState = MergeStage.NoConflicts)
+            {
+                this.Path = path;
+                this.SkipWorktree = skipWorktree;
+                this.MergeState = mergeState;
             }
         }
 
