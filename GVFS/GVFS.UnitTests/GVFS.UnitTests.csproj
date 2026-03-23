@@ -38,6 +38,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\GVFS.Hooks\UnstageCommandParser.cs">
+      <Link>Hooks\UnstageCommandParser.cs</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="Data\backward.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

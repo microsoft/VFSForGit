@@ -373,10 +373,17 @@ namespace GVFS.Virtualization
         /// Files that were added (not in HEAD) are also written to disk from the git object
         /// store as full files, so they persist after projection changes.
         /// </summary>
-        /// <param name="pathspec">Null-separated pathspecs, or null/empty for all staged files.</param>
+        /// <param name="messageBody">
+        /// IPC message body. Formats:
+        ///   null/empty           — all staged files
+        ///   "path1\0path2"       — inline pathspecs (null-separated)
+        ///   "\nF\n{filepath}"    — --pathspec-from-file (forwarded to git)
+        ///   "\nFZ\n{filepath}"   — --pathspec-from-file with --pathspec-file-nul
+        /// File-reference bodies may include inline pathspecs after a 4th \n field.
+        /// </param>
         /// <param name="addedCount">Number of paths added to ModifiedPaths.</param>
         /// <returns>True if all operations succeeded, false if any failed.</returns>
-        public bool AddStagedFilesToModifiedPaths(string pathspec, out int addedCount)
+        public bool AddStagedFilesToModifiedPaths(string messageBody, out int addedCount)
         {
             addedCount = 0;
             bool success = true;
@@ -385,15 +392,37 @@ namespace GVFS.Virtualization
             // concurrent pipe message handlers that may also be running git commands.
             GitProcess gitProcess = new GitProcess(this.context.Enlistment);
 
+            // Parse message body to extract pathspec arguments for git diff --cached
             string[] pathspecs = null;
-            if (!string.IsNullOrEmpty(pathspec))
+            string pathspecFromFile = null;
+            bool pathspecFileNul = false;
+
+            if (!string.IsNullOrEmpty(messageBody))
             {
-                pathspecs = pathspec.Split('\0');
+                if (messageBody.StartsWith("\n"))
+                {
+                    // File-reference format: "\n{F|FZ}\n<filepath>[\n<inline-pathspecs>]"
+                    string[] fields = messageBody.Split(new[] { '\n' }, 4, StringSplitOptions.None);
+                    if (fields.Length >= 3)
+                    {
+                        pathspecFileNul = fields[1] == "FZ";
+                        pathspecFromFile = fields[2];
+
+                        if (fields.Length >= 4 && !string.IsNullOrEmpty(fields[3]))
+                        {
+                            pathspecs = fields[3].Split('\0');
+                        }
+                    }
+                }
+                else
+                {
+                    pathspecs = messageBody.Split('\0');
+                }
             }
 
             // Query all staged files in one call using --name-status -z.
             // Output format: "A\0path1\0M\0path2\0D\0path3\0"
-            GitProcess.Result result = gitProcess.DiffCachedNameStatus(pathspecs);
+            GitProcess.Result result = gitProcess.DiffCachedNameStatus(pathspecs, pathspecFromFile, pathspecFileNul);
             if (result.ExitCodeIsSuccess && !string.IsNullOrEmpty(result.Output))
             {
                 string[] parts = result.Output.Split(new[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
@@ -435,6 +464,16 @@ namespace GVFS.Virtualization
                         success = false;
                     }
                 }
+            }
+            else if (!result.ExitCodeIsSuccess)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("ExitCode", result.ExitCode);
+                metadata.Add("Errors", result.Errors ?? string.Empty);
+                this.context.Tracer.RelatedError(
+                    metadata,
+                    nameof(this.AddStagedFilesToModifiedPaths) + ": git diff --cached failed");
+                success = false;
             }
 
             return success;

@@ -1,7 +1,5 @@
 ﻿using GVFS.Common.NamedPipes;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace GVFS.Hooks
 {
@@ -14,74 +12,51 @@ namespace GVFS.Hooks
     public partial class Program
     {
         /// <summary>
-        /// Detects whether the git command is an unstage operation that may need
-        /// special handling for VFS projections.
-        /// Matches: "restore --staged", "restore -S", "checkout HEAD --"
-        /// </summary>
-        private static bool IsUnstageOperation(string command, string[] args)
-        {
-            if (command == "restore")
-            {
-                return args.Any(arg =>
-                    arg.Equals("--staged", StringComparison.OrdinalIgnoreCase) ||
-                    // -S is --staged; char overload of IndexOf is case-sensitive,
-                    // which is required because lowercase -s means --source
-                    (arg.StartsWith("-") && !arg.StartsWith("--") && arg.IndexOf('S') >= 0));
-            }
-
-            if (command == "checkout")
-            {
-                // "checkout HEAD -- <paths>" is an unstage+restore operation
-                bool hasHead = args.Any(arg => arg.Equals("HEAD", StringComparison.OrdinalIgnoreCase));
-                bool hasDashDash = args.Any(arg => arg == "--");
-                return hasHead && hasDashDash;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Extracts pathspec arguments from a restore --staged command.
-        /// Returns null-separated pathspecs, or empty string for all staged files.
-        /// </summary>
-        private static string GetRestorePathspec(string command, string[] args)
-        {
-            // args[0] = hook type, args[1] = git command, rest are arguments
-            // Skip flags (--staged, -S, --source=, -s, etc.) and extract paths
-            List<string> paths = new List<string>();
-            bool pastDashDash = false;
-
-            for (int i = 2; i < args.Length; i++)
-            {
-                string arg = args[i];
-
-                if (arg.StartsWith("--git-pid="))
-                    continue;
-                if (arg == "--")
-                {
-                    pastDashDash = true;
-                    continue;
-                }
-                if (!pastDashDash && arg.StartsWith("-"))
-                    continue;
-
-                paths.Add(arg);
-            }
-
-            return paths.Count > 0 ? string.Join("\0", paths) : "";
-        }
-
-        /// <summary>
         /// Sends a PrepareForUnstage message to the GVFS mount process, which will
         /// add staged files matching the pathspec to ModifiedPaths so that git will
         /// clear skip-worktree and process them.
         /// </summary>
         private static void SendPrepareForUnstageMessage(string command, string[] args)
         {
-            string pathspec = GetRestorePathspec(command, args);
-            string message = string.IsNullOrEmpty(pathspec)
+            UnstageCommandParser.PathspecResult pathspecResult = UnstageCommandParser.GetRestorePathspec(command, args);
+
+            if (pathspecResult.Failed)
+            {
+                ExitWithError(
+                    "VFS for Git was unable to determine the pathspecs for this unstage operation.",
+                    "This can happen when --pathspec-from-file=- (stdin) is used.",
+                    "",
+                    "Instead, pass the paths directly on the command line:",
+                    "  git restore --staged <path1> <path2> ...");
+                return;
+            }
+
+            // Build the message body. Format:
+            //   null/empty          → all staged files (no pathspec)
+            //   "path1\0path2"      → inline pathspecs (null-separated)
+            //   "\nF\n<filepath>"   → --pathspec-from-file (mount forwards to git)
+            //   "\nFZ\n<filepath>"  → --pathspec-from-file with --pathspec-file-nul
+            // The leading \n distinguishes file-reference bodies from inline pathspecs.
+            string body;
+            if (pathspecResult.PathspecFromFile != null)
+            {
+                string prefix = pathspecResult.PathspecFileNul ? "\nFZ\n" : "\nF\n";
+                body = prefix + pathspecResult.PathspecFromFile;
+
+                // If there are also inline pathspecs, append them after another \n
+                if (!string.IsNullOrEmpty(pathspecResult.InlinePathspecs))
+                {
+                    body += "\n" + pathspecResult.InlinePathspecs;
+                }
+            }
+            else
+            {
+                body = pathspecResult.InlinePathspecs;
+            }
+
+            string message = string.IsNullOrEmpty(body)
                 ? NamedPipeMessages.PrepareForUnstage.Request
-                : NamedPipeMessages.PrepareForUnstage.Request + "|" + pathspec;
+                : NamedPipeMessages.PrepareForUnstage.Request + "|" + body;
 
             bool succeeded = false;
             string failureMessage = null;

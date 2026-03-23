@@ -514,9 +514,28 @@ namespace GVFS.Common.Git
         /// status and path: "A\0path1\0M\0path2\0D\0path3\0".
         /// Status codes: A=added, M=modified, D=deleted, R=renamed, C=copied.
         /// </summary>
-        public Result DiffCachedNameStatus(string[] pathspecs = null)
+        /// <param name="pathspecs">Inline pathspecs to scope the diff, or null for all.</param>
+        /// <param name="pathspecFromFile">
+        /// Path to a file containing additional pathspecs (one per line), forwarded
+        /// as --pathspec-from-file to git. Null if not used.
+        /// </param>
+        /// <param name="pathspecFileNul">
+        /// When true and pathspecFromFile is set, pathspec entries in the file are
+        /// separated by NUL instead of newline (--pathspec-file-nul).
+        /// </param>
+        public Result DiffCachedNameStatus(string[] pathspecs = null, string pathspecFromFile = null, bool pathspecFileNul = false)
         {
             string command = "diff --cached --name-status -z --no-renames";
+
+            if (pathspecFromFile != null)
+            {
+                command += " --pathspec-from-file=" + QuoteGitPath(pathspecFromFile);
+                if (pathspecFileNul)
+                {
+                    command += " --pathspec-file-nul";
+                }
+            }
+
             if (pathspecs != null && pathspecs.Length > 0)
             {
                 command += " -- " + string.Join(" ", pathspecs.Select(p => QuoteGitPath(p)));

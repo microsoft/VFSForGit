@@ -102,7 +102,7 @@ namespace GVFS.Hooks
                     break;
                 case "restore":
                 case "checkout":
-                    if (IsUnstageOperation(command, args))
+                    if (UnstageCommandParser.IsUnstageOperation(command, args))
                     {
                         SendPrepareForUnstageMessage(command, args);
                     }
