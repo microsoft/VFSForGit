@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
+using System;
 
 namespace GVFS.UnitTests.Mock.Common
 {
@@ -14,8 +15,9 @@ namespace GVFS.UnitTests.Mock.Common
         {
         }
 
-        public override bool TryAcquireLock()
+        public override bool TryAcquireLock(out Exception lockException)
         {
+            lockException = null;
             return true;
         }
 

@@ -36,8 +36,9 @@ namespace GVFS.Platform.Windows
         {
         }
 
-        public override bool TryAcquireLock()
+        public override bool TryAcquireLock(out Exception lockException)
         {
+            lockException = null;
             try
             {
                 lock (this.deleteOnCloseStreamLock)
@@ -63,13 +64,14 @@ namespace GVFS.Platform.Windows
             catch (IOException e)
             {
                 // HResultErrorFileExists is expected when the lock file exists
-                // HResultErrorSharingViolation is expected when the lock file exists andanother GVFS process has acquired the lock file
+                // HResultErrorSharingViolation is expected when the lock file exists and another GVFS process has acquired the lock file
                 if (e.HResult != HResultErrorFileExists && e.HResult != HResultErrorSharingViolation)
                 {
                     EventMetadata metadata = this.CreateLockMetadata(e);
                     this.Tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: IOException caught while trying to acquire lock");
                 }
 
+                lockException = e;
                 this.DisposeStream();
                 return false;
             }
@@ -78,6 +80,7 @@ namespace GVFS.Platform.Windows
                 EventMetadata metadata = this.CreateLockMetadata(e);
                 this.Tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: UnauthorizedAccessException caught while trying to acquire lock");
 
+                lockException = e;
                 this.DisposeStream();
                 return false;
             }
@@ -86,6 +89,7 @@ namespace GVFS.Platform.Windows
                 EventMetadata metadata = this.CreateLockMetadata(e);
                 this.Tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: Win32Exception caught while trying to acquire lock");
 
+                lockException = e;
                 this.DisposeStream();
                 return false;
             }

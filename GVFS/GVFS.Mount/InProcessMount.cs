@@ -91,10 +91,14 @@ namespace GVFS.Mount
                 this.tracer,
                 mountLockPath))
             {
-                if (!mountLock.TryAcquireLock())
+                if (!mountLock.TryAcquireLock(out Exception lockException))
                 {
-                    this.tracer.RelatedInfo("Mount: Another mount process is already running. Exiting.");
-                    return;
+                    if (lockException is IOException)
+                    {
+                        this.FailMountAndExit(ReturnCode.MountAlreadyRunning, "Mount: Another mount process is already running.");
+                    }
+
+                    this.FailMountAndExit("Mount: Failed to acquire mount lock: {0}", lockException.Message);
                 }
 
                 this.MountWithLockAcquired(verbosity, keywords);
@@ -315,6 +319,11 @@ namespace GVFS.Mount
 
         private void FailMountAndExit(string error, params object[] args)
         {
+            this.FailMountAndExit(ReturnCode.GenericError, error, args);
+        }
+
+        private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
+        {
             this.currentState = MountState.MountFailed;
 
             this.tracer.RelatedError(error, args);
@@ -330,7 +339,7 @@ namespace GVFS.Mount
                 this.fileSystemCallbacks = null;
             }
 
-            Environment.Exit((int)ReturnCode.GenericError);
+            Environment.Exit((int)returnCode);
         }
 
         private T CreateOrReportAndExit<T>(Func<T> factory, string reportMessage)
