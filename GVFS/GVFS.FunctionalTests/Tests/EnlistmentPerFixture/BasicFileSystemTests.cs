@@ -145,11 +145,19 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             FileInfo before = new FileInfo(virtualFile);
             DateTime testValue = DateTime.Now + TimeSpan.FromDays(1);
 
-            // Setting the CreationTime results in a write handle being open to the file and the file being expanded
-            before.CreationTime = testValue;
+            // Set LastAccessTime, LastWriteTime, and Attributes BEFORE CreationTime.
+            // Setting CreationTime opens a write handle which triggers ProjFS to
+            // asynchronously hydrate the placeholder to a full file. There is a known
+            // ProjFS race condition where metadata set calls issued while hydration is
+            // in progress can be silently dropped (particularly LastAccessTime). By
+            // setting the other properties first (which do not trigger hydration on
+            // their own), then setting CreationTime last, all four values are pending
+            // on the placeholder when hydration begins, and ProjFS preserves them all
+            // through the transition.
             before.LastAccessTime = testValue;
             before.LastWriteTime = testValue;
             before.Attributes = FileAttributes.Hidden;
+            before.CreationTime = testValue;
 
             // FileInfo caches information. We can refresh, but just to be absolutely sure...
             FileInfo info = virtualFile.ShouldBeAFile(fileSystem).WithInfo(testValue, testValue, testValue);
@@ -176,6 +184,10 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             }
 
             attributes.ShouldEqual(FileAttributes.Hidden, $"Attributes do not match, expected: {FileAttributes.Hidden} actual: {attributes}");
+
+            // Verify all timestamps still match after the attribute retry loop (i.e.,
+            // after ProjFS hydration has fully completed).
+            virtualFile.ShouldBeAFile(fileSystem).WithInfo(testValue, testValue, testValue);
         }
 
         [TestCase]
