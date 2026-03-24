@@ -52,6 +52,9 @@
     <Compile Include="..\GVFS.Common\NamedPipes\UnstageNamedPipeMessages.cs">
       <Link>Common\NamedPipes\UnstageNamedPipeMessages.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\HydrationStatusNamedPipeMessages.cs">
+      <Link>Common\NamedPipes\HydrationStatusNamedPipeMessages.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeClient.cs">
       <Link>Common\NamedPipes\NamedPipeClient.cs</Link>
     </Compile>
@@ -93,9 +96,6 @@
     </Compile>
     <Compile Include="..\GVFS.Common\Tracing\Keywords.cs">
       <Link>Common\Tracing\Keywords.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.Common\HealthCalculator\HydrationStatusCircuitBreaker.cs">
-      <Link>Common\HealthCalculator\HydrationStatusCircuitBreaker.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Platform.Windows\WindowsFileSystem.Shared.cs">
       <Link>Windows\WindowsFileSystem.Shared.cs</Link>

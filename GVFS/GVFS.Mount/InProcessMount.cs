@@ -408,6 +408,10 @@ namespace GVFS.Mount
                     this.HandleDehydrateFolders(message, connection);
                     break;
 
+                case NamedPipeMessages.HydrationStatus.Request:
+                    this.HandleGetHydrationStatusRequest(connection);
+                    break;
+
                 default:
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", "Mount");
@@ -417,6 +421,34 @@ namespace GVFS.Mount
                     connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
                     break;
             }
+        }
+
+        private void HandleGetHydrationStatusRequest(NamedPipeServer.Connection connection)
+        {
+            EnlistmentHydrationSummary summary = this.fileSystemCallbacks?.GetCachedHydrationSummary();
+            if (summary == null || !summary.IsValid)
+            {
+                this.tracer.RelatedInfo(
+                    $"{nameof(this.HandleGetHydrationStatusRequest)}: " +
+                    (summary == null ? "No cached hydration summary available yet" : "Cached hydration summary is invalid"));
+
+                connection.TrySendResponse(
+                    new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.NotAvailableResult, null));
+                return;
+            }
+
+            NamedPipeMessages.HydrationStatus.Response response = new NamedPipeMessages.HydrationStatus.Response
+            {
+                PlaceholderFileCount = summary.PlaceholderFileCount,
+                PlaceholderFolderCount = summary.PlaceholderFolderCount,
+                ModifiedFileCount = summary.ModifiedFileCount,
+                ModifiedFolderCount = summary.ModifiedFolderCount,
+                TotalFileCount = summary.TotalFileCount,
+                TotalFolderCount = summary.TotalFolderCount,
+            };
+
+            connection.TrySendResponse(
+                new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.SuccessResult, response.ToBody()));
         }
 
         private void HandleDehydrateFolders(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
