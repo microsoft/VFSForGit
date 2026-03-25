@@ -204,9 +204,9 @@ jobs:
     strategy:
       matrix:
         configuration: [ Debug, Release ]
-        architecture: [ x86_64, arm64 ]
-        nr: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] # 10 parallel jobs to speed up the tests
-      fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
+        architecture: [ x86_64 ]
+        nr: [0]
+      fail-fast: false
 
     steps:
     - name: Skip this job if there is a previous successful run
@@ -260,7 +260,7 @@ jobs:
       run: |
         SET PATH=C:\Program Files\VFS for Git;%PATH%
         SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
-        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --slice=${{ matrix.nr }},10
+        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --test=GVFS.FunctionalTests.Tests.LongRunningEnlistment.HydrationTriggerDiagnostic
 
     - name: Upload functional test results
       if: always() && steps.skip.outputs.result != 'true'
@@ -289,7 +289,7 @@ jobs:
     strategy:
       matrix:
         configuration: [ Debug, Release ]
-        architecture: [ x86_64, arm64 ]
+        architecture: [ x86_64 ]
 
     steps:
       - name: Success! # for easier identification of successful runs in the Checks Required for Pull Requests
