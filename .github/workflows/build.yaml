@@ -150,7 +150,7 @@ jobs:
 
     - name: Add MSBuild to PATH
       if: steps.skip.outputs.result != 'true'
-      uses: microsoft/setup-msbuild@v2.0.0
+      uses: microsoft/setup-msbuild@v3.0.0
 
     - name: Build VFS for Git
       if: steps.skip.outputs.result != 'true'

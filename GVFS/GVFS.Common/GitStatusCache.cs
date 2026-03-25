@@ -50,6 +50,8 @@ namespace GVFS.Common
         private CancellationTokenSource shutdownTokenSource;
         private Task activeHydrationTask;
 
+        private volatile EnlistmentHydrationSummary cachedHydrationSummary;
+
         private Func<int> projectedFolderCountProvider;
 
         private volatile CacheState cacheState = CacheState.Dirty;
@@ -134,6 +136,15 @@ namespace GVFS.Common
         public void RefreshAndWait()
         {
             this.RebuildStatusCacheIfNeeded(ignoreBackoff: true);
+        }
+
+        /// <summary>
+        /// Returns the cached hydration summary if one has been computed,
+        /// or null if no valid summary is available yet.
+        /// </summary>
+        public EnlistmentHydrationSummary GetCachedHydrationSummary()
+        {
+            return this.cachedHydrationSummary;
         }
 
         /// <summary>
@@ -438,6 +449,8 @@ namespace GVFS.Common
                 metadata.Add("Area", EtwArea);
                 if (hydrationSummary.IsValid)
                 {
+                    this.cachedHydrationSummary = hydrationSummary;
+
                     metadata[nameof(hydrationSummary.TotalFolderCount)] = hydrationSummary.TotalFolderCount;
                     metadata[nameof(hydrationSummary.TotalFileCount)] = hydrationSummary.TotalFileCount;
                     metadata[nameof(hydrationSummary.HydratedFolderCount)] = hydrationSummary.HydratedFolderCount;
@@ -451,6 +464,7 @@ namespace GVFS.Common
                 }
                 else if (hydrationSummary.Error != null)
                 {
+                    this.cachedHydrationSummary = null;
                     circuitBreaker.RecordFailure();
                     metadata["Exception"] = hydrationSummary.Error.ToString();
                     this.context.Tracer.RelatedWarning(
@@ -461,12 +475,15 @@ namespace GVFS.Common
                 else
                 {
                     // Invalid summary with no error — likely cancelled during shutdown
+                    this.cachedHydrationSummary = null;
                     this.context.Tracer.RelatedInfo(
                         $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary was cancelled.");
                 }
             }
             catch (Exception ex)
             {
+                this.cachedHydrationSummary = null;
+                circuitBreaker.RecordFailure();
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", EtwArea);
                 metadata.Add("Exception", ex.ToString());

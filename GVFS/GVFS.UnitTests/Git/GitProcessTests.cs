@@ -2,6 +2,7 @@
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
+using System.Diagnostics;
 
 namespace GVFS.UnitTests.Git
 {
@@ -252,6 +253,72 @@ this is an error",
 
             result.TryParseAsInt(1, -1, out int value, out string error).ShouldBeTrue();
             value.ShouldEqual(32);
+        }
+
+        [TestCase("dir/file.txt", "\"dir/file.txt\"")]
+        [TestCase("my dir/my file.txt", "\"my dir/my file.txt\"")]
+        [TestCase("dir/file\"name.txt", "\"dir/file\\\"name.txt\"")]
+        [TestCase("\"quoted\"", "\"\\\"quoted\\\"\"")]
+        [TestCase("dir\\subdir\\file.txt", "\"dir\\subdir\\file.txt\"")] // Backslashes as path separators left as-is
+        [TestCase("", "\"\"")]
+        [TestCase("dir\\\"file.txt", "\"dir\\\\\\\"file.txt\"")] // Backslash before quote: doubled, then quote escaped
+        [TestCase("dir\\subdir\\", "\"dir\\subdir\\\\\"")] // Trailing backslash doubled
+        public void QuoteGitPath(string input, string expected)
+        {
+            GitProcess.QuoteGitPath(input).ShouldEqual(expected);
+        }
+
+        [TestCase]
+        [Description("Integration test: verify QuoteGitPath produces arguments that git actually receives correctly")]
+        public void QuoteGitPath_RoundTripThroughProcess()
+        {
+            // Test that paths with special characters survive the
+            // ProcessStartInfo.Arguments → Windows CRT argument parsing → git round-trip.
+            // We use "git rev-parse --sq-quote <path>" which echoes the path back
+            // in shell-quoted form, proving git received it correctly.
+            string[] testPaths = new[]
+            {
+                "simple/path.txt",
+                "path with spaces/file name.txt",
+                "path\\with\\backslashes\\file.txt",
+            };
+
+            string gitPath = "C:\\Program Files\\Git\\cmd\\git.exe";
+            if (!System.IO.File.Exists(gitPath))
+            {
+                Assert.Ignore("Git not found at expected path — skipping integration test");
+            }
+
+            foreach (string testPath in testPaths)
+            {
+                string quoted = GitProcess.QuoteGitPath(testPath);
+                ProcessStartInfo psi = new ProcessStartInfo(gitPath)
+                {
+                    Arguments = "rev-parse --sq-quote " + quoted,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+
+                using (Process proc = Process.Start(psi))
+                {
+                    string output = proc.StandardOutput.ReadToEnd().Trim();
+                    proc.WaitForExit();
+
+                    // git sq-quote wraps in single quotes and escapes single quotes
+                    // For a simple path "foo/bar.txt" → output is "'foo/bar.txt'"
+                    // Strip the outer single quotes to get the raw path back
+                    if (output.StartsWith("'") && output.EndsWith("'"))
+                    {
+                        output = output.Substring(1, output.Length - 2);
+                    }
+
+                    output.ShouldEqual(
+                        testPath,
+                        $"Path round-trip failed for: {testPath} (quoted as: {quoted})");
+                }
+            }
         }
     }
 }
