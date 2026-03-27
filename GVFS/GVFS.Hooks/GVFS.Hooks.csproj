@@ -34,6 +34,9 @@
     <Compile Include="..\GVFS.Common\Git\LibGit2RepoInvoker.cs">
       <Link>Common\Git\LibGit2RepoInvoker.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\GitCommandLineParser.cs">
+      <Link>Common\GitCommandLineParser.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\GVFSConstants.cs">
       <Link>Common\GVFSConstants.cs</Link>
     </Compile>

@@ -25,6 +25,7 @@ namespace GVFS.Hooks
         private static string enlistmentPipename;
         private static string normalizedCurrentDirectory;
         private static Random random = new Random();
+        private static Lazy<LibGit2RepoInvoker> lazyRepoInvoker;
 
         private delegate void LockRequestDelegate(bool unattended, string[] args, int pid, NamedPipeClient pipeClient);
 
@@ -58,8 +59,24 @@ namespace GVFS.Hooks
                 {
                     case PreCommandHook:
                         CheckForLegalCommands(args);
-                        RunLockRequest(args, unattended, AcquireGVFSLockForProcess);
-                        RunPreCommands(args);
+                        lazyRepoInvoker = new Lazy<LibGit2RepoInvoker>(
+                            () => new LibGit2RepoInvoker(NullTracer.Instance, normalizedCurrentDirectory));
+                        try
+                        {
+                            TryDehydrateBeforeCheckout(args);
+                            RunLockRequest(args, unattended, AcquireGVFSLockForProcess);
+                            RunPreCommands(args);
+                        }
+                        finally
+                        {
+                            if (lazyRepoInvoker.IsValueCreated)
+                            {
+                                lazyRepoInvoker.Value.Dispose();
+                            }
+
+                            lazyRepoInvoker = null;
+                        }
+
                         break;
 
                     case PostCommandHook:
@@ -125,10 +142,9 @@ namespace GVFS.Hooks
 
         private static bool ConfigurationAllowsHydrationStatus()
         {
-            using (LibGit2RepoInvoker repo = new LibGit2RepoInvoker(NullTracer.Instance, normalizedCurrentDirectory))
-            {
-                return repo.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
-            }
+            return lazyRepoInvoker.Value.GetConfigBoolOrDefault(
+                GVFSConstants.GitConfig.ShowHydrationStatus,
+                GVFSConstants.GitConfig.ShowHydrationStatusDefault);
         }
 
         /// <summary>
@@ -138,12 +154,29 @@ namespace GVFS.Hooks
         /// </summary>
         private static void TryDisplayCachedHydrationStatus()
         {
-            const int HydrationStatusTimeoutMs = 100;
-            const int ConnectTimeoutMs = 50;
+            var status = TryGetCachedHydrationStatus();
+            if (status != null)
+            {
+                string message = status.ToDisplayMessage();
+                if (message != null)
+                {
+                    Console.WriteLine(message);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Query the mount process for the cached hydration status via named pipe.
+        /// Returns null on any failure — must never block the caller.
+        /// </summary>
+        private static NamedPipeMessages.HydrationStatus.Response TryGetCachedHydrationStatus()
+        {
+            const int HydrationStatusTimeoutMs = 5000;
+            const int ConnectTimeoutMs = 2000;
 
             try
             {
-                Task<string> task = Task.Run(() =>
+                Task<NamedPipeMessages.HydrationStatus.Response> task = Task.Run(() =>
                 {
                     using (NamedPipeClient pipeClient = new NamedPipeClient(enlistmentPipename))
                     {
@@ -158,24 +191,116 @@ namespace GVFS.Hooks
                         if (response.Header == NamedPipeMessages.HydrationStatus.SuccessResult
                             && NamedPipeMessages.HydrationStatus.Response.TryParse(response.Body, out NamedPipeMessages.HydrationStatus.Response status))
                         {
-                            return status.ToDisplayMessage();
+                            return status;
                         }
 
                         return null;
                     }
                 });
 
-                // Hard outer timeout — if the task hasn't completed (e.g., ReadResponse
-                // blocked on a stalled mount process), we abandon it. The orphaned thread
-                // is cleaned up when the hook process exits immediately after.
-                if (task.Wait(HydrationStatusTimeoutMs) && task.Status == TaskStatus.RanToCompletion && task.Result != null)
+                if (task.Wait(HydrationStatusTimeoutMs) && task.Status == TaskStatus.RanToCompletion)
                 {
-                    Console.WriteLine(task.Result);
+                    return task.Result;
                 }
             }
             catch (Exception)
             {
-                // Silently ignore — never block git status for hydration display
+                // Silently ignore
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Best-effort dehydrate before a branch-switching checkout.
+        /// Runs before the GVFS lock is acquired. On any failure,
+        /// allows the checkout to proceed normally.
+        /// </summary>
+        private static void TryDehydrateBeforeCheckout(string[] args)
+        {
+            try
+            {
+                string fullCommand = GenerateFullCommand(args);
+                GitCommandLineParser parser = new GitCommandLineParser(fullCommand);
+                if (!parser.TryGetBranchSwitchTarget(out string targetRef))
+                {
+                    return;
+                }
+
+                LibGit2RepoInvoker repoInvoker = lazyRepoInvoker.Value;
+                int placeholderThreshold = repoInvoker.GetConfigIntOrDefault(
+                    GVFSConstants.GitConfig.DehydrateOnCheckoutPlaceholderPercent,
+                    GVFSConstants.GitConfig.DehydrateOnCheckoutDisabled);
+                int modifiedThreshold = repoInvoker.GetConfigIntOrDefault(
+                    GVFSConstants.GitConfig.DehydrateOnCheckoutModifiedPercent,
+                    GVFSConstants.GitConfig.DehydrateOnCheckoutDisabled);
+                int folderThreshold = repoInvoker.GetConfigIntOrDefault(
+                    GVFSConstants.GitConfig.DehydrateOnCheckoutFolderPercent,
+                    GVFSConstants.GitConfig.DehydrateOnCheckoutDisabled);
+
+                if (placeholderThreshold < 0 && modifiedThreshold < 0 && folderThreshold < 0)
+                {
+                    return;
+                }
+
+                // Check hydration levels against thresholds via mount's cached summary.
+                // Bail if we can't reach the mount or no threshold is exceeded.
+                NamedPipeMessages.HydrationStatus.Response hydration = TryGetCachedHydrationStatus();
+                if (hydration == null || !hydration.IsValid || hydration.TotalFileCount <= 0)
+                {
+                    return;
+                }
+
+                bool shouldDehydrate = false;
+                int placeholderPercent = (int)((100L * hydration.PlaceholderFileCount) / hydration.TotalFileCount);
+                int modifiedPercent = (int)((100L * hydration.ModifiedFileCount) / hydration.TotalFileCount);
+                int folderPercent = hydration.TotalFolderCount > 0
+                    ? (int)((100L * hydration.HydratedFolderCount) / hydration.TotalFolderCount)
+                    : 0;
+
+                if (placeholderThreshold >= 0 && placeholderPercent >= placeholderThreshold)
+                {
+                    shouldDehydrate = true;
+                }
+
+                if (modifiedThreshold >= 0 && modifiedPercent >= modifiedThreshold)
+                {
+                    shouldDehydrate = true;
+                }
+
+                if (folderThreshold >= 0 && folderPercent >= folderThreshold)
+                {
+                    shouldDehydrate = true;
+                }
+
+                if (!shouldDehydrate)
+                {
+                    return;
+                }
+
+                // Check cached git status to skip the expensive full status scan
+                // in the dehydrate verb. Timeout after 5s — if status takes too long,
+                // let dehydrate run its own status check.
+                string noStatusFlag = string.Empty;
+                Task<ProcessResult> statusTask = Task.Run(() =>
+                    ProcessHelper.Run("git", "status --porcelain", redirectOutput: true));
+                if (statusTask.Wait(5000)
+                    && statusTask.Status == TaskStatus.RanToCompletion
+                    && statusTask.Result.ExitCode == 0
+                    && string.IsNullOrWhiteSpace(statusTask.Result.Output))
+                {
+                    noStatusFlag = " --no-status";
+                }
+
+                Console.WriteLine("Dehydrating before checkout (do not interrupt)...");
+                ProcessHelper.Run(
+                    "gvfs",
+                    $"dehydrate --confirm{noStatusFlag}",
+                    redirectOutput: false);
+            }
+            catch (Exception)
+            {
+                // Best-effort: never block the checkout
             }
         }
 

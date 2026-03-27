@@ -422,6 +422,17 @@ namespace GVFS.Common
 
             bool enabled = TEST_EnableHydrationSummaryOverride
                 ?? this.context.Repository.LibGit2RepoInvoker.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
+
+            if (!enabled)
+            {
+                // Also enable if any auto-dehydrate threshold is configured
+                LibGit2RepoInvoker repoInvoker = this.context.Repository.LibGit2RepoInvoker;
+                enabled =
+                    repoInvoker.GetConfigIntOrDefault(GVFSConstants.GitConfig.DehydrateOnCheckoutPlaceholderPercent, GVFSConstants.GitConfig.DehydrateOnCheckoutDisabled) >= 0 ||
+                    repoInvoker.GetConfigIntOrDefault(GVFSConstants.GitConfig.DehydrateOnCheckoutModifiedPercent, GVFSConstants.GitConfig.DehydrateOnCheckoutDisabled) >= 0 ||
+                    repoInvoker.GetConfigIntOrDefault(GVFSConstants.GitConfig.DehydrateOnCheckoutFolderPercent, GVFSConstants.GitConfig.DehydrateOnCheckoutDisabled) >= 0;
+            }
+
             if (!enabled)
             {
                 return;
