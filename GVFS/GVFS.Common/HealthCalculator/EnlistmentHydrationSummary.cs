@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Diagnostics;
@@ -19,6 +20,11 @@ namespace GVFS.Common
 
         public int HydratedFileCount => PlaceholderFileCount + ModifiedFileCount;
         public int HydratedFolderCount => PlaceholderFolderCount + ModifiedFolderCount;
+
+        public int PlaceholderFilePercent => TotalFileCount <= 0 ? 0 : (int)((100L * PlaceholderFileCount) / TotalFileCount);
+        public int ModifiedFilePercent => TotalFileCount <= 0 ? 0 : (int)((100L * ModifiedFileCount) / TotalFileCount);
+        public int FileHydrationPercent => TotalFileCount <= 0 ? 0 : (int)((100L * HydratedFileCount) / TotalFileCount);
+        public int FolderHydrationPercent => TotalFolderCount <= 0 ? 0 : (int)((100L * HydratedFolderCount) / TotalFolderCount);
 
 
         public bool IsValid
@@ -185,27 +191,10 @@ namespace GVFS.Common
         /// </summary>
         internal static int GetIndexFileCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem)
         {
-            string indexPath = enlistment.GitIndexPath;
-            using (var indexFile = fileSystem.OpenFileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, callFlushFileBuffers: false))
+            using (Stream indexFile = fileSystem.OpenFileStream(
+                enlistment.GitIndexPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, callFlushFileBuffers: false))
             {
-                if (indexFile.Length < 12)
-                {
-                    return -1;
-                }
-                /* The number of files in the index is a big-endian integer from
-                 * the 4 bytes at offsets 8-11 of the index file. */
-                indexFile.Position = 8;
-                var bytes = new byte[4];
-                indexFile.Read(
-                    bytes, // Destination buffer
-                    offset: 0, // Offset in destination buffer, not in indexFile
-                    count: 4);
-                if (BitConverter.IsLittleEndian)
-                {
-                    Array.Reverse(bytes);
-                }
-                int count = BitConverter.ToInt32(bytes, 0);
-                return count;
+                return GitIndexHelper.ReadEntryCount(indexFile);
             }
         }
 

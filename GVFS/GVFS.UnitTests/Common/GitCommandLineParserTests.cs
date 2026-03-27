@@ -96,5 +96,49 @@ namespace GVFS.UnitTests.Common
             new GitCommandLineParser("git checkout --serialized=some/file").IsSerializedStatus().ShouldEqual(false);
             new GitCommandLineParser("gits status --serialized=some/file").IsSerializedStatus().ShouldEqual(false);
         }
+
+        [TestCase]
+        public void TryGetBranchSwitchTargetTests()
+        {
+            // Invalid/non-checkout commands
+            new GitCommandLineParser(null).TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("notgit checkout main").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("git status").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("git fetch origin").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("git checkout").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+
+            // Simple branch switches
+            new GitCommandLineParser("git checkout main").TryGetBranchSwitchTarget(out string target).ShouldEqual(true);
+            target.ShouldEqual("main");
+            new GitCommandLineParser("git checkout origin/main").TryGetBranchSwitchTarget(out target).ShouldEqual(true);
+            target.ShouldEqual("origin/main");
+            new GitCommandLineParser("git switch feature-branch").TryGetBranchSwitchTarget(out target).ShouldEqual(true);
+            target.ShouldEqual("feature-branch");
+            new GitCommandLineParser("git checkout -f main").TryGetBranchSwitchTarget(out target).ShouldEqual(true);
+            target.ShouldEqual("main");
+            new GitCommandLineParser("git checkout --track origin/feature").TryGetBranchSwitchTarget(out target).ShouldEqual(true);
+            target.ShouldEqual("origin/feature");
+
+            // File checkouts (not branch switches)
+            new GitCommandLineParser("git checkout -- somefile.txt").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("git checkout main -- somefile.txt").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("git checkout file1.txt file2.txt").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+
+            // New branch: no start point = no churn, with start point = churn
+            new GitCommandLineParser("git checkout -b new-branch").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("git checkout -b topic2 origin/main").TryGetBranchSwitchTarget(out target).ShouldEqual(true);
+            target.ShouldEqual("origin/main");
+            new GitCommandLineParser("git checkout -B topic2 origin/main").TryGetBranchSwitchTarget(out target).ShouldEqual(true);
+            target.ShouldEqual("origin/main");
+            new GitCommandLineParser("git switch -c topic2 origin/main").TryGetBranchSwitchTarget(out target).ShouldEqual(true);
+            target.ShouldEqual("origin/main");
+
+            // Modes that are not branch switches
+            new GitCommandLineParser("git checkout --detach abc1234").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("git checkout --orphan new-root").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("git checkout -p").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+            new GitCommandLineParser("git checkout --patch").TryGetBranchSwitchTarget(out string _).ShouldEqual(false);
+        }
     }
 }

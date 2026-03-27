@@ -115,6 +115,87 @@ namespace GVFS.Common
             return false;
         }
 
+        /// <summary>
+        /// Determines whether this is a branch-switching checkout/switch and returns
+        /// the target ref. Returns false for file checkouts, detach, orphan, patch mode,
+        /// and new branch creation without a start point.
+        /// </summary>
+        /// <remarks>
+        /// Short flag parsing is not fully POSIX-compliant — combined flags like
+        /// -fb (where -f is a flag and -b takes a value) are treated as a single
+        /// unknown flag and skipped. The consequence is that auto-dehydrate may
+        /// run unnecessarily (e.g. before new branch creation at HEAD) or may not
+        /// run when it could. It will never block or break the checkout.
+        /// TODO: Use a POSIX-compliant parser (e.g. System.CommandLine) in future.
+        /// </remarks>
+        public bool TryGetBranchSwitchTarget(out string targetRef)
+        {
+            targetRef = null;
+
+            if (!this.IsVerb(Verbs.Checkout) && !this.IsVerb(Verbs.Switch))
+            {
+                return false;
+            }
+
+            if (!this.IsValidGitCommand || this.parts.Length <= ArgumentsOffset)
+            {
+                return false;
+            }
+
+            if (this.IsCheckoutWithFilePaths())
+            {
+                return false;
+            }
+
+            // Bail on patterns that are not branch switches
+            if (this.HasArgument("--detach") ||
+                this.HasArgument("--orphan") ||
+                this.HasArgument("-p") ||
+                this.HasArgument("--patch"))
+            {
+                return false;
+            }
+
+            string candidate = null;
+
+            for (int i = ArgumentsOffset; i < this.parts.Length; i++)
+            {
+                string arg = this.parts[i];
+
+                // -b/-B/-c/-C take a branch name as next arg — skip the name,
+                // but a start-point after it is the churn-relevant target
+                if (arg == "-b" || arg == "-B" || arg == "-c" || arg == "-C")
+                {
+                    i++; // Skip the new branch name
+                    continue;
+                }
+
+                // Skip flags (including --conflict=, --track, -f, etc.)
+                if (arg.StartsWith("-"))
+                {
+                    continue;
+                }
+
+                if (candidate == null)
+                {
+                    candidate = arg;
+                }
+                else
+                {
+                    // Multiple non-flag args without -- means pathspecs are involved
+                    return false;
+                }
+            }
+
+            if (candidate == null)
+            {
+                return false;
+            }
+
+            targetRef = candidate;
+            return true;
+        }
+
         public bool IsVerb(Verbs verbs)
         {
             if (!this.IsValidGitCommand)

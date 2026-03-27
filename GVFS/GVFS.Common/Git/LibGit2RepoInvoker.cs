@@ -98,6 +98,17 @@ namespace GVFS.Common.Git
             return defaultValue;
         }
 
+        public int GetConfigIntOrDefault(string key, int defaultValue)
+        {
+            int? value = defaultValue;
+            if (this.TryInvoke(repo => repo.GetConfigInt(key), out value))
+            {
+                return value ?? defaultValue;
+            }
+
+            return defaultValue;
+        }
+
         private LibGit2Repo GetSharedRepo()
         {
             lock (this.sharedRepoLock)

@@ -255,6 +255,34 @@ namespace GVFS.Common.Git
             }
         }
 
+        public virtual int? GetConfigInt(string name)
+        {
+            IntPtr configHandle;
+            if (Native.Config.GetConfig(out configHandle, this.RepoHandle) != Native.ResultCode.Success)
+            {
+                throw new LibGit2Exception($"Failed to get config handle: {Native.GetLastError()}");
+            }
+            try
+            {
+                int value;
+                Native.ResultCode resultCode = Native.Config.GetInt32(out value, configHandle, name);
+                if (resultCode == Native.ResultCode.NotFound)
+                {
+                    return null;
+                }
+                else if (resultCode != Native.ResultCode.Success)
+                {
+                    return null;
+                }
+
+                return value;
+            }
+            finally
+            {
+                Native.Config.Free(configHandle);
+            }
+        }
+
         public void ForEachMultiVarConfig(string key, MultiVarConfigCallback callback)
         {
             if (Native.Config.GetConfig(out IntPtr configHandle, this.RepoHandle) != Native.ResultCode.Success)
@@ -569,6 +597,9 @@ namespace GVFS.Common.Git
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_bool")]
                 public static extern ResultCode GetBool(out bool value, IntPtr configHandle, string name);
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_int32")]
+                public static extern ResultCode GetInt32(out int value, IntPtr configHandle, string name);
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_free")]
                 public static extern void Free(IntPtr configHandle);
