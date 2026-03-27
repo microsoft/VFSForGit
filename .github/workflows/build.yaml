@@ -1,5 +1,7 @@
 name: VFS for Git
 
+run-name: ${{ inputs.run_name || 'VFS for Git' }}
+
 on:
   pull_request:
     branches: [ master, releases/shipped ]
@@ -9,6 +11,10 @@ on:
     inputs:
       git_version:
         description: 'Microsoft Git version tag to include in the build (leave empty for default)'
+        required: false
+        type: string
+      run_name:
+        description: 'Optional display name for this run (used for cross-repo automation)'
         required: false
         type: string
 
