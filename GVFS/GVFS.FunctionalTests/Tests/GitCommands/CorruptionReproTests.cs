@@ -75,5 +75,24 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("restore -- .");
             this.FilesShouldMatchCheckoutOfSourceBranch();
         }
+
+        /// <summary>
+        /// Reproduction of a reported issue:
+        /// Restoring a file after its parent directory was deleted fails with
+        /// "fatal: could not unlink 'path\to\': Directory not empty"
+        ///
+        /// See https://github.com/microsoft/VFSForGit/issues/1901
+        /// </summary>
+        [TestCase]
+        public void RestoreAfterDeleteNesteredDirectory()
+        {
+            // Delete a directory with nested subdirectories and files.
+            this.ValidateNonGitCommand("cmd.exe", "/c \"rmdir /s /q GVFlt_DeleteFileTest\"");
+
+            // Restore the working directory.
+            this.ValidateGitCommand("restore .");
+
+            this.FilesShouldMatchCheckoutOfSourceBranch();
+        }
     }
 }
