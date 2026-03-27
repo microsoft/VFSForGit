@@ -47,7 +47,13 @@ namespace GVFS.CommandLine
                 : this.EnlistmentRootPathParameter;
 
             string registrationPath;
-            GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(pathToCheck);
+            string worktreeError;
+            GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(pathToCheck, out worktreeError);
+            if (worktreeError != null)
+            {
+                this.ReportErrorAndExit("Error: failed to check worktree status for '{0}': {1}", pathToCheck, worktreeError);
+            }
+
             if (wtInfo?.SharedGitDir != null)
             {
                 root = wtInfo.GetEnlistmentRoot();

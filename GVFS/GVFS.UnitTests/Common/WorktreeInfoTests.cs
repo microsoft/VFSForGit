@@ -101,9 +101,9 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void WorksWithoutCommondirFile()
+        public void ReturnsNullWithoutCommondirFile()
         {
-            // Worktree git dir without a commondir file
+            // Worktree git dir without a commondir file is invalid
             string worktreeGitDir = Path.Combine(this.testRoot, "primary", ".git", "worktrees", "no-common");
             Directory.CreateDirectory(worktreeGitDir);
 
@@ -112,9 +112,7 @@ namespace GVFS.UnitTests.Common
             File.WriteAllText(Path.Combine(worktreeDir, ".git"), "gitdir: " + worktreeGitDir);
 
             GVFSEnlistment.WorktreeInfo info = GVFSEnlistment.TryGetWorktreeInfo(worktreeDir);
-            info.ShouldNotBeNull();
-            info.Name.ShouldEqual("no-common");
-            info.SharedGitDir.ShouldBeNull();
+            info.ShouldBeNull();
         }
 
         [TestCase]
@@ -129,6 +127,7 @@ namespace GVFS.UnitTests.Common
         {
             string worktreeGitDir = Path.Combine(this.testRoot, "primary", ".git", "worktrees", "my-wt");
             Directory.CreateDirectory(worktreeGitDir);
+            File.WriteAllText(Path.Combine(worktreeGitDir, "commondir"), "../..");
 
             string worktreeDir = Path.Combine(this.testRoot, "my-wt");
             Directory.CreateDirectory(worktreeDir);
@@ -143,6 +142,45 @@ namespace GVFS.UnitTests.Common
         {
             string nonexistent = Path.Combine(this.testRoot, "does-not-exist");
             GVFSEnlistment.WorktreeInfo info = GVFSEnlistment.TryGetWorktreeInfo(nonexistent);
+            info.ShouldBeNull();
+        }
+
+        [TestCase]
+        public void DetectsWorktreeFromSubdirectory()
+        {
+            // Set up a worktree at testRoot/wt-sub with .git file
+            string primaryGitDir = Path.Combine(this.testRoot, "primary", ".git");
+            string worktreeGitDir = Path.Combine(primaryGitDir, "worktrees", "wt-sub");
+            Directory.CreateDirectory(worktreeGitDir);
+            File.WriteAllText(Path.Combine(worktreeGitDir, "commondir"), "../..");
+
+            string worktreeDir = Path.Combine(this.testRoot, "wt-sub");
+            Directory.CreateDirectory(worktreeDir);
+            File.WriteAllText(Path.Combine(worktreeDir, ".git"), "gitdir: " + worktreeGitDir);
+
+            // Create a subdirectory inside the worktree
+            string subDir = Path.Combine(worktreeDir, "a", "b", "c");
+            Directory.CreateDirectory(subDir);
+
+            // TryGetWorktreeInfo should walk up and find the worktree root
+            GVFSEnlistment.WorktreeInfo info = GVFSEnlistment.TryGetWorktreeInfo(subDir);
+            info.ShouldNotBeNull();
+            info.Name.ShouldEqual("wt-sub");
+            info.WorktreePath.ShouldEqual(worktreeDir);
+        }
+
+        [TestCase]
+        public void ReturnsNullForPrimaryFromSubdirectory()
+        {
+            // Set up a primary repo with a real .git directory
+            string primaryDir = Path.Combine(this.testRoot, "primary-repo");
+            Directory.CreateDirectory(Path.Combine(primaryDir, ".git"));
+
+            // Walking up from a subdirectory should find the .git dir and return null
+            string subDir = Path.Combine(primaryDir, "src", "folder");
+            Directory.CreateDirectory(subDir);
+
+            GVFSEnlistment.WorktreeInfo info = GVFSEnlistment.TryGetWorktreeInfo(subDir);
             info.ShouldBeNull();
         }
     }

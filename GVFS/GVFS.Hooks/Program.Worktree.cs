@@ -76,7 +76,12 @@ namespace GVFS.Hooks
             }
 
             string fullPath = ResolvePath(worktreePath);
-            UnmountWorktree(fullPath);
+            if (!UnmountWorktree(fullPath))
+            {
+                Console.Error.WriteLine(
+                    $"error: failed to unmount worktree '{fullPath}'. Cannot proceed with move.");
+                Environment.Exit(1);
+            }
         }
 
         /// <summary>
@@ -118,7 +123,7 @@ namespace GVFS.Hooks
             GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(fullPath);
             if (wtInfo != null)
             {
-                string markerPath = Path.Combine(wtInfo.WorktreeGitDir, "skip-clean-check");
+                string markerPath = Path.Combine(wtInfo.WorktreeGitDir, GVFSConstants.DotGit.SkipCleanCheckName);
                 if (File.Exists(markerPath))
                 {
                     File.Delete(markerPath);
@@ -222,32 +227,40 @@ namespace GVFS.Hooks
             // Write a marker in the worktree gitdir that tells git.exe
             // to skip the cleanliness check during worktree remove.
             // We already did our own check above while ProjFS was alive.
-            string skipCleanCheck = Path.Combine(wtInfo.WorktreeGitDir, "skip-clean-check");
-            File.WriteAllText(skipCleanCheck, "1");
+            string skipCleanCheck = Path.Combine(wtInfo.WorktreeGitDir, GVFSConstants.DotGit.SkipCleanCheckName);
+            File.WriteAllText(skipCleanCheck, string.Empty);
 
             // Unmount ProjFS before git deletes the worktree directory.
-            UnmountWorktree(fullPath, wtInfo);
+            if (!UnmountWorktree(fullPath, wtInfo) && !hasForce)
+            {
+                Console.Error.WriteLine(
+                    $"error: failed to unmount worktree '{fullPath}'.\n" +
+                    $"Use 'git worktree remove --force' to attempt removal anyway.");
+                Environment.Exit(1);
+            }
         }
 
-        private static void UnmountWorktree(string fullPath)
+        private static bool UnmountWorktree(string fullPath)
         {
             GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(fullPath);
             if (wtInfo == null)
             {
-                return;
+                return false;
             }
 
-            UnmountWorktree(fullPath, wtInfo);
+            return UnmountWorktree(fullPath, wtInfo);
         }
 
-        private static void UnmountWorktree(string fullPath, GVFSEnlistment.WorktreeInfo wtInfo)
+        private static bool UnmountWorktree(string fullPath, GVFSEnlistment.WorktreeInfo wtInfo)
         {
-            ProcessHelper.Run("gvfs", $"unmount \"{fullPath}\"", redirectOutput: false);
+            ProcessResult result = ProcessHelper.Run("gvfs", $"unmount \"{fullPath}\"", redirectOutput: false);
 
             // After gvfs unmount exits, ProjFS handles may still be closing.
             // Wait briefly to allow the OS to release all handles before git
             // attempts to delete the worktree directory.
             System.Threading.Thread.Sleep(200);
+
+            return result.ExitCode == 0;
         }
 
         private static void MountNewWorktree(string[] args)
@@ -264,7 +277,12 @@ namespace GVFS.Hooks
             string dotGitFile = Path.Combine(fullPath, ".git");
             if (File.Exists(dotGitFile))
             {
-                GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(fullPath);
+                string worktreeError;
+                GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(fullPath, out worktreeError);
+                if (worktreeError != null)
+                {
+                    Console.Error.WriteLine($"warning: failed to read worktree info for '{fullPath}': {worktreeError}");
+                }
 
                 // Store the primary enlistment root so mount/unmount can find
                 // it without deriving from path structure assumptions.
@@ -291,6 +309,9 @@ namespace GVFS.Hooks
                         // The primary index may be updated concurrently by the
                         // running mount; a direct copy risks a torn read on
                         // large indexes (200MB+ in some large repos).
+                        // Note: mirrors PhysicalFileSystem.TryCopyToTempFileAndRename
+                        // but that method requires GVFSPlatform which is not
+                        // available in the hooks process.
                         string tempIndex = worktreeIndex + ".tmp";
                         try
                         {

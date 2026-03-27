@@ -61,7 +61,13 @@ namespace GVFS.CommandLine
                 ? Environment.CurrentDirectory
                 : this.EnlistmentRootPathParameter;
 
-            GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(pathToCheck);
+            string worktreeError;
+            GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(pathToCheck, out worktreeError);
+            if (worktreeError != null)
+            {
+                this.ReportErrorAndExit("Error: failed to check worktree status for '{0}': {1}", pathToCheck, worktreeError);
+            }
+
             if (wtInfo?.SharedGitDir != null)
             {
                 // This is a worktree mount request. Find the primary enlistment root.

@@ -36,7 +36,14 @@ namespace GVFS.Service
 
                 string errorMessage;
                 string pipeName = GVFSPlatform.Instance.GetNamedPipeName(repoRoot);
-                GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(repoRoot);
+                string worktreeError;
+                GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(repoRoot, out worktreeError);
+                if (worktreeError != null)
+                {
+                    this.tracer.RelatedError($"Failed to check worktree status for '{repoRoot}': {worktreeError}");
+                    return false;
+                }
+
                 if (wtInfo?.SharedGitDir != null)
                 {
                     string enlistmentRoot = wtInfo.GetEnlistmentRoot();

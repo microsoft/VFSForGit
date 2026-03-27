@@ -138,7 +138,13 @@ namespace GVFS.Common
                 // Always check for worktree first. A worktree directory may
                 // be under the enlistment tree, so TryGetGVFSEnlistmentRoot
                 // can succeed by walking up — but we need a worktree enlistment.
-                WorktreeInfo wtInfo = TryGetWorktreeInfo(directory);
+                string worktreeError;
+                WorktreeInfo wtInfo = TryGetWorktreeInfo(directory, out worktreeError);
+                if (worktreeError != null)
+                {
+                    throw new InvalidRepoException($"Failed to check worktree status for '{directory}': {worktreeError}");
+                }
+
                 if (wtInfo?.SharedGitDir != null)
                 {
                     string primaryRoot = wtInfo.GetEnlistmentRoot();

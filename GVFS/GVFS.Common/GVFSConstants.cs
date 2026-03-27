@@ -146,6 +146,9 @@ namespace GVFS.Common
         {
             public const string Root = ".git";
             public const string HeadName = "HEAD";
+            public const string GitDirPrefix = "gitdir: ";
+            public const string CommonDirName = "commondir";
+            public const string SkipCleanCheckName = "skip-clean-check";
             public const string IndexName = "index";
             public const string PackedRefsName = "packed-refs";
             public const string LockExtension = ".lock";

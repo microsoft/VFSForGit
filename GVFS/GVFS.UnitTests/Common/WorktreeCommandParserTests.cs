@@ -140,5 +140,37 @@ namespace GVFS.UnitTests.Common
             string[] args = { "post-command", "worktree", "add", "-f", "-q", @"C:\repos\wt" };
             WorktreeCommandParser.GetPathArg(args).ShouldEqual(@"C:\repos\wt");
         }
+
+        [TestCase]
+        public void GetPathArgHandlesCombinedShortFlags()
+        {
+            // -fd = --force --detach combined into one arg
+            string[] args = { "post-command", "worktree", "add", "-fd", @"C:\repos\wt", "HEAD" };
+            WorktreeCommandParser.GetPathArg(args).ShouldEqual(@"C:\repos\wt");
+        }
+
+        [TestCase]
+        public void GetPathArgHandlesCombinedFlagWithBranch()
+        {
+            // -fb = --force + -b, next arg is the branch name
+            string[] args = { "post-command", "worktree", "add", "-fb", "my-branch", @"C:\repos\wt" };
+            WorktreeCommandParser.GetPathArg(args).ShouldEqual(@"C:\repos\wt");
+        }
+
+        [TestCase]
+        public void GetPathArgHandlesBranchValueBakedIn()
+        {
+            // -bfd = -b with value "fd" baked in, no next-arg consumption
+            string[] args = { "post-command", "worktree", "add", "-bfd", @"C:\repos\wt" };
+            WorktreeCommandParser.GetPathArg(args).ShouldEqual(@"C:\repos\wt");
+        }
+
+        [TestCase]
+        public void GetPathArgHandlesTwoValueOptionsFirstConsumes()
+        {
+            // -Bb = -B with value "b" baked in, no next-arg consumption
+            string[] args = { "post-command", "worktree", "add", "-Bb", @"C:\repos\wt" };
+            WorktreeCommandParser.GetPathArg(args).ShouldEqual(@"C:\repos\wt");
+        }
     }
 }

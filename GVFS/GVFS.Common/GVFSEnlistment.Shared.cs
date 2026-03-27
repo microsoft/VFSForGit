@@ -57,34 +57,81 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Detects if the given directory is a git worktree. If so, returns
-        /// a WorktreeInfo with the worktree name, git dir path, and shared
-        /// git dir path. Returns null if not a worktree.
+        /// Detects if the given directory (or any ancestor) is a git worktree.
+        /// Walks up from <paramref name="directory"/> looking for a <c>.git</c>
+        /// file (not directory) containing a <c>gitdir:</c> pointer. Returns
+        /// null if not inside a worktree.
         /// </summary>
         public static WorktreeInfo TryGetWorktreeInfo(string directory)
         {
-            string dotGitPath = Path.Combine(directory, ".git");
+            return TryGetWorktreeInfo(directory, out _);
+        }
 
-            if (!File.Exists(dotGitPath) || Directory.Exists(dotGitPath))
+        /// <summary>
+        /// Detects if the given directory (or any ancestor) is a git worktree.
+        /// Walks up from <paramref name="directory"/> looking for a <c>.git</c>
+        /// file (not directory) containing a <c>gitdir:</c> pointer. Returns
+        /// null if not inside a worktree, with an error message if an I/O
+        /// error prevented detection.
+        /// </summary>
+        public static WorktreeInfo TryGetWorktreeInfo(string directory, out string error)
+        {
+            error = null;
+
+            if (string.IsNullOrEmpty(directory))
             {
                 return null;
             }
 
+            // Canonicalize to an absolute path so walk-up and Path.Combine
+            // behave consistently regardless of the caller's CWD.
+            string current = Path.GetFullPath(directory);
+            while (current != null)
+            {
+                string dotGitPath = Path.Combine(current, ".git");
+
+                if (Directory.Exists(dotGitPath))
+                {
+                    // Found a real .git directory — this is a primary worktree, not a linked worktree
+                    return null;
+                }
+
+                if (File.Exists(dotGitPath))
+                {
+                    return TryParseWorktreeGitFile(current, dotGitPath, out error);
+                }
+
+                string parent = Path.GetDirectoryName(current);
+                if (parent == current)
+                {
+                    break;
+                }
+
+                current = parent;
+            }
+
+            return null;
+        }
+
+        private static WorktreeInfo TryParseWorktreeGitFile(string worktreeRoot, string dotGitPath, out string error)
+        {
+            error = null;
+
             try
             {
                 string gitdirLine = File.ReadAllText(dotGitPath).Trim();
-                if (!gitdirLine.StartsWith("gitdir: "))
+                if (!gitdirLine.StartsWith(GVFSConstants.DotGit.GitDirPrefix))
                 {
                     return null;
                 }
 
-                string gitdirPath = gitdirLine.Substring("gitdir: ".Length).Trim();
+                string gitdirPath = gitdirLine.Substring(GVFSConstants.DotGit.GitDirPrefix.Length).Trim();
                 gitdirPath = gitdirPath.Replace('/', Path.DirectorySeparatorChar);
 
                 // Resolve relative paths against the worktree directory
                 if (!Path.IsPathRooted(gitdirPath))
                 {
-                    gitdirPath = Path.GetFullPath(Path.Combine(directory, gitdirPath));
+                    gitdirPath = Path.GetFullPath(Path.Combine(worktreeRoot, gitdirPath));
                 }
 
                 string worktreeName = Path.GetFileName(gitdirPath);
@@ -93,31 +140,34 @@ namespace GVFS.Common
                     return null;
                 }
 
-                // Read commondir to find the shared .git/ directory
-                // commondir file contains a relative path like "../../.."
-                string commondirFile = Path.Combine(gitdirPath, "commondir");
-                string sharedGitDir = null;
-                if (File.Exists(commondirFile))
+                // Read commondir to find the shared .git/ directory.
+                // All valid worktrees must have a commondir file.
+                string commondirFile = Path.Combine(gitdirPath, GVFSConstants.DotGit.CommonDirName);
+                if (!File.Exists(commondirFile))
                 {
-                    string commondirContent = File.ReadAllText(commondirFile).Trim();
-                    sharedGitDir = Path.GetFullPath(Path.Combine(gitdirPath, commondirContent));
+                    return null;
                 }
+
+                string commondirContent = File.ReadAllText(commondirFile).Trim();
+                string sharedGitDir = Path.GetFullPath(Path.Combine(gitdirPath, commondirContent));
 
                 return new WorktreeInfo
                 {
                     Name = worktreeName,
-                    WorktreePath = directory,
+                    WorktreePath = worktreeRoot,
                     WorktreeGitDir = gitdirPath,
                     SharedGitDir = sharedGitDir,
                     PipeSuffix = "_WT_" + worktreeName.ToUpper(),
                 };
             }
-            catch (IOException)
+            catch (IOException e)
             {
+                error = e.Message;
                 return null;
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException e)
             {
+                error = e.Message;
                 return null;
             }
         }
