@@ -122,6 +122,48 @@ jobs:
           -Tag $env:GIT_VERSION && `
         Write-Host ::notice title=Validation::Using microsoft/git version $env:GIT_VERSION
 
+    - name: Download microsoft/git installers
+      if: steps.check.outputs.result == ''
+      shell: cmd
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release download %GIT_VERSION% --repo microsoft/git --pattern "Git*.exe" --dir MicrosoftGit
+
+    - name: Create Git install script
+      if: steps.check.outputs.result == ''
+      shell: cmd
+      run: |
+        >MicrosoftGit\install.bat (
+          echo @ECHO OFF
+          echo SETLOCAL
+          echo.
+          echo IF "%%PROCESSOR_ARCHITECTURE%%"=="AMD64" ^(
+          echo     SET GIT_ARCH=64-bit
+          echo ^) ELSE IF "%%PROCESSOR_ARCHITECTURE%%"=="ARM64" ^(
+          echo     SET GIT_ARCH=arm64
+          echo ^) ELSE ^(
+          echo     ECHO Unknown architecture: %%PROCESSOR_ARCHITECTURE%%
+          echo     exit 1
+          echo ^)
+          echo.
+          echo FOR /F "tokens=* USEBACKQ" %%%%F IN ^( `where /R %%~dp0 Git*-%%GIT_ARCH%%.exe` ^) DO SET GIT_INSTALLER=%%%%F
+          echo.
+          echo SET LOGDIR=%%~dp0\logs
+          echo IF EXIST %%LOGDIR%% ^( rmdir /S /Q %%LOGDIR%% ^)
+          echo mkdir %%LOGDIR%%
+          echo.
+          echo ECHO Installing Git ^(%%GIT_ARCH%%^)...
+          echo %%GIT_INSTALLER%% /LOG="%%LOGDIR%%\git.log" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLOWDOWNGRADE=1
+        )
+
+    - name: Upload microsoft/git installers
+      if: steps.check.outputs.result == ''
+      uses: actions/upload-artifact@v7
+      with:
+        name: MicrosoftGit
+        path: MicrosoftGit
+
   build:
     runs-on: windows-2025
     name: Build and Unit Test
@@ -173,14 +215,6 @@ jobs:
       shell: cmd
       run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts
 
-    - name: Download microsoft/git installers
-      if: steps.skip.outputs.result != 'true'
-      shell: cmd
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        gh release download %GIT_VERSION% --repo microsoft/git --pattern "Git*.exe" --dir artifacts\GVFS.Installers
-
     - name: Upload functional tests drop
       if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v7
@@ -195,11 +229,11 @@ jobs:
         name: FastFetch_${{ matrix.configuration }}
         path: artifacts\FastFetch
 
-    - name: Upload installers
+    - name: Upload GVFS installer
       if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v7
       with:
-        name: Installers_${{ matrix.configuration }}
+        name: GVFS_${{ matrix.configuration }}
         path: artifacts\GVFS.Installers
 
   functional_test:
@@ -224,12 +258,19 @@ jobs:
           core.info(`Skipping: There already is a successful run: ${{ needs.validate.outputs.skip }}`)
           return true
 
-    - name: Download installers
+    - name: Download Git installer
       if: steps.skip.outputs.result != 'true'
       uses: actions/download-artifact@v8
       with:
-        name: Installers_${{ matrix.configuration }}
-        path: install
+        name: MicrosoftGit
+        path: git
+
+    - name: Download GVFS installer
+      if: steps.skip.outputs.result != 'true'
+      uses: actions/download-artifact@v8
+      with:
+        name: GVFS_${{ matrix.configuration }}
+        path: gvfs
 
     - name: Download functional tests drop
       if: steps.skip.outputs.result != 'true'
@@ -241,24 +282,31 @@ jobs:
     - name: ProjFS details (pre-install)
       if: steps.skip.outputs.result != 'true'
       shell: cmd
-      run: install\info.bat
+      run: gvfs\info.bat
 
-    - name: Install product
+    - name: Install Git
       if: steps.skip.outputs.result != 'true'
       shell: cmd
-      run: install\install.bat
+      run: git\install.bat
+
+    - name: Install VFS for Git
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: gvfs\install.bat
 
     - name: ProjFS details (post-install)
       if: steps.skip.outputs.result != 'true'
       shell: cmd
-      run: install\info.bat
+      run: gvfs\info.bat
 
     - name: Upload installation logs
       if: always() && steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v7
       with:
         name: InstallationLogs_${{ matrix.configuration }}_${{ matrix.architecture }}-${{ matrix.nr }}
-        path: install\logs
+        path: |
+          git\logs
+          gvfs\logs
 
     - name: Run functional tests
       if: steps.skip.outputs.result != 'true'
@@ -285,7 +333,7 @@ jobs:
     - name: ProjFS details (post-test)
       if: always() && steps.skip.outputs.result != 'true'
       shell: cmd
-      run: install\info.bat
+      run: gvfs\info.bat
 
   ft_results:
     runs-on: ubuntu-latest # quickest runners
