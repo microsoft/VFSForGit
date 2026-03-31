@@ -17,6 +17,9 @@ namespace GVFS.Common.Http
 {
     public abstract class HttpRequestor : IDisposable
     {
+        private const int ConnectionPoolWaitTimeoutMs = 30_000;
+        private const int ConnectionPoolContentionThresholdMs = 100;
+
         private static long requestCount = 0;
         private static SemaphoreSlim availableConnections;
 
@@ -126,8 +129,30 @@ namespace GVFS.Common.Http
             responseMetadata.Add("availableConnections", availableConnections.CurrentCount);
 
             Stopwatch requestStopwatch = Stopwatch.StartNew();
-            availableConnections.Wait(cancellationToken);
-            TimeSpan connectionWaitTime = requestStopwatch.Elapsed;
+
+            if (!availableConnections.Wait(ConnectionPoolWaitTimeoutMs, cancellationToken))
+            {
+                TimeSpan connectionWaitTime = requestStopwatch.Elapsed;
+                responseMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTime.TotalMilliseconds:F4}");
+                this.Tracer.RelatedWarning(responseMetadata, "SendRequest: Connection pool exhausted, all connections busy");
+
+                return new GitEndPointResponseData(
+                    HttpStatusCode.ServiceUnavailable,
+                    new GitObjectsHttpException(HttpStatusCode.ServiceUnavailable, "Connection pool exhausted - all connections busy"),
+                    shouldRetry: true,
+                    message: null,
+                    onResponseDisposed: null);
+            }
+
+            TimeSpan connectionWaitTimeElapsed = requestStopwatch.Elapsed;
+            if (connectionWaitTimeElapsed.TotalMilliseconds > ConnectionPoolContentionThresholdMs)
+            {
+                EventMetadata contentionMetadata = new EventMetadata();
+                contentionMetadata.Add("RequestId", requestId);
+                contentionMetadata.Add("availableConnections", availableConnections.CurrentCount);
+                contentionMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTimeElapsed.TotalMilliseconds:F4}");
+                this.Tracer.RelatedWarning(contentionMetadata, "SendRequest: Connection pool contention detected");
+            }
 
             TimeSpan responseWaitTime = default(TimeSpan);
             GitEndPointResponseData gitEndPointResponseData = null;
@@ -248,7 +273,7 @@ namespace GVFS.Common.Http
             }
             finally
             {
-                responseMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTime.TotalMilliseconds:F4}");
+                responseMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTimeElapsed.TotalMilliseconds:F4}");
                 responseMetadata.Add("responseWaitTimeMS", $"{responseWaitTime.TotalMilliseconds:F4}");
 
                 this.Tracer.RelatedEvent(EventLevel.Informational, "NetworkResponse", responseMetadata);

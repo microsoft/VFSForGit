@@ -12,6 +12,12 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class RetryWrapperTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            RetryCircuitBreaker.Reset();
+        }
+
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void WillRetryOnIOException()
@@ -232,6 +238,119 @@ namespace GVFS.UnitTests.Common
             output.Result.ShouldEqual(false);
             actualTries.ShouldEqual(ExpectedTries);
             actualFailures.ShouldEqual(ExpectedFailures);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void CircuitBreakerOpensAfterConsecutiveFailures()
+        {
+            const int Threshold = 5;
+            const int CooldownMs = 5000;
+            RetryCircuitBreaker.Configure(Threshold, CooldownMs);
+
+            // Generate enough failures to trip the circuit breaker
+            for (int i = 0; i < Threshold; i++)
+            {
+                RetryWrapper<bool> wrapper = new RetryWrapper<bool>(1, CancellationToken.None, exponentialBackoffBase: 0);
+                wrapper.Invoke(tryCount => throw new IOException("simulated failure"));
+            }
+
+            RetryCircuitBreaker.IsOpen.ShouldBeTrue("Circuit breaker should be open after threshold failures");
+
+            // Next invocation should fail fast without calling the callback
+            int callbackInvocations = 0;
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(5, CancellationToken.None, exponentialBackoffBase: 0);
+            RetryWrapper<bool>.InvocationResult result = dut.Invoke(
+                tryCount =>
+                {
+                    callbackInvocations++;
+                    return new RetryWrapper<bool>.CallbackResult(true);
+                });
+
+            result.Succeeded.ShouldEqual(false);
+            callbackInvocations.ShouldEqual(0);
+        }
+
+        [TestCase]
+        public void CircuitBreakerResetsOnSuccess()
+        {
+            const int Threshold = 3;
+            RetryCircuitBreaker.Configure(Threshold, 30_000);
+
+            // Record failures just below threshold
+            for (int i = 0; i < Threshold - 1; i++)
+            {
+                RetryCircuitBreaker.RecordFailure();
+            }
+
+            RetryCircuitBreaker.IsOpen.ShouldBeFalse("Circuit should still be closed below threshold");
+
+            // A successful invocation resets the counter
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(1, CancellationToken.None, exponentialBackoffBase: 0);
+            dut.Invoke(tryCount => new RetryWrapper<bool>.CallbackResult(true));
+
+            RetryCircuitBreaker.ConsecutiveFailures.ShouldEqual(0);
+
+            // Now threshold more failures are needed to trip it again
+            for (int i = 0; i < Threshold - 1; i++)
+            {
+                RetryCircuitBreaker.RecordFailure();
+            }
+
+            RetryCircuitBreaker.IsOpen.ShouldBeFalse("Circuit should still be closed after reset");
+        }
+
+        [TestCase]
+        public void CircuitBreakerIgnoresNonRetryableErrors()
+        {
+            const int Threshold = 3;
+            RetryCircuitBreaker.Configure(Threshold, 30_000);
+
+            // Generate non-retryable failures (e.g., 404/400) — these should NOT count
+            for (int i = 0; i < Threshold + 5; i++)
+            {
+                RetryWrapper<bool> wrapper = new RetryWrapper<bool>(1, CancellationToken.None, exponentialBackoffBase: 0);
+                wrapper.Invoke(tryCount => new RetryWrapper<bool>.CallbackResult(new Exception("404 Not Found"), shouldRetry: false));
+            }
+
+            RetryCircuitBreaker.IsOpen.ShouldBeFalse("Non-retryable errors should not trip the circuit breaker");
+            RetryCircuitBreaker.ConsecutiveFailures.ShouldEqual(0);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void CircuitBreakerClosesAfterCooldown()
+        {
+            const int Threshold = 3;
+            const int CooldownMs = 100; // Very short cooldown for testing
+            RetryCircuitBreaker.Configure(Threshold, CooldownMs);
+
+            // Trip the circuit breaker
+            for (int i = 0; i < Threshold; i++)
+            {
+                RetryWrapper<bool> wrapper = new RetryWrapper<bool>(1, CancellationToken.None, exponentialBackoffBase: 0);
+                wrapper.Invoke(tryCount => throw new IOException("simulated failure"));
+            }
+
+            RetryCircuitBreaker.IsOpen.ShouldBeTrue("Circuit should be open");
+
+            // Wait for cooldown to expire
+            Thread.Sleep(CooldownMs + 50);
+
+            RetryCircuitBreaker.IsOpen.ShouldBeFalse("Circuit should be closed after cooldown");
+
+            // Should be able to invoke successfully now
+            int callbackInvocations = 0;
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(1, CancellationToken.None, exponentialBackoffBase: 0);
+            RetryWrapper<bool>.InvocationResult result = dut.Invoke(
+                tryCount =>
+                {
+                    callbackInvocations++;
+                    return new RetryWrapper<bool>.CallbackResult(true);
+                });
+
+            result.Succeeded.ShouldEqual(true);
+            callbackInvocations.ShouldEqual(1);
         }
     }
 }
