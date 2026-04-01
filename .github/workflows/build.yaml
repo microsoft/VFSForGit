@@ -100,7 +100,10 @@ jobs:
                 }
               }
 
-              if (run.status === 'completed' && run.conclusion === 'success') return run.html_url
+              if (run.status === 'completed' && run.conclusion === 'success') {
+                core.notice(`Skipping: There already is a successful run: ${run.html_url}`)
+                return run.html_url
+              }
             }
             return ''
           } catch (e) {
