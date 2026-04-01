@@ -1,0 +1,162 @@
+name: Functional Tests
+
+on:
+  workflow_call:
+    inputs:
+      vfs_run_id:
+        description: 'Workflow run ID to download FT executables and GVFS installer from (defaults to the calling run)'
+        required: false
+        type: string
+        default: ''
+      git_repository:
+        description: 'Repository to download the Git installer artifact from (defaults to the calling repository)'
+        required: false
+        type: string
+        default: ''
+      git_run_id:
+        description: 'Workflow run ID to download the Git installer artifact from (defaults to the calling run)'
+        required: false
+        type: string
+        default: ''
+      git_artifact_name:
+        description: 'Name of the artifact containing the Git installer (must include an install.bat script)'
+        required: false
+        type: string
+        default: 'MicrosoftGit'
+      skip:
+        description: 'URL of a previous successful run; if non-empty, all steps are skipped (job still succeeds for required checks)'
+        required: false
+        type: string
+        default: ''
+      output_prefix:
+        description: 'Prefix for uploaded artifact names (e.g. "VFSForGit" to namespace artifacts in cross-repo runs)'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      vfs_token:
+        description: 'Token for downloading VFSForGit artifacts (required for cross-repository downloads; defaults to GITHUB_TOKEN)'
+        required: false
+      git_token:
+        description: 'Token for downloading the Git installer artifact (required for cross-repository downloads; defaults to GITHUB_TOKEN)'
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  functional_test:
+    runs-on: ${{ matrix.architecture == 'arm64' && 'windows-11-arm' || 'windows-2025' }}
+    name: Test
+
+    env:
+      ARTIFACT_PREFIX: ${{ inputs.output_prefix && format('{0}_', inputs.output_prefix) || '' }}
+      FT_MATRIX_NAME: ${{ format('{0}_{1}-{2}', matrix.configuration, matrix.architecture, matrix.nr) }}
+
+    strategy:
+      matrix:
+        configuration: [ Debug, Release ]
+        architecture: [ x86_64, arm64 ]
+        nr: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] # 10 parallel jobs to speed up the tests
+      fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
+
+    steps:
+    - name: Skip this job if there is a previous successful run
+      if: inputs.skip != ''
+      id: skip
+      uses: actions/github-script@v8
+      with:
+        script: |
+          core.info(`Skipping: There already is a successful run: ${{ inputs.skip }}`)
+          return true
+
+    - name: Download Git installer
+      if: steps.skip.outputs.result != 'true'
+      uses: actions/download-artifact@v8
+      with:
+        name: ${{ inputs.git_artifact_name }}
+        path: git
+        repository: ${{ inputs.git_repository || github.repository }}
+        run-id: ${{ inputs.git_run_id || github.run_id }}
+        github-token: ${{ secrets.git_token || github.token }}
+
+    - name: Download GVFS installer
+      if: steps.skip.outputs.result != 'true'
+      uses: actions/download-artifact@v8
+      with:
+        name: GVFS_${{ matrix.configuration }}
+        path: gvfs
+        repository: microsoft/VFSForGit
+        run-id: ${{ inputs.vfs_run_id || github.run_id }}
+        github-token: ${{ secrets.vfs_token || github.token }}
+
+    - name: Download functional tests drop
+      if: steps.skip.outputs.result != 'true'
+      uses: actions/download-artifact@v8
+      with:
+        name: FunctionalTests_${{ matrix.configuration }}
+        path: ft
+        repository: microsoft/VFSForGit
+        run-id: ${{ inputs.vfs_run_id || github.run_id }}
+        github-token: ${{ secrets.vfs_token || github.token }}
+
+    - name: ProjFS details (pre-install)
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      continue-on-error: true
+      run: gvfs\info.bat
+
+    - name: Install Git
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: git\install.bat
+
+    - name: Install VFS for Git
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: gvfs\install.bat
+
+    - name: ProjFS details (post-install)
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      continue-on-error: true
+      run: gvfs\info.bat
+
+    - name: Upload installation logs
+      if: always() && steps.skip.outputs.result != 'true'
+      uses: actions/upload-artifact@v7
+      continue-on-error: true
+      with:
+        name: ${{ env.ARTIFACT_PREFIX }}InstallationLogs_${{ env.FT_MATRIX_NAME }}
+        path: |
+          git\logs
+          gvfs\logs
+
+    - name: Run functional tests
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: |
+        SET PATH=C:\Program Files\VFS for Git;%PATH%
+        SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
+        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --slice=${{ matrix.nr }},10
+
+    - name: Upload functional test results
+      if: always() && steps.skip.outputs.result != 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ env.ARTIFACT_PREFIX }}FunctionalTests_Results_${{ env.FT_MATRIX_NAME }}
+        path: TestResult.xml
+
+    - name: Upload Git trace2 output
+      if: always() && steps.skip.outputs.result != 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ env.ARTIFACT_PREFIX }}GitTrace2_${{ env.FT_MATRIX_NAME }}
+        path: C:\temp\git-trace2.log
+
+    - name: ProjFS details (post-test)
+      if: always() && steps.skip.outputs.result != 'true'
+      shell: cmd
+      continue-on-error: true
+      run: gvfs\info.bat
