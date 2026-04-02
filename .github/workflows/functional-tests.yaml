@@ -3,6 +3,11 @@ name: Functional Tests
 on:
   workflow_call:
     inputs:
+      vfs_repository:
+        description: 'Repository to download the VFSForGit artifacts from (defaults to the calling repository)'
+        required: false
+        type: string
+        default: ''
       vfs_run_id:
         description: 'Workflow run ID to download FT executables and GVFS installer from (defaults to the calling run)'
         required: false
@@ -87,7 +92,7 @@ jobs:
       with:
         name: GVFS_${{ matrix.configuration }}
         path: gvfs
-        repository: microsoft/VFSForGit
+        repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}
         github-token: ${{ secrets.vfs_token || github.token }}
 
@@ -97,7 +102,7 @@ jobs:
       with:
         name: FunctionalTests_${{ matrix.configuration }}
         path: ft
-        repository: microsoft/VFSForGit
+        repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}
         github-token: ${{ secrets.vfs_token || github.token }}
 
