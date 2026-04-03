@@ -1357,69 +1357,7 @@ namespace GVFS.Mount
 
         private bool TrySetRequiredGitConfigSettings()
         {
-            string expectedHooksPath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.Root);
-            expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
-
-            string gitStatusCachePath = null;
-            if (!GVFSEnlistment.IsUnattended(tracer: null) && GVFSPlatform.Instance.IsGitStatusCacheSupported())
-            {
-                gitStatusCachePath = Path.Combine(
-                    this.enlistment.EnlistmentRoot,
-                    GVFSPlatform.Instance.Constants.DotGVFSRoot,
-                    GVFSConstants.DotGVFS.GitStatusCache.CachePath);
-
-                gitStatusCachePath = Paths.ConvertPathToGitFormat(gitStatusCachePath);
-            }
-
-            string coreGVFSFlags = Convert.ToInt32(
-                GitCoreGVFSFlags.SkipShaOnIndex |
-                GitCoreGVFSFlags.BlockCommands |
-                GitCoreGVFSFlags.MissingOk |
-                GitCoreGVFSFlags.NoDeleteOutsideSparseCheckout |
-                GitCoreGVFSFlags.FetchSkipReachabilityAndUploadPack |
-                GitCoreGVFSFlags.BlockFiltersAndEolConversions)
-                .ToString();
-
-            Dictionary<string, string> requiredSettings = new Dictionary<string, string>
-            {
-                { "am.keepcr", "true" },
-                { "checkout.optimizenewbranch", "true" },
-                { "core.autocrlf", "false" },
-                { "core.commitGraph", "true" },
-                { "core.fscache", "true" },
-                { "core.gvfs", coreGVFSFlags },
-                { "core.multiPackIndex", "true" },
-                { "core.preloadIndex", "true" },
-                { "core.safecrlf", "false" },
-                { "core.untrackedCache", "false" },
-                { "core.repositoryformatversion", "0" },
-                { "core.filemode", GVFSPlatform.Instance.FileSystem.SupportsFileMode ? "true" : "false" },
-                { "core.bare", "false" },
-                { "core.logallrefupdates", "true" },
-                { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
-                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
-                { "core.hookspath", expectedHooksPath },
-                { GitConfigSetting.CredentialUseHttpPath, "true" },
-                { "credential.validate", "false" },
-                { "diff.autoRefreshIndex", "true" },
-                { "feature.manyFiles", "false" },
-                { "feature.experimental", "false" },
-                { "fetch.writeCommitGraph", "false" },
-                { "gc.auto", "0" },
-                { "gui.gcwarning", "false" },
-                { "index.threads", "true" },
-                { "index.version", "4" },
-                { "merge.stat", "false" },
-                { "merge.renames", "false" },
-                { "pack.useBitmaps", "false" },
-                { "pack.useSparse", "true" },
-                { "receive.autogc", "false" },
-                { "reset.quiet", "true" },
-                { "status.deserializePath", gitStatusCachePath },
-                { "status.submoduleSummary", "false" },
-                { "commitGraph.generationVersion", "1" },
-                { "core.useBuiltinFSMonitor", "false" },
-            };
+            Dictionary<string, string> requiredSettings = RequiredGitConfig.GetRequiredSettings(this.enlistment);
 
             GitProcess git = new GitProcess(this.enlistment);
 
