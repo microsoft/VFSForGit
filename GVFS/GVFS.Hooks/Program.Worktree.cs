@@ -343,7 +343,7 @@ namespace GVFS.Hooks
 
                     ProcessHelper.Run(
                         "git",
-                        $"-C \"{fullPath}\" -c core.virtualfilesystem=\"{emptyVfsHookGitPath}\" -c core.hookspath= checkout -f HEAD",
+                        $"-C \"{fullPath}\" -c core.virtualfilesystem=\"'{emptyVfsHookGitPath}'\" -c core.hookspath= checkout -f HEAD",
                         redirectOutput: false);
                 }
                 finally

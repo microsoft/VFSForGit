@@ -19,8 +19,13 @@ namespace GVFS.Common.Git
             string expectedHooksPath = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName);
             expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
 
-            string virtualFileSystemPath = Paths.ConvertPathToGitFormat(
-                Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName, GVFSConstants.DotGit.Hooks.VirtualFileSystemName));
+            // Single-quote the path: git executes core.virtualfilesystem via the
+            // shell (use_shell=1 in virtualfilesystem.c), so spaces in an absolute
+            // path would split the command.  Git's config parser strips double quotes
+            // but preserves single quotes, and bash treats single-quoted strings as
+            // a single token.
+            string virtualFileSystemPath = "'" + Paths.ConvertPathToGitFormat(
+                Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName, GVFSConstants.DotGit.Hooks.VirtualFileSystemName)) + "'";
 
             string gitStatusCachePath = null;
             if (!GVFSEnlistment.IsUnattended(tracer: null) && GVFSPlatform.Instance.IsGitStatusCacheSupported())
