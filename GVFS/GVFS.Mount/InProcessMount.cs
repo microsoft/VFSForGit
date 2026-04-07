@@ -495,12 +495,20 @@ namespace GVFS.Mount
                     this.HandlePostIndexChangedRequest(message, connection);
                     break;
 
+                case NamedPipeMessages.PrepareForUnstage.Request:
+                    this.HandlePrepareForUnstageRequest(message, connection);
+                    break;
+
                 case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
                     this.HandlePostFetchJobRequest(message, connection);
                     break;
 
                 case NamedPipeMessages.DehydrateFolders.Dehydrate:
                     this.HandleDehydrateFolders(message, connection);
+                    break;
+
+                case NamedPipeMessages.HydrationStatus.Request:
+                    this.HandleGetHydrationStatusRequest(connection);
                     break;
 
                 default:
@@ -512,6 +520,34 @@ namespace GVFS.Mount
                     connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
                     break;
             }
+        }
+
+        private void HandleGetHydrationStatusRequest(NamedPipeServer.Connection connection)
+        {
+            EnlistmentHydrationSummary summary = this.fileSystemCallbacks?.GetCachedHydrationSummary();
+            if (summary == null || !summary.IsValid)
+            {
+                this.tracer.RelatedInfo(
+                    $"{nameof(this.HandleGetHydrationStatusRequest)}: " +
+                    (summary == null ? "No cached hydration summary available yet" : "Cached hydration summary is invalid"));
+
+                connection.TrySendResponse(
+                    new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.NotAvailableResult, null));
+                return;
+            }
+
+            NamedPipeMessages.HydrationStatus.Response response = new NamedPipeMessages.HydrationStatus.Response
+            {
+                PlaceholderFileCount = summary.PlaceholderFileCount,
+                PlaceholderFolderCount = summary.PlaceholderFolderCount,
+                ModifiedFileCount = summary.ModifiedFileCount,
+                ModifiedFolderCount = summary.ModifiedFolderCount,
+                TotalFileCount = summary.TotalFileCount,
+                TotalFolderCount = summary.TotalFolderCount,
+            };
+
+            connection.TrySendResponse(
+                new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.SuccessResult, response.ToBody()));
         }
 
         private void HandleDehydrateFolders(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
@@ -729,6 +765,53 @@ namespace GVFS.Mount
                 }
 
                 response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.PostIndexChanged.SuccessResult);
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
+        /// <summary>
+        /// Handles a request to prepare for an unstage operation (e.g., restore --staged).
+        /// Finds index entries that are staged (not in HEAD) with skip-worktree set and adds
+        /// them to ModifiedPaths so that git will clear skip-worktree and process them.
+        /// Also forces a projection update to fix stale placeholders for modified/deleted files.
+        /// </summary>
+        private void HandlePrepareForUnstageRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.PrepareForUnstage.Response response;
+
+            if (this.currentState != MountState.Ready)
+            {
+                response = new NamedPipeMessages.PrepareForUnstage.Response(NamedPipeMessages.MountNotReadyResult);
+            }
+            else
+            {
+                try
+                {
+                    string pathspec = message.Body;
+                    bool success = this.fileSystemCallbacks.AddStagedFilesToModifiedPaths(pathspec, out int addedCount);
+
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("addedToModifiedPaths", addedCount);
+                    metadata.Add("pathspec", pathspec ?? "(all)");
+                    metadata.Add("success", success);
+                    this.tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        nameof(this.HandlePrepareForUnstageRequest),
+                        metadata);
+
+                    response = new NamedPipeMessages.PrepareForUnstage.Response(
+                        success
+                            ? NamedPipeMessages.PrepareForUnstage.SuccessResult
+                            : NamedPipeMessages.PrepareForUnstage.FailureResult);
+                }
+                catch (Exception e)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Exception", e.ToString());
+                    this.tracer.RelatedError(metadata, nameof(this.HandlePrepareForUnstageRequest) + " failed");
+                    response = new NamedPipeMessages.PrepareForUnstage.Response(NamedPipeMessages.PrepareForUnstage.FailureResult);
+                }
             }
 
             connection.TrySendResponse(response.CreateMessage());
@@ -1372,71 +1455,7 @@ namespace GVFS.Mount
 
         private bool TrySetRequiredGitConfigSettings()
         {
-            string expectedHooksPath = Path.Combine(this.enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName);
-            expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
-
-            string gitStatusCachePath = null;
-            if (!GVFSEnlistment.IsUnattended(tracer: null) && GVFSPlatform.Instance.IsGitStatusCacheSupported())
-            {
-                gitStatusCachePath = Path.Combine(
-                    this.enlistment.EnlistmentRoot,
-                    GVFSPlatform.Instance.Constants.DotGVFSRoot,
-                    GVFSConstants.DotGVFS.GitStatusCache.CachePath);
-
-                gitStatusCachePath = Paths.ConvertPathToGitFormat(gitStatusCachePath);
-            }
-
-            string coreGVFSFlags = Convert.ToInt32(
-                GitCoreGVFSFlags.SkipShaOnIndex |
-                GitCoreGVFSFlags.BlockCommands |
-                GitCoreGVFSFlags.MissingOk |
-                GitCoreGVFSFlags.NoDeleteOutsideSparseCheckout |
-                GitCoreGVFSFlags.FetchSkipReachabilityAndUploadPack |
-                GitCoreGVFSFlags.BlockFiltersAndEolConversions |
-                GitCoreGVFSFlags.SupportsWorktrees)
-                .ToString();
-
-            Dictionary<string, string> requiredSettings = new Dictionary<string, string>
-            {
-                { "am.keepcr", "true" },
-                { "checkout.optimizenewbranch", "true" },
-                { "core.autocrlf", "false" },
-                { "core.commitGraph", "true" },
-                { "core.fscache", "true" },
-                { "core.gvfs", coreGVFSFlags },
-                { "core.multiPackIndex", "true" },
-                { "core.preloadIndex", "true" },
-                { "core.safecrlf", "false" },
-                { "core.untrackedCache", "false" },
-                { "core.repositoryformatversion", "0" },
-                { "core.filemode", GVFSPlatform.Instance.FileSystem.SupportsFileMode ? "true" : "false" },
-                { "core.bare", "false" },
-                { "core.logallrefupdates", "true" },
-                { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
-                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(
-                    Path.Combine(this.enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName, GVFSConstants.DotGit.Hooks.VirtualFileSystemName)) },
-                { "core.hookspath", expectedHooksPath },
-                { GitConfigSetting.CredentialUseHttpPath, "true" },
-                { "credential.validate", "false" },
-                { "diff.autoRefreshIndex", "true" },
-                { "feature.manyFiles", "false" },
-                { "feature.experimental", "false" },
-                { "fetch.writeCommitGraph", "false" },
-                { "gc.auto", "0" },
-                { "gui.gcwarning", "false" },
-                { "index.threads", "true" },
-                { "index.version", "4" },
-                { "merge.stat", "false" },
-                { "merge.renames", "false" },
-                { "pack.useBitmaps", "false" },
-                { "pack.useSparse", "true" },
-                { "receive.autogc", "false" },
-                { "reset.quiet", "true" },
-                { "status.deserializePath", gitStatusCachePath },
-                { "status.submoduleSummary", "false" },
-                { "commitGraph.generationVersion", "1" },
-                { "core.useBuiltinFSMonitor", "false" },
-            };
+            Dictionary<string, string> requiredSettings = RequiredGitConfig.GetRequiredSettings(this.enlistment);
 
             GitProcess git = new GitProcess(this.enlistment);
 

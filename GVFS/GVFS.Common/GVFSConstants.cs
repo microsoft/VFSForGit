@@ -46,6 +46,8 @@ namespace GVFS.Common
 
             public const string ShowHydrationStatus = GVFSPrefix + "show-hydration-status";
             public const bool ShowHydrationStatusDefault = false;
+
+            public const string MaxHttpConnectionsConfig = GVFSPrefix + "max-http-connections";
         }
 
         public static class LocalGVFSConfig
