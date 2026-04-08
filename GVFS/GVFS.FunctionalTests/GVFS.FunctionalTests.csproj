@@ -9,7 +9,6 @@
     <PackageReference Include="NUnitLite" />
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
-    <PackageReference Include="Microsoft.Database.Collections.Generic" />
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="SharpZipLib" />
     <PackageReference Include="System.ServiceProcess.ServiceController" />

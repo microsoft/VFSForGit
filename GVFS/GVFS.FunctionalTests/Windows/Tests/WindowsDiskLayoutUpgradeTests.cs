@@ -1,7 +1,6 @@
 ﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests.EnlistmentPerTestCase;
 using GVFS.FunctionalTests.Tools;
-using GVFS.FunctionalTests.Windows.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
@@ -38,106 +37,15 @@ namespace GVFS.FunctionalTests.Windows.Tests
         }
 
         [TestCase]
-        public void MountUpgradesFromVersion7()
-        {
-            // Seven to eight is a just a version change (non-breaking), but preserves ESENT RepoMetadata
-            this.RunEsentRepoMetadataUpgradeTest("7");
-        }
-
-        [TestCase]
-        public void MountUpgradesFromEsentToJsonRepoMetadata()
-        {
-            // Eight is the last version with ESENT RepoMetadata DB
-            this.RunEsentRepoMetadataUpgradeTest("8");
-        }
-
-        [TestCase]
-        public void MountUpgradesFromEsentDatabasesToFlatDatabases()
+        public void MountUpgradesFromMinimumSupportedVersion()
         {
             this.Enlistment.UnmountGVFS();
 
-            // Delete the existing background ops data
-            string flatBackgroundPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.BackgroundOpsFile);
-            flatBackgroundPath.ShouldBeAFile(this.fileSystem);
-            this.fileSystem.DeleteFile(flatBackgroundPath);
-
-            // Delete the existing placeholder data
-            string placeholdersPath = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit);
-            placeholdersPath.ShouldBeAFile(this.fileSystem);
-            this.fileSystem.DeleteFile(placeholdersPath);
-
-            ESENTDatabase.CreateEsentBackgroundOpsDatabase(this.Enlistment.DotGVFSRoot);
-            ESENTDatabase.CreateEsentPlaceholderDatabase(this.Enlistment.DotGVFSRoot);
-
-            // Nine is the last version with ESENT BackgroundOps and Placeholders DBs
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "9", "0");
-            this.Enlistment.MountGVFS();
-
-            this.ValidatePersistedVersionMatchesCurrentVersion();
-
-            flatBackgroundPath.ShouldBeAFile(this.fileSystem);
-            placeholdersPath.ShouldBeAFile(this.fileSystem);
-        }
-
-        [TestCase]
-        public void MountUpgradesFromPriorToPlaceholderCreationsBlockedForGit()
-        {
-            this.Enlistment.UnmountGVFS();
-
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "10", "0");
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "14", "0");
 
             this.Enlistment.MountGVFS();
 
             this.ValidatePersistedVersionMatchesCurrentVersion();
-        }
-
-        [TestCase]
-        public void MountFailsToUpgradeFromEsentVersion6ToJsonRepoMetadata()
-        {
-            this.Enlistment.UnmountGVFS();
-
-            // Delete the existing repo metadata
-            string versionJsonPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
-            versionJsonPath.ShouldBeAFile(this.fileSystem);
-            this.fileSystem.DeleteFile(versionJsonPath);
-
-            ESENTDatabase.SaveDiskLayoutVersionAsEsentDatabase(this.Enlistment.DotGVFSRoot, "6");
-            string esentDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, ESENTDatabase.EsentRepoMetadataFolder);
-            esentDatabasePath.ShouldBeADirectory(this.fileSystem);
-
-            this.Enlistment.TryMountGVFS().ShouldEqual(false, "Should not be able to upgrade from version 6");
-
-            esentDatabasePath.ShouldBeADirectory(this.fileSystem);
-        }
-
-        [TestCase]
-        public void MountSetsGitObjectsRootToLegacyDotGVFSCache()
-        {
-            this.Enlistment.UnmountGVFS();
-
-            // Delete the existing repo metadata
-            string versionJsonPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
-            versionJsonPath.ShouldBeAFile(this.fileSystem);
-            this.fileSystem.DeleteFile(versionJsonPath);
-
-            // "11" was the last version before the introduction of a volume wide GVFS cache
-            string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
-            this.fileSystem.CreateEmptyFile(metadataPath);
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "11", "0");
-
-            // Create the legacy cache location: <root>\.gvfs\gitObjectCache
-            string legacyGitObjectsCachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "gitObjectCache");
-            this.fileSystem.CreateDirectory(legacyGitObjectsCachePath);
-
-            this.Enlistment.MountGVFS();
-
-            this.ValidatePersistedVersionMatchesCurrentVersion();
-
-            GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot)
-                .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
-
-            GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot)
-                .ShouldEqual(legacyGitObjectsCachePath);
         }
 
         [TestCase]
@@ -159,7 +67,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
                 placeholderDatabasePath,
                 string.Join(Environment.NewLine, lines.Where(x => !x.EndsWith(TestConstants.PartialFolderPlaceholderDatabaseValue))) + Environment.NewLine);
 
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "12", "1");
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "15", "0");
 
             this.Enlistment.MountGVFS();
             this.Enlistment.UnmountGVFS();
@@ -201,64 +109,10 @@ namespace GVFS.FunctionalTests.Windows.Tests
         }
 
         [TestCase]
-        public void MountUpgradesPreSharedCacheLocalSizes()
-        {
-            this.Enlistment.UnmountGVFS();
-
-            // Delete the existing repo metadata
-            string versionJsonPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
-            versionJsonPath.ShouldBeAFile(this.fileSystem);
-            this.fileSystem.DeleteFile(versionJsonPath);
-
-            // "11" was the last version before the introduction of a volume wide GVFS cache
-            string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
-            this.fileSystem.CreateEmptyFile(metadataPath);
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "11", "0");
-
-            // Create the legacy cache location: <root>\.gvfs\gitObjectCache
-            string legacyGitObjectsCachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "gitObjectCache");
-            this.fileSystem.CreateDirectory(legacyGitObjectsCachePath);
-
-            // Create a legacy PersistedDictionary sizes database
-            List<KeyValuePair<string, long>> entries = new List<KeyValuePair<string, long>>()
-            {
-                new KeyValuePair<string, long>(new string('0', 40), 1),
-                new KeyValuePair<string, long>(new string('1', 40), 2),
-                new KeyValuePair<string, long>(new string('2', 40), 4),
-                new KeyValuePair<string, long>(new string('3', 40), 8),
-            };
-
-            ESENTDatabase.CreateEsentBlobSizesDatabase(this.Enlistment.DotGVFSRoot, entries);
-
-            this.Enlistment.MountGVFS();
-
-            this.ValidatePersistedVersionMatchesCurrentVersion();
-
-            GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot)
-                .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
-
-            GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot)
-                .ShouldEqual(legacyGitObjectsCachePath);
-
-            string newBlobSizesRoot = Path.Combine(this.Enlistment.DotGVFSRoot, DatabasesFolderName, BlobSizesCacheName);
-            GVFSHelpers.GetPersistedBlobSizesRoot(this.Enlistment.DotGVFSRoot)
-                .ShouldEqual(newBlobSizesRoot);
-
-            string blobSizesDbPath = Path.Combine(newBlobSizesRoot, BlobSizesDBFileName);
-            newBlobSizesRoot.ShouldBeADirectory(this.fileSystem);
-            blobSizesDbPath.ShouldBeAFile(this.fileSystem);
-
-            foreach (KeyValuePair<string, long> entry in entries)
-            {
-                GVFSHelpers.SQLiteBlobSizesDatabaseHasEntry(blobSizesDbPath, entry.Key, entry.Value);
-            }
-        }
-
-        [TestCase]
         public void MountCreatesModifiedPathsDatabase()
         {
             this.Enlistment.UnmountGVFS();
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "14", "0");
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "15", "0");
 
             // Delete the existing modified paths database to make sure mount creates it.
             string modifiedPathsDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
@@ -375,38 +229,6 @@ namespace GVFS.FunctionalTests.Windows.Tests
             this.PlaceholderDatabaseShouldIncludeCommonLines(lines);
             lines.ShouldContain(x => x == this.PartialFolderPlaceholderString("GVFS", "GVFS.Tests", "Properties"));
             return lines;
-        }
-
-        private void RunEsentRepoMetadataUpgradeTest(string sourceVersion)
-        {
-            this.Enlistment.UnmountGVFS();
-
-            // Delete the existing repo metadata
-            string versionJsonPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
-            versionJsonPath.ShouldBeAFile(this.fileSystem);
-            this.fileSystem.DeleteFile(versionJsonPath);
-
-            ESENTDatabase.SaveDiskLayoutVersionAsEsentDatabase(this.Enlistment.DotGVFSRoot, sourceVersion);
-            string esentDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, ESENTDatabase.EsentRepoMetadataFolder);
-            esentDatabasePath.ShouldBeADirectory(this.fileSystem);
-
-            // We should be able to mount, and there should no longer be any Esent Repo Metadata
-            this.Enlistment.MountGVFS();
-            esentDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
-            versionJsonPath.ShouldBeAFile(this.fileSystem);
-
-            this.ValidatePersistedVersionMatchesCurrentVersion();
-
-            GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot)
-                .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
-
-            // We're starting with fresh enlisments, and so the legacy cache location: <root>\.gvfs\gitObjectCache should not be on disk
-            Path.Combine(this.Enlistment.DotGVFSRoot, ".gvfs", "gitObjectCache").ShouldNotExistOnDisk(this.fileSystem);
-
-            // The upgrader should set GitObjectsRoot to src\.git\objects (because the legacy cache location is not on disk)
-            GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot)
-                .ShouldNotBeNull("GitObjectsRoot should not be null")
-                .ShouldEqual(Path.Combine(this.Enlistment.RepoRoot, ".git", "objects"));
         }
     }
 }

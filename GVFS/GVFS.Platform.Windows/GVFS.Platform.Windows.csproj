@@ -5,14 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ManagedEsent" />
-    <PackageReference Include="Microsoft.Database.Collections.Generic" />
-    <PackageReference Include="Microsoft.Database.Isam" />
     <PackageReference Include="Microsoft.Windows.ProjFS" />
   </ItemGroup>
 

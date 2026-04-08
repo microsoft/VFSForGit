@@ -36,7 +36,7 @@ namespace GVFS.FunctionalTests.Tools
 
         private const int WindowsCurrentDiskLayoutMajorVersion = 19;
         private const int MacCurrentDiskLayoutMajorVersion = 19;
-        private const int WindowsCurrentDiskLayoutMinimumMajorVersion = 7;
+        private const int WindowsCurrentDiskLayoutMinimumMajorVersion = 14;
         private const int MacCurrentDiskLayoutMinimumMajorVersion = 18;
 
         public static string ConvertPathToGitFormat(string path)

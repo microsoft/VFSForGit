@@ -20,7 +20,6 @@
     <FilesToSign Include="
       $(OutputPath)\FastFetch.exe;
       $(OutputPath)\GVFS.Common.dll;
-      $(OutputPath)\GVFS.GVFlt.dll;
       $(OutputPath)\GVFS.Platform.Windows.dll;
       $(OutputPath)\GVFS.Virtualization.dll;">
       <Authenticode>Microsoft400</Authenticode>
