@@ -509,6 +509,138 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: false);
         }
 
+        /// <summary>
+        /// Returns staged file changes (index vs HEAD) as null-separated pairs of
+        /// status and path: "A\0path1\0M\0path2\0D\0path3\0".
+        /// Status codes: A=added, M=modified, D=deleted, R=renamed, C=copied.
+        /// </summary>
+        /// <param name="pathspecs">Inline pathspecs to scope the diff, or null for all.</param>
+        /// <param name="pathspecFromFile">
+        /// Path to a file containing additional pathspecs (one per line), forwarded
+        /// as --pathspec-from-file to git. Null if not used.
+        /// </param>
+        /// <param name="pathspecFileNul">
+        /// When true and pathspecFromFile is set, pathspec entries in the file are
+        /// separated by NUL instead of newline (--pathspec-file-nul).
+        /// </param>
+        public Result DiffCachedNameStatus(string[] pathspecs = null, string pathspecFromFile = null, bool pathspecFileNul = false)
+        {
+            string command = "diff --cached --name-status -z --no-renames";
+
+            if (pathspecFromFile != null)
+            {
+                command += " --pathspec-from-file=" + QuoteGitPath(pathspecFromFile);
+                if (pathspecFileNul)
+                {
+                    command += " --pathspec-file-nul";
+                }
+            }
+
+            if (pathspecs != null && pathspecs.Length > 0)
+            {
+                command += " -- " + string.Join(" ", pathspecs.Select(p => QuoteGitPath(p)));
+            }
+
+            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: false);
+        }
+
+        /// <summary>
+        /// Writes the staged (index) version of the specified files to the working
+        /// tree with correct line endings and attributes. Batches multiple paths into
+        /// a single git process invocation where possible, respecting the Windows
+        /// command line length limit.
+        /// </summary>
+        public List<Result> CheckoutIndexForFiles(IEnumerable<string> paths)
+        {
+            // Windows command line limit is 32,767 characters. Leave headroom for
+            // the base command and other arguments.
+            const int MaxCommandLength = 30000;
+            const string BaseCommand = "-c core.hookspath= checkout-index --force --";
+
+            List<Result> results = new List<Result>();
+            StringBuilder command = new StringBuilder(BaseCommand);
+            foreach (string path in paths)
+            {
+                string quotedPath = " " + QuoteGitPath(path);
+
+                if (command.Length + quotedPath.Length > MaxCommandLength && command.Length > BaseCommand.Length)
+                {
+                    // Flush current batch
+                    results.Add(this.InvokeGitInWorkingDirectoryRoot(command.ToString(), useReadObjectHook: false));
+                    command.Clear();
+                    command.Append(BaseCommand);
+                }
+
+                command.Append(quotedPath);
+            }
+
+            // Flush remaining paths
+            if (command.Length > BaseCommand.Length)
+            {
+                results.Add(this.InvokeGitInWorkingDirectoryRoot(command.ToString(), useReadObjectHook: false));
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// Wraps a path in double quotes for use as a git command argument,
+        /// escaping any embedded double quotes and any backslashes that
+        /// immediately precede a double quote (to prevent them from being
+        /// interpreted as escape characters by the Windows C runtime argument
+        /// parser). Lone backslashes used as path separators are left as-is.
+        /// </summary>
+        public static string QuoteGitPath(string path)
+        {
+            StringBuilder sb = new StringBuilder(path.Length + 4);
+            sb.Append('"');
+
+            for (int i = 0; i < path.Length; i++)
+            {
+                if (path[i] == '"')
+                {
+                    sb.Append('\\');
+                    sb.Append('"');
+                }
+                else if (path[i] == '\\')
+                {
+                    // Count consecutive backslashes
+                    int backslashCount = 0;
+                    while (i < path.Length && path[i] == '\\')
+                    {
+                        backslashCount++;
+                        i++;
+                    }
+
+                    if (i < path.Length && path[i] == '"')
+                    {
+                        // Backslashes before a quote: double them all, then escape the quote
+                        sb.Append('\\', backslashCount * 2);
+                        sb.Append('\\');
+                        sb.Append('"');
+                    }
+                    else if (i == path.Length)
+                    {
+                        // Backslashes at end of string (before closing quote): double them
+                        sb.Append('\\', backslashCount * 2);
+                    }
+                    else
+                    {
+                        // Backslashes not before a quote: keep as-is (path separators)
+                        sb.Append('\\', backslashCount);
+                        i--; // Re-process current non-backslash char
+                    }
+                }
+                else
+                {
+                    sb.Append(path[i]);
+                }
+            }
+
+            sb.Append('"');
+            return sb.ToString();
+        }
+
         public Result SerializeStatus(bool allowObjectDownloads, string serializePath)
         {
             // specify ignored=matching and --untracked-files=complete
@@ -680,11 +812,6 @@ namespace GVFS.Common.Git
         public Result MultiPackIndexRepack(string gitObjectDirectory, string batchSize)
         {
             return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 -c repack.packKeptObjects=true multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize} --no-progress");
-        }
-
-        public Result GetHeadTreeId()
-        {
-            return this.InvokeGitAgainstDotGitFolder("rev-parse \"HEAD^{tree}\"", usePreCommandHook: false);
         }
 
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory, bool usePreCommandHook)

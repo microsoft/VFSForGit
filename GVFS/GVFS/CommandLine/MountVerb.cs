@@ -1,15 +1,12 @@
 ﻿using CommandLine;
 using GVFS.Common;
-using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
-using GVFS.Virtualization.Projection;
 using System;
 using System.IO;
-using System.Security.Principal;
+using System.Threading;
 
 namespace GVFS.CommandLine
 {
@@ -55,16 +52,58 @@ namespace GVFS.CommandLine
         {
             string errorMessage;
             string enlistmentRoot;
-            if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out enlistmentRoot, out errorMessage))
+
+            // Always check if the given path is a worktree first, before
+            // falling back to the standard .gvfs/ walk-up. A worktree dir
+            // may be under the enlistment tree, so TryGetGVFSEnlistmentRoot
+            // can succeed by walking up — but we still need worktree-specific handling.
+            string pathToCheck = string.IsNullOrEmpty(this.EnlistmentRootPathParameter)
+                ? Environment.CurrentDirectory
+                : this.EnlistmentRootPathParameter;
+
+            string worktreeError;
+            GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(pathToCheck, out worktreeError);
+            if (worktreeError != null)
+            {
+                this.ReportErrorAndExit("Error: failed to check worktree status for '{0}': {1}", pathToCheck, worktreeError);
+            }
+
+            if (wtInfo?.SharedGitDir != null)
+            {
+                // This is a worktree mount request. Find the primary enlistment root.
+                enlistmentRoot = wtInfo.GetEnlistmentRoot();
+
+                if (enlistmentRoot == null)
+                {
+                    this.ReportErrorAndExit("Error: could not determine enlistment root for worktree '{0}'", pathToCheck);
+                }
+
+                // Check the worktree-specific pipe, not the primary
+                if (!this.SkipMountedCheck)
+                {
+                    string worktreePipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot) + wtInfo.PipeSuffix;
+                    using (NamedPipeClient pipeClient = new NamedPipeClient(worktreePipeName))
+                    {
+                        if (pipeClient.Connect(500))
+                        {
+                            this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.Success, error: $"The worktree at '{wtInfo.WorktreePath}' is already mounted.");
+                        }
+                    }
+                }
+            }
+            else if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out enlistmentRoot, out errorMessage))
             {
                 this.ReportErrorAndExit("Error: '{0}' is not a valid GVFS enlistment", this.EnlistmentRootPathParameter);
             }
-
-            if (!this.SkipMountedCheck)
+            else
             {
-                if (this.IsExistingPipeListening(enlistmentRoot))
+                // Primary enlistment — check primary pipe as before
+                if (!this.SkipMountedCheck)
                 {
-                    this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.Success, error: $"The repo at '{enlistmentRoot}' is already mounted.");
+                    if (this.IsExistingPipeListening(enlistmentRoot))
+                    {
+                        this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.Success, error: $"The repo at '{enlistmentRoot}' is already mounted.");
+                    }
                 }
             }
 
@@ -86,17 +125,11 @@ namespace GVFS.CommandLine
             string mountExecutableLocation = null;
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "ExecuteMount"))
             {
-                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-                GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
-                GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
+                // Validate these before handing them to the background process
+                // which cannot tell the user when they are bad
+                this.ValidateEnumArgs();
 
-                if (!this.SkipInstallHooks && !HooksInstaller.InstallHooks(context, out errorMessage))
-                {
-                    this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
-                }
-
-                var resolvedCacheServer = this.ResolvedCacheServer;
-                var cacheServerFromConfig = resolvedCacheServer ?? CacheServerResolver.GetCacheServerFromConfig(enlistment);
+                CacheServerInfo cacheServerFromConfig = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountVerb),
@@ -133,65 +166,11 @@ namespace GVFS.CommandLine
                     }
                 }
 
-                RetryConfig retryConfig = null;
-                ServerGVFSConfig serverGVFSConfig = this.DownloadedGVFSConfig;
-                /* If resolved cache server was passed in, we've already checked server config and version check in previous operation. */
-                if (resolvedCacheServer == null)
+                // Verify mount executable exists before launching
+                mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSPlatform.Instance.Constants.MountExecutableName);
+                if (!File.Exists(mountExecutableLocation))
                 {
-                    string authErrorMessage;
-                    if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
-                    {
-                        this.Output.WriteLine("    WARNING: " + authErrorMessage);
-                        this.Output.WriteLine("    Mount will proceed, but new files cannot be accessed until GVFS can authenticate.");
-                    }
-
-                    if (serverGVFSConfig == null)
-                    {
-                        if (retryConfig == null)
-                        {
-                            retryConfig = this.GetRetryConfig(tracer, enlistment);
-                        }
-
-                        serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
-                            tracer,
-                            enlistment,
-                            retryConfig,
-                            cacheServerFromConfig);
-                    }
-
-                    this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
-
-                    CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
-                    resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerFromConfig.Url, serverGVFSConfig);
-                    this.Output.WriteLine("Configured cache server: " + cacheServerFromConfig);
-                }
-
-                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, resolvedCacheServer);
-
-                if (!this.ShowStatusWhileRunning(
-                    () => { return this.PerformPreMountValidation(tracer, enlistment, out mountExecutableLocation, out errorMessage); },
-                    "Validating repo"))
-                {
-                    this.ReportErrorAndExit(tracer, errorMessage);
-                }
-
-                if (!this.SkipVersionCheck)
-                {
-                    string error;
-                    if (!RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out error))
-                    {
-                        this.ReportErrorAndExit(tracer, error);
-                    }
-
-                    try
-                    {
-                        GitProcess git = new GitProcess(enlistment);
-                        this.LogEnlistmentInfoAndSetConfigValues(tracer, git, enlistment);
-                    }
-                    finally
-                    {
-                        RepoMetadata.Shutdown();
-                    }
+                    this.ReportErrorAndExit(tracer, $"Could not find {GVFSPlatform.Instance.Constants.MountExecutableName}. You may need to reinstall GVFS.");
                 }
 
                 if (!this.ShowStatusWhileRunning(
@@ -219,73 +198,23 @@ namespace GVFS.CommandLine
                 }
             }
         }
-
-        private bool PerformPreMountValidation(ITracer tracer, GVFSEnlistment enlistment, out string mountExecutableLocation, out string errorMessage)
-        {
-            errorMessage = string.Empty;
-            mountExecutableLocation = string.Empty;
-
-            // We have to parse these parameters here to make sure they are valid before
-            // handing them to the background process which cannot tell the user when they are bad
-            EventLevel verbosity;
-            Keywords keywords;
-            this.ParseEnumArgs(out verbosity, out keywords);
-
-            mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSPlatform.Instance.Constants.MountExecutableName);
-            if (!File.Exists(mountExecutableLocation))
-            {
-                errorMessage = $"Could not find {GVFSPlatform.Instance.Constants.MountExecutableName}. You may need to reinstall GVFS.";
-                return false;
-            }
-
-            GitProcess git = new GitProcess(enlistment);
-            if (!git.IsValidRepo())
-            {
-                errorMessage = "The .git folder is missing or has invalid contents";
-                return false;
-            }
-
-            try
-            {
-                GitIndexProjection.ReadIndex(tracer, Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index));
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Exception", e.ToString());
-                tracer.RelatedError(metadata, "Index validation failed");
-                errorMessage = "Index validation failed, run 'gvfs repair' to repair index.";
-
-                return false;
-            }
-
-            if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(enlistment.EnlistmentRoot, out string error))
-            {
-                errorMessage = $"FileSystem unsupported: {error}";
-                return false;
-            }
-
-            return true;
-        }
-
         private bool TryMount(ITracer tracer, GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
         {
-            if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment))
-            {
-                errorMessage = "Unable to configure git repo";
-                return false;
-            }
-
             const string ParamPrefix = "--";
 
-            tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {enlistment.EnlistmentRoot}");
+            // For worktrees, pass the worktree path so GVFS.Mount.exe creates the right enlistment
+            string mountPath = enlistment.IsWorktree
+                ? enlistment.WorkingDirectoryRoot
+                : enlistment.EnlistmentRoot;
+
+            tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {mountPath}");
 
             GVFSPlatform.Instance.StartBackgroundVFS4GProcess(
                 tracer,
                 mountExecutableLocation,
                 new[]
                 {
-                    enlistment.EnlistmentRoot,
+                    mountPath,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Verbosity,
                     this.Verbosity,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Keywords,
@@ -297,7 +226,8 @@ namespace GVFS.CommandLine
                 });
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for repo to be mounted");
-            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
+
+            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.NamedPipeName, enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
@@ -305,7 +235,12 @@ namespace GVFS.CommandLine
             errorMessage = string.Empty;
 
             NamedPipeMessages.RegisterRepoRequest request = new NamedPipeMessages.RegisterRepoRequest();
-            request.EnlistmentRoot = enlistment.EnlistmentRoot;
+
+            // Worktree mounts register with their worktree path so they can be
+            // listed and unregistered independently of the primary enlistment.
+            request.EnlistmentRoot = enlistment.IsWorktree
+                ? enlistment.WorkingDirectoryRoot
+                : enlistment.EnlistmentRoot;
 
             request.OwnerSID = GVFSPlatform.Instance.GetCurrentUser();
 
@@ -355,14 +290,14 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void ParseEnumArgs(out EventLevel verbosity, out Keywords keywords)
+        private void ValidateEnumArgs()
         {
-            if (!Enum.TryParse(this.KeywordsCsv, out keywords))
+            if (!Enum.TryParse(this.KeywordsCsv, out Keywords _))
             {
                 this.ReportErrorAndExit("Error: Invalid logging filter keywords: " + this.KeywordsCsv);
             }
 
-            if (!Enum.TryParse(this.Verbosity, out verbosity))
+            if (!Enum.TryParse(this.Verbosity, out EventLevel _))
             {
                 this.ReportErrorAndExit("Error: Invalid logging verbosity: " + this.Verbosity);
             }

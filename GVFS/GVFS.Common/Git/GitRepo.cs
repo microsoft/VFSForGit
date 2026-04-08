@@ -51,6 +51,11 @@ namespace GVFS.Common.Git
             private set;
         }
 
+        internal LibGit2RepoInvoker LibGit2RepoInvoker
+        {
+            get { return this.libgit2RepoInvoker; }
+        }
+
         public void CloseActiveRepo()
         {
             this.libgit2RepoInvoker?.DisposeSharedRepo();

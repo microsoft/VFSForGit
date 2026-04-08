@@ -1,26 +1,34 @@
 ﻿using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using System;
+using System.Diagnostics;
 using System.IO;
-using System.Linq;
+using System.Threading;
 
 namespace GVFS.Common
 {
     public class EnlistmentHydrationSummary
     {
-        public int HydratedFileCount { get; private set; }
+        public int PlaceholderFileCount { get; private set; }
+        public int PlaceholderFolderCount { get; private set; }
+        public int ModifiedFileCount { get; private set; }
+        public int ModifiedFolderCount { get; private set; }
         public int TotalFileCount { get; private set; }
-        public int HydratedFolderCount { get; private set; }
         public int TotalFolderCount { get; private set; }
         public Exception Error { get; private set; } = null;
+
+        public int HydratedFileCount => PlaceholderFileCount + ModifiedFileCount;
+        public int HydratedFolderCount => PlaceholderFolderCount + ModifiedFolderCount;
 
 
         public bool IsValid
         {
             get
             {
-                return HydratedFileCount >= 0
-                && HydratedFolderCount >= 0
+                return PlaceholderFileCount >= 0
+                && PlaceholderFolderCount >= 0
+                && ModifiedFileCount >= 0
+                && ModifiedFolderCount >= 0
                 && TotalFileCount >= HydratedFileCount
                 && TotalFolderCount >= HydratedFolderCount;
             }
@@ -33,48 +41,115 @@ namespace GVFS.Common
                 return "Error calculating hydration summary. Run 'gvfs health' at the repository root for hydration status details.";
             }
 
-            int fileHydrationPercent = TotalFileCount == 0 ? 0 : (100 * HydratedFileCount) / TotalFileCount;
-            int folderHydrationPercent = TotalFolderCount == 0 ? 0 : ((100 * HydratedFolderCount) / TotalFolderCount);
+            int fileHydrationPercent = TotalFileCount == 0 ? 0 : (int)((100L * HydratedFileCount) / TotalFileCount);
+            int folderHydrationPercent = TotalFolderCount == 0 ? 0 : (int)((100L * HydratedFolderCount) / TotalFolderCount);
             return $"{fileHydrationPercent}% of files and {folderHydrationPercent}% of folders hydrated. Run 'gvfs health' at the repository root for details.";
         }
 
         public static EnlistmentHydrationSummary CreateSummary(
             GVFSEnlistment enlistment,
-            PhysicalFileSystem fileSystem)
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            Func<int> projectedFolderCountProvider,
+            CancellationToken cancellationToken = default)
         {
+            Stopwatch totalStopwatch = Stopwatch.StartNew();
+            Stopwatch phaseStopwatch = new Stopwatch();
+
             try
             {
                 /* Getting all the file paths from git index is slow and we only need the total count,
                  * so we read the index file header instead of calling GetPathsFromGitIndex */
+                phaseStopwatch.Restart();
                 int totalFileCount = GetIndexFileCount(enlistment, fileSystem);
-
-                /* Getting all the directories is also slow, but not as slow as reading the entire index,
-                 * GetTotalPathCount caches the count so this is only slow occasionally,
-                 * and the GitStatusCache manager also calls this to ensure it is updated frequently. */
-                int totalFolderCount = GetHeadTreeCount(enlistment, fileSystem);
+                long indexReadMs = phaseStopwatch.ElapsedMilliseconds;
+                cancellationToken.ThrowIfCancellationRequested();
 
                 EnlistmentPathData pathData = new EnlistmentPathData();
 
                 /* FUTURE: These could be optimized to only deal with counts instead of full path lists */
+                phaseStopwatch.Restart();
                 pathData.LoadPlaceholdersFromDatabase(enlistment);
-                pathData.LoadModifiedPaths(enlistment);
+                long placeholderLoadMs = phaseStopwatch.ElapsedMilliseconds;
+                cancellationToken.ThrowIfCancellationRequested();
 
-                int hydratedFileCount = pathData.ModifiedFilePaths.Count + pathData.PlaceholderFilePaths.Count;
-                int hydratedFolderCount = pathData.ModifiedFolderPaths.Count + pathData.PlaceholderFolderPaths.Count;
+                phaseStopwatch.Restart();
+                pathData.LoadModifiedPaths(enlistment, tracer);
+                long modifiedPathsLoadMs = phaseStopwatch.ElapsedMilliseconds;
+                cancellationToken.ThrowIfCancellationRequested();
+
+                int placeholderFileCount = pathData.PlaceholderFilePaths.Count;
+                int placeholderFolderCount = pathData.PlaceholderFolderPaths.Count;
+                int modifiedFileCount = pathData.ModifiedFilePaths.Count;
+                int modifiedFolderCount = pathData.ModifiedFolderPaths.Count;
+
+                /* Getting the head tree count (used for TotalFolderCount) is potentially slower than the other parts
+                 * of the operation, so we do it last and check that the other parts would succeed before running it.
+                 */
+                var soFar = new EnlistmentHydrationSummary()
+                {
+                    PlaceholderFileCount = placeholderFileCount,
+                    PlaceholderFolderCount = placeholderFolderCount,
+                    ModifiedFileCount = modifiedFileCount,
+                    ModifiedFolderCount = modifiedFolderCount,
+                    TotalFileCount = totalFileCount,
+                    TotalFolderCount = placeholderFolderCount + modifiedFolderCount + 1, // Not calculated yet, use a dummy valid value.
+                };
+
+                if (!soFar.IsValid)
+                {
+                    soFar.TotalFolderCount = 0; // Set to default invalid value to avoid confusion with the dummy value above.
+                    tracer.RelatedWarning(
+                        $"Hydration summary early exit: data invalid before tree count. " +
+                        $"TotalFileCount={totalFileCount}, PlaceholderFileCount={placeholderFileCount}, " +
+                        $"ModifiedFileCount={modifiedFileCount}, PlaceholderFolderCount={placeholderFolderCount}, " +
+                        $"ModifiedFolderCount={modifiedFolderCount}");
+                    EmitDurationTelemetry(tracer, totalStopwatch.ElapsedMilliseconds, indexReadMs, placeholderLoadMs, modifiedPathsLoadMs, treeCountMs: 0, earlyExit: true);
+                    return soFar;
+                }
+
+                /* Get the total folder count from the caller-provided function.
+                 * In the mount process, this comes from the in-memory projection (essentially free).
+                 * In gvfs health --status fallback, this parses the git index via GitIndexProjection. */
+                cancellationToken.ThrowIfCancellationRequested();
+                phaseStopwatch.Restart();
+                int totalFolderCount = projectedFolderCountProvider();
+                long treeCountMs = phaseStopwatch.ElapsedMilliseconds;
+
+                EmitDurationTelemetry(tracer, totalStopwatch.ElapsedMilliseconds, indexReadMs, placeholderLoadMs, modifiedPathsLoadMs, treeCountMs, earlyExit: false);
+
                 return new EnlistmentHydrationSummary()
                 {
-                    HydratedFileCount = hydratedFileCount,
-                    HydratedFolderCount = hydratedFolderCount,
+                    PlaceholderFileCount = placeholderFileCount,
+                    PlaceholderFolderCount = placeholderFolderCount,
+                    ModifiedFileCount = modifiedFileCount,
+                    ModifiedFolderCount = modifiedFolderCount,
                     TotalFileCount = totalFileCount,
                     TotalFolderCount = totalFolderCount,
                 };
             }
-            catch (Exception e)
+            catch (OperationCanceledException)
             {
+                tracer.RelatedInfo($"Hydration summary cancelled after {totalStopwatch.ElapsedMilliseconds}ms");
                 return new EnlistmentHydrationSummary()
                 {
-                    HydratedFileCount = -1,
-                    HydratedFolderCount = -1,
+                    PlaceholderFileCount = -1,
+                    PlaceholderFolderCount = -1,
+                    ModifiedFileCount = -1,
+                    ModifiedFolderCount = -1,
+                    TotalFileCount = -1,
+                    TotalFolderCount = -1,
+                };
+            }
+            catch (Exception e)
+            {
+                tracer.RelatedError($"Hydration summary failed with exception after {totalStopwatch.ElapsedMilliseconds}ms: {e.Message}");
+                return new EnlistmentHydrationSummary()
+                {
+                    PlaceholderFileCount = -1,
+                    PlaceholderFolderCount = -1,
+                    ModifiedFileCount = -1,
+                    ModifiedFolderCount = -1,
                     TotalFileCount = -1,
                     TotalFolderCount = -1,
                     Error = e,
@@ -82,12 +157,35 @@ namespace GVFS.Common
             }
         }
 
+        private static void EmitDurationTelemetry(
+            ITracer tracer,
+            long totalMs,
+            long indexReadMs,
+            long placeholderLoadMs,
+            long modifiedPathsLoadMs,
+            long treeCountMs,
+            bool earlyExit)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata["TotalMs"] = totalMs;
+            metadata["IndexReadMs"] = indexReadMs;
+            metadata["PlaceholderLoadMs"] = placeholderLoadMs;
+            metadata["ModifiedPathsLoadMs"] = modifiedPathsLoadMs;
+            metadata["TreeCountMs"] = treeCountMs;
+            metadata["EarlyExit"] = earlyExit;
+            tracer.RelatedEvent(
+                EventLevel.Informational,
+                "HydrationSummaryDuration",
+                metadata,
+                Keywords.Telemetry);
+        }
+
         /// <summary>
         /// Get the total number of files in the index.
         /// </summary>
         internal static int GetIndexFileCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem)
         {
-            string indexPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index);
+            string indexPath = enlistment.GitIndexPath;
             using (var indexFile = fileSystem.OpenFileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, callFlushFileBuffers: false))
             {
                 if (indexFile.Length < 12)
@@ -111,67 +209,5 @@ namespace GVFS.Common
             }
         }
 
-        /// <summary>
-        /// Get the total number of trees in the repo at HEAD.
-        /// </summary>
-        /// <remarks>
-        /// This is used as the denominator in displaying percentage of hydrated
-        /// directories as part of git status pre-command hook.
-        /// It can take several seconds to calculate, so we cache it near the git status cache.
-        /// </remarks>
-        /// <returns>
-        /// The number of subtrees at HEAD, which may be 0.
-        /// Will return 0 if unsuccessful.
-        /// </returns>
-        internal static int GetHeadTreeCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem)
-        {
-            var gitProcess = enlistment.CreateGitProcess();
-            var headResult = gitProcess.GetHeadTreeId();
-            if (headResult.ExitCodeIsFailure)
-            {
-                return 0;
-            }
-            var headSha = headResult.Output.Trim();
-            var cacheFile = Path.Combine(
-                enlistment.DotGVFSRoot,
-                GVFSConstants.DotGVFS.GitStatusCache.TreeCount);
-
-            // Load from cache if cache matches current HEAD.
-            if (fileSystem.FileExists(cacheFile))
-            {
-                try
-                {
-                    var lines = fileSystem.ReadLines(cacheFile).ToArray();
-                    if (lines.Length == 2
-                        && lines[0] == headSha
-                        && int.TryParse(lines[1], out int cachedCount))
-                    {
-                        return cachedCount;
-                    }
-                }
-                catch
-                {
-                    // Ignore errors reading the cache
-                }
-            }
-
-            int totalPathCount = 0;
-            GitProcess.Result folderResult = gitProcess.LsTree(
-                GVFSConstants.DotGit.HeadName,
-                line => totalPathCount++,
-                recursive: true,
-                showDirectories: true);
-            try
-            {
-                fileSystem.CreateDirectory(Path.GetDirectoryName(cacheFile));
-                fileSystem.WriteAllText(cacheFile, $"{headSha}\n{totalPathCount}");
-            }
-            catch
-            {
-                // Ignore errors writing the cache
-            }
-
-            return totalPathCount;
-        }
     }
 }

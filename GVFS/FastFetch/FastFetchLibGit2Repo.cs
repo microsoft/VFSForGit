@@ -18,7 +18,7 @@ namespace FastFetch
         public virtual bool TryCopyBlobToFile(string sha, IEnumerable<PathWithMode> destinations, out long bytesWritten)
         {
             IntPtr objHandle;
-            if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.SuccessCode)
+            if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.ResultCode.Success)
             {
                 bytesWritten = 0;
                 EventMetadata metadata = new EventMetadata();

@@ -1,9 +1,13 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.NamedPipes;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace GVFS.CommandLine
 {
@@ -39,48 +43,114 @@ namespace GVFS.CommandLine
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
-            if (this.StatusOnly)
+            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, HealthVerbName))
             {
-                this.OutputHydrationPercent(enlistment);
+                tracer.AddLogFileEventListener(
+                    GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Health),
+                    EventLevel.Informational,
+                    Keywords.Any);
+
+                if (this.StatusOnly)
+                {
+                    this.OutputHydrationPercent(enlistment, tracer);
+                    return;
+                }
+
+                // Now default to the current working directory when running the verb without a specified path
+                if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
+                {
+                    if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, GVFSPlatform.Instance.Constants.PathComparison))
+                    {
+                        this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
+                    }
+                    else
+                    {
+                        // If the path is not under the source root, set the directory to empty
+                        this.Directory = string.Empty;
+                    }
+                }
+
+                this.Output.WriteLine("\nGathering repository data...");
+
+                this.Directory = this.Directory.Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
+
+                EnlistmentPathData pathData = new EnlistmentPathData();
+
+                pathData.LoadPlaceholdersFromDatabase(enlistment);
+                pathData.LoadModifiedPaths(enlistment, tracer);
+                pathData.LoadPathsFromGitIndex(enlistment);
+
+                pathData.NormalizeAllPaths();
+
+                EnlistmentHealthCalculator enlistmentHealthCalculator = new EnlistmentHealthCalculator(pathData);
+                EnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
+
+                this.PrintOutput(enlistmentHealthData);
+            }
+        }
+
+        private void OutputHydrationPercent(GVFSEnlistment enlistment, ITracer tracer)
+        {
+            // Try cached summary from mount process first (fast path)
+            string cachedMessage = this.TryGetCachedHydrationMessage(enlistment);
+            if (cachedMessage != null)
+            {
+                this.Output.WriteLine(cachedMessage);
                 return;
             }
 
-            // Now default to the current working directory when running the verb without a specified path
-            if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
-            {
-                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, GVFSPlatform.Instance.Constants.PathComparison))
-                {
-                    this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
-                }
-                else
-                {
-                    // If the path is not under the source root, set the directory to empty
-                    this.Directory = string.Empty;
-                }
-            }
-
-            this.Output.WriteLine("\nGathering repository data...");
-
-            this.Directory = this.Directory.Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
-
-            EnlistmentPathData pathData = new EnlistmentPathData();
-
-            pathData.LoadPlaceholdersFromDatabase(enlistment);
-            pathData.LoadModifiedPaths(enlistment);
-            pathData.LoadPathsFromGitIndex(enlistment);
-
-            pathData.NormalizeAllPaths();
-
-            EnlistmentHealthCalculator enlistmentHealthCalculator = new EnlistmentHealthCalculator(pathData);
-            EnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
-
-            this.PrintOutput(enlistmentHealthData);
+            // Fall back to in-proc computation with index-based folder count
+            Func<int> folderCountProvider = () =>
+                GVFS.Virtualization.Projection.GitIndexProjection.CountIndexFolders(tracer, enlistment.GitIndexPath);
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                enlistment, this.FileSystem, tracer, folderCountProvider);
+            this.Output.WriteLine(summary.ToMessage());
         }
 
-        private void OutputHydrationPercent(GVFSEnlistment enlistment)
+        /// <summary>
+        /// Try to get the cached hydration summary from the mount process via named pipe.
+        /// Returns null if unavailable (GVFS not mounted, no cached value, parse error, timeout).
+        /// </summary>
+        private string TryGetCachedHydrationMessage(GVFSEnlistment enlistment)
         {
-            var summary = EnlistmentHydrationSummary.CreateSummary(enlistment, this.FileSystem);
-            this.Output.WriteLine(summary.ToMessage());
+            const int ConnectTimeoutMs = 500;
+            const int TotalTimeoutMs = 1000;
+
+            try
+            {
+                Task<string> task = Task.Run(() =>
+                {
+                    using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+                    {
+                        if (!pipeClient.Connect(timeoutMilliseconds: ConnectTimeoutMs))
+                        {
+                            return null;
+                        }
+
+                        pipeClient.SendRequest(new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.Request, null));
+                        NamedPipeMessages.Message response = pipeClient.ReadResponse();
+
+                        if (response.Header != NamedPipeMessages.HydrationStatus.SuccessResult
+                            || !NamedPipeMessages.HydrationStatus.Response.TryParse(response.Body, out NamedPipeMessages.HydrationStatus.Response status))
+                        {
+                            return null;
+                        }
+
+                        return status.ToDisplayMessage();
+                    }
+                });
+
+                if (task.Wait(TotalTimeoutMs) && task.Status == TaskStatus.RanToCompletion)
+                {
+                    return task.Result;
+                }
+
+                return null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         private void PrintOutput(EnlistmentHealthData enlistmentHealthData)

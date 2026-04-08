@@ -36,60 +36,6 @@ namespace GVFS.CommandLine
             this.InitializeDefaultParameterValues();
         }
 
-        [Flags]
-        private enum GitCoreGVFSFlags
-        {
-            // GVFS_SKIP_SHA_ON_INDEX
-            // Disables the calculation of the sha when writing the index
-            SkipShaOnIndex = 1 << 0,
-
-            // GVFS_BLOCK_COMMANDS
-            // Blocks git commands that are not allowed in a GVFS/Scalar repo
-            BlockCommands = 1 << 1,
-
-            // GVFS_MISSING_OK
-            // Normally git write-tree ensures that the objects referenced by the
-            // directory exist in the object database.This option disables this check.
-            MissingOk = 1 << 2,
-
-            // GVFS_NO_DELETE_OUTSIDE_SPARSECHECKOUT
-            // When marking entries to remove from the index and the working
-            // directory this option will take into account what the
-            // skip-worktree bit was set to so that if the entry has the
-            // skip-worktree bit set it will not be removed from the working
-            // directory.  This will allow virtualized working directories to
-            // detect the change to HEAD and use the new commit tree to show
-            // the files that are in the working directory.
-            NoDeleteOutsideSparseCheckout = 1 << 3,
-
-            // GVFS_FETCH_SKIP_REACHABILITY_AND_UPLOADPACK
-            // While performing a fetch with a virtual file system we know
-            // that there will be missing objects and we don't want to download
-            // them just because of the reachability of the commits.  We also
-            // don't want to download a pack file with commits, trees, and blobs
-            // since these will be downloaded on demand.  This flag will skip the
-            // checks on the reachability of objects during a fetch as well as
-            // the upload pack so that extraneous objects don't get downloaded.
-            FetchSkipReachabilityAndUploadPack = 1 << 4,
-
-            // 1 << 5 has been deprecated
-
-            // GVFS_BLOCK_FILTERS_AND_EOL_CONVERSIONS
-            // With a virtual file system we only know the file size before any
-            // CRLF or smudge/clean filters processing is done on the client.
-            // To prevent file corruption due to truncation or expansion with
-            // garbage at the end, these filters must not run when the file
-            // is first accessed and brought down to the client. Git.exe can't
-            // currently tell the first access vs subsequent accesses so this
-            // flag just blocks them from occurring at all.
-            BlockFiltersAndEolConversions = 1 << 6,
-
-            // GVFS_PREFETCH_DURING_FETCH
-            // While performing a `git fetch` command, use the gvfs-helper to
-            // perform a "prefetch" of commits and trees.
-            PrefetchDuringFetch = 1 << 7,
-        }
-
         public abstract string EnlistmentRootPathParameter { get; set; }
 
         [Option(
@@ -157,162 +103,7 @@ namespace GVFS.CommandLine
 
         public static bool TrySetRequiredGitConfigSettings(Enlistment enlistment)
         {
-            string expectedHooksPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.Root);
-            expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
-
-            string gitStatusCachePath = null;
-            if (!GVFSEnlistment.IsUnattended(tracer: null) && GVFSPlatform.Instance.IsGitStatusCacheSupported())
-            {
-                gitStatusCachePath = Path.Combine(
-                    enlistment.EnlistmentRoot,
-                    GVFSPlatform.Instance.Constants.DotGVFSRoot,
-                    GVFSConstants.DotGVFS.GitStatusCache.CachePath);
-
-                gitStatusCachePath = Paths.ConvertPathToGitFormat(gitStatusCachePath);
-            }
-
-            string coreGVFSFlags = Convert.ToInt32(
-                GitCoreGVFSFlags.SkipShaOnIndex |
-                GitCoreGVFSFlags.BlockCommands |
-                GitCoreGVFSFlags.MissingOk |
-                GitCoreGVFSFlags.NoDeleteOutsideSparseCheckout |
-                GitCoreGVFSFlags.FetchSkipReachabilityAndUploadPack |
-                GitCoreGVFSFlags.BlockFiltersAndEolConversions)
-                .ToString();
-
-            // These settings are required for normal GVFS functionality.
-            // They will override any existing local configuration values.
-            //
-            // IMPORTANT! These must parallel the settings in ControlGitRepo:Initialize
-            //
-            Dictionary<string, string> requiredSettings = new Dictionary<string, string>
-            {
-                 // When running 'git am' it will remove the CRs from the patch file by default. This causes the patch to fail to apply because the
-                 // file that is getting the patch applied will still have the CRs. There is a --keep-cr option that you can pass the 'git am' command
-                 // but since we always want to keep CRs it is better to just set the config setting to always keep them so the user doesn't have to
-                 // remember to pass the flag.
-                { "am.keepcr", "true" },
-
-                // Update git settings to enable optimizations in git 2.20
-                // Set 'checkout.optimizeNewBranch=true' to enable optimized 'checkout -b'
-                { "checkout.optimizenewbranch", "true" },
-
-                // We don't support line ending conversions - automatic conversion of LF to Crlf by git would cause un-necessary hydration. Disabling it.
-                { "core.autocrlf", "false" },
-
-                // Enable commit graph. https://devblogs.microsoft.com/devops/supercharging-the-git-commit-graph/
-                { "core.commitGraph", "true" },
-
-                // Perf - Git for Windows uses this to bulk-read and cache lstat data of entire directories (instead of doing lstat file by file).
-                { "core.fscache", "true" },
-
-                // Turns on all special gvfs logic. https://github.com/microsoft/git/blob/be5e0bb969495c428e219091e6976b52fb33b301/gvfs.h
-                { "core.gvfs", coreGVFSFlags },
-
-                // Use 'multi-pack-index' builtin instead of 'midx' to match upstream implementation
-                { "core.multiPackIndex", "true" },
-
-                // Perf - Enable parallel index preload for operations like git diff
-                { "core.preloadIndex", "true" },
-
-                // VFS4G never wants git to adjust line endings (causes un-necessary hydration of files)- explicitly setting core.safecrlf to false.
-                { "core.safecrlf", "false" },
-
-                // Possibly cause hydration while creating untrackedCache.
-                { "core.untrackedCache", "false" },
-
-                // This is to match what git init does.
-                { "core.repositoryformatversion", "0" },
-
-                // Turn on support for file modes on Mac & Linux.
-                { "core.filemode", GVFSPlatform.Instance.FileSystem.SupportsFileMode ? "true" : "false" },
-
-                // For consistency with git init.
-                { "core.bare", "false" },
-
-                // For consistency with git init.
-                { "core.logallrefupdates", "true" },
-
-                // Git to download objects on demand.
-                { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
-
-                // Configure hook that git calls to get the paths git needs to consider for changes or untracked files
-                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
-
-                // Ensure hooks path is configured correctly.
-                { "core.hookspath", expectedHooksPath },
-
-                // Hostname is no longer sufficent for VSTS authentication. VSTS now requires dev.azure.com/account to determine the tenant.
-                // By setting useHttpPath, credential managers will get the path which contains the account as the first parameter. They can then use this information for auth appropriately.
-                { GitConfigSetting.CredentialUseHttpPath, "true" },
-
-                // Turn off credential validation(https://github.com/microsoft/Git-Credential-Manager-for-Windows/blob/master/Docs/Configuration.md#validate).
-                // We already have logic to call git credential if we get back a 401, so there's no need to validate the PAT each time we ask for it.
-                { "credential.validate", "false" },
-
-                // This setting is not needed anymore, because current version of gvfs does not use index.lock.
-                // (This change was introduced initially to prevent `git diff` from acquiring index.lock file.)
-                // Explicitly setting this to true (which also is the default value) because the repo could have been
-                // cloned in the past when autoRefreshIndex used to be set to false.
-                { "diff.autoRefreshIndex", "true" },
-
-                // In Git 2.24.0, some new config settings were created. Disable them locally in VFS for Git repos in case a user has set them globally.
-                // https://github.com/microsoft/VFSForGit/pull/1594
-                // This applies to feature.manyFiles, feature.experimental and fetch.writeCommitGraph settings.
-                { "feature.manyFiles", "false" },
-                { "feature.experimental", "false" },
-                { "fetch.writeCommitGraph", "false" },
-
-                // Turn off of git garbage collection. Git garbage collection does not work with virtualized object.
-                // We do run maintenance jobs now that do the packing of loose objects so in theory we shouldn't need
-                // this - but it is not hurting anything and it will prevent a gc from getting kicked off if for some
-                // reason the maintenance jobs have not been running and there are too many loose objects
-                { "gc.auto", "0" },
-
-                // Prevent git GUI from displaying GC warnings.
-                { "gui.gcwarning", "false" },
-
-                // Update git settings to enable optimizations in git 2.20
-                // Set 'index.threads=true' to enable multi-threaded index reads
-                { "index.threads", "true" },
-
-                // index parsing code in VFSForGit currently only supports version 4.
-                { "index.version", "4" },
-
-                // Perf - avoid un-necessary blob downloads during a merge.
-                { "merge.stat", "false" },
-
-                // Perf - avoid un-necessary blob downloads while git tries to search and find renamed files.
-                { "merge.renames", "false" },
-
-                // Don't use bitmaps to determine pack file contents, because we use MIDX for this.
-                { "pack.useBitmaps", "false" },
-
-                // Update Git to include sparse push algorithm
-                { "pack.useSparse", "true" },
-
-                // Stop automatic git GC
-                { "receive.autogc", "false" },
-
-                // Update git settings to enable optimizations in git 2.20
-                // Set 'reset.quiet=true' to speed up 'git reset <foo>"
-                { "reset.quiet", "true" },
-
-                // Configure git to use our serialize status file - make git use the serialized status file rather than compute the status by
-                // parsing the index file and going through the files to determine changes.
-                { "status.deserializePath", gitStatusCachePath },
-
-                // The GVFS Protocol forbids submodules, so prevent a user's
-                // global config of "status.submoduleSummary=true" from causing
-                // extreme slowness in "git status"
-                { "status.submoduleSummary", "false" },
-
-                // Generation number v2 isn't ready for full use. Wait for v3.
-                { "commitGraph.generationVersion", "1" },
-
-                // Disable the builtin FS Monitor in case it was enabled globally.
-                { "core.useBuiltinFSMonitor", "false" },
-            };
+            Dictionary<string, string> requiredSettings = RequiredGitConfig.GetRequiredSettings(enlistment);
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
             {
@@ -429,14 +220,50 @@ namespace GVFS.CommandLine
 
         protected bool TryAuthenticate(ITracer tracer, GVFSEnlistment enlistment, out string authErrorMessage)
         {
-            string authError = null;
+            return this.TryAuthenticateAndQueryGVFSConfig(tracer, enlistment, null, out _, out authErrorMessage);
+        }
+
+        /// <summary>
+        /// Combines authentication and GVFS config query into a single operation,
+        /// eliminating a redundant HTTP round-trip. If <paramref name="retryConfig"/>
+        /// is null, a default RetryConfig is used.
+        /// If the config query fails but a valid <paramref name="fallbackCacheServer"/>
+        /// URL is available, auth succeeds but <paramref name="serverGVFSConfig"/>
+        /// will be null (caller should handle this gracefully).
+        /// </summary>
+        protected bool TryAuthenticateAndQueryGVFSConfig(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            RetryConfig retryConfig,
+            out ServerGVFSConfig serverGVFSConfig,
+            out string errorMessage,
+            CacheServerInfo fallbackCacheServer = null)
+        {
+            ServerGVFSConfig config = null;
+            string error = null;
 
             bool result = this.ShowStatusWhileRunning(
-                () => enlistment.Authentication.TryInitialize(tracer, enlistment, out authError),
+                () => enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
+                    tracer,
+                    enlistment,
+                    retryConfig ?? new RetryConfig(),
+                    out config,
+                    out error),
                 "Authenticating",
                 enlistment.EnlistmentRoot);
 
-            authErrorMessage = authError;
+            if (!result && fallbackCacheServer != null && !string.IsNullOrWhiteSpace(fallbackCacheServer.Url))
+            {
+                // Auth/config query failed, but we have a fallback cache server.
+                // Allow auth to succeed so mount/clone can proceed; config will be null.
+                tracer.RelatedWarning("Config query failed but continuing with fallback cache server: " + error);
+                serverGVFSConfig = null;
+                errorMessage = null;
+                return true;
+            }
+
+            serverGVFSConfig = config;
+            errorMessage = error;
             return result;
         }
 
@@ -493,50 +320,7 @@ namespace GVFS.CommandLine
             return retryConfig;
         }
 
-        /// <summary>
-        /// Attempts to query the GVFS config endpoint. If successful, returns the config.
-        /// If the query fails but a valid fallback cache server URL is available, returns null and continues.
-        /// (A warning will be logged later.)
-        /// If the query fails and no valid fallback is available, reports an error and exits.
-        /// </summary>
-        protected ServerGVFSConfig QueryGVFSConfigWithFallbackCacheServer(
-            ITracer tracer,
-            GVFSEnlistment enlistment,
-            RetryConfig retryConfig,
-            CacheServerInfo fallbackCacheServer)
-        {
-            ServerGVFSConfig serverGVFSConfig = null;
-            string errorMessage = null;
-            bool configSuccess = this.ShowStatusWhileRunning(
-                () =>
-                {
-                    using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
-                    {
-                        const bool LogErrors = true;
-                        return configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _, out errorMessage);
-                    }
-                },
-                "Querying remote for config",
-                suppressGvfsLogMessage: true);
-
-            if (!configSuccess)
-            {
-                // If a valid cache server URL is available, warn and continue
-                if (fallbackCacheServer != null && !string.IsNullOrWhiteSpace(fallbackCacheServer.Url))
-                {
-                    // Continue without config
-                    // Warning will be logged/displayed when version check is run
-                    return null;
-                }
-                else
-                {
-                    this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config" + Environment.NewLine + errorMessage);
-                }
-            }
-            return serverGVFSConfig;
-        }
-
-        // Restore original QueryGVFSConfig for other callers
+        // QueryGVFSConfig for callers that require config to succeed (no fallback)
         protected ServerGVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
         {
             ServerGVFSConfig serverGVFSConfig = null;
@@ -886,7 +670,9 @@ You can specify a URL, a name of a configured cache server, or the special names
 
         private string GetAlternatesPath(GVFSEnlistment enlistment)
         {
-            return Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
+            // Use DotGitRoot (shared .git dir for worktrees) since
+            // objects/info/alternates lives in the shared git directory.
+            return Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Objects.Info.AlternatesRelativePath);
         }
 
         private void CheckFileSystemSupportsRequiredFeatures(ITracer tracer, Enlistment enlistment)

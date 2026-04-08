@@ -183,34 +183,98 @@ namespace GVFS.Common.Git
             return true;
         }
 
+        /// <summary>
+        /// Initialize authentication by probing the server. Determines whether
+        /// anonymous access is supported and, if not, fetches credentials.
+        /// Callers that also need the GVFS config should use
+        /// <see cref="TryInitializeAndQueryGVFSConfig"/> instead to avoid a
+        /// redundant HTTP round-trip.
+        /// </summary>
         public bool TryInitialize(ITracer tracer, Enlistment enlistment, out string errorMessage)
+        {
+            // Delegate to the combined method, discarding the config result.
+            // This avoids duplicating the anonymous-probe + credential-fetch logic.
+            return this.TryInitializeAndQueryGVFSConfig(
+                tracer,
+                enlistment,
+                new RetryConfig(),
+                out _,
+                out errorMessage);
+        }
+
+        /// <summary>
+        /// Combines authentication initialization with the GVFS config query,
+        /// eliminating a redundant HTTP round-trip. The anonymous probe and
+        /// config query use the same request to /gvfs/config:
+        ///   1. Config query → /gvfs/config → 200 (anonymous) or 401
+        ///   2. If 401: credential fetch, then retry → 200
+        /// This saves one HTTP request compared to probing auth separately
+        /// and then querying config, and reuses the same TCP/TLS connection.
+        /// </summary>
+        public bool TryInitializeAndQueryGVFSConfig(
+            ITracer tracer,
+            Enlistment enlistment,
+            RetryConfig retryConfig,
+            out ServerGVFSConfig serverGVFSConfig,
+            out string errorMessage)
         {
             if (this.isInitialized)
             {
                 throw new InvalidOperationException("Already initialized");
             }
 
+            serverGVFSConfig = null;
             errorMessage = null;
 
-            bool isAnonymous;
-            if (!this.TryAnonymousQuery(tracer, enlistment, out isAnonymous))
+            using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
             {
-                errorMessage = $"Unable to determine if authentication is required";
+                HttpStatusCode? httpStatus;
+
+                // First attempt without credentials. If anonymous access works,
+                // we get the config in a single request.
+                if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out _))
+                {
+                    this.IsAnonymous = true;
+                    this.isInitialized = true;
+                    tracer.RelatedInfo("{0}: Anonymous access succeeded, config obtained in one request", nameof(this.TryInitializeAndQueryGVFSConfig));
+                    return true;
+                }
+
+                if (httpStatus != HttpStatusCode.Unauthorized)
+                {
+                    errorMessage = "Unable to query /gvfs/config";
+                    tracer.RelatedWarning("{0}: Config query failed with status {1}", nameof(this.TryInitializeAndQueryGVFSConfig), httpStatus?.ToString() ?? "None");
+                    return false;
+                }
+
+                // Server requires authentication — fetch credentials
+                this.IsAnonymous = false;
+
+                if (!this.TryCallGitCredential(tracer, out errorMessage))
+                {
+                    tracer.RelatedWarning("{0}: Credential fetch failed: {1}", nameof(this.TryInitializeAndQueryGVFSConfig), errorMessage);
+                    return false;
+                }
+
+                this.isInitialized = true;
+
+                // Retry with credentials using the same ConfigHttpRequestor (reuses HttpClient/connection)
+                if (configRequestor.TryQueryGVFSConfig(true, out serverGVFSConfig, out _, out errorMessage))
+                {
+                    tracer.RelatedInfo("{0}: Config obtained with credentials", nameof(this.TryInitializeAndQueryGVFSConfig));
+                    return true;
+                }
+
+                tracer.RelatedWarning("{0}: Config query failed with credentials: {1}", nameof(this.TryInitializeAndQueryGVFSConfig), errorMessage);
                 return false;
             }
-
-            if (!isAnonymous &&
-                !this.TryCallGitCredential(tracer, out errorMessage))
-            {
-                return false;
-            }
-
-            this.IsAnonymous = isAnonymous;
-            this.isInitialized = true;
-            return true;
         }
 
-        public bool TryInitializeAndRequireAuth(ITracer tracer, out string errorMessage)
+        /// <summary>
+        /// Test-only initialization that skips the network probe and goes
+        /// straight to credential fetch. Not for production use.
+        /// </summary>
+        internal bool TryInitializeAndRequireAuth(ITracer tracer, out string errorMessage)
         {
             if (this.isInitialized)
             {
@@ -265,45 +329,6 @@ namespace GVFS.Common.Git
             username = null;
             password = null;
             return false;
-        }
-
-        private bool TryAnonymousQuery(ITracer tracer, Enlistment enlistment, out bool isAnonymous)
-        {
-            bool querySucceeded;
-            using (ITracer anonymousTracer = tracer.StartActivity("AttemptAnonymousAuth", EventLevel.Informational))
-            {
-                HttpStatusCode? httpStatus;
-
-                using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(anonymousTracer, enlistment, new RetryConfig()))
-                {
-                    ServerGVFSConfig gvfsConfig;
-                    const bool LogErrors = false;
-                    if (configRequestor.TryQueryGVFSConfig(LogErrors, out gvfsConfig, out httpStatus, out _))
-                    {
-                        querySucceeded = true;
-                        isAnonymous = true;
-                    }
-                    else if (httpStatus == HttpStatusCode.Unauthorized)
-                    {
-                        querySucceeded = true;
-                        isAnonymous = false;
-                    }
-                    else
-                    {
-                        querySucceeded = false;
-                        isAnonymous = false;
-                    }
-                }
-
-                anonymousTracer.Stop(new EventMetadata
-                {
-                    { "HttpStatus", httpStatus.HasValue ? ((int)httpStatus).ToString() : "None" },
-                    { "QuerySucceeded", querySucceeded },
-                    { "IsAnonymous", isAnonymous },
-                });
-            }
-
-            return querySucceeded;
         }
 
         private DateTime GetNextAuthAttemptTime()

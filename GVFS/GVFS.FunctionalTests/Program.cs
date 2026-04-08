@@ -1,5 +1,7 @@
+using GVFS.Common;
 using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Tools;
+using GVFS.PlatformLoader;
 using GVFS.Tests;
 using System;
 using System.Collections.Generic;
@@ -13,13 +15,26 @@ namespace GVFS.FunctionalTests
         public static void Main(string[] args)
         {
             Properties.Settings.Default.Initialize();
+            GVFSPlatformLoader.Initialize();
+
+            GVFSTestConfig.IsDevMode = Environment.GetEnvironmentVariable("GVFS_FUNCTIONAL_TEST_DEV_MODE") == "1";
+
             Console.WriteLine("Settings.Default.CurrentDirectory: {0}", Settings.Default.CurrentDirectory);
             Console.WriteLine("Settings.Default.PathToGit: {0}", Settings.Default.PathToGit);
             Console.WriteLine("Settings.Default.PathToGVFS: {0}", Settings.Default.PathToGVFS);
             Console.WriteLine("Settings.Default.PathToGVFSService: {0}", Settings.Default.PathToGVFSService);
+            if (GVFSTestConfig.IsDevMode)
+            {
+                Console.WriteLine("*** Dev mode enabled (GVFS_FUNCTIONAL_TEST_DEV_MODE=1) ***");
+            }
 
             NUnitRunner runner = new NUnitRunner(args);
             runner.AddGlobalSetupIfNeeded("GVFS.FunctionalTests.GlobalSetup");
+
+            if (runner.HasCustomArg("--debug"))
+            {
+                Debugger.Launch();
+            }
 
             if (runner.HasCustomArg("--no-shared-gvfs-cache"))
             {
@@ -133,11 +148,8 @@ namespace GVFS.FunctionalTests
 
             GVFSServiceProcess.InstallService();
 
-            string serviceProgramDataDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolderOption.Create),
-                "GVFS",
-                "ProgramData",
-                "GVFS.Service");
+            string serviceProgramDataDir = GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(
+                GVFSConstants.Service.ServiceName);
 
             string statusCacheVersionTokenPath = Path.Combine(
                 serviceProgramDataDir, "EnableGitStatusCacheToken.dat");

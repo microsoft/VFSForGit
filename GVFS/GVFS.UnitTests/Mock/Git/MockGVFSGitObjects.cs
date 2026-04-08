@@ -71,7 +71,7 @@ namespace GVFS.UnitTests.Mock.Git
         {
         }
 
-        public override bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, out List<string> packIndexes)
+        public override bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, bool trustPackIndexes, out List<string> packIndexes)
         {
             packIndexes = new List<string>();
             return true;

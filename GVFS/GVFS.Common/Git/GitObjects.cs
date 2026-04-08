@@ -153,7 +153,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, out List<string> packIndexes)
+        public virtual bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, bool trustPackIndexes, out List<string> packIndexes)
         {
             EventMetadata metadata = CreateEventMetadata();
             metadata.Add("latestTimestamp", latestTimestamp);
@@ -166,7 +166,6 @@ namespace GVFS.Common.Git
                  * pack file and an index file that do not match.
                  * Eventually we will make this the default, but it has a high performance cost for the first prefetch after
                  * cloning a large repository, so it must be explicitly enabled for now. */
-                bool trustPackIndexes = this.Enlistment.GetTrustPackIndexesConfig();
                 metadata.Add("trustPackIndexes", trustPackIndexes);
 
                 long requestId = HttpRequestor.GetNewRequestId();
@@ -211,6 +210,7 @@ namespace GVFS.Common.Git
                         { "Success", result.Succeeded },
                         { "Attempts", result.Attempts },
                         { "BytesDownloaded", bytesDownloaded },
+                        { "LatestPrefetchPackTimestamp", latestTimestamp },
                     });
 
                 return result.Succeeded;

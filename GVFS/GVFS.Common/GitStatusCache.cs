@@ -47,6 +47,12 @@ namespace GVFS.Common
         private bool isStopping;
         private bool isInitialized;
         private StatusStatistics statistics;
+        private CancellationTokenSource shutdownTokenSource;
+        private Task activeHydrationTask;
+
+        private volatile EnlistmentHydrationSummary cachedHydrationSummary;
+
+        private Func<int> projectedFolderCountProvider;
 
         private volatile CacheState cacheState = CacheState.Dirty;
 
@@ -65,8 +71,26 @@ namespace GVFS.Common
             this.backoffTime = backoffTime;
             this.serializedGitStatusFilePath = this.context.Enlistment.GitStatusCachePath;
             this.statistics = new StatusStatistics();
+            this.shutdownTokenSource = new CancellationTokenSource();
 
             this.wakeUpThread = new AutoResetEvent(false);
+        }
+
+        /// <summary>
+        /// Sets the provider used to get the total projected folder count for hydration
+        /// summary computation. Must be called before <see cref="Initialize"/> for
+        /// hydration summary to function.
+        /// </summary>
+        /// <remarks>
+        /// This is set post-construction because of a circular dependency:
+        /// InProcessMount creates GitStatusCache before FileSystemCallbacks,
+        /// but the provider requires GitIndexProjection, which is created
+        /// inside FileSystemCallbacks. FileSystemCallbacks calls this method
+        /// after GitIndexProjection is available.
+        /// </remarks>
+        public void SetProjectedFolderCountProvider(Func<int> provider)
+        {
+            this.projectedFolderCountProvider = provider;
         }
 
         public virtual void Initialize()
@@ -79,6 +103,7 @@ namespace GVFS.Common
         public virtual void Shutdown()
         {
             this.isStopping = true;
+            this.shutdownTokenSource.Cancel();
 
             if (this.isInitialized && this.updateStatusCacheThread != null)
             {
@@ -111,6 +136,15 @@ namespace GVFS.Common
         public void RefreshAndWait()
         {
             this.RebuildStatusCacheIfNeeded(ignoreBackoff: true);
+        }
+
+        /// <summary>
+        /// Returns the cached hydration summary if one has been computed,
+        /// or null if no valid summary is available yet.
+        /// </summary>
+        public EnlistmentHydrationSummary GetCachedHydrationSummary()
+        {
+            return this.cachedHydrationSummary;
         }
 
         /// <summary>
@@ -176,6 +210,26 @@ namespace GVFS.Common
         public virtual void Dispose()
         {
             this.Shutdown();
+
+            // Wait for the hydration task to complete before disposing the
+            // token source it may still be using.
+            Task hydrationTask = Interlocked.Exchange(ref this.activeHydrationTask, null);
+            if (hydrationTask != null)
+            {
+                try
+                {
+                    hydrationTask.Wait(TimeSpan.FromSeconds(5));
+                }
+                catch (AggregateException)
+                {
+                }
+            }
+
+            if (this.shutdownTokenSource != null)
+            {
+                this.shutdownTokenSource.Dispose();
+                this.shutdownTokenSource = null;
+            }
 
             if (this.wakeUpThread != null)
             {
@@ -317,9 +371,29 @@ namespace GVFS.Common
             if (needToRebuild)
             {
                 this.statistics.RecordBackgroundStatusScanRun();
-                this.UpdateHydrationSummary();
+
+                // Run hydration summary in parallel with git status — they are independent
+                // operations and neither should delay the other.
+                Task hydrationTask = Task.Run(() => this.UpdateHydrationSummary());
+                Interlocked.Exchange(ref this.activeHydrationTask, hydrationTask);
 
                 bool rebuildStatusCacheSucceeded = this.TryRebuildStatusCache();
+
+                // Wait for hydration to complete before logging final stats.
+                // Exceptions are observed here to avoid unobserved task exceptions.
+                try
+                {
+                    hydrationTask.Wait();
+                }
+                catch (AggregateException ex)
+                {
+                    EventMetadata errorMetadata = new EventMetadata();
+                    errorMetadata.Add("Area", EtwArea);
+                    errorMetadata.Add("Exception", ex.InnerException?.ToString());
+                    this.context.Tracer.RelatedError(
+                        errorMetadata,
+                        $"{nameof(GitStatusCache)}.{nameof(RebuildStatusCacheIfNeeded)}: Unhandled exception in hydration summary task.");
+                }
 
                 TimeSpan delayedTime = startTime - this.initialDelayTime;
                 TimeSpan statusRunTime = DateTime.UtcNow - startTime;
@@ -341,8 +415,23 @@ namespace GVFS.Common
 
         private void UpdateHydrationSummary()
         {
-            bool enabled = TEST_EnableHydrationSummaryOverride ?? this.context.Enlistment.GetStatusHydrationConfig();
+            if (this.projectedFolderCountProvider == null)
+            {
+                return;
+            }
+
+            bool enabled = TEST_EnableHydrationSummaryOverride
+                ?? this.context.Repository.LibGit2RepoInvoker.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
             if (!enabled)
+            {
+                return;
+            }
+
+            HydrationStatusCircuitBreaker circuitBreaker = new HydrationStatusCircuitBreaker(
+                this.context.Enlistment.DotGVFSRoot,
+                this.context.Tracer);
+
+            if (circuitBreaker.IsDisabled())
             {
                 return;
             }
@@ -355,11 +444,13 @@ namespace GVFS.Common
                  * and this is also a convenient place to log telemetry for it.
                  */
                 EnlistmentHydrationSummary hydrationSummary =
-                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem);
+                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer, this.projectedFolderCountProvider, this.shutdownTokenSource.Token);
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", EtwArea);
                 if (hydrationSummary.IsValid)
                 {
+                    this.cachedHydrationSummary = hydrationSummary;
+
                     metadata[nameof(hydrationSummary.TotalFolderCount)] = hydrationSummary.TotalFolderCount;
                     metadata[nameof(hydrationSummary.TotalFileCount)] = hydrationSummary.TotalFileCount;
                     metadata[nameof(hydrationSummary.HydratedFolderCount)] = hydrationSummary.HydratedFolderCount;
@@ -371,17 +462,28 @@ namespace GVFS.Common
                         metadata,
                         Keywords.Telemetry);
                 }
-                else
+                else if (hydrationSummary.Error != null)
                 {
-                    metadata["Exception"] = hydrationSummary.Error?.ToString();
+                    this.cachedHydrationSummary = null;
+                    circuitBreaker.RecordFailure();
+                    metadata["Exception"] = hydrationSummary.Error.ToString();
                     this.context.Tracer.RelatedWarning(
                         metadata,
                         $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary could not be calculated.",
                         Keywords.Telemetry);
                 }
+                else
+                {
+                    // Invalid summary with no error — likely cancelled during shutdown
+                    this.cachedHydrationSummary = null;
+                    this.context.Tracer.RelatedInfo(
+                        $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary was cancelled.");
+                }
             }
             catch (Exception ex)
             {
+                this.cachedHydrationSummary = null;
+                circuitBreaker.RecordFailure();
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", EtwArea);
                 metadata.Add("Exception", ex.ToString());

@@ -62,10 +62,18 @@ namespace GVFS.Common
         public string WorkingDirectoryRoot { get; }
         public string WorkingDirectoryBackingRoot { get; }
 
-        public string DotGitRoot { get; private set; }
+        public string DotGitRoot { get; protected set; }
         public abstract string GitObjectsRoot { get; protected set; }
         public abstract string LocalObjectsRoot { get; protected set; }
         public abstract string GitPackRoot { get; protected set; }
+
+        /// <summary>
+        /// Path to the git index file. Override for worktree-specific paths.
+        /// </summary>
+        public virtual string GitIndexPath
+        {
+            get { return Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index); }
+        }
         public string RepoUrl { get; }
         public bool FlushFileBuffersForPacks { get; }
 
@@ -108,32 +116,6 @@ namespace GVFS.Common
         public virtual GitProcess CreateGitProcess()
         {
             return new GitProcess(this);
-        }
-
-        public bool GetTrustPackIndexesConfig()
-        {
-            var gitProcess = this.CreateGitProcess();
-            bool trustPackIndexes = true;
-            if (gitProcess.TryGetFromConfig(GVFSConstants.GitConfig.TrustPackIndexes, forceOutsideEnlistment: false, out var valueString)
-                && bool.TryParse(valueString, out var trustPackIndexesConfig))
-            {
-                trustPackIndexes = trustPackIndexesConfig;
-            }
-
-            return trustPackIndexes;
-        }
-
-        public bool GetStatusHydrationConfig()
-        {
-            var gitProcess = this.CreateGitProcess();
-
-            if (gitProcess.TryGetFromConfig(GVFSConstants.GitConfig.ShowHydrationStatus, forceOutsideEnlistment: false, out var valueString)
-                && bool.TryParse(valueString, out var statusHydrationConfig))
-            {
-                return statusHydrationConfig;
-            }
-
-            return GVFSConstants.GitConfig.ShowHydrationStatusDefault;
         }
     }
 }

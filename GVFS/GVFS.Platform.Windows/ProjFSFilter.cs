@@ -38,6 +38,7 @@ namespace GVFS.Platform.Windows
 
         private const uint OkResult = 0;
         private const uint NameCollisionErrorResult = 0x801F0012;
+        private const uint AccessDeniedResult = 0x80070005;
 
         private enum ProjFSInboxStatus
         {
@@ -460,10 +461,35 @@ namespace GVFS.Platform.Windows
         public bool IsReady(JsonTracer tracer, string enlistmentRoot, TextWriter output, out string error)
         {
             error = string.Empty;
-            return
-                IsServiceRunning(tracer) &&
-                IsNativeLibInstalled(tracer, new PhysicalFileSystem()) &&
-                TryAttach(enlistmentRoot, out error);
+            if (!IsServiceRunning(tracer))
+            {
+                error = "ProjFS (prjflt) service is not running";
+                return false;
+            }
+
+            if (!IsNativeLibInstalled(tracer, new PhysicalFileSystem()))
+            {
+                error = "ProjFS native library is not installed";
+                return false;
+            }
+
+            if (!TryAttach(enlistmentRoot, out error))
+            {
+                // FilterAttach requires SE_LOAD_DRIVER_PRIVILEGE (admin). When running
+                // non-elevated on a machine where ProjFS is already set up, the filter
+                // is already attached to the volume and the only failure is ACCESS_DENIED.
+                // Allow the mount to proceed in that specific case.
+                if (error.Contains(AccessDeniedResult.ToString()))
+                {
+                    tracer.RelatedInfo($"IsReady: TryAttach returned ACCESS_DENIED, but ProjFS service is running. Proceeding.");
+                    error = string.Empty;
+                    return true;
+                }
+
+                return false;
+            }
+
+            return true;
         }
 
         public bool RegisterForOfflineIO()

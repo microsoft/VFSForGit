@@ -121,6 +121,7 @@ namespace GVFS.CommandLine
 
                 CacheServerInfo cacheServer = null;
                 ServerGVFSConfig serverGVFSConfig = null;
+                bool trustPackIndexes;
 
                 using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
@@ -184,19 +185,19 @@ namespace GVFS.CommandLine
                         this.Output.WriteLine("  Local Cache:  " + resolvedLocalCacheRoot);
                         this.Output.WriteLine("  Destination:  " + enlistment.EnlistmentRoot);
 
-                        string authErrorMessage;
-                        if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
-                        {
-                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed: " + authErrorMessage);
-                        }
-
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
 
-                        serverGVFSConfig = this.QueryGVFSConfigWithFallbackCacheServer(
+                        string authErrorMessage;
+                        if (!this.TryAuthenticateAndQueryGVFSConfig(
                             tracer,
                             enlistment,
                             retryConfig,
-                            cacheServer);
+                            out serverGVFSConfig,
+                            out authErrorMessage,
+                            fallbackCacheServer: cacheServer))
+                        {
+                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed: " + authErrorMessage);
+                        }
 
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
@@ -216,13 +217,17 @@ namespace GVFS.CommandLine
                     {
                         tracer.RelatedError(cloneResult.ErrorMessage);
                     }
+
+                    using (var repo = new LibGit2RepoInvoker(tracer, enlistment.WorkingDirectoryBackingRoot))
+                    {
+                        trustPackIndexes = repo.GetConfigBoolOrDefault(GVFSConstants.GitConfig.TrustPackIndexes, GVFSConstants.GitConfig.TrustPackIndexesDefault);
+                    }
                 }
 
                 if (cloneResult.Success)
                 {
                     if (!this.NoPrefetch)
                     {
-                        bool trustPackIndexes = enlistment.GetTrustPackIndexesConfig();
                         /* If pack indexes are not trusted, the prefetch can take a long time.
                          * We will run the prefetch command in the background.
                          */

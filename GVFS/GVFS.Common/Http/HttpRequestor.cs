@@ -17,8 +17,12 @@ namespace GVFS.Common.Http
 {
     public abstract class HttpRequestor : IDisposable
     {
+        private const int ConnectionPoolWaitTimeoutMs = 30_000;
+        private const int ConnectionPoolContentionThresholdMs = 100;
+
         private static long requestCount = 0;
         private static SemaphoreSlim availableConnections;
+        private static int connectionLimitConfigured = 0;
 
         private readonly ProductInfoHeaderValue userAgentHeader;
 
@@ -34,8 +38,12 @@ namespace GVFS.Common.Http
             using (var machineConfigLock = GetMachineConfigLock())
             {
                 ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
-                ServicePointManager.DefaultConnectionLimit = Environment.ProcessorCount;
-                availableConnections = new SemaphoreSlim(ServicePointManager.DefaultConnectionLimit);
+
+                // HTTP downloads are I/O-bound, not CPU-bound, so we default to
+                // 2x ProcessorCount. Can be overridden via gvfs.max-http-connections.
+                int connectionLimit = 2 * Environment.ProcessorCount;
+                ServicePointManager.DefaultConnectionLimit = connectionLimit;
+                availableConnections = new SemaphoreSlim(connectionLimit);
             }
         }
 
@@ -46,6 +54,13 @@ namespace GVFS.Common.Http
             this.authentication = enlistment.Authentication;
 
             this.Tracer = tracer;
+
+            // On first instantiation, check git config for a custom connection limit.
+            // This runs before any requests are made (during mount initialization).
+            if (Interlocked.CompareExchange(ref connectionLimitConfigured, 1, 0) == 0)
+            {
+                TryApplyConnectionLimitFromConfig(tracer, enlistment);
+            }
 
             HttpClientHandler httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
 
@@ -126,8 +141,30 @@ namespace GVFS.Common.Http
             responseMetadata.Add("availableConnections", availableConnections.CurrentCount);
 
             Stopwatch requestStopwatch = Stopwatch.StartNew();
-            availableConnections.Wait(cancellationToken);
-            TimeSpan connectionWaitTime = requestStopwatch.Elapsed;
+
+            if (!availableConnections.Wait(ConnectionPoolWaitTimeoutMs, cancellationToken))
+            {
+                TimeSpan connectionWaitTime = requestStopwatch.Elapsed;
+                responseMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTime.TotalMilliseconds:F4}");
+                this.Tracer.RelatedWarning(responseMetadata, "SendRequest: Connection pool exhausted, all connections busy");
+
+                return new GitEndPointResponseData(
+                    HttpStatusCode.ServiceUnavailable,
+                    new GitObjectsHttpException(HttpStatusCode.ServiceUnavailable, "Connection pool exhausted - all connections busy"),
+                    shouldRetry: true,
+                    message: null,
+                    onResponseDisposed: null);
+            }
+
+            TimeSpan connectionWaitTimeElapsed = requestStopwatch.Elapsed;
+            if (connectionWaitTimeElapsed.TotalMilliseconds > ConnectionPoolContentionThresholdMs)
+            {
+                EventMetadata contentionMetadata = new EventMetadata();
+                contentionMetadata.Add("RequestId", requestId);
+                contentionMetadata.Add("availableConnections", availableConnections.CurrentCount);
+                contentionMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTimeElapsed.TotalMilliseconds:F4}");
+                this.Tracer.RelatedWarning(contentionMetadata, "SendRequest: Connection pool contention detected");
+            }
 
             TimeSpan responseWaitTime = default(TimeSpan);
             GitEndPointResponseData gitEndPointResponseData = null;
@@ -248,7 +285,7 @@ namespace GVFS.Common.Http
             }
             finally
             {
-                responseMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTime.TotalMilliseconds:F4}");
+                responseMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTimeElapsed.TotalMilliseconds:F4}");
                 responseMetadata.Add("responseWaitTimeMS", $"{responseWaitTime.TotalMilliseconds:F4}");
 
                 this.Tracer.RelatedEvent(EventLevel.Informational, "NetworkResponse", responseMetadata);
@@ -335,6 +372,58 @@ namespace GVFS.Common.Http
 
             return true;
 
+        }
+
+        private static void TryApplyConnectionLimitFromConfig(ITracer tracer, Enlistment enlistment)
+        {
+            try
+            {
+                GitProcess.ConfigResult result = enlistment.CreateGitProcess().GetFromConfig(GVFSConstants.GitConfig.MaxHttpConnectionsConfig);
+                string error;
+                int configuredLimit;
+                if (!result.TryParseAsInt(0, 1, out configuredLimit, out error))
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("error", error);
+                    tracer.RelatedWarning(metadata, "HttpRequestor: Invalid gvfs.max-http-connections config value, using default");
+                    return;
+                }
+
+                if (configuredLimit > 0)
+                {
+                    int currentLimit = ServicePointManager.DefaultConnectionLimit;
+                    ServicePointManager.DefaultConnectionLimit = configuredLimit;
+
+                    // Adjust the existing semaphore rather than replacing it, so any
+                    // in-flight waiters release permits to the correct instance.
+                    int delta = configuredLimit - currentLimit;
+                    if (delta > 0)
+                    {
+                        for (int i = 0; i < delta; i++)
+                        {
+                            availableConnections.Release();
+                        }
+                    }
+                    else if (delta < 0)
+                    {
+                        for (int i = 0; i < -delta; i++)
+                        {
+                            availableConnections.Wait();
+                        }
+                    }
+
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("configuredLimit", configuredLimit);
+                    metadata.Add("previousLimit", currentLimit);
+                    tracer.RelatedEvent(EventLevel.Informational, "HttpRequestor_ConnectionLimitConfigured", metadata);
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                tracer.RelatedWarning(metadata, "HttpRequestor: Failed to read gvfs.max-http-connections config, using default");
+            }
         }
 
         private static FileStream GetMachineConfigLock()

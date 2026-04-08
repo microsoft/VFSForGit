@@ -15,8 +15,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using static GVFS.Common.Git.LibGit2Repo;
 
 namespace GVFS.Mount
@@ -32,6 +34,12 @@ namespace GVFS.Mount
         // Downloading an entire commit pack also takes around 1 second, so this should limit downloading
         // all the trees in a commit to ~2-3 seconds.
         private const int MissingTreeThresholdForDownloadingCommitPack = 200;
+
+        // Number of unique missing trees to track with LRU eviction. Eviction is commit-based:
+        // when capacity is reached, the LRU commit and all its unique trees are dropped to make room.
+        // Set to 20x the threshold so that enough trees can accumulate for the heuristic to
+        // reliably trigger a commit pack download.
+        private const int TrackedTreeCapacity = MissingTreeThresholdForDownloadingCommitPack * 20;
 
         private readonly bool showDebugWindow;
 
@@ -52,7 +60,7 @@ namespace GVFS.Mount
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
-        private readonly Dictionary<string, string> treesWithDownloadedCommits = new Dictionary<string,string>();
+        private readonly MissingTreeTracker missingTreeTracker;
 
         // True if InProcessMount is calling git reset as part of processing
         // a folder dehydrate request
@@ -67,6 +75,7 @@ namespace GVFS.Mount
             this.enlistment = enlistment;
             this.showDebugWindow = showDebugWindow;
             this.unmountEvent = new ManualResetEvent(false);
+            this.missingTreeTracker = new MissingTreeTracker(tracer, TrackedTreeCapacity);
         }
 
         private enum MountState
@@ -83,6 +92,68 @@ namespace GVFS.Mount
         {
             this.currentState = MountState.Mounting;
 
+            // For worktree mounts, create the .gvfs metadata directory and
+            // bootstrap it with cache paths from the primary enlistment
+            if (this.enlistment.IsWorktree)
+            {
+                this.InitializeWorktreeMetadata();
+            }
+
+            string mountLockPath = Path.Combine(this.enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.MountLock);
+            using (FileBasedLock mountLock = GVFSPlatform.Instance.CreateFileBasedLock(
+                new PhysicalFileSystem(),
+                this.tracer,
+                mountLockPath))
+            {
+                if (!mountLock.TryAcquireLock(out Exception lockException))
+                {
+                    if (lockException is IOException)
+                    {
+                        this.FailMountAndExit(ReturnCode.MountAlreadyRunning, "Mount: Another mount process is already running.");
+                    }
+
+                    this.FailMountAndExit("Mount: Failed to acquire mount lock: {0}", lockException.Message);
+                }
+
+                this.MountWithLockAcquired(verbosity, keywords);
+            }
+        }
+
+        private void MountWithLockAcquired(EventLevel verbosity, Keywords keywords)
+        {
+            // Start auth + config query immediately — these are network-bound and don't
+            // depend on repo metadata or cache paths. Every millisecond of network latency
+            // we can overlap with local I/O is a win.
+            // TryInitializeAndQueryGVFSConfig combines the anonymous probe, credential fetch,
+            // and config query into at most 2 HTTP requests (1 for anonymous repos), reusing
+            // the same HttpClient/TCP connection.
+            Stopwatch parallelTimer = Stopwatch.StartNew();
+
+            var networkTask = Task.Run(() =>
+            {
+                Stopwatch sw = Stopwatch.StartNew();
+                ServerGVFSConfig config;
+                string authConfigError;
+
+                if (!this.enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
+                    this.tracer, this.enlistment, this.retryConfig,
+                    out config, out authConfigError))
+                {
+                    if (this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url))
+                    {
+                        this.tracer.RelatedWarning("Mount will proceed with fallback cache server: " + authConfigError);
+                        config = null;
+                    }
+                    else
+                    {
+                        this.FailMountAndExit("Unable to query /gvfs/config" + Environment.NewLine + authConfigError);
+                    }
+                }
+
+                this.ValidateGVFSVersion(config);
+                this.tracer.RelatedInfo("ParallelMount: Auth + config completed in {0}ms", sw.ElapsedMilliseconds);
+                return config;
+            });
             // We must initialize repo metadata before starting the pipe server so it
             // can immediately handle status requests
             string error;
@@ -121,6 +192,58 @@ namespace GVFS.Mount
 
             this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
 
+            // Local validations and git config run while we wait for the network
+            var localTask = Task.Run(() =>
+            {
+                Stopwatch sw = Stopwatch.StartNew();
+
+                this.ValidateGitVersion();
+                this.tracer.RelatedInfo("ParallelMount: ValidateGitVersion completed in {0}ms", sw.ElapsedMilliseconds);
+
+                this.ValidateHooksVersion();
+                this.ValidateFileSystemSupportsRequiredFeatures();
+
+                GitProcess git = new GitProcess(this.enlistment);
+                if (!git.IsValidRepo())
+                {
+                    this.FailMountAndExit("The .git folder is missing or has invalid contents");
+                }
+
+                if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.EnlistmentRoot, out string fsError))
+                {
+                    this.FailMountAndExit("FileSystem unsupported: " + fsError);
+                }
+
+                this.tracer.RelatedInfo("ParallelMount: Local validations completed in {0}ms", sw.ElapsedMilliseconds);
+
+                if (!this.TrySetRequiredGitConfigSettings())
+                {
+                    this.FailMountAndExit("Unable to configure git repo");
+                }
+
+                this.LogEnlistmentInfoAndSetConfigValues();
+                this.tracer.RelatedInfo("ParallelMount: Local validations + git config completed in {0}ms", sw.ElapsedMilliseconds);
+            });
+
+            try
+            {
+                Task.WaitAll(networkTask, localTask);
+            }
+            catch (AggregateException ae)
+            {
+                this.FailMountAndExit(ae.Flatten().InnerExceptions[0].Message);
+            }
+
+            parallelTimer.Stop();
+            this.tracer.RelatedInfo("ParallelMount: All parallel tasks completed in {0}ms", parallelTimer.ElapsedMilliseconds);
+
+            ServerGVFSConfig serverGVFSConfig = networkTask.Result;
+
+            CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
+            this.cacheServer = cacheServerResolver.ResolveNameFromRemote(this.cacheServer.Url, serverGVFSConfig);
+
+            this.EnsureLocalCacheIsHealthy(serverGVFSConfig);
+
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
                 this.tracer.RelatedEvent(
@@ -138,7 +261,10 @@ namespace GVFS.Mount
                 this.ValidateMountPoints();
 
                 string errorMessage;
-                if (!HooksInstaller.TryUpdateHooks(this.context, out errorMessage))
+
+                // Worktrees share hooks with the primary enlistment via core.hookspath,
+                // so skip installation to avoid locking conflicts with the running mount.
+                if (!this.enlistment.IsWorktree && !HooksInstaller.TryUpdateHooks(this.context, out errorMessage))
                 {
                     this.FailMountAndExit(errorMessage);
                 }
@@ -186,11 +312,101 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Failed to initialize file system callbacks. Directory \"{0}\" must exist.", this.enlistment.WorkingDirectoryBackingRoot);
             }
 
-            string dotGitPath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
-            DirectoryInfo dotGitPathInfo = new DirectoryInfo(dotGitPath);
-            if (!dotGitPathInfo.Exists)
+            if (this.enlistment.IsWorktree)
             {
-                this.FailMountAndExit("Failed to mount. Directory \"{0}\" must exist.", dotGitPathInfo);
+                // Worktrees have a .git file (not directory) pointing to the shared git dir
+                string dotGitFile = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
+                if (!File.Exists(dotGitFile))
+                {
+                    this.FailMountAndExit("Failed to mount worktree. File \"{0}\" must exist.", dotGitFile);
+                }
+            }
+            else
+            {
+                string dotGitPath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
+                DirectoryInfo dotGitPathInfo = new DirectoryInfo(dotGitPath);
+                if (!dotGitPathInfo.Exists)
+                {
+                    this.FailMountAndExit("Failed to mount. Directory \"{0}\" must exist.", dotGitPathInfo);
+                }
+            }
+        }
+
+        /// <summary>
+        /// For worktree mounts, create the .gvfs metadata directory and
+        /// bootstrap RepoMetadata with cache paths from the primary enlistment.
+        /// </summary>
+        private void InitializeWorktreeMetadata()
+        {
+            string dotGVFSRoot = this.enlistment.DotGVFSRoot;
+            if (!Directory.Exists(dotGVFSRoot))
+            {
+                try
+                {
+                    Directory.CreateDirectory(dotGVFSRoot);
+                    this.tracer.RelatedInfo($"Created worktree metadata directory: {dotGVFSRoot}");
+                }
+                catch (Exception e)
+                {
+                    this.FailMountAndExit("Failed to create worktree metadata directory '{0}': {1}", dotGVFSRoot, e.Message);
+                }
+            }
+
+            // Bootstrap RepoMetadata from the primary enlistment's metadata.
+            // Use try/finally to guarantee Shutdown() even if an unexpected
+            // exception occurs — the singleton must not be left pointing at
+            // the primary's metadata directory.
+            string primaryDotGVFS = Path.Combine(this.enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
+            string error;
+            string gitObjectsRoot;
+            string localCacheRoot;
+            string blobSizesRoot;
+
+            if (!RepoMetadata.TryInitialize(this.tracer, primaryDotGVFS, out error))
+            {
+                this.FailMountAndExit("Failed to read primary enlistment metadata: " + error);
+            }
+
+            try
+            {
+                if (!RepoMetadata.Instance.TryGetGitObjectsRoot(out gitObjectsRoot, out error))
+                {
+                    this.FailMountAndExit("Failed to read git objects root from primary metadata: " + error);
+                }
+
+                if (!RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error))
+                {
+                    this.FailMountAndExit("Failed to read local cache root from primary metadata: " + error);
+                }
+
+                if (!RepoMetadata.Instance.TryGetBlobSizesRoot(out blobSizesRoot, out error))
+                {
+                    this.FailMountAndExit("Failed to read blob sizes root from primary metadata: " + error);
+                }
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
+            }
+
+            // Initialize cache paths on the enlistment so SaveCloneMetadata
+            // can persist them into the worktree's metadata
+            this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
+
+            // Initialize the worktree's own metadata with cache paths,
+            // disk layout version, and a new enlistment ID
+            if (!RepoMetadata.TryInitialize(this.tracer, dotGVFSRoot, out error))
+            {
+                this.FailMountAndExit("Failed to initialize worktree metadata: " + error);
+            }
+
+            try
+            {
+                RepoMetadata.Instance.SaveCloneMetadata(this.tracer, this.enlistment);
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
             }
         }
 
@@ -209,6 +425,11 @@ namespace GVFS.Mount
 
         private void FailMountAndExit(string error, params object[] args)
         {
+            this.FailMountAndExit(ReturnCode.GenericError, error, args);
+        }
+
+        private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
+        {
             this.currentState = MountState.MountFailed;
 
             this.tracer.RelatedError(error, args);
@@ -224,7 +445,7 @@ namespace GVFS.Mount
                 this.fileSystemCallbacks = null;
             }
 
-            Environment.Exit((int)ReturnCode.GenericError);
+            Environment.Exit((int)returnCode);
         }
 
         private T CreateOrReportAndExit<T>(Func<T> factory, string reportMessage)
@@ -274,12 +495,20 @@ namespace GVFS.Mount
                     this.HandlePostIndexChangedRequest(message, connection);
                     break;
 
+                case NamedPipeMessages.PrepareForUnstage.Request:
+                    this.HandlePrepareForUnstageRequest(message, connection);
+                    break;
+
                 case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
                     this.HandlePostFetchJobRequest(message, connection);
                     break;
 
                 case NamedPipeMessages.DehydrateFolders.Dehydrate:
                     this.HandleDehydrateFolders(message, connection);
+                    break;
+
+                case NamedPipeMessages.HydrationStatus.Request:
+                    this.HandleGetHydrationStatusRequest(connection);
                     break;
 
                 default:
@@ -293,9 +522,37 @@ namespace GVFS.Mount
             }
         }
 
+        private void HandleGetHydrationStatusRequest(NamedPipeServer.Connection connection)
+        {
+            EnlistmentHydrationSummary summary = this.fileSystemCallbacks?.GetCachedHydrationSummary();
+            if (summary == null || !summary.IsValid)
+            {
+                this.tracer.RelatedInfo(
+                    $"{nameof(this.HandleGetHydrationStatusRequest)}: " +
+                    (summary == null ? "No cached hydration summary available yet" : "Cached hydration summary is invalid"));
+
+                connection.TrySendResponse(
+                    new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.NotAvailableResult, null));
+                return;
+            }
+
+            NamedPipeMessages.HydrationStatus.Response response = new NamedPipeMessages.HydrationStatus.Response
+            {
+                PlaceholderFileCount = summary.PlaceholderFileCount,
+                PlaceholderFolderCount = summary.PlaceholderFolderCount,
+                ModifiedFileCount = summary.ModifiedFileCount,
+                ModifiedFolderCount = summary.ModifiedFolderCount,
+                TotalFileCount = summary.TotalFileCount,
+                TotalFolderCount = summary.TotalFolderCount,
+            };
+
+            connection.TrySendResponse(
+                new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.SuccessResult, response.ToBody()));
+        }
+
         private void HandleDehydrateFolders(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
         {
-            NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(message);
+            NamedPipeMessages.DehydrateFolders.Request request = NamedPipeMessages.DehydrateFolders.Request.FromMessage(message);
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add(nameof(request.Folders), request.Folders);
@@ -308,7 +565,9 @@ namespace GVFS.Mount
                 response = new NamedPipeMessages.DehydrateFolders.Response(NamedPipeMessages.DehydrateFolders.DehydratedResult);
                 string[] folders = request.Folders.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
                 StringBuilder resetFolderPaths = new StringBuilder();
-                foreach (string folder in folders)
+                List<string> movedFolders = BackupFoldersWhileUnmounted(request, response, folders);
+
+                foreach (string folder in movedFolders)
                 {
                     if (this.fileSystemCallbacks.TryDehydrateFolder(folder, out string errorMessage))
                     {
@@ -355,6 +614,50 @@ namespace GVFS.Mount
             }
 
             connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private List<string> BackupFoldersWhileUnmounted(NamedPipeMessages.DehydrateFolders.Request request, NamedPipeMessages.DehydrateFolders.Response response, string[] folders)
+        {
+            /* We can't move folders while the virtual file system is mounted, so unmount it first.
+             * After moving the folders, remount the virtual file system.
+             */
+
+            var movedFolders = new List<string>();
+            try
+            {
+                /* Set to "Mounting" instead of "Unmounting" so that incoming requests
+                 * that are rejected will know they can try again soon.
+                 */
+                this.currentState = MountState.Mounting;
+                this.UnmountAndStopWorkingDirectoryCallbacks(willRemountInSameProcess: true);
+                foreach (string folder in folders)
+                {
+                    try
+                    {
+                        var source = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, folder);
+                        var destination = Path.Combine(request.BackupFolderPath, folder);
+                        var destinationParent = Path.GetDirectoryName(destination);
+                        this.context.FileSystem.CreateDirectory(destinationParent);
+                        if (this.context.FileSystem.DirectoryExists(source))
+                        {
+                            this.context.FileSystem.MoveDirectory(source, destination);
+                        }
+                        movedFolders.Add(folder);
+                    }
+                    catch (Exception ex)
+                    {
+                        response.FailedFolders.Add($"{folder}\0{ex.Message}");
+                        continue;
+                    }
+                }
+            }
+            finally
+            {
+                this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer, alreadyInitialized: true);
+                this.currentState = MountState.Ready;
+            }
+
+            return movedFolders;
         }
 
         private void HandleLockRequest(string messageBody, NamedPipeServer.Connection connection)
@@ -467,6 +770,53 @@ namespace GVFS.Mount
             connection.TrySendResponse(response.CreateMessage());
         }
 
+        /// <summary>
+        /// Handles a request to prepare for an unstage operation (e.g., restore --staged).
+        /// Finds index entries that are staged (not in HEAD) with skip-worktree set and adds
+        /// them to ModifiedPaths so that git will clear skip-worktree and process them.
+        /// Also forces a projection update to fix stale placeholders for modified/deleted files.
+        /// </summary>
+        private void HandlePrepareForUnstageRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.PrepareForUnstage.Response response;
+
+            if (this.currentState != MountState.Ready)
+            {
+                response = new NamedPipeMessages.PrepareForUnstage.Response(NamedPipeMessages.MountNotReadyResult);
+            }
+            else
+            {
+                try
+                {
+                    string pathspec = message.Body;
+                    bool success = this.fileSystemCallbacks.AddStagedFilesToModifiedPaths(pathspec, out int addedCount);
+
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("addedToModifiedPaths", addedCount);
+                    metadata.Add("pathspec", pathspec ?? "(all)");
+                    metadata.Add("success", success);
+                    this.tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        nameof(this.HandlePrepareForUnstageRequest),
+                        metadata);
+
+                    response = new NamedPipeMessages.PrepareForUnstage.Response(
+                        success
+                            ? NamedPipeMessages.PrepareForUnstage.SuccessResult
+                            : NamedPipeMessages.PrepareForUnstage.FailureResult);
+                }
+                catch (Exception e)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Exception", e.ToString());
+                    this.tracer.RelatedError(metadata, nameof(this.HandlePrepareForUnstageRequest) + " failed");
+                    response = new NamedPipeMessages.PrepareForUnstage.Response(NamedPipeMessages.PrepareForUnstage.FailureResult);
+                }
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
         private void HandleModifiedPathsListRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.ModifiedPaths.Response response;
@@ -544,19 +894,20 @@ namespace GVFS.Mount
                     this.context.Repository.GVFSLock.Stats.RecordObjectDownload(objectType == Native.ObjectTypes.Blob, downloadTime.ElapsedMilliseconds);
 
                     if (objectType == Native.ObjectTypes.Commit
-                        && !this.PrefetchHasBeenDone()
                         && !this.context.Repository.CommitAndRootTreeExists(objectSha, out var treeSha)
                         && !string.IsNullOrEmpty(treeSha))
                     {
                         /* If a commit is downloaded, it wasn't prefetched.
-                         * If any prefetch has been done, there is probably a commit in the prefetch packs that is close enough that
-                         * loose object download of missing trees will be faster than downloading a pack of all the trees for the commit.
-                         * Otherwise, the trees for the commit may be needed soon depending on the context. 
+                         * The trees for the commit may be needed soon depending on the context.
                          * e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
-                         * 
+                         *
+                         * If any prefetch has been done there is probably a similar commit/tree in the graph,
+                         * but in case there isn't (such as if the cache server repack maintenance job is failing)
+                         * we should still try to avoid downloading an excessive number of loose trees for a commit.
+                         *
                          * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
                          */
-                        this.treesWithDownloadedCommits[treeSha] = objectSha;
+                        this.missingTreeTracker.AddMissingRootTree(treeSha: treeSha, commitSha: objectSha);
                     }
                 }
             }
@@ -564,22 +915,11 @@ namespace GVFS.Mount
             connection.TrySendResponse(response.CreateMessage());
         }
 
-        private bool PrefetchHasBeenDone()
-        {
-            var prefetchPacks = this.gitObjects.ReadPackFileNames(this.enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
-            var result = prefetchPacks.Length > 0;
-            if (result)
-            {
-                this.treesWithDownloadedCommits.Clear();
-            }
-            return result;
-        }
-
         private bool ShouldDownloadCommitPack(string objectSha, out string commitSha)
         {
-            if (!this.treesWithDownloadedCommits.TryGetValue(objectSha, out commitSha)
-                || this.PrefetchHasBeenDone())
+            if (!this.missingTreeTracker.TryGetCommits(objectSha, out string[] commitShas))
             {
+                commitSha = null;
                 return false;
             }
 
@@ -588,20 +928,19 @@ namespace GVFS.Mount
              * Conversely, if we know (from previously downloaded missing trees) that a commit has a lot of missing
              * trees left, we'll probably need to download many more trees for the commit so we should download the pack.
              */
-            var commitShaLocal = commitSha; // can't use out parameter in lambda
-            int missingTreeCount = this.treesWithDownloadedCommits.Where(x => x.Value == commitShaLocal).Count();
+            int missingTreeCount = this.missingTreeTracker.GetHighestMissingTreeCount(commitShas, out commitSha);
+
             return missingTreeCount > MissingTreeThresholdForDownloadingCommitPack;
         }
 
         private void UpdateTreesForDownloadedCommits(string objectSha)
         {
             /* If we are downloading missing trees, we probably are missing more trees for the commit.
-             * Update our list of trees associated with the commit so we can use the # of missing trees 
+             * Update our list of trees associated with the commit so we can use the # of missing trees
              * as a heuristic to decide whether to batch download all the trees for the commit the
              * next time a missing one is requested.
              */
-            if (!this.treesWithDownloadedCommits.TryGetValue(objectSha, out var commitSha)
-                || this.PrefetchHasBeenDone())
+            if (!this.missingTreeTracker.TryGetCommits(objectSha, out _))
             {
                 return;
             }
@@ -614,20 +953,13 @@ namespace GVFS.Mount
 
             if (this.context.Repository.TryGetMissingSubTrees(objectSha, out var missingSubTrees))
             {
-                foreach (var missingSubTree in missingSubTrees)
-                {
-                    this.treesWithDownloadedCommits[missingSubTree] = commitSha;
-                }
+                this.missingTreeTracker.AddMissingSubTrees(objectSha, missingSubTrees);
             }
         }
 
         private void DownloadedCommitPack(string commitSha)
         {
-            var toRemove = this.treesWithDownloadedCommits.Where(x => x.Value == commitSha).ToList();
-            foreach (var tree in toRemove)
-            {
-                this.treesWithDownloadedCommits.Remove(tree.Key);
-            }
+            this.missingTreeTracker.MarkCommitComplete(commitSha);
         }
 
         private void HandlePostFetchJobRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
@@ -723,13 +1055,9 @@ namespace GVFS.Mount
             }
         }
 
-        private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache)
+        private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache, bool alreadyInitialized = false)
         {
             string error;
-            if (!this.context.Enlistment.Authentication.TryInitialize(this.context.Tracer, this.context.Enlistment, out error))
-            {
-                this.FailMountAndExit("Failed to obtain git credentials: " + error);
-            }
 
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(this.context.Tracer, this.context.Enlistment, cache, this.retryConfig);
             this.gitObjects = new GVFSGitObjects(this.context, objectRequestor);
@@ -763,19 +1091,22 @@ namespace GVFS.Mount
                 }, "Failed to create src folder callback listener");
             this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
 
-            int majorVersion;
-            int minorVersion;
-            if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error))
+            if (!alreadyInitialized)
             {
-                this.FailMountAndExit("Error: {0}", error);
-            }
+                int majorVersion;
+                int minorVersion;
+                if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error))
+                {
+                    this.FailMountAndExit("Error: {0}", error);
+                }
 
-            if (majorVersion != GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
-            {
-                this.FailMountAndExit(
-                    "Error: On disk version ({0}) does not match current version ({1})",
-                    majorVersion,
-                    GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion);
+                if (majorVersion != GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
+                {
+                    this.FailMountAndExit(
+                        "Error: On disk version ({0}) does not match current version ({1})",
+                        majorVersion,
+                        GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion);
+                }
             }
 
             try
@@ -794,7 +1125,400 @@ namespace GVFS.Mount
             this.heartbeat.Start();
         }
 
-        private void UnmountAndStopWorkingDirectoryCallbacks()
+        private void ValidateGitVersion()
+        {
+            GitVersion gitVersion = null;
+            if (string.IsNullOrEmpty(this.enlistment.GitBinPath) || !GitProcess.TryGetVersion(this.enlistment.GitBinPath, out gitVersion, out string _))
+            {
+                this.FailMountAndExit("Error: Unable to retrieve the Git version");
+            }
+
+            this.enlistment.SetGitVersion(gitVersion.ToString());
+
+            if (gitVersion.Platform != GVFSConstants.SupportedGitVersion.Platform)
+            {
+                this.FailMountAndExit("Error: Invalid version of Git {0}. Must use vfs version.", gitVersion);
+            }
+
+            if (gitVersion.IsLessThan(GVFSConstants.SupportedGitVersion))
+            {
+                this.FailMountAndExit(
+                    "Error: Installed Git version {0} is less than the minimum supported version of {1}.",
+                    gitVersion,
+                    GVFSConstants.SupportedGitVersion);
+            }
+            else if (gitVersion.Revision != GVFSConstants.SupportedGitVersion.Revision)
+            {
+                this.FailMountAndExit(
+                    "Error: Installed Git version {0} has revision number {1} instead of {2}."
+                    + " This Git version is too new, so either downgrade Git or upgrade VFS for Git."
+                    + " The minimum supported version of Git is {3}.",
+                    gitVersion,
+                    gitVersion.Revision,
+                    GVFSConstants.SupportedGitVersion.Revision,
+                    GVFSConstants.SupportedGitVersion);
+            }
+        }
+
+        private void ValidateHooksVersion()
+        {
+            string hooksVersion;
+            string error;
+            if (!GVFSPlatform.Instance.TryGetGVFSHooksVersion(out hooksVersion, out error))
+            {
+                this.FailMountAndExit(error);
+            }
+
+            string gvfsVersion = ProcessHelper.GetCurrentProcessVersion();
+            if (hooksVersion != gvfsVersion)
+            {
+                this.FailMountAndExit("GVFS.Hooks version ({0}) does not match GVFS version ({1}).", hooksVersion, gvfsVersion);
+            }
+
+            this.enlistment.SetGVFSHooksVersion(hooksVersion);
+        }
+
+        private void ValidateFileSystemSupportsRequiredFeatures()
+        {
+            try
+            {
+                string warning;
+                string error;
+                if (!GVFSPlatform.Instance.KernelDriver.IsSupported(this.enlistment.EnlistmentRoot, out warning, out error))
+                {
+                    this.FailMountAndExit("Error: {0}", error);
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                this.tracer.RelatedError(metadata, "Failed to determine if file system supports features required by GVFS");
+                this.FailMountAndExit("Error: Failed to determine if file system supports features required by GVFS.");
+            }
+        }
+
+        private ServerGVFSConfig QueryAndValidateGVFSConfig()
+        {
+            ServerGVFSConfig serverGVFSConfig = null;
+            string errorMessage = null;
+
+            using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(this.tracer, this.enlistment, this.retryConfig))
+            {
+                const bool LogErrors = true;
+                if (!configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _, out errorMessage))
+                {
+                    // If we have a valid cache server, continue without config (matches verb fallback behavior)
+                    if (this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url))
+                    {
+                        this.tracer.RelatedWarning("Unable to query /gvfs/config: " + errorMessage);
+                        serverGVFSConfig = null;
+                    }
+                    else
+                    {
+                        this.FailMountAndExit("Unable to query /gvfs/config" + Environment.NewLine + errorMessage);
+                    }
+                }
+            }
+
+            this.ValidateGVFSVersion(serverGVFSConfig);
+
+            return serverGVFSConfig;
+        }
+
+        private void ValidateGVFSVersion(ServerGVFSConfig config)
+        {
+            using (ITracer activity = this.tracer.StartActivity("ValidateGVFSVersion", EventLevel.Informational))
+            {
+                if (ProcessHelper.IsDevelopmentVersion())
+                {
+                    return;
+                }
+
+                string recordedVersion = ProcessHelper.GetCurrentProcessVersion();
+                int plus = recordedVersion.IndexOf('+');
+                Version currentVersion = new Version(plus < 0 ? recordedVersion : recordedVersion.Substring(0, plus));
+                IEnumerable<ServerGVFSConfig.VersionRange> allowedGvfsClientVersions =
+                    config != null
+                    ? config.AllowedGVFSClientVersions
+                    : null;
+
+                if (allowedGvfsClientVersions == null || !allowedGvfsClientVersions.Any())
+                {
+                    string warningMessage = "WARNING: Unable to validate your GVFS version" + Environment.NewLine;
+                    if (config == null)
+                    {
+                        warningMessage += "Could not query valid GVFS versions from: " + Uri.EscapeUriString(this.enlistment.RepoUrl);
+                    }
+                    else
+                    {
+                        warningMessage += "Server not configured to provide supported GVFS versions";
+                    }
+
+                    this.tracer.RelatedWarning(warningMessage);
+                    return;
+                }
+
+                foreach (ServerGVFSConfig.VersionRange versionRange in config.AllowedGVFSClientVersions)
+                {
+                    if (currentVersion >= versionRange.Min &&
+                        (versionRange.Max == null || currentVersion <= versionRange.Max))
+                    {
+                        activity.RelatedEvent(
+                            EventLevel.Informational,
+                            "GVFSVersionValidated",
+                            new EventMetadata
+                            {
+                                { "SupportedVersionRange", versionRange },
+                            });
+
+                        this.enlistment.SetGVFSVersion(currentVersion.ToString());
+                        return;
+                    }
+                }
+
+                activity.RelatedError("GVFS version {0} is not supported", currentVersion);
+                this.FailMountAndExit("ERROR: Your GVFS version is no longer supported. Install the latest and try again.");
+            }
+        }
+
+        private void EnsureLocalCacheIsHealthy(ServerGVFSConfig serverGVFSConfig)
+        {
+            if (!Directory.Exists(this.enlistment.LocalCacheRoot))
+            {
+                try
+                {
+                    this.tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Local cache root: {this.enlistment.LocalCacheRoot} missing, recreating it");
+                    Directory.CreateDirectory(this.enlistment.LocalCacheRoot);
+                }
+                catch (Exception e)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Exception", e.ToString());
+                    metadata.Add("enlistment.LocalCacheRoot", this.enlistment.LocalCacheRoot);
+                    this.tracer.RelatedError(metadata, $"{nameof(this.EnsureLocalCacheIsHealthy)}: Exception while trying to create local cache root");
+                    this.FailMountAndExit("Failed to create local cache: " + this.enlistment.LocalCacheRoot);
+                }
+            }
+
+            PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+            if (Directory.Exists(this.enlistment.GitObjectsRoot))
+            {
+                bool gitObjectsRootInAlternates = false;
+                string alternatesFilePath = Path.Combine(this.enlistment.DotGitRoot, GVFSConstants.DotGit.Objects.Info.AlternatesRelativePath);
+                if (File.Exists(alternatesFilePath))
+                {
+                    try
+                    {
+                        using (Stream stream = fileSystem.OpenFileStream(
+                            alternatesFilePath,
+                            FileMode.Open,
+                            FileAccess.Read,
+                            FileShare.ReadWrite,
+                            callFlushFileBuffers: false))
+                        {
+                            using (StreamReader reader = new StreamReader(stream))
+                            {
+                                while (!reader.EndOfStream)
+                                {
+                                    string alternatesLine = reader.ReadLine();
+                                    if (string.Equals(alternatesLine, this.enlistment.GitObjectsRoot, GVFSPlatform.Instance.Constants.PathComparison))
+                                    {
+                                        gitObjectsRootInAlternates = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        EventMetadata exceptionMetadata = new EventMetadata();
+                        exceptionMetadata.Add("Exception", e.ToString());
+                        this.tracer.RelatedError(exceptionMetadata, $"{nameof(this.EnsureLocalCacheIsHealthy)}: Exception while trying to validate alternates file");
+                        this.FailMountAndExit($"Failed to validate that alternates file includes git objects root: {e.Message}");
+                    }
+                }
+                else
+                {
+                    this.tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Alternates file not found");
+                }
+
+                if (!gitObjectsRootInAlternates)
+                {
+                    this.tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: GitObjectsRoot ({this.enlistment.GitObjectsRoot}) missing from alternates files, recreating alternates");
+                    string error;
+                    if (!this.TryCreateAlternatesFile(fileSystem, out error))
+                    {
+                        this.FailMountAndExit($"Failed to update alternates file to include git objects root: {error}");
+                    }
+                }
+            }
+            else
+            {
+                this.tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: GitObjectsRoot ({this.enlistment.GitObjectsRoot}) missing, determining new root");
+
+                if (serverGVFSConfig == null)
+                {
+                    using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(this.tracer, this.enlistment, this.retryConfig))
+                    {
+                        string configError;
+                        if (!configRequestor.TryQueryGVFSConfig(true, out serverGVFSConfig, out _, out configError))
+                        {
+                            this.FailMountAndExit("Unable to query /gvfs/config" + Environment.NewLine + configError);
+                        }
+                    }
+                }
+
+                string localCacheKey;
+                string error;
+                LocalCacheResolver localCacheResolver = new LocalCacheResolver(this.enlistment);
+                if (!localCacheResolver.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
+                    this.tracer,
+                    serverGVFSConfig,
+                    this.cacheServer,
+                    this.enlistment.LocalCacheRoot,
+                    localCacheKey: out localCacheKey,
+                    errorMessage: out error))
+                {
+                    this.FailMountAndExit($"Previous git objects root ({this.enlistment.GitObjectsRoot}) not found, and failed to determine new local cache key: {error}");
+                }
+
+                EventMetadata keyMetadata = new EventMetadata();
+                keyMetadata.Add("localCacheRoot", this.enlistment.LocalCacheRoot);
+                keyMetadata.Add("localCacheKey", localCacheKey);
+                keyMetadata.Add(TracingConstants.MessageKey.InfoMessage, "Initializing and persisting updated paths");
+                this.tracer.RelatedEvent(EventLevel.Informational, "EnsureLocalCacheIsHealthy_InitializePathsFromKey", keyMetadata);
+                this.enlistment.InitializeCachePathsFromKey(this.enlistment.LocalCacheRoot, localCacheKey);
+
+                this.tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Creating GitObjectsRoot ({this.enlistment.GitObjectsRoot}), GitPackRoot ({this.enlistment.GitPackRoot}), and BlobSizesRoot ({this.enlistment.BlobSizesRoot})");
+                try
+                {
+                    Directory.CreateDirectory(this.enlistment.GitObjectsRoot);
+                    Directory.CreateDirectory(this.enlistment.GitPackRoot);
+                }
+                catch (Exception e)
+                {
+                    EventMetadata exceptionMetadata = new EventMetadata();
+                    exceptionMetadata.Add("Exception", e.ToString());
+                    exceptionMetadata.Add("enlistment.GitObjectsRoot", this.enlistment.GitObjectsRoot);
+                    exceptionMetadata.Add("enlistment.GitPackRoot", this.enlistment.GitPackRoot);
+                    this.tracer.RelatedError(exceptionMetadata, $"{nameof(this.EnsureLocalCacheIsHealthy)}: Exception while trying to create objects and pack folders");
+                    this.FailMountAndExit("Failed to create objects and pack folders");
+                }
+
+                this.tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Creating new alternates file");
+                if (!this.TryCreateAlternatesFile(fileSystem, out error))
+                {
+                    this.FailMountAndExit($"Failed to update alternates file with new objects path: {error}");
+                }
+
+                this.tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Saving git objects root ({this.enlistment.GitObjectsRoot}) in repo metadata");
+                RepoMetadata.Instance.SetGitObjectsRoot(this.enlistment.GitObjectsRoot);
+
+                this.tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Saving blob sizes root ({this.enlistment.BlobSizesRoot}) in repo metadata");
+                RepoMetadata.Instance.SetBlobSizesRoot(this.enlistment.BlobSizesRoot);
+            }
+
+            if (!Directory.Exists(this.enlistment.BlobSizesRoot))
+            {
+                this.tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: BlobSizesRoot ({this.enlistment.BlobSizesRoot}) not found, re-creating");
+                try
+                {
+                    Directory.CreateDirectory(this.enlistment.BlobSizesRoot);
+                }
+                catch (Exception e)
+                {
+                    EventMetadata exceptionMetadata = new EventMetadata();
+                    exceptionMetadata.Add("Exception", e.ToString());
+                    exceptionMetadata.Add("enlistment.BlobSizesRoot", this.enlistment.BlobSizesRoot);
+                    this.tracer.RelatedError(exceptionMetadata, $"{nameof(this.EnsureLocalCacheIsHealthy)}: Exception while trying to create blob sizes folder");
+                    this.FailMountAndExit("Failed to create blob sizes folder");
+                }
+            }
+        }
+
+        private bool TryCreateAlternatesFile(PhysicalFileSystem fileSystem, out string errorMessage)
+        {
+            try
+            {
+                string alternatesFilePath = Path.Combine(this.enlistment.DotGitRoot, GVFSConstants.DotGit.Objects.Info.AlternatesRelativePath);
+                string tempFilePath= alternatesFilePath + ".tmp";
+                fileSystem.WriteAllText(tempFilePath, this.enlistment.GitObjectsRoot);
+                fileSystem.MoveAndOverwriteFile(tempFilePath, alternatesFilePath);
+            }
+            catch (SecurityException e) { errorMessage = e.Message; return false; }
+            catch (IOException e) { errorMessage = e.Message; return false; }
+
+            errorMessage = null;
+            return true;
+        }
+
+        private bool TrySetRequiredGitConfigSettings()
+        {
+            Dictionary<string, string> requiredSettings = RequiredGitConfig.GetRequiredSettings(this.enlistment);
+
+            GitProcess git = new GitProcess(this.enlistment);
+
+            Dictionary<string, GitConfigSetting> existingConfigSettings;
+            if (!git.TryGetAllConfig(localOnly: true, configSettings: out existingConfigSettings))
+            {
+                return false;
+            }
+
+            foreach (KeyValuePair<string, string> setting in requiredSettings)
+            {
+                GitConfigSetting existingSetting;
+                if (setting.Value != null)
+                {
+                    if (!existingConfigSettings.TryGetValue(setting.Key, out existingSetting) ||
+                        !existingSetting.HasValue(setting.Value))
+                    {
+                        GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
+                        if (setConfigResult.ExitCodeIsFailure)
+                        {
+                            return false;
+                        }
+                    }
+                }
+                else
+                {
+                    if (existingConfigSettings.TryGetValue(setting.Key, out existingSetting))
+                    {
+                        git.DeleteFromLocalConfig(setting.Key);
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        private void LogEnlistmentInfoAndSetConfigValues()
+        {
+            string mountId = Guid.NewGuid().ToString("N");
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
+            metadata.Add(nameof(mountId), mountId);
+            metadata.Add("Enlistment", this.enlistment);
+            metadata.Add("PhysicalDiskInfo", GVFSPlatform.Instance.GetPhysicalDiskInfo(this.enlistment.WorkingDirectoryRoot, sizeStatsOnly: false));
+            this.tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
+
+            GitProcess git = new GitProcess(this.enlistment);
+            GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
+            if (configResult.ExitCodeIsFailure)
+            {
+                string error = "Could not update config with enlistment id, error: " + configResult.Errors;
+                this.tracer.RelatedWarning(error);
+            }
+
+            configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.MountId, mountId, replaceAll: true);
+            if (configResult.ExitCodeIsFailure)
+            {
+                string error = "Could not update config with mount id, error: " + configResult.Errors;
+                this.tracer.RelatedWarning(error);
+            }
+        }
+
+        private void UnmountAndStopWorkingDirectoryCallbacks(bool willRemountInSameProcess = false)
         {
             if (this.maintenanceScheduler != null)
             {
@@ -817,6 +1541,12 @@ namespace GVFS.Mount
 
             this.gvfsDatabase?.Dispose();
             this.gvfsDatabase = null;
+
+            if (!willRemountInSameProcess)
+            {
+                this.context?.Dispose();
+                this.context = null;
+            }
         }
     }
 }

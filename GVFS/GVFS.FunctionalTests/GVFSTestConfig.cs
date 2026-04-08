@@ -16,6 +16,8 @@ namespace GVFS.FunctionalTests
 
         public static bool ReplaceInboxProjFS { get; set; }
 
+        public static bool IsDevMode { get; set; }
+
         public static string PathToGVFS
         {
             get

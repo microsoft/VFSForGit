@@ -13,6 +13,11 @@ namespace GVFS.Common.Git
         private volatile int activeCallers;
         private LibGit2Repo sharedRepo;
 
+        public LibGit2RepoInvoker(ITracer tracer, string repoPath)
+            : this(tracer, () => new LibGit2Repo(tracer, repoPath))
+        {
+        }
+
         public LibGit2RepoInvoker(ITracer tracer, Func<LibGit2Repo> createRepo)
         {
             this.tracer = tracer;
@@ -80,6 +85,17 @@ namespace GVFS.Common.Git
             // Using a potentially-real object id is important, as the empty
             // SHA will stop early instead of loading the object store.
             this.GetSharedRepo()?.ObjectExists("30380be3963a75e4a34e10726795d644659e1129");
+        }
+
+        public bool GetConfigBoolOrDefault(string key, bool defaultValue)
+        {
+            bool? value = defaultValue;
+            if (this.TryInvoke(repo => repo.GetConfigBool(key), out value))
+            {
+                return value ?? defaultValue;
+            }
+
+            return defaultValue;
         }
 
         private LibGit2Repo GetSharedRepo()

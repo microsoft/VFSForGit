@@ -131,6 +131,11 @@ namespace GVFS.Virtualization.Background
                     this.backgroundThread.Dispose();
                     this.backgroundThread = null;
                 }
+                if (this.backgroundTasks != null)
+                {
+                    this.backgroundTasks.Dispose();
+                    this.backgroundTasks = null;
+                }
             }
         }
 

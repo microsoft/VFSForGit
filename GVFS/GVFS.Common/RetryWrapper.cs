@@ -60,6 +60,24 @@ namespace GVFS.Common
 
         public InvocationResult Invoke(Func<int, CallbackResult> toInvoke)
         {
+            // NOTE: Cascade risk — connection pool timeouts (HttpRequestor returns
+            // ServiceUnavailable when the semaphore wait expires) flow through here
+            // as callback errors with shouldRetry=true and count toward the circuit
+            // breaker. Under sustained pool exhaustion, 15 timeouts can trip the
+            // breaker and fail-fast ALL retry operations for 30 seconds — including
+            // requests that might have succeeded. In practice, request coalescing
+            // (GVFSGitObjects) and the larger pool size drastically reduce the
+            // likelihood of sustained pool exhaustion. If telemetry shows this
+            // cascade occurring, consider excluding local resource pressure (pool
+            // timeouts) from circuit breaker failure counts.
+            if (RetryCircuitBreaker.IsOpen)
+            {
+                RetryableException circuitOpenError = new RetryableException(
+                    "Circuit breaker is open - too many consecutive failures. Fast-failing to prevent resource exhaustion.");
+                this.OnFailure(new ErrorEventArgs(circuitOpenError, tryCount: 1, willRetry: false));
+                return new InvocationResult(1, circuitOpenError);
+            }
+
             // Use 1-based counting. This makes reporting look a lot nicer and saves a lot of +1s
             for (int tryCount = 1; tryCount <= this.maxAttempts; ++tryCount)
             {
@@ -70,6 +88,11 @@ namespace GVFS.Common
                     CallbackResult result = toInvoke(tryCount);
                     if (result.HasErrors)
                     {
+                        if (result.ShouldRetry)
+                        {
+                            RetryCircuitBreaker.RecordFailure();
+                        }
+
                         if (!this.ShouldRetry(tryCount, null, result))
                         {
                             return new InvocationResult(tryCount, result.Error, result.Result);
@@ -77,6 +100,7 @@ namespace GVFS.Common
                     }
                     else
                     {
+                        RetryCircuitBreaker.RecordSuccess();
                         return new InvocationResult(tryCount, true, result.Result);
                     }
                 }
@@ -92,6 +116,7 @@ namespace GVFS.Common
                         throw;
                     }
 
+                    RetryCircuitBreaker.RecordFailure();
                     if (!this.ShouldRetry(tryCount, exceptionToReport, null))
                     {
                         return new InvocationResult(tryCount, exceptionToReport);

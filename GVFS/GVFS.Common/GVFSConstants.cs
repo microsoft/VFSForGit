@@ -42,9 +42,12 @@ namespace GVFS.Common
             /* Intended to be a temporary config to allow testing of distrusting pack indexes from cache server
              * before it is enabled by default. */
             public const string TrustPackIndexes = GVFSPrefix + "trust-pack-indexes";
+            public const bool TrustPackIndexesDefault = true;
 
             public const string ShowHydrationStatus = GVFSPrefix + "show-hydration-status";
             public const bool ShowHydrationStatusDefault = false;
+
+            public const string MaxHttpConnectionsConfig = GVFSPrefix + "max-http-connections";
         }
 
         public static class LocalGVFSConfig
@@ -98,6 +101,7 @@ namespace GVFS.Common
 
             public const string Clone = "clone";
             public const string Dehydrate = "dehydrate";
+            public const string Health = "health";
             public const string MountVerb = MountPrefix + "_verb";
             public const string MountProcess = MountPrefix + "_process";
             public const string MountUpgrade = MountPrefix + "_repoupgrade";
@@ -115,6 +119,7 @@ namespace GVFS.Common
         {
             public const string CorruptObjectsName = "CorruptObjects";
             public const string LogName = "logs";
+            public const string MountLock = "mount.lock";
 
             public static class Databases
             {
@@ -131,7 +136,11 @@ namespace GVFS.Common
             {
                 public const string Name = "gitStatusCache";
                 public static readonly string CachePath = Path.Combine(Name, "GitStatusCache.dat");
-                public static readonly string TreeCount = Path.Combine(Name, "TreeCountCache.dat");
+            }
+
+            public static class HydrationStatus
+            {
+                public static readonly string DisabledMarkerFile = Path.Combine("gitStatusCache", "HydrationStatusDisabled.dat");
             }
         }
 
@@ -139,6 +148,9 @@ namespace GVFS.Common
         {
             public const string Root = ".git";
             public const string HeadName = "HEAD";
+            public const string GitDirPrefix = "gitdir: ";
+            public const string CommonDirName = "commondir";
+            public const string SkipCleanCheckName = "skip-clean-check";
             public const string IndexName = "index";
             public const string PackedRefsName = "packed-refs";
             public const string LockExtension = ".lock";
@@ -157,10 +169,14 @@ namespace GVFS.Common
 
             public static class Logs
             {
+                public const string RootName = "logs";
                 public static readonly string HeadName = "HEAD";
 
-                public static readonly string Root = Path.Combine(DotGit.Root, "logs");
+                public static readonly string Root = Path.Combine(DotGit.Root, RootName);
                 public static readonly string Head = Path.Combine(Logs.Root, Logs.HeadName);
+
+                /// <summary>Path relative to the git directory (e.g., "logs/HEAD").</summary>
+                public static readonly string HeadRelativePath = Path.Combine(RootName, HeadName);
             }
 
             public static class Hooks
@@ -171,7 +187,8 @@ namespace GVFS.Common
                 public const string ReadObjectName = "read-object";
                 public const string VirtualFileSystemName = "virtual-filesystem";
                 public const string PostIndexChangedName = "post-index-change";
-                public static readonly string Root = Path.Combine(DotGit.Root, "hooks");
+                public const string RootName = "hooks";
+                public static readonly string Root = Path.Combine(DotGit.Root, RootName);
                 public static readonly string PreCommandPath = Path.Combine(Hooks.Root, PreCommandHookName);
                 public static readonly string PostCommandPath = Path.Combine(Hooks.Root, PostCommandHookName);
                 public static readonly string ReadObjectPath = Path.Combine(Hooks.Root, ReadObjectName);
@@ -200,6 +217,9 @@ namespace GVFS.Common
                 {
                     public static readonly string Root = Path.Combine(Objects.Root, "info");
                     public static readonly string Alternates = Path.Combine(Info.Root, "alternates");
+
+                    /// <summary>Path relative to the git directory (e.g., "objects/info/alternates").</summary>
+                    public static readonly string AlternatesRelativePath = Path.Combine("objects", "info", "alternates");
                 }
 
                 public static class Pack

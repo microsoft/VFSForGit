@@ -14,12 +14,14 @@ namespace GVFS.Common.Git
         private static readonly TimeSpan NegativeCacheTTL = TimeSpan.FromSeconds(30);
 
         private ConcurrentDictionary<string, DateTime> objectNegativeCache;
+        internal ConcurrentDictionary<string, Lazy<DownloadAndSaveObjectResult>> inflightDownloads;
 
         public GVFSGitObjects(GVFSContext context, GitObjectsHttpRequestor objectRequestor)
             : base(context.Tracer, context.Enlistment, objectRequestor, context.FileSystem)
         {
             this.Context = context;
             this.objectNegativeCache = new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+            this.inflightDownloads = new ConcurrentDictionary<string, Lazy<DownloadAndSaveObjectResult>>(StringComparer.OrdinalIgnoreCase);
         }
 
         public enum RequestSource
@@ -127,6 +129,54 @@ namespace GVFS.Common.Git
                 this.objectNegativeCache.TryRemove(objectId, out negativeCacheRequestTime);
             }
 
+            // Coalesce concurrent requests for the same objectId so that only one HTTP
+            // download runs per SHA at a time. All concurrent callers share the result.
+            // Note: the first caller's cancellationToken and retryOnFailure settings are
+            // captured by the Lazy factory. Subsequent coalesced callers inherit those
+            // settings. In practice this is fine because the primary concurrent path
+            // (NamedPipeMessage from git.exe) always uses CancellationToken.None.
+            Lazy<DownloadAndSaveObjectResult> newLazy = new Lazy<DownloadAndSaveObjectResult>(
+                () => this.DoDownloadAndSaveObject(objectId, cancellationToken, requestSource, retryOnFailure));
+            Lazy<DownloadAndSaveObjectResult> lazy = this.inflightDownloads.GetOrAdd(objectId, newLazy);
+
+            if (!ReferenceEquals(lazy, newLazy))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("objectId", objectId);
+                metadata.Add("requestSource", requestSource.ToString());
+                this.Context.Tracer.RelatedEvent(EventLevel.Informational, "TryDownloadAndSaveObject_CoalescedRequest", metadata);
+            }
+
+            try
+            {
+                return lazy.Value;
+            }
+            finally
+            {
+                this.TryRemoveInflightDownload(objectId, lazy);
+            }
+        }
+
+        /// <summary>
+        /// Removes the inflight download entry only if the current value matches the
+        /// expected Lazy instance. This prevents an ABA race where a straggling thread's
+        /// finally block could remove a newer Lazy created by a later wave of requests.
+        /// Uses ICollection&lt;KVP&gt;.Remove which is the value-aware atomic removal on
+        /// .NET Framework 4.7.1. When we upgrade to .NET 10 (backlog), this can be
+        /// replaced with ConcurrentDictionary.TryRemove(KeyValuePair).
+        /// </summary>
+        private bool TryRemoveInflightDownload(string objectId, Lazy<DownloadAndSaveObjectResult> lazy)
+        {
+            return ((ICollection<KeyValuePair<string, Lazy<DownloadAndSaveObjectResult>>>)this.inflightDownloads)
+                .Remove(new KeyValuePair<string, Lazy<DownloadAndSaveObjectResult>>(objectId, lazy));
+        }
+
+        private DownloadAndSaveObjectResult DoDownloadAndSaveObject(
+            string objectId,
+            CancellationToken cancellationToken,
+            RequestSource requestSource,
+            bool retryOnFailure)
+        {
             // To reduce allocations, reuse the same buffer when writing objects in this batch
             byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
 

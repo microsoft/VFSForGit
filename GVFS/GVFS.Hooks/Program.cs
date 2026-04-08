@@ -1,13 +1,17 @@
-﻿using GVFS.Common;
+using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Tracing;
 using GVFS.Hooks.HooksPlatform;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace GVFS.Hooks
 {
-    public class Program
+    public partial class Program
     {
         private const string PreCommandHook = "pre-command";
         private const string PostCommandHook = "post-command";
@@ -19,6 +23,7 @@ namespace GVFS.Hooks
 
         private static string enlistmentRoot;
         private static string enlistmentPipename;
+        private static string normalizedCurrentDirectory;
         private static Random random = new Random();
 
         private delegate void LockRequestDelegate(bool unattended, string[] args, int pid, NamedPipeClient pipeClient);
@@ -35,7 +40,6 @@ namespace GVFS.Hooks
                 bool unattended = GVFSEnlistment.IsUnattended(tracer: null);
 
                 string errorMessage;
-                string normalizedCurrentDirectory;
                 if (!GVFSHooksPlatform.TryGetNormalizedPath(Environment.CurrentDirectory, out normalizedCurrentDirectory, out errorMessage))
                 {
                     ExitWithError($"Failed to determine final path for current directory {Environment.CurrentDirectory}. Error: {errorMessage}");
@@ -49,6 +53,15 @@ namespace GVFS.Hooks
                 }
 
                 enlistmentPipename = GVFSHooksPlatform.GetNamedPipeName(enlistmentRoot);
+
+                // If running inside a worktree, append a worktree-specific
+                // suffix to the pipe name so hooks communicate with the
+                // correct GVFS mount instance.
+                string worktreeSuffix = GVFSEnlistment.GetWorktreePipeSuffix(normalizedCurrentDirectory);
+                if (worktreeSuffix != null)
+                {
+                    enlistmentPipename += worktreeSuffix;
+                }
 
                 switch (GetHookType(args))
                 {
@@ -65,6 +78,8 @@ namespace GVFS.Hooks
                         {
                             RunLockRequest(args, unattended, ReleaseGVFSLock);
                         }
+
+                        RunPostCommands(args);
                         break;
 
                     default:
@@ -92,9 +107,18 @@ namespace GVFS.Hooks
                     if (!ArgsBlockHydrationStatus(args)
                         && ConfigurationAllowsHydrationStatus())
                     {
-                        /* Display a message about the hydration status of the repo */
-                        ProcessHelper.Run("gvfs", "health --status", redirectOutput: false);
+                        TryDisplayCachedHydrationStatus();
                     }
+                    break;
+                case "restore":
+                case "checkout":
+                    if (UnstageCommandParser.IsUnstageOperation(command, args))
+                    {
+                        SendPrepareForUnstageMessage(command, args);
+                    }
+                    break;
+                case "worktree":
+                    RunWorktreePreCommand(args);
                     break;
             }
         }
@@ -103,24 +127,89 @@ namespace GVFS.Hooks
         {
             return args.Any(arg =>
                 arg.StartsWith("--serialize", StringComparison.OrdinalIgnoreCase)
-                || arg.StartsWith("--porcelain", StringComparison.OrdinalIgnoreCase));
+                || arg.StartsWith("--porcelain", StringComparison.OrdinalIgnoreCase)
+                || arg.Equals("--short", StringComparison.OrdinalIgnoreCase)
+                || HasShortFlag(arg, "s"));
+        }
+
+        private static void RunPostCommands(string[] args)
+        {
+            string command = GetGitCommand(args);
+            switch (command)
+            {
+                case "worktree":
+                    RunWorktreePostCommand(args);
+                    break;
+            }
+        }
+
+        private static string ResolvePath(string path)
+        {
+            return Path.GetFullPath(
+                Path.IsPathRooted(path)
+                    ? path
+                    : Path.Combine(normalizedCurrentDirectory, path));
+        }
+
+        private static bool HasShortFlag(string arg, string flag)
+        {
+            return arg.StartsWith("-") && !arg.StartsWith("--") && arg.Substring(1).Contains(flag);
         }
 
         private static bool ConfigurationAllowsHydrationStatus()
         {
+            using (LibGit2RepoInvoker repo = new LibGit2RepoInvoker(NullTracer.Instance, normalizedCurrentDirectory))
+            {
+                return repo.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
+            }
+        }
+
+        /// <summary>
+        /// Query the mount process for the cached hydration summary via named pipe.
+        /// The entire operation (connect + send + receive + parse) is bounded to
+        /// 100ms via Task.Wait. Exits silently on any failure — this must never block git status.
+        /// </summary>
+        private static void TryDisplayCachedHydrationStatus()
+        {
+            const int HydrationStatusTimeoutMs = 100;
+            const int ConnectTimeoutMs = 50;
+
             try
             {
-                ProcessResult result = ProcessHelper.Run("git", $"config --get {GVFSConstants.GitConfig.ShowHydrationStatus}");
-                bool hydrationStatusEnabled;
-                if (bool.TryParse(result.Output.Trim(), out hydrationStatusEnabled))
+                Task<string> task = Task.Run(() =>
                 {
-                    return hydrationStatusEnabled;
+                    using (NamedPipeClient pipeClient = new NamedPipeClient(enlistmentPipename))
+                    {
+                        if (!pipeClient.Connect(timeoutMilliseconds: ConnectTimeoutMs))
+                        {
+                            return null;
+                        }
+
+                        pipeClient.SendRequest(new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.Request, null));
+                        NamedPipeMessages.Message response = pipeClient.ReadResponse();
+
+                        if (response.Header == NamedPipeMessages.HydrationStatus.SuccessResult
+                            && NamedPipeMessages.HydrationStatus.Response.TryParse(response.Body, out NamedPipeMessages.HydrationStatus.Response status))
+                        {
+                            return status.ToDisplayMessage();
+                        }
+
+                        return null;
+                    }
+                });
+
+                // Hard outer timeout — if the task hasn't completed (e.g., ReadResponse
+                // blocked on a stalled mount process), we abandon it. The orphaned thread
+                // is cleaned up when the hook process exits immediately after.
+                if (task.Wait(HydrationStatusTimeoutMs) && task.Status == TaskStatus.RanToCompletion && task.Result != null)
+                {
+                    Console.WriteLine(task.Result);
                 }
             }
             catch (Exception)
             {
+                // Silently ignore — never block git status for hydration display
             }
-            return GVFSConstants.GitConfig.ShowHydrationStatusDefault;
         }
 
         private static void ExitWithError(params string[] messages)

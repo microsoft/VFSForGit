@@ -56,7 +56,9 @@ namespace GVFS.Common.Maintenance
                     return false;
                 }
 
-                if (!this.GitObjects.TryDownloadPrefetchPacks(gitProcess, maxGoodTimeStamp, out packIndexes))
+                var trustPackIndexes = this.Context.Repository.LibGit2RepoInvoker.GetConfigBoolOrDefault(GVFSConstants.GitConfig.TrustPackIndexes, GVFSConstants.GitConfig.TrustPackIndexesDefault);
+
+                if (!this.GitObjects.TryDownloadPrefetchPacks(gitProcess, maxGoodTimeStamp, trustPackIndexes, out packIndexes))
                 {
                     error = "Failed to download prefetch packs";
                     return false;

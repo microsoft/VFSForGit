@@ -49,6 +49,11 @@ namespace GVFS.Common.FileSystem
             }
         }
 
+        public virtual void MoveDirectory(string sourceDirName, string destDirName)
+        {
+            Directory.Move(sourceDirName, destDirName);
+        }
+
         public virtual void CopyDirectoryRecursive(
             string srcDirectoryPath,
             string dstDirectoryPath,

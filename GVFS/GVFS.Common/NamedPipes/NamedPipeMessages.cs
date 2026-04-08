@@ -203,21 +203,24 @@ namespace GVFS.Common.NamedPipes
 
             public class Request
             {
-                public Request(string folders)
+                public Request(string backupFolderPath, string folders)
                 {
                     this.Folders = folders;
+                    this.BackupFolderPath = backupFolderPath;
                 }
 
-                public Request(Message message)
+                public static Request FromMessage(Message message)
                 {
-                    this.Folders = message.Body;
+                    return JsonConvert.DeserializeObject<Request>(message.Body);
                 }
 
                 public string Folders { get; }
 
+                public string BackupFolderPath { get; }
+
                 public Message CreateMessage()
                 {
-                    return new Message(Dehydrate, this.Folders);
+                    return new Message(Dehydrate, JsonConvert.SerializeObject(this));
                 }
             }
 

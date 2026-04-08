@@ -3,7 +3,12 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net471</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.322" />
+  </ItemGroup>
 
   <ItemGroup>
     <!--
@@ -14,14 +19,20 @@
     <Compile Include="..\GVFS.Common\ConsoleHelper.cs">
       <Link>Common\ConsoleHelper.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.Common\Git\GitConfigHelper.cs">
-      <Link>Common\Git\GitConfigHelper.cs</Link>
-    </Compile>
-    <Compile Include="..\GVFS.Common\Git\GitConfigSetting.cs">
-      <Link>Common\Git\GitConfigSetting.cs</Link>
+    <Compile Include="..\GVFS.Common\Git\GitOid.cs">
+      <Link>Common\Git\GitOid.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\Git\GitVersion.cs">
       <Link>Common\Git\GitVersion.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Git\LibGit2Exception.cs">
+      <Link>Common\Git\LibGit2Exception.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Git\LibGit2Repo.cs">
+      <Link>Common\Git\LibGit2Repo.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Git\LibGit2RepoInvoker.cs">
+      <Link>Common\Git\LibGit2RepoInvoker.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\GVFSConstants.cs">
       <Link>Common\GVFSConstants.cs</Link>
@@ -37,6 +48,12 @@
     </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\LockNamedPipeMessages.cs">
       <Link>Common\NamedPipes\LockNamedPipeMessages.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\UnstageNamedPipeMessages.cs">
+      <Link>Common\NamedPipes\UnstageNamedPipeMessages.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\HydrationStatusNamedPipeMessages.cs">
+      <Link>Common\NamedPipes\HydrationStatusNamedPipeMessages.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeClient.cs">
       <Link>Common\NamedPipes\NamedPipeClient.cs</Link>
@@ -59,6 +76,12 @@
     <Compile Include="..\GVFS.Common\ProcessResult.cs">
       <Link>Common\ProcessResult.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\WorktreeCommandParser.cs">
+      <Link>Common\WorktreeCommandParser.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\SHA1Util.cs">
+      <Link>Common\SHA1Util.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\Tracing\EventLevel.cs">
       <Link>Common\Tracing\EventLevel.cs</Link>
     </Compile>
@@ -71,6 +94,9 @@
     <Compile Include="..\GVFS.Common\Tracing\ITracer.cs">
       <Link>Common\Tracing\ITracer.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\Tracing\NullTracer.cs">
+      <Link>Common\Tracing\ITracer.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\Tracing\Keywords.cs">
       <Link>Common\Tracing\Keywords.cs</Link>
     </Compile>
@@ -81,5 +107,16 @@
       <Link>Windows\WindowsPlatform.Shared.cs</Link>
     </Compile>
   </ItemGroup>
+
+  <Target Name="_GenerateConstantsFile" BeforeTargets="BeforeCompile">
+    <!-- Generate GVFS constants file with the minimum Git version -->
+    <GenerateGVFSConstants MinimumGitVersion="$(MinimumGitVersion)" LibGit2FileName="$(libgit2_filename)" OutputFile="$(IntermediateOutputPath)GVFSConstants.g.cs" />
+    <!-- Add the generated file to the list of file writes for MSBuild to keep track of for clean-up -->
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)GVFSConstants.g.cs" />
+      <FileWrites Include="$(IntermediateOutputPath)GVFSConstants.g.cs" />
+    </ItemGroup>
+  </Target>
+
 
 </Project>

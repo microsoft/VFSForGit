@@ -52,11 +52,79 @@ PATH_STRING GetFinalPathName(const PATH_STRING& path)
     return finalPath;
 }
 
+// Checks if the given directory is a git worktree by looking for a
+// ".git" file (not directory). If found, reads it to extract the
+// worktree name and returns a pipe name suffix like "_WT_NAME".
+// Returns an empty string if not in a worktree.
+PATH_STRING GetWorktreePipeSuffix(const wchar_t* directory)
+{
+    PATH_STRING dotGitPath(directory);
+    if (!dotGitPath.empty() && dotGitPath.back() != L'\\')
+        dotGitPath += L'\\';
+    dotGitPath += L".git";
+
+    DWORD dotGitAttrs = GetFileAttributesW(dotGitPath.c_str());
+    if (dotGitAttrs == INVALID_FILE_ATTRIBUTES ||
+        (dotGitAttrs & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        return PATH_STRING();
+    }
+
+    // .git is a file — this is a worktree. Read it to find the
+    // worktree git directory (format: "gitdir: <path>")
+    FILE* gitFile = NULL;
+    errno_t fopenResult = _wfopen_s(&gitFile, dotGitPath.c_str(), L"r");
+    if (fopenResult != 0 || gitFile == NULL)
+        return PATH_STRING();
+
+    char gitdirLine[4096];
+    if (fgets(gitdirLine, sizeof(gitdirLine), gitFile) == NULL)
+    {
+        fclose(gitFile);
+        return PATH_STRING();
+    }
+    fclose(gitFile);
+
+    char* gitdirPath = gitdirLine;
+    if (strncmp(gitdirPath, "gitdir: ", 8) == 0)
+        gitdirPath += 8;
+
+    // Trim trailing whitespace
+    size_t lineLen = strlen(gitdirPath);
+    while (lineLen > 0 && (gitdirPath[lineLen - 1] == '\n' ||
+           gitdirPath[lineLen - 1] == '\r' ||
+           gitdirPath[lineLen - 1] == ' '))
+        gitdirPath[--lineLen] = '\0';
+
+    // Extract worktree name — last path component
+    // e.g., from ".git/worktrees/my-worktree" extract "my-worktree"
+    char* lastSep = strrchr(gitdirPath, '/');
+    if (!lastSep)
+        lastSep = strrchr(gitdirPath, '\\');
+
+    if (lastSep == NULL)
+        return PATH_STRING();
+
+    std::string nameUtf8(lastSep + 1);
+    int wideLen = MultiByteToWideChar(CP_UTF8, 0, nameUtf8.c_str(), -1, NULL, 0);
+    if (wideLen <= 0)
+        return PATH_STRING();
+
+    std::wstring wtName(wideLen, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, nameUtf8.c_str(), -1, &wtName[0], wideLen);
+    wtName.resize(wideLen - 1); // remove null terminator from string
+
+    PATH_STRING suffix = L"_WT_";
+    suffix += wtName;
+    return suffix;
+}
+
 PATH_STRING GetGVFSPipeName(const char *appName)
 {
     // The pipe name is built using the path of the GVFS enlistment root.
     // Start in the current directory and walk up the directory tree
-    // until we find a folder that contains the ".gvfs" folder
+    // until we find a folder that contains the ".gvfs" folder.
+    // For worktrees, a suffix is appended to target the worktree's mount.
 
     const size_t dotGVFSRelativePathLength = sizeof(L"\\.gvfs") / sizeof(wchar_t);
 
@@ -117,7 +185,18 @@ PATH_STRING GetGVFSPipeName(const char *appName)
 
     PATH_STRING namedPipe(CharUpperW(enlistmentRoot));
     std::replace(namedPipe.begin(), namedPipe.end(), L':', L'_');
-    return L"\\\\.\\pipe\\GVFS_" + namedPipe;
+    PATH_STRING pipeName = L"\\\\.\\pipe\\GVFS_" + namedPipe;
+
+    // Append worktree suffix if running in a worktree
+    PATH_STRING worktreeSuffix = GetWorktreePipeSuffix(finalRootPath.c_str());
+    if (!worktreeSuffix.empty())
+    {
+        std::transform(worktreeSuffix.begin(), worktreeSuffix.end(),
+                       worktreeSuffix.begin(), ::towupper);
+        pipeName += worktreeSuffix;
+    }
+
+    return pipeName;
 }
 
 PIPE_HANDLE CreatePipeToGVFS(const PATH_STRING& pipeName)
