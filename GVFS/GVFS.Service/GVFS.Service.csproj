@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
-    <ProjectReference Include="..\GVFS.Service.UI\GVFS.Service.UI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

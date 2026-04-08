@@ -15,7 +15,6 @@
 #define GVFSConfigFileName "gvfs.config"
 #define GVFSStatuscacheTokenFileName "EnableGitStatusCacheToken.dat"
 #define ServiceName "GVFS.Service"
-#define ServiceUIName "VFS For Git"
 
 [Setup]
 AppId={{489CA581-F131-4C28-BE04-4FB178933E6D}
@@ -65,9 +64,6 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; 
 
 [Dirs]
 Name: "{app}\ProgramData\{#ServiceName}"; Permissions: users-readexec
-
-[Icons]
-Name: "{commonstartmenu}\{#ServiceUIName}"; Filename: "{app}\GVFS.Service.UI.exe"; AppUserModelID: "GVFS"
 
 [UninstallDelete]
 ; Deletes the entire installation directory, including files and subdirectories
@@ -246,38 +242,6 @@ begin
   if InstallSuccessful = False then
     begin
       RaiseException('Fatal: An error occured while installing GVFS.Service.');
-    end;
-end;
-
-procedure StartGVFSServiceUI();
-var
-  ResultCode: integer;
-begin
-  if GetEnv('GVFS_UNATTENDED') = '1' then
-    begin
-      Log('StartGVFSServiceUI: Skipping launching GVFS.Service.UI');
-    end
-  else if ExecAsOriginalUser(ExpandConstant('{app}\GVFS.Service.UI.exe'), '', '', SW_HIDE, ewNoWait, ResultCode) then
-    begin
-      Log('StartGVFSServiceUI: Successfully launched GVFS.Service.UI');
-    end
-  else
-    begin
-      Log('StartGVFSServiceUI: Failed to launch GVFS.Service.UI');
-    end;
-end;
-
-procedure StopGVFSServiceUI();
-var
-  ResultCode: integer;
-begin
-  if Exec('powershell.exe', '-NoProfile "Stop-Process -Name GVFS.Service.UI"', '', SW_HIDE, ewNoWait, ResultCode) then
-    begin
-      Log('StopGVFSServiceUI: Successfully stopped GVFS.Service.UI');
-    end
-  else
-    begin
-      RaiseException('Fatal: Could not stop process: GVFS.Service.UI');
     end;
 end;
 
@@ -688,7 +652,6 @@ begin
     ssPostInstall:
       begin
         MigrateConfigAndStatusCacheFiles();
-        StartGVFSServiceUI();
         if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
           begin
             MountRepos();
@@ -707,7 +670,6 @@ begin
   case CurStep of
     usUninstall:
       begin
-        StopGVFSServiceUI();
         UninstallService('GVFS.Service', False);
         RemovePath(ExpandConstant('{app}'));
       end;
@@ -731,7 +693,6 @@ begin
       Abort();
     end;
   StopService('GVFS.Service');
-  StopGVFSServiceUI();
   UninstallGvFlt();
   UninstallProjFSIfNecessary();
 end;
