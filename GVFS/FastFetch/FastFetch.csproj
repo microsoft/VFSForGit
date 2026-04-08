@@ -12,8 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CommandLineParser" Version="2.6.0" />
-    <PackageReference Include="MicroBuild.Core" Version="0.2.0" ExcludeAssets="none" />
+    <PackageReference Include="CommandLineParser" />
+    <PackageReference Include="MicroBuild.Core" ExcludeAssets="none" />
   </ItemGroup>
 
   <ItemGroup>

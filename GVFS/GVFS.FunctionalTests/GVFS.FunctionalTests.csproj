@@ -6,13 +6,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NUnitLite" Version="3.12.0" />
-    <PackageReference Include="NUnit3TestAdapter" Version="3.13.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="2.2.4" />
-    <PackageReference Include="Microsoft.Database.Collections.Generic" Version="1.9.4" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="SharpZipLib" Version="1.3.3" />
-    <PackageReference Include="System.ServiceProcess.ServiceController" Version="4.5.0" />
+    <PackageReference Include="NUnitLite" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.Database.Collections.Generic" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="SharpZipLib" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" />
   </ItemGroup>
 
   <ItemGroup>
