@@ -36,7 +36,6 @@ namespace GVFS.CommandLine
             this.InitializeDefaultParameterValues();
         }
 
-
         public abstract string EnlistmentRootPathParameter { get; set; }
 
         [Option(
@@ -671,7 +670,9 @@ You can specify a URL, a name of a configured cache server, or the special names
 
         private string GetAlternatesPath(GVFSEnlistment enlistment)
         {
-            return Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
+            // Use DotGitRoot (shared .git dir for worktrees) since
+            // objects/info/alternates lives in the shared git directory.
+            return Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Objects.Info.AlternatesRelativePath);
         }
 
         private void CheckFileSystemSupportsRequiredFeatures(ITracer tracer, Enlistment enlistment)

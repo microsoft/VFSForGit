@@ -118,7 +118,7 @@ namespace GVFS.Virtualization
             this.gitStatusCache.SetProjectedFolderCountProvider(
                 () => this.GitIndexProjection.GetProjectedFolderCount());
 
-            this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Logs.Head);
+            this.logsHeadPath = Path.Combine(this.context.Enlistment.DotGitRoot, GVFSConstants.DotGit.Logs.HeadRelativePath);
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("placeholders.Count", this.placeholderDatabase.GetCount());

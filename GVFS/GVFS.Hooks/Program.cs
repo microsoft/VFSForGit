@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
@@ -54,6 +54,15 @@ namespace GVFS.Hooks
 
                 enlistmentPipename = GVFSHooksPlatform.GetNamedPipeName(enlistmentRoot);
 
+                // If running inside a worktree, append a worktree-specific
+                // suffix to the pipe name so hooks communicate with the
+                // correct GVFS mount instance.
+                string worktreeSuffix = GVFSEnlistment.GetWorktreePipeSuffix(normalizedCurrentDirectory);
+                if (worktreeSuffix != null)
+                {
+                    enlistmentPipename += worktreeSuffix;
+                }
+
                 switch (GetHookType(args))
                 {
                     case PreCommandHook:
@@ -69,6 +78,8 @@ namespace GVFS.Hooks
                         {
                             RunLockRequest(args, unattended, ReleaseGVFSLock);
                         }
+
+                        RunPostCommands(args);
                         break;
 
                     default:
@@ -106,6 +117,9 @@ namespace GVFS.Hooks
                         SendPrepareForUnstageMessage(command, args);
                     }
                     break;
+                case "worktree":
+                    RunWorktreePreCommand(args);
+                    break;
             }
         }
 
@@ -116,6 +130,25 @@ namespace GVFS.Hooks
                 || arg.StartsWith("--porcelain", StringComparison.OrdinalIgnoreCase)
                 || arg.Equals("--short", StringComparison.OrdinalIgnoreCase)
                 || HasShortFlag(arg, "s"));
+        }
+
+        private static void RunPostCommands(string[] args)
+        {
+            string command = GetGitCommand(args);
+            switch (command)
+            {
+                case "worktree":
+                    RunWorktreePostCommand(args);
+                    break;
+            }
+        }
+
+        private static string ResolvePath(string path)
+        {
+            return Path.GetFullPath(
+                Path.IsPathRooted(path)
+                    ? path
+                    : Path.Combine(normalizedCurrentDirectory, path));
         }
 
         private static bool HasShortFlag(string arg, string flag)

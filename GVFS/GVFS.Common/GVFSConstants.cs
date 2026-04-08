@@ -148,6 +148,9 @@ namespace GVFS.Common
         {
             public const string Root = ".git";
             public const string HeadName = "HEAD";
+            public const string GitDirPrefix = "gitdir: ";
+            public const string CommonDirName = "commondir";
+            public const string SkipCleanCheckName = "skip-clean-check";
             public const string IndexName = "index";
             public const string PackedRefsName = "packed-refs";
             public const string LockExtension = ".lock";
@@ -166,10 +169,14 @@ namespace GVFS.Common
 
             public static class Logs
             {
+                public const string RootName = "logs";
                 public static readonly string HeadName = "HEAD";
 
-                public static readonly string Root = Path.Combine(DotGit.Root, "logs");
+                public static readonly string Root = Path.Combine(DotGit.Root, RootName);
                 public static readonly string Head = Path.Combine(Logs.Root, Logs.HeadName);
+
+                /// <summary>Path relative to the git directory (e.g., "logs/HEAD").</summary>
+                public static readonly string HeadRelativePath = Path.Combine(RootName, HeadName);
             }
 
             public static class Hooks
@@ -180,7 +187,8 @@ namespace GVFS.Common
                 public const string ReadObjectName = "read-object";
                 public const string VirtualFileSystemName = "virtual-filesystem";
                 public const string PostIndexChangedName = "post-index-change";
-                public static readonly string Root = Path.Combine(DotGit.Root, "hooks");
+                public const string RootName = "hooks";
+                public static readonly string Root = Path.Combine(DotGit.Root, RootName);
                 public static readonly string PreCommandPath = Path.Combine(Hooks.Root, PreCommandHookName);
                 public static readonly string PostCommandPath = Path.Combine(Hooks.Root, PostCommandHookName);
                 public static readonly string ReadObjectPath = Path.Combine(Hooks.Root, ReadObjectName);
@@ -209,6 +217,9 @@ namespace GVFS.Common
                 {
                     public static readonly string Root = Path.Combine(Objects.Root, "info");
                     public static readonly string Alternates = Path.Combine(Info.Root, "alternates");
+
+                    /// <summary>Path relative to the git directory (e.g., "objects/info/alternates").</summary>
+                    public static readonly string AlternatesRelativePath = Path.Combine("objects", "info", "alternates");
                 }
 
                 public static class Pack

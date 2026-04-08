@@ -16,8 +16,16 @@ namespace GVFS.Common.Git
         /// </summary>
         public static Dictionary<string, string> GetRequiredSettings(Enlistment enlistment)
         {
-            string expectedHooksPath = Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.Root);
+            string expectedHooksPath = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName);
             expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
+
+            // Single-quote the path: git executes core.virtualfilesystem via the
+            // shell (use_shell=1 in virtualfilesystem.c), so spaces in an absolute
+            // path would split the command.  Git's config parser strips double quotes
+            // but preserves single quotes, and bash treats single-quoted strings as
+            // a single token.
+            string virtualFileSystemPath = "'" + Paths.ConvertPathToGitFormat(
+                Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName, GVFSConstants.DotGit.Hooks.VirtualFileSystemName)) + "'";
 
             string gitStatusCachePath = null;
             if (!GVFSEnlistment.IsUnattended(tracer: null) && GVFSPlatform.Instance.IsGitStatusCacheSupported())
@@ -36,7 +44,8 @@ namespace GVFS.Common.Git
                 GitCoreGVFSFlags.MissingOk |
                 GitCoreGVFSFlags.NoDeleteOutsideSparseCheckout |
                 GitCoreGVFSFlags.FetchSkipReachabilityAndUploadPack |
-                GitCoreGVFSFlags.BlockFiltersAndEolConversions)
+                GitCoreGVFSFlags.BlockFiltersAndEolConversions |
+                GitCoreGVFSFlags.SupportsWorktrees)
                 .ToString();
 
             return new Dictionary<string, string>
@@ -94,7 +103,7 @@ namespace GVFS.Common.Git
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
 
                 // Configure hook that git calls to get the paths git needs to consider for changes or untracked files
-                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
+                { GitConfigSetting.CoreVirtualFileSystemName, virtualFileSystemPath },
 
                 // Ensure hooks path is configured correctly.
                 { "core.hookspath", expectedHooksPath },
