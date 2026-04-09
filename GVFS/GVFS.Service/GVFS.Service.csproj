@@ -12,8 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="SharpZipLib" Version="1.3.3" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="SharpZipLib" />
   </ItemGroup>
 
   <ItemGroup>

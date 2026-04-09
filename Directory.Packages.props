@@ -1,0 +1,55 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- CLI -->
+    <PackageVersion Include="CommandLineParser" Version="2.6.0" />
+
+    <!-- Serialization -->
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
+
+    <!-- Storage -->
+    <PackageVersion Include="ManagedEsent" Version="1.9.4" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="2.2.4" />
+    <PackageVersion Include="Microsoft.Database.Collections.Generic" Version="1.9.4" />
+    <PackageVersion Include="Microsoft.Database.Isam" Version="1.9.4" />
+
+    <!-- Compression -->
+    <PackageVersion Include="SharpZipLib" Version="1.3.3" />
+
+    <!-- Git -->
+    <PackageVersion Include="LibGit2Sharp.NativeBinaries" Version="2.0.322" />
+
+    <!-- ProjFS -->
+    <PackageVersion Include="GVFS.ProjFS" Version="2019.411.1" />
+    <PackageVersion Include="Microsoft.Windows.ProjFS" Version="1.1.19156.1" />
+
+    <!-- Windows -->
+    <PackageVersion Include="Microsoft.Windows.SDK.Contracts" Version="10.0.17134.1000-preview" />
+    <PackageVersion Include="System.ServiceProcess.ServiceController" Version="4.5.0" />
+
+    <!-- Build / packaging -->
+    <PackageVersion Include="GVFS.VCRuntime" Version="0.2.0-build" />
+    <PackageVersion Include="MicroBuild.Core" Version="0.2.0" />
+    <PackageVersion Include="Microsoft.Build.Framework" Version="16.0.461" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="16.0.461" />
+    <PackageVersion Include="Tools.InnoSetup" Version="6.4.3" />
+
+    <!-- Testing -->
+    <PackageVersion Include="Moq" Version="4.10.1" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="3.13.0" />
+    <PackageVersion Include="NUnitLite" Version="3.12.0" />
+
+    <!--
+      Future packages: pre-declared for Phase 2+ branches to avoid
+      merge conflicts on this file. Not yet referenced by any project.
+    -->
+    <PackageVersion Include="System.CommandLine" Version="2.0.3" />
+    <PackageVersion Include="System.IO.Pipes.AccessControl" Version="8.0.0" />
+    <PackageVersion Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+</Project>

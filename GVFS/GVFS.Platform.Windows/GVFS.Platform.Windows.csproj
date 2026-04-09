@@ -10,10 +10,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ManagedEsent" Version="1.9.4" />
-    <PackageReference Include="Microsoft.Database.Collections.Generic" Version="1.9.4" />
-    <PackageReference Include="Microsoft.Database.Isam" Version="1.9.4" />
-    <PackageReference Include="Microsoft.Windows.ProjFS" Version="1.1.19156.1" />
+    <PackageReference Include="ManagedEsent" />
+    <PackageReference Include="Microsoft.Database.Collections.Generic" />
+    <PackageReference Include="Microsoft.Database.Isam" />
+    <PackageReference Include="Microsoft.Windows.ProjFS" />
   </ItemGroup>
 
   <ItemGroup>

@@ -11,9 +11,9 @@
   </ItemDefinitionGroup>
 
   <ItemGroup>
-    <PackageReference Include="GVFS.ProjFS" Version="2019.411.1" />
-    <PackageReference Include="GVFS.VCRuntime" Version="0.2.0-build" />
-    <PackageReference Include="MicroBuild.Core" Version="0.2.0" ExcludeAssets="none" />
+    <PackageReference Include="GVFS.ProjFS" />
+    <PackageReference Include="GVFS.VCRuntime" />
+    <PackageReference Include="MicroBuild.Core" ExcludeAssets="none" />
   </ItemGroup>
 
   <ItemGroup>
