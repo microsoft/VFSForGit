@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CommandLineParser" />
+    <PackageReference Include="System.CommandLine" />
     <PackageReference Include="MicroBuild.Core" ExcludeAssets="none" />
   </ItemGroup>
 

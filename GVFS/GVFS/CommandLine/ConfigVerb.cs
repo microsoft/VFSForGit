@@ -1,43 +1,73 @@
-﻿using CommandLine;
 using GVFS.Common;
 using System;
 using System.Collections.Generic;
 
 namespace GVFS.CommandLine
 {
-    [Verb(ConfigVerbName, HelpText = "Get and set GVFS options.")]
     public class ConfigVerb : GVFSVerb.ForNoEnlistment
     {
         private const string ConfigVerbName = "config";
         private LocalGVFSConfig localConfig;
 
-        [Option(
-            'l',
-            "list",
-            Required = false,
-            HelpText = "Show all settings")]
         public bool List { get; set; }
 
-        [Option(
-            'd',
-            "delete",
-            Required = false,
-            HelpText = "Name of setting to delete")]
         public string KeyToDelete { get; set; }
 
-        [Value(
-            0,
-            Required = false,
-            MetaName = "Setting name",
-            HelpText = "Name of setting that is to be set or read")]
         public string Key { get; set; }
 
-        [Value(
-            1,
-            Required = false,
-            MetaName = "Setting value",
-            HelpText = "Value of setting to be set")]
         public string Value { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("config", "Get and set GVFS options.");
+
+            System.CommandLine.Option<bool> listOption = new System.CommandLine.Option<bool>("--list", new[] { "-l" }) { Description = "Show all settings" };
+            cmd.Add(listOption);
+
+            System.CommandLine.Option<string> deleteOption = new System.CommandLine.Option<string>("--delete", new[] { "-d" }) { Description = "Name of setting to delete" };
+            cmd.Add(deleteOption);
+
+            System.CommandLine.Argument<string> keyArg = new System.CommandLine.Argument<string>("setting-name")
+            {
+                Description = "Name of setting that is to be set or read",
+                Arity = System.CommandLine.ArgumentArity.ZeroOrOne,
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(keyArg);
+
+            System.CommandLine.Argument<string> valueArg = new System.CommandLine.Argument<string>("setting-value")
+            {
+                Description = "Value of setting to be set",
+                Arity = System.CommandLine.ArgumentArity.ZeroOrOne,
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(valueArg);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            cmd.SetAction((System.CommandLine.ParseResult result) =>
+            {
+                ConfigVerb verb = new ConfigVerb();
+                verb.List = result.GetValue(listOption);
+                verb.KeyToDelete = result.GetValue(deleteOption);
+                verb.Key = result.GetValue(keyArg) ?? "";
+                verb.Value = result.GetValue(valueArg) ?? "";
+
+                GVFSVerb.ApplyInternalParameters(verb, result, internalOption);
+                try
+                {
+                    verb.Execute();
+                }
+                catch (GVFSVerb.VerbAbortedException)
+                {
+                }
+
+                Environment.Exit((int)verb.ReturnCode);
+            });
+
+            return cmd;
+        }
 
         protected override string VerbName
         {

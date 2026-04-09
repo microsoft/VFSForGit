@@ -1,4 +1,3 @@
-using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -15,66 +14,98 @@ using System.Text;
 
 namespace GVFS.CommandLine
 {
-    [Verb(CloneVerb.CloneVerbName, HelpText = "Clone a git repo and mount it as a GVFS virtual repo")]
     public class CloneVerb : GVFSVerb
     {
         private const string CloneVerbName = "clone";
 
-        [Value(
-            0,
-            Required = true,
-            MetaName = "Repository URL",
-            HelpText = "The url of the repo")]
         public string RepositoryURL { get; set; }
 
-        [Value(
-            1,
-            Required = false,
-            Default = "",
-            MetaName = "Enlistment Root Path",
-            HelpText = "Full or relative path to the GVFS enlistment root")]
         public override string EnlistmentRootPathParameter { get; set; }
 
-        [Option(
-            "cache-server-url",
-            Required = false,
-            Default = null,
-            HelpText = "The url or friendly name of the cache server")]
         public string CacheServerUrl { get; set; }
 
-        [Option(
-            'b',
-            "branch",
-            Required = false,
-            HelpText = "Branch to checkout after clone")]
         public string Branch { get; set; }
 
-        [Option(
-            "single-branch",
-            Required = false,
-            Default = false,
-            HelpText = "Use this option to only download metadata for the branch that will be checked out")]
         public bool SingleBranch { get; set; }
 
-        [Option(
-            "no-mount",
-            Required = false,
-            Default = false,
-            HelpText = "Use this option to only clone, but not mount the repo")]
         public bool NoMount { get; set; }
 
-        [Option(
-            "no-prefetch",
-            Required = false,
-            Default = false,
-            HelpText = "Use this option to not prefetch commits after clone")]
         public bool NoPrefetch { get; set; }
 
-        [Option(
-            "local-cache-path",
-            Required = false,
-            HelpText = "Use this option to override the path for the local GVFS cache.")]
         public string LocalCacheRoot { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("clone", "Clone a git repo and mount it as a GVFS virtual repo");
+
+            System.CommandLine.Argument<string> repoUrlArg = new System.CommandLine.Argument<string>("repository-url")
+            {
+                Description = "The url of the repo",
+                Arity = System.CommandLine.ArgumentArity.ExactlyOne,
+            };
+            cmd.Add(repoUrlArg);
+
+            System.CommandLine.Argument<string> enlistmentArg = new System.CommandLine.Argument<string>("enlistment-root-path")
+            {
+                Description = "Full or relative path to the GVFS enlistment root",
+                Arity = System.CommandLine.ArgumentArity.ZeroOrOne,
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<string> cacheServerOption = new System.CommandLine.Option<string>("--cache-server-url") { Description = "The url or friendly name of the cache server" };
+            cmd.Add(cacheServerOption);
+
+            System.CommandLine.Option<string> branchOption = new System.CommandLine.Option<string>("--branch", new[] { "-b" }) { Description = "Branch to checkout after clone" };
+            cmd.Add(branchOption);
+
+            System.CommandLine.Option<bool> singleBranchOption = new System.CommandLine.Option<bool>("--single-branch") { Description = "Use this option to only download metadata for the branch that will be checked out" };
+            cmd.Add(singleBranchOption);
+
+            System.CommandLine.Option<bool> noMountOption = new System.CommandLine.Option<bool>("--no-mount") { Description = "Use this option to only clone, but not mount the repo" };
+            cmd.Add(noMountOption);
+
+            System.CommandLine.Option<bool> noPrefetchOption = new System.CommandLine.Option<bool>("--no-prefetch") { Description = "Use this option to not prefetch commits after clone" };
+            cmd.Add(noPrefetchOption);
+
+            System.CommandLine.Option<string> localCacheOption = new System.CommandLine.Option<string>("--local-cache-path") { Description = "Use this option to override the path for the local GVFS cache." };
+            cmd.Add(localCacheOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            cmd.SetAction((System.CommandLine.ParseResult result) =>
+            {
+                CloneVerb verb = new CloneVerb();
+                verb.RepositoryURL = result.GetValue(repoUrlArg);
+                verb.EnlistmentRootPathParameter = result.GetValue(enlistmentArg) ?? "";
+                if (verb.EnlistmentRootPathParameter.StartsWith("-"))
+                {
+                    Console.Error.WriteLine($"Unrecognized option '{verb.EnlistmentRootPathParameter}'");
+                    Environment.Exit((int)ReturnCode.ParsingError);
+                }
+
+                verb.CacheServerUrl = result.GetValue(cacheServerOption);
+                verb.Branch = result.GetValue(branchOption);
+                verb.SingleBranch = result.GetValue(singleBranchOption);
+                verb.NoMount = result.GetValue(noMountOption);
+                verb.NoPrefetch = result.GetValue(noPrefetchOption);
+                verb.LocalCacheRoot = result.GetValue(localCacheOption);
+
+                GVFSVerb.ApplyInternalParameters(verb, result, internalOption);
+                try
+                {
+                    verb.Execute();
+                }
+                catch (GVFSVerb.VerbAbortedException)
+                {
+                }
+
+                Environment.Exit((int)verb.ReturnCode);
+            });
+
+            return cmd;
+        }
 
         protected override string VerbName
         {

@@ -1,8 +1,8 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Platform.Windows;
 using System;
+using System.CommandLine;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -12,12 +12,24 @@ namespace GVFS.FunctionalTests.LockHolder
     {
         private static string fullCommand = "GVFS.FunctionalTests.LockHolder";
 
-        [Option(
-            "skip-release-lock",
-            Default = false,
-            Required = false,
-            HelpText = "Skip releasing the GVFS lock when exiting the program.")]
         public bool NoReleaseLock { get; set; }
+
+        public static RootCommand BuildRootCommand()
+        {
+            RootCommand rootCommand = new RootCommand();
+
+            Option<bool> skipReleaseLockOption = new Option<bool>("--skip-release-lock") { Description = "Skip releasing the GVFS lock when exiting the program." };
+            rootCommand.Add(skipReleaseLockOption);
+
+            rootCommand.SetAction((ParseResult result) =>
+            {
+                AcquireGVFSLockVerb verb = new AcquireGVFSLockVerb();
+                verb.NoReleaseLock = result.GetValue(skipReleaseLockOption);
+                verb.Execute();
+            });
+
+            return rootCommand;
+        }
 
         public void Execute()
         {

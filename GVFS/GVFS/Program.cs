@@ -1,10 +1,8 @@
-using CommandLine;
+using System.CommandLine;
 using GVFS.CommandLine;
 using GVFS.Common;
 using GVFS.PlatformLoader;
 using System;
-using System.IO;
-using System.Linq;
 
 namespace GVFS
 {
@@ -19,88 +17,25 @@ namespace GVFS
                 Environment.Exit((int)ReturnCode.UnableToRegisterForOfflineIO);
             }
 
-            Type[] verbTypes = new Type[]
+            // Normalize verb name to lowercase for case-insensitive matching.
+            // The old CommandLineParser had CaseSensitive = false; System.CommandLine
+            // is case-sensitive, so we normalize the first non-option argument.
+            if (args.Length > 0 && !args[0].StartsWith("-"))
             {
-                typeof(CacheServerVerb),
-                typeof(CacheVerb),
-                typeof(CloneVerb),
-                typeof(ConfigVerb),
-                typeof(DehydrateVerb),
-                typeof(DiagnoseVerb),
-                typeof(LogVerb),
-                typeof(SparseVerb),
-                typeof(MountVerb),
-                typeof(PrefetchVerb),
-                typeof(RepairVerb),
-                typeof(ServiceVerb),
-                typeof(HealthVerb),
-                typeof(StatusVerb),
-                typeof(UnmountVerb),
-                typeof(UpgradeVerb),
-            };
+                args[0] = args[0].ToLowerInvariant();
+            }
 
-            int consoleWidth = 80;
-
-            // Running in a headless environment can result in a Console with a
-            // WindowWidth of 0, which causes issues with CommandLineParser
             try
             {
-                if (Console.WindowWidth > 0)
+                RootCommand rootCommand = BuildRootCommand();
+                int exitCode = rootCommand.Parse(args).Invoke();
+
+                // If a verb executed successfully, its SetAction already called Environment.Exit.
+                // If we reach here, it means parsing failed or help was shown.
+                if (exitCode != 0)
                 {
-                    consoleWidth = Console.WindowWidth;
+                    Environment.Exit((int)ReturnCode.ParsingError);
                 }
-            }
-            catch (IOException)
-            {
-            }
-
-            try
-            {
-                new Parser(
-                    settings =>
-                    {
-                        settings.CaseSensitive = false;
-                        settings.EnableDashDash = true;
-                        settings.IgnoreUnknownArguments = false;
-                        settings.HelpWriter = Console.Error;
-                        settings.MaximumDisplayWidth = consoleWidth;
-                    })
-                    .ParseArguments(args, verbTypes)
-                    .WithNotParsed(
-                        errors =>
-                        {
-                            if (errors.Any(error => error is TokenError))
-                            {
-                                Environment.Exit((int)ReturnCode.ParsingError);
-                            }
-                        })
-                    .WithParsed<CloneVerb>(
-                        clone =>
-                        {
-                            // We handle the clone verb differently, because clone cares if the enlistment path
-                            // was not specified vs if it was specified to be the current directory
-                            clone.Execute();
-                            Environment.Exit((int)ReturnCode.Success);
-                        })
-                    .WithParsed<GVFSVerb.ForNoEnlistment>(
-                        verb =>
-                        {
-                            verb.Execute();
-                            Environment.Exit((int)ReturnCode.Success);
-                        })
-                    .WithParsed<GVFSVerb>(
-                        verb =>
-                        {
-                            // For all other verbs, they don't care if the enlistment root is explicitly
-                            // specified or implied to be the current directory
-                            if (string.IsNullOrEmpty(verb.EnlistmentRootPathParameter))
-                            {
-                                verb.EnlistmentRootPathParameter = Environment.CurrentDirectory;
-                            }
-
-                            verb.Execute();
-                            Environment.Exit((int)ReturnCode.Success);
-                        });
             }
             catch (GVFSVerb.VerbAbortedException e)
             {
@@ -114,6 +49,89 @@ namespace GVFS
                     Console.WriteLine("Unable to unregister with the kernel for offline I/O.");
                 }
             }
+        }
+
+        internal static RootCommand BuildRootCommand()
+        {
+            RootCommand rootCommand = new RootCommand("VFS for Git: Enable Git at Enterprise Scale");
+
+            // Remove System.CommandLine's built-in --version option and replace
+            // with our own that uses ProcessHelper.GetCurrentProcessVersion()
+            // for consistent output with "gvfs version" and AOT compatibility.
+            foreach (Option opt in rootCommand.Options)
+            {
+                if (opt.Name == "--version")
+                {
+                    rootCommand.Options.Remove(opt);
+                    break;
+                }
+            }
+
+            Option<bool> versionOption = new Option<bool>("--version", "-v") { Description = "Display the GVFS version" };
+            rootCommand.Add(versionOption);
+            rootCommand.SetAction((ParseResult result) =>
+            {
+                if (result.GetValue(versionOption))
+                {
+                    Console.WriteLine("GVFS " + ProcessHelper.GetCurrentProcessVersion());
+                }
+                else
+                {
+                    // No args — show help
+                    rootCommand.Parse(new[] { "--help" }).Invoke();
+                }
+            });
+
+            rootCommand.Add(CacheServerVerb.CreateCommand());
+            rootCommand.Add(CacheVerb.CreateCommand());
+            rootCommand.Add(CloneVerb.CreateCommand());
+            rootCommand.Add(ConfigVerb.CreateCommand());
+            rootCommand.Add(DehydrateVerb.CreateCommand());
+            rootCommand.Add(DiagnoseVerb.CreateCommand());
+            rootCommand.Add(HealthVerb.CreateCommand());
+            rootCommand.Add(LogVerb.CreateCommand());
+            rootCommand.Add(MountVerb.CreateCommand());
+            rootCommand.Add(PrefetchVerb.CreateCommand());
+            rootCommand.Add(RepairVerb.CreateCommand());
+            rootCommand.Add(ServiceVerb.CreateCommand());
+            rootCommand.Add(SparseVerb.CreateCommand());
+            rootCommand.Add(StatusVerb.CreateCommand());
+            rootCommand.Add(UnmountVerb.CreateCommand());
+            rootCommand.Add(UpgradeVerb.CreateCommand());
+
+            Command versionCmd = new Command("version", "Display the GVFS version");
+            versionCmd.SetAction((ParseResult result) =>
+            {
+                Console.WriteLine("GVFS " + ProcessHelper.GetCurrentProcessVersion());
+            });
+            rootCommand.Add(versionCmd);
+
+            // Explicit "help" subcommand for backward compatibility.
+            // System.CommandLine handles --help/-h/-? automatically, but the old
+            // CommandLineParser also accepted "gvfs help" as a bare subcommand.
+            Command helpCmd = new Command("help", "Display help information");
+            Argument<string> helpSubcommandArg = new Argument<string>("subcommand")
+            {
+                Description = "The subcommand to get help for",
+                Arity = ArgumentArity.ZeroOrOne,
+            };
+            helpSubcommandArg.DefaultValueFactory = (_) => "";
+            helpCmd.Add(helpSubcommandArg);
+            helpCmd.SetAction((ParseResult result) =>
+            {
+                string subcommand = result.GetValue(helpSubcommandArg) ?? "";
+                if (!string.IsNullOrEmpty(subcommand))
+                {
+                    rootCommand.Parse(new[] { subcommand, "--help" }).Invoke();
+                }
+                else
+                {
+                    rootCommand.Parse(new[] { "--help" }).Invoke();
+                }
+            });
+            rootCommand.Add(helpCmd);
+
+            return rootCommand;
         }
     }
 }

@@ -1,12 +1,26 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
+using System;
 
 namespace GVFS.CommandLine
 {
-    [Verb(StatusVerb.StatusVerbName, HelpText = "Get the status of the GVFS virtual repo")]
     public class StatusVerb : GVFSVerb.ForExistingEnlistment
     {
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("status", "Get the status of the GVFS virtual repo");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<StatusVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true);
+
+            return cmd;
+        }
+
         private const string StatusVerbName = "status";
 
         protected override string VerbName

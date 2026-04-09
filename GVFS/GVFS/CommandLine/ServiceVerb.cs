@@ -1,4 +1,3 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
@@ -9,31 +8,42 @@ using System.Linq;
 
 namespace GVFS.CommandLine
 {
-    [Verb(ServiceVerbName, HelpText = "Runs commands for the GVFS service.")]
     public class ServiceVerb : GVFSVerb.ForNoEnlistment
     {
         private const string ServiceVerbName = "service";
 
-        [Option(
-            "mount-all",
-            Default = false,
-            Required = false,
-            HelpText = "Mounts all repos")]
         public bool MountAll { get; set; }
 
-        [Option(
-            "unmount-all",
-            Default = false,
-            Required = false,
-            HelpText = "Unmounts all repos")]
         public bool UnmountAll { get; set; }
 
-        [Option(
-            "list-mounted",
-            Default = false,
-            Required = false,
-            HelpText = "Prints a list of all mounted repos")]
         public bool List { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("service", "Runs commands for the GVFS service.");
+
+            System.CommandLine.Option<bool> mountAllOption = new System.CommandLine.Option<bool>("--mount-all") { Description = "Mounts all repos" };
+            cmd.Add(mountAllOption);
+
+            System.CommandLine.Option<bool> unmountAllOption = new System.CommandLine.Option<bool>("--unmount-all") { Description = "Unmounts all repos" };
+            cmd.Add(unmountAllOption);
+
+            System.CommandLine.Option<bool> listMountedOption = new System.CommandLine.Option<bool>("--list-mounted") { Description = "Prints a list of all mounted repos" };
+            cmd.Add(listMountedOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForNoEnlistment<ServiceVerb>(cmd, internalOption,
+                (verb, result) =>
+                {
+                    verb.MountAll = result.GetValue(mountAllOption);
+                    verb.UnmountAll = result.GetValue(unmountAllOption);
+                    verb.List = result.GetValue(listMountedOption);
+                });
+
+            return cmd;
+        }
 
         protected override string VerbName
         {
