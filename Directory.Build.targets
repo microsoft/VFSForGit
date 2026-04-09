@@ -1,0 +1,17 @@
+<Project>
+
+  <!-- Define common properties that rely on SDK/props-defined properties -->
+  <PropertyGroup>
+    <Version>$(GVFSVersion)</Version>
+
+    <!--
+      We parse this version into System.Version in several places;
+      we should strip the commit ID from the attribute.
+      -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <!-- Include custom MSBuild targets/tasks -->
+  <Import Project="$(MSBuildThisFileDirectory)GVFS\GVFS.MSBuild\GVFS.targets" />
+
+</Project>

@@ -1,0 +1,34 @@
+﻿<Project>
+  <!-- Load custom build tasks -->
+  <Import Project="GVFS.tasks" />
+
+  <!-- Windows application manifest generation -->
+  <PropertyGroup Condition="'$(GenerateWindowsAppManifest)' == 'true'">
+    <ApplicationManifest>$(IntermediateOutputPath)app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <!-- Generate version header file before compiler native code -->
+  <Target Name="GenerateVersionHeader"
+          BeforeTargets="ClCompile;ResourceCompile"
+          Inputs="$(GVFSVersion)"
+          Outputs="$(GeneratedIncludePath)CommonVersionHeader.h">
+    <GenerateGVFSVersionHeader Version="$(GVFSVersion)" OutputFile="$(GeneratedIncludePath)CommonVersionHeader.h" />
+    <ItemGroup>
+      <FileWrites Include="$(GeneratedIncludePath)CommonVersionHeader.h" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Generate the manifest file before we set the win32 manifest properties -->
+  <Target Name="GenerateWindowsAppManifest"
+          BeforeTargets="SetWin32ManifestProperties"
+          Condition="'$(GenerateWindowsAppManifest)' == 'true'"
+          Inputs="$(Version);$(AssemblyName)"
+          Outputs="$(IntermediateOutputPath)app.manifest">
+    <GenerateWindowsAppManifest Version="$(Version)"
+                                ApplicationName="$(AssemblyName)"
+                                OutputFile="$(IntermediateOutputPath)app.manifest"/>
+    <ItemGroup>
+      <FileWrites Include="$(IntermediateOutputPath)app.manifest" />
+    </ItemGroup>
+  </Target>
+</Project>

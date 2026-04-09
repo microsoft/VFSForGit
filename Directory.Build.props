@@ -1,0 +1,49 @@
+<Project>
+
+  <!-- Import version props -->
+  <Import Project="Version.props" />
+
+  <!-- Common project properties -->
+  <PropertyGroup>
+    <RepoPath>$(MSBuildThisFileDirectory)</RepoPath>
+    <RepoSrcPath>$(RepoPath)</RepoSrcPath>
+    <RepoOutPath>$(RepoPath)..\out\</RepoOutPath>
+    <ProjectOutPath>$(RepoOutPath)$(MSBuildProjectName)\</ProjectOutPath>
+    <BuildPackagesPath>$(RepoPath)..\packages\</BuildPackagesPath>
+
+    <!--
+      Ensure `msbuild /t:restore` restores both PackageReference and
+      package.config styles of NuGet package references.
+      Native/C++ projects do not support the new PackageReference style,
+      but our .NET projects do.
+      -->
+    <RestorePackagesConfig>true</RestorePackagesConfig>
+  </PropertyGroup>
+
+  <!-- Managed project properties -->
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <LangVersion>latest</LangVersion>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <BaseOutputPath>$(ProjectOutPath)bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(ProjectOutPath)obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+
+  <!-- Native project properties -->
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.vcxproj'">
+    <Platform>x64</Platform>
+    <OutDir>$(ProjectOutPath)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectOutPath)intermediate\$(Platform)\$(Configuration)\</IntDir>
+    <GeneratedIncludePath>$(IntDir)include\</GeneratedIncludePath>
+    <!--
+      Make sure that we don't accidentally use Windows APIs only available after
+      Windows 10 build 16299 (aka '1709', 'RS3', and 'Fall Creators Update').
+      The minimum Windows version that includes the final design of the
+      Projected File System (ProjFS) APIs was actually Windows 10 version 1809
+      (build 17763), but VFS for Git also supports using the older design of the
+      ProjFS APIs from that version.
+    -->
+    <TargetPlatformMinVersion>10.0.16299.0</TargetPlatformMinVersion>
+  </PropertyGroup>
+
+</Project>

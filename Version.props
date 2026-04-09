@@ -1,0 +1,22 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Default GVFS version number if not specified at build time -->
+    <GVFSVersion Condition="'$(GVFSVersion)' == ''" >0.2.173.2</GVFSVersion>
+
+    <!--
+       Only update the minimum version if we rely upon a new command-line interface in
+       Git or if there is a truly broken interaction.
+
+       Note that we require that the revision (Z) of the Git version string (2.X.Y.vfs.Z.W)
+       is an exact match. We will use this to signal that a microsoft/git version introduces
+       a breaking change that requires a VFS for Git upgrade.
+
+       Using the revision part allows us to modify the other version items arbitrarily,
+       including taking version numbers 2.X.Y from upstream and updating .W if we have any
+       hotfixes to microsoft/git.
+    -->
+    <MinimumGitVersion>v2.31.0.vfs.0.1</MinimumGitVersion>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.Build.NoTargets">
+
+  <PropertyGroup>
+    <TargetFramework>net471</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <LayoutPath>$(RepoOutPath)GVFS.Payload\bin\$(Configuration)\win-x64\</LayoutPath>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <PackageReference ExcludeAssets="all" GeneratePathProperty="true" />
+    <Content CopyToOutputDirectory="PreserveNewest" />
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tools.InnoSetup" />
+    <PackageReference Include="MicroBuild.Core" ExcludeAssets="none" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GVFS.Payload\GVFS.Payload.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Setup.iss" />
+    <Content Include="install.bat" />
+    <Content Include="info.bat" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FilesToSign Include="$(OutputPath)SetupGVFS.$(GVFSVersion).exe">
+      <Authenticode>Microsoft400</Authenticode>
+      <InProject>false</InProject>
+    </FilesToSign>
+  </ItemGroup>
+
+  <Target Name="CreateInstaller" BeforeTargets="Build;SignFiles">
+    <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) Setup.iss /O"$(OutputPath)"' />
+  </Target>
+
+  <Target Name="CleanInstaller" BeforeTargets="AfterClean">
+    <ItemGroup>
+      <FilesToDelete Include="$(OutputPath)**\*"/>
+    </ItemGroup>
+    <Delete Files="@(FilesToDelete)" />
+  </Target>
+
+</Project>

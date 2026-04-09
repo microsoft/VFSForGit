@@ -1,0 +1,7 @@
+# EditorConfig: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+[*.cs]
+trim_trailing_whitespace = true

@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net471</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibGit2Sharp.NativeBinaries" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="System.Text.Json" />
+    <PackageReference Include="SharpZipLib" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Web" />
+  </ItemGroup>
+
+  <Target Name="_GenerateConstantsFile" BeforeTargets="BeforeCompile">
+    <!-- Generate GVFS constants file with the minimum Git version -->
+    <GenerateGVFSConstants MinimumGitVersion="$(MinimumGitVersion)" LibGit2FileName="$(libgit2_filename)" OutputFile="$(IntermediateOutputPath)GVFSConstants.g.cs" />
+    <!-- Add the generated file to the list of file writes for MSBuild to keep track of for clean-up -->
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)GVFSConstants.g.cs" />
+      <FileWrites Include="$(IntermediateOutputPath)GVFSConstants.g.cs" />
+    </ItemGroup>
+  </Target>
+
+</Project>

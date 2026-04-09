@@ -1,0 +1,22 @@
+name: "release-winget"
+on:
+  release:
+    types: [released]
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Publish manifest with winget-create
+        run: |
+          # Get correct release asset
+          $github = Get-Content '${{ github.event_path }}' | ConvertFrom-Json
+          $asset = $github.release.assets | Where-Object -Property name -match 'SetupGVFS[\d\.]*.exe'
+
+          # Remove 'v' from the version
+          $version = $github.release.tag_name -replace ".v",""
+
+          # Download and run wingetcreate
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          .\wingetcreate.exe update Microsoft.VFSforGit -u $asset.browser_download_url -v $version -o manifests -t "${{ secrets.WINGET_TOKEN }}" -s
+        shell: powershell
