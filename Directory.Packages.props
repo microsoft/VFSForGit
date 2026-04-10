@@ -25,7 +25,6 @@
     <PackageVersion Include="Microsoft.Windows.ProjFS" Version="1.1.19156.1" />
 
     <!-- Windows -->
-    <PackageVersion Include="Microsoft.Windows.SDK.Contracts" Version="10.0.17134.1000-preview" />
     <PackageVersion Include="System.ServiceProcess.ServiceController" Version="4.5.0" />
 
     <!-- Build / packaging -->

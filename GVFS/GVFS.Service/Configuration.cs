@@ -11,7 +11,6 @@ namespace GVFS.Service
         private Configuration()
         {
             this.GVFSLocation = Path.Combine(AssemblyPath, GVFSPlatform.Instance.Constants.GVFSExecutableName);
-            this.GVFSServiceUILocation = Path.Combine(AssemblyPath, GVFSConstants.Service.UIName + GVFSPlatform.Instance.Constants.ExecutableExtension);
         }
 
         public static Configuration Instance
@@ -36,6 +35,5 @@ namespace GVFS.Service
         }
 
         public string GVFSLocation { get; private set; }
-        public string GVFSServiceUILocation { get; private set; }
     }
 }

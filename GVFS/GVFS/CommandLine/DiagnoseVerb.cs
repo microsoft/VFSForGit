@@ -133,13 +133,6 @@ namespace GVFS.CommandLine
                             this.ServiceName,
                             copySubFolders: true);
 
-                        // service ui
-                        this.CopyAllFiles(
-                            GVFSPlatform.Instance.GetCommonAppDataRootForGVFS(),
-                            archiveFolderPath,
-                            GVFSConstants.Service.UIName,
-                            copySubFolders: true);
-
                         if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSConfig)
                         {
                             this.CopyFile(GVFSPlatform.Instance.GetSecureDataRootForGVFS(), archiveFolderPath, LocalGVFSConfig.FileName);
