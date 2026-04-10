@@ -41,7 +41,6 @@
       $(OutputPath)\GitHooksLoader.exe;
       $(OutputPath)\GVFS.Common.dll;
       $(OutputPath)\GVFS.exe;
-      $(OutputPath)\GVFS.GVFlt.dll;
       $(OutputPath)\GVFS.Hooks.exe;
       $(OutputPath)\GVFS.Mount.exe;
       $(OutputPath)\GVFS.Platform.Windows.dll;

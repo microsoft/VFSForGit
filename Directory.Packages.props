@@ -12,10 +12,7 @@
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
 
     <!-- Storage -->
-    <PackageVersion Include="ManagedEsent" Version="1.9.4" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="2.2.4" />
-    <PackageVersion Include="Microsoft.Database.Collections.Generic" Version="1.9.4" />
-    <PackageVersion Include="Microsoft.Database.Isam" Version="1.9.4" />
 
     <!-- Compression -->
     <PackageVersion Include="SharpZipLib" Version="1.3.3" />
