@@ -508,6 +508,26 @@ namespace GVFS.Hooks
             return !string.IsNullOrEmpty(result.Output);
         }
 
+        /// <summary>
+        /// Extracts the git exit code from hook args. Git appends --exit_code=N
+        /// to post-command hook arguments.
+        /// </summary>
+        private static int GetHookExitCode(string[] args)
+        {
+            for (int i = args.Length - 1; i >= 0; i--)
+            {
+                if (args[i].StartsWith("--exit_code="))
+                {
+                    if (int.TryParse(args[i].Substring("--exit_code=".Length), out int code))
+                    {
+                        return code;
+                    }
+                }
+            }
+
+            return 0;
+        }
+
         private static string GetGitCommandSessionId()
         {
             try
