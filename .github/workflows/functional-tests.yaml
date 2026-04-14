@@ -70,7 +70,7 @@ jobs:
     - name: Skip this job if there is a previous successful run
       if: inputs.skip != ''
       id: skip
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         script: |
           core.info(`Skipping: There already is a successful run: ${{ inputs.skip }}`)
