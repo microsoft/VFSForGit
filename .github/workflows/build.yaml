@@ -36,7 +36,7 @@ jobs:
     - name: Look for prior successful runs
       id: check
       if: github.event.inputs.git_version == ''
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
         result-encoding: string
@@ -182,7 +182,7 @@ jobs:
     - name: Skip this job if there is a previous successful run
       if: needs.validate.outputs.skip != ''
       id: skip
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         script: |
           core.info(`Skipping: There already is a successful run: ${{ needs.validate.outputs.skip }}`)
