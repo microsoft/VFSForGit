@@ -1,4 +1,3 @@
-using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -12,7 +11,6 @@ using System.Linq;
 
 namespace GVFS.CommandLine
 {
-    [Verb(DiagnoseVerb.DiagnoseVerbName, HelpText = "Diagnose issues with a GVFS repo")]
     public class DiagnoseVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string DiagnoseVerbName = "diagnose";
@@ -24,6 +22,21 @@ namespace GVFS.CommandLine
         public DiagnoseVerb() : base(false)
         {
             this.fileSystem = new PhysicalFileSystem();
+        }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("diagnose", "Diagnose issues with a GVFS repo");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<DiagnoseVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true);
+
+            return cmd;
         }
 
         protected override string VerbName

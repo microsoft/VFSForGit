@@ -1,4 +1,3 @@
-using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -38,10 +37,6 @@ namespace GVFS.CommandLine
 
         public abstract string EnlistmentRootPathParameter { get; set; }
 
-        [Option(
-            GVFSConstants.VerbParameters.InternalUseOnly,
-            Required = false,
-            HelpText = "This parameter is reserved for internal use.")]
         public string InternalParameters
         {
             set
@@ -817,18 +812,97 @@ You can specify a URL, a name of a configured cache server, or the special names
             return false;
         }
 
+        internal static System.CommandLine.Option<string> CreateInternalParametersOption()
+        {
+            return new System.CommandLine.Option<string>("--internal_use_only") { Description = "This parameter is reserved for internal use." };
+        }
+
+        internal static System.CommandLine.Argument<string> CreateEnlistmentPathArgument(bool required = false)
+        {
+            System.CommandLine.Argument<string> arg = new System.CommandLine.Argument<string>("enlistment-root-path");
+            arg.Description = "Full or relative path to the GVFS enlistment root";
+            arg.Arity = required ? System.CommandLine.ArgumentArity.ExactlyOne : System.CommandLine.ArgumentArity.ZeroOrOne;
+            if (!required)
+            {
+                arg.DefaultValueFactory = (_) => "";
+            }
+
+            return arg;
+        }
+
+        internal static void ApplyInternalParameters(GVFSVerb verb, System.CommandLine.ParseResult result, System.CommandLine.Option<string> internalOption)
+        {
+            string internalParams = result.GetValue(internalOption);
+            if (!string.IsNullOrEmpty(internalParams))
+            {
+                verb.InternalParameters = internalParams;
+            }
+        }
+
+        internal static void SetActionForVerbWithEnlistment<T>(
+            System.CommandLine.Command cmd,
+            System.CommandLine.Argument<string> enlistmentArg,
+            System.CommandLine.Option<string> internalOption,
+            bool defaultEnlistmentPathToCwd,
+            Action<T, System.CommandLine.ParseResult> setVerbProperties = null) where T : GVFSVerb, new()
+        {
+            cmd.SetAction((System.CommandLine.ParseResult result) =>
+            {
+                T verb = new T();
+                verb.EnlistmentRootPathParameter = result.GetValue(enlistmentArg) ?? "";
+                if (verb.EnlistmentRootPathParameter.StartsWith("-"))
+                {
+                    Console.Error.WriteLine($"Unrecognized option '{verb.EnlistmentRootPathParameter}'");
+                    Environment.Exit((int)ReturnCode.ParsingError);
+                }
+
+                if (defaultEnlistmentPathToCwd && string.IsNullOrEmpty(verb.EnlistmentRootPathParameter))
+                {
+                    verb.EnlistmentRootPathParameter = Environment.CurrentDirectory;
+                }
+
+                setVerbProperties?.Invoke(verb, result);
+                ApplyInternalParameters(verb, result, internalOption);
+                try
+                {
+                    verb.Execute();
+                }
+                catch (VerbAbortedException)
+                {
+                }
+
+                Environment.Exit((int)verb.ReturnCode);
+            });
+        }
+
+        internal static void SetActionForNoEnlistment<T>(
+            System.CommandLine.Command cmd,
+            System.CommandLine.Option<string> internalOption,
+            Action<T, System.CommandLine.ParseResult> setVerbProperties = null) where T : ForNoEnlistment, new()
+        {
+            cmd.SetAction((System.CommandLine.ParseResult result) =>
+            {
+                T verb = new T();
+                setVerbProperties?.Invoke(verb, result);
+                ApplyInternalParameters(verb, result, internalOption);
+                try
+                {
+                    verb.Execute();
+                }
+                catch (VerbAbortedException)
+                {
+                }
+
+                Environment.Exit((int)verb.ReturnCode);
+            });
+        }
+
         public abstract class ForExistingEnlistment : GVFSVerb
         {
             public ForExistingEnlistment(bool validateOrigin = true) : base(validateOrigin)
             {
             }
 
-            [Value(
-                0,
-                Required = false,
-                Default = "",
-                MetaName = "Enlistment Root Path",
-                HelpText = "Full or relative path to the GVFS enlistment root")]
             public override string EnlistmentRootPathParameter { get; set; }
 
             public sealed override void Execute()

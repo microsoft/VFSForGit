@@ -5,9 +5,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- CLI -->
-    <PackageVersion Include="CommandLineParser" Version="2.6.0" />
-
     <!-- Serialization -->
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
 
@@ -43,7 +40,7 @@
       Future packages: pre-declared for Phase 2+ branches to avoid
       merge conflicts on this file. Not yet referenced by any project.
     -->
-    <PackageVersion Include="System.CommandLine" Version="2.0.3" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.5" />
     <PackageVersion Include="System.IO.Pipes.AccessControl" Version="8.0.0" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>

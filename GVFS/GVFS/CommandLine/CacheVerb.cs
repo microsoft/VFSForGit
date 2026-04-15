@@ -1,4 +1,3 @@
-using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
@@ -8,13 +7,27 @@ using System.IO;
 
 namespace GVFS.CommandLine
 {
-    [Verb(CacheVerb.CacheVerbName, HelpText = "Display information about the GVFS shared object cache")]
     public class CacheVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string CacheVerbName = "cache";
 
         public CacheVerb()
         {
+        }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("cache", "Display information about the GVFS shared object cache");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<CacheVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true);
+
+            return cmd;
         }
 
         protected override string VerbName

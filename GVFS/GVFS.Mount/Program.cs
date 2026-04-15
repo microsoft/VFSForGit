@@ -1,4 +1,4 @@
-﻿using CommandLine;
+﻿using System.CommandLine;
 using GVFS.PlatformLoader;
 using System;
 
@@ -11,8 +11,8 @@ namespace GVFS.Mount
             GVFSPlatformLoader.Initialize();
             try
             {
-                Parser.Default.ParseArguments<InProcessMountVerb>(args)
-                    .WithParsed(mount => mount.Execute());
+                RootCommand rootCommand = InProcessMountVerb.BuildRootCommand();
+                rootCommand.Parse(args).Invoke();
             }
             catch (MountAbortedException e)
             {

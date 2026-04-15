@@ -1,4 +1,3 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
@@ -17,7 +16,6 @@ using System.Text;
 
 namespace GVFS.CommandLine
 {
-    [Verb(DehydrateVerb.DehydrateVerbName, HelpText = "EXPERIMENTAL FEATURE - Fully dehydrate a GVFS repo")]
     public class DehydrateVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string DehydrateVerbName = "dehydrate";
@@ -25,39 +23,54 @@ namespace GVFS.CommandLine
 
         private PhysicalFileSystem fileSystem = new PhysicalFileSystem();
 
-        [Option(
-            "confirm",
-            Default = false,
-            Required = false,
-            HelpText = "Pass in this flag to actually do the dehydrate")]
         public bool Confirmed { get; set; }
 
-        [Option(
-            "no-status",
-            Default = false,
-            Required = false,
-            HelpText = "Do not require a clean git status when dehydrating. To prevent data loss, this option cannot be combined with --folders option.")]
         public bool NoStatus { get; set; }
 
-        [Option(
-            "folders",
-            Default = "",
-            Required = false,
-            HelpText = "A semicolon (" + FolderListSeparator + ") delimited list of folders to dehydrate. "
-                + "Each folder must be relative to the repository root. "
-                + "When omitted (without --full), all root-level folders are dehydrated.")]
         public string Folders { get; set; }
 
-        [Option(
-            "full",
-            Default = false,
-            Required = false,
-            HelpText = "Perform a full dehydration that unmounts, backs up the entire src folder, and re-creates the virtualization root from scratch. "
-                + "Without this flag, the default behavior dehydrates individual folders which is faster and does not require a full unmount.")]
         public bool Full { get; set; }
 
         public string RunningVerbName { get; set; } = DehydrateVerbName;
         public string ActionName { get; set; } = DehydrateVerbName;
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("dehydrate", "EXPERIMENTAL FEATURE - Fully dehydrate a GVFS repo");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<bool> confirmOption = new System.CommandLine.Option<bool>("--confirm") { Description = "Pass in this flag to actually do the dehydrate" };
+            cmd.Add(confirmOption);
+
+            System.CommandLine.Option<bool> noStatusOption = new System.CommandLine.Option<bool>("--no-status") { Description = "Do not require a clean git status when dehydrating. To prevent data loss, this option cannot be combined with --folders option." };
+            cmd.Add(noStatusOption);
+
+            System.CommandLine.Option<string> foldersOption = new System.CommandLine.Option<string>("--folders")
+            {
+                Description = "A semicolon (;) delimited list of folders to dehydrate. Each folder must be relative to the repository root. When omitted (without --full), all root-level folders are dehydrated.",
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(foldersOption);
+
+            System.CommandLine.Option<bool> fullOption = new System.CommandLine.Option<bool>("--full") { Description = "Perform a full dehydration that unmounts, backs up the entire src folder, and re-creates the virtualization root from scratch." };
+            cmd.Add(fullOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<DehydrateVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true,
+                (verb, result) =>
+                {
+                    verb.Confirmed = result.GetValue(confirmOption);
+                    verb.NoStatus = result.GetValue(noStatusOption);
+                    verb.Folders = result.GetValue(foldersOption) ?? "";
+                    verb.Full = result.GetValue(fullOption);
+                });
+
+            return cmd;
+        }
 
         /// <summary>
         /// True if another verb (e.g. 'gvfs sparse') has already validated that status is clean

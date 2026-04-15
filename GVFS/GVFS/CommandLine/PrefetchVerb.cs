@@ -1,4 +1,3 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -12,7 +11,6 @@ using System.IO;
 
 namespace GVFS.CommandLine
 {
-    [Verb(PrefetchVerb.PrefetchVerbName, HelpText = "Prefetch remote objects for the current head")]
     public class PrefetchVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string PrefetchVerbName = "prefetch";
@@ -27,69 +25,93 @@ namespace GVFS.CommandLine
         private static readonly int DownloadThreadCount = Environment.ProcessorCount;
         private static readonly int IndexThreadCount = Environment.ProcessorCount;
 
-        [Option(
-            "files",
-            Required = false,
-            Default = "",
-            HelpText = "A semicolon-delimited list of files to fetch. Simple prefix wildcards, e.g. *.txt, are supported.")]
         public string Files { get; set; }
 
-        [Option(
-            "folders",
-            Required = false,
-            Default = "",
-            HelpText = "A semicolon-delimited list of folders to fetch. Wildcards are not supported.")]
         public string Folders { get; set; }
 
-        [Option(
-            "folders-list",
-            Required = false,
-            Default = "",
-            HelpText = "A file containing line-delimited list of folders to fetch. Wildcards are not supported.")]
         public string FoldersListFile { get; set; }
 
-        [Option(
-            "stdin-files-list",
-            Required = false,
-            Default = false,
-            HelpText = "Specify this flag to load file list from stdin. Same format as when loading from file.")]
         public bool FilesFromStdIn { get; set; }
 
-        [Option(
-            "stdin-folders-list",
-            Required = false,
-            Default = false,
-            HelpText = "Specify this flag to load folder list from stdin. Same format as when loading from file.")]
         public bool FoldersFromStdIn { get; set; }
 
-        [Option(
-            "files-list",
-            Required = false,
-            Default = "",
-            HelpText = "A file containing line-delimited list of files to fetch. Wildcards are supported.")]
         public string FilesListFile { get; set; }
 
-        [Option(
-            "hydrate",
-            Required = false,
-            Default = false,
-            HelpText = "Specify this flag to also hydrate files in the working directory.")]
         public bool HydrateFiles { get; set; }
 
-        [Option(
-            'c',
-            "commits",
-            Required = false,
-            Default = false,
-            HelpText = "Fetch the latest set of commit and tree packs. This option cannot be used with any of the file- or folder-related options.")]
         public bool Commits { get; set; }
 
-        [Option(
-            "verbose",
-            Required = false,
-            Default = false,
-            HelpText = "Show all outputs on the console in addition to writing them to a log file.")]
         public bool Verbose { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("prefetch", "Prefetch remote objects for the current head");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<string> filesOption = new System.CommandLine.Option<string>("--files")
+            {
+                Description = "A semicolon-delimited list of files to fetch. Simple prefix wildcards, e.g. *.txt, are supported.",
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(filesOption);
+
+            System.CommandLine.Option<string> foldersOption = new System.CommandLine.Option<string>("--folders")
+            {
+                Description = "A semicolon-delimited list of folders to fetch. Wildcards are not supported.",
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(foldersOption);
+
+            System.CommandLine.Option<string> foldersListOption = new System.CommandLine.Option<string>("--folders-list")
+            {
+                Description = "A file containing line-delimited list of folders to fetch. Wildcards are not supported.",
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(foldersListOption);
+
+            System.CommandLine.Option<bool> stdinFilesOption = new System.CommandLine.Option<bool>("--stdin-files-list") { Description = "Specify this flag to load file list from stdin. Same format as when loading from file." };
+            cmd.Add(stdinFilesOption);
+
+            System.CommandLine.Option<bool> stdinFoldersOption = new System.CommandLine.Option<bool>("--stdin-folders-list") { Description = "Specify this flag to load folder list from stdin. Same format as when loading from file." };
+            cmd.Add(stdinFoldersOption);
+
+            System.CommandLine.Option<string> filesListOption = new System.CommandLine.Option<string>("--files-list")
+            {
+                Description = "A file containing line-delimited list of files to fetch. Wildcards are supported.",
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(filesListOption);
+
+            System.CommandLine.Option<bool> hydrateOption = new System.CommandLine.Option<bool>("--hydrate") { Description = "Specify this flag to also hydrate files in the working directory." };
+            cmd.Add(hydrateOption);
+
+            System.CommandLine.Option<bool> commitsOption = new System.CommandLine.Option<bool>("--commits", new[] { "-c" }) { Description = "Fetch the latest set of commit and tree packs. This option cannot be used with any of the file- or folder-related options." };
+            cmd.Add(commitsOption);
+
+            System.CommandLine.Option<bool> verboseOption = new System.CommandLine.Option<bool>("--verbose") { Description = "Show all outputs on the console in addition to writing them to a log file." };
+            cmd.Add(verboseOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<PrefetchVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true,
+                (verb, result) =>
+                {
+                    verb.Files = result.GetValue(filesOption) ?? "";
+                    verb.Folders = result.GetValue(foldersOption) ?? "";
+                    verb.FoldersListFile = result.GetValue(foldersListOption) ?? "";
+                    verb.FilesFromStdIn = result.GetValue(stdinFilesOption);
+                    verb.FoldersFromStdIn = result.GetValue(stdinFoldersOption);
+                    verb.FilesListFile = result.GetValue(filesListOption) ?? "";
+                    verb.HydrateFiles = result.GetValue(hydrateOption);
+                    verb.Commits = result.GetValue(commitsOption);
+                    verb.Verbose = result.GetValue(verboseOption);
+                });
+
+            return cmd;
+        }
 
         public bool SkipVersionCheck { get; set; }
         public CacheServerInfo ResolvedCacheServer { get; set; }

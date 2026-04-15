@@ -1,33 +1,43 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
 using GVFS.RepairJobs;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.CommandLine
 {
-    [Verb(RepairVerb.RepairVerbName, HelpText = "EXPERIMENTAL FEATURE - Repair issues that prevent a GVFS repo from mounting")]
     public class RepairVerb : GVFSVerb
     {
         private const string RepairVerbName = "repair";
 
-        [Value(
-            1,
-            Required = false,
-            Default = "",
-            MetaName = "Enlistment Root Path",
-            HelpText = "Full or relative path to the GVFS enlistment root")]
         public override string EnlistmentRootPathParameter { get; set; }
 
-        [Option(
-            "confirm",
-            Default = false,
-            Required = false,
-            HelpText = "Pass in this flag to actually do repair(s). Without it, only validation will be done.")]
         public bool Confirmed { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("repair", "EXPERIMENTAL FEATURE - Repair issues that prevent a GVFS repo from mounting");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<bool> confirmOption = new System.CommandLine.Option<bool>("--confirm") { Description = "Pass in this flag to actually do repair(s). Without it, only validation will be done." };
+            cmd.Add(confirmOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<RepairVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true,
+                (verb, result) =>
+                {
+                    verb.Confirmed = result.GetValue(confirmOption);
+                });
+
+            return cmd;
+        }
 
         protected override string VerbName
         {

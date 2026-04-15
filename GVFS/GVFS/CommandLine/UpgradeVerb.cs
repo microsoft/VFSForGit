@@ -1,9 +1,8 @@
-using CommandLine;
+using GVFS.Common;
 using System;
 
 namespace GVFS.CommandLine
 {
-    [Verb(UpgradeVerbName, HelpText = "Checks for new GVFS release, downloads and installs it when available.")]
     public class UpgradeVerb : GVFSVerb.ForNoEnlistment
     {
         private const string UpgradeVerbName = "upgrade";
@@ -13,26 +12,38 @@ namespace GVFS.CommandLine
             this.Output = Console.Out;
         }
 
-        [Option(
-            "confirm",
-            Default = false,
-            Required = false,
-            HelpText = "Pass in this flag to actually install the newest release")]
         public bool Confirmed { get; set; }
 
-        [Option(
-            "dry-run",
-            Default = false,
-            Required = false,
-            HelpText = "Display progress and errors, but don't install GVFS")]
         public bool DryRun { get; set; }
 
-        [Option(
-            "no-verify",
-            Default = false,
-            Required = false,
-            HelpText = "Do not verify NuGet packages after downloading them. Some platforms do not support NuGet verification.")]
         public bool NoVerify { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("upgrade", "Checks for new GVFS release, downloads and installs it when available.");
+
+            System.CommandLine.Option<bool> confirmOption = new System.CommandLine.Option<bool>("--confirm") { Description = "Pass in this flag to actually install the newest release" };
+            cmd.Add(confirmOption);
+
+            System.CommandLine.Option<bool> dryRunOption = new System.CommandLine.Option<bool>("--dry-run") { Description = "Display progress and errors, but don't install GVFS" };
+            cmd.Add(dryRunOption);
+
+            System.CommandLine.Option<bool> noVerifyOption = new System.CommandLine.Option<bool>("--no-verify") { Description = "Do not verify NuGet packages after downloading them. Some platforms do not support NuGet verification." };
+            cmd.Add(noVerifyOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForNoEnlistment<UpgradeVerb>(cmd, internalOption,
+                (verb, result) =>
+                {
+                    verb.Confirmed = result.GetValue(confirmOption);
+                    verb.DryRun = result.GetValue(dryRunOption);
+                    verb.NoVerify = result.GetValue(noVerifyOption);
+                });
+
+            return cmd;
+        }
 
         protected override string VerbName
         {

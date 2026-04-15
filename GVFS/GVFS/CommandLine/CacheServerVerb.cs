@@ -1,4 +1,3 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
@@ -8,26 +7,45 @@ using System.Linq;
 
 namespace GVFS.CommandLine
 {
-    [Verb(CacheVerbName, HelpText = "Manages the cache server configuration for an existing repo.")]
     public class CacheServerVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string CacheVerbName = "cache-server";
 
-        [Option(
-            "set",
-            Default = null,
-            Required = false,
-            HelpText = "Sets the cache server to the supplied name or url")]
         public string CacheToSet { get; set; }
 
-        [Option("get", Required = false, HelpText = "Outputs the current cache server information. This is the default.")]
         public bool OutputCurrentInfo { get; set; }
 
-        [Option(
-            "list",
-            Required = false,
-            HelpText = "List available cache servers for the remote repo")]
         public bool ListCacheServers { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("cache-server", "Manages the cache server configuration for an existing repo.");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<string> setOption = new System.CommandLine.Option<string>("--set") { Description = "Sets the cache server to the supplied name or url" };
+            cmd.Add(setOption);
+
+            System.CommandLine.Option<bool> getOption = new System.CommandLine.Option<bool>("--get") { Description = "Outputs the current cache server information. This is the default." };
+            cmd.Add(getOption);
+
+            System.CommandLine.Option<bool> listOption = new System.CommandLine.Option<bool>("--list") { Description = "List available cache servers for the remote repo" };
+            cmd.Add(listOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<CacheServerVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true,
+                (verb, result) =>
+                {
+                    verb.CacheToSet = result.GetValue(setOption);
+                    verb.OutputCurrentInfo = result.GetValue(getOption);
+                    verb.ListCacheServers = result.GetValue(listOption);
+                });
+
+            return cmd;
+        }
 
         protected override string VerbName
         {
