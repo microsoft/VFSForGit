@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using GVFS.Common;
 
 namespace GVFS.Virtualization.Background
 {
@@ -133,7 +133,7 @@ namespace GVFS.Virtualization.Background
 
         public override string ToString()
         {
-            return JsonConvert.SerializeObject(this);
+            return GVFSJsonOptions.Serialize(this);
         }
     }
 }

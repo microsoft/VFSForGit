@@ -9,7 +9,7 @@
     <PackageReference Include="NUnitLite" />
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
-    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="System.Text.Json" />
     <PackageReference Include="SharpZipLib" />
     <PackageReference Include="System.ServiceProcess.ServiceController" />
   </ItemGroup>

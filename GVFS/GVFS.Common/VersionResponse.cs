@@ -1,4 +1,3 @@
-using Newtonsoft.Json;
 
 namespace GVFS.Common
 {
@@ -8,7 +7,7 @@ namespace GVFS.Common
 
         public static VersionResponse FromJsonString(string jsonString)
         {
-            return JsonConvert.DeserializeObject<VersionResponse>(jsonString);
+            return GVFSJsonOptions.Deserialize<VersionResponse>(jsonString);
         }
     }
 }

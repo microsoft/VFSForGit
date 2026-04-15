@@ -1,9 +1,9 @@
-﻿using GVFS.Common.FileSystem;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Text.Json;
 
 namespace GVFS.Common
 {
@@ -120,7 +120,7 @@ namespace GVFS.Common
         {
             try
             {
-                KeyValuePair<TKey, TValue> kvp = JsonConvert.DeserializeObject<KeyValuePair<TKey, TValue>>(line);
+                KeyValuePair<TKey, TValue> kvp = GVFSJsonOptions.Deserialize<KeyValuePair<TKey, TValue>>(line);
                 key = kvp.Key;
                 value = kvp.Value;
             }
@@ -140,7 +140,7 @@ namespace GVFS.Common
         {
             try
             {
-                key = JsonConvert.DeserializeObject<TKey>(line);
+                key = GVFSJsonOptions.Deserialize<TKey>(line);
             }
             catch (JsonException ex)
             {
@@ -162,7 +162,7 @@ namespace GVFS.Common
         {
             foreach (KeyValuePair<TKey, TValue> kvp in this.data)
             {
-                yield return this.FormatAddLine(JsonConvert.SerializeObject(kvp).Trim());
+                yield return this.FormatAddLine(GVFSJsonOptions.Serialize(kvp).Trim());
             }
         }
     }

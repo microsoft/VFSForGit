@@ -8,7 +8,7 @@
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp.NativeBinaries" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
-    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="System.Text.Json" />
     <PackageReference Include="SharpZipLib" />
   </ItemGroup>
 

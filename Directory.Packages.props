@@ -6,7 +6,7 @@
 
   <ItemGroup>
     <!-- Serialization -->
-    <PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageVersion Include="System.Text.Json" Version="8.0.5" />
 
     <!-- Storage -->
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="2.2.4" />
@@ -42,7 +42,6 @@
     -->
     <PackageVersion Include="System.CommandLine" Version="2.0.5" />
     <PackageVersion Include="System.IO.Pipes.AccessControl" Version="8.0.0" />
-    <PackageVersion Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
 </Project>

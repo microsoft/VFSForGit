@@ -2,12 +2,12 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests;
 using GVFS.Tests.Should;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tools
@@ -152,12 +152,14 @@ namespace GVFS.FunctionalTests.Tools
                                                             .ToArray();
             objectRootEntries.Length.ShouldEqual(1, $"Should be only one entry for repo url: {this.RepoUrl} mapping file content: {mappingFileContents}");
             objectRootEntries[0].Substring(0, 2).ShouldEqual("A ", $"Invalid mapping entry for repo: {objectRootEntries[0]}");
-            JObject rootEntryJson = JObject.Parse(objectRootEntries[0].Substring(2));
-            string objectRootFolder = rootEntryJson.GetValue("Value").ToString();
-            objectRootFolder.ShouldNotBeNull();
-            objectRootFolder.Length.ShouldBeAtLeast(1, $"Invalid object root folder: {objectRootFolder} for {this.RepoUrl} mapping file content: {mappingFileContents}");
+            using (JsonDocument rootEntryJson = JsonDocument.Parse(objectRootEntries[0].Substring(2)))
+            {
+                string objectRootFolder = rootEntryJson.RootElement.GetProperty("Value").GetString();
+                objectRootFolder.ShouldNotBeNull();
+                objectRootFolder.Length.ShouldBeAtLeast(1, $"Invalid object root folder: {objectRootFolder} for {this.RepoUrl} mapping file content: {mappingFileContents}");
 
-            return Path.Combine(this.LocalCacheRoot, objectRootFolder, "gitObjects");
+                return Path.Combine(this.LocalCacheRoot, objectRootFolder, "gitObjects");
+            }
         }
 
         public string GetPackRoot(FileSystemRunner fileSystem)

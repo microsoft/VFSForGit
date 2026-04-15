@@ -1,8 +1,8 @@
-﻿using GVFS.Common.Tracing;
-using Newtonsoft.Json;
+using GVFS.Common.Tracing;
 using System;
 using System.Net;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 
 namespace GVFS.Common.Http
@@ -66,10 +66,10 @@ namespace GVFS.Common.Http
                         try
                         {
                             string configString = response.RetryableReadToEnd();
-                            ServerGVFSConfig config = JsonConvert.DeserializeObject<ServerGVFSConfig>(configString);
+                            ServerGVFSConfig config = GVFSJsonOptions.Deserialize<ServerGVFSConfig>(configString);
                             return new RetryWrapper<ServerGVFSConfig>.CallbackResult(config);
                         }
-                        catch (JsonReaderException e)
+                        catch (JsonException e)
                         {
                             return new RetryWrapper<ServerGVFSConfig>.CallbackResult(e, shouldRetry: false);
                         }

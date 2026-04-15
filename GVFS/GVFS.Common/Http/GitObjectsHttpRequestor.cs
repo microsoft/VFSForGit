@@ -1,8 +1,8 @@
-﻿using GVFS.Common.Git;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -81,7 +81,7 @@ namespace GVFS.Common.Http
                         }
 
                         string objectSizesString = response.RetryableReadToEnd();
-                        List<GitObjectSize> objectSizes = JsonConvert.DeserializeObject<List<GitObjectSize>>(objectSizesString);
+                        List<GitObjectSize> objectSizes = GVFSJsonOptions.Deserialize<List<GitObjectSize>>(objectSizesString);
                         return new RetryWrapper<List<GitObjectSize>>.CallbackResult(objectSizes);
                     }
                 });
@@ -343,8 +343,8 @@ namespace GVFS.Common.Http
 
         public class GitObjectSize
         {
-            public readonly string Id;
-            public readonly long Size;
+            public string Id { get; set; }
+            public long Size { get; set; }
 
             [JsonConstructor]
             public GitObjectSize(string id, long size)
