@@ -51,20 +51,70 @@ namespace GVFS.Hooks
         private static void RunWorktreePostCommand(string[] args)
         {
             string subcommand = GetWorktreeSubcommand(args);
+            int? gitExitCode = GetHookExitCode(args);
+
+            // Treat null (missing arg) the same as 0 — older Git versions
+            // may not pass --exit_code, and we should run post-processing
+            // in that case for backward compatibility.
+            bool gitSucceeded = gitExitCode == null || gitExitCode == 0;
+
             switch (subcommand)
             {
                 case "add":
-                    MountNewWorktree(args);
+                    if (gitSucceeded)
+                    {
+                        MountNewWorktree(args);
+                    }
+
                     break;
                 case "remove":
+                    // Always run cleanup regardless of git exit code — need to
+                    // remount if remove failed, and clean markers either way.
                     RemountWorktreeIfRemoveFailed(args);
                     CleanupSkipCleanCheckMarker(args);
                     break;
                 case "move":
-                    // Mount at the new location after git moved the directory
-                    MountMovedWorktree(args);
+                    if (gitSucceeded)
+                    {
+                        MountMovedWorktree(args);
+                    }
+                    else
+                    {
+                        // Move failed — the pre-hook already unmounted the old
+                        // location. Remount so the worktree remains usable.
+                        RemountWorktreeIfMoveFailed(args);
+                    }
+
                     break;
             }
+        }
+
+        /// <summary>
+        /// Attempts to mount GVFS for a worktree, retrying on transient failures.
+        /// The first attempt shows output to the console; retries are quiet.
+        /// Returns true if mount succeeded.
+        /// </summary>
+        private static bool TryMountWithRetry(string fullPath)
+        {
+            int[] retryDelaysMs = { 100, 250 };
+
+            ProcessResult result = ProcessHelper.Run("gvfs", $"mount \"{fullPath}\"", redirectOutput: false);
+            if (result.ExitCode == 0)
+            {
+                return true;
+            }
+
+            for (int retry = 0; retry < retryDelaysMs.Length; retry++)
+            {
+                System.Threading.Thread.Sleep(retryDelaysMs[retry]);
+                result = ProcessHelper.Run("gvfs", $"mount \"{fullPath}\"", redirectOutput: true);
+                if (result.ExitCode == 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static void UnmountWorktreeByArg(string[] args)
@@ -91,6 +141,27 @@ namespace GVFS.Hooks
         /// (e.g., .git file or gitdir removed), don't attempt recovery.
         /// </summary>
         private static void RemountWorktreeIfRemoveFailed(string[] args)
+        {
+            string worktreePath = GetWorktreePathArg(args);
+            if (string.IsNullOrEmpty(worktreePath))
+            {
+                return;
+            }
+
+            string fullPath = ResolvePath(worktreePath);
+            string dotGitFile = Path.Combine(fullPath, ".git");
+            if (Directory.Exists(fullPath) && File.Exists(dotGitFile))
+            {
+                ProcessHelper.Run("gvfs", $"mount \"{fullPath}\"", redirectOutput: false);
+            }
+        }
+
+        /// <summary>
+        /// If git worktree move failed, remount at the original location.
+        /// The pre-hook unmounted the worktree before the move attempt;
+        /// on failure, the directory hasn't moved so we remount in place.
+        /// </summary>
+        private static void RemountWorktreeIfMoveFailed(string[] args)
         {
             string worktreePath = GetWorktreePathArg(args);
             if (string.IsNullOrEmpty(worktreePath))
@@ -335,20 +406,30 @@ namespace GVFS.Hooks
                 // Disable hooks via core.hookspath — the worktree's GVFS mount
                 // doesn't exist yet, so post-index-change would fail trying
                 // to connect to a pipe that hasn't been created.
+                bool checkoutSucceeded = false;
                 string emptyVfsHook = Path.Combine(fullPath, ".vfs-empty-hook");
                 try
                 {
                     File.WriteAllText(emptyVfsHook, "#!/bin/sh\nprintf \".gitattributes\\n\"\n");
                     string emptyVfsHookGitPath = emptyVfsHook.Replace('\\', '/');
 
-                    ProcessHelper.Run(
+                    ProcessResult checkoutResult = ProcessHelper.Run(
                         "git",
                         $"-C \"{fullPath}\" -c core.virtualfilesystem=\"'{emptyVfsHookGitPath}'\" -c core.hookspath= checkout -f HEAD",
                         redirectOutput: false);
+                    checkoutSucceeded = checkoutResult.ExitCode == 0;
                 }
                 finally
                 {
                     File.Delete(emptyVfsHook);
+                }
+
+                if (!checkoutSucceeded)
+                {
+                    Console.Error.WriteLine(
+                        $"warning: worktree checkout failed for '{fullPath}'.\n" +
+                        $"The worktree may not be fully initialized. Run 'gvfs mount \"{fullPath}\"' to recover.");
+                    return;
                 }
 
                 // Hydrate .gitattributes — copy from the primary enlistment.
@@ -363,8 +444,13 @@ namespace GVFS.Hooks
                     }
                 }
 
-                // Now mount GVFS — the index exists for GitIndexProjection
-                ProcessHelper.Run("gvfs", $"mount \"{fullPath}\"", redirectOutput: false);
+                // Mount GVFS with retry for transient contention (e.g. concurrent adds)
+                if (!TryMountWithRetry(fullPath))
+                {
+                    Console.Error.WriteLine(
+                        $"warning: failed to mount GVFS for worktree '{fullPath}' after multiple attempts.\n" +
+                        $"Files may not be visible. Run 'gvfs mount \"{fullPath}\"' to recover.");
+                }
             }
         }
 
@@ -383,7 +469,12 @@ namespace GVFS.Hooks
             string dotGitFile = Path.Combine(fullPath, ".git");
             if (File.Exists(dotGitFile))
             {
-                ProcessHelper.Run("gvfs", $"mount \"{fullPath}\"", redirectOutput: false);
+                if (!TryMountWithRetry(fullPath))
+                {
+                    Console.Error.WriteLine(
+                        $"warning: failed to mount GVFS for moved worktree '{fullPath}' after multiple attempts.\n" +
+                        $"Files may not be visible. Run 'gvfs mount \"{fullPath}\"' to recover.");
+                }
             }
         }
     }
