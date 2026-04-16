@@ -1,5 +1,4 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -346,7 +345,7 @@ namespace GVFS.Common.Tracing
                 Level = EventLevel.Informational,
                 Keywords = Keywords.Any,
                 Opcode = EventOpcode.Info,
-                Payload = JsonConvert.SerializeObject(new Dictionary<string, string>
+                Payload = GVFSJsonOptions.Serialize(new Dictionary<string, string>
                 {
                     ["EventListener"] = recoveredListener.GetType().Name
                 })
@@ -361,7 +360,7 @@ namespace GVFS.Common.Tracing
                 Level = EventLevel.Error,
                 Keywords = Keywords.Any,
                 Opcode = EventOpcode.Info,
-                Payload = JsonConvert.SerializeObject(new Dictionary<string, string>
+                Payload = GVFSJsonOptions.Serialize(new Dictionary<string, string>
                 {
                     ["EventListener"] = failedListener.GetType().Name,
                     ["ErrorMessage"] = errorMessage,
@@ -371,7 +370,7 @@ namespace GVFS.Common.Tracing
 
         private void WriteEvent(string eventName, EventLevel level, Keywords keywords, EventMetadata metadata, EventOpcode opcode)
         {
-            string jsonPayload = metadata != null ? JsonConvert.SerializeObject(metadata) : null;
+            string jsonPayload = metadata != null ? EventMetadataConverter.SerializeToString(metadata) : null;
 
             if (this.isDisposed)
             {

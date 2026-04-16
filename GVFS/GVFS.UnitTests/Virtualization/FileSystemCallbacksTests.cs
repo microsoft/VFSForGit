@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Database;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
@@ -13,7 +13,6 @@ using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization;
 using GVFS.Virtualization.Background;
 using Moq;
-using Newtonsoft.Json;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -163,8 +162,8 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.Count.ShouldEqual(8);
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
                 metadata.TryGetValue("FilePlaceholderCreation", out object fileNestedMetadata);
-                JsonConvert.SerializeObject(fileNestedMetadata).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe\"");
-                JsonConvert.SerializeObject(fileNestedMetadata).ShouldContain("\"ProcessCount1\":1");
+                GVFSJsonOptions.Serialize(fileNestedMetadata).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe\"");
+                GVFSJsonOptions.Serialize(fileNestedMetadata).ShouldContain("\"ProcessCount1\":1");
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 1);
                 metadata.ShouldContain("FolderPlaceholderCount", 0);
@@ -188,16 +187,16 @@ namespace GVFS.UnitTests.Virtualization
                 // Only processes that have created placeholders since the last heartbeat should be named
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
                 metadata.TryGetValue("FilePlaceholderCreation", out object fileNestedMetadata2);
-                JsonConvert.SerializeObject(fileNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
-                JsonConvert.SerializeObject(fileNestedMetadata2).ShouldContain("\"ProcessCount1\":2");
+                GVFSJsonOptions.Serialize(fileNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
+                GVFSJsonOptions.Serialize(fileNestedMetadata2).ShouldContain("\"ProcessCount1\":2");
                 metadata.ContainsKey("FolderPlaceholderCreation").ShouldBeTrue();
                 metadata.TryGetValue("FolderPlaceholderCreation", out object folderNestedMetadata2);
-                JsonConvert.SerializeObject(folderNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
-                JsonConvert.SerializeObject(folderNestedMetadata2).ShouldContain("\"ProcessCount1\":1");
+                GVFSJsonOptions.Serialize(folderNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
+                GVFSJsonOptions.Serialize(folderNestedMetadata2).ShouldContain("\"ProcessCount1\":1");
                 metadata.ContainsKey("FilePlaceholdersHydrated").ShouldBeTrue();
                 metadata.TryGetValue("FilePlaceholdersHydrated", out object hydrationNestedMetadata2);
-                JsonConvert.SerializeObject(hydrationNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
-                JsonConvert.SerializeObject(hydrationNestedMetadata2).ShouldContain("\"ProcessCount1\":1");
+                GVFSJsonOptions.Serialize(hydrationNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
+                GVFSJsonOptions.Serialize(hydrationNestedMetadata2).ShouldContain("\"ProcessCount1\":1");
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 3);
                 metadata.ShouldContain("FolderPlaceholderCount", 1);

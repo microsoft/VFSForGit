@@ -2,9 +2,9 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
-using Newtonsoft.Json;
 using System;
 using System.IO;
+using System.Text.Json;
 using System.Threading;
 
 namespace GVFS.Common
@@ -270,7 +270,7 @@ namespace GVFS.Common
                         tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
                         return false;
                     }
-                    catch (JsonReaderException e)
+                    catch (JsonException e)
                     {
                         errorMessage = string.Format("Failed to parse response from GVFS.Mount.\n {0}", e);
                         tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
