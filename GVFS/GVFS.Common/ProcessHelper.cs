@@ -26,8 +26,7 @@ namespace GVFS.Common
 
         public static string GetCurrentProcessLocation()
         {
-            Assembly assembly = Assembly.GetExecutingAssembly();
-            return Path.GetDirectoryName(assembly.Location);
+            return Path.GetDirectoryName(Environment.ProcessPath);
         }
 
         public static string GetEntryClassName()
@@ -36,8 +35,8 @@ namespace GVFS.Common
             if (assembly == null)
             {
                 // The PR build tests doesn't produce an entry assembly because it is run from unmanaged code,
-                // so we'll fall back on using this assembly. This should never ever happen for a normal exe invocation.
-                assembly = Assembly.GetExecutingAssembly();
+                // so we'll fall back on using process path. This should never ever happen for a normal exe invocation.
+                return Path.GetFileNameWithoutExtension(Environment.ProcessPath);
             }
 
             return assembly.GetName().Name;
@@ -47,8 +46,7 @@ namespace GVFS.Common
         {
             if (currentProcessVersion == null)
             {
-                Assembly assembly = Assembly.GetExecutingAssembly();
-                FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
+                FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(Environment.ProcessPath);
                 currentProcessVersion = fileVersionInfo.ProductVersion;
             }
 

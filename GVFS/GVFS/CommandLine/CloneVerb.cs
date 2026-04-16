@@ -284,7 +284,7 @@ namespace GVFS.CommandLine
                         {
                             try
                             {
-                                string gvfsExecutable = Assembly.GetExecutingAssembly().Location;
+                                string gvfsExecutable = Environment.ProcessPath;
                                 Process.Start(new ProcessStartInfo(
                                     fileName: gvfsExecutable,
                                     arguments: "prefetch --commits")
@@ -426,7 +426,7 @@ namespace GVFS.CommandLine
 
                     if (refs == null)
                     {
-                        return new Result("Could not query info/refs from: " + Uri.EscapeUriString(enlistment.RepoUrl));
+                        return new Result("Could not query info/refs from: " + Uri.EscapeDataString(enlistment.RepoUrl));
                     }
 
                     if (this.Branch == null)

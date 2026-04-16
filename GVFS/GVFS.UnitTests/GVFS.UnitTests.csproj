@@ -1,7 +1,6 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -11,6 +10,7 @@
     <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj" />
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
+    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
     <ProjectReference Include="..\GVFS\GVFS.csproj" />
   </ItemGroup>
 
@@ -20,20 +20,9 @@
     <PackageReference Include="Moq" />
   </ItemGroup>
 
-
-    <ItemGroup>
-        <Reference Include="System.Net.Http" />
-    </ItemGroup>
-
-  <!-- Because the unit tests may run on a machine without ProjFS installed
-       (such as CI machines) we must include the native library for the tests -->
+  <!-- ProjFS managed API for test mocks -->
   <ItemGroup>
-    <PackageReference Include="GVFS.ProjFS"
-                      ExcludeAssets="all" GeneratePathProperty="true" />
-    <None Include="$(PkgGVFS_ProjFS)\lib\ProjectedFSLib.dll">
-      <Link>ProjectedFSLib.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <PackageReference Include="Microsoft.Windows.ProjFS" />
   </ItemGroup>
 
   <ItemGroup>
@@ -58,3 +47,4 @@
   </ItemGroup>
 
 </Project>
+

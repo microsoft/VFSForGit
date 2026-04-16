@@ -165,7 +165,8 @@ namespace GVFS.Platform.Windows
 
                 // Use AccessRuleFactory rather than creating a FileSystemAccessRule because the NativeMethods.FileAccess flags
                 // we're specifying are not valid for the FileSystemRights parameter of the FileSystemAccessRule constructor
-                DirectorySecurity directorySecurity = Directory.GetAccessControl(directoryPath);
+                DirectoryInfo directoryInfo = new DirectoryInfo(directoryPath);
+                DirectorySecurity directorySecurity = directoryInfo.GetAccessControl();
                 AccessRule authenticatedUsersAccessRule = directorySecurity.AccessRuleFactory(
                     new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
                     unchecked((int)(NativeMethods.FileAccess.DELETE | NativeMethods.FileAccess.GENERIC_EXECUTE | NativeMethods.FileAccess.GENERIC_WRITE | NativeMethods.FileAccess.GENERIC_READ)),
@@ -177,7 +178,7 @@ namespace GVFS.Platform.Windows
                 // The return type of the AccessRuleFactory method is the base class, AccessRule, but the return value can be cast safely to the derived class.
                 // https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.filesystemsecurity.accessrulefactory(v=vs.110).aspx
                 directorySecurity.AddAccessRule((FileSystemAccessRule)authenticatedUsersAccessRule);
-                Directory.SetAccessControl(directoryPath, directorySecurity);
+                directoryInfo.SetAccessControl(directorySecurity);
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is SystemException)
             {
@@ -210,7 +211,7 @@ namespace GVFS.Platform.Windows
                 AddUsersAccessRulesToDirectorySecurity(directorySecurity, grantUsersModifyPermissions: true);
                 AddAdminAccessRulesToDirectorySecurity(directorySecurity);
 
-                Directory.CreateDirectory(directoryPath, directorySecurity);
+                directorySecurity.CreateDirectory(directoryPath);
             }
             catch (Exception e) when (e is IOException ||
                                       e is UnauthorizedAccessException ||
@@ -229,10 +230,11 @@ namespace GVFS.Platform.Windows
         {
             try
             {
+                DirectoryInfo directoryInfo = new DirectoryInfo(directoryPath);
                 DirectorySecurity directorySecurity;
                 if (Directory.Exists(directoryPath))
                 {
-                    directorySecurity = Directory.GetAccessControl(directoryPath);
+                    directorySecurity = directoryInfo.GetAccessControl();
                 }
                 else
                 {
@@ -247,10 +249,10 @@ namespace GVFS.Platform.Windows
                 AddUsersAccessRulesToDirectorySecurity(directorySecurity, grantUsersModifyPermissions: false);
                 AddAdminAccessRulesToDirectorySecurity(directorySecurity);
 
-                Directory.CreateDirectory(directoryPath, directorySecurity);
+                directorySecurity.CreateDirectory(directoryPath);
 
                 // Ensure the ACLs are set correctly if the directory already existed
-                Directory.SetAccessControl(directoryPath, directorySecurity);
+                directoryInfo.SetAccessControl(directorySecurity);
             }
             catch (Exception e) when (e is IOException || e is SystemException)
             {
@@ -289,14 +291,15 @@ namespace GVFS.Platform.Windows
             // Ensure directory exists, inheriting all other ACLS
             Directory.CreateDirectory(directoryPath);
             // If the user is currently elevated, the owner of the directory will be the Administrators group.
-            DirectorySecurity directorySecurity = Directory.GetAccessControl(directoryPath);
+            DirectoryInfo directoryInfo = new DirectoryInfo(directoryPath);
+            DirectorySecurity directorySecurity = directoryInfo.GetAccessControl();
             IdentityReference directoryOwner = directorySecurity.GetOwner(typeof(SecurityIdentifier));
             SecurityIdentifier administratorsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
             if (directoryOwner == administratorsSid)
             {
                 WindowsIdentity currentUser = WindowsIdentity.GetCurrent();
                 directorySecurity.SetOwner(currentUser.User);
-                Directory.SetAccessControl(directoryPath, directorySecurity);
+                directoryInfo.SetAccessControl(directorySecurity);
             }
         }
 

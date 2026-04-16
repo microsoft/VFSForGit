@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -10,11 +9,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.ProjFS" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="System.Management" />
-    <Reference Include="System.ServiceProcess" />
+    <PackageReference Include="System.Management" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" />
   </ItemGroup>
 
 </Project>
+

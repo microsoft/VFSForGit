@@ -1,7 +1,6 @@
-﻿<Project Sdk="Microsoft.Build.NoTargets">
+<Project Sdk="Microsoft.Build.NoTargets">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
@@ -11,24 +10,19 @@
   </ItemDefinitionGroup>
 
   <ItemGroup>
-    <PackageReference Include="GVFS.ProjFS" />
     <PackageReference Include="GVFS.VCRuntime" />
     <PackageReference Include="MicroBuild.Core" ExcludeAssets="none" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GitHooksLoader\GitHooksLoader.vcxproj" />
     <ProjectReference Include="..\GVFS.Hooks\GVFS.Hooks.csproj" />
     <ProjectReference Include="..\GVFS.Mount\GVFS.Mount.csproj" />
-    <ProjectReference Include="..\GVFS.PostIndexChangedHook\GVFS.PostIndexChangedHook.vcxproj" />
-    <ProjectReference Include="..\GVFS.ReadObjectHook\GVFS.ReadObjectHook.vcxproj" />
     <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj" />
-    <ProjectReference Include="..\GVFS.VirtualFileSystemHook\GVFS.VirtualFileSystemHook.vcxproj" />
     <ProjectReference Include="..\GVFS\GVFS.csproj" />
   </ItemGroup>
 
   <Target Name="CreatePayload" AfterTargets="CoreBuild" BeforeTargets="SignFiles">
-    <Exec Command='"$(MSBuildThisFileDirectory)layout.bat" $(Configuration) $(GVFSVersion) "$(PkgGVFS_ProjFS)" "$(PkgGVFS_VCRuntime)" "$(OutputPath)"' />
+    <Exec Command='"$(MSBuildThisFileDirectory)layout.bat" $(Configuration) $(GVFSVersion) "$(PkgGVFS_VCRuntime)" "$(OutputPath)"' />
   </Target>
 
   <Target Name="CleanPayload" BeforeTargets="AfterClean">
@@ -54,3 +48,4 @@
   </ItemGroup>
 
 </Project>
+

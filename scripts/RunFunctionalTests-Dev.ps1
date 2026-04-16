@@ -59,7 +59,7 @@ $env:GVFS_COMMON_APPDATA_ROOT = Join-Path $env:GVFS_TEST_DATA "AppData"
 $env:GVFS_SECURE_DATA_ROOT = Join-Path $env:GVFS_TEST_DATA "ProgramData"
 
 # Put build output gvfs.exe on PATH
-$payloadDir = Join-Path $outDir "GVFS.Payload\bin\$Configuration\win-x64"
+$payloadDir = Join-Path $outDir "GVFS.Payload\bin\$Configuration\net10.0-windows10.0.17763.0\win-x64"
 $env:PATH = "$payloadDir;C:\Program Files\Git\cmd;$env:PATH"
 
 Write-Host "============================================"
@@ -88,7 +88,7 @@ Write-Host "git location:        $($gitPath.Source)"
 Write-Host ""
 
 # Build test exe path
-$testExe = Join-Path $outDir "GVFS.FunctionalTests\bin\$Configuration\net471\win-x64\GVFS.FunctionalTests.exe"
+$testExe = Join-Path $outDir "GVFS.FunctionalTests\bin\$Configuration\net10.0-windows10.0.17763.0\win-x64\GVFS.FunctionalTests.exe"
 if (-not (Test-Path $testExe)) {
     Write-Error "Test executable not found: $testExe`nRun Build.bat first."
     exit 1

@@ -1247,7 +1247,7 @@ namespace GVFS.Mount
                     string warningMessage = "WARNING: Unable to validate your GVFS version" + Environment.NewLine;
                     if (config == null)
                     {
-                        warningMessage += "Could not query valid GVFS versions from: " + Uri.EscapeUriString(this.enlistment.RepoUrl);
+                        warningMessage += "Could not query valid GVFS versions from: " + Uri.EscapeDataString(this.enlistment.RepoUrl);
                     }
                     else
                     {
