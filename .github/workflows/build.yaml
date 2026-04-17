@@ -23,7 +23,7 @@ permissions:
   actions: read
 
 env:
-  GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.53.0.vfs.0.6' }}
+  GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.53.0.vfs.0.7' }}
 
 jobs:
   validate:
