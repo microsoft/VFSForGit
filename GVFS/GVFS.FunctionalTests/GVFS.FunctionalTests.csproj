@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <PublishAot>false</PublishAot>
   </PropertyGroup>
 
   <ItemGroup>

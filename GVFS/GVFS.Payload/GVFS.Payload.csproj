@@ -14,13 +14,6 @@
     <PackageReference Include="MicroBuild.Core" ExcludeAssets="none" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\GVFS.Hooks\GVFS.Hooks.csproj" />
-    <ProjectReference Include="..\GVFS.Mount\GVFS.Mount.csproj" />
-    <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj" />
-    <ProjectReference Include="..\GVFS\GVFS.csproj" />
-  </ItemGroup>
-
   <Target Name="CreatePayload" AfterTargets="CoreBuild" BeforeTargets="SignFiles">
     <Exec Command='"$(MSBuildThisFileDirectory)layout.bat" $(Configuration) $(GVFSVersion) "$(PkgGVFS_VCRuntime)" "$(OutputPath)"' />
   </Target>
@@ -32,16 +25,13 @@
   <ItemGroup>
     <FilesToSign Include="
       $(OutputPath)\GitHooksLoader.exe;
-      $(OutputPath)\GVFS.Common.dll;
       $(OutputPath)\GVFS.exe;
       $(OutputPath)\GVFS.Hooks.exe;
       $(OutputPath)\GVFS.Mount.exe;
-      $(OutputPath)\GVFS.Platform.Windows.dll;
       $(OutputPath)\GVFS.PostIndexChangedHook.exe;
       $(OutputPath)\GVFS.ReadObjectHook.exe;
       $(OutputPath)\GVFS.Service.exe;
-      $(OutputPath)\GVFS.VirtualFileSystemHook.exe;
-      $(OutputPath)\GVFS.Virtualization.dll;">
+      $(OutputPath)\GVFS.VirtualFileSystemHook.exe;">
       <Authenticode>Microsoft400</Authenticode>
       <InProject>false</InProject>
     </FilesToSign>

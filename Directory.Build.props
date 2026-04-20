@@ -26,6 +26,9 @@
     <LangVersion>latest</LangVersion>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PlatformTarget>x64</PlatformTarget>
+    <SelfContained>true</SelfContained>
+    <PublishAot>true</PublishAot>
+    <OptimizationPreference>Speed</OptimizationPreference>
     <BaseOutputPath>$(ProjectOutPath)bin\</BaseOutputPath>
     <BaseIntermediateOutputPath>$(ProjectOutPath)obj\</BaseIntermediateOutputPath>
   </PropertyGroup>

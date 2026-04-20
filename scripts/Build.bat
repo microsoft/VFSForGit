@@ -77,16 +77,20 @@ IF DEFINED MSBUILD_EXEC (
 ECHO ^*****************************
 ECHO ^* Building Managed Projects *
 ECHO ^*****************************
-REM Build managed projects with dotnet build. Skip Payload/Installers (they
-REM reference vcxproj and will be built by VS MSBuild below).
+REM Self-contained deployment requires "dotnet publish" (not "dotnet build")
+REM to produce complete output with runtime and correct version resources.
 FOR %%P IN (
-    "%VFS_SRCDIR%\GVFS\GVFS.UnitTests\GVFS.UnitTests.csproj"
+    "%VFS_SRCDIR%\GVFS\GVFS\GVFS.csproj"
+    "%VFS_SRCDIR%\GVFS\GVFS.Mount\GVFS.Mount.csproj"
+    "%VFS_SRCDIR%\GVFS\GVFS.Hooks\GVFS.Hooks.csproj"
+    "%VFS_SRCDIR%\GVFS\GVFS.Service\GVFS.Service.csproj"
     "%VFS_SRCDIR%\GVFS\FastFetch\FastFetch.csproj"
+    "%VFS_SRCDIR%\GVFS\GVFS.UnitTests\GVFS.UnitTests.csproj"
     "%VFS_SRCDIR%\GVFS\GVFS.FunctionalTests\GVFS.FunctionalTests.csproj"
     "%VFS_SRCDIR%\GVFS\GVFS.PerfProfiling\GVFS.PerfProfiling.csproj"
 ) DO (
-    ECHO Building %%~nP...
-    dotnet build %%P --no-restore -v:%VERBOSITY% -c %CONFIGURATION% || GOTO ERROR
+    ECHO Publishing %%~nP...
+    dotnet publish %%P --no-restore -v:%VERBOSITY% -c %CONFIGURATION% || GOTO ERROR
 )
 
 ECHO ^*******************************
@@ -98,8 +102,8 @@ FOR %%P IN (
     "%VFS_SRCDIR%\GVFS\GVFS.Payload\GVFS.Payload.csproj"
     "%VFS_SRCDIR%\GVFS\GVFS.Installers\GVFS.Installers.csproj"
 ) DO (
-    ECHO Building %%~nP...
-    dotnet build %%P --no-restore -v:%VERBOSITY% -c %CONFIGURATION% || GOTO ERROR
+    ECHO Publishing %%~nP...
+    dotnet publish %%P --no-restore -v:%VERBOSITY% -c %CONFIGURATION% || GOTO ERROR
 )
 
 GOTO :EOF

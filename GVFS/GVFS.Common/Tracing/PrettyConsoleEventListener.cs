@@ -59,7 +59,7 @@ namespace GVFS.Common.Tracing
             }
         }
 
-        private class ConsoleOutputPayload
+        internal class ConsoleOutputPayload
         {
             public string ErrorMessage { get; set; }
         }

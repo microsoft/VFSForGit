@@ -32,7 +32,7 @@ SET OUTPUT=%4
 
 SET ROOT=%~dp0..\..
 SET BUILD_OUT="%ROOT%\..\out"
-SET MANAGED_OUT_FRAGMENT=bin\%CONFIGURATION%\net10.0-windows10.0.17763.0\win-x64
+SET MANAGED_OUT_FRAGMENT=bin\%CONFIGURATION%\net10.0-windows10.0.17763.0\win-x64\publish
 SET NATIVE_OUT_FRAGMENT=bin\x64\%CONFIGURATION%
 
 ECHO Copying files...
@@ -56,6 +56,13 @@ REM Remove unused LibGit2 files
 RMDIR /S /Q %OUTPUT%\lib
 REM Remove files for x86 (not supported)
 RMDIR /S /Q %OUTPUT%\x86
+REM Remove stray managed artifacts (AOT binaries don't need these)
+DEL /Q %OUTPUT%\*.runtimeconfig.json 2>nul
+DEL /Q %OUTPUT%\*.deps.json 2>nul
+REM Remove orphaned managed PDBs (these libraries are compiled into AOT exes)
+DEL /Q %OUTPUT%\GVFS.Common.pdb 2>nul
+DEL /Q %OUTPUT%\GVFS.Platform.Windows.pdb 2>nul
+DEL /Q %OUTPUT%\GVFS.Virtualization.pdb 2>nul
 
 GOTO EOF
 
