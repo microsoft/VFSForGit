@@ -112,7 +112,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Ignore("This doesn't work right now. Tracking if this is a ProjFS problem. See #1696 for tracking.")]
         public void CheckoutNewBranchFromStartingPointTest()
         {
             this.ControlGitRepo.Fetch(BranchWithFiles);
@@ -132,7 +131,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Ignore("This doesn't work right now. Tracking if this is a ProjFS problem. See #1696 for tracking.")]
         public void CheckoutOrhpanBranchFromStartingPointTest()
         {
             this.ControlGitRepo.Fetch(BranchWithoutFiles);

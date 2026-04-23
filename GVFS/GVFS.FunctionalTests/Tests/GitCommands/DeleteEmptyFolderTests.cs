@@ -14,7 +14,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Ignore("This doesn't work right now. Tracking if this is a ProjFS problem. See #1696 for tracking.")]
         public void VerifyResetHardDeletesEmptyFolders()
         {
             this.SetupFolderDeleteTest();
