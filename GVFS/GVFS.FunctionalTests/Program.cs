@@ -130,6 +130,8 @@ namespace GVFS.FunctionalTests
                 ?? Properties.Settings.Default.RepoToClone;
 
             RunBeforeAnyTests();
+            Console.WriteLine("[CI-DEBUG] RunBeforeAnyTests complete, starting RunTests...");
+            Console.Out.Flush();
             Environment.ExitCode = runner.RunTests(includeCategories, excludeCategories, testSlice);
 
             if (Debugger.IsAttached)
@@ -141,12 +143,19 @@ namespace GVFS.FunctionalTests
 
         private static void RunBeforeAnyTests()
         {
+            Console.WriteLine("[CI-DEBUG] RunBeforeAnyTests: starting");
+            Console.Out.Flush();
+
             if (GVFSTestConfig.ReplaceInboxProjFS)
             {
                 ProjFSFilterInstaller.ReplaceInboxProjFS();
             }
 
+            Console.WriteLine("[CI-DEBUG] Installing service...");
+            Console.Out.Flush();
             GVFSServiceProcess.InstallService();
+            Console.WriteLine("[CI-DEBUG] Service installed successfully");
+            Console.Out.Flush();
 
             string serviceProgramDataDir = GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(
                 GVFSConstants.Service.ServiceName);
@@ -159,6 +168,9 @@ namespace GVFS.FunctionalTests
                 Directory.CreateDirectory(serviceProgramDataDir);
                 File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
             }
+
+            Console.WriteLine("[CI-DEBUG] RunBeforeAnyTests: complete");
+            Console.Out.Flush();
         }
     }
 }

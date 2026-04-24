@@ -22,7 +22,7 @@ namespace GVFS.Common.FileSystem
 
         static HooksInstaller()
         {
-            ExecutingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            ExecutingDirectory = Path.GetDirectoryName(Environment.ProcessPath);
         }
 
         public static string MergeHooksData(string[] defaultHooksLines, string filename, string hookName)

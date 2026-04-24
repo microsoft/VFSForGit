@@ -173,7 +173,7 @@ namespace GVFS.Platform.Windows
             security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
             security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
 
-            NamedPipeServerStream pipe = new NamedPipeServerStream(
+            NamedPipeServerStream pipe = NamedPipeServerStreamAcl.Create(
                 pipeName,
                 PipeDirection.InOut,
                 NamedPipeServerStream.MaxAllowedServerInstances,

@@ -8,7 +8,6 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,19 +31,10 @@ namespace GVFS.Common.Http
 
         static HttpRequestor()
         {
-            /* If machine.config is locked, then initializing ServicePointManager will fail and be unrecoverable.
-             * Machine.config locking is typically very brief (~1ms by the antivirus scanner) so we can attempt to lock
-             * it ourselves (by opening it for read) *beforehand and briefly wait if it's locked */
-            using (var machineConfigLock = GetMachineConfigLock())
-            {
-                ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
-
-                // HTTP downloads are I/O-bound, not CPU-bound, so we default to
-                // 2x ProcessorCount. Can be overridden via gvfs.max-http-connections.
-                int connectionLimit = 2 * Environment.ProcessorCount;
-                ServicePointManager.DefaultConnectionLimit = connectionLimit;
-                availableConnections = new SemaphoreSlim(connectionLimit);
-            }
+            // HTTP downloads are I/O-bound, not CPU-bound, so we default to
+            // 2x ProcessorCount. Can be overridden via gvfs.max-http-connections.
+            int connectionLimit = 2 * Environment.ProcessorCount;
+            availableConnections = new SemaphoreSlim(connectionLimit);
         }
 
         protected HttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment)
@@ -62,7 +52,7 @@ namespace GVFS.Common.Http
                 TryApplyConnectionLimitFromConfig(tracer, enlistment);
             }
 
-            HttpClientHandler httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
+            HttpClientHandler httpClientHandler = new HttpClientHandler();
 
             this.authentication.ConfigureHttpClientHandlerSslIfNeeded(this.Tracer, httpClientHandler, enlistment.CreateGitProcess());
 
@@ -180,8 +170,8 @@ namespace GVFS.Common.Http
                 }
                 catch (HttpRequestException httpRequestException) when (TryGetResponseMessageFromHttpRequestException(httpRequestException, request, out response))
                 {
-                    /* HttpClientHandler will automatically resubmit in certain circumstances, such as a 401 unauthorized response when UseDefaultCredentials
-                     * is true but another credential was provided. This resubmit can throw (instead of returning a proper status code) in some case cases, such
+                    /* HttpClientHandler may automatically resubmit in certain circumstances, such as a 401 unauthorized response.
+                     * This resubmit can throw (instead of returning a proper status code) in some cases, such
                      * as when there is an exception loading the default credentials.
                      * If we can extract the original response message from the exception, we can continue and process the original failed status code. */
                     Tracer.RelatedWarning(responseMetadata, $"An exception occurred while resubmitting the request, but the original response is available.");
@@ -391,8 +381,7 @@ namespace GVFS.Common.Http
 
                 if (configuredLimit > 0)
                 {
-                    int currentLimit = ServicePointManager.DefaultConnectionLimit;
-                    ServicePointManager.DefaultConnectionLimit = configuredLimit;
+                    int currentLimit = availableConnections.CurrentCount;
 
                     // Adjust the existing semaphore rather than replacing it, so any
                     // in-flight waiters release permits to the correct instance.
@@ -424,29 +413,6 @@ namespace GVFS.Common.Http
                 metadata.Add("Exception", e.ToString());
                 tracer.RelatedWarning(metadata, "HttpRequestor: Failed to read gvfs.max-http-connections config, using default");
             }
-        }
-
-        private static FileStream GetMachineConfigLock()
-        {
-            var machineConfigLocation = RuntimeEnvironment.SystemConfigurationFile;
-            var tries = 0;
-            var maxTries = 3;
-            while (tries++ < maxTries)
-            {
-                try
-                {
-                    /* Opening with FileShare.Read will fail if another process (eg antivirus) has opened the file for write,
-                     but will still let ServicePointManager read the file.*/
-                    FileStream stream = File.Open(machineConfigLocation, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    return stream;
-                }
-                catch (IOException e) when ((uint)e.HResult == 0x80070020) // SHARING_VIOLATION
-                {
-                    Thread.Sleep(10);
-                }
-            }
-            /* Couldn't get the lock - the process will likely fail. */
-            return null;
         }
     }
 }
