@@ -1,10 +1,8 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using Microsoft.Win32.SafeHandles;
 using System;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
@@ -106,9 +104,53 @@ namespace GVFS.Platform.Windows
             return WindowsFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
         }
 
+        /// <summary>
+        /// Hydrates a file by reading its first byte, triggering ProjFS placeholder hydration.
+        /// </summary>
+        /// <remarks>
+        /// This was originally implemented using direct P/Invoke to kernel32 CreateFile/ReadFile
+        /// for minimal overhead. During the .NET 10 NativeAOT migration, the P/Invoke path caused
+        /// intermittent ACCESS_VIOLATION (0xC0000005) crashes under high concurrency in the
+        /// HydrateFilesStage pipeline. The P/Invoke declarations also had incorrect parameter types
+        /// (uint/int for pointer-sized params like LPSECURITY_ATTRIBUTES and LPOVERLAPPED).
+        ///
+        /// Replaced with managed FileStream, which internally calls the same Win32 APIs through the
+        /// runtime's own NativeAOT-validated interop layer. Benchmarked at equivalent throughput
+        /// (~36-40K files/s) in the multi-threaded scenario that matches actual HydrateFilesStage
+        /// usage (ProcessorCount * 2 threads).
+        /// </remarks>
         public bool HydrateFile(string fileName, byte[] buffer)
         {
-            return NativeFileReader.TryReadFirstByteOfFile(fileName, buffer);
+            if (buffer.Length < 1)
+            {
+                throw new ArgumentException("Buffer must be at least 1 byte.", nameof(buffer));
+            }
+
+            try
+            {
+                using (FileStream fs = new FileStream(
+                    fileName,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete))
+                {
+                    // Read is intentionally inexact — we only need to trigger ProjFS hydration,
+                    // not verify byte count. Empty files (0 bytes read) are fine.
+#pragma warning disable CA2022
+                    fs.Read(buffer, 0, 1);
+#pragma warning restore CA2022
+                }
+
+                return true;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
         }
 
         public bool IsExecutable(string fileName)
@@ -301,54 +343,6 @@ namespace GVFS.Platform.Windows
                 directorySecurity.SetOwner(currentUser.User);
                 directoryInfo.SetAccessControl(directorySecurity);
             }
-        }
-
-        private class NativeFileReader
-        {
-            private const uint GenericRead = 0x80000000;
-            private const uint OpenExisting = 3;
-
-            public static bool TryReadFirstByteOfFile(string fileName, byte[] buffer)
-            {
-                using (SafeFileHandle handle = Open(fileName))
-                {
-                    if (!handle.IsInvalid)
-                    {
-                        return ReadOneByte(handle, buffer);
-                    }
-                }
-
-                return false;
-            }
-
-            private static SafeFileHandle Open(string fileName)
-            {
-                return CreateFile(fileName, GenericRead, (uint)(FileShare.ReadWrite | FileShare.Delete), 0, OpenExisting, 0, 0);
-            }
-
-            private static bool ReadOneByte(SafeFileHandle handle, byte[] buffer)
-            {
-                int bytesRead = 0;
-                return ReadFile(handle, buffer, 1, ref bytesRead, 0);
-            }
-
-            [DllImport("kernel32", SetLastError = true, ThrowOnUnmappableChar = true, CharSet = CharSet.Unicode)]
-            private static extern SafeFileHandle CreateFile(
-                string fileName,
-                uint desiredAccess,
-                uint shareMode,
-                uint securityAttributes,
-                uint creationDisposition,
-                uint flagsAndAttributes,
-                int hemplateFile);
-
-            [DllImport("kernel32", SetLastError = true)]
-            private static extern bool ReadFile(
-                SafeFileHandle file,
-                [Out] byte[] buffer,
-                int numberOfBytesToRead,
-                ref int numberOfBytesRead,
-                int overlapped);
         }
     }
 }
