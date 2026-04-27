@@ -26,13 +26,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] worktreePaths;
             string[] branchNames;
 
+            Stopwatch testSw = Stopwatch.StartNew();
+            DiagLog($"Starting test with count={count} (ProcessorCount={Environment.ProcessorCount})");
+
             // Adaptively scale down if concurrent adds overwhelm the primary
             // GVFS mount. CI runners with fewer resources may not handle as
             // many concurrent git operations as a developer workstation.
             while (true)
             {
                 this.InitWorktreeArrays(count, out worktreePaths, out branchNames);
+                DiagLog($"Phase 1: ConcurrentWorktreeAdd count={count}");
                 ProcessResult[] addResults = this.ConcurrentWorktreeAdd(worktreePaths, branchNames, count);
+                DiagLog($"Phase 1: ConcurrentWorktreeAdd done in {testSw.Elapsed.TotalSeconds:F1}s");
+
+                for (int i = 0; i < count; i++)
+                {
+                    if (addResults[i].ExitCode != 0)
+                    {
+                        DiagLog($"  worktree add [{i}] FAILED exit={addResults[i].ExitCode}: {addResults[i].Errors}");
+                    }
+                }
 
                 bool overloaded = addResults.Any(r =>
                     r.ExitCode != 0 &&
@@ -62,6 +75,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                             $"Cannot reduce below {MinWorktreeCount}.");
                     }
 
+                    DiagLog($"Overloaded at count={count}, reducing to {reduced}");
                     count = reduced;
                     continue;
                 }
@@ -80,12 +94,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 // 2. Primary assertion: verify GVFS mount is running for each
                 //    worktree by probing the worktree-specific named pipe.
+                DiagLog($"Phase 2: AssertWorktreeMounted x{count}");
                 for (int i = 0; i < count; i++)
                 {
                     this.AssertWorktreeMounted(worktreePaths[i], $"worktree [{i}]");
                 }
 
+                DiagLog($"Phase 2 done in {testSw.Elapsed.TotalSeconds:F1}s");
+
                 // 3. Verify projected files are visible (secondary assertion)
+                DiagLog("Phase 3: Verify projected files");
                 for (int i = 0; i < count; i++)
                 {
                     Directory.Exists(worktreePaths[i]).ShouldBeTrue(
@@ -94,20 +112,29 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                         $"Readme.md should be projected in [{i}]");
                 }
 
+                DiagLog($"Phase 3 done in {testSw.Elapsed.TotalSeconds:F1}s");
+
                 // 4. Verify git status is clean in each worktree
+                DiagLog("Phase 4: git status in each worktree");
                 for (int i = 0; i < count; i++)
                 {
+                    DiagLog($"  git status [{i}]...");
                     ProcessResult status = GitHelpers.InvokeGitAgainstGVFSRepo(
                         worktreePaths[i], "status --porcelain");
+                    DiagLog($"  git status [{i}] exit={status.ExitCode} in {testSw.Elapsed.TotalSeconds:F1}s");
                     status.ExitCode.ShouldEqual(0,
                         $"git status [{i}] failed: {status.Errors}");
                     status.Output.Trim().ShouldBeEmpty(
                         $"Worktree [{i}] should have clean status");
                 }
 
+                DiagLog($"Phase 4 done in {testSw.Elapsed.TotalSeconds:F1}s");
+
                 // 5. Verify worktree list shows all entries
+                DiagLog("Phase 5: git worktree list");
                 ProcessResult listResult = GitHelpers.InvokeGitAgainstGVFSRepo(
                     this.Enlistment.RepoRoot, "worktree list");
+                DiagLog($"Phase 5 done exit={listResult.ExitCode} in {testSw.Elapsed.TotalSeconds:F1}s");
                 listResult.ExitCode.ShouldEqual(0, $"worktree list failed: {listResult.Errors}");
                 string listOutput = listResult.Output;
                 for (int i = 0; i < count; i++)
@@ -118,8 +145,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 }
 
                 // 6. Make commits in all worktrees
+                DiagLog("Phase 6: commits in each worktree");
                 for (int i = 0; i < count; i++)
                 {
+                    DiagLog($"  commit [{i}]...");
                     File.WriteAllText(
                         Path.Combine(worktreePaths[i], $"from-{i}.txt"),
                         $"created in worktree {i}");
@@ -128,9 +157,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     GitHelpers.InvokeGitAgainstGVFSRepo(
                         worktreePaths[i], $"commit -m \"commit from {i}\"")
                         .ExitCode.ShouldEqual(0);
+                    DiagLog($"  commit [{i}] done at {testSw.Elapsed.TotalSeconds:F1}s");
                 }
 
+                DiagLog($"Phase 6 done in {testSw.Elapsed.TotalSeconds:F1}s");
+
                 // 7. Verify commits are visible from main repo
+                DiagLog("Phase 7: verify commits from main repo");
                 for (int i = 0; i < count; i++)
                 {
                     GitHelpers.InvokeGitAgainstGVFSRepo(
@@ -138,7 +171,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                         .Output.ShouldContain(expectedSubstrings: new[] { $"commit from {i}" });
                 }
 
+                DiagLog($"Phase 7 done in {testSw.Elapsed.TotalSeconds:F1}s");
+
                 // 8. Verify cross-worktree commit visibility (shared objects)
+                DiagLog("Phase 8: cross-worktree visibility");
                 for (int i = 0; i < count; i++)
                 {
                     int other = (i + 1) % count;
@@ -147,7 +183,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                         .Output.ShouldContain(expectedSubstrings: new[] { $"commit from {other}" });
                 }
 
+                DiagLog($"Phase 8 done in {testSw.Elapsed.TotalSeconds:F1}s");
+
                 // 9. Remove all worktrees in parallel
+                DiagLog($"Phase 9: concurrent worktree remove x{count}");
                 ProcessResult[] removeResults = new ProcessResult[count];
                 using (CountdownEvent barrier = new CountdownEvent(count))
                 {
@@ -172,6 +211,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     }
                 }
 
+                DiagLog($"Phase 9 done in {testSw.Elapsed.TotalSeconds:F1}s");
+
                 for (int i = 0; i < count; i++)
                 {
                     removeResults[i].ExitCode.ShouldEqual(0,
@@ -184,6 +225,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     Directory.Exists(worktreePaths[i]).ShouldBeFalse(
                         $"Worktree [{i}] directory should be deleted");
                 }
+
+                DiagLog($"Test COMPLETE in {testSw.Elapsed.TotalSeconds:F1}s");
             }
             finally
             {
@@ -206,6 +249,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private ProcessResult[] ConcurrentWorktreeAdd(string[] paths, string[] branches, int count)
         {
             ProcessResult[] results = new ProcessResult[count];
+            Stopwatch sw = Stopwatch.StartNew();
             using (CountdownEvent barrier = new CountdownEvent(count))
             {
                 Thread[] threads = new Thread[count];
@@ -216,9 +260,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     {
                         barrier.Signal();
                         barrier.Wait();
+                        Stopwatch addSw = Stopwatch.StartNew();
                         results[idx] = GitHelpers.InvokeGitAgainstGVFSRepo(
                             this.Enlistment.RepoRoot,
                             $"worktree add -b {branches[idx]} \"{paths[idx]}\"");
+                        DiagLog($"  worktree add [{idx}] exit={results[idx].ExitCode} in {addSw.Elapsed.TotalSeconds:F1}s");
                     });
                     threads[idx].Start();
                 }
@@ -229,6 +275,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 }
             }
 
+            DiagLog($"All {count} worktree adds completed in {sw.Elapsed.TotalSeconds:F1}s");
             return results;
         }
 
@@ -356,6 +403,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             catch
             {
             }
+        }
+
+        private static void DiagLog(string message)
+        {
+            Console.Error.WriteLine($"[CI-DEBUG] [WorktreeTests] {message}");
+            Console.Error.Flush();
         }
     }
 }
