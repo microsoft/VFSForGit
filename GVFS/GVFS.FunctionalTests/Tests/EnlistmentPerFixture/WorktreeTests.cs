@@ -248,6 +248,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private ProcessResult[] ConcurrentWorktreeAdd(string[] paths, string[] branches, int count)
         {
+            const int TimeoutSeconds = 120;
             ProcessResult[] results = new ProcessResult[count];
             Stopwatch sw = Stopwatch.StartNew();
             using (CountdownEvent barrier = new CountdownEvent(count))
@@ -261,22 +262,129 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                         barrier.Signal();
                         barrier.Wait();
                         Stopwatch addSw = Stopwatch.StartNew();
+                        DiagLog($"  worktree add [{idx}] starting: git worktree add -b {branches[idx]} \"{paths[idx]}\"");
                         results[idx] = GitHelpers.InvokeGitAgainstGVFSRepo(
                             this.Enlistment.RepoRoot,
                             $"worktree add -b {branches[idx]} \"{paths[idx]}\"");
                         DiagLog($"  worktree add [{idx}] exit={results[idx].ExitCode} in {addSw.Elapsed.TotalSeconds:F1}s");
+                        if (results[idx].ExitCode != 0)
+                        {
+                            DiagLog($"  worktree add [{idx}] stderr: {results[idx].Errors}");
+                        }
                     });
                     threads[idx].Start();
                 }
 
-                foreach (Thread t in threads)
+                // Join with timeout — if any thread hangs, dump diagnostics
+                for (int i = 0; i < count; i++)
                 {
-                    t.Join();
+                    if (!threads[i].Join(TimeSpan.FromSeconds(TimeoutSeconds)))
+                    {
+                        DiagLog($"  worktree add [{i}] HUNG after {TimeoutSeconds}s!");
+                        DumpProcessState(i, paths[i]);
+
+                        // Check which other threads are also stuck
+                        for (int j = 0; j < count; j++)
+                        {
+                            if (j != i)
+                            {
+                                DiagLog($"  worktree add [{j}] alive={threads[j].IsAlive}");
+                            }
+                        }
+
+                        // Wait a bit more for remaining threads, then give up
+                        for (int j = 0; j < count; j++)
+                        {
+                            threads[j].Join(TimeSpan.FromSeconds(5));
+                        }
+
+                        break;
+                    }
                 }
             }
 
             DiagLog($"All {count} worktree adds completed in {sw.Elapsed.TotalSeconds:F1}s");
             return results;
+        }
+
+        private static void DumpProcessState(int worktreeIndex, string worktreePath)
+        {
+            try
+            {
+                DiagLog("=== HANG DIAGNOSTICS ===");
+
+                // Show all git.exe processes
+                DiagLog("All git.exe processes:");
+                ProcessStartInfo gitPs = new ProcessStartInfo("wmic")
+                {
+                    Arguments = "process where \"Name='git.exe'\" get ProcessId,ParentProcessId,CommandLine /format:list",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                using (Process p = Process.Start(gitPs))
+                {
+                    string output = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit(10000);
+                    DiagLog(output);
+                }
+
+                // Show all hook processes (pre-command, post-command)
+                DiagLog("Hook processes:");
+                ProcessStartInfo hookPs = new ProcessStartInfo("wmic")
+                {
+                    Arguments = "process where \"Name like '%command%' or Name like '%hook%'\" get ProcessId,ParentProcessId,Name,CommandLine /format:list",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                using (Process p = Process.Start(hookPs))
+                {
+                    string output = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit(10000);
+                    DiagLog(output);
+                }
+
+                // Show all GVFS processes
+                DiagLog("GVFS processes:");
+                ProcessStartInfo gvfsPs = new ProcessStartInfo("wmic")
+                {
+                    Arguments = "process where \"Name like 'GVFS%' or Name like 'gvfs%'\" get ProcessId,ParentProcessId,Name,CommandLine /format:list",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                using (Process p = Process.Start(gvfsPs))
+                {
+                    string output = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit(10000);
+                    DiagLog(output);
+                }
+
+                // Try gvfs status on primary enlistment
+                DiagLog("gvfs status (primary):");
+                ProcessStartInfo statusPs = new ProcessStartInfo("gvfs")
+                {
+                    Arguments = "status",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                using (Process p = Process.Start(statusPs))
+                {
+                    string output = p.StandardOutput.ReadToEnd();
+                    string err = p.StandardError.ReadToEnd();
+                    p.WaitForExit(10000);
+                    DiagLog($"  stdout: {output}");
+                    if (!string.IsNullOrEmpty(err)) DiagLog($"  stderr: {err}");
+                }
+
+                DiagLog("=== END HANG DIAGNOSTICS ===");
+            }
+            catch (Exception ex)
+            {
+                DiagLog($"DumpProcessState failed: {ex.Message}");
+            }
         }
 
         /// <summary>

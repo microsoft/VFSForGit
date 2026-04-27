@@ -157,7 +157,7 @@ jobs:
       run: |
         SET PATH=C:\Program Files\VFS for Git;%PATH%
         SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
-        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --slice=${{ matrix.nr }},10 --workers=1
+        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --test=GVFS.FunctionalTests.Tests.EnlistmentPerFixture.WorktreeTests --workers=1
 
     - name: Upload functional test results
       if: always() && steps.skip.outputs.result != 'true'
@@ -172,6 +172,14 @@ jobs:
       with:
         name: ${{ env.ARTIFACT_PREFIX }}GitTrace2_${{ env.FT_MATRIX_NAME }}
         path: C:\temp\git-trace2.log
+
+    - name: Upload GVFS logs
+      if: always() && steps.skip.outputs.result != 'true'
+      uses: actions/upload-artifact@v7
+      continue-on-error: true
+      with:
+        name: ${{ env.ARTIFACT_PREFIX }}GVFSLogs_${{ env.FT_MATRIX_NAME }}
+        path: C:\Repos\GVFSFunctionalTests\**\.gvfs\logs\*
 
     - name: ProjFS details (post-test)
       if: always() && steps.skip.outputs.result != 'true'
