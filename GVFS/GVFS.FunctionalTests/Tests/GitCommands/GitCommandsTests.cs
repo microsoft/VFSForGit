@@ -999,18 +999,22 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void ChangeTimestampAndDiff()
         {
-            // User scenario -
-            // 1. Enlistment's "diff.autoRefreshIndex" config is set to false
-            // 2. A checked out file got into a state where it differs from the git copy
-            // only in its LastWriteTime metadata (no change in file contents.)
-            // Repro steps - This happens when user edits a file, saves it and later decides
-            // to undo the edit and save the file again.
-            // Once in this state, the unchanged file (only its timestamp has changed) shows
-            // up in `git difftool` creating noise. It also shows up in `git diff --raw` command,
-            // (but not in `git status` or `git diff`.)
+            // User scenario: a checked-out file gets into a state where it differs
+            // from the git copy only in its LastWriteTime (no content change).
+            // This happens when a user edits a file, saves, undoes the edit, and saves again.
+            // The unchanged file then shows up in `git diff --raw` and `git difftool`.
 
-            // Change the timestamp - The lastwrite time can be close to the time this test method gets
-            // run. Changing (Subtracting) it to the past so there will always be a difference.
+            // Simulate the user editing and undoing: read the file, write it back unchanged.
+            // This hydrates the ProjFS placeholder into a full file, which is the normal
+            // state a user would be in before the timestamp-only scenario occurs.
+            // (.NET 10's File.SetLastWriteTime no longer triggers ProjFS hydration
+            // the way .NET Framework 4.7.1 did, so we must hydrate explicitly.)
+            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, GitCommandsTests.EditFilePath);
+            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, GitCommandsTests.EditFilePath);
+            string originalContent = File.ReadAllText(virtualFile);
+            File.WriteAllText(virtualFile, originalContent);
+            File.WriteAllText(controlFile, File.ReadAllText(controlFile));
+
             this.AdjustLastWriteTime(GitCommandsTests.EditFilePath, TimeSpan.FromDays(-10));
             this.ValidateGitCommand("diff --raw");
             this.ValidateGitCommand($"checkout {GitCommandsTests.EditFilePath}");
