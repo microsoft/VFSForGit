@@ -26,17 +26,29 @@ namespace GVFS.Common
 
         public static string GetCurrentProcessLocation()
         {
-            return Path.GetDirectoryName(Environment.ProcessPath);
+            // Environment.ProcessPath can be null in NativeAOT or certain hosting scenarios.
+            string processPath = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(processPath))
+            {
+                return Path.GetDirectoryName(processPath);
+            }
+
+            return AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         }
 
         public static string GetEntryClassName()
         {
+            // AppDomain.FriendlyName is reliable even when Assembly.GetEntryAssembly() returns null.
+            string friendlyName = AppDomain.CurrentDomain.FriendlyName;
+            if (!string.IsNullOrEmpty(friendlyName))
+            {
+                return Path.GetFileNameWithoutExtension(friendlyName);
+            }
+
             Assembly assembly = Assembly.GetEntryAssembly();
             if (assembly == null)
             {
-                // The PR build tests doesn't produce an entry assembly because it is run from unmanaged code,
-                // so we'll fall back on using process path. This should never ever happen for a normal exe invocation.
-                return Path.GetFileNameWithoutExtension(Environment.ProcessPath);
+                assembly = Assembly.GetExecutingAssembly();
             }
 
             return assembly.GetName().Name;
@@ -46,8 +58,16 @@ namespace GVFS.Common
         {
             if (currentProcessVersion == null)
             {
-                FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(Environment.ProcessPath);
-                currentProcessVersion = fileVersionInfo.ProductVersion;
+                string processPath = Environment.ProcessPath;
+                if (!string.IsNullOrEmpty(processPath))
+                {
+                    FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(processPath);
+                    currentProcessVersion = fileVersionInfo.ProductVersion;
+                }
+                else
+                {
+                    currentProcessVersion = "0.0.0.0";
+                }
             }
 
             return currentProcessVersion;

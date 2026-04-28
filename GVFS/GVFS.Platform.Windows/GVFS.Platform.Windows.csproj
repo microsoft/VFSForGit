@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.ProjFS" />
-    <PackageReference Include="System.Management" />
     <PackageReference Include="System.ServiceProcess.ServiceController" />
   </ItemGroup>
 

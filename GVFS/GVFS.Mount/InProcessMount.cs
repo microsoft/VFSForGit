@@ -250,6 +250,8 @@ namespace GVFS.Mount
                     $"{nameof(this.Mount)}_StartedNamedPipe",
                     new EventMetadata { { "NamedPipeName", this.enlistment.NamedPipeName } });
 
+                Console.Error.WriteLine($"[CI-DEBUG] [InProcessMount] Pipe server started: {parallelTimer.ElapsedMilliseconds}ms");
+
                 this.context = this.CreateContext();
 
                 if (this.context.Unattended)
@@ -270,9 +272,18 @@ namespace GVFS.Mount
 
                 GVFSPlatform.Instance.ConfigureVisualStudio(this.enlistment.GitBinPath, this.tracer);
 
+                Console.Error.WriteLine($"[CI-DEBUG] [InProcessMount] Pre-MountAndStartCallbacks: {parallelTimer.ElapsedMilliseconds}ms");
                 this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer);
+                Console.Error.WriteLine($"[CI-DEBUG] [InProcessMount] MountAndStartCallbacks done: {parallelTimer.ElapsedMilliseconds}ms");
 
-                Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
+                try
+                {
+                    Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
+                }
+                catch (IOException)
+                {
+                    // Console.Title throws when the process has no console (e.g. started as background/hidden process)
+                }
 
                 this.tracer.RelatedEvent(
                     EventLevel.Informational,
@@ -1057,10 +1068,13 @@ namespace GVFS.Mount
         private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache, bool alreadyInitialized = false)
         {
             string error;
+            Stopwatch cbSw = Stopwatch.StartNew();
 
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(this.context.Tracer, this.context.Enlistment, cache, this.retryConfig);
             this.gitObjects = new GVFSGitObjects(this.context, objectRequestor);
+            Console.Error.WriteLine($"[CI-DEBUG] [MountCallbacks] CreateVirtualizer starting: {cbSw.ElapsedMilliseconds}ms");
             FileSystemVirtualizer virtualizer = this.CreateOrReportAndExit(() => GVFSPlatformLoader.CreateFileSystemVirtualizer(this.context, this.gitObjects), "Failed to create src folder virtualizer");
+            Console.Error.WriteLine($"[CI-DEBUG] [MountCallbacks] CreateVirtualizer done: {cbSw.ElapsedMilliseconds}ms");
 
             GitStatusCache gitStatusCache = (!this.context.Unattended && GVFSPlatform.Instance.IsGitStatusCacheSupported()) ? new GitStatusCache(this.context, this.gitStatusCacheConfig) : null;
             if (gitStatusCache != null)
@@ -1073,6 +1087,7 @@ namespace GVFS.Mount
             }
 
             this.gvfsDatabase = this.CreateOrReportAndExit(() => new GVFSDatabase(this.context.FileSystem, this.context.Enlistment.EnlistmentRoot, new SqliteDatabase()), "Failed to create database connection");
+            Console.Error.WriteLine($"[CI-DEBUG] [MountCallbacks] Database created: {cbSw.ElapsedMilliseconds}ms");
             this.fileSystemCallbacks = this.CreateOrReportAndExit(
                 () =>
                 {
@@ -1110,10 +1125,13 @@ namespace GVFS.Mount
 
             try
             {
+                Console.Error.WriteLine($"[CI-DEBUG] [MountCallbacks] TryStart (ProjFS) starting: {cbSw.ElapsedMilliseconds}ms");
                 if (!this.fileSystemCallbacks.TryStart(out error))
                 {
                     this.FailMountAndExit("Error: {0}. \r\nPlease confirm that gvfs clone completed without error.", error);
                 }
+
+                Console.Error.WriteLine($"[CI-DEBUG] [MountCallbacks] TryStart (ProjFS) done: {cbSw.ElapsedMilliseconds}ms");
             }
             catch (Exception e)
             {

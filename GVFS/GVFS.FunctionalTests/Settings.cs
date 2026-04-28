@@ -33,7 +33,9 @@ namespace GVFS.FunctionalTests.Properties
             public static void Initialize()
             {
                 string testExec = Environment.ProcessPath;
-                CurrentDirectory = Path.GetFullPath(Path.GetDirectoryName(testExec));
+                CurrentDirectory = string.IsNullOrEmpty(testExec)
+                    ? AppContext.BaseDirectory
+                    : Path.GetFullPath(Path.GetDirectoryName(testExec));
 
                 RepoToClone = @"https://gvfs.visualstudio.com/ci/_git/ForTests";
 

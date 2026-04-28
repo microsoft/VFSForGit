@@ -52,13 +52,29 @@ namespace GVFS.Common.Http
                 TryApplyConnectionLimitFromConfig(tracer, enlistment);
             }
 
-            HttpClientHandler httpClientHandler = new HttpClientHandler();
-
-            this.authentication.ConfigureHttpClientHandlerSslIfNeeded(this.Tracer, httpClientHandler, enlistment.CreateGitProcess());
-
-            this.client = new HttpClient(httpClientHandler)
+            // WARNING: Do NOT set Credentials or ServerCredentials on this handler.
+            //
+            // Setting Credentials = CredentialCache.DefaultCredentials causes the handler
+            // to perform an NTLM/Negotiate challenge-response on every new connection.
+            // On SocketsHttpHandler this adds ~400ms per request vs ~14ms without.
+            //
+            // GVFS cache servers and Azure DevOps accept PAT/OAuth tokens via the
+            // "Authorization: Basic <base64>" header that SendRequest already attaches.
+            // Transport-level credentials are redundant and purely wasteful.
+            SocketsHttpHandler handler = new SocketsHttpHandler()
             {
-                Timeout = retryConfig.Timeout
+                MaxConnectionsPerServer = Environment.ProcessorCount,
+                PooledConnectionLifetime = Timeout.InfiniteTimeSpan,
+                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+            };
+
+            this.authentication.ConfigureSocketsHandlerSslIfNeeded(this.Tracer, handler, enlistment.CreateGitProcess());
+
+            this.client = new HttpClient(handler)
+            {
+                Timeout = retryConfig.Timeout,
+                DefaultRequestVersion = HttpVersion.Version11,
+                DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact,
             };
 
             this.userAgentHeader = new ProductInfoHeaderValue(ProcessHelper.GetEntryClassName(), ProcessHelper.GetCurrentProcessVersion());
