@@ -41,6 +41,15 @@ which was rewritten from C++/CLI to pure C# P/Invoke for AOT compatibility
 - **ARM64-specific adjustments:** Miniksa's branch may have ARM64-specific changes beyond
   what we've done (we set `RuntimeIdentifier=win-x64` globally).
 
+### Missed During Migration (Now Applied)
+- **`UseShellExecute = true` in `StartBackgroundVFS4GProcess`:** Miniksa's branch had this
+  fix. .NET Framework defaults `UseShellExecute` to `true` (ShellExecuteEx, no handle
+  inheritance) while .NET Core/.NET 10 defaults to `false` (CreateProcess, handles
+  inherited). Without this, the daemon `GVFS.Mount.exe` inherits the caller's
+  stdout/stderr pipe handles, causing callers that read to EOF (e.g. git's hook runner
+  via `ProcessHelper.Run`) to block indefinitely. This was the root cause of the slice 9
+  functional test timeout.
+
 ## Work We Did That Wasn't in Miniksa's Branch
 
 ### Phase 1 & 2 (Merged Separately)
