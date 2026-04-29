@@ -21,7 +21,6 @@
     <!-- Windows -->
     <PackageVersion Include="System.ServiceProcess.ServiceController" Version="9.0.4" />
     <PackageVersion Include="System.Diagnostics.EventLog" Version="9.0.4" />
-    <PackageVersion Include="System.Management" Version="9.0.4" />
 
     <!-- Build / packaging -->
     <PackageVersion Include="GVFS.VCRuntime" Version="0.2.0-build" />
@@ -34,6 +33,7 @@
     <PackageVersion Include="System.CommandLine" Version="2.0.5" />
 
     <!-- Testing -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageVersion Include="Moq" Version="4.10.1" />
     <PackageVersion Include="NUnit3TestAdapter" Version="3.13.0" />
     <PackageVersion Include="NUnitLite" Version="3.12.0" />

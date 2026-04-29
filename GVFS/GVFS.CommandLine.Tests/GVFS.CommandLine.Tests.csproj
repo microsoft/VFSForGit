@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <PublishAot>false</PublishAot>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnitLite" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FastFetch\FastFetch.csproj" />
+    <ProjectReference Include="..\GVFS.Mount\GVFS.Mount.csproj" />
+    <ProjectReference Include="..\GVFS\GVFS.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,6 +1,9 @@
 ﻿using System.CommandLine;
+using System.Runtime.CompilerServices;
 using GVFS.PlatformLoader;
 using System;
+
+[assembly: InternalsVisibleTo("GVFS.CommandLine.Tests")]
 
 namespace GVFS.Mount
 {
@@ -11,7 +14,7 @@ namespace GVFS.Mount
             GVFSPlatformLoader.Initialize();
             try
             {
-                RootCommand rootCommand = InProcessMountVerb.BuildRootCommand();
+                RootCommand rootCommand = BuildRootCommand();
                 rootCommand.Parse(args).Invoke();
             }
             catch (MountAbortedException e)
@@ -20,5 +23,7 @@ namespace GVFS.Mount
                 Environment.Exit((int)e.Verb.ReturnCode);
             }
         }
+
+        internal static RootCommand BuildRootCommand() => InProcessMountVerb.BuildRootCommand();
     }
 }
