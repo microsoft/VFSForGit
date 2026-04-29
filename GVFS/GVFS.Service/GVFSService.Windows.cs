@@ -349,11 +349,11 @@ namespace GVFS.Service
             DirectorySecurity serviceDataRootSecurity = this.GetServiceDirectorySecurity(serviceDataRootPath);
 
             // Create GVFS.Service related directories (if they don't already exist)
-            Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
-            Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
+            serviceDataRootSecurity.CreateDirectory(serviceDataRootPath);
+            serviceDataRootSecurity.CreateDirectory(this.serviceDataLocation);
 
             // Ensure the ACLs are set correctly on any files or directories that were already created (e.g. after upgrading VFS4G)
-            Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
+            new DirectoryInfo(serviceDataRootPath).SetAccessControl(serviceDataRootSecurity);
         }
 
         private void CreateAndConfigureLogDirectory(string path)
@@ -378,7 +378,7 @@ namespace GVFS.Service
             if (Directory.Exists(serviceDataRootPath))
             {
                 this.tracer.RelatedInfo($"{nameof(this.GetServiceDirectorySecurity)}: {serviceDataRootPath} exists, modifying ACLs.");
-                serviceDataRootSecurity = Directory.GetAccessControl(serviceDataRootPath);
+                serviceDataRootSecurity = new DirectoryInfo(serviceDataRootPath).GetAccessControl();
             }
             else
             {
