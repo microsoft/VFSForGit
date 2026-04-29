@@ -122,7 +122,7 @@ namespace FastFetch
             };
             rootCommand.Add(foldersListOption);
 
-            Option<bool> allowIndexMetadataOption = new Option<bool>("--Allow-index-metadata-update-from-working-tree") { Description = "When specified, index metadata is updated from disk if not already in the index." };
+            Option<bool> allowIndexMetadataOption = new Option<bool>("--allow-index-metadata-update-from-working-tree") { Description = "When specified, index metadata is updated from disk if not already in the index." };
             rootCommand.Add(allowIndexMetadataOption);
 
             Option<bool> verboseOption = new Option<bool>("--verbose") { Description = "Show all outputs on the console in addition to writing them to a log file" };
