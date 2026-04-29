@@ -129,6 +129,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [SetUp]
         public virtual void SetupForTest()
         {
+            string testName = TestContext.CurrentContext.Test.FullName;
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [TEST-SETUP-START] {testName}");
+            Console.Out.Flush();
+
             if (this.enlistmentPerTest)
             {
                 this.CreateEnlistment();
@@ -151,12 +155,22 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             }
 
             this.ValidateGitCommand("status");
+
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [TEST-SETUP-END] {testName}");
+            Console.Out.Flush();
         }
 
         [TearDown]
         public virtual void TearDownForTest()
         {
+            string testName = TestContext.CurrentContext.Test.FullName;
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [TEST-TEARDOWN-START] {testName}");
+            Console.Out.Flush();
+
             this.TestValidationAndCleanup();
+
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [TEST-TEARDOWN-END] {testName}");
+            Console.Out.Flush();
         }
 
         protected void TestValidationAndCleanup(bool ignoreCase = false)
