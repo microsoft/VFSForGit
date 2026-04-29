@@ -1,4 +1,4 @@
-using GVFS.Common;
+using System.Text.Json;
 
 namespace GVFS.Service
 {
@@ -19,9 +19,13 @@ namespace GVFS.Service
         public string OwnerSID { get; set; }
         public bool IsActive { get; set; }
 
+        // Uses ServiceJsonContext (assembly-local source generator) instead of
+        // GVFSJsonOptions because RepoRegistration cannot be registered in
+        // GVFSJsonContext (GVFS.Common) — wrong assembly direction. The
+        // reflection fallback in GVFSJsonOptions fails under native AOT trimming.
         public static RepoRegistration FromJson(string json)
         {
-            return GVFSJsonOptions.Deserialize<RepoRegistration>(json);
+            return JsonSerializer.Deserialize(json, ServiceJsonContext.Default.RepoRegistration);
         }
 
         public override string ToString()
@@ -36,7 +40,7 @@ namespace GVFS.Service
 
         public string ToJson()
         {
-            return GVFSJsonOptions.Serialize(this);
+            return JsonSerializer.Serialize(this, ServiceJsonContext.Default.RepoRegistration);
         }
     }
 }

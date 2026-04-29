@@ -90,8 +90,10 @@ namespace GVFS.Common.NamedPipes
                     this.Data = data;
                 }
 
-                public string Result { get; }
-                public string Data { get; }
+                public Response() { }
+
+                public string Result { get; set; }
+                public string Data { get; set; }
 
                 public Message CreateMessage()
                 {
@@ -129,7 +131,9 @@ namespace GVFS.Common.NamedPipes
                     this.Result = result;
                 }
 
-                public string Result { get; }
+                public Response() { }
+
+                public string Result { get; set; }
 
                 public Message CreateMessage()
                 {
@@ -185,7 +189,9 @@ namespace GVFS.Common.NamedPipes
                     this.Result = result;
                 }
 
-                public string Result { get; }
+                public Response() { }
+
+                public string Result { get; set; }
 
                 public Message CreateMessage()
                 {
@@ -296,7 +302,9 @@ namespace GVFS.Common.NamedPipes
                     this.Result = result;
                 }
 
-                public string Result { get; }
+                public Response() { }
+
+                public string Result { get; set; }
 
                 public Message CreateMessage()
                 {
