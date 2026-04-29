@@ -45,8 +45,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GVFS.Payload", "GVFS\GVFS.P
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GVFS.Installers", "GVFS\GVFS.Installers\GVFS.Installers.csproj", "{258FEAC0-5E2D-408A-9652-9E9653219F3B}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GVFS", "GVFS", "{E6093936-09AD-AF9A-0272-646926C8BA39}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GVFS.CommandLine.Tests", "GVFS\GVFS.CommandLine.Tests\GVFS.CommandLine.Tests.csproj", "{4D201963-957A-436A-8E43-79A63FB84B94}"
 EndProject
 Global
@@ -328,7 +326,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{4D201963-957A-436A-8E43-79A63FB84B94} = {E6093936-09AD-AF9A-0272-646926C8BA39}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C506C09B-011F-491F-9D17-D0E2BA0B3467}
