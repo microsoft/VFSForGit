@@ -122,6 +122,18 @@ jobs:
       shell: cmd
       run: gvfs\install.bat
 
+    - name: Verify GVFS installation
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      continue-on-error: true
+      run: |
+        echo === GVFS Version ===
+        "C:\Program Files\VFS for Git\GVFS.exe" version
+        echo === Service Status ===
+        sc query GVFS.Service
+        echo === List Mounted ===
+        "C:\Program Files\VFS for Git\GVFS.exe" service --list-mounted
+
     - name: ProjFS details (post-install)
       if: steps.skip.outputs.result != 'true'
       shell: cmd
@@ -141,6 +153,7 @@ jobs:
     - name: Run functional tests
       if: steps.skip.outputs.result != 'true'
       shell: cmd
+      timeout-minutes: 60
       run: |
         SET PATH=C:\Program Files\VFS for Git;%PATH%
         SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
