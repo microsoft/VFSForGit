@@ -175,7 +175,11 @@ namespace GVFS.FunctionalTests.Tools
 
         public void CloneAndMount(bool skipPrefetch)
         {
+            Console.Error.WriteLine("[CI-DEBUG] CloneAndMount: starting clone of " + this.RepoUrl);
+            Console.Error.Flush();
             this.gvfsProcess.Clone(this.RepoUrl, this.Commitish, skipPrefetch);
+            Console.Error.WriteLine("[CI-DEBUG] CloneAndMount: clone complete, running git checkout");
+            Console.Error.Flush();
 
             GitProcess.Invoke(this.RepoRoot, "checkout " + this.Commitish);
             GitProcess.Invoke(this.RepoRoot, "branch --unset-upstream");

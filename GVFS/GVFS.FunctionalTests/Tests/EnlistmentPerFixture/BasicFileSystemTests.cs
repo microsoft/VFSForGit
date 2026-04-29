@@ -133,49 +133,132 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             Directory.Delete(virtualFolder);
         }
 
-        [TestCase]
-        public void ExpandedFileAttributesAreUpdated()
+        // On .NET 10, no FileInfo property setter (CreationTime, LastAccessTime, LastWriteTime,
+        // Attributes) triggers ProjFS hydration. Only actual file content I/O (read+write) does.
+        // These tests replace the original ExpandedFileAttributesAreUpdated test, which relied on
+        // .NET Framework 4.7.1's CreationTime setter triggering hydration as a side effect.
+
+        /// <summary>
+        /// Hydrates a ProjFS placeholder by reading and writing its content, then waits for
+        /// ProjFS to clear the RecallOnDataAccess flag (which happens asynchronously).
+        /// Uses FileStream with FileMode.Open since File.WriteAllText fails on Hidden files.
+        /// </summary>
+        private static void HydrateFile(string virtualFile)
         {
+            using (FileStream fs = new FileStream(virtualFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                byte[] buf = new byte[fs.Length];
+                fs.Read(buf, 0, buf.Length);
+                fs.Position = 0;
+                fs.Write(buf, 0, buf.Length);
+            }
+
+            // ProjFS clears RecallOnDataAccess asynchronously after hydration.
+            // Wait for it to complete — CI machines can be slow.
+            int retryCount = 0;
+            while (retryCount < 10)
+            {
+                FileAttributes attrs = File.GetAttributes(virtualFile);
+                if (((int)attrs & FileAttributeRecallOnDataAccess) == 0)
+                {
+                    return;
+                }
+
+                ++retryCount;
+                Thread.Sleep(500);
+            }
+
+            File.GetAttributes(virtualFile).ShouldNotEqual(
+                (FileAttributes)FileAttributeRecallOnDataAccess,
+                "File should be hydrated (no RecallOnDataAccess) after content write and retry");
+        }
+
+        [TestCase]
+        public void PlaceholderMetadataSurvivesHydration()
+        {
+            // Set all metadata properties on a ProjFS placeholder, verify they took effect
+            // while the file is still a placeholder, then hydrate via content I/O and verify
+            // the values survived the placeholder-to-full-file conversion.
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
 
             string filename = Path.Combine("GVFS", "GVFS", "GVFS.csproj");
             string virtualFile = this.Enlistment.GetVirtualPathTo(filename);
-
-            // Update defaults. FileInfo is not batched, so each of these will create a separate Open-Update-Close set.
-            FileInfo before = new FileInfo(virtualFile);
             DateTime testValue = DateTime.Now + TimeSpan.FromDays(1);
 
-            // Setting the CreationTime results in a write handle being open to the file and the file being expanded
-            before.CreationTime = testValue;
-            before.LastAccessTime = testValue;
-            before.LastWriteTime = testValue;
-            before.Attributes = FileAttributes.Hidden;
+            // Set all properties while file is still a placeholder
+            FileInfo fi = new FileInfo(virtualFile);
+            fi.CreationTime = testValue;
+            fi.LastAccessTime = testValue;
+            fi.LastWriteTime = testValue;
+            fi.Attributes = FileAttributes.Hidden;
 
-            // FileInfo caches information. We can refresh, but just to be absolutely sure...
-            FileInfo info = virtualFile.ShouldBeAFile(fileSystem).WithInfo(testValue, testValue, testValue);
+            // Verify file is still a placeholder (no property setter triggers hydration on .NET 10)
+            fi.Refresh();
+            ((int)fi.Attributes & FileAttributeRecallOnDataAccess).ShouldNotEqual(
+                0,
+                "File should still be a placeholder after setting metadata properties");
 
-            // Ignore the archive bit as it can be re-added to the file as part of its expansion to full
-            FileAttributes attributes = info.Attributes & ~FileAttributes.Archive;
+            // Verify the properties took effect on the placeholder
+            fi.CreationTime.ShouldEqual(testValue, "CreationTime should be set on placeholder");
+            fi.LastAccessTime.ShouldEqual(testValue, "LastAccessTime should be set on placeholder");
+            fi.LastWriteTime.ShouldEqual(testValue, "LastWriteTime should be set on placeholder");
+            FileAttributes placeholderAttrs = fi.Attributes & ~FileAttributes.Archive & (FileAttributes)~(FileAttributeSparseFile | FileAttributeReparsePoint | FileAttributeRecallOnDataAccess);
+            placeholderAttrs.ShouldEqual(FileAttributes.Hidden, $"Hidden should be set on placeholder, got: {placeholderAttrs}");
 
+            // Hydrate and wait for ProjFS to finish clearing placeholder flags
+            HydrateFile(virtualFile);
+
+            // Verify metadata survived hydration.
+            // CreationTime should survive — it's not affected by read or write operations.
+            fi.Refresh();
+            fi.CreationTime.ShouldEqual(testValue, "CreationTime should survive hydration");
+
+            // LastAccessTime and LastWriteTime are inherently updated by the read+write
+            // hydration step, so we cannot assert the pre-hydration values survived.
+
+            // Hidden attribute should survive hydration (with async ProjFS flag cleanup)
             int retryCount = 0;
-            int maxRetries = 10;
-            while (attributes != FileAttributes.Hidden && retryCount < maxRetries)
+            FileAttributes attributes = fi.Attributes & ~FileAttributes.Archive;
+            while (attributes != FileAttributes.Hidden && retryCount < 10)
             {
-                // ProjFS attributes are remoted asynchronously when files are converted to full
-                FileAttributes attributesLessProjFS = attributes & (FileAttributes)~(FileAttributeSparseFile | FileAttributeReparsePoint | FileAttributeRecallOnDataAccess);
-
-                attributesLessProjFS.ShouldEqual(
+                FileAttributes withoutProjFS = attributes & (FileAttributes)~(FileAttributeSparseFile | FileAttributeReparsePoint | FileAttributeRecallOnDataAccess);
+                withoutProjFS.ShouldEqual(
                     FileAttributes.Hidden,
-                    $"Attributes (ignoring ProjFS attributes) do not match, expected: {FileAttributes.Hidden} actual: {attributesLessProjFS}");
-
+                    $"Attributes (ignoring ProjFS) should be Hidden, got: {withoutProjFS}");
                 ++retryCount;
                 Thread.Sleep(500);
-
-                info.Refresh();
-                attributes = info.Attributes & ~FileAttributes.Archive;
+                fi.Refresh();
+                attributes = fi.Attributes & ~FileAttributes.Archive;
             }
 
-            attributes.ShouldEqual(FileAttributes.Hidden, $"Attributes do not match, expected: {FileAttributes.Hidden} actual: {attributes}");
+            attributes.ShouldEqual(FileAttributes.Hidden, $"Hidden should survive hydration, got: {attributes}");
+        }
+
+        [TestCase]
+        public void HydratedFileTimestampsAndAttributesAreUpdated()
+        {
+            // Verify that all timestamps and attributes can be set on an already-hydrated
+            // (dirty full) file in a GVFS enlistment.
+            FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
+
+            string filename = Path.Combine("GVFS", "GVFS.Common", "GVFSConstants.cs");
+            string virtualFile = this.Enlistment.GetVirtualPathTo(filename);
+            DateTime testValue = DateTime.Now + TimeSpan.FromDays(1);
+
+            // Hydrate and wait for ProjFS to finish clearing placeholder flags
+            HydrateFile(virtualFile);
+
+            // Set all properties on the now-hydrated file
+            FileInfo fi = new FileInfo(virtualFile);
+            fi.CreationTime = testValue;
+            fi.LastAccessTime = testValue;
+            fi.LastWriteTime = testValue;
+            fi.Attributes = FileAttributes.Hidden;
+
+            // Verify all properties stuck
+            FileInfo verify = virtualFile.ShouldBeAFile(fileSystem).WithInfo(testValue, testValue, testValue);
+            FileAttributes attributes = verify.Attributes & ~FileAttributes.Archive;
+            attributes.ShouldEqual(FileAttributes.Hidden, $"Attributes should be Hidden, got: {attributes}");
         }
 
         [TestCase]

@@ -254,6 +254,7 @@ namespace GVFS.FunctionalTests.Tools
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
+            processInfo.RedirectStandardError = true;
             if (standardInput != null)
             {
                 processInfo.RedirectStandardInput = true;
@@ -264,6 +265,9 @@ namespace GVFS.FunctionalTests.Tools
                 processInfo.EnvironmentVariables["GIT_TRACE"] = trace;
             }
 
+            Console.Error.WriteLine($"[CI-DEBUG] CallGVFS: {this.pathToGVFS} {processInfo.Arguments}");
+            Console.Error.Flush();
+
             using (Process process = Process.Start(processInfo))
             {
                 if (standardInput != null)
@@ -272,8 +276,43 @@ namespace GVFS.FunctionalTests.Tools
                     process.StandardInput.Close();
                 }
 
-                string result = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
+                // Stream stderr to console in real-time
+                process.ErrorDataReceived += (sender, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        Console.Error.WriteLine($"[gvfs stderr] {e.Data}");
+                        Console.Error.Flush();
+                    }
+                };
+                process.BeginErrorReadLine();
+
+                // Stream stdout to console and capture it
+                System.Text.StringBuilder outputBuilder = new System.Text.StringBuilder();
+                process.OutputDataReceived += (sender, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        outputBuilder.AppendLine(e.Data);
+                        Console.Error.WriteLine($"[gvfs stdout] {e.Data}");
+                        Console.Error.Flush();
+                    }
+                };
+                process.BeginOutputReadLine();
+
+                bool exited = process.WaitForExit(300000); // 5 minute timeout
+                if (!exited)
+                {
+                    Console.Error.WriteLine("[CI-DEBUG] CallGVFS: TIMEOUT after 5 minutes, killing process");
+                    Console.Error.Flush();
+                    process.Kill();
+                    process.WaitForExit(5000);
+                    throw new TimeoutException($"gvfs process timed out after 5 minutes. Args: {args}");
+                }
+
+                string result = outputBuilder.ToString();
+                Console.Error.WriteLine($"[CI-DEBUG] CallGVFS done: exit={process.ExitCode}");
+                Console.Error.Flush();
 
                 if (expectedExitCode >= SuccessExitCode)
                 {
