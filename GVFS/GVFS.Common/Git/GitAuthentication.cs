@@ -309,6 +309,23 @@ namespace GVFS.Common.Git
             }
         }
 
+        public void ConfigureSocketsHandlerSslIfNeeded(ITracer tracer, SocketsHttpHandler socketsHandler, GitProcess gitProcess)
+        {
+            X509Certificate2 cert = this.GitSsl?.GetCertificate(tracer, gitProcess);
+            if (cert != null)
+            {
+                System.Net.Security.SslClientAuthenticationOptions sslOptions = new System.Net.Security.SslClientAuthenticationOptions();
+
+                if (this.GitSsl != null && !this.GitSsl.ShouldVerify)
+                {
+                    sslOptions.RemoteCertificateValidationCallback = (sender, certificate, chain, errors) => true; // CodeQL [SM02184] TLS verification can be disabled by Git itself, so this is just mirroring a feature already exposed.
+                }
+
+                sslOptions.ClientCertificates = new System.Security.Cryptography.X509Certificates.X509CertificateCollection { cert };
+                socketsHandler.SslOptions = sslOptions;
+            }
+        }
+
         private static bool TryParseCredentialString(string credentialString, out string username, out string password)
         {
             if (credentialString != null)
