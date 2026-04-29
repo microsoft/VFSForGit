@@ -1,40 +1,47 @@
+using GVFS.Common.Tracing;
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace GVFS.Common
 {
-    /// <summary>
-    /// Shared JsonSerializerOptions and helpers for the GVFS codebase.
-    /// PropertyNameCaseInsensitive preserves backward compatibility with
-    /// Newtonsoft.Json's default case-insensitive deserialization.
-    /// </summary>
     public static class GVFSJsonOptions
     {
+        [UnconditionalSuppressMessage("AOT", "IL2026",
+            Justification = "DefaultJsonTypeInfoResolver fallback handles all types at runtime.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "DefaultJsonTypeInfoResolver fallback handles all types at runtime.")]
         public static readonly JsonSerializerOptions Default = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
-            Converters = { new VersionConverter(), new Tracing.EventMetadataConverter() },
+            Converters = { new VersionConverter(), new EventMetadataConverter() },
+            TypeInfoResolverChain = { GVFSJsonContext.Default, new DefaultJsonTypeInfoResolver() },
         };
 
-        /// <summary>
-        /// Serialize using the compile-time type. Use when <typeparamref name="T"/>
-        /// is the concrete type (not a base class with derived properties).
-        /// </summary>
+        [UnconditionalSuppressMessage("AOT", "IL2026",
+            Justification = "TypeInfoResolverChain includes DefaultJsonTypeInfoResolver.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "TypeInfoResolverChain includes DefaultJsonTypeInfoResolver.")]
         public static string Serialize<T>(T value)
         {
             return JsonSerializer.Serialize(value, Default);
         }
 
-        /// <summary>
-        /// Serialize using the runtime type. Use when calling from a base-class
-        /// method where compile-time type would lose derived-class properties
-        /// (e.g., BaseResponse&lt;T&gt;.ToMessage()).
-        /// </summary>
+        [UnconditionalSuppressMessage("AOT", "IL2026",
+            Justification = "TypeInfoResolverChain includes DefaultJsonTypeInfoResolver.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "TypeInfoResolverChain includes DefaultJsonTypeInfoResolver.")]
         public static string Serialize(object value, Type inputType)
         {
             return JsonSerializer.Serialize(value, inputType, Default);
         }
 
+        [UnconditionalSuppressMessage("AOT", "IL2026",
+            Justification = "TypeInfoResolverChain includes DefaultJsonTypeInfoResolver.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "TypeInfoResolverChain includes DefaultJsonTypeInfoResolver.")]
         public static T Deserialize<T>(string json)
         {
             return JsonSerializer.Deserialize<T>(json, Default);
