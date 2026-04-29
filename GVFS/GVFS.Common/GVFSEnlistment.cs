@@ -261,7 +261,7 @@ namespace GVFS.Common
                         else
                         {
                             tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Waiting 500ms for mount process to be ready");
-                            Thread.Sleep(500);
+                            Thread.Sleep(100);
                         }
                     }
                     catch (BrokenPipeException e)
