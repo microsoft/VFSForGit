@@ -272,7 +272,14 @@ namespace GVFS.Mount
 
                 this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer);
 
-                Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
+                try
+                {
+                    Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
+                }
+                catch (IOException)
+                {
+                    // Console.Title throws when the process has no console (e.g. started as background/hidden process)
+                }
 
                 this.tracer.RelatedEvent(
                     EventLevel.Informational,
@@ -1057,6 +1064,7 @@ namespace GVFS.Mount
         private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache, bool alreadyInitialized = false)
         {
             string error;
+            Stopwatch cbSw = Stopwatch.StartNew();
 
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(this.context.Tracer, this.context.Enlistment, cache, this.retryConfig);
             this.gitObjects = new GVFSGitObjects(this.context, objectRequestor);
@@ -1247,7 +1255,7 @@ namespace GVFS.Mount
                     string warningMessage = "WARNING: Unable to validate your GVFS version" + Environment.NewLine;
                     if (config == null)
                     {
-                        warningMessage += "Could not query valid GVFS versions from: " + Uri.EscapeUriString(this.enlistment.RepoUrl);
+                        warningMessage += "Could not query valid GVFS versions from: " + Uri.EscapeDataString(this.enlistment.RepoUrl);
                     }
                     else
                     {
