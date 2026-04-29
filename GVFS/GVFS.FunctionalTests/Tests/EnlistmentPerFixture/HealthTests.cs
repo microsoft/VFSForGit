@@ -160,9 +160,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             List<int> directoryHydrationLevels,
             string enlistmentHealthStatus)
         {
-            List<string> healthOutputLines = new List<string>(this.Enlistment.Health(directory).Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
+            string rawOutput = this.Enlistment.Health(directory);
+            List<string> healthOutputLines = new List<string>(rawOutput.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
 
             int numberOfExpectedSubdirectories = topHydratedDirectories.Count;
+            int expectedMinimumLines = 8 + numberOfExpectedSubdirectories;
+
+            if (healthOutputLines.Count < expectedMinimumLines)
+            {
+                Assert.Fail(
+                    $"Expected at least {expectedMinimumLines} lines in 'gvfs health' output, but got {healthOutputLines.Count}.\n" +
+                    $"Raw output:\n{rawOutput}");
+            }
 
             this.ValidateTargetDirectory(healthOutputLines[1], directory);
             this.ValidateTotalFileInfo(healthOutputLines[2], totalFiles, totalFilePercent);
