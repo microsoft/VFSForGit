@@ -22,7 +22,11 @@ namespace GVFS.Common.FileSystem
 
         static HooksInstaller()
         {
-            ExecutingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            // Environment.ProcessPath can be null in NativeAOT or certain hosting scenarios.
+            string processPath = Environment.ProcessPath;
+            ExecutingDirectory = !string.IsNullOrEmpty(processPath)
+                ? Path.GetDirectoryName(processPath)
+                : AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         }
 
         public static string MergeHooksData(string[] defaultHooksLines, string filename, string hookName)
