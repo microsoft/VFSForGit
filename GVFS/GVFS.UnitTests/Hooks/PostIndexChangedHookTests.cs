@@ -21,7 +21,7 @@ namespace GVFS.UnitTests.Hooks
         {
             // Test runner lives at: out\GVFS.UnitTests\bin\Debug\net471\win-x64\
             // Hook exe lives at:    out\GVFS.PostIndexChangedHook\bin\x64\Debug\
-            string testDir = Path.GetDirectoryName(typeof(PostIndexChangedHookTests).Assembly.Location);
+            string testDir = Path.GetDirectoryName(Environment.ProcessPath);
             string outDir = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", "..", ".."));
             string hookPath = Path.Combine(outDir, "GVFS.PostIndexChangedHook", "bin", "x64", "Debug", "GVFS.PostIndexChangedHook.exe");
 
