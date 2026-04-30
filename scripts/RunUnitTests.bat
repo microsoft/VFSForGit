@@ -6,5 +6,6 @@ IF "%1"=="" (SET "CONFIGURATION=Debug") ELSE (SET "CONFIGURATION=%1")
 SET RESULT=0
 
 %VFS_OUTDIR%\GVFS.UnitTests\bin\%CONFIGURATION%\net471\win-x64\GVFS.UnitTests.exe || SET RESULT=1
+%VFS_OUTDIR%\GVFS.CommandLine.Tests\bin\%CONFIGURATION%\net471\win-x64\GVFS.CommandLine.Tests.exe || SET RESULT=1
 
 EXIT /b %RESULT%

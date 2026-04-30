@@ -45,6 +45,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GVFS.Payload", "GVFS\GVFS.P
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GVFS.Installers", "GVFS\GVFS.Installers\GVFS.Installers.csproj", "{258FEAC0-5E2D-408A-9652-9E9653219F3B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GVFS.CommandLine.Tests", "GVFS\GVFS.CommandLine.Tests\GVFS.CommandLine.Tests.csproj", "{4D201963-957A-436A-8E43-79A63FB84B94}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -135,6 +137,10 @@ Global
 		{258FEAC0-5E2D-408A-9652-9E9653219F3B}.Debug|x64.Build.0 = Debug|Any CPU
 		{258FEAC0-5E2D-408A-9652-9E9653219F3B}.Release|x64.ActiveCfg = Release|Any CPU
 		{258FEAC0-5E2D-408A-9652-9E9653219F3B}.Release|x64.Build.0 = Release|Any CPU
+		{4D201963-957A-436A-8E43-79A63FB84B94}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4D201963-957A-436A-8E43-79A63FB84B94}.Debug|x64.Build.0 = Debug|Any CPU
+		{4D201963-957A-436A-8E43-79A63FB84B94}.Release|x64.ActiveCfg = Release|Any CPU
+		{4D201963-957A-436A-8E43-79A63FB84B94}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
