@@ -99,6 +99,13 @@ namespace GVFS.Service.Handlers
                     this.TrySendResponse(tracer, response.ToMessage().ToString(), connection);
                     break;
 
+                case NamedPipeMessages.CheckPendingUpgradeRequest.Header:
+                    NamedPipeMessages.CheckPendingUpgradeRequest.Response upgradeResponse = new NamedPipeMessages.CheckPendingUpgradeRequest.Response();
+                    upgradeResponse.UpgradeApplied = PendingUpgradeHandler.TryApplyPendingUpgrade(tracer);
+                    upgradeResponse.State = NamedPipeMessages.CompletionState.Success;
+                    this.TrySendResponse(tracer, upgradeResponse.ToMessage().ToString(), connection);
+                    break;
+
                 default:
                     this.requestDescription = UnknownRequestDescription;
                     EventMetadata metadata = new EventMetadata();
