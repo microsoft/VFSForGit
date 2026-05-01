@@ -452,6 +452,28 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
+        public class CheckPendingUpgradeRequest
+        {
+            public const string Header = nameof(CheckPendingUpgradeRequest);
+
+            public Message ToMessage()
+            {
+                return new Message(Header, GVFSJsonOptions.Serialize(this));
+            }
+
+            public class Response : BaseResponse<CheckPendingUpgradeRequest>
+            {
+                public Response() { }
+
+                public bool UpgradeApplied { get; set; }
+
+                public static Response FromMessage(Message message)
+                {
+                    return GVFSJsonOptions.Deserialize<Response>(message.Body);
+                }
+            }
+        }
+
         public class BaseResponse<TRequest>
         {
             public const string Header = nameof(TRequest) + ResponseSuffix;
