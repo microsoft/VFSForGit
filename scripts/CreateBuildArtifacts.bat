@@ -33,7 +33,7 @@ ECHO ^* Collecting GVFS.Installers *
 ECHO ^******************************
 mkdir %OUTROOT%\GVFS.Installers
 xcopy /S /Y ^
-    %VFS_OUTDIR%\GVFS.Installers\bin\%CONFIGURATION%\win-x64 ^
+    %VFS_OUTDIR%\GVFS.Installers\bin\%CONFIGURATION%\win-x64\* ^
     %OUTROOT%\GVFS.Installers\ || GOTO ERROR
 
 ECHO ^************************
@@ -42,7 +42,7 @@ ECHO ^************************
 ECHO Collecting FastFetch...
 mkdir %OUTROOT%\FastFetch
 xcopy /S /Y ^
-    %VFS_OUTDIR%\FastFetch\bin\%CONFIGURATION%\net471\win-x64 ^
+    %VFS_OUTDIR%\FastFetch\bin\%CONFIGURATION%\net10.0-windows10.0.17763.0\win-x64\publish\* ^
     %OUTROOT%\FastFetch\ || GOTO ERROR
 
 ECHO ^***********************************
@@ -50,7 +50,7 @@ ECHO ^* Collecting GVFS.FunctionalTests *
 ECHO ^***********************************
 mkdir %OUTROOT%\GVFS.FunctionalTests
 xcopy /S /Y ^
-    %VFS_OUTDIR%\GVFS.FunctionalTests\bin\%CONFIGURATION%\net471\win-x64 ^
+    %VFS_OUTDIR%\GVFS.FunctionalTests\bin\%CONFIGURATION%\net10.0-windows10.0.17763.0\win-x64\publish\* ^
     %OUTROOT%\GVFS.FunctionalTests\ || GOTO ERROR
 
 GOTO :EOF

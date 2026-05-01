@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
     <OutputType>Exe</OutputType>
+    <PublishAot>false</PublishAot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,3 +16,4 @@
   </ItemGroup>
 
 </Project>
+

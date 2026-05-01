@@ -144,6 +144,13 @@ namespace GVFS.Platform.Windows
             {
                 programArguments = string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg));
                 ProcessStartInfo processInfo = new ProcessStartInfo(programName, programArguments);
+
+                // UseShellExecute=true uses ShellExecuteEx which does NOT inherit
+                // the parent's handles. This is critical: without it, the background
+                // mount process inherits the parent's redirected stdout pipe handle,
+                // causing callers' Process.StandardOutput.ReadToEnd() to hang forever
+                // (the pipe never closes because the mount daemon holds a copy).
+                processInfo.UseShellExecute = true;
                 processInfo.WindowStyle = ProcessWindowStyle.Hidden;
 
                 Process executingProcess = new Process();
@@ -173,7 +180,7 @@ namespace GVFS.Platform.Windows
             security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
             security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
 
-            NamedPipeServerStream pipe = new NamedPipeServerStream(
+            NamedPipeServerStream pipe = NamedPipeServerStreamAcl.Create(
                 pipeName,
                 PipeDirection.InOut,
                 NamedPipeServerStream.MaxAllowedServerInstances,

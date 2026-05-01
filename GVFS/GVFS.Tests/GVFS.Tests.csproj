@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -10,3 +9,4 @@
   </ItemGroup>
 
 </Project>
+
