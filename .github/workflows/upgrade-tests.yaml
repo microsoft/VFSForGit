@@ -1,0 +1,281 @@
+name: Upgrade Tests
+
+on:
+  workflow_call:
+    inputs:
+      skip:
+        description: 'URL of a previous successful run; if non-empty, all steps are skipped'
+        required: false
+        type: string
+        default: ''
+      lkg_release_tag:
+        description: 'Tag of the last known good release to upgrade from'
+        required: false
+        type: string
+        default: 'v1.0.26098.1'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  upgrade_test:
+    runs-on: windows-2025
+    name: Upgrade
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        configuration: [ Debug ]
+        scenario:
+          - staging-upgrade
+          - clean-upgrade
+          - double-staging
+          - staging-then-clean
+          - mount-safety-deferral
+      fail-fast: false
+
+    steps:
+    - name: Skip this job if there is a previous successful run
+      if: inputs.skip != ''
+      id: skip
+      uses: actions/github-script@v9
+      with:
+        script: |
+          core.info(`Skipping: There already is a successful run: ${{ inputs.skip }}`)
+          return true
+
+    # -- Artifacts --
+
+    - name: Download LKG release installer
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        New-Item -ItemType Directory -Path gvfs-lkg -Force | Out-Null
+        gh release download "${{ inputs.lkg_release_tag }}" --repo ${{ github.repository }} --pattern "SetupGVFS*.exe" --dir gvfs-lkg
+
+    - name: Download Git installer
+      if: steps.skip.outputs.result != 'true'
+      uses: actions/download-artifact@v8
+      with:
+        name: MicrosoftGit
+        path: git
+
+    - name: Download current GVFS installer
+      if: steps.skip.outputs.result != 'true'
+      uses: actions/download-artifact@v8
+      with:
+        name: GVFS_${{ matrix.configuration }}
+        path: gvfs-new
+
+    # -- Setup --
+
+    - name: Install Git
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: git\install.bat
+
+    - name: Enable ProjFS
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      run: |
+        $feature = Get-WindowsOptionalFeature -Online -FeatureName Client-ProjFS
+        if ($feature.State -ne 'Enabled') {
+          Enable-WindowsOptionalFeature -Online -FeatureName Client-ProjFS -NoRestart
+        }
+
+    # -- Test Execution --
+
+    - name: Run upgrade test - ${{ matrix.scenario }}
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+
+        $lkgInstaller = (Get-ChildItem gvfs-lkg\SetupGVFS*.exe).FullName
+        $newInstaller = (Get-ChildItem gvfs-new\SetupGVFS*.exe).FullName
+        $installDir = "C:\Program Files\VFS for Git"
+        $testRepo = "https://dev.azure.com/gvfs/ci/_git/ForTests"
+        $enlistment = "C:\gvfs-upgrade-test"
+
+        function Install-GVFS($installer, [string[]]$extraArgs = @()) {
+          $logDir = "C:\temp\gvfs-install-logs"
+          New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+          $logFile = Join-Path $logDir "gvfs-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+          $args = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$logFile") + $extraArgs
+          Write-Host "Installing: $installer $($args -join ' ')"
+          $proc = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
+          if ($proc.ExitCode -ne 0) {
+            Get-Content $logFile -Tail 30 -ErrorAction SilentlyContinue
+            throw "Installer failed with exit code $($proc.ExitCode)"
+          }
+          Write-Host "Installed successfully"
+        }
+
+        function Get-GVFSVersion {
+          [System.Diagnostics.FileVersionInfo]::GetVersionInfo("$installDir\GVFS.exe").ProductVersion
+        }
+
+        function Assert-ServiceRunning {
+          $svc = sc.exe query GVFS.Service 2>&1 | Select-String "STATE"
+          if ($svc -notmatch "RUNNING") { throw "GVFS.Service is not running: $svc" }
+        }
+
+        function Mount-TestRepo {
+          if (Test-Path $enlistment) {
+            & "$installDir\gvfs.exe" mount $enlistment 2>&1
+          } else {
+            & "$installDir\gvfs.exe" clone $testRepo $enlistment 2>&1
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Mount/clone failed" }
+          $mountProc = Get-Process -Name "GVFS.Mount" -ErrorAction SilentlyContinue
+          if (-not $mountProc) { throw "No GVFS.Mount process after mount" }
+          return $mountProc.Id
+        }
+
+        function Assert-MountAlive($expectedPid) {
+          $proc = Get-Process -Id $expectedPid -ErrorAction SilentlyContinue
+          if (-not $proc -or $proc.ProcessName -ne "GVFS.Mount") {
+            throw "Mount process $expectedPid is no longer running"
+          }
+        }
+
+        function Unmount-TestRepo {
+          & "$installDir\gvfs.exe" unmount $enlistment 2>&1
+          Start-Sleep -Seconds 3
+        }
+
+        function Restart-Service {
+          sc.exe stop GVFS.Service | Out-Null
+          Start-Sleep -Seconds 10
+          sc.exe start GVFS.Service | Out-Null
+          Start-Sleep -Seconds 10
+          Assert-ServiceRunning
+        }
+
+        function Assert-PendingUpgrade($expected) {
+          $exists = Test-Path "$installDir\PendingUpgrade"
+          if ($exists -ne $expected) {
+            throw "PendingUpgrade directory: expected=$expected, actual=$exists"
+          }
+        }
+
+        # =============================================
+        # Test scenarios
+        # =============================================
+
+        switch ("${{ matrix.scenario }}") {
+
+          "staging-upgrade" {
+            Write-Host "=== Scenario: Staging upgrade e2e ==="
+            # Install LKG, mount, staging upgrade, unmount, verify completion
+            Install-GVFS $lkgInstaller
+            Assert-ServiceRunning
+            $mountPid = Mount-TestRepo
+
+            Install-GVFS $newInstaller @("/KEEPMOUNTED=true")
+            Assert-MountAlive $mountPid
+            Assert-PendingUpgrade $true
+
+            Unmount-TestRepo
+            Restart-Service
+            Assert-PendingUpgrade $false
+            Write-Host "PASS: Staging upgrade completed"
+          }
+
+          "clean-upgrade" {
+            Write-Host "=== Scenario: Clean upgrade (traditional) ==="
+            # Install LKG, mount, clean upgrade — should unmount and remount
+            Install-GVFS $lkgInstaller
+            Assert-ServiceRunning
+            $mountPid = Mount-TestRepo
+
+            Install-GVFS $newInstaller @("/KEEPMOUNTED=false")
+            Assert-PendingUpgrade $false
+            Assert-ServiceRunning
+            Write-Host "PASS: Clean upgrade completed"
+          }
+
+          "double-staging" {
+            Write-Host "=== Scenario: Double staging install ==="
+            # Install LKG, mount, staging install twice, verify second overwrites
+            Install-GVFS $lkgInstaller
+            Assert-ServiceRunning
+            $mountPid = Mount-TestRepo
+
+            Install-GVFS $newInstaller @("/KEEPMOUNTED=true")
+            Assert-MountAlive $mountPid
+            Assert-PendingUpgrade $true
+
+            # Second staging install should overwrite PendingUpgrade
+            Install-GVFS $newInstaller @("/KEEPMOUNTED=true")
+            Assert-MountAlive $mountPid
+            Assert-PendingUpgrade $true
+
+            Unmount-TestRepo
+            Restart-Service
+            Assert-PendingUpgrade $false
+            Write-Host "PASS: Double staging handled correctly"
+          }
+
+          "staging-then-clean" {
+            Write-Host "=== Scenario: Staging then clean install ==="
+            # Install LKG, mount, staging install, unmount, clean install
+            # Verify PendingUpgrade is cleaned up by clean install
+            Install-GVFS $lkgInstaller
+            Assert-ServiceRunning
+            $mountPid = Mount-TestRepo
+
+            Install-GVFS $newInstaller @("/KEEPMOUNTED=true")
+            Assert-MountAlive $mountPid
+            Assert-PendingUpgrade $true
+
+            Unmount-TestRepo
+            # Now clean install — should remove PendingUpgrade
+            Install-GVFS $newInstaller @("/KEEPMOUNTED=false")
+            Assert-PendingUpgrade $false
+            Assert-ServiceRunning
+            Write-Host "PASS: Staging then clean install handled correctly"
+          }
+
+          "mount-safety-deferral" {
+            Write-Host "=== Scenario: Mount safety deferral ==="
+            # Install LKG, mount, staging install, restart service WITH mount
+            # running — upgrade should be deferred
+            Install-GVFS $lkgInstaller
+            Assert-ServiceRunning
+            $mountPid = Mount-TestRepo
+
+            Install-GVFS $newInstaller @("/KEEPMOUNTED=true")
+            Assert-MountAlive $mountPid
+            Assert-PendingUpgrade $true
+
+            # Restart service WITHOUT unmounting — upgrade should defer
+            Restart-Service
+            Assert-MountAlive $mountPid
+            Assert-PendingUpgrade $true
+            Write-Host "Upgrade correctly deferred while mount running"
+
+            # Now unmount and restart — should complete
+            Unmount-TestRepo
+            Restart-Service
+            Assert-PendingUpgrade $false
+            Write-Host "PASS: Mount safety deferral works correctly"
+          }
+
+          default {
+            throw "Unknown scenario: ${{ matrix.scenario }}"
+          }
+        }
+
+    - name: Upload service logs
+      if: always() && steps.skip.outputs.result != 'true'
+      uses: actions/upload-artifact@v7
+      continue-on-error: true
+      with:
+        name: UpgradeTest_Logs_${{ matrix.scenario }}
+        path: |
+          C:\ProgramData\GVFS\GVFS.Service\Logs\
+          C:\temp\gvfs-install-logs\

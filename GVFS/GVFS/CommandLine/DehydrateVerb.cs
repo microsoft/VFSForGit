@@ -302,7 +302,6 @@ from a parent of the folders list.
 
                     using (modifiedPaths)
                     {
-                        string ioError;
                         foreach (string folder in folders)
                         {
                             string normalizedPath = GVFSDatabase.NormalizePath(folder);

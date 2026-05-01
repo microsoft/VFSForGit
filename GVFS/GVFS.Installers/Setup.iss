@@ -34,7 +34,7 @@ OutputDir=Setup
 Compression=lzma2
 InternalCompressLevel=ultra64
 SolidCompression=yes
-MinVersion=10.0.14374
+MinVersion=10.0.17763
 DisableDirPage=yes
 DisableReadyPage=yes
 SetupIconFile="{#LayoutDir}\GitVirtualFileSystem.ico"
@@ -42,7 +42,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
 WizardImageStretch=no
 WindowResizable=no
-CloseApplications=yes
+CloseApplications=no
 ChangesEnvironment=yes
 RestartIfNeededByRun=yes
 
@@ -59,8 +59,14 @@ Name: "full"; Description: "Full installation"; Flags: iscustom;
 Type: files; Name: "{app}\ucrtbase.dll"
 
 [Files]
-DestDir: "{app}"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
+; Normal install: all files go to {app}, service gets AfterInstall callback
+DestDir: "{app}"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"; Check: IsNormalInstall
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService; Check: IsNormalInstall
+; Staging install: most files go to {app}\PendingUpgrade, but GVFS.Service.exe
+; goes directly to {app} so the restarted service has PendingUpgradeHandler code.
+; The service is briefly stopped/restarted (mounts are independent processes).
+DestDir: "{app}\PendingUpgrade"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"; Check: IsStagingInstall
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: StagingUpdateService; Check: IsStagingInstall
 
 [Dirs]
 Name: "{app}\ProgramData\{#ServiceName}"; Permissions: users-readexec
@@ -84,6 +90,17 @@ Root: HKLM; SubKey: "{#GvFltAutologgerKey}"; Flags: deletekey
 [Code]
 var
   ExitCode: Integer;
+  KeepMountsRunning: Boolean;
+
+function IsNormalInstall(): Boolean;
+begin
+  Result := not KeepMountsRunning;
+end;
+
+function IsStagingInstall(): Boolean;
+begin
+  Result := KeepMountsRunning;
+end;
 
 function NeedsAddPath(Param: string): boolean;
 var
@@ -156,6 +173,50 @@ begin
     end;
 end;
 
+procedure WaitForServiceProcessToExit(ServiceName: string);
+var
+  ResultCode: integer;
+  Attempts: integer;
+  TempFile: string;
+  QueryOutput: ansiString;
+begin
+  // sc stop/delete returns before the service process actually exits.
+  // Poll sc query until the service is fully gone (1060) or stopped.
+  Attempts := 0;
+  TempFile := ExpandConstant('{tmp}\~scquery.txt');
+  while Attempts < 30 do
+    begin
+      if Exec(ExpandConstant('{cmd}'), '/C "' + ExpandConstant('{sys}\SC.EXE') + '" query ' + ServiceName + ' > "' + TempFile + '" 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+        begin
+          // 1060 = service does not exist (fully deleted and process exited)
+          if ResultCode = 1060 then
+            begin
+              Log('WaitForServiceProcessToExit: Service no longer exists');
+              break;
+            end;
+          if LoadStringFromFile(TempFile, QueryOutput) then
+            begin
+              if Pos('STOPPED', QueryOutput) > 0 then
+                begin
+                  Log('WaitForServiceProcessToExit: Service is stopped');
+                  break;
+                end;
+            end;
+        end
+      else
+        begin
+          Log('WaitForServiceProcessToExit: sc query failed, assuming service is gone');
+          break;
+        end;
+      Attempts := Attempts + 1;
+      Log('WaitForServiceProcessToExit: Waiting for service to stop (attempt ' + IntToStr(Attempts) + ')');
+      Sleep(1000);
+    end;
+  DeleteFile(TempFile);
+  if Attempts >= 30 then
+    Log('WaitForServiceProcessToExit: Timed out waiting for service to stop');
+end;
+
 procedure UninstallService(ServiceName: string; ShowProgress: boolean);
 var
   ResultCode: integer;
@@ -177,6 +238,8 @@ begin
             Log('UninstallService: Could not uninstall service: ' + ServiceName);
             RaiseException('Fatal: Could not uninstall service: ' + ServiceName);
           end;
+
+        WaitForServiceProcessToExit(ServiceName);
 
         if (ShowProgress) then
           begin
@@ -243,6 +306,33 @@ begin
     begin
       RaiseException('Fatal: An error occured while installing GVFS.Service.');
     end;
+end;
+
+procedure StagingUpdateService();
+var
+  ResultCode: integer;
+  StatusText: string;
+begin
+  // In staging mode: the service was stopped in PrepareToInstall so its exe
+  // could be replaced. Now start it with the new binary. The new service has
+  // PendingUpgradeHandler which will complete the upgrade on next restart
+  // when no mounts are running.
+  StatusText := WizardForm.StatusLabel.Caption;
+  WizardForm.StatusLabel.Caption := 'Starting GVFS.Service.';
+  WizardForm.ProgressGauge.Style := npbstMarquee;
+
+  try
+    Log('StagingUpdateService: Starting service with new binary');
+    if not Exec(ExpandConstant('{sys}\SC.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+      begin
+        Log('StagingUpdateService: Warning - could not start service: ' + SysErrorMessage(ResultCode));
+      end;
+
+    WriteOnDiskVersion16CapableFile();
+  finally
+    WizardForm.StatusLabel.Caption := StatusText;
+    WizardForm.ProgressGauge.Style := npbstNormal;
+  end;
 end;
 
 function DeleteFileIfItExists(FilePath: string) : Boolean;
@@ -647,12 +737,13 @@ begin
   case CurStep of
     ssInstall:
       begin
-        UninstallService('GVFS.Service', True);
+        if not KeepMountsRunning then
+          UninstallService('GVFS.Service', True);
       end;
     ssPostInstall:
       begin
         MigrateConfigAndStatusCacheFiles();
-        if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
+        if (not KeepMountsRunning) and (ExpandConstant('{param:REMOUNTREPOS|true}') = 'true') then
           begin
             MountRepos();
           end
@@ -677,22 +768,114 @@ begin
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  MsgBoxResult: integer;
+  Repos: ansiString;
+  ResultCode: integer;
+  HasMounts: Boolean;
 begin
   NeedsRestart := False;
+  KeepMountsRunning := False;
   Result := '';
   SetNuGetFeedIfNecessary();
-  if ConfirmUnmountAll() then
+
+  // Check for mounted repos by querying the service, and also check for
+  // running GVFS processes (a mount can be running without being registered
+  // in the service's repo-registry, e.g., after a reinstall).
+  HasMounts := False;
+  if ExecWithResult('gvfs.exe', 'service --list-mounted', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, Repos) then
     begin
-      if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
+      if (ResultCode = 0) and (Repos <> '') then
+        HasMounts := True;
+    end;
+  if (not HasMounts) and IsGVFSRunning() then
+    begin
+      HasMounts := True;
+      Repos := '(GVFS processes detected)';
+      Log('PrepareToInstall: No registered mounts but GVFS processes are running');
+    end;
+
+  if HasMounts then
+    begin
+      if WizardSilent() then
+        begin
+          // Silent mode: KEEPMOUNTED param controls behavior (default: true when mounts exist)
+          KeepMountsRunning := ExpandConstant('{param:KEEPMOUNTED|true}') = 'true';
+          if KeepMountsRunning then
+            Log('PrepareToInstall: Silent mode with mounted repos, KeepMountsRunning=True')
+          else
+            Log('PrepareToInstall: Silent mode with mounted repos, KeepMountsRunning=False');
+        end
+      else
+        begin
+          // Interactive mode: let user choose
+          MsgBoxResult := SuppressibleMsgBox(
+            'The following repos are currently mounted:' + #13#10 + Repos + #13#10#13#10 +
+            'Click Yes to keep repos mounted during the upgrade.' + #13#10 +
+            'The upgrade will complete automatically on next reboot.' + #13#10#13#10 +
+            'Click No to unmount all repos now and upgrade without restart.' + #13#10 +
+            'Repos will be temporarily unavailable during the upgrade.',
+            mbConfirmation, MB_YESNOCANCEL, IDYES);
+          if MsgBoxResult = IDYES then
+            KeepMountsRunning := True
+          else if MsgBoxResult = IDNO then
+            KeepMountsRunning := False
+          else
+            begin
+              Result := 'Installation cancelled.';
+              exit;
+            end;
+        end;
+    end;
+
+  if KeepMountsRunning then
+    begin
+      // Staging mode: most files go to {app}\PendingUpgrade\ via [Files] entries
+      // with Check: IsStagingInstall. GVFS.Service.exe goes directly to {app}.
+      // Clean up any leftover staging dirs from a prior attempt first,
+      // so we don't mix files from different upgrade versions.
+      if DirExists(ExpandConstant('{app}\PendingUpgrade')) then
+        begin
+          Log('PrepareToInstall: Removing stale PendingUpgrade from prior staging attempt');
+          DelTree(ExpandConstant('{app}\PendingUpgrade'), True, True, True);
+        end;
+      if DirExists(ExpandConstant('{app}\PreviousVersion')) then
+        begin
+          Log('PrepareToInstall: Removing stale PreviousVersion from prior staging attempt');
+          DelTree(ExpandConstant('{app}\PreviousVersion'), True, True, True);
+        end;
+      // Stop the service now so its exe is unlocked for replacement.
+      // Mounts are independent processes and unaffected.
+      Log('PrepareToInstall: Staging mode. Stopping service for exe replacement.');
+      StopService('GVFS.Service');
+      WaitForServiceProcessToExit('GVFS.Service');
+    end
+  else
+    begin
+      // Clean upgrade: unmount, stop everything, replace files directly.
+      // Remove any leftover PendingUpgrade or PreviousVersion from a
+      // previous staging install so stale files don't interfere with
+      // the fresh install.
+      if DirExists(ExpandConstant('{app}\PendingUpgrade')) then
+        begin
+          Log('PrepareToInstall: Removing leftover PendingUpgrade directory');
+          DelTree(ExpandConstant('{app}\PendingUpgrade'), True, True, True);
+        end;
+      if DirExists(ExpandConstant('{app}\PreviousVersion')) then
+        begin
+          Log('PrepareToInstall: Removing leftover PreviousVersion directory');
+          DelTree(ExpandConstant('{app}\PreviousVersion'), True, True, True);
+        end;
+      if HasMounts then
         begin
           UnmountRepos();
-        end
+        end;
+      if not EnsureGvfsNotRunning() then
+        begin
+          Abort();
+        end;
+      StopService('GVFS.Service');
+      UninstallGvFlt();
+      UninstallProjFSIfNecessary();
     end;
-  if not EnsureGvfsNotRunning() then
-    begin
-      Abort();
-    end;
-  StopService('GVFS.Service');
-  UninstallGvFlt();
-  UninstallProjFSIfNecessary();
 end;

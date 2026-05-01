@@ -90,8 +90,10 @@ namespace GVFS.Common.NamedPipes
                     this.Data = data;
                 }
 
-                public string Result { get; }
-                public string Data { get; }
+                public Response() { }
+
+                public string Result { get; set; }
+                public string Data { get; set; }
 
                 public Message CreateMessage()
                 {
@@ -129,7 +131,9 @@ namespace GVFS.Common.NamedPipes
                     this.Result = result;
                 }
 
-                public string Result { get; }
+                public Response() { }
+
+                public string Result { get; set; }
 
                 public Message CreateMessage()
                 {
@@ -185,7 +189,9 @@ namespace GVFS.Common.NamedPipes
                     this.Result = result;
                 }
 
-                public string Result { get; }
+                public Response() { }
+
+                public string Result { get; set; }
 
                 public Message CreateMessage()
                 {
@@ -296,7 +302,9 @@ namespace GVFS.Common.NamedPipes
                     this.Result = result;
                 }
 
-                public string Result { get; }
+                public Response() { }
+
+                public string Result { get; set; }
 
                 public Message CreateMessage()
                 {
@@ -436,6 +444,28 @@ namespace GVFS.Common.NamedPipes
             public class Response : BaseResponse<GetActiveRepoListRequest>
             {
                 public List<string> RepoList { get; set; }
+
+                public static Response FromMessage(Message message)
+                {
+                    return GVFSJsonOptions.Deserialize<Response>(message.Body);
+                }
+            }
+        }
+
+        public class CheckPendingUpgradeRequest
+        {
+            public const string Header = nameof(CheckPendingUpgradeRequest);
+
+            public Message ToMessage()
+            {
+                return new Message(Header, GVFSJsonOptions.Serialize(this));
+            }
+
+            public class Response : BaseResponse<CheckPendingUpgradeRequest>
+            {
+                public Response() { }
+
+                public bool UpgradeApplied { get; set; }
 
                 public static Response FromMessage(Message message)
                 {

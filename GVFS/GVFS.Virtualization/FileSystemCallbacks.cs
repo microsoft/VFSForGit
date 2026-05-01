@@ -695,8 +695,12 @@ namespace GVFS.Virtualization
             // Note: Because OnPlaceholderFileCreated is not synchronized on all platforms it is possible that GVFS will double count
             // the creation of file placeholders if multiple requests for the same file are received at the same time on different
             // threads.
+            //
+            // triggeringProcessImageFileName can be null when ProjFS reports a triggering process ID of 0 (e.g. kernel or
+            // system-level operations). The ProjFS managed API may pass null for the image file name in AOT builds.
+            // ConcurrentDictionary does not allow null keys, so fall back to a sentinel value.
             this.filePlaceHolderCreationCount.AddOrUpdate(
-                triggeringProcessImageFileName,
+                triggeringProcessImageFileName ?? string.Empty,
                 (imageName) => { return new PlaceHolderCreateCounter(); },
                 (key, oldCount) => { oldCount.Increment(); return oldCount; });
         }
@@ -711,7 +715,7 @@ namespace GVFS.Virtualization
             this.GitIndexProjection.OnPlaceholderFolderCreated(relativePath);
 
             this.folderPlaceHolderCreationCount.AddOrUpdate(
-                triggeringProcessImageFileName,
+                triggeringProcessImageFileName ?? string.Empty,
                 (imageName) => { return new PlaceHolderCreateCounter(); },
                 (key, oldCount) => { oldCount.Increment(); return oldCount; });
         }
@@ -724,7 +728,7 @@ namespace GVFS.Virtualization
         public void OnPlaceholderFileHydrated(string triggeringProcessImageFileName)
         {
             this.fileHydrationCount.AddOrUpdate(
-                triggeringProcessImageFileName,
+                triggeringProcessImageFileName ?? string.Empty,
                 (imageName) => { return new PlaceHolderCreateCounter(); },
                 (key, oldCount) => { oldCount.Increment(); return oldCount; });
         }

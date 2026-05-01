@@ -191,7 +191,21 @@ namespace GVFS.Common.Git
                                 return LooseBlobState.Corrupt;
                             }
 
-                            writeAction?.Invoke(deflate, size);
+                            if (writeAction != null)
+                            {
+                                CountingStream counting = new CountingStream(deflate);
+                                writeAction(counting, size);
+
+                                // .NET 10 DeflateStream silently returns partial data on truncated
+                                // zlib input instead of throwing InvalidDataException. Detect this
+                                // by comparing the bytes actually read to the size in the header.
+                                if (counting.BytesRead < size)
+                                {
+                                    corruptLooseObject = true;
+                                    return LooseBlobState.Corrupt;
+                                }
+                            }
+
                             return LooseBlobState.Exists;
                         }
                     }
@@ -277,6 +291,57 @@ namespace GVFS.Common.Git
             }
 
             return state;
+        }
+
+        /// <summary>
+        /// A read-only stream wrapper that counts the total bytes read.
+        /// Used to detect truncated loose objects where DeflateStream returns
+        /// fewer bytes than the header declares (see GetLooseBlobStateAtPath).
+        /// </summary>
+        private sealed class CountingStream : Stream
+        {
+            private readonly Stream inner;
+            private long bytesRead;
+
+            public CountingStream(Stream inner)
+            {
+                this.inner = inner;
+            }
+
+            public long BytesRead => this.bytesRead;
+
+            public override bool CanRead => this.inner.CanRead;
+            public override bool CanSeek => this.inner.CanSeek;
+            public override bool CanWrite => this.inner.CanWrite;
+            public override long Length => this.inner.Length;
+            public override long Position
+            {
+                get => this.inner.Position;
+                set => this.inner.Position = value;
+            }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                int read = this.inner.Read(buffer, offset, count);
+                this.bytesRead += read;
+                return read;
+            }
+
+            public override int ReadByte()
+            {
+                int b = this.inner.ReadByte();
+                if (b >= 0)
+                {
+                    this.bytesRead++;
+                }
+
+                return b;
+            }
+
+            public override void Flush() => this.inner.Flush();
+            public override long Seek(long offset, SeekOrigin origin) => this.inner.Seek(offset, origin);
+            public override void SetLength(long value) => this.inner.SetLength(value);
+            public override void Write(byte[] buffer, int offset, int count) => this.inner.Write(buffer, offset, count);
         }
     }
 }

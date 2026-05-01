@@ -43,6 +43,12 @@ namespace GVFS.Service
                 metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
                 this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(GVFSService)}_{nameof(this.Run)}", metadata);
 
+                // Check for a staged upgrade before doing anything else.
+                // If no GVFS.Mount processes are running (typical at boot or after
+                // unmount-all), copy staged files in-place and proceed normally.
+                // If mounts ARE running, the upgrade is deferred to next restart.
+                PendingUpgradeHandler.TryApplyPendingUpgrade(this.tracer);
+
                 this.repoRegistry = new RepoRegistry(
                     this.tracer,
                     new PhysicalFileSystem(),
@@ -349,11 +355,11 @@ namespace GVFS.Service
             DirectorySecurity serviceDataRootSecurity = this.GetServiceDirectorySecurity(serviceDataRootPath);
 
             // Create GVFS.Service related directories (if they don't already exist)
-            Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
-            Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
+            serviceDataRootSecurity.CreateDirectory(serviceDataRootPath);
+            serviceDataRootSecurity.CreateDirectory(this.serviceDataLocation);
 
             // Ensure the ACLs are set correctly on any files or directories that were already created (e.g. after upgrading VFS4G)
-            Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
+            new DirectoryInfo(serviceDataRootPath).SetAccessControl(serviceDataRootSecurity);
         }
 
         private void CreateAndConfigureLogDirectory(string path)
@@ -378,7 +384,7 @@ namespace GVFS.Service
             if (Directory.Exists(serviceDataRootPath))
             {
                 this.tracer.RelatedInfo($"{nameof(this.GetServiceDirectorySecurity)}: {serviceDataRootPath} exists, modifying ACLs.");
-                serviceDataRootSecurity = Directory.GetAccessControl(serviceDataRootPath);
+                serviceDataRootSecurity = new DirectoryInfo(serviceDataRootPath).GetAccessControl();
             }
             else
             {
