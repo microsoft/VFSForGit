@@ -57,13 +57,14 @@ jobs:
 
     env:
       ARTIFACT_PREFIX: ${{ inputs.output_prefix && format('{0}_', inputs.output_prefix) || '' }}
-      FT_MATRIX_NAME: ${{ format('{0}_{1}-{2}', matrix.configuration, matrix.architecture, matrix.nr) }}
+      FT_MATRIX_NAME: ${{ format('{0}_{1}-{2}-{3}', matrix.configuration, matrix.architecture, matrix.nr, matrix.copy) }}
 
     strategy:
       matrix:
         configuration: [ Debug, Release ]
         architecture: [ x86_64, arm64 ]
-        nr: [7] # restricted to slice 7 for HealthTests flaky investigation
+        nr: [7]
+        copy: [a, b, c, d, e] # 5 copies of slice 7 to increase flaky repro probability
       fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
 
     steps:
