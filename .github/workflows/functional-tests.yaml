@@ -57,13 +57,14 @@ jobs:
 
     env:
       ARTIFACT_PREFIX: ${{ inputs.output_prefix && format('{0}_', inputs.output_prefix) || '' }}
-      FT_MATRIX_NAME: ${{ format('{0}_{1}-{2}', matrix.configuration, matrix.architecture, matrix.nr) }}
+      FT_MATRIX_NAME: ${{ format('{0}_{1}-{2}-run{3}', matrix.configuration, matrix.architecture, matrix.nr, matrix.run) }}
 
     strategy:
       matrix:
         configuration: [ Debug ]
         architecture: [ arm64 ]
         nr: [9] # Restricted to failed slice for flaky test diagnosis (restore after fix)
+        run: [1, 2, 3, 4, 5] # Multiple copies to increase repro odds
       fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
 
     steps:
