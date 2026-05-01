@@ -247,10 +247,17 @@ jobs:
     with:
       skip: ${{ needs.validate.outputs.skip }}
 
+  upgrade_tests:
+    name: Upgrade Tests
+    needs: [validate, build]
+    uses: ./.github/workflows/upgrade-tests.yaml
+    with:
+      skip: ${{ needs.validate.outputs.skip }}
+
   result:
     runs-on: ubuntu-latest
     name: Build, Unit and Functional Tests Successful
-    needs: [functional_tests]
+    needs: [functional_tests, upgrade_tests]
 
     steps:
       - name: Success! # for easier identification of successful runs in the Checks Required for Pull Requests
