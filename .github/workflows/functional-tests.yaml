@@ -63,7 +63,7 @@ jobs:
       matrix:
         configuration: [ Debug, Release ]
         architecture: [ x86_64, arm64 ]
-        nr: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] # 10 parallel jobs to speed up the tests
+        nr: [7] # restricted to slice 7 for HealthTests flaky investigation
       fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
 
     steps:
