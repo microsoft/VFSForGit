@@ -57,11 +57,11 @@ jobs:
 
     env:
       ARTIFACT_PREFIX: ${{ inputs.output_prefix && format('{0}_', inputs.output_prefix) || '' }}
-      FT_MATRIX_NAME: ${{ format('{0}_{1}-{2}', matrix.configuration, matrix.architecture, matrix.nr) }}
+      FT_MATRIX_NAME: ${{ format('{0}_{1}-{2}_attempt{3}', matrix.configuration, matrix.architecture, matrix.nr, matrix.attempt) }}
 
     strategy:
       matrix:
-        # TEMPORARY: Restricted to slice 3 (Release, x86_64) to diagnose
+        # TEMPORARY: Run slice 3 (Release, x86_64) x5 in parallel to repro
         # GitCommandsTests(Full) hang. Restore full matrix after fix:
         #   configuration: [ Debug, Release ]
         #   architecture: [ x86_64, arm64 ]
@@ -69,6 +69,7 @@ jobs:
         configuration: [ Release ]
         architecture: [ x86_64 ]
         nr: [3]
+        attempt: [1, 2, 3, 4, 5]
       fail-fast: false
 
     steps:
