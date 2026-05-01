@@ -310,6 +310,11 @@ namespace GVFS.FunctionalTests.Tools
                     throw new TimeoutException($"gvfs process timed out after 5 minutes. Args: {args}");
                 }
 
+                // The WaitForExit(timeout) overload does NOT wait for async
+                // output streams to finish reading. Call the parameterless
+                // overload to drain remaining stdout/stderr from the pipe.
+                process.WaitForExit();
+
                 string result = outputBuilder.ToString();
                 Console.Error.WriteLine($"[CI-DEBUG] CallGVFS done: exit={process.ExitCode}");
                 Console.Error.Flush();
