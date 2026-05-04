@@ -142,12 +142,6 @@ namespace GVFS.CommandLine
                     Console.Error.WriteLine(errorString);
                     this.ReportErrorAndExit(Environment.NewLine + errorString);
                 }
-                else
-                {
-                    // All repos unmounted — tell the service to check for a
-                    // pending staged upgrade now that no mounts are active.
-                    this.TryNotifyServiceOfPendingUpgrade();
-                }
             }
         }
 
@@ -224,35 +218,5 @@ namespace GVFS.CommandLine
             return false;
         }
 
-        private void TryNotifyServiceOfPendingUpgrade()
-        {
-            NamedPipeMessages.CheckPendingUpgradeRequest request = new NamedPipeMessages.CheckPendingUpgradeRequest();
-
-            using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
-            {
-                if (!client.Connect())
-                {
-                    return;
-                }
-
-                try
-                {
-                    client.SendRequest(request.ToMessage());
-                    NamedPipeMessages.Message response = client.ReadResponse();
-                    if (response.Header == NamedPipeMessages.CheckPendingUpgradeRequest.Response.Header)
-                    {
-                        NamedPipeMessages.CheckPendingUpgradeRequest.Response message =
-                            NamedPipeMessages.CheckPendingUpgradeRequest.Response.FromMessage(response);
-                        if (message.UpgradeApplied)
-                        {
-                            this.Output.WriteLine("A pending upgrade has been applied.");
-                        }
-                    }
-                }
-                catch (BrokenPipeException)
-                {
-                }
-            }
-        }
     }
 }

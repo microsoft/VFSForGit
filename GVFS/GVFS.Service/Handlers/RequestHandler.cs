@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System.Runtime.Serialization;
+using System.Threading;
 
 namespace GVFS.Service.Handlers
 {
@@ -80,6 +81,12 @@ namespace GVFS.Service.Handlers
                     UnregisterRepoHandler unmountHandler = new UnregisterRepoHandler(tracer, this.repoRegistry, connection, unmountRequest);
                     unmountHandler.Run();
 
+                    // After unmount, check for pending staged upgrade on a
+                    // background thread. The deferred check gives the calling
+                    // GVFS.Mount process time to exit so its executable is no
+                    // longer locked when the upgrade runs.
+                    this.TryDeferredPendingUpgradeCheck(tracer);
+
                     break;
 
                 case NamedPipeMessages.GetActiveRepoListRequest.Header:
@@ -127,6 +134,26 @@ namespace GVFS.Service.Handlers
             {
                 tracer.RelatedError($"{nameof(this.TrySendResponse)}: Could not send response to client. Reply Info: {message}");
             }
+        }
+
+        private void TryDeferredPendingUpgradeCheck(ITracer tracer)
+        {
+            string installDir = Service.Configuration.AssemblyPath;
+            string pendingUpgradeDir = System.IO.Path.Combine(installDir, "PendingUpgrade");
+            if (!System.IO.Directory.Exists(pendingUpgradeDir))
+            {
+                return;
+            }
+
+            // Wait briefly for the GVFS.Mount process to exit after unmount,
+            // then attempt the upgrade. PendingUpgradeHandler rechecks for
+            // running mount processes before applying.
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                Thread.Sleep(5000);
+                tracer.RelatedInfo("TryDeferredPendingUpgradeCheck: Checking pending upgrade after unmount");
+                PendingUpgradeHandler.TryApplyPendingUpgrade(tracer);
+            });
         }
     }
 }
