@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <SelfContained>false</SelfContained>
+    <PublishAot>false</PublishAot>
     <IncludeBuildOutput>false</IncludeBuildOutput>
   </PropertyGroup>
 

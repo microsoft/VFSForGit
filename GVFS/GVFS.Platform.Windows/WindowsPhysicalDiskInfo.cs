@@ -1,16 +1,32 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Management;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace GVFS.Platform.Windows
 {
+    /// <summary>
+    /// Collects physical disk telemetry using P/Invoke (kernel32 + DeviceIoControl)
+    /// instead of System.Management/WMI, which requires COM interop incompatible
+    /// with NativeAOT.
+    /// </summary>
     public class WindowsPhysicalDiskInfo
     {
+        private static readonly Dictionary<uint, string> MapDriveType = new Dictionary<uint, string>()
+        {
+            { 0, "unknown" },
+            { 1, "InvalidRootPath" },
+            { 2, "Removable" },
+            { 3, "Fixed" },
+            { 4, "Remote" },
+            { 5, "CDROM" },
+            { 6, "RAMDisk" },
+        };
+
         private static readonly Dictionary<int, string> MapBusType = new Dictionary<int, string>()
         {
-            { 0, "unknwon" },
+            { 0, "unknown" },
             { 1, "SCSI" },
             { 2, "ATAPI" },
             { 3, "ATA" },
@@ -30,144 +46,341 @@ namespace GVFS.Platform.Windows
             { 17, "NVMe" },
         };
 
-        private static readonly Dictionary<int, string> MapMediaType = new Dictionary<int, string>()
-        {
-            { 0, "unspecified" },
-            { 3, "HDD" },
-            { 4, "SSD" },
-            { 5, "SCM" },
-        };
+        #region P/Invoke constants
 
-        private static readonly Dictionary<int, string> MapDriveType = new Dictionary<int, string>()
+        private const uint FILE_SHARE_READ = 0x00000001;
+        private const uint FILE_SHARE_WRITE = 0x00000002;
+        private const uint OPEN_EXISTING = 3;
+
+        private const uint IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS = 0x00560000;
+        private const uint IOCTL_STORAGE_QUERY_PROPERTY = 0x002D1400;
+
+        private const int StorageAdapterProperty = 1;
+        private const int StorageDeviceSeekPenaltyProperty = 7;
+
+        private const int PropertyStandardQuery = 0;
+
+        #endregion
+
+        #region P/Invoke declarations
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetDriveType(string lpRootPathName);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool GetVolumeInformation(
+            string lpRootPathName,
+            char[] lpVolumeNameBuffer,
+            int nVolumeNameSize,
+            out uint lpVolumeSerialNumber,
+            out uint lpMaximumComponentLength,
+            out uint lpFileSystemFlags,
+            char[] lpFileSystemNameBuffer,
+            int nFileSystemNameSize);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool GetDiskFreeSpaceEx(
+            string lpDirectoryName,
+            out ulong lpFreeBytesAvailableToCaller,
+            out ulong lpTotalNumberOfBytes,
+            out ulong lpTotalNumberOfFreeBytes);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle CreateFile(
+            string lpFileName,
+            uint dwDesiredAccess,
+            uint dwShareMode,
+            IntPtr lpSecurityAttributes,
+            uint dwCreationDisposition,
+            uint dwFlagsAndAttributes,
+            IntPtr hTemplateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool DeviceIoControl(
+            SafeFileHandle hDevice,
+            uint dwIoControlCode,
+            ref StoragePropertyQuery lpInBuffer,
+            int nInBufferSize,
+            IntPtr lpOutBuffer,
+            int nOutBufferSize,
+            out int lpBytesReturned,
+            IntPtr lpOverlapped);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool DeviceIoControl(
+            SafeFileHandle hDevice,
+            uint dwIoControlCode,
+            IntPtr lpInBuffer,
+            int nInBufferSize,
+            IntPtr lpOutBuffer,
+            int nOutBufferSize,
+            out int lpBytesReturned,
+            IntPtr lpOverlapped);
+
+        #endregion
+
+        #region Native structs
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct StoragePropertyQuery
         {
-            { 0, "unknown" },
-            { 1, "InvalidRootPath" },
-            { 2, "Removable" },
-            { 3, "Fixed" },
-            { 4, "Remote" },
-            { 5, "CDROM" },
-            { 6, "RAMDisk" },
-        };
+            public int PropertyId;
+            public int QueryType;
+            public byte AdditionalParameters;
+        }
+
+        #endregion
 
         /// <summary>
         /// Get the properties of the drive/volume/partition/physical disk associated
-        /// the given pathname.  For example, whether the drive is an SSD or HDD.
+        /// with the given pathname.  For example, whether the drive is an SSD or HDD.
+        ///
+        /// Uses direct P/Invoke calls (GetDriveType, GetVolumeInformation,
+        /// GetDiskFreeSpaceEx, DeviceIoControl) instead of WMI so the code is
+        /// compatible with NativeAOT compilation.
         /// </summary>
         /// <returns>A dictionary of platform-specific keywords and values.</returns>
         public static Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
-            // Use the WMI APIs to get details about the physical disk associated with the given path.
-            // Some of these fields are avilable using normal classes, such as System.IO.DriveInfo:
-            // https://msdn.microsoft.com/en-us/library/system.io.driveinfo(v=vs.110).aspx
-            //
-            // But the lower-level fields, such as the BusType and SpindleSpeed, are not.
-            //
-            // MSFT_Partition:
-            // https://msdn.microsoft.com/en-us/library/windows/desktop/hh830524(v=vs.85).aspx
-            //
-            // MSFT_Disk:
-            // https://msdn.microsoft.com/en-us/library/windows/desktop/hh830493(v=vs.85).aspx
-            //
-            // MSFT_Volume:
-            // https://msdn.microsoft.com/en-us/library/windows/desktop/hh830604(v=vs.85).aspx
-            //
-            // MSFT_PhysicalDisk:
-            // https://msdn.microsoft.com/en-us/library/windows/desktop/hh830532(v=vs.85)
-            //
-            // An overview of these "classes" can be found here:
-            // https://msdn.microsoft.com/en-us/library/hh830612.aspx
-            //
-            // The map variables defined above are based on property values documented in one of the above APIs.
-            // There are helper functions below to convert from ManagementBaseObject values into the map values.
-            // These do not do strict validation because the OS can add new values at any time.  For example, the
-            // integer code for NVMe bus drives was recently added.  If an unrecognized value is received, the
-            // raw integer value is used untranslated.
-            //
-            // They are accessed via a generic WQL language that is similar to SQL.  See here for an example:
-            // https://blogs.technet.microsoft.com/josebda/2014/08/11/sample-c-code-for-using-the-latest-wmi-classes-to-manage-windows-storage/
-
             Dictionary<string, string> result = new Dictionary<string, string>();
 
             try
             {
                 char driveLetter = PathToDriveLetter(path);
-                result.Add("DriveLetter", driveLetter.ToString());
+                result["DriveLetter"] = driveLetter.ToString();
 
-                ManagementScope scope = new ManagementScope(@"\\.\root\microsoft\windows\storage");
-                scope.Connect();
+                string rootPath = $"{driveLetter}:\\";
 
-                DiskSizeStatistics(scope, driveLetter, ref result);
+                uint driveType = GetDriveType(rootPath);
+                result["VolumeDriveType"] = MapDriveType.TryGetValue(driveType, out string dtName)
+                    ? dtName
+                    : driveType.ToString();
+
+                CollectVolumeInfo(rootPath, result);
+                CollectVolumeSizeInfo(rootPath, result);
 
                 if (sizeStatsOnly)
                 {
                     return result;
                 }
 
-                DiskTypeInfo(scope, driveLetter, ref result);
+                CollectPhysicalDiskProperties(driveLetter, result);
             }
             catch (Exception e)
             {
-                result.Add("Error", e.Message);
+                result["Error"] = e.Message;
             }
 
             return result;
         }
 
-        private static void DiskSizeStatistics(ManagementScope scope, char driveLetter, ref Dictionary<string, string> result)
+        private static void CollectVolumeInfo(string rootPath, Dictionary<string, string> result)
         {
-            string queryVolumeString = $"SELECT DriveType,FileSystem,FileSystemLabel,Size,SizeRemaining FROM MSFT_Volume WHERE DriveLetter=\"{driveLetter}\"";
-            ManagementBaseObject mbo = GetFirstRecord(scope, queryVolumeString);
-            if (mbo != null)
+            char[] volumeLabel = new char[261];
+            char[] fileSystemName = new char[261];
+
+            if (GetVolumeInformation(
+                rootPath,
+                volumeLabel,
+                volumeLabel.Length,
+                out _,
+                out _,
+                out _,
+                fileSystemName,
+                fileSystemName.Length))
             {
-                result.Add("VolumeDriveType", GetMapValue(MapDriveType, FetchValue(mbo, "DriveType")));
-                result.Add("VolumeFileSystem", FetchValue(mbo, "FileSystem"));
-                result.Add("VolumeFileSystemLabel", FetchValue(mbo, "FileSystemLabel"));
-                result.Add("VolumeSize", FetchValue(mbo, "Size"));
-                result.Add("VolumeSizeRemaining", FetchValue(mbo, "SizeRemaining"));
+                result["VolumeFileSystem"] = new string(fileSystemName).TrimEnd('\0');
+                result["VolumeFileSystemLabel"] = new string(volumeLabel).TrimEnd('\0');
+            }
+            else
+            {
+                result["VolumeFileSystem"] = "unknown";
+                result["VolumeFileSystemLabel"] = "unknown";
             }
         }
 
-        private static void DiskTypeInfo(ManagementScope scope, char driveLetter, ref Dictionary<string, string> result)
+        private static void CollectVolumeSizeInfo(string rootPath, Dictionary<string, string> result)
         {
-            string queryPartitionString = $"SELECT DiskNumber FROM MSFT_Partition WHERE DriveLetter=\"{driveLetter}\"";
-            ManagementBaseObject mbo = GetFirstRecord(scope, queryPartitionString);
-            if (mbo != null)
+            if (GetDiskFreeSpaceEx(rootPath, out _, out ulong totalBytes, out ulong freeBytes))
             {
-                string diskNumber = FetchValue(mbo, "DiskNumber");
-                result.Add("DiskNumber", diskNumber);
+                result["VolumeSize"] = totalBytes.ToString();
+                result["VolumeSizeRemaining"] = freeBytes.ToString();
+            }
+            else
+            {
+                result["VolumeSize"] = "unknown";
+                result["VolumeSizeRemaining"] = "unknown";
+            }
+        }
 
-                if (diskNumber.Length > 0)
+        /// <summary>
+        /// Opens the volume handle, resolves the physical disk number via
+        /// IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, then queries the physical disk
+        /// for seek-penalty (SSD vs HDD) and bus type via IOCTL_STORAGE_QUERY_PROPERTY.
+        /// </summary>
+        private static void CollectPhysicalDiskProperties(char driveLetter, Dictionary<string, string> result)
+        {
+            string volumePath = $@"\\.\{driveLetter}:";
+            using SafeFileHandle volumeHandle = CreateFile(
+                volumePath,
+                0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                IntPtr.Zero,
+                OPEN_EXISTING,
+                0,
+                IntPtr.Zero);
+
+            if (volumeHandle.IsInvalid)
+            {
+                result["DiskNumber"] = "unknown";
+                result["PhysicalMediaType"] = "unknown";
+                result["PhysicalBusType"] = "unknown";
+                return;
+            }
+
+            int diskNumber = GetDiskNumberFromVolume(volumeHandle);
+            if (diskNumber < 0)
+            {
+                result["DiskNumber"] = "unknown";
+                result["PhysicalMediaType"] = "unknown";
+                result["PhysicalBusType"] = "unknown";
+                return;
+            }
+
+            result["DiskNumber"] = diskNumber.ToString();
+
+            string diskPath = $@"\\.\PhysicalDrive{diskNumber}";
+            using SafeFileHandle diskHandle = CreateFile(
+                diskPath,
+                0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                IntPtr.Zero,
+                OPEN_EXISTING,
+                0,
+                IntPtr.Zero);
+
+            if (diskHandle.IsInvalid)
+            {
+                result["PhysicalMediaType"] = "unknown";
+                result["PhysicalBusType"] = "unknown";
+                return;
+            }
+
+            result["PhysicalMediaType"] = QueryMediaType(diskHandle);
+            result["PhysicalBusType"] = QueryBusType(diskHandle);
+        }
+
+        /// <summary>
+        /// Uses IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS to determine which physical
+        /// disk number backs the given volume.
+        /// </summary>
+        private static int GetDiskNumberFromVolume(SafeFileHandle volumeHandle)
+        {
+            const int bufferSize = 256;
+            IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
+            try
+            {
+                if (DeviceIoControl(
+                        volumeHandle,
+                        IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
+                        IntPtr.Zero,
+                        0,
+                        buffer,
+                        bufferSize,
+                        out _,
+                        IntPtr.Zero))
                 {
-                    string queryDiskString = $"SELECT Model,IsBoot,IsSystem,SerialNumber FROM MSFT_Disk WHERE Number=\"{diskNumber}\"";
-                    mbo = GetFirstRecord(scope, queryDiskString);
-                    if (mbo != null)
+                    int count = Marshal.ReadInt32(buffer, 0);
+                    if (count > 0)
                     {
-                        result.Add("DiskModel", FetchValue(mbo, "Model"));
-                        result.Add("DiskIsSystem", FetchValue(mbo, "IsSystem"));
-                        result.Add("DiskIsBoot", FetchValue(mbo, "IsBoot"));
-                        result.Add("DiskSerialNumber", FetchValue(mbo, "SerialNumber"));
-                    }
-
-                    string queryPhysicalDiskString = $"SELECT MediaType,BusType,SpindleSpeed FROM MSFT_PhysicalDisk WHERE DeviceId=\"{diskNumber}\"";
-                    mbo = GetFirstRecord(scope, queryPhysicalDiskString);
-                    if (mbo != null)
-                    {
-                        result.Add("PhysicalMediaType", GetMapValue(MapMediaType, FetchValue(mbo, "MediaType")));
-                        result.Add("PhysicalBusType", GetMapValue(MapBusType, FetchValue(mbo, "BusType")));
-                        result.Add("PhysicalSpindleSpeed", FetchValue(mbo, "SpindleSpeed"));
+                        return Marshal.ReadInt32(buffer, 8);
                     }
                 }
+
+                return -1;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
             }
         }
 
-        private static string FetchValue(ManagementBaseObject mbo, string key)
+        /// <summary>
+        /// Queries StorageDeviceSeekPenaltyProperty via DeviceIoControl.
+        /// No seek penalty means SSD; seek penalty means HDD.
+        /// </summary>
+        private static string QueryMediaType(SafeFileHandle diskHandle)
         {
-            return (mbo[key] != null) ? mbo[key].ToString().Trim() : string.Empty;
+            StoragePropertyQuery query = new StoragePropertyQuery
+            {
+                PropertyId = StorageDeviceSeekPenaltyProperty,
+                QueryType = PropertyStandardQuery,
+            };
+
+            const int outSize = 32;
+            IntPtr buffer = Marshal.AllocHGlobal(outSize);
+            try
+            {
+                if (DeviceIoControl(
+                        diskHandle,
+                        IOCTL_STORAGE_QUERY_PROPERTY,
+                        ref query,
+                        Marshal.SizeOf<StoragePropertyQuery>(),
+                        buffer,
+                        outSize,
+                        out _,
+                        IntPtr.Zero))
+                {
+                    byte penalty = Marshal.ReadByte(buffer, 8);
+                    return penalty != 0 ? "HDD" : "SSD";
+                }
+
+                return "unknown";
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
         }
 
-        private static string GetMapValue(Dictionary<int, string> map, string rawValue)
+        /// <summary>
+        /// Queries StorageAdapterProperty via DeviceIoControl to read the
+        /// STORAGE_BUS_TYPE from the STORAGE_ADAPTER_DESCRIPTOR.
+        /// </summary>
+        private static string QueryBusType(SafeFileHandle diskHandle)
         {
-            return int.TryParse(rawValue, out int key) && map.Keys.Contains(key) ? map[key] : rawValue;
+            StoragePropertyQuery query = new StoragePropertyQuery
+            {
+                PropertyId = StorageAdapterProperty,
+                QueryType = PropertyStandardQuery,
+            };
+
+            const int outSize = 256;
+            IntPtr buffer = Marshal.AllocHGlobal(outSize);
+            try
+            {
+                if (DeviceIoControl(
+                        diskHandle,
+                        IOCTL_STORAGE_QUERY_PROPERTY,
+                        ref query,
+                        Marshal.SizeOf<StoragePropertyQuery>(),
+                        buffer,
+                        outSize,
+                        out _,
+                        IntPtr.Zero))
+                {
+                    int busType = Marshal.ReadByte(buffer, 24);
+                    return MapBusType.TryGetValue(busType, out string busName)
+                        ? busName
+                        : busType.ToString();
+                }
+
+                return "unknown";
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
         }
 
         private static char PathToDriveLetter(string path)
@@ -187,18 +400,7 @@ namespace GVFS.Platform.Windows
                 }
             }
 
-            // A bogus path or a UNC path.  This should not happen since the path should already
-            // have been validated.
             throw new ArgumentException($"Could not map path '{path}' to a drive letter.");
-        }
-
-        private static ManagementBaseObject GetFirstRecord(ManagementScope scope, string queryString)
-        {
-            ObjectQuery q = new ObjectQuery(queryString);
-            ManagementObjectSearcher s = new ManagementObjectSearcher(scope, q);
-
-            // Only return the first result.  (There should only be one row returned for each of these queries.)
-            return s.Get().Cast<ManagementBaseObject>().FirstOrDefault();
         }
     }
 }

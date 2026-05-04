@@ -1,20 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp.NativeBinaries" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
-    <PackageReference Include="System.Text.Json" />
     <PackageReference Include="SharpZipLib" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Web" />
   </ItemGroup>
 
   <Target Name="_GenerateConstantsFile" BeforeTargets="BeforeCompile">
@@ -28,3 +21,4 @@
   </Target>
 
 </Project>
+

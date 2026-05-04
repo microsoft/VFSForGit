@@ -1,17 +1,48 @@
 <Project>
-
   <!-- Define common properties that rely on SDK/props-defined properties -->
   <PropertyGroup>
     <Version>$(GVFSVersion)</Version>
-
     <!--
       We parse this version into System.Version in several places;
       we should strip the commit ID from the attribute.
-      -->
+    -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <!-- Include custom MSBuild targets/tasks -->
   <Import Project="$(MSBuildThisFileDirectory)GVFS\GVFS.MSBuild\GVFS.targets" />
 
+  <!--
+    Copy native C++ hook executables and managed peer executables to GVFS.exe
+    output directory. In a production install all binaries are co-located in one
+    directory. During dev builds each project has its own output; this target
+    replicates the production layout for the GVFS project.
+  -->
+  <Target Name="_CopyNativeHooks" AfterTargets="Build" Condition="'$(MSBuildProjectName)' == 'GVFS'">
+    <PropertyGroup>
+      <_ManagedOutFragment>bin\$(Configuration)\$(TargetFramework)\win-x64</_ManagedOutFragment>
+    </PropertyGroup>
+    <ItemGroup>
+      <!-- Native C++ hooks (built separately with VS MSBuild) -->
+      <_NativeHook Include="$(RepoOutPath)GitHooksLoader\bin\x64\$(Configuration)\GitHooksLoader.exe" />
+      <_NativeHook Include="$(RepoOutPath)GVFS.ReadObjectHook\bin\x64\$(Configuration)\GVFS.ReadObjectHook.exe" />
+      <_NativeHook Include="$(RepoOutPath)GVFS.PostIndexChangedHook\bin\x64\$(Configuration)\GVFS.PostIndexChangedHook.exe" />
+      <_NativeHook Include="$(RepoOutPath)GVFS.VirtualFileSystemHook\bin\x64\$(Configuration)\GVFS.VirtualFileSystemHook.exe" />
+      <!-- Managed peer executables that must be co-located with GVFS.exe -->
+      <_PeerExe Include="$(RepoOutPath)GVFS.Mount\$(_ManagedOutFragment)\GVFS.Mount.exe" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Mount\$(_ManagedOutFragment)\GVFS.Mount.dll" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Mount\$(_ManagedOutFragment)\GVFS.Mount.runtimeconfig.json" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Mount\$(_ManagedOutFragment)\GVFS.Mount.deps.json" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Hooks\$(_ManagedOutFragment)\GVFS.Hooks.exe" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Hooks\$(_ManagedOutFragment)\GVFS.Hooks.dll" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Hooks\$(_ManagedOutFragment)\GVFS.Hooks.runtimeconfig.json" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Hooks\$(_ManagedOutFragment)\GVFS.Hooks.deps.json" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Service\$(_ManagedOutFragment)\GVFS.Service.exe" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Service\$(_ManagedOutFragment)\GVFS.Service.dll" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Service\$(_ManagedOutFragment)\GVFS.Service.runtimeconfig.json" />
+      <_PeerExe Include="$(RepoOutPath)GVFS.Service\$(_ManagedOutFragment)\GVFS.Service.deps.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_NativeHook)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="Exists('%(FullPath)')" />
+    <Copy SourceFiles="@(_PeerExe)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="Exists('%(FullPath)')" />
+  </Target>
 </Project>

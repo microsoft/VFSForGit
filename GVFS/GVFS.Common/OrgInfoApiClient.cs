@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
-using System.Web;
 
 namespace GVFS.Common
 {
@@ -69,7 +69,7 @@ namespace GVFS.Common
                 }
 
                 isFirst = false;
-                sb.Append($"{HttpUtility.UrlEncode(kvp.Key)}={HttpUtility.UrlEncode(kvp.Value)}");
+                sb.Append($"{WebUtility.UrlEncode(kvp.Key)}={WebUtility.UrlEncode(kvp.Value)}");
             }
 
             return sb.ToString();

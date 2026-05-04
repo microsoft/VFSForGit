@@ -490,7 +490,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             {
                 if (!gitObjects.TryDownloadCommit(commitId))
                 {
-                    error = "Could not download commit " + commitId + " from: " + Uri.EscapeUriString(objectRequestor.CacheServer.ObjectsEndpointUrl);
+                    error = "Could not download commit " + commitId + " from: " + Uri.EscapeDataString(objectRequestor.CacheServer.ObjectsEndpointUrl);
                     return false;
                 }
             }
@@ -773,7 +773,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     errorMessage = "WARNING: Unable to validate your GVFS version" + Environment.NewLine;
                     if (config == null)
                     {
-                        errorMessage += "Could not query valid GVFS versions from: " + Uri.EscapeUriString(enlistment.RepoUrl);
+                        errorMessage += "Could not query valid GVFS versions from: " + Uri.EscapeDataString(enlistment.RepoUrl);
                     }
                     else
                     {

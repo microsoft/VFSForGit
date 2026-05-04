@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 
@@ -6,12 +7,20 @@ namespace GVFS.FunctionalTests.Tools
 {
     public static class GitProcess
     {
+        // Default: 5 minutes per git operation. Override with GVFS_FT_GIT_TIMEOUT_SECONDS.
+        public static int DefaultGitTimeoutMs { get; set; } = ReadGitTimeoutFromEnvironment();
+
         public static string Invoke(string executionWorkingDirectory, string command)
         {
             return InvokeProcess(executionWorkingDirectory, command).Output;
         }
 
-        public static ProcessResult InvokeProcess(string executionWorkingDirectory, string command, Dictionary<string, string> environmentVariables = null, Stream inputStream = null)
+        public static ProcessResult InvokeProcess(
+            string executionWorkingDirectory,
+            string command,
+            Dictionary<string, string> environmentVariables = null,
+            Stream inputStream = null,
+            int timeoutMs = -1)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(Properties.Settings.Default.PathToGit);
             processInfo.WorkingDirectory = executionWorkingDirectory;
@@ -35,7 +44,20 @@ namespace GVFS.FunctionalTests.Tools
                 }
             }
 
-            return ProcessHelper.Run(processInfo, inputStream: inputStream);
+            int effectiveTimeout = timeoutMs > 0 ? timeoutMs : DefaultGitTimeoutMs;
+            return ProcessHelper.Run(processInfo, inputStream: inputStream, timeoutMs: effectiveTimeout);
+        }
+
+        private static int ReadGitTimeoutFromEnvironment()
+        {
+            string envValue = Environment.GetEnvironmentVariable("GVFS_FT_GIT_TIMEOUT_SECONDS");
+            if (!string.IsNullOrEmpty(envValue) && int.TryParse(envValue, out int seconds) && seconds > 0)
+            {
+                return seconds * 1000;
+            }
+
+            // Default: 5 minutes per git operation
+            return 300_000;
         }
     }
 }

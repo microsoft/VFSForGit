@@ -1,15 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
     <OutputType>Exe</OutputType>
+    <PublishAot>false</PublishAot>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="NUnitLite" />
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
-    <PackageReference Include="System.Text.Json" />
     <PackageReference Include="SharpZipLib" />
     <PackageReference Include="System.ServiceProcess.ServiceController" />
   </ItemGroup>
@@ -22,10 +21,8 @@
       <OutputItemType>Content</OutputItemType>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </ProjectReference>
-    <ProjectReference Include="..\GVFS.NativeTests\GVFS.NativeTests.vcxproj">
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
     <ProjectReference Include="..\GVFS.UnitTests\GVFS.UnitTests.csproj" />
+    <!-- Native tests are built separately by VS MSBuild; copy output directly -->
     <None Include="$(RepoOutPath)GVFS.NativeTests\bin\x64\$(Configuration)\GVFS.NativeTests.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -35,3 +32,4 @@
   </ItemGroup>
 
 </Project>
+

@@ -198,7 +198,7 @@ jobs:
       if: steps.skip.outputs.result != 'true'
       uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: 8.0.413
+        global-json-file: src/global.json
 
     - name: Add MSBuild to PATH
       if: steps.skip.outputs.result != 'true'

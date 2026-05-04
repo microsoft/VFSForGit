@@ -2,14 +2,12 @@
 
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Serialization -->
-    <PackageVersion Include="System.Text.Json" Version="8.0.5" />
-
     <!-- Storage -->
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="2.2.4" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.4" />
 
     <!-- Compression -->
     <PackageVersion Include="SharpZipLib" Version="1.3.3" />
@@ -18,30 +16,27 @@
     <PackageVersion Include="LibGit2Sharp.NativeBinaries" Version="2.0.322" />
 
     <!-- ProjFS -->
-    <PackageVersion Include="GVFS.ProjFS" Version="2019.411.1" />
-    <PackageVersion Include="Microsoft.Windows.ProjFS" Version="1.1.19156.1" />
+    <PackageVersion Include="Microsoft.Windows.ProjFS" Version="2.1.0" />
 
     <!-- Windows -->
-    <PackageVersion Include="System.ServiceProcess.ServiceController" Version="4.5.0" />
+    <PackageVersion Include="System.ServiceProcess.ServiceController" Version="9.0.4" />
+    <PackageVersion Include="System.Diagnostics.EventLog" Version="9.0.4" />
 
     <!-- Build / packaging -->
     <PackageVersion Include="GVFS.VCRuntime" Version="0.2.0-build" />
     <PackageVersion Include="MicroBuild.Core" Version="0.2.0" />
-    <PackageVersion Include="Microsoft.Build.Framework" Version="16.0.461" />
-    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="16.0.461" />
+    <PackageVersion Include="Microsoft.Build.Framework" Version="17.12.6" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.12.6" />
     <PackageVersion Include="Tools.InnoSetup" Version="6.4.3" />
 
+    <!-- CLI -->
+    <PackageVersion Include="System.CommandLine" Version="2.0.5" />
+
     <!-- Testing -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageVersion Include="Moq" Version="4.10.1" />
     <PackageVersion Include="NUnit3TestAdapter" Version="3.13.0" />
     <PackageVersion Include="NUnitLite" Version="3.12.0" />
-
-    <!--
-      Future packages: pre-declared for Phase 2+ branches to avoid
-      merge conflicts on this file. Not yet referenced by any project.
-    -->
-    <PackageVersion Include="System.CommandLine" Version="2.0.5" />
-    <PackageVersion Include="System.IO.Pipes.AccessControl" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

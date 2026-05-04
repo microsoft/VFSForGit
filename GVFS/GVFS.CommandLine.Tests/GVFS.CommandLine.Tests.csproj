@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
     <IsTestProject>true</IsTestProject>
     <OutputType>Exe</OutputType>
+    <PublishAot>false</PublishAot>
+    <SelfContained>false</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>

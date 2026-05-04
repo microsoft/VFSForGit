@@ -274,13 +274,13 @@ namespace GVFS.Common.Tracing
 
             if (repoUrl != null)
             {
-                metadata.Add("Remote", Uri.EscapeUriString(repoUrl));
+                metadata.Add("Remote", Uri.EscapeDataString(repoUrl));
             }
 
             if (cacheServerUrl != null)
             {
                 // Changing this key to CacheServerUrl will mess with our telemetry, so it stays for historical reasons
-                metadata.Add("ObjectsEndpoint", Uri.EscapeUriString(cacheServerUrl));
+                metadata.Add("ObjectsEndpoint", Uri.EscapeDataString(cacheServerUrl));
             }
 
             if (additionalMetadata != null)
