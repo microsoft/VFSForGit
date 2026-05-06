@@ -238,12 +238,12 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             throw new NotSupportedException();
         }
 
-        public override void CreateFileWithoutClose(string path)
+        public override IDisposable CreateFileWithoutClose(string path)
         {
             throw new NotImplementedException();
         }
 
-        public override void OpenFileAndWriteWithoutClose(string path, string data)
+        public override IDisposable OpenFileAndWriteWithoutClose(string path, string data)
         {
             throw new NotImplementedException();
         }
