@@ -22,15 +22,17 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             return string.Empty;
         }
 
-        public override void CreateFileWithoutClose(string path)
+        public override IDisposable CreateFileWithoutClose(string path)
         {
-            File.Create(path);
+            return File.Create(path);
         }
 
-        public override void OpenFileAndWriteWithoutClose(string path, string content)
+        public override IDisposable OpenFileAndWriteWithoutClose(string path, string content)
         {
             StreamWriter file = new StreamWriter(path);
             file.Write(content);
+            file.Flush();
+            return file;
         }
 
         public override void MoveFileShouldFail(string sourcePath, string targetPath)

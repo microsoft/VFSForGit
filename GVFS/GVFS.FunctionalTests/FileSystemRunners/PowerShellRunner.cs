@@ -1,4 +1,5 @@
 ﻿using GVFS.Tests.Should;
+using System;
 using System.IO;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
@@ -217,12 +218,12 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             throw new System.NotSupportedException();
         }
 
-        public override void CreateFileWithoutClose(string path)
+        public override IDisposable CreateFileWithoutClose(string path)
         {
             throw new System.NotSupportedException();
         }
 
-        public override void OpenFileAndWriteWithoutClose(string path, string data)
+        public override IDisposable OpenFileAndWriteWithoutClose(string path, string data)
         {
             throw new System.NotSupportedException();
         }
