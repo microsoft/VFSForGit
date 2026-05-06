@@ -43,6 +43,12 @@ namespace GVFS.Service
                 metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
                 this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(GVFSService)}_{nameof(this.Run)}", metadata);
 
+                // Check for a staged upgrade before doing anything else.
+                // If no GVFS.Mount processes are running (typical at boot or after
+                // unmount-all), copy staged files in-place and proceed normally.
+                // If mounts ARE running, the upgrade is deferred to next restart.
+                PendingUpgradeHandler.TryApplyPendingUpgrade(this.tracer);
+
                 this.repoRegistry = new RepoRegistry(
                     this.tracer,
                     new PhysicalFileSystem(),
