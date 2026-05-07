@@ -1,93 +1,95 @@
-# NOTE: this pipeline definition is not currently used to build releases of VFS for Git.
-# This is still done in the GVFS-Release-RealSign "classic" pipeline.
-
 name: $(date:yy)$(DayOfYear)$(rev:.r)
+trigger: none
+pr: none
 
 variables:
-  signType: test
-  teamName: GVFS
-  configuration: Release
-  signPool: VSEng-MicroBuildVS2019
   GVFSMajorAndMinorVersion: 1.0
   GVFSRevision: $(Build.BuildNumber)
+  BuildConfiguration: Release
+  TeamName: GVFS
 
-jobs:
-- job: build
-  displayName: Windows Build and Sign
+resources:
+  repositories:
+  - repository: MicroBuildTemplate
+    type: git
+    name: 1ESPipelineTemplates/MicroBuildTemplate
+    ref: refs/tags/release
 
-  pool:
-    name: $(signPool)
+  - repository: VFSForGit
+    type: github
+    name: microsoft/VFSForGit
+    ref: releases/shipped
+    endpoint: GitHub-VFSForGit
 
-  steps:
-  - task: ms-vseng.MicroBuildTasks.30666190-6959-11e5-9f96-f56098202fef.MicroBuildSigningPlugin@2
-    displayName: Install signing plugin
-    inputs:
-      signType: '$(SignType)'
+extends:
+  template: azure-pipelines/MicroBuild.1ES.Official.yml@MicroBuildTemplate
+  parameters:
+    pool:
+      name: VSEngSS-MicroBuild2022-1ES
 
-  - task: UseDotNet@2
-    displayName: Install .NET SDK
-    inputs:
-      packageType: sdk
-      version: 8.0.413
+    featureFlags:
+      incrementalSDLBinaryAnalysis: false
+      disableNetworkIsolation: true
 
-  - task: CmdLine@2
-    displayName: Build VFS for Git
-    inputs:
-      script: $(Build.Repository.LocalPath)\scripts\Build.bat $(configuration) $(GVFSMajorAndMinorVersion).$(GVFSRevision) detailed
+    sdl:
+      binskim:
+        enabled: false
+        justificationForDisabling: "Guardian and BinSkim do not support a suppression for InnoSetup installer file"
+      sourceRepositoriesToScan:
+        include:
+        - repository: VFSForGit
 
-  - task: CmdLine@2
-    displayName: Run unit tests
-    inputs:
-      script: $(Build.Repository.LocalPath)\scripts\RunUnitTests.bat $(configuration)
+    stages:
+      - stage: Release
 
-  - task: CmdLine@2
-    displayName: Create build artifacts
-    inputs:
-      script: $(Build.Repository.LocalPath)\scripts\CreateBuildArtifacts.bat $(configuration) $(Build.ArtifactStagingDirectory)
+        jobs:
+        - job: Build
+          templateContext:
+            mb:
+              signing:
+                enabled: true
+                feedSource: 'https://pkgs.dev.azure.com/mseng/_packaging/MicroBuildToolset/nuget/v3/index.json'
+                signType: real
+                signWithProd: true
 
-  - task: PublishBuildArtifacts@1
-    displayName: 'Publish Artifact: Installer'
-    inputs:
-      PathtoPublish: $(Build.ArtifactStagingDirectory)\NuGetPackages
-      ArtifactName: Installer
+            outputs:
+              - output: pipelineArtifact
+                targetPath: $(Build.ArtifactStagingDirectory)\GVFS.Installers
+                artifactName: Installer
+              - output: pipelineArtifact
+                targetPath: $(Build.ArtifactStagingDirectory)\FastFetch
+                artifactName: FastFetch
+              - output: pipelineArtifact
+                targetPath: $(Build.ArtifactStagingDirectory)\Symbols
+                artifactName: Symbols
+              - output: pipelineArtifact
+                targetPath: $(Build.ArtifactStagingDirectory)\GVFS.FunctionalTests
+                artifactName: FunctionalTests
 
-  - task: PublishBuildArtifacts@1
-    displayName: 'Publish Artifact: FastFetch'
-    inputs:
-      PathtoPublish: $(Build.ArtifactStagingDirectory)\FastFetch
-      ArtifactName: FastFetch
+          steps:
+            - checkout: VFSForGit
+              displayName: 'Checkout VFS for Git'
+              path: vfsforgit\src
 
-  - task: PublishSymbols@1
-    displayName: Enable Source Server
-    condition: eq(succeeded(), eq(variables['signType'], 'real'))
-    inputs:
-      SearchPattern: '**\*.pdb'
-      SymbolsFolder: $(Build.ArtifactStagingDirectory)\Symbols
+            - task: NuGetToolInstaller@1
+              displayName: 'Use NuGet 6.x'
+              inputs:
+                versionSpec: '6.x'
 
-  - task: PublishBuildArtifacts@1
-    displayName: 'Publish Artifact: Symbols'
-    inputs:
-      PathtoPublish: $(Build.ArtifactStagingDirectory)\Symbols
-      ArtifactName: Symbols
+            - script: |
+                $(Agent.BuildDirectory)\vfsforgit\src\scripts\Build.bat ^
+                  $(BuildConfiguration) ^
+                  $(GVFSMajorAndMinorVersion).$(GVFSRevision) ^
+                  detailed
+              displayName: 'Build and sign ($(BuildConfiguration))'
 
-  - task: ms-vscs-artifact.build-tasks.artifactSymbolTask-1.artifactSymbolTask@0
-    displayName: Publish to Symbols on Symweb
-    condition: eq(succeeded(), eq(variables['signType'], 'real'))
-    inputs:
-      symbolServiceURI: https://microsoft.artifacts.visualstudio.com/DefaultCollection
-      sourcePath: $(Build.ArtifactStagingDirectory)/Symbols
-      expirationInDays: 2065
-      usePat: false
+            - script: |
+                $(Agent.BuildDirectory)\vfsforgit\src\scripts\RunUnitTests.bat ^
+                  $(BuildConfiguration)
+              displayName: 'Run unit tests'
 
-  - task: NuGetCommand@2
-    displayName: Push GVFS.Installers package
-    condition: eq(succeeded(), eq(variables['signType'], 'real'))
-    inputs:
-      command: push
-      packagesToPush: $(Build.ArtifactStagingDirectory)\NuGetPackages\GVFS.Installers.*.nupkg
-      nuGetFeedType: external
-      publishFeedCredentials: '1essharedassets GVFS [PUBLISH]'
-
-  - task: ms-vseng.MicroBuildTasks.521a94ea-9e68-468a-8167-6dcf361ea776.MicroBuildCleanup@1
-    displayName: Send MicroBuild Telemetry
-    condition: always()
+            - script: |
+                $(Agent.BuildDirectory)\vfsforgit\src\scripts\CreateBuildArtifacts.bat ^
+                  $(BuildConfiguration) ^
+                  $(Build.ArtifactStagingDirectory)
+              displayName: 'Create artifacts'
