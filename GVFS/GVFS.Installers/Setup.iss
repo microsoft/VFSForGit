@@ -66,7 +66,7 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; 
 ; goes directly to {app} so the restarted service has PendingUpgradeHandler code.
 ; The service is briefly stopped/restarted (mounts are independent processes).
 DestDir: "{app}\PendingUpgrade"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"; Check: IsStagingInstall
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: StagingUpdateService; Check: IsStagingInstall
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; Check: IsStagingInstall
 
 [Dirs]
 Name: "{app}\ProgramData\{#ServiceName}"; Permissions: users-readexec
@@ -166,10 +166,16 @@ var
   ResultCode: integer;
 begin
   Log('StopService: stopping: ' + ServiceName);
-  // ErrorCode 1060 means service not installed, 1062 means service not started
-  if not Exec(ExpandConstant('{sys}\SC.EXE'), 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) and (ResultCode <> 1062) then
+  if not Exec(ExpandConstant('{sys}\SC.EXE'), 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
     begin
+      Log('StopService: Failed to launch sc.exe');
       RaiseException('Fatal: Could not stop service: ' + ServiceName);
+    end;
+  // 1060 = service not installed, 1062 = service not started
+  if (ResultCode <> 0) and (ResultCode <> 1060) and (ResultCode <> 1062) then
+    begin
+      Log('StopService: sc stop returned error code ' + IntToStr(ResultCode));
+      RaiseException('Fatal: Could not stop service: ' + ServiceName + ' (exit code ' + IntToStr(ResultCode) + ')');
     end;
 end;
 
@@ -328,9 +334,14 @@ begin
 
   try
     Log('StagingUpdateService: Starting service with new binary');
-    if not Exec(ExpandConstant('{sys}\SC.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    if Exec(ExpandConstant('{sys}\SC.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
       begin
-        Log('StagingUpdateService: Warning - could not start service: ' + SysErrorMessage(ResultCode));
+        if ResultCode <> 0 then
+          Log('StagingUpdateService: Warning - sc start returned error code ' + IntToStr(ResultCode));
+      end
+    else
+      begin
+        Log('StagingUpdateService: Warning - could not launch sc.exe');
       end;
 
     WriteOnDiskVersion16CapableFile();
@@ -721,6 +732,11 @@ begin
             // complete and safe to apply.
             SaveStringToFile(ExpandConstant('{app}\PendingUpgrade\.ready'), '', False);
             Log('CurStepChanged: Wrote PendingUpgrade .ready marker');
+
+            // Start the service AFTER .ready is written. Previously this
+            // was an AfterInstall hook on GVFS.Service.exe, but that races:
+            // the service's debounce timer could fire before .ready exists.
+            StagingUpdateService();
           end;
         MigrateConfigAndStatusCacheFiles();
         if (not KeepMountsRunning) and (ExpandConstant('{param:REMOUNTREPOS|true}') = 'true') then

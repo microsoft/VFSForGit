@@ -29,6 +29,7 @@ namespace GVFS.Service.Handlers
         private ITracer tracer;
         private IRepoRegistry repoRegistry;
         private Timer pendingUpgradeTimer;
+        private readonly object pendingUpgradeTimerLock = new object();
 
         public RequestHandler(ITracer tracer, string etwArea, IRepoRegistry repoRegistry)
         {
@@ -146,21 +147,24 @@ namespace GVFS.Service.Handlers
             // Debounce: reset the timer on each unmount so the check fires
             // once after the last unmount settles. If multiple repos unmount
             // in quick succession, only one upgrade attempt runs.
-            if (this.pendingUpgradeTimer == null)
+            lock (this.pendingUpgradeTimerLock)
             {
-                this.pendingUpgradeTimer = new Timer(
-                    _ =>
-                    {
-                        tracer.RelatedInfo("TryDeferredPendingUpgradeCheck: Checking pending upgrade after unmount");
-                        PendingUpgradeHandler.TryApplyPendingUpgrade(tracer);
-                    },
-                    null,
-                    PendingUpgradeDelayMs,
-                    Timeout.Infinite);
-            }
-            else
-            {
-                this.pendingUpgradeTimer.Change(PendingUpgradeDelayMs, Timeout.Infinite);
+                if (this.pendingUpgradeTimer == null)
+                {
+                    this.pendingUpgradeTimer = new Timer(
+                        _ =>
+                        {
+                            tracer.RelatedInfo("TryDeferredPendingUpgradeCheck: Checking pending upgrade after unmount");
+                            PendingUpgradeHandler.TryApplyPendingUpgrade(tracer);
+                        },
+                        null,
+                        PendingUpgradeDelayMs,
+                        Timeout.Infinite);
+                }
+                else
+                {
+                    this.pendingUpgradeTimer.Change(PendingUpgradeDelayMs, Timeout.Infinite);
+                }
             }
         }
     }
