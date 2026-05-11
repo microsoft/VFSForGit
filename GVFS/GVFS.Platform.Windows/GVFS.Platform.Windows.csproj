@@ -1,24 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ManagedEsent" Version="1.9.4" />
-    <PackageReference Include="Microsoft.Database.Collections.Generic" Version="1.9.4" />
-    <PackageReference Include="Microsoft.Database.Isam" Version="1.9.4" />
-    <PackageReference Include="Microsoft.Windows.ProjFS" Version="1.1.19156.1" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="System.Management" />
-    <Reference Include="System.ServiceProcess" />
+    <PackageReference Include="Microsoft.Windows.ProjFS" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" />
   </ItemGroup>
 
 </Project>
+

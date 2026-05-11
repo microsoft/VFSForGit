@@ -1,30 +1,41 @@
-using CommandLine;
 using GVFS.Common;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
 namespace GVFS.CommandLine
 {
-    [Verb(LogVerb.LogVerbName, HelpText = "Show the most recent GVFS log files")]
     public class LogVerb : GVFSVerb
     {
         private const string LogVerbName = "log";
         private static readonly int LogNameConsoleOutputFormatWidth = GetMaxLogNameLength();
 
-        [Value(
-            0,
-            Required = false,
-            Default = "",
-            MetaName = "Enlistment Root Path",
-            HelpText = "Full or relative path to the GVFS enlistment root")]
         public override string EnlistmentRootPathParameter { get; set; }
 
-        [Option(
-            "type",
-            Default = null,
-            HelpText = "The type of log file to display on the console")]
         public string LogType { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("log", "Show the most recent GVFS log files");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<string> logTypeOption = new System.CommandLine.Option<string>("--type") { Description = "The type of log file to display on the console" };
+            cmd.Add(logTypeOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<LogVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true,
+                (verb, result) =>
+                {
+                    verb.LogType = result.GetValue(logTypeOption);
+                });
+
+            return cmd;
+        }
 
         protected override string VerbName
         {

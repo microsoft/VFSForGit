@@ -6,6 +6,7 @@ using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -167,7 +168,7 @@ namespace GVFS.UnitTests.Prefetch
 
         private static string GetDataPath(string fileName)
         {
-            string workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            string workingDirectory = Path.GetDirectoryName(Environment.ProcessPath);
             return Path.Combine(workingDirectory, "Data", fileName);
         }
     }

@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.IO.Pipes;
 using GVFS.Common.Git;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace GVFS.Common.Tracing
 {
@@ -129,38 +130,38 @@ namespace GVFS.Common.Tracing
 
         public class PipeMessage
         {
-            [JsonProperty("version")]
+            [JsonPropertyName("version")]
             public string Version { get; set; }
-            [JsonProperty("providerName")]
+            [JsonPropertyName("providerName")]
             public string ProviderName { get; set; }
-            [JsonProperty("eventName")]
+            [JsonPropertyName("eventName")]
             public string EventName { get; set; }
-            [JsonProperty("eventLevel")]
+            [JsonPropertyName("eventLevel")]
             public EventLevel EventLevel { get; set; }
-            [JsonProperty("eventOpcode")]
+            [JsonPropertyName("eventOpcode")]
             public EventOpcode EventOpcode { get; set; }
-            [JsonProperty("payload")]
+            [JsonPropertyName("payload")]
             public PipeMessagePayload Payload { get; set; }
 
             public static PipeMessage FromJson(string json)
             {
-                return JsonConvert.DeserializeObject<PipeMessage>(json);
+                return GVFSJsonOptions.Deserialize<PipeMessage>(json);
             }
 
             public string ToJson()
             {
-                return JsonConvert.SerializeObject(this);
+                return GVFSJsonOptions.Serialize(this);
             }
 
             public class PipeMessagePayload
             {
-                [JsonProperty("enlistmentId")]
+                [JsonPropertyName("enlistmentId")]
                 public string EnlistmentId { get; set; }
-                [JsonProperty("mountId")]
+                [JsonPropertyName("mountId")]
                 public string MountId { get; set; }
-                [JsonProperty("gitCommandSessionId")]
+                [JsonPropertyName("gitCommandSessionId")]
                 public string GitCommandSessionId { get; set; }
-                [JsonProperty("json")]
+                [JsonPropertyName("json")]
                 public string Json { get; set; }
             }
         }

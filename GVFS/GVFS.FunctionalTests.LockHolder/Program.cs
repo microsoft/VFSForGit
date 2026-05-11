@@ -1,4 +1,4 @@
-﻿using CommandLine;
+﻿using System.CommandLine;
 
 namespace GVFS.FunctionalTests.LockHolder
 {
@@ -6,8 +6,8 @@ namespace GVFS.FunctionalTests.LockHolder
     {
         public static void Main(string[] args)
         {
-            Parser.Default.ParseArguments<AcquireGVFSLockVerb>(args)
-                    .WithParsed(acquireGVFSLock => acquireGVFSLock.Execute());
+            RootCommand rootCommand = AcquireGVFSLockVerb.BuildRootCommand();
+            rootCommand.Parse(args).Invoke();
         }
     }
 }

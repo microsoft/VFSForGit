@@ -1,4 +1,3 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
@@ -15,11 +14,6 @@ using System.Text;
 
 namespace GVFS.CommandLine
 {
-    [Verb(
-        SparseVerb.SparseVerbName,
-        HelpText = @"EXPERIMENTAL: List, add, or remove from the list of folders that are included in VFS for Git's projection.
-Folders need to be relative to the repos root directory.")
-    ]
     public class SparseVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string SparseVerbName = "sparse";
@@ -35,61 +29,81 @@ Folders need to be relative to the repos root directory.")
             DirectoryDoesNotExist
         }
 
-        [Option(
-            's',
-            "set",
-            Required = false,
-            Default = "",
-            HelpText = "A semicolon-delimited list of repo root relative folders to use as the sparse set for determining what to project. Wildcards are not supported.")]
         public string Set { get; set; }
 
-        [Option(
-            'f',
-            "file",
-            Required = false,
-            Default = "",
-            HelpText = "Path to a file that will has repo root relative folders to use as the sparse set. One folder per line. Wildcards are not supported.")]
         public string File { get; set; }
 
-        [Option(
-            'a',
-            "add",
-            Required = false,
-            Default = "",
-            HelpText = "A semicolon-delimited list of repo root relative folders to include in the sparse set for determining what to project. Wildcards are not supported.")]
         public string Add { get; set; }
 
-        [Option(
-            'r',
-            "remove",
-            Required = false,
-            Default = "",
-            HelpText = "A semicolon-delimited list of repo root relative folders to remove from the sparse set for determining what to project. Wildcards are not supported.")]
         public string Remove { get; set; }
 
-        [Option(
-            'l',
-            "list",
-            Required = false,
-            Default = false,
-            HelpText = "List of folders in the sparse set for determining what to project.")]
         public bool List { get; set; }
 
-        [Option(
-            'p',
-            PruneOptionName,
-            Required = false,
-            Default = false,
-            HelpText = "Remove any folders that are not in the list of sparse folders.")]
         public bool Prune { get; set; }
 
-        [Option(
-            'd',
-            "disable",
-            Required = false,
-            Default = false,
-            HelpText = "Disable the sparse feature.  This will remove all folders in the sparse list and start projecting all folders.")]
         public bool Disable { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("sparse", "List, add, or remove from the list of folders included in VFS for Git's projection");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<string> setOption = new System.CommandLine.Option<string>("--set", new[] { "-s" })
+            {
+                Description = "A semicolon-delimited list of repo root relative folders to use as the sparse set for determining what to project. Wildcards are not supported.",
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(setOption);
+
+            System.CommandLine.Option<string> fileOption = new System.CommandLine.Option<string>("--file", new[] { "-f" })
+            {
+                Description = "Path to a file that will has repo root relative folders to use as the sparse set. One folder per line. Wildcards are not supported.",
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(fileOption);
+
+            System.CommandLine.Option<string> addOption = new System.CommandLine.Option<string>("--add", new[] { "-a" })
+            {
+                Description = "A semicolon-delimited list of repo root relative folders to include in the sparse set for determining what to project. Wildcards are not supported.",
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(addOption);
+
+            System.CommandLine.Option<string> removeOption = new System.CommandLine.Option<string>("--remove", new[] { "-r" })
+            {
+                Description = "A semicolon-delimited list of repo root relative folders to remove from the sparse set for determining what to project. Wildcards are not supported.",
+                DefaultValueFactory = (_) => "",
+            };
+            cmd.Add(removeOption);
+
+            System.CommandLine.Option<bool> listOption = new System.CommandLine.Option<bool>("--list", new[] { "-l" }) { Description = "List of folders in the sparse set for determining what to project." };
+            cmd.Add(listOption);
+
+            System.CommandLine.Option<bool> pruneOption = new System.CommandLine.Option<bool>("--prune", new[] { "-p" }) { Description = "Remove any folders that are not in the list of sparse folders." };
+            cmd.Add(pruneOption);
+
+            System.CommandLine.Option<bool> disableOption = new System.CommandLine.Option<bool>("--disable", new[] { "-d" }) { Description = "Disable the sparse feature. This will remove all folders in the sparse list and start projecting all folders." };
+            cmd.Add(disableOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<SparseVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true,
+                (verb, result) =>
+                {
+                    verb.Set = result.GetValue(setOption) ?? "";
+                    verb.File = result.GetValue(fileOption) ?? "";
+                    verb.Add = result.GetValue(addOption) ?? "";
+                    verb.Remove = result.GetValue(removeOption) ?? "";
+                    verb.List = result.GetValue(listOption);
+                    verb.Prune = result.GetValue(pruneOption);
+                    verb.Disable = result.GetValue(disableOption);
+                });
+
+            return cmd;
+        }
 
         protected override string VerbName => SparseVerbName;
 

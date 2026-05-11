@@ -1,29 +1,39 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
+using System;
 using System.Diagnostics;
 
 namespace GVFS.CommandLine
 {
-    [Verb(UnmountVerb.UnmountVerbName, HelpText = "Unmount a GVFS virtual repo")]
     public class UnmountVerb : GVFSVerb
     {
         private const string UnmountVerbName = "unmount";
 
-        [Value(
-            0,
-            Required = false,
-            Default = "",
-            MetaName = "Enlistment Root Path",
-            HelpText = "Full or relative path to the GVFS enlistment root")]
         public override string EnlistmentRootPathParameter { get; set; }
 
-        [Option(
-            GVFSConstants.VerbParameters.Unmount.SkipLock,
-            Default = false,
-            Required = false,
-            HelpText = "Force unmount even if the lock is not available.")]
         public bool SkipLock { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("unmount", "Unmount a GVFS virtual repo");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<bool> skipLockOption = new System.CommandLine.Option<bool>("--" + GVFSConstants.VerbParameters.Unmount.SkipLock) { Description = "Force unmount even if the lock is not available." };
+            cmd.Add(skipLockOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<UnmountVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true,
+                (verb, result) =>
+                {
+                    verb.SkipLock = result.GetValue(skipLockOption);
+                });
+
+            return cmd;
+        }
 
         public bool SkipUnregister { get; set; }
 

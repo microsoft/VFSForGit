@@ -163,9 +163,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
             {
                 Guid enumerationGuid = Guid.NewGuid();
                 tester.GitIndexProjection.EnumerationInMemory = false;
-                tester.MockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
                 tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
-                tester.MockVirtualization.requiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
             }
         }
 
@@ -176,8 +176,8 @@ namespace GVFS.UnitTests.Windows.Virtualization
             {
                 Guid enumerationGuid = Guid.NewGuid();
                 tester.GitIndexProjection.EnumerationInMemory = true;
-                tester.MockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
-                tester.MockVirtualization.requiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
             }
         }
 
@@ -186,7 +186,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "doesNotExist", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.FileNotFound);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "doesNotExist", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.FileNotFound);
             }
         }
 
@@ -195,7 +195,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
-                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
                 tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
                 tester.MockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
                 tester.GitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
@@ -218,7 +218,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     tester.GitIndexProjection.UnblockIsPathProjected();
                 });
 
-                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
 
                 // Cancelling before GetPlaceholderInformation has registered the command results in placeholders being created
                 tester.MockVirtualization.WaitForPlaceholderCreate();
@@ -234,7 +234,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             {
                 tester.GitIndexProjection.BlockGetProjectedFileInfo(willWaitForRequest: true);
-                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
                 tester.GitIndexProjection.WaitForGetProjectedFileInfo();
                 tester.MockVirtualization.OnCancelCommand(1);
                 tester.GitIndexProjection.UnblockGetProjectedFileInfo();
@@ -257,7 +257,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
                 mockTracker.WaitRelatedEventName = "GetPlaceholderInformationAsyncHandler_GetProjectedFileInfo_Cancelled";
                 tester.GitIndexProjection.ThrowOperationCanceledExceptionOnProjectionRequest = true;
-                tester.MockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
 
                 // Cancelling in the middle of GetPlaceholderInformation in the middle of a network request should not result in placeholder
                 // getting created

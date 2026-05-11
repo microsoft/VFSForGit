@@ -161,7 +161,7 @@ namespace GVFS.Common.Git
                 try
                 {
                     byte[] certificateContent = this.fileSystem.ReadAllBytes(this.certificatePathOrSubjectCommonName);
-                    X509Certificate2 cert = new X509Certificate2(certificateContent, certificatePassword);
+                    X509Certificate2 cert = X509CertificateLoader.LoadPkcs12(certificateContent, certificatePassword);
                     if (this.ShouldVerify && cert != null && !this.certificateVerifier.Verify(cert))
                     {
                         tracer.RelatedWarning(metadata, "Certficate was found, but is invalid.");

@@ -1,40 +1,29 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net471</TargetFramework>
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>false</PublishAot>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
-    <ProjectReference Include="..\GVFS.Service.UI\GVFS.Service.UI.csproj" />
     <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj" />
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
+    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
     <ProjectReference Include="..\GVFS\GVFS.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NUnitLite" Version="3.12.0" />
-    <PackageReference Include="NUnit3TestAdapter" Version="3.13.0" />
-    <PackageReference Include="Moq" Version="4.10.1" />
+    <PackageReference Include="NUnitLite" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Moq" />
   </ItemGroup>
 
-
-    <ItemGroup>
-        <Reference Include="System.Net.Http" />
-    </ItemGroup>
-
-  <!-- Because the unit tests may run on a machine without ProjFS installed
-       (such as CI machines) we must include the native library for the tests -->
+  <!-- ProjFS managed API for test mocks -->
   <ItemGroup>
-    <PackageReference Include="GVFS.ProjFS" Version="2019.411.1"
-                      ExcludeAssets="all" GeneratePathProperty="true" />
-    <None Include="$(PkgGVFS_ProjFS)\lib\ProjectedFSLib.dll">
-      <Link>ProjectedFSLib.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <PackageReference Include="Microsoft.Windows.ProjFS" />
   </ItemGroup>
 
   <ItemGroup>
@@ -59,3 +48,4 @@
   </ItemGroup>
 
 </Project>
+

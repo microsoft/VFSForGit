@@ -129,6 +129,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [SetUp]
         public virtual void SetupForTest()
         {
+            string testName = TestContext.CurrentContext.Test.FullName;
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [TEST-SETUP-START] {testName}");
+            Console.Out.Flush();
+
             if (this.enlistmentPerTest)
             {
                 this.CreateEnlistment();
@@ -151,12 +155,22 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             }
 
             this.ValidateGitCommand("status");
+
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [TEST-SETUP-END] {testName}");
+            Console.Out.Flush();
         }
 
         [TearDown]
         public virtual void TearDownForTest()
         {
+            string testName = TestContext.CurrentContext.Test.FullName;
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [TEST-TEARDOWN-START] {testName}");
+            Console.Out.Flush();
+
             this.TestValidationAndCleanup();
+
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [TEST-TEARDOWN-END] {testName}");
+            Console.Out.Flush();
         }
 
         protected void TestValidationAndCleanup(bool ignoreCase = false)
@@ -312,22 +326,24 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileSystem.WriteAllText(controlFile, content);
         }
 
-        protected void CreateFileWithoutClose(string path)
+        protected IDisposable CreateFileWithoutClose(string path)
         {
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, path);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, path);
-            this.FileSystem.CreateFileWithoutClose(virtualFile);
-            this.FileSystem.CreateFileWithoutClose(controlFile);
+            IDisposable virtualHandle = this.FileSystem.CreateFileWithoutClose(virtualFile);
+            IDisposable controlHandle = this.FileSystem.CreateFileWithoutClose(controlFile);
+            return new CompositeDisposable(virtualHandle, controlHandle);
         }
 
-        protected void ReadFileAndWriteWithoutClose(string path, string contents)
+        protected IDisposable ReadFileAndWriteWithoutClose(string path, string contents)
         {
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, path);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, path);
             this.FileSystem.ReadAllText(virtualFile);
             this.FileSystem.ReadAllText(controlFile);
-            this.FileSystem.OpenFileAndWriteWithoutClose(virtualFile, contents);
-            this.FileSystem.OpenFileAndWriteWithoutClose(controlFile, contents);
+            IDisposable virtualHandle = this.FileSystem.OpenFileAndWriteWithoutClose(virtualFile, contents);
+            IDisposable controlHandle = this.FileSystem.OpenFileAndWriteWithoutClose(controlFile, contents);
+            return new CompositeDisposable(virtualHandle, controlHandle);
         }
 
         protected void CreateFolder(string folderPath)
@@ -652,6 +668,28 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ConflictingChange.txt");
             this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SameChange.txt");
             this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SuccessfulMerge.txt");
+        }
+
+        /// <summary>
+        /// Disposes multiple <see cref="IDisposable"/> objects as a single unit.
+        /// Used to hold file handles open for the duration of a test scope.
+        /// </summary>
+        protected sealed class CompositeDisposable : IDisposable
+        {
+            private readonly IDisposable[] disposables;
+
+            public CompositeDisposable(params IDisposable[] disposables)
+            {
+                this.disposables = disposables;
+            }
+
+            public void Dispose()
+            {
+                foreach (IDisposable disposable in this.disposables)
+                {
+                    disposable?.Dispose();
+                }
+            }
         }
     }
 }

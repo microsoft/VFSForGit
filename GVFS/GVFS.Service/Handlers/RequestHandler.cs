@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System.Runtime.Serialization;
+using System.Threading;
 
 namespace GVFS.Service.Handlers
 {
@@ -14,6 +15,8 @@ namespace GVFS.Service.Handlers
     /// </summary>
     public class RequestHandler
     {
+        private const int PendingUpgradeDelayMs = 5000;
+
         protected const string EnableProjFSRequestDescription = "attach volume";
         protected string requestDescription;
 
@@ -25,6 +28,8 @@ namespace GVFS.Service.Handlers
         private string etwArea;
         private ITracer tracer;
         private IRepoRegistry repoRegistry;
+        private Timer pendingUpgradeTimer;
+        private readonly object pendingUpgradeTimerLock = new object();
 
         public RequestHandler(ITracer tracer, string etwArea, IRepoRegistry repoRegistry)
         {
@@ -80,6 +85,14 @@ namespace GVFS.Service.Handlers
                     UnregisterRepoHandler unmountHandler = new UnregisterRepoHandler(tracer, this.repoRegistry, connection, unmountRequest);
                     unmountHandler.Run();
 
+                    // After unmount, check for pending staged upgrade on a
+                    // background thread. The deferred check gives the calling
+                    // GVFS.Mount process time to exit so its executable is no
+                    // longer locked when the upgrade runs.
+                    // Use the long-lived service tracer, not the scoped activity
+                    // tracer which will be disposed when this handler returns.
+                    this.TryDeferredPendingUpgradeCheck(this.tracer);
+
                     break;
 
                 case NamedPipeMessages.GetActiveRepoListRequest.Header:
@@ -119,6 +132,39 @@ namespace GVFS.Service.Handlers
             if (!connection.TrySendResponse(message))
             {
                 tracer.RelatedError($"{nameof(this.TrySendResponse)}: Could not send response to client. Reply Info: {message}");
+            }
+        }
+
+        private void TryDeferredPendingUpgradeCheck(ITracer tracer)
+        {
+            string installDir = Service.Configuration.AssemblyPath;
+            string pendingUpgradeDir = System.IO.Path.Combine(installDir, PendingUpgradeHandler.PendingUpgradeDirectoryName);
+            if (!System.IO.Directory.Exists(pendingUpgradeDir))
+            {
+                return;
+            }
+
+            // Debounce: reset the timer on each unmount so the check fires
+            // once after the last unmount settles. If multiple repos unmount
+            // in quick succession, only one upgrade attempt runs.
+            lock (this.pendingUpgradeTimerLock)
+            {
+                if (this.pendingUpgradeTimer == null)
+                {
+                    this.pendingUpgradeTimer = new Timer(
+                        _ =>
+                        {
+                            tracer.RelatedInfo("TryDeferredPendingUpgradeCheck: Checking pending upgrade after unmount");
+                            PendingUpgradeHandler.TryApplyPendingUpgrade(tracer);
+                        },
+                        null,
+                        PendingUpgradeDelayMs,
+                        Timeout.Infinite);
+                }
+                else
+                {
+                    this.pendingUpgradeTimer.Change(PendingUpgradeDelayMs, Timeout.Infinite);
+                }
             }
         }
     }

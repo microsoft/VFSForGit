@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace GVFS.Common
 {
@@ -13,7 +14,10 @@ namespace GVFS.Common
 
         public class VersionRange
         {
+            [JsonConverter(typeof(VersionConverter))]
             public Version Min { get; set; }
+
+            [JsonConverter(typeof(VersionConverter))]
             public Version Max { get; set; }
         }
     }

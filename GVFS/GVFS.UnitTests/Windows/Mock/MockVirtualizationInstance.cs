@@ -31,9 +31,13 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public ConcurrentHashSet<string> CreatedPlaceholders { get; private set; }
 
+        public Guid VirtualizationInstanceId { get; set; }
+
+        public int PlaceholderIdLength { get; set; }
+
         public CancelCommandCallback OnCancelCommand { get; set; }
 
-        public IRequiredCallbacks requiredCallbacks { get; set; }
+        public IRequiredCallbacks RequiredCallbacks { get; set; }
         public NotifyFileOpenedCallback OnNotifyFileOpened { get; set; }
         public NotifyNewFileCreatedCallback OnNotifyNewFileCreated { get; set; }
         public NotifyFileOverwrittenCallback OnNotifyFileOverwritten { get; set; }
@@ -63,7 +67,7 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public HResult StartVirtualizing(IRequiredCallbacks requiredCallbacks)
         {
-            this.requiredCallbacks = requiredCallbacks;
+            this.RequiredCallbacks = requiredCallbacks;
             return HResult.Ok;
         }
 

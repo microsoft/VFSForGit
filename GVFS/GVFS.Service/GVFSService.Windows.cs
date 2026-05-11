@@ -5,10 +5,8 @@ using GVFS.Common.Tracing;
 using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Security.AccessControl;
 using System.ServiceProcess;
 using System.Threading;
@@ -44,6 +42,12 @@ namespace GVFS.Service
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
                 this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(GVFSService)}_{nameof(this.Run)}", metadata);
+
+                // Check for a staged upgrade before doing anything else.
+                // If no GVFS.Mount processes are running (typical at boot or after
+                // unmount-all), copy staged files in-place and proceed normally.
+                // If mounts ARE running, the upgrade is deferred to next restart.
+                PendingUpgradeHandler.TryApplyPendingUpgrade(this.tracer);
 
                 this.repoRegistry = new RepoRegistry(
                     this.tracer,
@@ -129,8 +133,6 @@ namespace GVFS.Service
                     if (changeDescription.Reason == SessionChangeReason.SessionLogon)
                     {
                         this.tracer.RelatedInfo("SessionLogon detected, sessionId: {0}", changeDescription.SessionId);
-
-                        this.LaunchServiceUIIfNotRunning(changeDescription.SessionId);
 
                         using (ITracer activity = this.tracer.StartActivity("LogonAutomount", EventLevel.Informational))
                         {
@@ -353,14 +355,11 @@ namespace GVFS.Service
             DirectorySecurity serviceDataRootSecurity = this.GetServiceDirectorySecurity(serviceDataRootPath);
 
             // Create GVFS.Service related directories (if they don't already exist)
-            Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
-            Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
+            serviceDataRootSecurity.CreateDirectory(serviceDataRootPath);
+            serviceDataRootSecurity.CreateDirectory(this.serviceDataLocation);
 
             // Ensure the ACLs are set correctly on any files or directories that were already created (e.g. after upgrading VFS4G)
-            Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
-
-            // Special rules for the Service.UI logs, as non-elevated users need to be be able to write
-            this.CreateAndConfigureLogDirectory(GVFSPlatform.Instance.GetLogsDirectoryForGVFSComponent(GVFSConstants.Service.UIName));
+            new DirectoryInfo(serviceDataRootPath).SetAccessControl(serviceDataRootSecurity);
         }
 
         private void CreateAndConfigureLogDirectory(string path)
@@ -385,7 +384,7 @@ namespace GVFS.Service
             if (Directory.Exists(serviceDataRootPath))
             {
                 this.tracer.RelatedInfo($"{nameof(this.GetServiceDirectorySecurity)}: {serviceDataRootPath} exists, modifying ACLs.");
-                serviceDataRootSecurity = Directory.GetAccessControl(serviceDataRootPath);
+                serviceDataRootSecurity = new DirectoryInfo(serviceDataRootPath).GetAccessControl();
             }
             else
             {
@@ -404,50 +403,5 @@ namespace GVFS.Service
             return serviceDataRootSecurity;
         }
 
-        private void LaunchServiceUIIfNotRunning(int sessionId)
-        {
-            NamedPipeClient client;
-            using (client = new NamedPipeClient(GVFSConstants.Service.UIName))
-            {
-                if (!client.Connect())
-                {
-                    this.tracer.RelatedError($"Could not connect with {GVFSConstants.Service.UIName}. Attempting to relaunch.");
-
-                    this.TerminateExistingProcess(GVFSConstants.Service.UIName, sessionId);
-
-                    CurrentUser currentUser = new CurrentUser(this.tracer, sessionId);
-                    if (!currentUser.RunAs(
-                        Configuration.Instance.GVFSServiceUILocation,
-                        string.Empty))
-                    {
-                        this.tracer.RelatedError("Could not start " + GVFSConstants.Service.UIName);
-                    }
-                    else
-                    {
-                        this.tracer.RelatedInfo($"Successfully launched {GVFSConstants.Service.UIName}. ");
-                    }
-                }
-            }
-        }
-
-        private void TerminateExistingProcess(string processName, int sessionId)
-        {
-            try
-            {
-                foreach (Process process in Process.GetProcessesByName(processName))
-                {
-                    if (process.SessionId == sessionId)
-                    {
-                        this.tracer.RelatedInfo($"{nameof(this.TerminateExistingProcess)}- Stopping {processName}, in session {sessionId}.");
-
-                        process.Kill();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                this.tracer.RelatedError("Could not find and kill existing instances of {0}: {1}", processName, ex.Message);
-            }
-        }
     }
 }

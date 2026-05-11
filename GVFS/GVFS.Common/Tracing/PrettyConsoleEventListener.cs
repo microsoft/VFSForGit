@@ -1,5 +1,4 @@
-﻿using System;
-using Newtonsoft.Json;
+using System;
 
 namespace GVFS.Common.Tracing
 {
@@ -24,7 +23,7 @@ namespace GVFS.Common.Tracing
                 return;
             }
 
-            ConsoleOutputPayload payload = JsonConvert.DeserializeObject<ConsoleOutputPayload>(message.Payload);
+            ConsoleOutputPayload payload = GVFSJsonOptions.Deserialize<ConsoleOutputPayload>(message.Payload);
             if (string.IsNullOrEmpty(payload.ErrorMessage))
             {
                 return;
@@ -60,7 +59,7 @@ namespace GVFS.Common.Tracing
             }
         }
 
-        private class ConsoleOutputPayload
+        internal class ConsoleOutputPayload
         {
             public string ErrorMessage { get; set; }
         }

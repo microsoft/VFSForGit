@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -9,7 +9,6 @@ using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -273,7 +272,14 @@ namespace GVFS.Mount
 
                 this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer);
 
-                Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
+                try
+                {
+                    Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
+                }
+                catch (IOException)
+                {
+                    // Console.Title throws when the process has no console (e.g. started as background/hidden process)
+                }
 
                 this.tracer.RelatedEvent(
                     EventLevel.Informational,
@@ -971,7 +977,7 @@ namespace GVFS.Mount
             NamedPipeMessages.RunPostFetchJob.Response response;
             if (this.currentState == MountState.Ready)
             {
-                List<string> packIndexes = JsonConvert.DeserializeObject<List<string>>(message.Body);
+                List<string> packIndexes = GVFSJsonOptions.Deserialize<List<string>>(message.Body);
                 this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, packIndexes));
 
                 response = new NamedPipeMessages.RunPostFetchJob.Response(NamedPipeMessages.RunPostFetchJob.QueuedResult);
@@ -1248,7 +1254,7 @@ namespace GVFS.Mount
                     string warningMessage = "WARNING: Unable to validate your GVFS version" + Environment.NewLine;
                     if (config == null)
                     {
-                        warningMessage += "Could not query valid GVFS versions from: " + Uri.EscapeUriString(this.enlistment.RepoUrl);
+                        warningMessage += "Could not query valid GVFS versions from: " + Uri.EscapeDataString(this.enlistment.RepoUrl);
                     }
                     else
                     {

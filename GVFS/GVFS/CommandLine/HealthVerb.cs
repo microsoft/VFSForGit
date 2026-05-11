@@ -1,4 +1,3 @@
-﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
@@ -11,31 +10,50 @@ using System.Threading.Tasks;
 
 namespace GVFS.CommandLine
 {
-    [Verb(HealthVerb.HealthVerbName, HelpText = "EXPERIMENTAL FEATURE - Measure the health of the repository")]
     public class HealthVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string HealthVerbName = "health";
         private const decimal MaximumHealthyHydration = 0.5m;
 
-        [Option(
-            'n',
-            Required = false,
-            HelpText = "Only display the <n> most hydrated directories in the output")]
         public int DirectoryDisplayCount { get; set; } = 5;
 
-        [Option(
-            'd',
-            "directory",
-            Required = false,
-            HelpText = "Get the health of a specific directory (default is the current working directory")]
         public string Directory { get; set; }
 
-        [Option(
-            's',
-            "status",
-            Required = false,
-            HelpText = "Display only the hydration % of the repository, similar to 'git status' in a repository with sparse-checkout")]
         public bool StatusOnly { get; set; }
+
+        public static System.CommandLine.Command CreateCommand()
+        {
+            System.CommandLine.Command cmd = new System.CommandLine.Command("health", "EXPERIMENTAL FEATURE - Measure the health of the repository");
+
+            System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
+            cmd.Add(enlistmentArg);
+
+            System.CommandLine.Option<int> displayCountOption = new System.CommandLine.Option<int>("-n")
+            {
+                Description = "Only display the <n> most hydrated directories in the output",
+                DefaultValueFactory = (_) => 5,
+            };
+            cmd.Add(displayCountOption);
+
+            System.CommandLine.Option<string> directoryOption = new System.CommandLine.Option<string>("--directory", new[] { "-d" }) { Description = "Get the health of a specific directory (default is the current working directory)" };
+            cmd.Add(directoryOption);
+
+            System.CommandLine.Option<bool> statusOption = new System.CommandLine.Option<bool>("--status", new[] { "-s" }) { Description = "Display only the hydration % of the repository, similar to 'git status' in a repository with sparse-checkout" };
+            cmd.Add(statusOption);
+
+            System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
+            cmd.Add(internalOption);
+
+            GVFSVerb.SetActionForVerbWithEnlistment<HealthVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true,
+                (verb, result) =>
+                {
+                    verb.DirectoryDisplayCount = result.GetValue(displayCountOption);
+                    verb.Directory = result.GetValue(directoryOption);
+                    verb.StatusOnly = result.GetValue(statusOption);
+                });
+
+            return cmd;
+        }
 
         protected override string VerbName => HealthVerbName;
 

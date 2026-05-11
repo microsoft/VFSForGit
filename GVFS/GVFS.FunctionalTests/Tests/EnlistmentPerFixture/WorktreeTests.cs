@@ -1,9 +1,15 @@
-﻿using GVFS.FunctionalTests.Tools;
+﻿using GVFS.Common;
+using GVFS.Common.NamedPipes;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using ProcessResult = GVFS.FunctionalTests.Tools.ProcessResult;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -11,102 +17,298 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [Category(Categories.GitCommands)]
     public class WorktreeTests : TestsWithEnlistmentPerFixture
     {
-        private const string WorktreeBranchA = "worktree-test-branch-a";
-        private const string WorktreeBranchB = "worktree-test-branch-b";
+        private const int MinWorktreeCount = 4;
 
         [TestCase]
         public void ConcurrentWorktreeAddCommitRemove()
         {
-            string worktreePathA = Path.Combine(this.Enlistment.EnlistmentRoot, "test-wt-a-" + Guid.NewGuid().ToString("N").Substring(0, 8));
-            string worktreePathB = Path.Combine(this.Enlistment.EnlistmentRoot, "test-wt-b-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            int count = Math.Max(Environment.ProcessorCount, MinWorktreeCount);
+            string[] worktreePaths;
+            string[] branchNames;
+
+            // Adaptively scale down if concurrent adds overwhelm the primary
+            // GVFS mount. CI runners with fewer resources may not handle as
+            // many concurrent git operations as a developer workstation.
+            while (true)
+            {
+                this.InitWorktreeArrays(count, out worktreePaths, out branchNames);
+                ProcessResult[] addResults = this.ConcurrentWorktreeAdd(worktreePaths, branchNames, count);
+
+                bool overloaded = addResults.Any(r =>
+                    r.ExitCode != 0 &&
+                    r.Errors != null &&
+                    r.Errors.Contains("does not appear to be mounted"));
+
+                // Only retry if ALL failures are overload-related. If any
+                // failure has a different cause, it's a real regression and
+                // must not be masked by retrying at lower concurrency.
+                bool hasNonOverloadFailure = addResults.Any(r =>
+                    r.ExitCode != 0 &&
+                    !(r.Errors != null && r.Errors.Contains("does not appear to be mounted")));
+
+                if (hasNonOverloadFailure)
+                {
+                    // Fall through to the assertion loop below which will
+                    // report the specific failure(s).
+                }
+                else if (overloaded)
+                {
+                    this.CleanupAllWorktrees(worktreePaths, branchNames, count);
+                    int reduced = count / 2;
+                    if (reduced < MinWorktreeCount)
+                    {
+                        Assert.Fail(
+                            $"Primary GVFS mount overloaded even at count={count}. " +
+                            $"Cannot reduce below {MinWorktreeCount}.");
+                    }
+
+                    count = reduced;
+                    continue;
+                }
+
+                // Non-overload failures are real errors
+                for (int i = 0; i < count; i++)
+                {
+                    addResults[i].ExitCode.ShouldEqual(0,
+                        $"worktree add [{i}] failed: {addResults[i].Errors}");
+                }
+
+                break;
+            }
 
             try
             {
-                // 1. Create both worktrees in parallel
-                ProcessResult addResultA = null;
-                ProcessResult addResultB = null;
-                System.Threading.Tasks.Parallel.Invoke(
-                    () => addResultA = GitHelpers.InvokeGitAgainstGVFSRepo(
-                        this.Enlistment.RepoRoot,
-                        $"worktree add -b {WorktreeBranchA} \"{worktreePathA}\""),
-                    () => addResultB = GitHelpers.InvokeGitAgainstGVFSRepo(
-                        this.Enlistment.RepoRoot,
-                        $"worktree add -b {WorktreeBranchB} \"{worktreePathB}\""));
+                // 2. Primary assertion: verify GVFS mount is running for each
+                //    worktree by probing the worktree-specific named pipe.
+                for (int i = 0; i < count; i++)
+                {
+                    this.AssertWorktreeMounted(worktreePaths[i], $"worktree [{i}]");
+                }
 
-                addResultA.ExitCode.ShouldEqual(0, $"worktree add A failed: {addResultA.Errors}");
-                addResultB.ExitCode.ShouldEqual(0, $"worktree add B failed: {addResultB.Errors}");
+                // 3. Verify projected files are visible (secondary assertion)
+                for (int i = 0; i < count; i++)
+                {
+                    Directory.Exists(worktreePaths[i]).ShouldBeTrue(
+                        $"Worktree [{i}] directory should exist");
+                    File.Exists(Path.Combine(worktreePaths[i], "Readme.md")).ShouldBeTrue(
+                        $"Readme.md should be projected in [{i}]");
+                }
 
-                // 2. Verify both have projected files
-                Directory.Exists(worktreePathA).ShouldBeTrue("Worktree A directory should exist");
-                Directory.Exists(worktreePathB).ShouldBeTrue("Worktree B directory should exist");
-                File.Exists(Path.Combine(worktreePathA, "Readme.md")).ShouldBeTrue("Readme.md should be projected in A");
-                File.Exists(Path.Combine(worktreePathB, "Readme.md")).ShouldBeTrue("Readme.md should be projected in B");
+                // 4. Verify git status is clean in each worktree
+                for (int i = 0; i < count; i++)
+                {
+                    ProcessResult status = GitHelpers.InvokeGitAgainstGVFSRepo(
+                        worktreePaths[i], "status --porcelain");
+                    status.ExitCode.ShouldEqual(0,
+                        $"git status [{i}] failed: {status.Errors}");
+                    status.Output.Trim().ShouldBeEmpty(
+                        $"Worktree [{i}] should have clean status");
+                }
 
-                // 3. Verify git status is clean in both
-                ProcessResult statusA = GitHelpers.InvokeGitAgainstGVFSRepo(worktreePathA, "status --porcelain");
-                ProcessResult statusB = GitHelpers.InvokeGitAgainstGVFSRepo(worktreePathB, "status --porcelain");
-                statusA.ExitCode.ShouldEqual(0, $"git status A failed: {statusA.Errors}");
-                statusB.ExitCode.ShouldEqual(0, $"git status B failed: {statusB.Errors}");
-                statusA.Output.Trim().ShouldBeEmpty("Worktree A should have clean status");
-                statusB.Output.Trim().ShouldBeEmpty("Worktree B should have clean status");
-
-                // 4. Verify worktree list shows all three
+                // 5. Verify worktree list shows all entries
                 ProcessResult listResult = GitHelpers.InvokeGitAgainstGVFSRepo(
                     this.Enlistment.RepoRoot, "worktree list");
                 listResult.ExitCode.ShouldEqual(0, $"worktree list failed: {listResult.Errors}");
                 string listOutput = listResult.Output;
-                Assert.IsTrue(listOutput.Contains(worktreePathA.Replace('\\', '/')),
-                    $"worktree list should contain A. Output: {listOutput}");
-                Assert.IsTrue(listOutput.Contains(worktreePathB.Replace('\\', '/')),
-                    $"worktree list should contain B. Output: {listOutput}");
+                for (int i = 0; i < count; i++)
+                {
+                    Assert.IsTrue(
+                        listOutput.Contains(worktreePaths[i].Replace('\\', '/')),
+                        $"worktree list should contain [{i}]. Output: {listOutput}");
+                }
 
-                // 5. Make commits in both worktrees
-                File.WriteAllText(Path.Combine(worktreePathA, "from-a.txt"), "created in worktree A");
-                GitHelpers.InvokeGitAgainstGVFSRepo(worktreePathA, "add from-a.txt")
-                    .ExitCode.ShouldEqual(0);
-                GitHelpers.InvokeGitAgainstGVFSRepo(worktreePathA, "commit -m \"commit from A\"")
-                    .ExitCode.ShouldEqual(0);
+                // 6. Make commits in all worktrees
+                for (int i = 0; i < count; i++)
+                {
+                    File.WriteAllText(
+                        Path.Combine(worktreePaths[i], $"from-{i}.txt"),
+                        $"created in worktree {i}");
+                    GitHelpers.InvokeGitAgainstGVFSRepo(worktreePaths[i], $"add from-{i}.txt")
+                        .ExitCode.ShouldEqual(0);
+                    GitHelpers.InvokeGitAgainstGVFSRepo(
+                        worktreePaths[i], $"commit -m \"commit from {i}\"")
+                        .ExitCode.ShouldEqual(0);
+                }
 
-                File.WriteAllText(Path.Combine(worktreePathB, "from-b.txt"), "created in worktree B");
-                GitHelpers.InvokeGitAgainstGVFSRepo(worktreePathB, "add from-b.txt")
-                    .ExitCode.ShouldEqual(0);
-                GitHelpers.InvokeGitAgainstGVFSRepo(worktreePathB, "commit -m \"commit from B\"")
-                    .ExitCode.ShouldEqual(0);
+                // 7. Verify commits are visible from main repo
+                for (int i = 0; i < count; i++)
+                {
+                    GitHelpers.InvokeGitAgainstGVFSRepo(
+                        this.Enlistment.RepoRoot, $"log -1 --format=%s {branchNames[i]}")
+                        .Output.ShouldContain(expectedSubstrings: new[] { $"commit from {i}" });
+                }
 
-                // 6. Verify commits are visible from all worktrees (shared objects)
-                GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, $"log -1 --format=%s {WorktreeBranchA}")
-                    .Output.ShouldContain(expectedSubstrings: new[] { "commit from A" });
-                GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, $"log -1 --format=%s {WorktreeBranchB}")
-                    .Output.ShouldContain(expectedSubstrings: new[] { "commit from B" });
+                // 8. Verify cross-worktree commit visibility (shared objects)
+                for (int i = 0; i < count; i++)
+                {
+                    int other = (i + 1) % count;
+                    GitHelpers.InvokeGitAgainstGVFSRepo(
+                        worktreePaths[i], $"log -1 --format=%s {branchNames[other]}")
+                        .Output.ShouldContain(expectedSubstrings: new[] { $"commit from {other}" });
+                }
 
-                // A can see B's commit and vice versa
-                GitHelpers.InvokeGitAgainstGVFSRepo(worktreePathA, $"log -1 --format=%s {WorktreeBranchB}")
-                    .Output.ShouldContain(expectedSubstrings: new[] { "commit from B" });
-                GitHelpers.InvokeGitAgainstGVFSRepo(worktreePathB, $"log -1 --format=%s {WorktreeBranchA}")
-                    .Output.ShouldContain(expectedSubstrings: new[] { "commit from A" });
+                // 9. Remove all worktrees in parallel
+                ProcessResult[] removeResults = new ProcessResult[count];
+                using (CountdownEvent barrier = new CountdownEvent(count))
+                {
+                    Thread[] threads = new Thread[count];
+                    for (int i = 0; i < count; i++)
+                    {
+                        int idx = i;
+                        threads[idx] = new Thread(() =>
+                        {
+                            barrier.Signal();
+                            barrier.Wait();
+                            removeResults[idx] = GitHelpers.InvokeGitAgainstGVFSRepo(
+                                this.Enlistment.RepoRoot,
+                                $"worktree remove --force \"{worktreePaths[idx]}\"");
+                        });
+                        threads[idx].Start();
+                    }
 
-                // 7. Remove both in parallel
-                ProcessResult removeA = null;
-                ProcessResult removeB = null;
-                System.Threading.Tasks.Parallel.Invoke(
-                    () => removeA = GitHelpers.InvokeGitAgainstGVFSRepo(
-                        this.Enlistment.RepoRoot,
-                        $"worktree remove --force \"{worktreePathA}\""),
-                    () => removeB = GitHelpers.InvokeGitAgainstGVFSRepo(
-                        this.Enlistment.RepoRoot,
-                        $"worktree remove --force \"{worktreePathB}\""));
+                    foreach (Thread t in threads)
+                    {
+                        t.Join();
+                    }
+                }
 
-                removeA.ExitCode.ShouldEqual(0, $"worktree remove A failed: {removeA.Errors}");
-                removeB.ExitCode.ShouldEqual(0, $"worktree remove B failed: {removeB.Errors}");
+                for (int i = 0; i < count; i++)
+                {
+                    removeResults[i].ExitCode.ShouldEqual(0,
+                        $"worktree remove [{i}] failed: {removeResults[i].Errors}");
+                }
 
-                // 8. Verify cleanup
-                Directory.Exists(worktreePathA).ShouldBeFalse("Worktree A directory should be deleted");
-                Directory.Exists(worktreePathB).ShouldBeFalse("Worktree B directory should be deleted");
+                // 10. Verify cleanup
+                for (int i = 0; i < count; i++)
+                {
+                    Directory.Exists(worktreePaths[i]).ShouldBeFalse(
+                        $"Worktree [{i}] directory should be deleted");
+                }
             }
             finally
             {
-                this.ForceCleanupWorktree(worktreePathA, WorktreeBranchA);
-                this.ForceCleanupWorktree(worktreePathB, WorktreeBranchB);
+                this.CleanupAllWorktrees(worktreePaths, branchNames, count);
+            }
+        }
+
+        private void InitWorktreeArrays(int count, out string[] paths, out string[] branches)
+        {
+            paths = new string[count];
+            branches = new string[count];
+            for (int i = 0; i < count; i++)
+            {
+                string suffix = Guid.NewGuid().ToString("N").Substring(0, 8);
+                paths[i] = Path.Combine(this.Enlistment.EnlistmentRoot, $"test-wt-{i}-{suffix}");
+                branches[i] = $"worktree-test-branch-{i}-{suffix}";
+            }
+        }
+
+        private ProcessResult[] ConcurrentWorktreeAdd(string[] paths, string[] branches, int count)
+        {
+            ProcessResult[] results = new ProcessResult[count];
+            using (CountdownEvent barrier = new CountdownEvent(count))
+            {
+                Thread[] threads = new Thread[count];
+                for (int i = 0; i < count; i++)
+                {
+                    int idx = i;
+                    threads[idx] = new Thread(() =>
+                    {
+                        barrier.Signal();
+                        barrier.Wait();
+                        results[idx] = GitHelpers.InvokeGitAgainstGVFSRepo(
+                            this.Enlistment.RepoRoot,
+                            $"worktree add -b {branches[idx]} \"{paths[idx]}\"");
+                    });
+                    threads[idx].Start();
+                }
+
+                foreach (Thread t in threads)
+                {
+                    t.Join();
+                }
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// Asserts that the GVFS mount for a worktree is running by probing
+        /// the worktree-specific named pipe. This is the definitive signal
+        /// that ProjFS projection is active — much stronger than File.Exists
+        /// which depends on projection timing.
+        /// </summary>
+        private void AssertWorktreeMounted(string worktreePath, string label)
+        {
+            string basePipeName = GVFSPlatform.Instance.GetNamedPipeName(
+                this.Enlistment.EnlistmentRoot);
+            string suffix = GVFSEnlistment.GetWorktreePipeSuffix(worktreePath);
+
+            Assert.IsNotNull(suffix,
+                $"Could not determine pipe suffix for {label} at {worktreePath}. " +
+                $"The worktree .git file may be missing or malformed.");
+
+            string pipeName = basePipeName + suffix;
+
+            using (NamedPipeClient client = new NamedPipeClient(pipeName))
+            {
+                if (!client.Connect(10000))
+                {
+                    string diagnostics = this.CaptureWorktreeDiagnostics(worktreePath);
+                    Assert.Fail(
+                        $"GVFS mount is NOT running for {label}.\n" +
+                        $"Path: {worktreePath}\n" +
+                        $"Pipe: {pipeName}\n" +
+                        $"This indicates the post-hook 'gvfs mount' failed silently.\n" +
+                        $"Diagnostics:\n{diagnostics}");
+                }
+            }
+        }
+
+        private string CaptureWorktreeDiagnostics(string worktreePath)
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine($"  Directory exists: {Directory.Exists(worktreePath)}");
+            if (Directory.Exists(worktreePath))
+            {
+                string dotGit = Path.Combine(worktreePath, ".git");
+                sb.AppendLine($"  .git file exists: {File.Exists(dotGit)}");
+                if (File.Exists(dotGit))
+                {
+                    try
+                    {
+                        sb.AppendLine($"  .git contents: {File.ReadAllText(dotGit).Trim()}");
+                    }
+                    catch (Exception ex)
+                    {
+                        sb.AppendLine($"  .git read failed: {ex.Message}");
+                    }
+                }
+
+                try
+                {
+                    string[] entries = Directory.GetFileSystemEntries(worktreePath);
+                    sb.AppendLine($"  Directory listing ({entries.Length} entries):");
+                    foreach (string entry in entries)
+                    {
+                        sb.AppendLine($"    {Path.GetFileName(entry)}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    sb.AppendLine($"  Directory listing failed: {ex.Message}");
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        private void CleanupAllWorktrees(string[] paths, string[] branches, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                this.ForceCleanupWorktree(paths[i], branches[i]);
             }
         }
 

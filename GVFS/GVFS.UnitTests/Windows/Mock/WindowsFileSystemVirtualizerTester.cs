@@ -30,7 +30,7 @@ namespace GVFS.UnitTests.Windows.Mock
                 providerId = WindowsFileSystemVirtualizer.PlaceholderVersionId;
             }
 
-            this.MockVirtualization.requiredCallbacks.GetFileDataCallback(
+            this.MockVirtualization.RequiredCallbacks.GetFileDataCallback(
                 commandId: 1,
                 relativePath: "test.txt",
                 byteOffset: byteOffset,
