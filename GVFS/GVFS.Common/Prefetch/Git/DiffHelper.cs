@@ -318,6 +318,11 @@ namespace GVFS.Common.Prefetch.Git
                             {
                                 existingOp.SourcePath = result.TargetPath;
                                 this.directoriesReplacedByCaseRename.Add(result.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
+                                TraceCaseRename(activity, "Directory", oldPath: result.TargetPath, newPath: existingOp.TargetPath);
+                            }
+                            else
+                            {
+                                TraceDuplicate(activity, "Directory", "Delete", result.TargetPath);
                             }
                         }
 
@@ -334,6 +339,11 @@ namespace GVFS.Common.Prefetch.Git
                                 // Case-only rename: store the old-cased path so CheckoutStage can rename the directory
                                 result.SourcePath = existingOp.TargetPath;
                                 this.directoriesReplacedByCaseRename.Add(existingOp.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
+                                TraceCaseRename(activity, "Directory", oldPath: existingOp.TargetPath, newPath: result.TargetPath);
+                            }
+                            else
+                            {
+                                TraceDuplicate(activity, "Directory", result.Operation.ToString(), result.TargetPath);
                             }
 
                             // Replace the delete with the add to make sure we don't delete a folder from under ourselves
@@ -404,10 +414,15 @@ namespace GVFS.Common.Prefetch.Git
             // this is a true duplicate, not a case rename. Skip it.
             // But if it matches case-insensitively only, this is a case rename — allow the delete through
             // so the old-cased file is removed before the new-cased file is written.
-            if (this.filesAdded.TryGetValue(targetPath, out string existingAddedPath) &&
-                existingAddedPath.Equals(targetPath, StringComparison.Ordinal))
+            if (this.filesAdded.TryGetValue(targetPath, out string existingAddedPath))
             {
-                return;
+                if (existingAddedPath.Equals(targetPath, StringComparison.Ordinal))
+                {
+                    TraceDuplicate(activity, "File", "Delete", targetPath);
+                    return;
+                }
+
+                TraceCaseRename(activity, "File", oldPath: targetPath, newPath: existingAddedPath);
             }
 
             // Either no prior add, or a case-only difference: allow the delete to be
@@ -438,10 +453,17 @@ namespace GVFS.Common.Prefetch.Git
             // comparer, decide whether this is a true duplicate (same casing → drop the
             // delete) or a case-only rename (different casing → keep the delete so the
             // old casing is removed from disk before the new add lands).
-            if (this.stagedFileDeletes.TryGetValue(operation.TargetPath, out string existingDeletePath) &&
-                existingDeletePath.Equals(operation.TargetPath, StringComparison.Ordinal))
+            if (this.stagedFileDeletes.TryGetValue(operation.TargetPath, out string existingDeletePath))
             {
-                this.stagedFileDeletes.Remove(operation.TargetPath);
+                if (existingDeletePath.Equals(operation.TargetPath, StringComparison.Ordinal))
+                {
+                    TraceDuplicate(activity, "File", "Add", operation.TargetPath);
+                    this.stagedFileDeletes.Remove(operation.TargetPath);
+                }
+                else
+                {
+                    TraceCaseRename(activity, "File", oldPath: existingDeletePath, newPath: operation.TargetPath);
+                }
             }
 
             this.FileAddOperations.AddOrUpdate(
@@ -454,6 +476,25 @@ namespace GVFS.Common.Prefetch.Git
                 });
 
             this.RequiredBlobs.Add(operation.TargetSha);
+        }
+
+        private static void TraceCaseRename(ITracer activity, string kind, string oldPath, string newPath)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Kind", kind);
+            metadata.Add("OldPath", oldPath);
+            metadata.Add("NewPath", newPath);
+            activity.RelatedEvent(EventLevel.Informational, "CaseRename", metadata);
+        }
+
+        private static void TraceDuplicate(ITracer activity, string kind, string operation, string targetPath)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Kind", kind);
+            metadata.Add("Operation", operation);
+            metadata.Add(nameof(targetPath), targetPath);
+            metadata.Add(TracingConstants.MessageKey.WarningMessage, "Duplicate diff entry for the same path; later occurrence collapsed into earlier.");
+            activity.RelatedEvent(EventLevel.Warning, "DuplicateDiffEntry", metadata);
         }
 
         private void EnsureSingleUse()
