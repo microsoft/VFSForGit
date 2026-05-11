@@ -305,16 +305,7 @@ namespace GVFS.Common.Prefetch.Git
                             // A directory with the same path (case-insensitive) was already staged.
                             // This is a case-only rename: the Delete was staged first, now the Add arrives.
                             // Find the existing entry to capture the old-cased path.
-                            DiffTreeResult existingOp = null;
-                            foreach (DiffTreeResult staged in this.stagedDirectoryOperations)
-                            {
-                                if (staged.TargetPath.Equals(result.TargetPath, GVFSPlatform.Instance.Constants.PathComparison))
-                                {
-                                    existingOp = staged;
-                                    break;
-                                }
-                            }
-
+                            DiffTreeResult existingOp = FindStagedDirectoryOperation(result.TargetPath);
                             if (existingOp != null &&
                                 !existingOp.TargetPath.Equals(result.TargetPath, StringComparison.Ordinal))
                             {
@@ -476,6 +467,19 @@ namespace GVFS.Common.Prefetch.Git
                 });
 
             this.RequiredBlobs.Add(operation.TargetSha);
+        }
+
+        private DiffTreeResult FindStagedDirectoryOperation(string targetPath)
+        {
+            foreach (DiffTreeResult staged in this.stagedDirectoryOperations)
+            {
+                if (staged.TargetPath.Equals(targetPath, GVFSPlatform.Instance.Constants.PathComparison))
+                {
+                    return staged;
+                }
+            }
+
+            return null;
         }
 
         private class DiffTreeByNameComparer : IEqualityComparer<DiffTreeResult>
