@@ -291,10 +291,22 @@ namespace GVFS.Common.Prefetch.Git
                     case DiffTreeResult.Operations.Delete:
                         if (!this.stagedDirectoryOperations.Add(result))
                         {
-                            // A directory with the same name (case-insensitive) already exists.
-                            // On case-insensitive file systems, this means the Delete came after an Add,
-                            // which shouldn't happen (diff-tree outputs Deletes before Adds).
-                            // Keep the existing Add to avoid deleting a folder from under ourselves.
+                            // A directory with the same (case-insensitive) path was already
+                            // staged as an Add. This is a case-only rename where diff-tree
+                            // emitted the Add before the Delete. Either emit order is possible
+                            // because git diff-tree compares tree entries by byte order, so
+                            // whichever casing sorts lower appears first.
+                            //
+                            // Annotate the staged Add with the old-cased path so CheckoutStage
+                            // can perform the rename. Keep the Add — never the Delete — to
+                            // avoid deleting a folder out from under ourselves.
+                            DiffTreeResult existingOp = FindStagedDirectoryOperation(result.TargetPath);
+                            if (existingOp != null &&
+                                !existingOp.TargetPath.Equals(result.TargetPath, StringComparison.Ordinal))
+                            {
+                                existingOp.SourcePath = result.TargetPath;
+                                this.caseRenamedDirectoryDeletes.Add(result.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
+                            }
                         }
 
                         break;

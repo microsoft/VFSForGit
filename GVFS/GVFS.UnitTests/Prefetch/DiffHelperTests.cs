@@ -135,6 +135,46 @@ namespace GVFS.UnitTests.Prefetch
             diffBackwards.TotalDirectoryOperations.ShouldEqual(3);
         }
 
+        // Mirror of ParsesCaseChangesAsAdds for the opposite emit order: the Add
+        // lines appear in the diff before the Delete lines. This happens when the
+        // new (target) casing sorts byte-wise before the old (source) casing, e.g.
+        // "GVFlt_*" -> "GVFLT_*" (uppercase 'L' < lowercase 'l').
+        //
+        // The parser must produce the same staged state regardless of which
+        // ordering the diff-tree output uses.
+        [TestCase]
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
+        public void ParsesCaseChangesWhenAddPrecedesDelete()
+        {
+            MockTracer tracer = new MockTracer();
+            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
+            diffBackwards.ParseDiffFile(GetDataPath("caseChangeAddFirst.txt"));
+
+            diffBackwards.RequiredBlobs.Count.ShouldEqual(2);
+            diffBackwards.FileAddOperations.Sum(list => list.Value.Count).ShouldEqual(2);
+
+            // File deletes inside case-renamed directories are filtered out by FlushStagedQueues
+            diffBackwards.FileDeleteOperations.Count.ShouldEqual(0);
+
+            // File deletes are staged (not suppressed) so FlushStagedQueues can filter them properly
+            diffBackwards.TotalFileDeletes.ShouldEqual(2);
+
+            diffBackwards.DirectoryOperations.ShouldNotContain(entry => entry.Operation == DiffTreeResult.Operations.Delete);
+
+            // Only the top-level directory rename is enqueued; children are filtered because
+            // the parent rename moves them automatically
+            diffBackwards.DirectoryOperations.Count.ShouldEqual(1);
+
+            // The enqueued directory operation should carry the old-cased path for the rename
+            // even though the Add was staged first and the Delete arrived second.
+            DiffTreeResult dirOp = diffBackwards.DirectoryOperations.First();
+            dirOp.SourcePath.ShouldNotBeNull();
+            Assert.AreEqual("GVFlt_MultiThreadTest" + Path.DirectorySeparatorChar, dirOp.SourcePath);
+            Assert.AreEqual("GVFLT_MultiThreadTest" + Path.DirectorySeparatorChar, dirOp.TargetPath);
+
+            diffBackwards.TotalDirectoryOperations.ShouldEqual(3);
+        }
+
         // Delete a folder with two sub folders each with a single file
         // Readd it with a different casing and same contents
         [TestCase]
