@@ -114,10 +114,24 @@ namespace GVFS.UnitTests.Prefetch
             diffBackwards.RequiredBlobs.Count.ShouldEqual(2);
             diffBackwards.FileAddOperations.Sum(list => list.Value.Count).ShouldEqual(2);
 
+            // File deletes inside case-renamed directories are filtered out by FlushStagedQueues
             diffBackwards.FileDeleteOperations.Count.ShouldEqual(0);
-            diffBackwards.TotalFileDeletes.ShouldEqual(0);
+
+            // File deletes are now staged (not suppressed) so FlushStagedQueues can filter them properly
+            diffBackwards.TotalFileDeletes.ShouldEqual(2);
 
             diffBackwards.DirectoryOperations.ShouldNotContain(entry => entry.Operation == DiffTreeResult.Operations.Delete);
+
+            // Only the top-level directory rename is enqueued; children are filtered because
+            // the parent rename moves them automatically
+            diffBackwards.DirectoryOperations.Count.ShouldEqual(1);
+
+            // The enqueued directory operation should carry the old-cased path for the rename
+            DiffTreeResult dirOp = diffBackwards.DirectoryOperations.First();
+            dirOp.SourcePath.ShouldNotBeNull();
+            Assert.AreEqual("GVFLT_MultiThreadTest" + Path.DirectorySeparatorChar, dirOp.SourcePath);
+            Assert.AreEqual("GVFlt_MultiThreadTest" + Path.DirectorySeparatorChar, dirOp.TargetPath);
+
             diffBackwards.TotalDirectoryOperations.ShouldEqual(3);
         }
 

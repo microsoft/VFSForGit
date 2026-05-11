@@ -173,13 +173,40 @@ namespace FastFetch
                     case DiffTreeResult.Operations.Add:
                         try
                         {
-                            Directory.CreateDirectory(absoluteTargetPath);
+                            if (treeOp.SourcePath != null)
+                            {
+                                // Case-only rename: rename the directory from old casing to new casing
+                                string absoluteSourcePath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, treeOp.SourcePath);
+                                if (Directory.Exists(absoluteSourcePath))
+                                {
+                                    // Directory.Move throws IOException for case-only renames,
+                                    // so use a two-step rename through a temporary name.
+                                    string tempPath = absoluteTargetPath.TrimEnd(Path.DirectorySeparatorChar) + "_caseRename_" + Guid.NewGuid().ToString("N");
+                                    Directory.Move(absoluteSourcePath.TrimEnd(Path.DirectorySeparatorChar), tempPath);
+                                    Directory.Move(tempPath, absoluteTargetPath.TrimEnd(Path.DirectorySeparatorChar));
+                                }
+                                else
+                                {
+                                    // Parent directory may have already been renamed, fixing this child's path.
+                                    // Just ensure the directory exists.
+                                    Directory.CreateDirectory(absoluteTargetPath);
+                                }
+                            }
+                            else
+                            {
+                                Directory.CreateDirectory(absoluteTargetPath);
+                            }
                         }
                         catch (Exception ex)
                         {
                             EventMetadata metadata = new EventMetadata();
-                            metadata.Add("Operation", "CreateDirectory");
+                            metadata.Add("Operation", treeOp.SourcePath != null ? "RenameDirectory" : "CreateDirectory");
                             metadata.Add(nameof(treeOp.TargetPath), absoluteTargetPath);
+                            if (treeOp.SourcePath != null)
+                            {
+                                metadata.Add(nameof(treeOp.SourcePath), treeOp.SourcePath);
+                            }
+
                             this.tracer.RelatedError(metadata, ex.Message);
                             this.HasFailures = true;
                         }

@@ -38,6 +38,12 @@ namespace GVFS.Common.Git
         public ushort SourceMode { get; set; }
         public ushort TargetMode { get; set; }
 
+        /// <summary>
+        /// When set, indicates this operation is a case-only rename from SourcePath to TargetPath.
+        /// Used on case-insensitive file systems to carry the old-cased path for directory renames.
+        /// </summary>
+        public string SourcePath { get; set; }
+
         public static DiffTreeResult ParseFromDiffTreeLine(string line)
         {
             if (string.IsNullOrEmpty(line))
