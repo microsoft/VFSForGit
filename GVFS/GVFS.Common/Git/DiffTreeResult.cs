@@ -39,10 +39,16 @@ namespace GVFS.Common.Git
         public ushort TargetMode { get; set; }
 
         /// <summary>
-        /// When set, indicates this operation is a case-only rename from SourcePath to TargetPath.
-        /// Used on case-insensitive file systems to carry the old-cased path for directory renames.
+        /// Old-cased path of a case-only directory rename, set by DiffHelper when
+        /// collapsing a Delete+Add pair under the case-insensitive comparer. When
+        /// non-null the operation represents a rename from SourcePath to TargetPath
+        /// and consumers (currently CheckoutStage) must rename the directory on
+        /// disk instead of treating the operation as a plain Add. Always null for
+        /// file operations, Modify, Delete, and non-rename Add entries. The setter
+        /// is intentionally restricted to the assembly so only the parser can
+        /// produce this annotation.
         /// </summary>
-        public string SourcePath { get; set; }
+        public string SourcePath { get; internal set; }
 
         public static DiffTreeResult ParseFromDiffTreeLine(string line)
         {
