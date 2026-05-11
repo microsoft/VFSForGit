@@ -175,22 +175,7 @@ namespace FastFetch
                         {
                             if (treeOp.SourcePath != null)
                             {
-                                // Case-only rename: rename the directory from old casing to new casing
-                                string absoluteSourcePath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, treeOp.SourcePath);
-                                if (Directory.Exists(absoluteSourcePath))
-                                {
-                                    // Directory.Move throws IOException for case-only renames,
-                                    // so use a two-step rename through a temporary name.
-                                    string tempPath = absoluteTargetPath.TrimEnd(Path.DirectorySeparatorChar) + "_caseRename_" + Guid.NewGuid().ToString("N");
-                                    Directory.Move(absoluteSourcePath.TrimEnd(Path.DirectorySeparatorChar), tempPath);
-                                    Directory.Move(tempPath, absoluteTargetPath.TrimEnd(Path.DirectorySeparatorChar));
-                                }
-                                else
-                                {
-                                    // Parent directory may have already been renamed, fixing this child's path.
-                                    // Just ensure the directory exists.
-                                    Directory.CreateDirectory(absoluteTargetPath);
-                                }
+                                this.ApplyCaseOnlyDirectoryRename(treeOp, absoluteTargetPath);
                             }
                             else
                             {
@@ -246,6 +231,62 @@ namespace FastFetch
                     metadata.Add("DirectoryOperationsCompleted", this.directoryOpCount);
                     this.tracer.RelatedEvent(EventLevel.Informational, "CheckoutStatus", metadata);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Apply a case-only directory rename produced by DiffHelper, where
+        /// <paramref name="treeOp"/>.SourcePath carries the old casing and
+        /// <paramref name="absoluteTargetPath"/> is the new (post-rename) absolute path.
+        ///
+        /// Directory.Move throws IOException for case-only renames on Windows, so the
+        /// rename is performed in two steps through a temporary name. If the second
+        /// move fails the directory is moved back to the original casing so a retry
+        /// sees a consistent working tree.
+        ///
+        /// If the source directory is missing it usually means an outer parent rename
+        /// has already moved the children into place (Windows preserves child casing
+        /// through a parent rename when the children's tree SHAs were unchanged); the
+        /// fallback creates the target directory so the operation is idempotent.
+        /// Exceptions propagate to the caller's existing error handler.
+        /// </summary>
+        private void ApplyCaseOnlyDirectoryRename(DiffTreeResult treeOp, string absoluteTargetPath)
+        {
+            string absoluteSourcePath = Path.Combine(this.enlistment.WorkingDirectoryBackingRoot, treeOp.SourcePath);
+            if (!Directory.Exists(absoluteSourcePath))
+            {
+                Directory.CreateDirectory(absoluteTargetPath);
+                return;
+            }
+
+            string trimmedSourcePath = absoluteSourcePath.TrimEnd(Path.DirectorySeparatorChar);
+            string trimmedTargetPath = absoluteTargetPath.TrimEnd(Path.DirectorySeparatorChar);
+            string tempPath = trimmedTargetPath + "_caseRename_" + Guid.NewGuid().ToString("N");
+
+            Directory.Move(trimmedSourcePath, tempPath);
+            try
+            {
+                Directory.Move(tempPath, trimmedTargetPath);
+            }
+            catch
+            {
+                // The first move succeeded but the second failed. Try to restore the
+                // original casing so a retry starts from a consistent state; if
+                // restoration also fails, the outer catch will log the original
+                // exception and the temp directory will be left behind for manual
+                // recovery.
+                if (Directory.Exists(tempPath) && !Directory.Exists(trimmedSourcePath))
+                {
+                    try
+                    {
+                        Directory.Move(tempPath, trimmedSourcePath);
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                throw;
             }
         }
 
