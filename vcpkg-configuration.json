@@ -1,0 +1,8 @@
+{
+  "$comment": "Pin the vcpkg default registry to a known baseline for reproducible builds.",
+  "default-registry": {
+    "kind": "git",
+    "repository": "https://github.com/microsoft/vcpkg",
+    "baseline": "940f58770cee8e2011bfb4847fb2bd70057301a8"
+  }
+}

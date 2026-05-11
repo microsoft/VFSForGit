@@ -5,7 +5,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="LibGit2Sharp.NativeBinaries" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="SharpZipLib" />
   </ItemGroup>
