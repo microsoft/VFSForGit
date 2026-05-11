@@ -203,6 +203,42 @@ namespace GVFS.UnitTests.Prefetch
             Assert.AreEqual("FOO.txt", addedPath);
         }
 
+        // Nested case rename: both an outer directory ("Outer" -> "outer") and
+        // an inner directory inside it ("Outer/Inner" -> "outer/inner") change
+        // casing in the same diff. Only the outermost rename should be enqueued
+        // for the checkout stage — the inner rename's parent path is in
+        // directoriesReplacedByCaseRename, so FlushStagedQueues suppresses it
+        // (the outer rename moves the whole subtree on disk and Windows
+        // preserves child casing through the move). The file inside the inner
+        // directory is similarly suppressed at the file-delete stage.
+        [TestCase]
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
+        public void ParsesNestedCaseChanges()
+        {
+            MockTracer tracer = new MockTracer();
+            DiffHelper diff = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
+            diff.ParseDiffFile(GetDataPath("nestedCaseChange.txt"));
+
+            diff.RequiredBlobs.Count.ShouldEqual(1);
+            diff.FileAddOperations.Sum(list => list.Value.Count).ShouldEqual(1);
+
+            // File delete inside the case-renamed parent is filtered out.
+            diff.FileDeleteOperations.Count.ShouldEqual(0);
+            diff.TotalFileDeletes.ShouldEqual(1);
+
+            // Two directory case-renames were collapsed into Adds in the
+            // staging dictionary; only the outermost survives the parent-path
+            // filter in FlushStagedQueues.
+            diff.TotalDirectoryOperations.ShouldEqual(2);
+            diff.DirectoryOperations.Count.ShouldEqual(1);
+            diff.DirectoryOperations.ShouldNotContain(entry => entry.Operation == DiffTreeResult.Operations.Delete);
+
+            DiffTreeResult outerOp = diff.DirectoryOperations.First();
+            outerOp.SourcePath.ShouldNotBeNull();
+            Assert.AreEqual("Outer" + Path.DirectorySeparatorChar, outerOp.SourcePath);
+            Assert.AreEqual("outer" + Path.DirectorySeparatorChar, outerOp.TargetPath);
+        }
+
         // Delete a folder with two sub folders each with a single file
         // Readd it with a different casing and same contents
         [TestCase]

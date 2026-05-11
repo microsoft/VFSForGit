@@ -45,6 +45,9 @@
     <None Include="Data\fileCaseChange.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Include="Data\nestedCaseChange.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="Data\forward.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
