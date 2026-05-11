@@ -197,6 +197,16 @@ namespace GVFS.UnitTests.Prefetch
         }
 
         [TestCase]
+        public void DiffHelperThrowsOnReuse()
+        {
+            MockTracer tracer = new MockTracer();
+            DiffHelper diff = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
+            diff.ParseDiffFile(GetDataPath("forward.txt"));
+
+            Assert.Throws<InvalidOperationException>(() => diff.ParseDiffFile(GetDataPath("forward.txt")));
+        }
+
+        [TestCase]
         public void DetectsFailuresInDiffTree()
         {
             MockTracer tracer = new MockTracer();

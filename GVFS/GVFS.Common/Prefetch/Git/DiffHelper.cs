@@ -27,6 +27,7 @@ namespace GVFS.Common.Prefetch.Git
 
         private Enlistment enlistment;
         private GitProcess git;
+        private bool diffPerformed;
 
         public DiffHelper(ITracer tracer, Enlistment enlistment, IEnumerable<string> fileList, IEnumerable<string> folderList, bool includeSymLinks)
             : this(tracer, enlistment, new GitProcess(enlistment), fileList, folderList, includeSymLinks)
@@ -97,6 +98,7 @@ namespace GVFS.Common.Prefetch.Git
 
         public void PerformDiff(string sourceTreeSha, string targetTreeSha)
         {
+            this.EnsureSingleUse();
             EventMetadata metadata = new EventMetadata();
             metadata.Add("TargetTreeSha", targetTreeSha);
             metadata.Add("HeadTreeSha", sourceTreeSha);
@@ -154,6 +156,7 @@ namespace GVFS.Common.Prefetch.Git
 
         public void ParseDiffFile(string filename)
         {
+            this.EnsureSingleUse();
             using (ITracer activity = this.tracer.StartActivity("PerformDiff", EventLevel.Informational))
             {
                 using (StreamReader file = new StreamReader(File.OpenRead(filename)))
@@ -477,6 +480,24 @@ namespace GVFS.Common.Prefetch.Git
                 });
 
             this.RequiredBlobs.Add(operation.TargetSha);
+        }
+
+        private void EnsureSingleUse()
+        {
+            // The output collections — DirectoryOperations, FileDeleteOperations,
+            // FileAddOperations, RequiredBlobs — are populated incrementally and
+            // RequiredBlobs.CompleteAdding() is called at the end of FlushStagedQueues.
+            // A second call would attempt to add to a completed BlockingCollection
+            // and throw deep in the parsing path, leaving partial output. The class
+            // is therefore intended to be single-use; instantiate a new DiffHelper
+            // for each diff.
+            if (this.diffPerformed)
+            {
+                throw new InvalidOperationException(
+                    $"{nameof(DiffHelper)} has already produced a diff and cannot be reused. Construct a new instance.");
+            }
+
+            this.diffPerformed = true;
         }
 
         private DiffTreeResult FindStagedDirectoryOperation(string targetPath)
