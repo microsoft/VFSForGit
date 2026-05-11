@@ -445,12 +445,10 @@ namespace GVFS.Common.Prefetch.Git
             {
                 // Check if the staged delete has the exact same casing
                 bool exactMatch = false;
-                string existingDeletePath = null;
                 foreach (string deletePath in this.stagedFileDeletes)
                 {
                     if (deletePath.Equals(operation.TargetPath, GVFSPlatform.Instance.Constants.PathComparison))
                     {
-                        existingDeletePath = deletePath;
                         if (deletePath.Equals(operation.TargetPath, StringComparison.Ordinal))
                         {
                             exactMatch = true;
