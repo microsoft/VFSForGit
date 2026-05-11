@@ -181,9 +181,35 @@ namespace FastFetch
                                 {
                                     // Directory.Move throws IOException for case-only renames,
                                     // so use a two-step rename through a temporary name.
-                                    string tempPath = absoluteTargetPath.TrimEnd(Path.DirectorySeparatorChar) + "_caseRename_" + Guid.NewGuid().ToString("N");
-                                    Directory.Move(absoluteSourcePath.TrimEnd(Path.DirectorySeparatorChar), tempPath);
-                                    Directory.Move(tempPath, absoluteTargetPath.TrimEnd(Path.DirectorySeparatorChar));
+                                    string trimmedSourcePath = absoluteSourcePath.TrimEnd(Path.DirectorySeparatorChar);
+                                    string trimmedTargetPath = absoluteTargetPath.TrimEnd(Path.DirectorySeparatorChar);
+                                    string tempPath = trimmedTargetPath + "_caseRename_" + Guid.NewGuid().ToString("N");
+                                    Directory.Move(trimmedSourcePath, tempPath);
+                                    try
+                                    {
+                                        Directory.Move(tempPath, trimmedTargetPath);
+                                    }
+                                    catch
+                                    {
+                                        // The first move succeeded but the second failed. The
+                                        // directory is now at tempPath. Try to restore the
+                                        // original casing so a retry sees a consistent
+                                        // working tree; if restoration also fails, the outer
+                                        // catch will log the original exception and the temp
+                                        // directory will be left behind for manual recovery.
+                                        if (Directory.Exists(tempPath) && !Directory.Exists(trimmedSourcePath))
+                                        {
+                                            try
+                                            {
+                                                Directory.Move(tempPath, trimmedSourcePath);
+                                            }
+                                            catch
+                                            {
+                                            }
+                                        }
+
+                                        throw;
+                                    }
                                 }
                                 else
                                 {
