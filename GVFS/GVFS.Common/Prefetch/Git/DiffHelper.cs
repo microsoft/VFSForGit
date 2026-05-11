@@ -21,9 +21,12 @@ namespace GVFS.Common.Prefetch.Git
         private HashSet<DiffTreeResult> stagedDirectoryOperations = new HashSet<DiffTreeResult>(new DiffTreeByNameComparer());
         private HashSet<string> stagedFileDeletes = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
-        // Tracks directories that were deleted as part of a case-only rename.
-        // Used by FlushStagedQueues to filter out child file deletes inside case-renamed directories.
-        private HashSet<string> caseRenamedDirectoryDeletes = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
+        // Holds the old-cased paths of directories whose Delete was collapsed into an
+        // Add via case-only rename detection. FlushStagedQueues consults this set to
+        // suppress child operations (file deletes and child directory Adds) whose
+        // parent was case-renamed — those children are carried by the parent rename
+        // on disk and do not need separate operations.
+        private HashSet<string> directoriesReplacedByCaseRename = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
 
         private Enlistment enlistment;
         private GitProcess git;
@@ -185,7 +188,7 @@ namespace GVFS.Common.Prefetch.Git
                 // Also include directories that were deleted as part of case-only renames.
                 // These were replaced by Adds in stagedDirectoryOperations but their children's
                 // file deletes should still be filtered out (the parent rename handles them).
-                deletedDirectories.UnionWith(this.caseRenamedDirectoryDeletes);
+                deletedDirectories.UnionWith(this.directoriesReplacedByCaseRename);
 
                 foreach (DiffTreeResult result in this.stagedDirectoryOperations)
                 {
@@ -197,7 +200,7 @@ namespace GVFS.Common.Prefetch.Git
                             // For case renames, child directory Adds inside a case-renamed parent
                             // are expected. The parent rename will handle moving the children.
                             // Only warn if the parent is truly deleted (not case-renamed).
-                            if (!this.caseRenamedDirectoryDeletes.Contains(parentPath))
+                            if (!this.directoriesReplacedByCaseRename.Contains(parentPath))
                             {
                                 EventMetadata metadata = new EventMetadata();
                                 metadata.Add(nameof(result.TargetPath), result.TargetPath);
@@ -308,7 +311,7 @@ namespace GVFS.Common.Prefetch.Git
                                 !existingOp.TargetPath.Equals(result.TargetPath, StringComparison.Ordinal))
                             {
                                 existingOp.SourcePath = result.TargetPath;
-                                this.caseRenamedDirectoryDeletes.Add(result.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
+                                this.directoriesReplacedByCaseRename.Add(result.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
                             }
                         }
 
@@ -326,7 +329,7 @@ namespace GVFS.Common.Prefetch.Git
                             {
                                 // Case-only rename: store the old-cased path so CheckoutStage can rename the directory
                                 result.SourcePath = existingOp.TargetPath;
-                                this.caseRenamedDirectoryDeletes.Add(existingOp.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
+                                this.directoriesReplacedByCaseRename.Add(existingOp.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
                             }
 
                             // Replace the delete with the add to make sure we don't delete a folder from under ourselves
