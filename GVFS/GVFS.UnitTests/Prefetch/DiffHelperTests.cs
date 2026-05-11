@@ -175,6 +175,34 @@ namespace GVFS.UnitTests.Prefetch
             diffBackwards.TotalDirectoryOperations.ShouldEqual(3);
         }
 
+        // File-level case rename ("foo.txt" -> "FOO.txt") with no directory case
+        // changes. The fixture emits a Delete for the old casing followed by an
+        // Add for the new casing; DiffHelper should stage both — the delete
+        // removes the old-cased file from disk, the add writes the new-cased
+        // file — so FlushStagedQueues hands both to the checkout stage.
+        [TestCase]
+        [Category(CategoryConstants.CaseInsensitiveFileSystemOnly)]
+        public void ParsesFileOnlyCaseRename()
+        {
+            MockTracer tracer = new MockTracer();
+            DiffHelper diff = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
+            diff.ParseDiffFile(GetDataPath("fileCaseChange.txt"));
+
+            diff.RequiredBlobs.Count.ShouldEqual(1);
+            diff.FileAddOperations.Sum(list => list.Value.Count).ShouldEqual(1);
+            diff.FileDeleteOperations.Count.ShouldEqual(1);
+            diff.TotalFileDeletes.ShouldEqual(1);
+            diff.TotalDirectoryOperations.ShouldEqual(0);
+            diff.DirectoryOperations.Count.ShouldEqual(0);
+
+            // The delete keeps the old casing; the add carries the new casing.
+            string deletedPath = diff.FileDeleteOperations.ToArray()[0];
+            Assert.AreEqual("foo.txt", deletedPath);
+
+            string addedPath = diff.FileAddOperations.First().Value.First().Path;
+            Assert.AreEqual("FOO.txt", addedPath);
+        }
+
         // Delete a folder with two sub folders each with a single file
         // Readd it with a different casing and same contents
         [TestCase]
