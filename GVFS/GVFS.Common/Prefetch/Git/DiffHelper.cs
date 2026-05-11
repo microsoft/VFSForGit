@@ -16,10 +16,17 @@ namespace GVFS.Common.Prefetch.Git
         private HashSet<string> exactFileList;
         private List<string> patternList;
         private List<string> folderList;
-        private HashSet<string> filesAdded = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
+        // The staged collections are keyed by the case-insensitive PathComparer on
+        // case-insensitive platforms so that two paths differing only in case map to
+        // the same entry. The dictionary value stores the original casing of the
+        // first path inserted, which case-rename detection compares against the
+        // incoming path to decide whether the collision is a rename or a true
+        // duplicate. Dictionary lookups keep this O(1); a HashSet would force a
+        // linear scan to recover the stored casing.
+        private Dictionary<string, string> filesAdded = new Dictionary<string, string>(GVFSPlatform.Instance.Constants.PathComparer);
 
-        private HashSet<DiffTreeResult> stagedDirectoryOperations = new HashSet<DiffTreeResult>(new DiffTreeByNameComparer());
-        private HashSet<string> stagedFileDeletes = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
+        private Dictionary<string, DiffTreeResult> stagedDirectoryOperations = new Dictionary<string, DiffTreeResult>(GVFSPlatform.Instance.Constants.PathComparer);
+        private Dictionary<string, string> stagedFileDeletes = new Dictionary<string, string>(GVFSPlatform.Instance.Constants.PathComparer);
 
         // Holds the old-cased paths of directories whose Delete was collapsed into an
         // Add via case-only rename detection. FlushStagedQueues consults this set to
@@ -180,7 +187,7 @@ namespace GVFS.Common.Prefetch.Git
             {
                 HashSet<string> deletedDirectories =
                     new HashSet<string>(
-                        this.stagedDirectoryOperations
+                        this.stagedDirectoryOperations.Values
                         .Where(d => d.Operation == DiffTreeResult.Operations.Delete)
                         .Select(d => d.TargetPath.TrimEnd(Path.DirectorySeparatorChar)),
                         GVFSPlatform.Instance.Constants.PathComparer);
@@ -190,7 +197,7 @@ namespace GVFS.Common.Prefetch.Git
                 // file deletes should still be filtered out (the parent rename handles them).
                 deletedDirectories.UnionWith(this.directoriesReplacedByCaseRename);
 
-                foreach (DiffTreeResult result in this.stagedDirectoryOperations)
+                foreach (DiffTreeResult result in this.stagedDirectoryOperations.Values)
                 {
                     string parentPath = Path.GetDirectoryName(result.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
                     if (deletedDirectories.Contains(parentPath))
@@ -215,7 +222,7 @@ namespace GVFS.Common.Prefetch.Git
                     }
                 }
 
-                foreach (string filePath in this.stagedFileDeletes)
+                foreach (string filePath in this.stagedFileDeletes.Values)
                 {
                     string parentPath = Path.GetDirectoryName(filePath);
                     if (!deletedDirectories.Contains(parentPath))
@@ -243,16 +250,16 @@ namespace GVFS.Common.Prefetch.Git
 
             if (result.TargetIsDirectory)
             {
-                if (!this.stagedDirectoryOperations.Add(result))
+                if (!this.stagedDirectoryOperations.TryAdd(result.TargetPath, result))
                 {
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add(nameof(result.TargetPath), result.TargetPath);
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, "File exists in tree with two different cases. Taking the last one.");
                     this.tracer.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
 
-                    // Since we match only on filename, re-adding is the easiest way to update the set.
-                    this.stagedDirectoryOperations.Remove(result);
-                    this.stagedDirectoryOperations.Add(result);
+                    // Two entries in the same tree differ only in case. Keep the
+                    // last one parsed, matching the historical HashSet behavior.
+                    this.stagedDirectoryOperations[result.TargetPath] = result;
                 }
             }
             else
@@ -295,7 +302,7 @@ namespace GVFS.Common.Prefetch.Git
                 switch (result.Operation)
                 {
                     case DiffTreeResult.Operations.Delete:
-                        if (!this.stagedDirectoryOperations.Add(result))
+                        if (!this.stagedDirectoryOperations.TryAdd(result.TargetPath, result))
                         {
                             // A directory with the same (case-insensitive) path was already
                             // staged as an Add. This is a case-only rename where diff-tree
@@ -306,9 +313,8 @@ namespace GVFS.Common.Prefetch.Git
                             // Annotate the staged Add with the old-cased path so CheckoutStage
                             // can perform the rename. Keep the Add — never the Delete — to
                             // avoid deleting a folder out from under ourselves.
-                            DiffTreeResult existingOp = FindStagedDirectoryOperation(result.TargetPath);
-                            if (existingOp != null &&
-                                !existingOp.TargetPath.Equals(result.TargetPath, StringComparison.Ordinal))
+                            DiffTreeResult existingOp = this.stagedDirectoryOperations[result.TargetPath];
+                            if (!existingOp.TargetPath.Equals(result.TargetPath, StringComparison.Ordinal))
                             {
                                 existingOp.SourcePath = result.TargetPath;
                                 this.directoriesReplacedByCaseRename.Add(result.TargetPath.TrimEnd(Path.DirectorySeparatorChar));
@@ -318,14 +324,12 @@ namespace GVFS.Common.Prefetch.Git
                         break;
                     case DiffTreeResult.Operations.Add:
                     case DiffTreeResult.Operations.Modify:
-                        if (!this.stagedDirectoryOperations.Add(result))
+                        if (!this.stagedDirectoryOperations.TryAdd(result.TargetPath, result))
                         {
                             // A directory with the same path (case-insensitive) was already staged.
                             // This is a case-only rename: the Delete was staged first, now the Add arrives.
-                            // Find the existing entry to capture the old-cased path.
-                            DiffTreeResult existingOp = FindStagedDirectoryOperation(result.TargetPath);
-                            if (existingOp != null &&
-                                !existingOp.TargetPath.Equals(result.TargetPath, StringComparison.Ordinal))
+                            DiffTreeResult existingOp = this.stagedDirectoryOperations[result.TargetPath];
+                            if (!existingOp.TargetPath.Equals(result.TargetPath, StringComparison.Ordinal))
                             {
                                 // Case-only rename: store the old-cased path so CheckoutStage can rename the directory
                                 result.SourcePath = existingOp.TargetPath;
@@ -333,8 +337,7 @@ namespace GVFS.Common.Prefetch.Git
                             }
 
                             // Replace the delete with the add to make sure we don't delete a folder from under ourselves
-                            this.stagedDirectoryOperations.Remove(result);
-                            this.stagedDirectoryOperations.Add(result);
+                            this.stagedDirectoryOperations[result.TargetPath] = result;
                         }
 
                         break;
@@ -401,28 +404,15 @@ namespace GVFS.Common.Prefetch.Git
             // this is a true duplicate, not a case rename. Skip it.
             // But if it matches case-insensitively only, this is a case rename — allow the delete through
             // so the old-cased file is removed before the new-cased file is written.
-            if (this.filesAdded.Contains(targetPath))
+            if (this.filesAdded.TryGetValue(targetPath, out string existingAddedPath) &&
+                existingAddedPath.Equals(targetPath, StringComparison.Ordinal))
             {
-                // Check if any added file matches with exact (ordinal) casing
-                bool exactMatch = false;
-                foreach (string addedPath in this.filesAdded)
-                {
-                    if (addedPath.Equals(targetPath, StringComparison.Ordinal))
-                    {
-                        exactMatch = true;
-                        break;
-                    }
-                }
-
-                if (exactMatch)
-                {
-                    return;
-                }
-
-                // Case-only difference: allow the delete so the old casing is removed from disk
+                return;
             }
 
-            this.stagedFileDeletes.Add(targetPath);
+            // Either no prior add, or a case-only difference: allow the delete to be
+            // staged so the old casing is removed from disk before the new add lands.
+            this.stagedFileDeletes.TryAdd(targetPath, targetPath);
         }
 
         /// <remarks>
@@ -432,7 +422,7 @@ namespace GVFS.Common.Prefetch.Git
         {
             // Each filepath should be unique according to GVFSPlatform.Instance.Constants.PathComparer.
             // If there are duplicates, only the last parsed one should remain.
-            if (!this.filesAdded.Add(operation.TargetPath))
+            if (!this.filesAdded.TryAdd(operation.TargetPath, operation.TargetPath))
             {
                 foreach (KeyValuePair<string, HashSet<PathWithMode>> kvp in this.FileAddOperations)
                 {
@@ -444,33 +434,14 @@ namespace GVFS.Common.Prefetch.Git
                 }
             }
 
-            // On case-insensitive file systems, stagedFileDeletes uses case-insensitive comparison.
-            // Check if there's a staged delete that differs only in case — if so, keep it
-            // so the old-cased file is removed from disk before the new one is written.
-            if (this.stagedFileDeletes.Contains(operation.TargetPath))
+            // If a delete is already staged for the same path under the case-insensitive
+            // comparer, decide whether this is a true duplicate (same casing → drop the
+            // delete) or a case-only rename (different casing → keep the delete so the
+            // old casing is removed from disk before the new add lands).
+            if (this.stagedFileDeletes.TryGetValue(operation.TargetPath, out string existingDeletePath) &&
+                existingDeletePath.Equals(operation.TargetPath, StringComparison.Ordinal))
             {
-                // Check if the staged delete has the exact same casing
-                bool exactMatch = false;
-                foreach (string deletePath in this.stagedFileDeletes)
-                {
-                    if (deletePath.Equals(operation.TargetPath, GVFSPlatform.Instance.Constants.PathComparison))
-                    {
-                        if (deletePath.Equals(operation.TargetPath, StringComparison.Ordinal))
-                        {
-                            exactMatch = true;
-                        }
-
-                        break;
-                    }
-                }
-
-                if (exactMatch)
-                {
-                    // Same exact path: true delete+add, not a case rename. Remove the delete.
-                    this.stagedFileDeletes.Remove(operation.TargetPath);
-                }
-
-                // Case-only difference: keep the delete staged so old casing is removed from disk
+                this.stagedFileDeletes.Remove(operation.TargetPath);
             }
 
             this.FileAddOperations.AddOrUpdate(
@@ -503,44 +474,5 @@ namespace GVFS.Common.Prefetch.Git
             this.diffPerformed = true;
         }
 
-        private DiffTreeResult FindStagedDirectoryOperation(string targetPath)
-        {
-            foreach (DiffTreeResult staged in this.stagedDirectoryOperations)
-            {
-                if (staged.TargetPath.Equals(targetPath, GVFSPlatform.Instance.Constants.PathComparison))
-                {
-                    return staged;
-                }
-            }
-
-            return null;
-        }
-
-        private class DiffTreeByNameComparer : IEqualityComparer<DiffTreeResult>
-        {
-            public bool Equals(DiffTreeResult x, DiffTreeResult y)
-            {
-                if (x.TargetPath != null)
-                {
-                    if (y.TargetPath != null)
-                    {
-                        return x.TargetPath.Equals(y.TargetPath, GVFSPlatform.Instance.Constants.PathComparison);
-                    }
-
-                    return false;
-                }
-                else
-                {
-                    // both null means they're equal
-                    return y.TargetPath == null;
-                }
-            }
-
-            public int GetHashCode(DiffTreeResult obj)
-            {
-                return obj.TargetPath != null ?
-                    GVFSPlatform.Instance.Constants.PathComparer.GetHashCode(obj.TargetPath) : 0;
-            }
-        }
     }
 }
