@@ -24,7 +24,7 @@
     <Content Include="info.bat" />
   </ItemGroup>
 
-  <Target Name="CreateInstaller" BeforeTargets="Build">
+  <Target Name="CreateInstaller" BeforeTargets="Build" Condition="'$(SkipCreateInstaller)' != 'true'">
     <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) Setup.iss /O"$(OutputPath)"' />
   </Target>
 
