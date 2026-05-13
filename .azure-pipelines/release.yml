@@ -111,6 +111,11 @@ extends:
                 inputs:
                   versionSpec: '6.x'
 
+              - task: PowerShell@2
+                displayName: 'Install VS C++ workload (NativeAOT prerequisite)'
+                inputs:
+                  filePath: $(Build.SourcesDirectory)\.azure-pipelines\scripts\install-vs-cpp-workload.ps1
+
               - script: |
                   $(Build.SourcesDirectory)\scripts\Build.bat ^
                     $(BuildConfiguration) ^
