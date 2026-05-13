@@ -116,6 +116,11 @@ extends:
                 inputs:
                   filePath: $(Build.SourcesDirectory)\.azure-pipelines\scripts\install-vs-cpp-workload.ps1
 
+              - task: PowerShell@2
+                displayName: 'Enable Projected File System (ProjFS)'
+                inputs:
+                  filePath: $(Build.SourcesDirectory)\.azure-pipelines\scripts\enable-projfs.ps1
+
               - script: |
                   $(Build.SourcesDirectory)\scripts\Build.bat ^
                     $(BuildConfiguration) ^
