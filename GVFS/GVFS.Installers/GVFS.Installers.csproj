@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <PackageReference Include="Tools.InnoSetup" />
-    <PackageReference Include="MicroBuild.Core" ExcludeAssets="none" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,14 +24,7 @@
     <Content Include="info.bat" />
   </ItemGroup>
 
-  <ItemGroup>
-    <FilesToSign Include="$(OutputPath)SetupGVFS.$(GVFSVersion).exe">
-      <Authenticode>Microsoft400</Authenticode>
-      <InProject>false</InProject>
-    </FilesToSign>
-  </ItemGroup>
-
-  <Target Name="CreateInstaller" BeforeTargets="Build;SignFiles">
+  <Target Name="CreateInstaller" BeforeTargets="Build">
     <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) Setup.iss /O"$(OutputPath)"' />
   </Target>
 
