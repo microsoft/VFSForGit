@@ -55,7 +55,7 @@
     See THIRD-PARTY-NOTICES.md for license details on these native libraries.
   -->
   <PropertyGroup Condition="'$(PublishAot)' == 'true'">
-    <VcpkgInstalledDir>$(RepoSrcPath)vcpkg_installed\static\x64-windows-static-aot\</VcpkgInstalledDir>
+    <VcpkgInstalledDir>$(RepoOutPath)vcpkg_installed\static\x64-windows-static-aot\</VcpkgInstalledDir>
   </PropertyGroup>
 
   <!-- Set libgit2 library name unconditionally — all builds use vcpkg-sourced libgit2 -->
@@ -83,18 +83,18 @@
     Non-AOT projects (tests) need git2.dll for runtime P/Invoke.
     Copy from the vcpkg dynamic build output.
   -->
-  <ItemGroup Condition="'$(PublishAot)' != 'true' and '$(MSBuildProjectExtension)' == '.csproj'">
-    <Content Include="$(RepoSrcPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\git2.dll">
+  <ItemGroup Condition="'$(PublishAot)' != 'true' and '$(MSBuildProjectExtension)' == '.csproj' and '$(IncludeBuildOutput)' != 'false'">
+    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\git2.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Link>git2.dll</Link>
     </Content>
-    <Content Include="$(RepoSrcPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\pcre.dll">
+    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\pcre.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Link>pcre.dll</Link>
     </Content>
-    <Content Include="$(RepoSrcPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\z.dll">
+    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\z.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Link>z.dll</Link>

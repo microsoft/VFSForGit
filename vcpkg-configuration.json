@@ -1,5 +1,7 @@
 {
   "$comment": "Pin the vcpkg default registry to a known baseline for reproducible builds.",
+  "overlay-ports": ["./overlays"],
+  "overlay-triplets": ["./triplets"],
   "default-registry": {
     "kind": "git",
     "repository": "https://github.com/microsoft/vcpkg",
