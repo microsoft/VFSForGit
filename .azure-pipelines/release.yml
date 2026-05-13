@@ -100,6 +100,12 @@ extends:
                 displayName: 'Checkout VFS for Git'
                 path: vfsforgit/src
 
+              - task: UseDotNet@2
+                displayName: 'Use .NET SDK (global.json)'
+                inputs:
+                  useGlobalJson: true
+                  workingDirectory: $(Build.SourcesDirectory)
+
               - task: NuGetToolInstaller@1
                 displayName: 'Use NuGet 6.x'
                 inputs:
