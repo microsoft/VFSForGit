@@ -280,8 +280,8 @@ extends:
             displayName: 'Publish GitHub release'
             pool:
               name: GitClientPME-1ESHostedPool-intel-pc
-              image: ubuntu-x86_64-ado1es
-              os: linux
+              image: win-x86_64-ado1es
+              os: windows
             templateContext:
               type: releaseJob
               isProduction: true
@@ -289,7 +289,30 @@ extends:
                 - input: pipelineArtifact
                   artifactName: Installer
                   targetPath: $(Pipeline.Workspace)/assets/Installer
+                - input: pipelineArtifact
+                  artifactName: Symbols
+                  targetPath: $(Pipeline.Workspace)/assets/Symbols
             steps:
+              - task: CopyFiles@2
+                displayName: 'Gather PDB files'
+                inputs:
+                  SourceFolder: $(Pipeline.Workspace)/assets/Symbols
+                  Contents: '**/*.pdb'
+                  TargetFolder: $(Pipeline.Workspace)/_pdbs
+              - task: ArchiveFiles@2
+                displayName: 'Prepare PDB files for upload'
+                inputs:
+                  rootFolderOrFile: $(Pipeline.Workspace)/_pdbs
+                  includeRootFolder: false
+                  archiveType: zip
+                  archiveFile: $(Pipeline.Workspace)/_final/Symbols.zip
+                  replaceExistingArchive: true
+              - task: CopyFiles@2
+                displayName: 'Prepare installer for upload'
+                inputs:
+                  SourceFolder: $(Pipeline.Workspace)/assets/Installer
+                  Contents: 'SetupGVFS.*.exe'
+                  TargetFolder: $(Pipeline.Workspace)/_final
               - task: GitHubRelease@1
                 displayName: 'Create draft GitHub Release'
                 inputs:
@@ -299,6 +322,7 @@ extends:
                   tagSource: userSpecifiedTag
                   title: 'VFS for Git $(GVFSVersion)'
                   isDraft: true
-                  addChangeLog: false
+                  isPreRelease: true
+                  addChangeLog: true
                   assets: |
-                    $(Pipeline.Workspace)/assets/Installer/SetupGVFS.*.exe
+                    $(Pipeline.Workspace)/_final/*
