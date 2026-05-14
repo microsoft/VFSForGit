@@ -12,14 +12,6 @@
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
-    <PackageReference Include="MicroBuild.Core" ExcludeAssets="none" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <FilesToSign Include="$(PublishDir)\FastFetch.exe">
-      <Authenticode>Microsoft400</Authenticode>
-      <InProject>false</InProject>
-    </FilesToSign>
   </ItemGroup>
 
 </Project>

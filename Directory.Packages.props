@@ -24,7 +24,6 @@
 
     <!-- Build / packaging -->
     <PackageVersion Include="GVFS.VCRuntime" Version="0.2.0-build" />
-    <PackageVersion Include="MicroBuild.Core" Version="0.2.0" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="17.12.6" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.12.6" />
     <PackageVersion Include="Tools.InnoSetup" Version="6.4.3" />

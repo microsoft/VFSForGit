@@ -59,6 +59,8 @@ RMDIR /S /Q %OUTPUT%\x86
 REM Remove stray managed artifacts (AOT binaries don't need these)
 DEL /Q %OUTPUT%\*.runtimeconfig.json 2>nul
 DEL /Q %OUTPUT%\*.deps.json 2>nul
+REM Remove VS C++ code-analysis marker files generated next to native exes
+DEL /S /Q %OUTPUT%\*.lastcodeanalysissucceeded 2>nul
 REM Remove orphaned managed PDBs (these libraries are compiled into AOT exes)
 DEL /Q %OUTPUT%\GVFS.Common.pdb 2>nul
 DEL /Q %OUTPUT%\GVFS.Platform.Windows.pdb 2>nul

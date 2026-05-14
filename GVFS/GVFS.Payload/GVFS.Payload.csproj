@@ -11,31 +11,15 @@
 
   <ItemGroup>
     <PackageReference Include="GVFS.VCRuntime" />
-    <PackageReference Include="MicroBuild.Core" ExcludeAssets="none" />
   </ItemGroup>
 
-  <Target Name="CreatePayload" AfterTargets="CoreBuild" BeforeTargets="SignFiles">
+  <Target Name="CreatePayload" AfterTargets="CoreBuild">
     <Exec Command='"$(MSBuildThisFileDirectory)layout.bat" $(Configuration) $(GVFSVersion) "$(PkgGVFS_VCRuntime)" "$(OutputPath)"' />
   </Target>
 
   <Target Name="CleanPayload" BeforeTargets="AfterClean">
     <RemoveDir Directories="$(OutputPath)" />
   </Target>
-
-  <ItemGroup>
-    <FilesToSign Include="
-      $(OutputPath)\GitHooksLoader.exe;
-      $(OutputPath)\GVFS.exe;
-      $(OutputPath)\GVFS.Hooks.exe;
-      $(OutputPath)\GVFS.Mount.exe;
-      $(OutputPath)\GVFS.PostIndexChangedHook.exe;
-      $(OutputPath)\GVFS.ReadObjectHook.exe;
-      $(OutputPath)\GVFS.Service.exe;
-      $(OutputPath)\GVFS.VirtualFileSystemHook.exe;">
-      <Authenticode>Microsoft400</Authenticode>
-      <InProject>false</InProject>
-    </FilesToSign>
-  </ItemGroup>
 
 </Project>
 

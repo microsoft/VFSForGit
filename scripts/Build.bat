@@ -70,8 +70,8 @@ IF DEFINED MSBUILD_EXEC (
                 /p:SolutionDir="%VFS_SRCDIR%\\" || GOTO ERROR
     )
 ) ELSE (
-    ECHO WARNING: Could not find VS MSBuild. Native C++ projects will not be built.
-    ECHO          Install Visual Studio with the C++ workload to build native projects.
+    ECHO ERROR: Could not find VS MSBuild. Install Visual Studio with the C++ workload to build native projects.
+    EXIT /B 1
 )
 
 ECHO ^*****************************

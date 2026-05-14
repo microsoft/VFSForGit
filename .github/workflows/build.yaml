@@ -21,6 +21,7 @@ on:
 permissions:
   contents: read
   actions: read
+  checks: read
 
 env:
   GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.53.0.vfs.0.7' }}
@@ -67,6 +68,89 @@ jobs:
             const head_sha = run.head_sha;
             const tree_id = run.head_commit.tree_id;
 
+            /*
+             * If the given workflow run was itself a "skip" run that references another
+             * run, follow the chain to find the deepest *actual* successful, non-skipped
+             * run, so we don't end up pointing at a chain of skip-runs.
+             */
+            const SKIP_NOTICE_RE = /^Skipping: There already is a successful run: (.+)$/
+            const RUN_URL_RE = /\/actions\/runs\/(\d+)/
+            const MAX_CHAIN_LENGTH = 10
+            async function resolveSkipChain(initialRunId, initialRunUrl) {
+              let currentRunId = initialRunId
+              let currentRunUrl = initialRunUrl
+              console.log(`Resolving skip chain starting at ${currentRunUrl}`)
+              for (let i = 0; i < MAX_CHAIN_LENGTH; i++) {
+                let referencedUrl = null
+                try {
+                  const { data: jobsData } = await github.rest.actions.listJobsForWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: currentRunId,
+                  })
+                  const validationJob = jobsData.jobs.find((j) => j.name === 'Validation')
+                  if (!validationJob) {
+                    console.log(`No 'Validation' job found on ${currentRunUrl}; treating as the real run`)
+                    return currentRunUrl
+                  }
+
+                  const { data: annotations } = await github.rest.checks.listAnnotations({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    check_run_id: validationJob.id,
+                  })
+                  for (const annotation of annotations) {
+                    const match = annotation.message && annotation.message.match(SKIP_NOTICE_RE)
+                    if (match) {
+                      referencedUrl = match[1]
+                      break
+                    }
+                  }
+                } catch (e) {
+                  // If we cannot inspect this run, fall back to the URL we already have
+                  console.log(`Failed to inspect ${currentRunUrl}: ${e.message}; stopping chain resolution`)
+                  return currentRunUrl
+                }
+
+                if (!referencedUrl) {
+                  console.log(`${currentRunUrl} is not a skip-run; using it as the resolved run`)
+                  return currentRunUrl
+                }
+
+                console.log(`${currentRunUrl} is a skip-run referencing ${referencedUrl}; following the chain`)
+
+                const idMatch = referencedUrl.match(RUN_URL_RE)
+                if (!idMatch) {
+                  console.log(`Could not parse a run ID from ${referencedUrl}; stopping chain resolution`)
+                  return referencedUrl
+                }
+
+                const referencedId = Number(idMatch[1])
+                let referencedRun
+                try {
+                  const response = await github.rest.actions.getWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: referencedId,
+                  })
+                  referencedRun = response.data
+                } catch (e) {
+                  console.log(`Could not fetch referenced run ${referencedUrl}: ${e.message}; stopping chain resolution`)
+                  return currentRunUrl
+                }
+
+                if (referencedRun.status !== 'completed' || referencedRun.conclusion !== 'success') {
+                  console.log(`Referenced run ${referencedUrl} is no longer usable (status=${referencedRun.status}, conclusion=${referencedRun.conclusion}); stopping chain resolution`)
+                  return currentRunUrl
+                }
+
+                currentRunId = referencedRun.id
+                currentRunUrl = referencedRun.html_url
+              }
+              console.log(`Reached MAX_CHAIN_LENGTH (${MAX_CHAIN_LENGTH}); stopping at ${currentRunUrl}`)
+              return currentRunUrl
+            }
+
             // See whether there is a successful run for that commit or tree
             const { data: runs } = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
@@ -101,8 +185,10 @@ jobs:
               }
 
               if (run.status === 'completed' && run.conclusion === 'success') {
-                core.notice(`Skipping: There already is a successful run: ${run.html_url}`)
-                return run.html_url
+                console.log(`Found previous successful run at ${run.html_url} (head_sha=${run.head_sha}, tree_id=${run.head_commit?.tree_id})`)
+                const resolvedUrl = await resolveSkipChain(run.id, run.html_url)
+                core.notice(`Skipping: There already is a successful run: ${resolvedUrl}`)
+                return resolvedUrl
               }
             }
             return ''
