@@ -143,16 +143,9 @@ extends:
               # The installer hasn't been built yet, so it can be packaged from
               # signed binaries in a single Inno Setup pass.
               - ${{ if eq(parameters.esrp, true) }}:
-                - task: EsrpCodeSigning@6
-                  displayName: 'Sign VFS for Git binaries'
-                  inputs:
-                    connectedServiceName: $(esrpAppConnectionName)
-                    useMSIAuthentication: true
-                    appRegistrationClientId: $(esrpClientId)
-                    appRegistrationTenantId: $(esrpTenantId)
-                    authAkvName: $(esrpKeyVaultName)
-                    authSignCertName: $(esrpSignReqCertName)
-                    serviceEndpointUrl: $(esrpEndpointUrl)
+                - template: .azure-pipelines/esrp/sign.yml@self
+                  parameters:
+                    displayName: 'Sign VFS for Git binaries'
                     folderPath: $(OutDir)\GVFS.Payload\bin\$(BuildConfiguration)\win-x64
                     pattern: |
                       GitHooksLoader.exe
@@ -163,8 +156,6 @@ extends:
                       GVFS.ReadObjectHook.exe
                       GVFS.Service.exe
                       GVFS.VirtualFileSystemHook.exe
-                    useMinimatch: true
-                    signConfigType: inlineSignParams
                     inlineOperation: |
                       [
                         {
@@ -189,20 +180,11 @@ extends:
                         }
                       ]
 
-                - task: EsrpCodeSigning@6
-                  displayName: 'Sign FastFetch'
-                  inputs:
-                    connectedServiceName: $(esrpAppConnectionName)
-                    useMSIAuthentication: true
-                    appRegistrationClientId: $(esrpClientId)
-                    appRegistrationTenantId: $(esrpTenantId)
-                    authAkvName: $(esrpKeyVaultName)
-                    authSignCertName: $(esrpSignReqCertName)
-                    serviceEndpointUrl: $(esrpEndpointUrl)
+                - template: .azure-pipelines/esrp/sign.yml@self
+                  parameters:
+                    displayName: 'Sign FastFetch'
                     folderPath: $(OutDir)\FastFetch\bin\$(BuildConfiguration)\net10.0-windows10.0.17763.0\win-x64\publish
                     pattern: 'FastFetch.exe'
-                    useMinimatch: true
-                    signConfigType: inlineSignParams
                     inlineOperation: |
                       [
                         {
@@ -240,20 +222,11 @@ extends:
                 displayName: 'Build VFS for Git installer'
 
               - ${{ if eq(parameters.esrp, true) }}:
-                - task: EsrpCodeSigning@6
-                  displayName: 'Sign VFS for Git installer'
-                  inputs:
-                    connectedServiceName: $(esrpAppConnectionName)
-                    useMSIAuthentication: true
-                    appRegistrationClientId: $(esrpClientId)
-                    appRegistrationTenantId: $(esrpTenantId)
-                    authAkvName: $(esrpKeyVaultName)
-                    authSignCertName: $(esrpSignReqCertName)
-                    serviceEndpointUrl: $(esrpEndpointUrl)
+                - template: .azure-pipelines/esrp/sign.yml@self
+                  parameters:
+                    displayName: 'Sign VFS for Git installer'
                     folderPath: $(OutDir)\GVFS.Installers\bin\$(BuildConfiguration)\win-x64
                     pattern: 'SetupGVFS.*.exe'
-                    useMinimatch: true
-                    signConfigType: inlineSignParams
                     inlineOperation: |
                       [
                         {
