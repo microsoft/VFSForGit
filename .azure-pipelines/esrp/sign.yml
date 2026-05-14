@@ -1,0 +1,59 @@
+# Reusable step template for ESRP code signing via EsrpCodeSigning@6.
+#
+# Wraps a single signing operation with automatic cleanup of the
+# CodeSignSummary-<guid>.md report ESRP CLI drops into the signing
+# folder -- otherwise that file is packaged into the installer or
+# uploaded as part of the pipeline artifact.
+#
+parameters:
+  - name: displayName
+    type: string
+  - name: folderPath
+    type: string
+  - name: pattern
+    type: string
+  - name: inlineOperation
+    type: string
+  # ESRP connection parameters (defaults use pipeline variables)
+  - name: connectedServiceName
+    type: string
+    default: $(esrpAppConnectionName)
+  - name: appRegistrationClientId
+    type: string
+    default: $(esrpClientId)
+  - name: appRegistrationTenantId
+    type: string
+    default: $(esrpTenantId)
+  - name: authAkvName
+    type: string
+    default: $(esrpKeyVaultName)
+  - name: authSignCertName
+    type: string
+    default: $(esrpSignReqCertName)
+  - name: serviceEndpointUrl
+    type: string
+    default: $(esrpEndpointUrl)
+
+steps:
+  - task: EsrpCodeSigning@6
+    displayName: '${{ parameters.displayName }}'
+    inputs:
+      connectedServiceName: '${{ parameters.connectedServiceName }}'
+      useMSIAuthentication: true
+      appRegistrationClientId: '${{ parameters.appRegistrationClientId }}'
+      appRegistrationTenantId: '${{ parameters.appRegistrationTenantId }}'
+      authAkvName: '${{ parameters.authAkvName }}'
+      authSignCertName: '${{ parameters.authSignCertName }}'
+      serviceEndpointUrl: '${{ parameters.serviceEndpointUrl }}'
+      folderPath: '${{ parameters.folderPath }}'
+      pattern: '${{ parameters.pattern }}'
+      useMinimatch: true
+      signConfigType: inlineSignParams
+      inlineOperation: ${{ parameters.inlineOperation }}
+
+  - task: PowerShell@2
+    displayName: 'Clean up code signing artifacts (${{ parameters.displayName }})'
+    inputs:
+      targetType: inline
+      script: |
+        Remove-Item -Force "${{ parameters.folderPath }}\CodeSignSummary-*.md" -ErrorAction SilentlyContinue

@@ -2,94 +2,316 @@ name: $(date:yy)$(DayOfYear)$(rev:.r)
 trigger: none
 pr: none
 
-variables:
-  GVFSMajorAndMinorVersion: 2.0
-  GVFSRevision: $(Build.BuildNumber)
-  BuildConfiguration: Release
-  TeamName: GVFS
+#
+# Release pipeline for VFS for Git.
+#
+# Builds the Windows x64 installer, ESRP-signs the inner Payload binaries and
+# the outer SetupGVFS installer, stages all release artifacts, and (optionally)
+# publishes a draft GitHub Release.
+#
+# Designed to be run manually from Azure DevOps, typically against the
+# `releases/shipped` branch. Triggers are intentionally `none`; PR/CI builds
+# are handled by the GitHub Actions workflow at .github/workflows/build.yaml.
+#
 
 resources:
   repositories:
-  - repository: MicroBuildTemplate
-    type: git
-    name: 1ESPipelineTemplates/MicroBuildTemplate
-    ref: refs/tags/release
+    - repository: 1ESPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
 
-  - repository: VFSForGit
-    type: github
-    name: microsoft/VFSForGit
-    ref: releases/shipped
-    endpoint: GitHub-VFSForGit
+parameters:
+  - name: 'esrp'
+    type: boolean
+    default: true
+    displayName: 'Enable ESRP code signing'
+  - name: 'github'
+    type: boolean
+    default: true
+    displayName: 'Enable GitHub release publishing'
+
+variables:
+  - name: 'GVFSMajorAndMinorVersion'
+    value: '2.0'
+  - name: 'GVFSRevision'
+    value: $(Build.BuildNumber)
+  - name: 'GVFSVersion'
+    value: $(GVFSMajorAndMinorVersion).$(GVFSRevision)
+  - name: 'BuildConfiguration'
+    value: 'Release'
+  - name: 'OutDir'
+    value: $(Agent.BuildDirectory)\vfsforgit\out
+  - name: 'esrpAppConnectionName'
+    value: '1ESGitClient-ESRP-App'
+  - name: 'githubConnectionName'
+    value: 'GitHub-VFSForGit'
+  # ESRP signing variables set in the pipeline settings:
+  # - esrpEndpointUrl
+  # - esrpClientId
+  # - esrpTenantId
+  # - esrpKeyVaultName
+  # - esrpSignReqCertName
 
 extends:
-  template: azure-pipelines/MicroBuild.1ES.Official.yml@MicroBuildTemplate
+  template: v1/1ES.Official.PipelineTemplate.yml@1ESPipelines
   parameters:
-    pool:
-      name: VSEng-MicroBuildVSStable
-
     featureFlags:
       incrementalSDLBinaryAnalysis: false
       disableNetworkIsolation: true
 
     sdl:
+      sourceAnalysisPool:
+        name: GitClientPME-1ESHostedPool-intel-pc
+        image: win-x86_64-ado1es
+        os: windows
       binskim:
         enabled: false
         justificationForDisabling: "Guardian and BinSkim do not support a suppression for InnoSetup installer file"
-      sourceRepositoriesToScan:
-        include:
-        - repository: VFSForGit
 
     stages:
-      - stage: Release
-
+      - stage: build
+        displayName: 'Build and Sign'
         jobs:
-        - job: Build
-          templateContext:
-            mb:
-              signing:
-                enabled: true
-                feedSource: 'https://pkgs.dev.azure.com/mseng/_packaging/MicroBuildToolset/nuget/v3/index.json'
-                signType: real
-                signWithProd: true
+          - job: Build
+            displayName: 'Build VFS for Git (Windows x64)'
+            pool:
+              name: GitClientPME-1ESHostedPool-intel-pc
+              image: win-x86_64-ado1es
+              os: windows
+            templateContext:
+              outputParentDirectory: $(Build.ArtifactStagingDirectory)
+              outputs:
+                - output: pipelineArtifact
+                  targetPath: $(Build.ArtifactStagingDirectory)\GVFS.Installers
+                  artifactName: Installer
+                - output: pipelineArtifact
+                  targetPath: $(Build.ArtifactStagingDirectory)\FastFetch
+                  artifactName: FastFetch
+                - output: pipelineArtifact
+                  targetPath: $(Build.ArtifactStagingDirectory)\Symbols
+                  artifactName: Symbols
+                - output: pipelineArtifact
+                  targetPath: $(Build.ArtifactStagingDirectory)\GVFS.FunctionalTests
+                  artifactName: FunctionalTests
 
-            outputs:
-              - output: pipelineArtifact
-                targetPath: $(Build.ArtifactStagingDirectory)\GVFS.Installers
-                artifactName: Installer
-              - output: pipelineArtifact
-                targetPath: $(Build.ArtifactStagingDirectory)\FastFetch
-                artifactName: FastFetch
-              - output: pipelineArtifact
-                targetPath: $(Build.ArtifactStagingDirectory)\Symbols
-                artifactName: Symbols
-              - output: pipelineArtifact
-                targetPath: $(Build.ArtifactStagingDirectory)\GVFS.FunctionalTests
-                artifactName: FunctionalTests
+            steps:
+              - checkout: self
+                displayName: 'Checkout VFS for Git'
+                path: vfsforgit/src
 
-          steps:
-            - checkout: VFSForGit
-              displayName: 'Checkout VFS for Git'
-              path: vfsforgit\src
+              - task: UseDotNet@2
+                displayName: 'Use .NET SDK (global.json)'
+                inputs:
+                  useGlobalJson: true
+                  workingDirectory: $(Build.SourcesDirectory)
 
-            - task: NuGetToolInstaller@1
-              displayName: 'Use NuGet 6.x'
+              - task: NuGetToolInstaller@1
+                displayName: 'Use NuGet 6.x'
+                inputs:
+                  versionSpec: '6.x'
+
+              - task: PowerShell@2
+                displayName: 'Install VS C++ workload (NativeAOT prerequisite)'
+                inputs:
+                  filePath: $(Build.SourcesDirectory)\.azure-pipelines\scripts\install-vs-cpp-workload.ps1
+
+              - task: PowerShell@2
+                displayName: 'Enable Projected File System (ProjFS)'
+                inputs:
+                  filePath: $(Build.SourcesDirectory)\.azure-pipelines\scripts\enable-projfs.ps1
+
+              - script: |
+                  $(Build.SourcesDirectory)\scripts\Build.bat ^
+                    $(BuildConfiguration) ^
+                    $(GVFSVersion) ^
+                    detailed
+                env:
+                  # Skip the Inno Setup compile step inside Build.bat so that
+                  # the Payload binaries can be ESRP-signed before they get
+                  # packaged into the installer. The installer is built in a
+                  # dedicated step further down, after signing.
+                  SkipCreateInstaller: 'true'
+                displayName: 'Build ($(BuildConfiguration))'
+
+              - script: |
+                  $(Build.SourcesDirectory)\scripts\RunUnitTests.bat ^
+                    $(BuildConfiguration)
+                displayName: 'Run unit tests'
+
+              # ESRP signing of the standalone binaries (Payload + FastFetch).
+              # The installer hasn't been built yet, so it can be packaged from
+              # signed binaries in a single Inno Setup pass.
+              - ${{ if eq(parameters.esrp, true) }}:
+                - template: .azure-pipelines/esrp/sign.yml@self
+                  parameters:
+                    displayName: 'Sign VFS for Git binaries'
+                    folderPath: $(OutDir)\GVFS.Payload\bin\$(BuildConfiguration)\win-x64
+                    pattern: |
+                      GitHooksLoader.exe
+                      GVFS.exe
+                      GVFS.Hooks.exe
+                      GVFS.Mount.exe
+                      GVFS.PostIndexChangedHook.exe
+                      GVFS.ReadObjectHook.exe
+                      GVFS.Service.exe
+                      GVFS.VirtualFileSystemHook.exe
+                    inlineOperation: |
+                      [
+                        {
+                          "KeyCode": "CP-230012",
+                          "OperationCode": "SigntoolSign",
+                          "ToolName": "sign",
+                          "ToolVersion": "1.0",
+                          "Parameters": {
+                            "OpusName": "Microsoft",
+                            "OpusInfo": "https://www.microsoft.com",
+                            "FileDigest": "/fd SHA256",
+                            "PageHash": "/NPH",
+                            "TimeStamp": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+                          }
+                        },
+                        {
+                          "KeyCode": "CP-230012",
+                          "OperationCode": "SigntoolVerify",
+                          "ToolName": "sign",
+                          "ToolVersion": "1.0",
+                          "Parameters": {}
+                        }
+                      ]
+
+                - template: .azure-pipelines/esrp/sign.yml@self
+                  parameters:
+                    displayName: 'Sign FastFetch'
+                    folderPath: $(OutDir)\FastFetch\bin\$(BuildConfiguration)\net10.0-windows10.0.17763.0\win-x64\publish
+                    pattern: 'FastFetch.exe'
+                    inlineOperation: |
+                      [
+                        {
+                          "KeyCode": "CP-230012",
+                          "OperationCode": "SigntoolSign",
+                          "ToolName": "sign",
+                          "ToolVersion": "1.0",
+                          "Parameters": {
+                            "OpusName": "Microsoft",
+                            "OpusInfo": "https://www.microsoft.com",
+                            "FileDigest": "/fd SHA256",
+                            "PageHash": "/NPH",
+                            "TimeStamp": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+                          }
+                        },
+                        {
+                          "KeyCode": "CP-230012",
+                          "OperationCode": "SigntoolVerify",
+                          "ToolName": "sign",
+                          "ToolVersion": "1.0",
+                          "Parameters": {}
+                        }
+                      ]
+
+              # Build the installer (Inno Setup compile) now that the Payload
+              # binaries are signed. --no-dependencies ensures the Payload's
+              # layout step does NOT re-run and overwrite our signed binaries
+              # with unsigned originals from each project's individual bin
+              # folder.
+              - script: |
+                  dotnet build "$(Build.SourcesDirectory)\GVFS\GVFS.Installers\GVFS.Installers.csproj" ^
+                    -c $(BuildConfiguration) ^
+                    --no-restore --no-dependencies ^
+                    -p:GVFSVersion=$(GVFSVersion) || EXIT /B 1
+                displayName: 'Build VFS for Git installer'
+
+              - ${{ if eq(parameters.esrp, true) }}:
+                - template: .azure-pipelines/esrp/sign.yml@self
+                  parameters:
+                    displayName: 'Sign VFS for Git installer'
+                    folderPath: $(OutDir)\GVFS.Installers\bin\$(BuildConfiguration)\win-x64
+                    pattern: 'SetupGVFS.*.exe'
+                    inlineOperation: |
+                      [
+                        {
+                          "KeyCode": "CP-230012",
+                          "OperationCode": "SigntoolSign",
+                          "ToolName": "sign",
+                          "ToolVersion": "1.0",
+                          "Parameters": {
+                            "OpusName": "Microsoft",
+                            "OpusInfo": "https://www.microsoft.com",
+                            "FileDigest": "/fd SHA256",
+                            "PageHash": "/NPH",
+                            "TimeStamp": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+                          }
+                        },
+                        {
+                          "KeyCode": "CP-230012",
+                          "OperationCode": "SigntoolVerify",
+                          "ToolName": "sign",
+                          "ToolVersion": "1.0",
+                          "Parameters": {}
+                        }
+                      ]
+
+              - script: |
+                  $(Build.SourcesDirectory)\scripts\CreateBuildArtifacts.bat ^
+                    $(BuildConfiguration) ^
+                    $(Build.ArtifactStagingDirectory)
+                displayName: 'Stage artifacts'
+
+      - stage: release
+        displayName: 'Release'
+        dependsOn: [build]
+        # Only publish a draft GitHub release when ESRP signing was enabled in
+        # this run -- otherwise we would risk uploading unsigned installer
+        # binaries to the public release workflow.
+        condition: and(succeeded(), eq('${{ parameters.github }}', true), eq('${{ parameters.esrp }}', true))
+        jobs:
+          - job: github
+            displayName: 'Publish GitHub release'
+            pool:
+              name: GitClientPME-1ESHostedPool-intel-pc
+              image: win-x86_64-ado1es
+              os: windows
+            templateContext:
+              type: releaseJob
+              isProduction: true
               inputs:
-                versionSpec: '6.x'
-
-            - script: |
-                $(Agent.BuildDirectory)\vfsforgit\src\scripts\Build.bat ^
-                  $(BuildConfiguration) ^
-                  $(GVFSMajorAndMinorVersion).$(GVFSRevision) ^
-                  detailed
-              displayName: 'Build and sign ($(BuildConfiguration))'
-
-            - script: |
-                $(Agent.BuildDirectory)\vfsforgit\src\scripts\RunUnitTests.bat ^
-                  $(BuildConfiguration)
-              displayName: 'Run unit tests'
-
-            - script: |
-                $(Agent.BuildDirectory)\vfsforgit\src\scripts\CreateBuildArtifacts.bat ^
-                  $(BuildConfiguration) ^
-                  $(Build.ArtifactStagingDirectory)
-              displayName: 'Create artifacts'
+                - input: pipelineArtifact
+                  artifactName: Installer
+                  targetPath: $(Pipeline.Workspace)/assets/Installer
+                - input: pipelineArtifact
+                  artifactName: Symbols
+                  targetPath: $(Pipeline.Workspace)/assets/Symbols
+            steps:
+              - task: CopyFiles@2
+                displayName: 'Gather PDB files'
+                inputs:
+                  SourceFolder: $(Pipeline.Workspace)/assets/Symbols
+                  Contents: '**/*.pdb'
+                  TargetFolder: $(Pipeline.Workspace)/_pdbs
+              - task: ArchiveFiles@2
+                displayName: 'Prepare PDB files for upload'
+                inputs:
+                  rootFolderOrFile: $(Pipeline.Workspace)/_pdbs
+                  includeRootFolder: false
+                  archiveType: zip
+                  archiveFile: $(Pipeline.Workspace)/_final/Symbols.zip
+                  replaceExistingArchive: true
+              - task: CopyFiles@2
+                displayName: 'Prepare installer for upload'
+                inputs:
+                  SourceFolder: $(Pipeline.Workspace)/assets/Installer
+                  Contents: 'SetupGVFS.*.exe'
+                  TargetFolder: $(Pipeline.Workspace)/_final
+              - task: GitHubRelease@1
+                displayName: 'Create draft GitHub Release'
+                inputs:
+                  gitHubConnection: $(githubConnectionName)
+                  repositoryName: microsoft/VFSForGit
+                  tag: 'v$(GVFSVersion)'
+                  tagSource: userSpecifiedTag
+                  title: 'VFS for Git $(GVFSVersion)'
+                  isDraft: true
+                  isPreRelease: true
+                  addChangeLog: true
+                  assets: |
+                    $(Pipeline.Workspace)/_final/*
