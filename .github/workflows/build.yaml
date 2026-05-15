@@ -290,6 +290,13 @@ jobs:
       if: steps.skip.outputs.result != 'true'
       uses: microsoft/setup-msbuild@v3.0.0
 
+    - name: Install vcpkg native dependencies
+      if: steps.skip.outputs.result != 'true'
+      shell: cmd
+      run: |
+        "%VCPKG_INSTALLATION_ROOT%\vcpkg.exe" install --triplet x64-windows-static-aot --x-install-root=out\vcpkg_installed\static --x-manifest-root=src || exit /b 1
+        "%VCPKG_INSTALLATION_ROOT%\vcpkg.exe" install --triplet x64-windows-dynamic --x-install-root=out\vcpkg_installed\dynamic --x-manifest-root=src || exit /b 1
+
     - name: Build VFS for Git
       if: steps.skip.outputs.result != 'true'
       shell: cmd

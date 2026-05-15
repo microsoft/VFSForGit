@@ -1,0 +1,6 @@
+{
+  "$comment": "vcpkg manifest for native dependencies built as static libraries for NativeAOT linking.",
+  "dependencies": [
+    "libgit2"
+  ]
+}

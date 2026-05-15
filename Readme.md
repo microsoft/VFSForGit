@@ -89,3 +89,7 @@ See [License.md](License.md).
 
 VFS for Git relies on the PrjFlt filter driver, formerly known as the GvFlt
 filter driver, available as a prerelease NuGet package.
+
+VFS for Git also includes or links to third-party native libraries at build
+time. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for details on
+these dependencies and their licenses.

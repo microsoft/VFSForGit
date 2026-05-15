@@ -13,6 +13,75 @@
   <Import Project="$(MSBuildThisFileDirectory)GVFS\GVFS.MSBuild\GVFS.targets" />
 
   <!--
+    Auto-restore vcpkg native dependencies when missing.
+    Modeled after vcpkg's official VcpkgInstallManifestDependencies target
+    (scripts/buildsystems/msbuild/vcpkg.targets), adapted for .csproj projects
+    and dual-triplet installs (static-aot + dynamic).
+
+    Key differences from official vcpkg.targets:
+      - Hooks PrepareForBuild instead of ClCompile (which doesn't exist in csproj)
+      - Installs two triplets (static for AOT linking, dynamic for runtime P/Invoke)
+      - Outputs to out/vcpkg_installed/ instead of src/vcpkg_installed/
+      - Discovers vcpkg via VCPKG_INSTALLATION_ROOT, VS-bundled path, or PATH
+
+    Stamp file pattern: the target uses Inputs/Outputs so MSBuild skips it entirely
+    when the manifests haven't changed and the stamp file is up-to-date.
+    Build.bat also runs vcpkg install upfront, making this a no-op for CLI builds.
+  -->
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <_VcpkgManifestFile>$(RepoSrcPath)vcpkg.json</_VcpkgManifestFile>
+    <_VcpkgConfigFile>$(RepoSrcPath)vcpkg-configuration.json</_VcpkgConfigFile>
+    <_VcpkgStampFile>$(RepoOutPath)vcpkg_installed\.msbuildstamp</_VcpkgStampFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <_VcpkgManifestInputs Include="$(_VcpkgManifestFile)" />
+    <_VcpkgManifestInputs Include="$(_VcpkgConfigFile)" Condition="Exists('$(_VcpkgConfigFile)')" />
+  </ItemGroup>
+
+  <Target Name="_RestoreVcpkgDependencies"
+          BeforeTargets="PrepareForBuild;ComputeFilesToPublish"
+          Condition="'$(MSBuildProjectName)' == 'GVFS.Common'"
+          Inputs="@(_VcpkgManifestInputs)"
+          Outputs="$(_VcpkgStampFile)">
+
+    <!-- Locate vcpkg: VCPKG_INSTALLATION_ROOT > VS-bundled > PATH -->
+    <PropertyGroup>
+      <_VcpkgExe Condition="Exists('$(VCPKG_INSTALLATION_ROOT)\vcpkg.exe')">$(VCPKG_INSTALLATION_ROOT)\vcpkg.exe</_VcpkgExe>
+      <_VcpkgExe Condition="'$(_VcpkgExe)' == '' and Exists('$(VsInstallRoot)\VC\vcpkg\vcpkg.exe')">$(VsInstallRoot)\VC\vcpkg\vcpkg.exe</_VcpkgExe>
+      <_VcpkgManifestArg>--x-manifest-root="$(RepoSrcPath.TrimEnd('\'))"</_VcpkgManifestArg>
+    </PropertyGroup>
+
+    <!-- For dotnet build (no VsInstallRoot): find VS-bundled vcpkg via vswhere -->
+    <Exec Command="&quot;$(MSBuildProgramFiles32)\Microsoft Visual Studio\Installer\vswhere.exe&quot; -latest -products * -property installationPath"
+          ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="low"
+          Condition="'$(_VcpkgExe)' == ''">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_VsInstallPath" />
+    </Exec>
+    <PropertyGroup Condition="'$(_VcpkgExe)' == '' and '$(_VsInstallPath)' != '' and Exists('$(_VsInstallPath)\VC\vcpkg\vcpkg.exe')">
+      <_VcpkgExe>$(_VsInstallPath)\VC\vcpkg\vcpkg.exe</_VcpkgExe>
+    </PropertyGroup>
+
+    <!-- Final fallback: bare vcpkg on PATH -->
+    <PropertyGroup Condition="'$(_VcpkgExe)' == ''">
+      <_VcpkgExe>vcpkg</_VcpkgExe>
+    </PropertyGroup>
+
+    <Message Importance="high" Text="[vcpkg] Installing native dependencies to $(RepoOutPath)vcpkg_installed\" />
+
+    <MakeDir Directories="$(RepoOutPath)vcpkg_installed\" />
+    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet x64-windows-static-aot --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\static&quot; $(_VcpkgManifestArg)"
+          StandardOutputImportance="High" StandardErrorImportance="High" />
+    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet x64-windows-dynamic --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\dynamic&quot; $(_VcpkgManifestArg)"
+          StandardOutputImportance="High" StandardErrorImportance="High" />
+
+    <Error Condition="!Exists('$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\git2.dll')"
+           Text="vcpkg install completed but expected output files are missing. Check vcpkg output above for errors." />
+
+    <Touch Files="$(_VcpkgStampFile)" AlwaysCreate="true" />
+  </Target>
+
+  <!--
     Copy native C++ hook executables and managed peer executables to GVFS.exe
     output directory. In a production install all binaries are co-located in one
     directory. During dev builds each project has its own output; this target

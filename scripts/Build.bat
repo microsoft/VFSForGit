@@ -32,6 +32,44 @@ dotnet restore "%VFS_SRCDIR%\GVFS.sln" ^
         /v:%VERBOSITY% ^
         /p:Configuration=%CONFIGURATION% || GOTO ERROR
 
+ECHO ^*************************************
+ECHO ^* Installing vcpkg native libraries *
+ECHO ^*************************************
+IF EXIST "%VFS_OUTDIR%\vcpkg_installed\dynamic\x64-windows-dynamic\bin\git2.dll" (
+    ECHO INFO: vcpkg native libraries already present, skipping install.
+    GOTO :VCPKG_DONE
+)
+SET VCPKG_EXEC=
+IF DEFINED VCPKG_INSTALLATION_ROOT (
+    IF EXIST "%VCPKG_INSTALLATION_ROOT%\vcpkg.exe" (
+        SET "VCPKG_EXEC=%VCPKG_INSTALLATION_ROOT%\vcpkg.exe"
+        GOTO :FOUND_VCPKG
+    )
+)
+FOR /F "tokens=* USEBACKQ" %%F IN (`where vcpkg.exe 2^>nul`) DO (
+    SET "VCPKG_EXEC=%%F"
+    GOTO :FOUND_VCPKG
+)
+REM Try VS-bundled vcpkg via vswhere
+SET VSWHERE_VCPKG="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+IF EXIST %VSWHERE_VCPKG% (
+    FOR /F "tokens=* USEBACKQ" %%F IN (`%VSWHERE_VCPKG% -latest -products * -property installationPath`) DO (
+        IF EXIST "%%F\VC\vcpkg\vcpkg.exe" (
+            SET "VCPKG_EXEC=%%F\VC\vcpkg\vcpkg.exe"
+            GOTO :FOUND_VCPKG
+        )
+    )
+)
+ECHO ERROR: vcpkg.exe not found. Install vcpkg or set VCPKG_INSTALLATION_ROOT.
+ECHO        See https://learn.microsoft.com/en-us/vcpkg/get-started/get-started
+EXIT /B 1
+
+:FOUND_VCPKG
+ECHO INFO: Using vcpkg at '%VCPKG_EXEC%'
+"%VCPKG_EXEC%" install --triplet x64-windows-static-aot --x-install-root="%VFS_OUTDIR%\vcpkg_installed\static" --x-manifest-root="%VFS_SRCDIR%" || GOTO ERROR
+"%VCPKG_EXEC%" install --triplet x64-windows-dynamic --x-install-root="%VFS_OUTDIR%\vcpkg_installed\dynamic" --x-manifest-root="%VFS_SRCDIR%" || GOTO ERROR
+:VCPKG_DONE
+
 ECHO ^**************************
 ECHO ^* Building C++ Projects  *
 ECHO ^**************************
