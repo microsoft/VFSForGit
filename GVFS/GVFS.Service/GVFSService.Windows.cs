@@ -26,6 +26,7 @@ namespace GVFS.Service
         private RepoRegistry repoRegistry;
         private WindowsRequestHandler requestHandler;
         private INotificationHandler notificationHandler;
+        private PendingUpgradeMonitor pendingUpgradeMonitor;
 
         public GVFSService(JsonTracer tracer)
         {
@@ -46,8 +47,14 @@ namespace GVFS.Service
                 // Check for a staged upgrade before doing anything else.
                 // If no GVFS.Mount processes are running (typical at boot or after
                 // unmount-all), copy staged files in-place and proceed normally.
-                // If mounts ARE running, the upgrade is deferred to next restart.
-                PendingUpgradeHandler.TryApplyPendingUpgrade(this.tracer);
+                // If mounts ARE running, start a monitor that will apply the
+                // upgrade when all mount processes exit.
+                UpgradeResult upgradeResult = PendingUpgradeHandler.TryApplyPendingUpgrade(this.tracer);
+                if (upgradeResult == UpgradeResult.DeferredMountsRunning)
+                {
+                    this.pendingUpgradeMonitor = new PendingUpgradeMonitor(this.tracer);
+                    this.pendingUpgradeMonitor.Start();
+                }
 
                 this.repoRegistry = new RepoRegistry(
                     this.tracer,
@@ -97,6 +104,12 @@ namespace GVFS.Service
                 if (this.tracer != null)
                 {
                     this.tracer.RelatedInfo("Stopping");
+                }
+
+                if (this.pendingUpgradeMonitor != null)
+                {
+                    this.pendingUpgradeMonitor.Dispose();
+                    this.pendingUpgradeMonitor = null;
                 }
 
                 if (this.serviceStopped != null)
