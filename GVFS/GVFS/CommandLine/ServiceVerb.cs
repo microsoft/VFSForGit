@@ -136,6 +136,12 @@ namespace GVFS.CommandLine
                     }
                 }
 
+                // Notify the service so it can check for a pending staged
+                // upgrade. Individual unmounts skip unregister (to preserve
+                // automount registration), so the service's normal unmount
+                // trigger never fires during --unmount-all.
+                this.TryNotifyPendingUpgradeCheck();
+
                 if (failedRepoRoots.Count() > 0)
                 {
                     string errorString = $"The following repos failed to unmount:{Environment.NewLine}{string.Join(Environment.NewLine, failedRepoRoots.ToArray())}";
@@ -216,6 +222,47 @@ namespace GVFS.CommandLine
             }
 
             return false;
+        }
+
+        private void TryNotifyPendingUpgradeCheck()
+        {
+            NamedPipeMessages.PendingUpgradeCheckRequest request = new NamedPipeMessages.PendingUpgradeCheckRequest();
+
+            try
+            {
+                using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
+                {
+                    if (!client.Connect())
+                    {
+                        this.Output.WriteLine("    WARNING: Could not notify GVFS.Service to check for pending upgrade (service not responding).");
+                        return;
+                    }
+
+                    client.SendRequest(request.ToMessage());
+                    NamedPipeMessages.Message response = client.ReadResponse();
+                    if (response.Header == NamedPipeMessages.PendingUpgradeCheckRequest.Response.Header)
+                    {
+                        NamedPipeMessages.PendingUpgradeCheckRequest.Response typedResponse =
+                            NamedPipeMessages.PendingUpgradeCheckRequest.Response.FromMessage(response);
+                        if (typedResponse.State != NamedPipeMessages.CompletionState.Success)
+                        {
+                            this.Output.WriteLine("    WARNING: Pending upgrade check failed: " + typedResponse.ErrorMessage);
+                        }
+                    }
+                    else
+                    {
+                        this.Output.WriteLine("    WARNING: GVFS.Service responded with unexpected message: " + response.Header);
+                    }
+                }
+            }
+            catch (BrokenPipeException)
+            {
+                this.Output.WriteLine("    WARNING: Could not notify GVFS.Service to check for pending upgrade.");
+            }
+            catch (Exception ex)
+            {
+                this.Output.WriteLine("    WARNING: Error notifying GVFS.Service to check for pending upgrade: " + ex.Message);
+            }
         }
     }
 }

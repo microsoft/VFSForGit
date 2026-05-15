@@ -95,6 +95,18 @@ namespace GVFS.Service.Handlers
 
                     break;
 
+                case NamedPipeMessages.PendingUpgradeCheckRequest.Header:
+                    this.requestDescription = "pending upgrade check";
+
+                    this.TryDeferredPendingUpgradeCheck(this.tracer);
+
+                    NamedPipeMessages.PendingUpgradeCheckRequest.Response upgradeCheckResponse =
+                        new NamedPipeMessages.PendingUpgradeCheckRequest.Response();
+                    upgradeCheckResponse.State = NamedPipeMessages.CompletionState.Success;
+                    this.TrySendResponse(tracer, upgradeCheckResponse.ToMessage().ToString(), connection);
+
+                    break;
+
                 case NamedPipeMessages.GetActiveRepoListRequest.Header:
                     this.requestDescription = RepoListRequestDescription;
                     NamedPipeMessages.GetActiveRepoListRequest repoListRequest = NamedPipeMessages.GetActiveRepoListRequest.FromMessage(message);

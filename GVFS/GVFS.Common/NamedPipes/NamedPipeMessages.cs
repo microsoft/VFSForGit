@@ -427,6 +427,29 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
+        public class PendingUpgradeCheckRequest
+        {
+            public const string Header = nameof(PendingUpgradeCheckRequest);
+
+            public static PendingUpgradeCheckRequest FromMessage(Message message)
+            {
+                return GVFSJsonOptions.Deserialize<PendingUpgradeCheckRequest>(message.Body);
+            }
+
+            public Message ToMessage()
+            {
+                return new Message(Header, GVFSJsonOptions.Serialize(this));
+            }
+
+            public class Response : BaseResponse<PendingUpgradeCheckRequest>
+            {
+                public static Response FromMessage(Message message)
+                {
+                    return GVFSJsonOptions.Deserialize<Response>(message.Body);
+                }
+            }
+        }
+
         public class GetActiveRepoListRequest
         {
             public const string Header = nameof(GetActiveRepoListRequest);
