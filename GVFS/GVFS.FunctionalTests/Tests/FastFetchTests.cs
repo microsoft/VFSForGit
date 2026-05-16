@@ -320,9 +320,9 @@ namespace GVFS.FunctionalTests.Tests
 
             try
             {
-                // Ignore case differences on case-insensitive filesystems
+                // Verify FastFetch produces correct casing matching git checkout, including on case-insensitive filesystems
                 this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                    .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, ignoreCase: !FileSystemHelpers.CaseSensitiveFileSystem);
+                    .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, ignoreCase: false);
             }
             finally
             {
