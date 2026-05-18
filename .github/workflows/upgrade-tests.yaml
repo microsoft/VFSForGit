@@ -33,6 +33,7 @@ jobs:
           - double-staging
           - staging-then-clean
           - mount-safety-deferral
+          - unmount-all-triggers-upgrade
       fail-fast: false
 
     steps:
@@ -272,6 +273,36 @@ jobs:
             Restart-Service
             Assert-PendingUpgrade $false
             Write-Host "PASS: Mount safety deferral works correctly"
+          }
+
+          "unmount-all-triggers-upgrade" {
+            Write-Host "=== Scenario: unmount-all triggers staged upgrade ==="
+            # Install LKG, mount, staging upgrade with new installer (which
+            # replaces GVFS.Service.exe in-place with the new version that
+            # includes PendingUpgradeMonitor). Then unmount via --unmount-all.
+            # The new service monitors mount process exits and applies the
+            # upgrade automatically — no pipe message from gvfs.exe needed.
+            Install-GVFS $lkgInstaller
+            Assert-ServiceRunning
+            $mountPid = Mount-TestRepo
+
+            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=true")
+            Assert-MountAlive $mountPid
+            Assert-PendingUpgrade $true
+
+            # Unmount via --unmount-all (uses LKG gvfs.exe — no new pipe msg)
+            & "$installDir\gvfs.exe" service --unmount-all 2>&1 | Write-Host
+            if ($LASTEXITCODE -ne 0) { throw "unmount-all failed" }
+
+            # The monitor's debounce timer fires 5s after the last mount
+            # process exits, then applies the upgrade. Wait for completion.
+            $deadline = (Get-Date).AddSeconds(30)
+            while ((Test-Path "$installDir\PendingUpgrade") -and (Get-Date) -lt $deadline) {
+              Start-Sleep -Seconds 2
+            }
+
+            Assert-PendingUpgrade $false
+            Write-Host "PASS: unmount-all triggers staged upgrade via process monitor"
           }
 
           default {
