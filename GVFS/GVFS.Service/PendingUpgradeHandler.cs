@@ -39,7 +39,7 @@ namespace GVFS.Service
         private const string MountProcessName = "GVFS.Mount";
         private const string MountExeName = "GVFS.Mount.exe";
 
-        private static readonly object ApplyLock = new object();
+        private static readonly Lock ApplyLock = new Lock();
 
         // Executables that users or the service can launch to start new
         // mount/hook processes. During upgrade these are moved out first

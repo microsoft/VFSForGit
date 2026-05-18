@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 
 namespace GVFS.Common.Git
 {
@@ -13,7 +14,7 @@ namespace GVFS.Common.Git
     {
         private const double MaxBackoffSeconds = 30;
 
-        private readonly object gitAuthLock = new object();
+        private readonly Lock gitAuthLock = new Lock();
         private readonly ICredentialStore credentialStore;
         private readonly string repoUrl;
 

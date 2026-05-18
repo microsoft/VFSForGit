@@ -27,7 +27,7 @@ namespace GVFS.Common
         /// </summary>
         private readonly bool collectionAppendsDirectlyToFile;
 
-        private readonly object fileLock = new object();
+        private readonly Lock fileLock = new Lock();
 
         private readonly PhysicalFileSystem fileSystem;
         private readonly string dataDirectoryPath;

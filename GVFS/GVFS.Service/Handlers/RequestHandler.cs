@@ -29,7 +29,7 @@ namespace GVFS.Service.Handlers
         private ITracer tracer;
         private IRepoRegistry repoRegistry;
         private Timer pendingUpgradeTimer;
-        private readonly object pendingUpgradeTimerLock = new object();
+        private readonly Lock pendingUpgradeTimerLock = new Lock();
 
         public RequestHandler(ITracer tracer, string etwArea, IRepoRegistry repoRegistry)
         {

@@ -2,16 +2,17 @@
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.Common.Database
 {
     /// <summary>
-    /// This class is for interacting with the Placeholder table in the SQLite database
+    /// This class is for interacting with the Placeholder tablein the SQLite database
     /// </summary>
     public class PlaceholderTable : IPlaceholderCollection
     {
         private IGVFSConnectionPool connectionPool;
-        private object writerLock = new object();
+        private Lock writerLock = new Lock();
 
         public PlaceholderTable(IGVFSConnectionPool connectionPool)
         {

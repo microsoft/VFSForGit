@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace GVFS.Common.Git
 {
@@ -21,14 +22,14 @@ namespace GVFS.Common.Git
         /// <summary>
         /// Lock taken for duration of running executingProcess.
         /// </summary>
-        private object executionLock = new object();
+        private Lock executionLock = new Lock();
 
         /// <summary>
         /// Lock taken when changing the running state of executingProcess.
         ///
         /// Can be taken within executionLock.
         /// </summary>
-        private object processLock = new object();
+        private Lock processLock = new Lock();
 
         private string gitBinPath;
         private string workingDirectoryRoot;
