@@ -15,7 +15,7 @@ namespace GVFS.Service.Handlers
     /// </summary>
     public class RequestHandler
     {
-        private const int PendingUpgradeDelayMs = 5000;
+        private const int PendingUpgradeDelayMs = 2000;
 
         protected const string EnableProjFSRequestDescription = "attach volume";
         protected string requestDescription;
