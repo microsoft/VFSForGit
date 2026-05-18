@@ -5,6 +5,7 @@ using System;
 using System.ComponentModel;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace GVFS.Platform.Windows
 {
@@ -16,7 +17,7 @@ namespace GVFS.Platform.Windows
         private const string EtwArea = nameof(WindowsFileBasedLock);
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false, true); // Default encoding used by StreamWriter
 
-        private readonly object deleteOnCloseStreamLock = new object();
+        private readonly Lock deleteOnCloseStreamLock = new Lock();
         private Stream deleteOnCloseStream;
 
         /// <summary>

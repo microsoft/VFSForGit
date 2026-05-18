@@ -27,7 +27,7 @@ namespace GVFS.Service
         private const int DebouncePeriodMs = 1000;
 
         private readonly ITracer tracer;
-        private readonly object syncLock = new object();
+        private readonly Lock syncLock = new Lock();
         private List<Process> trackedProcesses = new List<Process>();
         private Timer debounceTimer;
         private bool disposed;

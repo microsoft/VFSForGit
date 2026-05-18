@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace GVFS.Common.Tracing
 {
@@ -9,7 +10,7 @@ namespace GVFS.Common.Tracing
     /// </summary>
     public class PrettyConsoleEventListener : EventListener
     {
-        private static object consoleLock = new object();
+        private static Lock consoleLock = new Lock();
 
         public PrettyConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter, IEventListenerEventSink eventSink)
             : base(maxVerbosity, keywordFilter, eventSink)

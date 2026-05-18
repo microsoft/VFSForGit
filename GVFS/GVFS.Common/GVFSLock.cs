@@ -8,7 +8,7 @@ namespace GVFS.Common
 {
     public partial class GVFSLock
     {
-        private readonly object acquisitionLock = new object();
+        private readonly Lock acquisitionLock = new Lock();
         private readonly ITracer tracer;
         private readonly LockHolder currentLockHolder = new LockHolder();
 

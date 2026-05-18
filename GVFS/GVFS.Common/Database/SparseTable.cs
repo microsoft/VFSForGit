@@ -2,13 +2,14 @@
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.Common.Database
 {
     public class SparseTable : ISparseCollection
     {
         private IGVFSConnectionPool connectionPool;
-        private object writerLock = new object();
+        private Lock writerLock = new Lock();
 
         public SparseTable(IGVFSConnectionPool connectionPool)
         {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using GVFS.Common.Tracing;
 
 namespace GVFS.Common
@@ -16,7 +17,7 @@ namespace GVFS.Common
 
         private readonly int treeCapacity;
         private readonly ITracer tracer;
-        private readonly object syncLock = new object();
+        private readonly Lock syncLock = new Lock();
 
         // Primary storage: commit -> set of missing trees
         private readonly Dictionary<string, HashSet<string>> missingTreesByCommit;

@@ -124,7 +124,7 @@ namespace GVFS.UnitTests.Tracing
 
             private int bufferLength = 0;
             private byte[] buffer = new byte[16*1024];
-            private object bufferLock = new object();
+            private Lock bufferLock = new Lock();
             private Thread thread;
             private bool isRunning;
             private bool isDisposed;

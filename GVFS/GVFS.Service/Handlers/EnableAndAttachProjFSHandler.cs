@@ -3,6 +3,7 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Platform.Windows;
+using System.Threading;
 
 namespace GVFS.Service.Handlers
 {
@@ -10,7 +11,7 @@ namespace GVFS.Service.Handlers
     {
         private const string EtwArea = nameof(EnableAndAttachProjFSHandler);
 
-        private static object enablePrjFltLock = new object();
+        private static Lock enablePrjFltLock = new Lock();
 
         private NamedPipeServer.Connection connection;
         private NamedPipeMessages.EnableAndAttachProjFSRequest request;

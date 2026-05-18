@@ -56,7 +56,7 @@ namespace GVFS.Common
 
         private volatile CacheState cacheState = CacheState.Dirty;
 
-        private object cacheFileLock = new object();
+        private Lock cacheFileLock = new Lock();
 
         internal static bool? TEST_EnableHydrationSummaryOverride = null;
 
@@ -597,7 +597,7 @@ namespace GVFS.Common
 
         private bool TryDeleteStatusCacheFile()
         {
-            Debug.Assert(Monitor.IsEntered(this.cacheFileLock), "Attempting to delete the git status cache file without the cacheFileLock");
+            Debug.Assert(this.cacheFileLock.IsHeldByCurrentThread, "Attempting to delete the git status cache file without the cacheFileLock");
 
             try
             {
@@ -635,7 +635,7 @@ namespace GVFS.Common
         /// <returns>True on success, False on failure</returns>
         private bool MoveCacheFileToFinalLocation(string tmpStatusFilePath)
         {
-            Debug.Assert(Monitor.IsEntered(this.cacheFileLock), "Attempting to update the git status cache file without the cacheFileLock");
+            Debug.Assert(this.cacheFileLock.IsHeldByCurrentThread, "Attempting to update the git status cache file without the cacheFileLock");
 
             try
             {
