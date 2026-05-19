@@ -3,6 +3,7 @@ using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Hooks.HooksPlatform;
+using GVFS.Platform.Windows;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -47,9 +48,21 @@ namespace GVFS.Hooks
 
                 if (!GVFSHooksPlatform.TryGetGVFSEnlistmentRoot(Environment.CurrentDirectory, out enlistmentRoot, out errorMessage))
                 {
-                    // Nothing to hook when being run outside of a GVFS repo.
-                    // This is also the path when run with --git-dir outside of a GVFS directory, see Story #949665
-                    Environment.Exit(0);
+                    // .gvfs walk-up failed — this may be a worktree placed
+                    // outside the primary enlistment tree. Try resolving
+                    // the enlistment root through the worktree chain.
+                    GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(normalizedCurrentDirectory);
+                    if (wtInfo != null)
+                    {
+                        enlistmentRoot = wtInfo.GetEnlistmentRoot();
+                    }
+
+                    if (enlistmentRoot == null ||
+                        !Directory.Exists(Path.Combine(enlistmentRoot, WindowsPlatform.DotGVFSRoot)))
+                    {
+                        // Not in a GVFS repo or worktree. Nothing to hook.
+                        Environment.Exit(0);
+                    }
                 }
 
                 enlistmentPipename = GVFSHooksPlatform.GetNamedPipeName(enlistmentRoot);
