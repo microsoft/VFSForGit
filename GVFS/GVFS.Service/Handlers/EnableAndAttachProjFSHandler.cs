@@ -61,7 +61,9 @@ namespace GVFS.Service.Handlers
                         }
                         else
                         {
-                            error = "Failed to install (or enable) PrjFlt";
+                            error = "Failed to enable ProjFS. Ensure the Windows Projected File System optional feature is enabled. "
+                                + "From an elevated PowerShell prompt, run: "
+                                + "Enable-WindowsOptionalFeature -Online -FeatureName Client-ProjFS";
                             tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: {error}");
                         }
 
@@ -89,42 +91,11 @@ namespace GVFS.Service.Handlers
                 isNativeProjFSLibInstalled = ProjFSFilter.IsNativeLibInstalled(tracer, fileSystem);
                 if (!isNativeProjFSLibInstalled)
                 {
-                    if (isPrjfltServiceRunning)
-                    {
-                        tracer.RelatedInfo($"{nameof(TryEnablePrjFlt)}: Native ProjFS library is not installed, attempting to copy version packaged with VFS for Git");
-
-                        EventLevel eventLevel;
-                        EventMetadata copyNativeLibMetadata = new EventMetadata();
-                        copyNativeLibMetadata.Add("Area", EtwArea);
-                        string copyNativeDllError = string.Empty;
-                        if (ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch(tracer, new PhysicalFileSystem(), out copyNativeDllError))
-                        {
-                            isNativeProjFSLibInstalled = true;
-
-                            eventLevel = EventLevel.Warning;
-                            copyNativeLibMetadata.Add(TracingConstants.MessageKey.WarningMessage, $"{nameof(TryEnablePrjFlt)}: Successfully copied ProjFS native library");
-                        }
-                        else
-                        {
-                            error = $"Native ProjFS library is not installed and could not be copied: {copyNativeDllError}";
-
-                            eventLevel = EventLevel.Error;
-                            copyNativeLibMetadata.Add(nameof(copyNativeDllError), copyNativeDllError);
-                            copyNativeLibMetadata.Add(TracingConstants.MessageKey.ErrorMessage, $"{nameof(TryEnablePrjFlt)}: Failed to copy ProjFS native library");
-                        }
-
-                        copyNativeLibMetadata.Add(nameof(isNativeProjFSLibInstalled), isNativeProjFSLibInstalled);
-                        tracer.RelatedEvent(
-                            eventLevel,
-                            $"{nameof(TryEnablePrjFlt)}_{nameof(ProjFSFilter.TryCopyNativeLibIfDriverVersionsMatch)}",
-                            copyNativeLibMetadata,
-                            Keywords.Telemetry);
-                    }
-                    else
-                    {
-                        error = "Native ProjFS library is not installed, did not attempt to copy library because prjflt service is not running";
-                        tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: {error}");
-                    }
+                    error = "ProjFS native library (ProjectedFSLib.dll) is not installed in System32. "
+                        + "Ensure the Windows Projected File System optional feature is enabled. "
+                        + "From an elevated PowerShell prompt, run: "
+                        + "Enable-WindowsOptionalFeature -Online -FeatureName Client-ProjFS";
+                    tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: {error}");
                 }
 
                 bool isAutoLoggerEnabled = ProjFSFilter.IsAutoLoggerEnabled(tracer);
@@ -155,7 +126,7 @@ namespace GVFS.Service.Handlers
 
         public void Run()
         {
-            string errorMessage;
+            string errorMessage = null;
             NamedPipeMessages.CompletionState state = NamedPipeMessages.CompletionState.Success;
 
             if (!TryEnablePrjFlt(this.tracer, out errorMessage))
@@ -164,12 +135,15 @@ namespace GVFS.Service.Handlers
                 this.tracer.RelatedError("Unable to install or enable PrjFlt. Enlistment root: {0} \nError: {1} ", this.request.EnlistmentRoot, errorMessage);
             }
 
-            if (!string.IsNullOrEmpty(this.request.EnlistmentRoot))
+            if (state == NamedPipeMessages.CompletionState.Success
+                && !string.IsNullOrEmpty(this.request.EnlistmentRoot))
             {
-                if (!ProjFSFilter.TryAttach(this.request.EnlistmentRoot, out errorMessage))
+                string attachError;
+                if (!ProjFSFilter.TryAttachToVolume(this.request.EnlistmentRoot, this.tracer, out attachError))
                 {
                     state = NamedPipeMessages.CompletionState.Failure;
-                    this.tracer.RelatedError("Unable to attach filter to volume. Enlistment root: {0} \nError: {1} ", this.request.EnlistmentRoot, errorMessage);
+                    errorMessage = attachError;
+                    this.tracer.RelatedError("Unable to attach filter to volume. Enlistment root: {0} \nError: {1} ", this.request.EnlistmentRoot, attachError);
                 }
             }
 
