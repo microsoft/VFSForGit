@@ -4,6 +4,7 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 
@@ -51,7 +52,7 @@ namespace GVFS.Common
         /// This method should only be called by processes whose code we own as the background process must
         /// do some extra work after it starts.
         /// </remarks>
-        public abstract void StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args);
+        public abstract Process StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args);
 
         /// <summary>
         /// Adjusts the current process for running in the background.

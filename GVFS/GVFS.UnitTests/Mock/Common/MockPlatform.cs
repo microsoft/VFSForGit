@@ -6,6 +6,7 @@ using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
@@ -152,7 +153,7 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotImplementedException();
         }
 
-        public override void StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args)
+        public override Process StartBackgroundVFS4GProcess(ITracer tracer, string programName, string[] args)
         {
             throw new NotSupportedException();
         }

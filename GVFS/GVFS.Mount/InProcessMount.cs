@@ -133,10 +133,11 @@ namespace GVFS.Mount
                 Stopwatch sw = Stopwatch.StartNew();
                 ServerGVFSConfig config;
                 string authConfigError;
+                bool isAuthFailure;
 
                 if (!this.enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
                     this.tracer, this.enlistment, this.retryConfig,
-                    out config, out authConfigError))
+                    out config, out authConfigError, out isAuthFailure))
                 {
                     if (this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url))
                     {
@@ -145,7 +146,9 @@ namespace GVFS.Mount
                     }
                     else
                     {
-                        this.FailMountAndExit("Unable to query /gvfs/config" + Environment.NewLine + authConfigError);
+                        this.FailMountAndExit(
+                            isAuthFailure ? ReturnCode.AuthenticationError : ReturnCode.GenericError,
+                            "Unable to query /gvfs/config" + Environment.NewLine + authConfigError);
                     }
                 }
 
