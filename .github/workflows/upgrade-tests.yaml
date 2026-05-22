@@ -173,6 +173,36 @@ jobs:
           }
         }
 
+        function Assert-HookVersionsMatch {
+          Write-Host "Verifying hook binary versions in enlistment..."
+          $hooksDir = Join-Path $enlistment "src\.git\hooks"
+
+          # Native hooks: each has its own source binary in the install directory
+          # Command hooks: copies of GitHooksLoader.exe
+          $hooks = @(
+            @{ Source = "GVFS.ReadObjectHook.exe";        Target = "read-object.exe" }
+            @{ Source = "GVFS.VirtualFileSystemHook.exe"; Target = "virtual-filesystem.exe" }
+            @{ Source = "GVFS.PostIndexChangedHook.exe";  Target = "post-index-change.exe" }
+            @{ Source = "GitHooksLoader.exe";             Target = "pre-command.exe" }
+            @{ Source = "GitHooksLoader.exe";             Target = "post-command.exe" }
+          )
+
+          foreach ($hook in $hooks) {
+            $sourcePath = Join-Path $installDir $hook.Source
+            $targetPath = Join-Path $hooksDir $hook.Target
+            if (-not (Test-Path $targetPath)) {
+              throw "Hook not found: $targetPath"
+            }
+            $sourceVer = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($sourcePath).FileVersion
+            $targetVer = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($targetPath).FileVersion
+            if ($sourceVer -ne $targetVer) {
+              throw "Hook version mismatch: $($hook.Target) is $targetVer, expected $sourceVer (from $($hook.Source))"
+            }
+            Write-Host "  $($hook.Target): $targetVer OK"
+          }
+          Write-Host "All hook binary versions match"
+        }
+
         # =============================================
         # Test scenarios
         # =============================================
@@ -193,6 +223,11 @@ jobs:
             Unmount-TestRepo
             Restart-Service
             Assert-PendingUpgrade $false
+
+            # Remount and verify all hooks were updated to new version
+            $null = Mount-TestRepo
+            Assert-HookVersionsMatch
+            Unmount-TestRepo
             Write-Host "PASS: Staging upgrade completed"
           }
 
@@ -205,6 +240,11 @@ jobs:
             Install-GVFS $newInstaller @("/STAGEIFMOUNTED=false")
             Assert-PendingUpgrade $false
             Assert-ServiceRunning
+
+            # Remount and verify all hooks were updated to new version
+            $null = Mount-TestRepo
+            Assert-HookVersionsMatch
+            Unmount-TestRepo
             Write-Host "PASS: Clean upgrade completed"
           }
 
