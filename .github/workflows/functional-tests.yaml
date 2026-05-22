@@ -77,7 +77,19 @@ jobs:
           return true
 
     - name: Download Git installer
+      id: download-git
       if: steps.skip.outputs.result != 'true'
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: ${{ inputs.git_artifact_name }}
+        path: git
+        repository: ${{ inputs.git_repository || github.repository }}
+        run-id: ${{ inputs.git_run_id || github.run_id }}
+        github-token: ${{ secrets.git_token || github.token }}
+
+    - name: Download Git installer (retry)
+      if: steps.skip.outputs.result != 'true' && steps.download-git.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
         name: ${{ inputs.git_artifact_name }}
@@ -87,7 +99,19 @@ jobs:
         github-token: ${{ secrets.git_token || github.token }}
 
     - name: Download GVFS installer
+      id: download-gvfs
       if: steps.skip.outputs.result != 'true'
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: GVFS_${{ matrix.configuration }}
+        path: gvfs
+        repository: ${{ inputs.vfs_repository || github.repository }}
+        run-id: ${{ inputs.vfs_run_id || github.run_id }}
+        github-token: ${{ secrets.vfs_token || github.token }}
+
+    - name: Download GVFS installer (retry)
+      if: steps.skip.outputs.result != 'true' && steps.download-gvfs.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
         name: GVFS_${{ matrix.configuration }}
@@ -97,7 +121,19 @@ jobs:
         github-token: ${{ secrets.vfs_token || github.token }}
 
     - name: Download functional tests drop
+      id: download-ft
       if: steps.skip.outputs.result != 'true'
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: FunctionalTests_${{ matrix.configuration }}
+        path: ft
+        repository: ${{ inputs.vfs_repository || github.repository }}
+        run-id: ${{ inputs.vfs_run_id || github.run_id }}
+        github-token: ${{ secrets.vfs_token || github.token }}
+
+    - name: Download functional tests drop (retry)
+      if: steps.skip.outputs.result != 'true' && steps.download-ft.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
         name: FunctionalTests_${{ matrix.configuration }}
