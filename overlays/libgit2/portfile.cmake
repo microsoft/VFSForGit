@@ -6,6 +6,7 @@ vcpkg_from_github(
     HEAD_REF main
     PATCHES
         dependencies.diff
+        non-elevated-admin-owner.diff
 )
 
 file(REMOVE_RECURSE
