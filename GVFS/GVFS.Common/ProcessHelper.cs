@@ -18,7 +18,16 @@ namespace GVFS.Common
             processInfo.RedirectStandardOutput = redirectOutput;
             processInfo.RedirectStandardError = redirectOutput;
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            processInfo.CreateNoWindow = redirectOutput;
+
+            // CreateNoWindow=false avoids allocating a hidden conhost.exe per child
+            // process. When redirectOutput is true, I/O goes through pipes so no
+            // console is needed. When redirectOutput is false, the child inherits the
+            // parent's console handles — this works when the parent has a console
+            // (e.g., GVFS.Hooks invoked from a terminal), but output is silently lost
+            // when the parent has no console (e.g., service context). This is
+            // acceptable because CreateNoWindow=true would only send that output to
+            // an invisible hidden console instead.
+            processInfo.CreateNoWindow = false;
             processInfo.Arguments = args;
 
             return Run(processInfo);
