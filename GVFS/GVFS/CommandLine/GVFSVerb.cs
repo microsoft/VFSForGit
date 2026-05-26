@@ -243,7 +243,8 @@ namespace GVFS.CommandLine
                     enlistment,
                     retryConfig ?? new RetryConfig(),
                     out config,
-                    out error),
+                    out error,
+                    out _),
                 "Authenticating",
                 enlistment.EnlistmentRoot);
 

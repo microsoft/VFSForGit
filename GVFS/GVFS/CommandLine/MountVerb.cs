@@ -4,6 +4,7 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 
@@ -12,6 +13,7 @@ namespace GVFS.CommandLine
     public class MountVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string MountVerbName = "mount";
+        private Process mountProcess;
 
         public string Verbosity { get; set; }
 
@@ -197,8 +199,36 @@ namespace GVFS.CommandLine
                     () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
                     "Mounting"))
                 {
-                    this.ReportErrorAndExit(tracer, errorMessage);
+                    ReturnCode mountExitCode = ReturnCode.GenericError;
+                    if (this.mountProcess != null)
+                    {
+                        try
+                        {
+                            if (!this.mountProcess.HasExited)
+                            {
+                                this.mountProcess.WaitForExit(1000);
+                            }
+
+                            if (this.mountProcess.HasExited)
+                            {
+                                mountExitCode = (ReturnCode)this.mountProcess.ExitCode;
+                            }
+                        }
+                        catch (InvalidOperationException)
+                        {
+                        }
+                        finally
+                        {
+                            this.mountProcess.Dispose();
+                            this.mountProcess = null;
+                        }
+                    }
+
+                    this.ReportErrorAndExit(tracer, mountExitCode, errorMessage);
                 }
+
+                this.mountProcess?.Dispose();
+                this.mountProcess = null;
 
                 if (!this.Unattended)
                 {
@@ -229,7 +259,7 @@ namespace GVFS.CommandLine
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {mountPath}");
 
-            GVFSPlatform.Instance.StartBackgroundVFS4GProcess(
+            this.mountProcess = GVFSPlatform.Instance.StartBackgroundVFS4GProcess(
                 tracer,
                 mountExecutableLocation,
                 new[]
