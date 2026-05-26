@@ -63,14 +63,32 @@ jobs:
         gh release download $tag --repo microsoft/VFSForGit --pattern "SetupGVFS*.exe" --dir gvfs-lkg
 
     - name: Download Git installer
+      id: download-git
       if: steps.skip.outputs.result != 'true'
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: MicrosoftGit
+        path: git
+
+    - name: Download Git installer (retry)
+      if: steps.skip.outputs.result != 'true' && steps.download-git.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
         name: MicrosoftGit
         path: git
 
     - name: Download current GVFS installer
+      id: download-gvfs
       if: steps.skip.outputs.result != 'true'
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: GVFS_${{ matrix.configuration }}
+        path: gvfs-new
+
+    - name: Download current GVFS installer (retry)
+      if: steps.skip.outputs.result != 'true' && steps.download-gvfs.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
         name: GVFS_${{ matrix.configuration }}
