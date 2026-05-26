@@ -247,6 +247,19 @@ namespace GVFS.Common
         [DllImport("kernel32.dll")]
         private static extern ulong GetTickCount64();
 
+        [DllImport("kernel32.dll")]
+        private static extern int WTSGetActiveConsoleSessionId();
+
+        /// <summary>
+        /// Returns the session ID of the physical console session, or -1 if
+        /// no interactive session is active (e.g. at boot before logon).
+        /// </summary>
+        public static int GetActiveConsoleSessionId()
+        {
+            int sessionId = WTSGetActiveConsoleSessionId();
+            return sessionId == unchecked((int)0xFFFFFFFF) ? -1 : sessionId;
+        }
+
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool SetFileTime(
             SafeFileHandle hFile,

@@ -8,6 +8,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
+using System.Security.Principal;
 using System.ServiceProcess;
 using System.Threading;
 
@@ -27,6 +28,7 @@ namespace GVFS.Service
         private WindowsRequestHandler requestHandler;
         private INotificationHandler notificationHandler;
         private PendingUpgradeMonitor pendingUpgradeMonitor;
+        private DeferredTelemetryAttacher telemetryAttacher;
 
         public GVFSService(JsonTracer tracer)
         {
@@ -75,6 +77,29 @@ namespace GVFS.Service
                 {
                     this.CheckEnableGitStatusCacheTokenFile();
 
+                    // Set up deferred telemetry pipe attachment.  The service
+                    // runs as SYSTEM and can't read the user's global git
+                    // config at startup, so the daemon listener can't be
+                    // created in the JsonTracer constructor.
+                    string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+                    if (!string.IsNullOrEmpty(gitBinRoot))
+                    {
+                        this.telemetryAttacher = new DeferredTelemetryAttacher(
+                            this.tracer,
+                            GVFSConstants.Service.ServiceName,
+                            enlistmentId: null,
+                            mountId: null);
+                        this.telemetryAttacher.StartRetryTimer(gitBinRoot);
+
+                        // If a user is already logged in (e.g. service restart
+                        // during active session), try attaching immediately.
+                        int activeSession = NativeMethods.GetActiveConsoleSessionId();
+                        if (activeSession > 0)
+                        {
+                            this.TryAttachTelemetryPipeForSession(activeSession);
+                        }
+                    }
+
                     using (ITracer activity = this.tracer.StartActivity("EnsurePrjFltHealthy", EventLevel.Informational))
                     {
                         // Make a best-effort to enable PrjFlt. Continue even if it fails.
@@ -104,6 +129,12 @@ namespace GVFS.Service
                 if (this.tracer != null)
                 {
                     this.tracer.RelatedInfo("Stopping");
+                }
+
+                if (this.telemetryAttacher != null)
+                {
+                    this.telemetryAttacher.Dispose();
+                    this.telemetryAttacher = null;
                 }
 
                 if (this.pendingUpgradeMonitor != null)
@@ -146,6 +177,11 @@ namespace GVFS.Service
                     if (changeDescription.Reason == SessionChangeReason.SessionLogon)
                     {
                         this.tracer.RelatedInfo("SessionLogon detected, sessionId: {0}", changeDescription.SessionId);
+
+                        // Attempt to attach the telemetry pipe now that a user
+                        // session is available.  Buffered pre-logon events are
+                        // replayed.  No-ops if already attached.
+                        this.TryAttachTelemetryPipeForSession(changeDescription.SessionId);
 
                         using (ITracer activity = this.tracer.StartActivity("LogonAutomount", EventLevel.Informational))
                         {
@@ -388,6 +424,54 @@ namespace GVFS.Service
                     metadata,
                     $"{nameof(this.CreateAndConfigureLogDirectory)}: Failed to create logs directory",
                     Keywords.Telemetry);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the logged-on user's profile directory and passes their
+        /// .gitconfig path directly to the deferred attacher, which reads it
+        /// with <c>git config --file</c>.  This avoids mutating the
+        /// process-wide HOME environment variable, which would leak into
+        /// any concurrent git operations in the service.
+        /// </summary>
+        private void TryAttachTelemetryPipeForSession(int sessionId)
+        {
+            if (this.telemetryAttacher == null || this.telemetryAttacher.IsAttached)
+            {
+                return;
+            }
+
+            try
+            {
+                using (CurrentUser user = new CurrentUser(this.tracer, sessionId))
+                {
+                    if (user.Identity == null)
+                    {
+                        this.tracer.RelatedWarning("TryAttachTelemetryPipe: Could not get user identity for session {0}", sessionId);
+                        return;
+                    }
+
+                    string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+
+                    string userProfile = null;
+                    WindowsIdentity.RunImpersonated(user.Identity.AccessToken, () =>
+                    {
+                        userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    });
+
+                    if (string.IsNullOrEmpty(userProfile))
+                    {
+                        this.tracer.RelatedWarning("TryAttachTelemetryPipe: Could not resolve user profile for session {0}", sessionId);
+                        return;
+                    }
+
+                    string globalConfigPath = Path.Combine(userProfile, ".gitconfig");
+                    this.telemetryAttacher.TryAttach(gitBinRoot, globalConfigPath);
+                }
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedWarning("TryAttachTelemetryPipe failed: {0}", e.Message);
             }
         }
 
