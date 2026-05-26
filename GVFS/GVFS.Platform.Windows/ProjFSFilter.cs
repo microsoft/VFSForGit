@@ -5,7 +5,6 @@ using Microsoft.Win32;
 using Microsoft.Windows.ProjFS;
 using System;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -27,7 +26,6 @@ namespace GVFS.Platform.Windows
         private const string PrjFltAutoLoggerStartValue = "Start";
 
         private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
-        private const string System32DriversRoot = @"%SystemRoot%\System32\drivers";
 
         // From "Autologger" section of prjflt.inf
         private const string FilterLoggerGuid = "ee4206ff-4a4d-452f-be56-6bd0ed272b44";
@@ -85,6 +83,34 @@ namespace GVFS.Platform.Windows
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Attempts to attach the ProjFS filter driver to the volume containing the enlistment.
+        /// If FilterAttach returns ACCESS_DENIED but the ProjFS service is already running,
+        /// the filter is presumed to already be attached and the call succeeds.
+        /// </summary>
+        public static bool TryAttachToVolume(string enlistmentRoot, ITracer tracer, out string errorMessage)
+        {
+            if (TryAttach(enlistmentRoot, out errorMessage))
+            {
+                return true;
+            }
+
+            // FilterAttach requires SE_LOAD_DRIVER_PRIVILEGE, which is typically only
+            // granted to administrators. When the caller lacks this privilege but the
+            // ProjFS service is confirmed running, the filter is probably already
+            // attached to the volume — treat ACCESS_DENIED as success in that case.
+            if (errorMessage != null
+                && errorMessage.Contains(AccessDeniedResult.ToString())
+                && IsServiceRunning(tracer))
+            {
+                tracer.RelatedInfo($"{nameof(TryAttachToVolume)}: FilterAttach returned ACCESS_DENIED, but ProjFS service is running. Proceeding.");
+                errorMessage = null;
+                return true;
+            }
+
+            return false;
         }
 
         public static bool IsServiceRunning(ITracer tracer)
@@ -243,22 +269,22 @@ namespace GVFS.Platform.Windows
             out bool isProjFSFeatureAvailable)
         {
             isProjFSFeatureAvailable = false;
-            if (!TryGetIsInboxProjFSFinalAPI(tracer, out windowsBuildNumber, out isInboxProjFSFinalAPI))
+
+            // Log build number for telemetry. ProjFS is inbox on all supported OS versions
+            // (Windows 10 1809 / build 17763+), so this is informational only.
+            if (!TryGetWindowsBuildNumber(tracer, out windowsBuildNumber))
             {
-                return false;
+                tracer.RelatedWarning($"{nameof(TryEnableOrInstallDriver)}: Could not determine Windows build number");
             }
 
-            if (isInboxProjFSFinalAPI)
-            {
-                if (TryEnableProjFSOptionalFeature(tracer, fileSystem, out isProjFSFeatureAvailable))
-                {
-                    return true;
-                }
+            isInboxProjFSFinalAPI = true;
 
-                return false;
+            if (TryEnableProjFSOptionalFeature(tracer, fileSystem, out isProjFSFeatureAvailable))
+            {
+                return true;
             }
 
-            return TryInstallProjFSViaINF(tracer, fileSystem);
+            return false;
         }
 
         public static bool IsNativeLibInstalled(ITracer tracer, PhysicalFileSystem fileSystem)
@@ -266,105 +292,22 @@ namespace GVFS.Platform.Windows
             string system32Path = Path.Combine(Environment.SystemDirectory, ProjFSNativeLibFileName);
             bool existsInSystem32 = fileSystem.FileExists(system32Path);
 
-            string gvfsAppDirectory = ProcessHelper.GetCurrentProcessLocation();
-            string nonInboxNativeLibInstallPath;
-            string packagedNativeLibPath;
-            GetNativeLibPaths(gvfsAppDirectory, out packagedNativeLibPath, out nonInboxNativeLibInstallPath);
-            bool existsInAppDirectory = fileSystem.FileExists(nonInboxNativeLibInstallPath);
-
             EventMetadata metadata = CreateEventMetadata();
             metadata.Add(nameof(system32Path), system32Path);
             metadata.Add(nameof(existsInSystem32), existsInSystem32);
-            metadata.Add(nameof(gvfsAppDirectory), gvfsAppDirectory);
-            metadata.Add(nameof(nonInboxNativeLibInstallPath), nonInboxNativeLibInstallPath);
-            metadata.Add(nameof(packagedNativeLibPath), packagedNativeLibPath);
-            metadata.Add(nameof(existsInAppDirectory), existsInAppDirectory);
+
+            // Check for stale app-local native library from legacy non-inbox installs.
+            // This file should not exist on current builds; warn if found so admins can clean it up.
+            string appLocalPath = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), ProjFSNativeLibFileName);
+            bool staleAppLocalLibExists = fileSystem.FileExists(appLocalPath);
+            if (staleAppLocalLibExists)
+            {
+                metadata.Add(nameof(appLocalPath), appLocalPath);
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, "Stale app-local ProjectedFSLib.dll found from legacy non-inbox ProjFS install");
+            }
+
             tracer.RelatedEvent(EventLevel.Informational, nameof(IsNativeLibInstalled), metadata);
-            return existsInSystem32 || existsInAppDirectory;
-        }
-
-        public static bool TryCopyNativeLibIfDriverVersionsMatch(ITracer tracer, PhysicalFileSystem fileSystem, out string copyNativeDllError)
-        {
-            string system32NativeLibraryPath = Path.Combine(Environment.SystemDirectory, ProjFSNativeLibFileName);
-            if (fileSystem.FileExists(system32NativeLibraryPath))
-            {
-                copyNativeDllError = $"{ProjFSNativeLibFileName} already exists at {system32NativeLibraryPath}";
-                return false;
-            }
-
-            string gvfsProcessLocation = ProcessHelper.GetCurrentProcessLocation();
-            string nonInboxNativeLibInstallPath;
-            string packagedNativeLibPath;
-            GetNativeLibPaths(gvfsProcessLocation, out packagedNativeLibPath, out nonInboxNativeLibInstallPath);
-            if (fileSystem.FileExists(nonInboxNativeLibInstallPath))
-            {
-                copyNativeDllError = $"{ProjFSNativeLibFileName} already exists at {nonInboxNativeLibInstallPath}";
-                return false;
-            }
-
-            if (!fileSystem.FileExists(packagedNativeLibPath))
-            {
-                copyNativeDllError = $"{packagedNativeLibPath} not found, no {ProjFSNativeLibFileName} available to copy";
-                return false;
-            }
-
-            string packagedPrjfltDriverPath = Path.Combine(gvfsProcessLocation, "Filter", DriverFileName);
-            if (!fileSystem.FileExists(packagedPrjfltDriverPath))
-            {
-                copyNativeDllError = $"{packagedPrjfltDriverPath} not found, unable to validate that packaged driver matches installed driver";
-                return false;
-            }
-
-            string system32PrjfltDriverPath = Path.Combine(Environment.ExpandEnvironmentVariables(System32DriversRoot), DriverFileName);
-            if (!fileSystem.FileExists(system32PrjfltDriverPath))
-            {
-                copyNativeDllError = $"{system32PrjfltDriverPath} not found, unable to validate that packaged driver matches installed driver";
-                return false;
-            }
-
-            FileVersionInfo packagedDriverVersion;
-            FileVersionInfo system32DriverVersion;
-            try
-            {
-                packagedDriverVersion = fileSystem.GetVersionInfo(packagedPrjfltDriverPath);
-                system32DriverVersion = fileSystem.GetVersionInfo(system32PrjfltDriverPath);
-                if (!fileSystem.FileVersionsMatch(packagedDriverVersion, system32DriverVersion))
-                {
-                    copyNativeDllError = $"Packaged sys FileVersion '{packagedDriverVersion.FileVersion}' does not match System32 sys FileVersion '{system32DriverVersion.FileVersion}'";
-                    return false;
-                }
-
-                if (!fileSystem.ProductVersionsMatch(packagedDriverVersion, system32DriverVersion))
-                {
-                    copyNativeDllError = $"Packaged sys ProductVersion '{packagedDriverVersion.ProductVersion}' does not match System32 sys ProductVersion '{system32DriverVersion.ProductVersion}'";
-                    return false;
-                }
-            }
-            catch (FileNotFoundException e)
-            {
-                EventMetadata metadata = CreateEventMetadata(e);
-                tracer.RelatedWarning(
-                    metadata,
-                    $"{nameof(TryCopyNativeLibIfDriverVersionsMatch)}: Exception caught while comparing sys versions");
-                copyNativeDllError = $"Exception caught while comparing sys versions: {e.Message}";
-                return false;
-            }
-
-            EventMetadata driverVersionMetadata = CreateEventMetadata();
-            driverVersionMetadata.Add($"{nameof(packagedDriverVersion)}.FileVersion", packagedDriverVersion.FileVersion.ToString());
-            driverVersionMetadata.Add($"{nameof(system32DriverVersion)}.FileVersion", system32DriverVersion.FileVersion.ToString());
-            driverVersionMetadata.Add($"{nameof(packagedDriverVersion)}.ProductVersion", packagedDriverVersion.ProductVersion.ToString());
-            driverVersionMetadata.Add($"{nameof(system32DriverVersion)}.ProductVersion", system32DriverVersion.ProductVersion.ToString());
-            tracer.RelatedInfo(driverVersionMetadata, $"{nameof(TryCopyNativeLibIfDriverVersionsMatch)}: Copying native library");
-
-            if (!TryCopyNativeLibToNonInboxInstallLocation(tracer, fileSystem, gvfsProcessLocation))
-            {
-                copyNativeDllError = "Failed to copy native library";
-                return false;
-            }
-
-            copyNativeDllError = null;
-            return true;
+            return existsInSystem32;
         }
 
         public bool IsGVFSUpgradeSupported()
@@ -469,23 +412,15 @@ namespace GVFS.Platform.Windows
 
             if (!IsNativeLibInstalled(tracer, new PhysicalFileSystem()))
             {
-                error = "ProjFS native library is not installed";
+                error = "ProjFS native library (ProjectedFSLib.dll) is not installed. "
+                    + "Ensure the Windows Projected File System optional feature is enabled. "
+                    + "From an elevated PowerShell prompt, run: "
+                    + "Enable-WindowsOptionalFeature -Online -FeatureName Client-ProjFS";
                 return false;
             }
 
-            if (!TryAttach(enlistmentRoot, out error))
+            if (!TryAttachToVolume(enlistmentRoot, tracer, out error))
             {
-                // FilterAttach requires SE_LOAD_DRIVER_PRIVILEGE (admin). When running
-                // non-elevated on a machine where ProjFS is already set up, the filter
-                // is already attached to the volume and the only failure is ACCESS_DENIED.
-                // Allow the mount to proceed in that specific case.
-                if (error.Contains(AccessDeniedResult.ToString()))
-                {
-                    tracer.RelatedInfo($"IsReady: TryAttach returned ACCESS_DENIED, but ProjFS service is running. Proceeding.");
-                    error = string.Empty;
-                    return true;
-                }
-
                 return false;
             }
 
@@ -508,134 +443,20 @@ namespace GVFS.Platform.Windows
             return getOptionalFeatureResult.ExitCode == (int)ProjFSInboxStatus.Enabled;
         }
 
-        private static bool TryGetIsInboxProjFSFinalAPI(ITracer tracer, out uint windowsBuildNumber, out bool isProjFSInbox)
+        private static bool TryGetWindowsBuildNumber(ITracer tracer, out uint windowsBuildNumber)
         {
-            isProjFSInbox = false;
             windowsBuildNumber = 0;
             try
             {
                 windowsBuildNumber = Common.NativeMethods.GetWindowsBuildNumber();
-                tracer.RelatedInfo($"{nameof(TryGetIsInboxProjFSFinalAPI)}: Build number = {windowsBuildNumber}");
+                tracer.RelatedInfo($"{nameof(TryGetWindowsBuildNumber)}: Build number = {windowsBuildNumber}");
+                return true;
             }
             catch (Win32Exception e)
             {
-                tracer.RelatedError(CreateEventMetadata(e), $"{nameof(TryGetIsInboxProjFSFinalAPI)}: Exception while trying to get Windows build number");
+                tracer.RelatedWarning(CreateEventMetadata(e), $"{nameof(TryGetWindowsBuildNumber)}: Exception while trying to get Windows build number");
                 return false;
             }
-
-            const uint MinRS4inboxVersion = 17121;
-            const uint FirstRS5Version = 17600;
-            const uint MinRS5inboxVersion = 17626;
-            isProjFSInbox = !(windowsBuildNumber < MinRS4inboxVersion || (windowsBuildNumber >= FirstRS5Version && windowsBuildNumber < MinRS5inboxVersion));
-            return true;
-        }
-
-        private static bool TryInstallProjFSViaINF(ITracer tracer, PhysicalFileSystem fileSystem)
-        {
-            string gvfsAppDirectory = ProcessHelper.GetCurrentProcessLocation();
-            if (!TryCopyNativeLibToNonInboxInstallLocation(tracer, fileSystem, gvfsAppDirectory))
-            {
-                return false;
-            }
-
-            ProcessResult result = ProcessHelper.Run("RUNDLL32.EXE", $"SETUPAPI.DLL,InstallHinfSection DefaultInstall 128 {gvfsAppDirectory}\\Filter\\prjflt.inf");
-            if (result.ExitCode == 0)
-            {
-                tracer.RelatedInfo($"{nameof(TryInstallProjFSViaINF)}: Installed PrjFlt via INF");
-                return true;
-            }
-            else
-            {
-                EventMetadata metadata = CreateEventMetadata();
-                metadata.Add("resultExitCode", result.ExitCode);
-                metadata.Add("resultOutput", result.Output);
-                tracer.RelatedError(metadata, $"{nameof(TryInstallProjFSViaINF)}: RUNDLL32.EXE failed to install PrjFlt");
-            }
-
-            return false;
-        }
-
-        private static bool TryCopyNativeLibToNonInboxInstallLocation(ITracer tracer, PhysicalFileSystem fileSystem, string gvfsAppDirectory)
-        {
-            string packagedNativeLibPath;
-            string nonInboxNativeLibInstallPath;
-            GetNativeLibPaths(gvfsAppDirectory, out packagedNativeLibPath, out nonInboxNativeLibInstallPath);
-
-            EventMetadata pathMetadata = CreateEventMetadata();
-            pathMetadata.Add(nameof(gvfsAppDirectory), gvfsAppDirectory);
-            pathMetadata.Add(nameof(packagedNativeLibPath), packagedNativeLibPath);
-            pathMetadata.Add(nameof(nonInboxNativeLibInstallPath), nonInboxNativeLibInstallPath);
-
-            if (fileSystem.FileExists(packagedNativeLibPath))
-            {
-                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}_CopyingNativeLib", pathMetadata);
-
-                try
-                {
-                    fileSystem.CopyFile(packagedNativeLibPath, nonInboxNativeLibInstallPath, overwrite: true);
-
-                    try
-                    {
-                        fileSystem.FlushFileBuffers(nonInboxNativeLibInstallPath);
-                    }
-                    catch (Win32Exception e)
-                    {
-                        EventMetadata metadata = CreateEventMetadata(e);
-                        metadata.Add(nameof(nonInboxNativeLibInstallPath), nonInboxNativeLibInstallPath);
-                        metadata.Add(nameof(packagedNativeLibPath), packagedNativeLibPath);
-                        tracer.RelatedWarning(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: Win32Exception while trying to flush file buffers", Keywords.Telemetry);
-                    }
-                }
-                catch (UnauthorizedAccessException e)
-                {
-                    EventMetadata metadata = CreateEventMetadata(e);
-                    tracer.RelatedError(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: UnauthorizedAccessException caught while trying to copy native lib");
-                    return false;
-                }
-                catch (DirectoryNotFoundException e)
-                {
-                    EventMetadata metadata = CreateEventMetadata(e);
-                    tracer.RelatedError(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: DirectoryNotFoundException caught while trying to copy native lib");
-                    return false;
-                }
-                catch (FileNotFoundException e)
-                {
-                    EventMetadata metadata = CreateEventMetadata(e);
-                    tracer.RelatedError(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: FileNotFoundException caught while trying to copy native lib");
-                    return false;
-                }
-                catch (IOException e)
-                {
-                    EventMetadata metadata = CreateEventMetadata(e);
-                    tracer.RelatedWarning(metadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: IOException caught while trying to copy native lib");
-
-                    if (fileSystem.FileExists(nonInboxNativeLibInstallPath))
-                    {
-                        tracer.RelatedWarning(
-                            CreateEventMetadata(),
-                            "Could not copy native lib to app directory, but file already exists, continuing with install",
-                            Keywords.Telemetry);
-                    }
-                    else
-                    {
-                        tracer.RelatedError($"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: Failed to copy native lib to app directory");
-                        return false;
-                    }
-                }
-            }
-            else
-            {
-                tracer.RelatedError(pathMetadata, $"{nameof(TryCopyNativeLibToNonInboxInstallLocation)}: Native lib does not exist in install directory");
-                return false;
-            }
-
-            return true;
-        }
-
-        private static void GetNativeLibPaths(string gvfsAppDirectory, out string packagedNativeLibPath, out string nonInboxNativeLibInstallPath)
-        {
-            packagedNativeLibPath = Path.Combine(gvfsAppDirectory, "ProjFS", ProjFSNativeLibFileName);
-            nonInboxNativeLibInstallPath = Path.Combine(gvfsAppDirectory, ProjFSNativeLibFileName);
         }
 
         private static bool TryEnableProjFSOptionalFeature(ITracer tracer, PhysicalFileSystem fileSystem, out bool isProjFSFeatureAvailable)
