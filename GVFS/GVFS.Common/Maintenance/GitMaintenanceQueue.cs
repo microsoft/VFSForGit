@@ -8,7 +8,7 @@ namespace GVFS.Common.Maintenance
 {
     public class GitMaintenanceQueue
     {
-        private readonly object queueLock = new object();
+        private readonly Lock queueLock = new Lock();
         private GVFSContext context;
         private BlockingCollection<GitMaintenanceStep> queue = new BlockingCollection<GitMaintenanceStep>();
         private GitMaintenanceStep currentStep;

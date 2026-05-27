@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.Service
 {
@@ -20,7 +21,7 @@ namespace GVFS.Service
         private string registryParentFolderPath;
         private ITracer tracer;
         private PhysicalFileSystem fileSystem;
-        private object repoLock = new object();
+        private Lock repoLock = new Lock();
         private IRepoMounter repoMounter;
         private INotificationHandler notificationHandler;
 

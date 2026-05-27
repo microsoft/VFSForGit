@@ -483,7 +483,7 @@ namespace GVFS.Common.Git
                 return Marshal.PtrToStructure<GitError>(ptr).Message;
             }
 
-            [DllImport(Git2NativeLibName, EntryPoint = "giterr_last")]
+            [DllImport(Git2NativeLibName, EntryPoint = "git_error_last")]
             private static extern IntPtr GetLastGitError();
 
             [StructLayout(LayoutKind.Sequential)]

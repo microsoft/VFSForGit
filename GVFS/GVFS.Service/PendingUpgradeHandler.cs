@@ -14,8 +14,9 @@ namespace GVFS.Service
     /// When the installer runs with mounts active, it stages new files to
     /// {installDir}\PendingUpgrade\ instead of replacing files in-place.
     /// This class applies the upgrade when no GVFS.Mount processes are
-    /// running — either on service start (before automount) or after a
-    /// repo unmount (via deferred check from RequestHandler).
+    /// running — either on service start (before automount), after a
+    /// repo unmount (via deferred check from RequestHandler), or when
+    /// PendingUpgradeMonitor detects all mount processes have exited.
     ///
     ///   1. Move old files from install dir → PreviousVersion\
     ///   2. Move new files from PendingUpgrade\ → install dir
@@ -36,6 +37,9 @@ namespace GVFS.Service
         private const string Phase1CompleteMarkerFileName = ".phase1-complete";
         private const string ServiceExeName = "GVFS.Service.exe";
         private const string MountProcessName = "GVFS.Mount";
+        private const string MountExeName = "GVFS.Mount.exe";
+
+        private static readonly Lock ApplyLock = new Lock();
 
         // Executables that users or the service can launch to start new
         // mount/hook processes. During upgrade these are moved out first
@@ -53,7 +57,78 @@ namespace GVFS.Service
         /// <summary>
         /// Checks for and applies a pending staged upgrade.
         /// </summary>
-        public static void TryApplyPendingUpgrade(ITracer tracer)
+        public static UpgradeResult TryApplyPendingUpgrade(ITracer tracer)
+        {
+            lock (ApplyLock)
+            {
+                return TryApplyPendingUpgradeLocked(tracer);
+            }
+        }
+
+        /// <summary>
+        /// Returns true if a PendingUpgrade directory with a .ready marker exists.
+        /// </summary>
+        public static bool IsPending()
+        {
+            string pendingUpgradeDir = Path.Combine(Configuration.AssemblyPath, PendingUpgradeDirectoryName);
+            if (!Directory.Exists(pendingUpgradeDir))
+            {
+                return false;
+            }
+
+            string readyMarker = Path.Combine(pendingUpgradeDir, ReadyMarkerFileName);
+            return File.Exists(readyMarker);
+        }
+
+        /// <summary>
+        /// Returns GVFS.Mount processes whose executable is in the install
+        /// directory. Processes from dev builds or other installs are excluded
+        /// so they don't block upgrades of the system install. If a process's
+        /// path cannot be read (access denied, 32/64-bit mismatch), it is
+        /// included conservatively.
+        /// Caller must dispose the returned Process objects.
+        /// </summary>
+        public static List<Process> GetInstalledMountProcesses(ITracer tracer)
+        {
+            string installDir = Configuration.AssemblyPath;
+            string expectedPath = Path.Combine(installDir, MountExeName);
+            Process[] allMountProcesses = Process.GetProcessesByName(MountProcessName);
+            List<Process> installed = new List<Process>();
+
+            foreach (Process process in allMountProcesses)
+            {
+                bool include = true;
+                try
+                {
+                    string processPath = process.MainModule?.FileName;
+                    if (processPath != null &&
+                        !PathComparer.Equals(processPath, expectedPath))
+                    {
+                        include = false;
+                        tracer.RelatedInfo(
+                            $"{nameof(PendingUpgradeHandler)}: Skipping GVFS.Mount PID {process.Id} " +
+                            $"(path: {processPath}, not in install dir)");
+                    }
+                }
+                catch (Exception)
+                {
+                    // Access denied or process exited — include conservatively
+                }
+
+                if (include)
+                {
+                    installed.Add(process);
+                }
+                else
+                {
+                    process.Dispose();
+                }
+            }
+
+            return installed;
+        }
+
+        private static UpgradeResult TryApplyPendingUpgradeLocked(ITracer tracer)
         {
             string installDir = Configuration.AssemblyPath;
             string pendingUpgradeDir = Path.Combine(installDir, PendingUpgradeDirectoryName);
@@ -61,14 +136,10 @@ namespace GVFS.Service
 
             if (!Directory.Exists(pendingUpgradeDir))
             {
-                // No pending upgrade. Clean up PreviousVersion if it exists
-                // (leftover from a completed upgrade where cleanup was interrupted).
                 TryDeleteDirectory(tracer, previousVersionDir, "leftover PreviousVersion");
-                return;
+                return UpgradeResult.NoPending;
             }
 
-            // Installer writes .ready marker as its last step. If missing,
-            // the installer was interrupted mid-write — don't apply partial files.
             string readyMarker = Path.Combine(pendingUpgradeDir, ReadyMarkerFileName);
             if (!File.Exists(readyMarker))
             {
@@ -79,28 +150,25 @@ namespace GVFS.Service
                     $"{nameof(PendingUpgradeHandler)}: PendingUpgrade directory exists but {ReadyMarkerFileName} marker " +
                     "is missing — installer was likely interrupted. Skipping until next install completes.",
                     Keywords.Telemetry);
-                return;
+                return UpgradeResult.NotReady;
             }
 
             tracer.RelatedInfo($"{nameof(PendingUpgradeHandler)}: Pending upgrade detected at {pendingUpgradeDir}");
 
-            // Don't apply if GVFS.Mount processes are still running — their
-            // executables are locked and moves would fail. Upgrade will be
-            // retried on next service start when no mounts are active.
-            Process[] mountProcesses = Array.Empty<Process>();
+            List<Process> mountProcesses = new List<Process>();
             try
             {
-                mountProcesses = Process.GetProcessesByName(MountProcessName);
-                if (mountProcesses.Length > 0)
+                mountProcesses = GetInstalledMountProcesses(tracer);
+                if (mountProcesses.Count > 0)
                 {
                     EventMetadata deferMetadata = new EventMetadata();
-                    deferMetadata.Add("MountProcessCount", mountProcesses.Length);
+                    deferMetadata.Add("MountProcessCount", mountProcesses.Count);
                     tracer.RelatedEvent(
                         EventLevel.Informational,
                         $"{nameof(PendingUpgradeHandler)}_Deferred",
                         deferMetadata,
                         Keywords.Telemetry);
-                    return;
+                    return UpgradeResult.DeferredMountsRunning;
                 }
             }
             finally
@@ -217,7 +285,7 @@ namespace GVFS.Service
                     $"{nameof(PendingUpgradeHandler)}_Complete",
                     successMetadata,
                     Keywords.Telemetry);
-                return;
+                return UpgradeResult.Applied;
             }
             catch (Exception ex)
             {
@@ -229,7 +297,7 @@ namespace GVFS.Service
                     "PendingUpgrade retained for retry on next service start. " +
                     "If PreviousVersion exists, old files are preserved for manual recovery.",
                     Keywords.Telemetry);
-                return;
+                return UpgradeResult.Failed;
             }
         }
 
@@ -439,5 +507,14 @@ namespace GVFS.Service
                 tracer.RelatedWarning($"{nameof(PendingUpgradeHandler)}: Failed to remove {description} directory: {ex.Message}");
             }
         }
+    }
+
+    public enum UpgradeResult
+    {
+        NoPending,
+        Applied,
+        DeferredMountsRunning,
+        NotReady,
+        Failed,
     }
 }

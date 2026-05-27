@@ -33,6 +33,7 @@ jobs:
           - double-staging
           - staging-then-clean
           - mount-safety-deferral
+          - unmount-all-triggers-upgrade
       fail-fast: false
 
     steps:
@@ -62,14 +63,32 @@ jobs:
         gh release download $tag --repo microsoft/VFSForGit --pattern "SetupGVFS*.exe" --dir gvfs-lkg
 
     - name: Download Git installer
+      id: download-git
       if: steps.skip.outputs.result != 'true'
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: MicrosoftGit
+        path: git
+
+    - name: Download Git installer (retry)
+      if: steps.skip.outputs.result != 'true' && steps.download-git.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
         name: MicrosoftGit
         path: git
 
     - name: Download current GVFS installer
+      id: download-gvfs
       if: steps.skip.outputs.result != 'true'
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: GVFS_${{ matrix.configuration }}
+        path: gvfs-new
+
+    - name: Download current GVFS installer (retry)
+      if: steps.skip.outputs.result != 'true' && steps.download-gvfs.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
         name: GVFS_${{ matrix.configuration }}
@@ -172,6 +191,36 @@ jobs:
           }
         }
 
+        function Assert-HookVersionsMatch {
+          Write-Host "Verifying hook binary versions in enlistment..."
+          $hooksDir = Join-Path $enlistment "src\.git\hooks"
+
+          # Native hooks: each has its own source binary in the install directory
+          # Command hooks: copies of GitHooksLoader.exe
+          $hooks = @(
+            @{ Source = "GVFS.ReadObjectHook.exe";        Target = "read-object.exe" }
+            @{ Source = "GVFS.VirtualFileSystemHook.exe"; Target = "virtual-filesystem.exe" }
+            @{ Source = "GVFS.PostIndexChangedHook.exe";  Target = "post-index-change.exe" }
+            @{ Source = "GitHooksLoader.exe";             Target = "pre-command.exe" }
+            @{ Source = "GitHooksLoader.exe";             Target = "post-command.exe" }
+          )
+
+          foreach ($hook in $hooks) {
+            $sourcePath = Join-Path $installDir $hook.Source
+            $targetPath = Join-Path $hooksDir $hook.Target
+            if (-not (Test-Path $targetPath)) {
+              throw "Hook not found: $targetPath"
+            }
+            $sourceVer = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($sourcePath).FileVersion
+            $targetVer = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($targetPath).FileVersion
+            if ($sourceVer -ne $targetVer) {
+              throw "Hook version mismatch: $($hook.Target) is $targetVer, expected $sourceVer (from $($hook.Source))"
+            }
+            Write-Host "  $($hook.Target): $targetVer OK"
+          }
+          Write-Host "All hook binary versions match"
+        }
+
         # =============================================
         # Test scenarios
         # =============================================
@@ -192,6 +241,11 @@ jobs:
             Unmount-TestRepo
             Restart-Service
             Assert-PendingUpgrade $false
+
+            # Remount and verify all hooks were updated to new version
+            $null = Mount-TestRepo
+            Assert-HookVersionsMatch
+            Unmount-TestRepo
             Write-Host "PASS: Staging upgrade completed"
           }
 
@@ -204,6 +258,11 @@ jobs:
             Install-GVFS $newInstaller @("/STAGEIFMOUNTED=false")
             Assert-PendingUpgrade $false
             Assert-ServiceRunning
+
+            # Remount and verify all hooks were updated to new version
+            $null = Mount-TestRepo
+            Assert-HookVersionsMatch
+            Unmount-TestRepo
             Write-Host "PASS: Clean upgrade completed"
           }
 
@@ -272,6 +331,36 @@ jobs:
             Restart-Service
             Assert-PendingUpgrade $false
             Write-Host "PASS: Mount safety deferral works correctly"
+          }
+
+          "unmount-all-triggers-upgrade" {
+            Write-Host "=== Scenario: unmount-all triggers staged upgrade ==="
+            # Install LKG, mount, staging upgrade with new installer (which
+            # replaces GVFS.Service.exe in-place with the new version that
+            # includes PendingUpgradeMonitor). Then unmount via --unmount-all.
+            # The new service monitors mount process exits and applies the
+            # upgrade automatically — no pipe message from gvfs.exe needed.
+            Install-GVFS $lkgInstaller
+            Assert-ServiceRunning
+            $mountPid = Mount-TestRepo
+
+            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=true")
+            Assert-MountAlive $mountPid
+            Assert-PendingUpgrade $true
+
+            # Unmount via --unmount-all (uses LKG gvfs.exe — no new pipe msg)
+            & "$installDir\gvfs.exe" service --unmount-all 2>&1 | Write-Host
+            if ($LASTEXITCODE -ne 0) { throw "unmount-all failed" }
+
+            # The monitor's debounce timer fires 5s after the last mount
+            # process exits, then applies the upgrade. Wait for completion.
+            $deadline = (Get-Date).AddSeconds(30)
+            while ((Test-Path "$installDir\PendingUpgrade") -and (Get-Date) -lt $deadline) {
+              Start-Sleep -Seconds 2
+            }
+
+            Assert-PendingUpgrade $false
+            Write-Host "PASS: unmount-all triggers staged upgrade via process monitor"
           }
 
           default {

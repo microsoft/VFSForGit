@@ -28,6 +28,7 @@ PATH_STRING GetFinalPathName(const PATH_STRING& path)
 
     wchar_t finalPathByHandle[MAX_PATH] = { 0 };
     DWORD finalPathSize = GetFinalPathNameByHandleW(fileHandle, finalPathByHandle, MAX_PATH, FILE_NAME_NORMALIZED);
+    CloseHandle(fileHandle);
     if (finalPathSize == 0)
     {
         die(ReturnCode::PathNameError, "Could not get final path name by handle for %ls, Error: %d\n", path.c_str(), GetLastError());

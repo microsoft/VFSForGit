@@ -4,13 +4,14 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.Common.Maintenance
 {
     public abstract class GitMaintenanceStep
     {
         public const string ObjectCacheLock = "git-maintenance-step.lock";
-        private readonly object gitProcessLock = new object();
+        private readonly Lock gitProcessLock = new Lock();
 
         public GitMaintenanceStep(GVFSContext context, bool requireObjectCacheLock, GitProcessChecker gitProcessChecker = null)
         {

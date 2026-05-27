@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 
 namespace GVFS.Common.Git
 {
@@ -13,7 +14,7 @@ namespace GVFS.Common.Git
     {
         private const double MaxBackoffSeconds = 30;
 
-        private readonly object gitAuthLock = new object();
+        private readonly Lock gitAuthLock = new Lock();
         private readonly ICredentialStore credentialStore;
         private readonly string repoUrl;
 
@@ -199,7 +200,8 @@ namespace GVFS.Common.Git
                 enlistment,
                 new RetryConfig(),
                 out _,
-                out errorMessage);
+                out errorMessage,
+                out _);
         }
 
         /// <summary>
@@ -216,7 +218,8 @@ namespace GVFS.Common.Git
             Enlistment enlistment,
             RetryConfig retryConfig,
             out ServerGVFSConfig serverGVFSConfig,
-            out string errorMessage)
+            out string errorMessage,
+            out bool isAuthFailure)
         {
             if (this.isInitialized)
             {
@@ -225,6 +228,7 @@ namespace GVFS.Common.Git
 
             serverGVFSConfig = null;
             errorMessage = null;
+            isAuthFailure = false;
 
             using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
             {
@@ -252,6 +256,7 @@ namespace GVFS.Common.Git
 
                 if (!this.TryCallGitCredential(tracer, out errorMessage))
                 {
+                    isAuthFailure = true;
                     tracer.RelatedWarning("{0}: Credential fetch failed: {1}", nameof(this.TryInitializeAndQueryGVFSConfig), errorMessage);
                     return false;
                 }
@@ -259,10 +264,16 @@ namespace GVFS.Common.Git
                 this.isInitialized = true;
 
                 // Retry with credentials using the same ConfigHttpRequestor (reuses HttpClient/connection)
-                if (configRequestor.TryQueryGVFSConfig(true, out serverGVFSConfig, out _, out errorMessage))
+                HttpStatusCode? retryHttpStatus;
+                if (configRequestor.TryQueryGVFSConfig(true, out serverGVFSConfig, out retryHttpStatus, out errorMessage))
                 {
                     tracer.RelatedInfo("{0}: Config obtained with credentials", nameof(this.TryInitializeAndQueryGVFSConfig));
                     return true;
+                }
+
+                if (retryHttpStatus == HttpStatusCode.Unauthorized || retryHttpStatus == HttpStatusCode.Forbidden)
+                {
+                    isAuthFailure = true;
                 }
 
                 tracer.RelatedWarning("{0}: Config query failed with credentials: {1}", nameof(this.TryInitializeAndQueryGVFSConfig), errorMessage);

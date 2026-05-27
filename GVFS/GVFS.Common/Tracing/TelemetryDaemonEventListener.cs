@@ -38,8 +38,21 @@ namespace GVFS.Common.Tracing
 
         public static TelemetryDaemonEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId, IEventListenerEventSink eventSink)
         {
+            return CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, eventSink, globalConfigPath: null);
+        }
+
+        /// <summary>
+        /// Creates a TelemetryDaemonEventListener if the telemetry pipe config
+        /// is set.  When <paramref name="globalConfigPath"/> is provided, reads
+        /// that file directly instead of using <c>git config --global</c>.
+        /// This avoids mutating the process-wide HOME environment variable
+        /// when the caller needs to read another user's config (e.g.
+        /// GVFS.Service reading the logged-on user's .gitconfig).
+        /// </summary>
+        public static TelemetryDaemonEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId, IEventListenerEventSink eventSink, string globalConfigPath)
+        {
             // This listener is disabled unless the user specifies the proper git config setting.
-            string telemetryPipe = GetConfigValue(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryPipe);
+            string telemetryPipe = GetConfigValue(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryPipe, globalConfigPath);
             if (!string.IsNullOrEmpty(telemetryPipe))
             {
                 return new TelemetryDaemonEventListener(providerName, enlistmentId, mountId, telemetryPipe, eventSink);
@@ -90,7 +103,7 @@ namespace GVFS.Common.Tracing
             }
         }
 
-        private static string GetConfigValue(string gitBinRoot, string configKey)
+        private static string GetConfigValue(string gitBinRoot, string configKey, string globalConfigPath = null)
         {
             string value = string.Empty;
             string error;
@@ -98,7 +111,15 @@ namespace GVFS.Common.Tracing
             GitProcess.ConfigResult result = GitProcess.GetFromSystemConfig(gitBinRoot, configKey);
             if (!result.TryParseAsString(out value, out error, defaultValue: string.Empty) || string.IsNullOrWhiteSpace(value))
             {
-                result = GitProcess.GetFromGlobalConfig(gitBinRoot, configKey);
+                if (!string.IsNullOrEmpty(globalConfigPath))
+                {
+                    result = GitProcess.GetFromFileConfig(gitBinRoot, globalConfigPath, configKey);
+                }
+                else
+                {
+                    result = GitProcess.GetFromGlobalConfig(gitBinRoot, configKey);
+                }
+
                 result.TryParseAsString(out value, out error, defaultValue: string.Empty);
             }
 

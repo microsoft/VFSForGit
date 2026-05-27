@@ -33,6 +33,74 @@
     <BaseIntermediateOutputPath>$(ProjectOutPath)obj\</BaseIntermediateOutputPath>
   </PropertyGroup>
 
+  <!--
+    Static native linking: embed libgit2 directly into AOT-compiled executables.
+
+    vcpkg builds a static git2.lib (via the x64-windows-static-aot triplet) which
+    the NativeAOT linker links into the final executable. This eliminates the
+    "DLL missing" crash vector for libgit2.
+
+    How it works:
+      1. vcpkg install produces git2.lib + transitive deps (pcre, zlib, etc.)
+      2. <NativeLibrary> items tell the NativeAOT linker where to find the .lib files
+      3. <DirectPInvoke> tells the linker to resolve P/Invoke calls at link time
+      4. libgit2_filename is overridden from "git2-XXXXXXX" (NuGet) to "git2" (vcpkg)
+
+    A side benefit of this approach: we can apply patches to libgit2 that haven't
+    been included in an official release yet, via the overlay port in overlays/.
+
+    To rebuild vcpkg libs after overlay changes:
+      vcpkg install [triplet x64-windows-static-aot] [overlay-triplets=triplets] [overlay-ports=overlays]
+
+    See THIRD-PARTY-NOTICES.md for license details on these native libraries.
+  -->
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <VcpkgInstalledDir>$(RepoOutPath)vcpkg_installed\static\x64-windows-static-aot\</VcpkgInstalledDir>
+  </PropertyGroup>
+
+  <!-- Set libgit2 library name unconditionally — all builds use vcpkg-sourced libgit2 -->
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <libgit2_filename>git2</libgit2_filename>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PublishAot)' == 'true'">
+    <DirectPInvoke Include="git2" />
+
+    <!-- libgit2 static library and its transitive dependencies -->
+    <NativeLibrary Include="$(VcpkgInstalledDir)lib\git2.lib" />
+    <NativeLibrary Include="$(VcpkgInstalledDir)lib\pcre.lib" />
+    <NativeLibrary Include="$(VcpkgInstalledDir)lib\http_parser.lib" />
+    <NativeLibrary Include="$(VcpkgInstalledDir)lib\zs.lib" />
+
+    <!-- Windows system libraries required by libgit2 (WinHTTP TLS backend) -->
+    <NativeLibrary Include="winhttp.lib" />
+    <NativeLibrary Include="crypt32.lib" />
+    <NativeLibrary Include="rpcrt4.lib" />
+    <NativeLibrary Include="secur32.lib" />
+  </ItemGroup>
+
+  <!--
+    Non-AOT projects (tests) need git2.dll for runtime P/Invoke.
+    Copy from the vcpkg dynamic build output.
+  -->
+  <ItemGroup Condition="'$(PublishAot)' != 'true' and '$(MSBuildProjectExtension)' == '.csproj' and '$(IncludeBuildOutput)' != 'false'">
+    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\git2.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>git2.dll</Link>
+    </Content>
+    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\pcre.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>pcre.dll</Link>
+    </Content>
+    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\z.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>z.dll</Link>
+    </Content>
+  </ItemGroup>
+
   <!-- Native project properties -->
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.vcxproj'">
     <Platform>x64</Platform>

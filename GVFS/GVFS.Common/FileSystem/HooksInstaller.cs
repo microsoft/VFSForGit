@@ -103,6 +103,27 @@ namespace GVFS.Common.FileSystem
                 }
             }
 
+            // Update the pre-command and post-command hook loaders (GitHooksLoader copies).
+            // These are deployed at clone time by InstallHooks but also need updating on
+            // mount so that upgrading GVFS and remounting refreshes all hooks.
+            string loaderSourcePath = Path.Combine(ExecutingDirectory, GVFSConstants.DotGit.Hooks.LoaderExecutable);
+
+            string precommandHookPath = Path.Combine(
+                context.Enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.DotGit.Hooks.PreCommandPath + GVFSPlatform.Instance.Constants.ExecutableExtension);
+            if (!TryUpdateHook(context, GVFSConstants.DotGit.Hooks.PreCommandHookName, loaderSourcePath, precommandHookPath, out errorMessage))
+            {
+                return false;
+            }
+
+            string postcommandHookPath = Path.Combine(
+                context.Enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.DotGit.Hooks.PostCommandPath + GVFSPlatform.Instance.Constants.ExecutableExtension);
+            if (!TryUpdateHook(context, GVFSConstants.DotGit.Hooks.PostCommandHookName, loaderSourcePath, postcommandHookPath, out errorMessage))
+            {
+                return false;
+            }
+
             return true;
         }
 
@@ -161,13 +182,23 @@ namespace GVFS.Common.FileSystem
             HookData hook,
             out string errorMessage)
         {
-            bool copyHook = false;
             string enlistmentHookPath = Path.Combine(context.Enlistment.WorkingDirectoryBackingRoot, hook.Path + GVFSPlatform.Instance.Constants.ExecutableExtension);
             string installedHookPath = Path.Combine(ExecutingDirectory, hook.ExecutableName);
+            return TryUpdateHook(context, hook.Name, installedHookPath, enlistmentHookPath, out errorMessage);
+        }
+
+        private static bool TryUpdateHook(
+            GVFSContext context,
+            string hookName,
+            string installedHookPath,
+            string enlistmentHookPath,
+            out string errorMessage)
+        {
+            bool copyHook = false;
 
             if (!context.FileSystem.FileExists(installedHookPath))
             {
-                errorMessage = hook.ExecutableName + " cannot be found at " + installedHookPath;
+                errorMessage = Path.GetFileName(installedHookPath) + " cannot be found at " + installedHookPath;
                 return false;
             }
 
@@ -179,8 +210,8 @@ namespace GVFS.Common.FileSystem
                 metadata.Add("Area", "Mount");
                 metadata.Add(nameof(enlistmentHookPath), enlistmentHookPath);
                 metadata.Add(nameof(installedHookPath), installedHookPath);
-                metadata.Add(TracingConstants.MessageKey.WarningMessage, hook.Name + " not found in enlistment, copying from installation folder");
-                context.Tracer.RelatedWarning(hook.Name + " MissingFromEnlistment", metadata);
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, hookName + " not found in enlistment, copying from installation folder");
+                context.Tracer.RelatedWarning(hookName + " MissingFromEnlistment", metadata);
             }
             else
             {
@@ -197,8 +228,8 @@ namespace GVFS.Common.FileSystem
                     metadata.Add(nameof(enlistmentHookPath), enlistmentHookPath);
                     metadata.Add(nameof(installedHookPath), installedHookPath);
                     metadata.Add("Exception", e.ToString());
-                    context.Tracer.RelatedError(metadata, "Failed to compare " + hook.Name + " version");
-                    errorMessage = "Error comparing " + hook.Name + " versions. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.EnlistmentRoot);
+                    context.Tracer.RelatedError(metadata, "Failed to compare " + hookName + " version");
+                    errorMessage = "Error comparing " + hookName + " versions. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.EnlistmentRoot);
                     return false;
                 }
             }
@@ -216,8 +247,8 @@ namespace GVFS.Common.FileSystem
                     metadata.Add(nameof(enlistmentHookPath), enlistmentHookPath);
                     metadata.Add(nameof(installedHookPath), installedHookPath);
                     metadata.Add("Exception", e.ToString());
-                    context.Tracer.RelatedError(metadata, "Failed to copy " + hook.Name + " to enlistment");
-                    errorMessage = "Error copying " + hook.Name + " to enlistment. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.EnlistmentRoot);
+                    context.Tracer.RelatedError(metadata, "Failed to copy " + hookName + " to enlistment");
+                    errorMessage = "Error copying " + hookName + " to enlistment. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.EnlistmentRoot);
                     return false;
                 }
             }

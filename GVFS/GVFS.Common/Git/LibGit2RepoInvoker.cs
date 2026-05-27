@@ -8,7 +8,7 @@ namespace GVFS.Common.Git
     {
         private readonly Func<LibGit2Repo> createRepo;
         private readonly ITracer tracer;
-        private readonly object sharedRepoLock = new object();
+        private readonly Lock sharedRepoLock = new Lock();
         private volatile bool disposing;
         private volatile int activeCallers;
         private LibGit2Repo sharedRepo;

@@ -15,7 +15,7 @@ namespace GVFS.Service.Handlers
     /// </summary>
     public class RequestHandler
     {
-        private const int PendingUpgradeDelayMs = 5000;
+        private const int PendingUpgradeDelayMs = 2000;
 
         protected const string EnableProjFSRequestDescription = "attach volume";
         protected string requestDescription;
@@ -29,7 +29,7 @@ namespace GVFS.Service.Handlers
         private ITracer tracer;
         private IRepoRegistry repoRegistry;
         private Timer pendingUpgradeTimer;
-        private readonly object pendingUpgradeTimerLock = new object();
+        private readonly Lock pendingUpgradeTimerLock = new Lock();
 
         public RequestHandler(ITracer tracer, string etwArea, IRepoRegistry repoRegistry)
         {

@@ -1,0 +1,13 @@
+diff --git a/cmake/SelectRegex.cmake b/cmake/SelectRegex.cmake
+index 2a3a91b..523fa72 100644
+--- a/cmake/SelectRegex.cmake
++++ b/cmake/SelectRegex.cmake
+@@ -1,5 +1,7 @@
+ # Specify regular expression implementation
+-find_package(PCRE)
++find_package(PkgConfig REQUIRED)
++pkg_check_modules(PCRE REQUIRED libpcre)
++set(PCRE_LIBRARIES "${PCRE_LINK_LIBRARIES}")
+ 
+ if(REGEX_BACKEND STREQUAL "")
+ 	check_symbol_exists(regcomp_l "regex.h;xlocale.h" HAVE_REGCOMP_L)
