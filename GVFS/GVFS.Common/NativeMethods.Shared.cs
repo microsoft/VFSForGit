@@ -158,6 +158,18 @@ namespace GVFS.Common
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool GetExitCodeProcess(SafeFileHandle hProcess, out uint lpExitCode);
 
+        // GetProcessTimes writes four FILETIME values (each two DWORDs / 8 bytes).
+        // We marshal each as `out long` because we only ever compare the raw 64-bit value
+        // (creation time) for identity purposes; we never decode it as a date.
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetProcessTimes(
+            SafeFileHandle hProcess,
+            out long lpCreationTime,
+            out long lpExitTime,
+            out long lpKernelTime,
+            out long lpUserTime);
+
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern SafeFileHandle CreateFile(
             [In] string lpFileName,
