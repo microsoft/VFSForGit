@@ -32,6 +32,22 @@
     <_VcpkgManifestFile>$(RepoSrcPath)vcpkg.json</_VcpkgManifestFile>
     <_VcpkgConfigFile>$(RepoSrcPath)vcpkg-configuration.json</_VcpkgConfigFile>
     <_VcpkgStampFile>$(RepoOutPath)vcpkg_installed\.msbuildstamp</_VcpkgStampFile>
+
+    <!--
+      Terrapin asset caching for vcpkg downloads (only when explicitly
+      enabled by the release pipeline). -a $(IsLocalBuild) controls whether
+      the retrieval script may upload missing assets back to the Terrapin
+      cache: true on dev boxes (write permission available), false on CI
+      agents (read-only; x-block-origin causes immediate failure rather
+      than attempting public-internet downloads).
+
+      $(TerrapinRetrievalToolPath) is supplied by the release pipeline
+      after it downloads the internal Microsoft.Build.Vcpkg NuGet package
+      that ships the retrieval tool. The repo intentionally does not
+      reference that internal package directly; the pipeline is the only
+      bridge between this repo and the internal feed.
+    -->
+    <_VcpkgAssetSources Condition="'$(UseTerrapinAssetCache)' == 'true'">"--x-asset-sources=x-script,$(TerrapinRetrievalToolPath) -b https://vcpkg.storage.devpackages.microsoft.io/artifacts/ -a $(IsLocalBuild) -p {url} -s {sha512} -d {dst};x-block-origin"</_VcpkgAssetSources>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
@@ -70,13 +86,25 @@
     <Message Importance="high" Text="[vcpkg] Installing native dependencies to $(RepoOutPath)vcpkg_installed\" />
 
     <MakeDir Directories="$(RepoOutPath)vcpkg_installed\" />
-    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet x64-windows-static-aot --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\static&quot; $(_VcpkgManifestArg)"
+
+    <!--
+      Guard: if asset caching was requested but the tool path was not
+      supplied, the asset-source string would be malformed and vcpkg
+      would fail with a confusing error. Surface the misconfiguration up
+      front.
+    -->
+    <Error Condition="'$(UseTerrapinAssetCache)' == 'true' and ('$(TerrapinRetrievalToolPath)' == '' or !Exists('$(TerrapinRetrievalToolPath)'))"
+           Text="UseTerrapinAssetCache=true but TerrapinRetrievalToolPath is empty or does not exist. The release pipeline must pre-download the Microsoft.Build.Vcpkg NuGet package and pass -p:TerrapinRetrievalToolPath=&lt;path-to-TerrapinRetrievalTool.exe&gt;." />
+
+    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet x64-windows-static-aot --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\static&quot; $(_VcpkgManifestArg) $(_VcpkgAssetSources)"
           StandardOutputImportance="High" StandardErrorImportance="High" />
-    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet x64-windows-dynamic --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\dynamic&quot; $(_VcpkgManifestArg)"
+    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet x64-windows-dynamic --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\dynamic&quot; $(_VcpkgManifestArg) $(_VcpkgAssetSources)"
           StandardOutputImportance="High" StandardErrorImportance="High" />
 
     <Error Condition="!Exists('$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\git2.dll')"
-           Text="vcpkg install completed but expected output files are missing. Check vcpkg output above for errors." />
+           Text="vcpkg install completed but git2.dll (dynamic) is missing. Check vcpkg output above for errors." />
+    <Error Condition="!Exists('$(RepoOutPath)vcpkg_installed\static\x64-windows-static-aot\lib\git2.lib')"
+           Text="vcpkg install completed but git2.lib (static) is missing. Check vcpkg output above for errors." />
 
     <Touch Files="$(_VcpkgStampFile)" AlwaysCreate="true" />
   </Target>

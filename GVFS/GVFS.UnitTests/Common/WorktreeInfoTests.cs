@@ -183,5 +183,73 @@ namespace GVFS.UnitTests.Common
             GVFSEnlistment.WorktreeInfo info = GVFSEnlistment.TryGetWorktreeInfo(subDir);
             info.ShouldBeNull();
         }
+
+        [TestCase]
+        public void GetEnlistmentRootReadsMarkerFile()
+        {
+            string enlistmentRoot = Path.Combine(this.testRoot, "enlistment");
+            string primaryGitDir = Path.Combine(enlistmentRoot, "src", ".git");
+            string worktreeGitDir = Path.Combine(primaryGitDir, "worktrees", "remote-wt");
+            Directory.CreateDirectory(worktreeGitDir);
+            File.WriteAllText(Path.Combine(worktreeGitDir, "commondir"), "../..");
+
+            // Write the marker file (same as hooks do during git worktree add)
+            File.WriteAllText(
+                Path.Combine(worktreeGitDir, GVFSEnlistment.WorktreeInfo.EnlistmentRootFileName),
+                enlistmentRoot);
+
+            // Worktree placed outside the enlistment tree
+            string worktreeDir = Path.Combine(this.testRoot, "remote-location", "remote-wt");
+            Directory.CreateDirectory(worktreeDir);
+            File.WriteAllText(Path.Combine(worktreeDir, ".git"), "gitdir: " + worktreeGitDir);
+
+            GVFSEnlistment.WorktreeInfo info = GVFSEnlistment.TryGetWorktreeInfo(worktreeDir);
+            info.ShouldNotBeNull();
+            info.GetEnlistmentRoot().ShouldEqual(enlistmentRoot);
+        }
+
+        [TestCase]
+        public void GetEnlistmentRootFallsBackToSharedGitDir()
+        {
+            string enlistmentRoot = Path.Combine(this.testRoot, "enlistment");
+            string primaryGitDir = Path.Combine(enlistmentRoot, "src", ".git");
+            string worktreeGitDir = Path.Combine(primaryGitDir, "worktrees", "fallback-wt");
+            Directory.CreateDirectory(worktreeGitDir);
+            File.WriteAllText(Path.Combine(worktreeGitDir, "commondir"), "../..");
+
+            // No marker file — fallback should derive from SharedGitDir
+            string worktreeDir = Path.Combine(this.testRoot, "elsewhere", "fallback-wt");
+            Directory.CreateDirectory(worktreeDir);
+            File.WriteAllText(Path.Combine(worktreeDir, ".git"), "gitdir: " + worktreeGitDir);
+
+            GVFSEnlistment.WorktreeInfo info = GVFSEnlistment.TryGetWorktreeInfo(worktreeDir);
+            info.ShouldNotBeNull();
+
+            // SharedGitDir = <enlistmentRoot>/src/.git → parent = src → parent = enlistmentRoot
+            info.GetEnlistmentRoot().ShouldEqual(enlistmentRoot);
+        }
+
+        [TestCase]
+        public void GetEnlistmentRootPrefersMarkerOverFallback()
+        {
+            string actualRoot = Path.Combine(this.testRoot, "actual-root");
+            string primaryGitDir = Path.Combine(this.testRoot, "different-structure", ".git");
+            string worktreeGitDir = Path.Combine(primaryGitDir, "worktrees", "marker-wt");
+            Directory.CreateDirectory(worktreeGitDir);
+            File.WriteAllText(Path.Combine(worktreeGitDir, "commondir"), "../..");
+
+            // Write marker pointing to a different root than what SharedGitDir would derive
+            File.WriteAllText(
+                Path.Combine(worktreeGitDir, GVFSEnlistment.WorktreeInfo.EnlistmentRootFileName),
+                actualRoot);
+
+            string worktreeDir = Path.Combine(this.testRoot, "marker-wt");
+            Directory.CreateDirectory(worktreeDir);
+            File.WriteAllText(Path.Combine(worktreeDir, ".git"), "gitdir: " + worktreeGitDir);
+
+            GVFSEnlistment.WorktreeInfo info = GVFSEnlistment.TryGetWorktreeInfo(worktreeDir);
+            info.ShouldNotBeNull();
+            info.GetEnlistmentRoot().ShouldEqual(actualRoot);
+        }
     }
 }

@@ -41,6 +41,20 @@ namespace GVFS.Common
 
             existingExternalHolder = null;
 
+            // Capture the requestor's process start time so we can later distinguish the
+            // genuine holder from an unrelated process that happens to be reusing the same
+            // PID after the holder exits. If we cannot read the start time (e.g. permission
+            // failure on OpenProcess for a different-integrity caller) we still accept the
+            // lock and fall back to the legacy PID-only orphan check; record the fallback in
+            // telemetry so we can spot if it becomes common.
+            long? requestorStartTime = GVFSPlatform.Instance.TryGetActiveProcessStartTime(requestor.PID, out long startTime)
+                ? startTime
+                : (long?)null;
+            if (requestorStartTime == null)
+            {
+                metadata.Add("StartTimeUnavailable", true);
+            }
+
             try
             {
                 lock (this.acquisitionLock)
@@ -65,7 +79,7 @@ namespace GVFS.Common
                     metadata.Add("Result", "Accepted");
                     eventLevel = EventLevel.Informational;
 
-                    this.currentLockHolder.AcquireForExternalRequestor(requestor);
+                    this.currentLockHolder.AcquireForExternalRequestor(requestor, requestorStartTime);
                     this.Stats = new ActiveGitCommandStats();
 
                     return true;
@@ -190,12 +204,14 @@ namespace GVFS.Common
                 }
 
                 bool externalHolderTerminatedWithoutReleasingLock;
+                string terminationReason;
                 existingExternalHolder = this.currentLockHolder.GetExternalHolder(
-                    out externalHolderTerminatedWithoutReleasingLock);
+                    out externalHolderTerminatedWithoutReleasingLock,
+                    out terminationReason);
 
                 if (externalHolderTerminatedWithoutReleasingLock)
                 {
-                    this.ReleaseLockForTerminatedProcess(existingExternalHolder.PID);
+                    this.ReleaseLockForTerminatedProcess(existingExternalHolder.PID, terminationReason);
                     this.tracer.SetGitCommandSessionId(string.Empty);
                     existingExternalHolder = null;
                 }
@@ -204,11 +220,11 @@ namespace GVFS.Common
             }
         }
 
-        private bool ReleaseExternalLock(int pid, string eventName)
+        private bool ReleaseExternalLock(int pid, string eventName, EventMetadata extraMetadata = null)
         {
             lock (this.acquisitionLock)
             {
-                EventMetadata metadata = new EventMetadata();
+                EventMetadata metadata = extraMetadata ?? new EventMetadata();
 
                 try
                 {
@@ -251,9 +267,11 @@ namespace GVFS.Common
             }
         }
 
-        private void ReleaseLockForTerminatedProcess(int pid)
+        private void ReleaseLockForTerminatedProcess(int pid, string terminationReason)
         {
-            this.ReleaseExternalLock(pid, "ExternalLockHolderExited");
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("ExternalHolderTerminationReason", terminationReason ?? "Unknown");
+            this.ReleaseExternalLock(pid, "ExternalLockHolderExited", metadata);
         }
 
         // The lock release event is a convenient place to record stats about things that happened while a git command was running,
@@ -383,6 +401,7 @@ namespace GVFS.Common
         private class LockHolder
         {
             private NamedPipeMessages.LockData externalLockHolder;
+            private long? externalLockHolderStartTime;
 
             public bool IsFree
             {
@@ -404,7 +423,7 @@ namespace GVFS.Common
                 this.IsGVFS = true;
             }
 
-            public void AcquireForExternalRequestor(NamedPipeMessages.LockData externalLockHolder)
+            public void AcquireForExternalRequestor(NamedPipeMessages.LockData externalLockHolder, long? startTime)
             {
                 if (this.IsGVFS ||
                     this.externalLockHolder != null)
@@ -413,12 +432,14 @@ namespace GVFS.Common
                 }
 
                 this.externalLockHolder = externalLockHolder;
+                this.externalLockHolderStartTime = startTime;
             }
 
             public void Release()
             {
                 this.IsGVFS = false;
                 this.externalLockHolder = null;
+                this.externalLockHolderStartTime = null;
             }
 
             public NamedPipeMessages.LockData GetExternalHolder()
@@ -426,14 +447,44 @@ namespace GVFS.Common
                 return this.externalLockHolder;
             }
 
-            public NamedPipeMessages.LockData GetExternalHolder(out bool externalHolderTerminatedWithoutReleasingLock)
+            public NamedPipeMessages.LockData GetExternalHolder(out bool externalHolderTerminatedWithoutReleasingLock, out string terminationReason)
             {
                 externalHolderTerminatedWithoutReleasingLock = false;
+                terminationReason = null;
 
                 if (this.externalLockHolder != null)
                 {
                     int pid = this.externalLockHolder.PID;
-                    externalHolderTerminatedWithoutReleasingLock = !GVFSPlatform.Instance.IsProcessActive(pid);
+
+                    if (this.externalLockHolderStartTime is long capturedStartTime)
+                    {
+                        // Identity check: confirm the same process still owns this PID by comparing
+                        // the OS-supplied process start time we captured at acquisition with the
+                        // current one. A mismatch means the original holder exited and Windows
+                        // recycled the PID to a different process (the bug this code fixes).
+                        if (!GVFSPlatform.Instance.TryGetActiveProcessStartTime(pid, out long currentStartTime))
+                        {
+                            externalHolderTerminatedWithoutReleasingLock = true;
+                            terminationReason = "ProcessNotActive";
+                        }
+                        else if (currentStartTime != capturedStartTime)
+                        {
+                            externalHolderTerminatedWithoutReleasingLock = true;
+                            terminationReason = "PidRecycled";
+                        }
+                    }
+                    else
+                    {
+                        // Fallback for the rare case where we could not capture a start time at
+                        // acquisition time (e.g. cross-integrity OpenProcess denial). Use the
+                        // legacy PID-only liveness check, which is vulnerable to PID recycling
+                        // but matches pre-fix behavior.
+                        if (!GVFSPlatform.Instance.IsProcessActive(pid))
+                        {
+                            externalHolderTerminatedWithoutReleasingLock = true;
+                            terminationReason = "ProcessNotActive";
+                        }
+                    }
                 }
 
                 return this.externalLockHolder;

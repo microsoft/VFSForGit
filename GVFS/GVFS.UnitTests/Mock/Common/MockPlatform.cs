@@ -45,6 +45,14 @@ namespace GVFS.UnitTests.Mock.Common
 
         public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
 
+        /// <summary>
+        /// Optional per-PID start-time overrides used by tests that exercise PID-reuse
+        /// detection. When a PID is in <see cref="ActiveProcesses"/> but not in this
+        /// dictionary, <see cref="TryGetActiveProcessStartTime"/> returns the PID itself
+        /// as a synthetic non-zero start time.
+        /// </summary>
+        public Dictionary<int, long> ProcessStartTimes { get; } = new Dictionary<int, long>();
+
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
             throw new NotSupportedException();
@@ -136,6 +144,21 @@ namespace GVFS.UnitTests.Mock.Common
         public override bool IsProcessActive(int processId)
         {
             return this.ActiveProcesses.Contains(processId);
+        }
+
+        public override bool TryGetActiveProcessStartTime(int processId, out long startTime)
+        {
+            if (this.ActiveProcesses.Contains(processId))
+            {
+                // If the test populated an explicit start time use that, otherwise fall back
+                // to a deterministic non-zero value so test scenarios that don't care about
+                // PID identity (the existing majority of unit tests) keep working.
+                startTime = this.ProcessStartTimes.TryGetValue(processId, out long stored) ? stored : processId;
+                return true;
+            }
+
+            startTime = 0;
+            return false;
         }
 
         public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)

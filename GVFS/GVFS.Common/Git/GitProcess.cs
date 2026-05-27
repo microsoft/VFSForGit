@@ -815,16 +815,24 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 -c repack.packKeptObjects=true multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize} --no-progress");
         }
 
-        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory, bool usePreCommandHook)
+        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, string gitObjectsDirectory, bool usePreCommandHook)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);
             processInfo.WorkingDirectory = workingDirectory;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardInput = true;
             processInfo.RedirectStandardOutput = true;
-            processInfo.RedirectStandardError = redirectStandardError;
+            processInfo.RedirectStandardError = true;
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            processInfo.CreateNoWindow = true;
+
+            // CreateNoWindow=false avoids allocating a hidden conhost.exe per child
+            // process. This is safe because both stdout and stderr are redirected via
+            // pipes, so the child never needs a console for I/O. If a future change
+            // stops redirecting either stream (to forward output to the parent console
+            // instead), CreateNoWindow must be set to true for that case — otherwise
+            // the non-redirected stream inherits the parent's console handle, which
+            // may be absent when running as a service, causing lost output.
+            processInfo.CreateNoWindow = false;
 
             processInfo.StandardOutputEncoding = UTF8NoBOM;
             processInfo.StandardErrorEncoding = UTF8NoBOM;
@@ -903,7 +911,7 @@ namespace GVFS.Common.Git
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx
                 // To avoid deadlocks, use asynchronous read operations on at least one of the streams.
                 // Do not perform a synchronous read to the end of both redirected streams.
-                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, redirectStandardError: true, gitObjectsDirectory: gitObjectsDirectory, usePreCommandHook: usePreCommandHook))
+                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, gitObjectsDirectory: gitObjectsDirectory, usePreCommandHook: usePreCommandHook))
                 {
                     StringBuilder output = new StringBuilder();
                     StringBuilder errors = new StringBuilder();

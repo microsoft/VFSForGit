@@ -35,6 +35,9 @@ namespace GVFS.FunctionalTests.Tools
             }
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
+            // Suppress progress output (e.g. "Updating files: 100%") which is timing-dependent
+            // and causes flaky stderr comparisons between control and GVFS repos.
+            processInfo.EnvironmentVariables["GIT_PROGRESS_DELAY"] = "3600";
 
             if (environmentVariables != null)
             {
