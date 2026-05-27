@@ -129,7 +129,7 @@ int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc
         /* Git disallows stdin from hooks */
         si.dwFlags = STARTF_USESTDHANDLES;
 
-        creationFlags |= CREATE_NO_WINDOW;
+        creationFlags |= DETACHED_PROCESS;
     }
 
     ZeroMemory(&pi, sizeof(pi));
