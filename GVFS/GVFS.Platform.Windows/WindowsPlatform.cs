@@ -205,6 +205,11 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.IsProcessActiveImplementation(processId, tryGetProcessById: true);
         }
 
+        public override bool TryGetActiveProcessStartTime(int processId, out long startTime)
+        {
+            return WindowsPlatform.TryGetActiveProcessStartTimeImplementation(processId, out startTime);
+        }
+
         public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
         {
             ServiceController service = ServiceController.GetServices().FirstOrDefault(s => s.ServiceName.Equals(name, StringComparison.Ordinal));

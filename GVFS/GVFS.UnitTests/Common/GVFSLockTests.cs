@@ -182,6 +182,84 @@ namespace GVFS.UnitTests.Common
             mockTracer.VerifyAll();
         }
 
+        /// <summary>
+        /// Regression test for OrphanedGVFSLockIsCleanedUp flake: simulates the original lock holder
+        /// exiting and the OS recycling its PID to a different, unrelated process before the orphan
+        /// check fires. Identity is preserved via process start time, so the orphan must be detected
+        /// even though the (now-different) process at the holder's PID still appears active.
+        /// </summary>
+        [TestCase]
+        public void TryAcquireLockForExternalRequestor_WhenHolderPidRecycled()
+        {
+            Mock<ITracer> mockTracer = new Mock<ITracer>(MockBehavior.Strict);
+            mockTracer.Setup(x => x.RelatedEvent(EventLevel.Informational, "TryAcquireLockExternal", It.IsAny<EventMetadata>()));
+            mockTracer.Setup(x => x.RelatedEvent(EventLevel.Informational, "ExternalLockHolderExited", It.IsAny<EventMetadata>(), Keywords.Telemetry));
+            mockTracer.Setup(x => x.SetGitCommandSessionId(string.Empty));
+            MockPlatform mockPlatform = (MockPlatform)GVFSPlatform.Instance;
+
+            // Acquire as DefaultLockData.PID with an explicit start time so the new identity-check
+            // path (not the legacy fallback) runs.
+            mockPlatform.ActiveProcesses.Add(DefaultLockData.PID);
+            mockPlatform.ProcessStartTimes[DefaultLockData.PID] = 1000;
+            GVFSLock gvfsLock = new GVFSLock(mockTracer.Object);
+            NamedPipeMessages.LockData existingExternalHolder;
+            gvfsLock.TryAcquireLockForExternalRequestor(DefaultLockData, out existingExternalHolder).ShouldBeTrue();
+            existingExternalHolder.ShouldBeNull();
+            this.ValidateLockHeld(gvfsLock, DefaultLockData);
+
+            // Simulate PID recycling: the PID is still reported active (a different process now owns it),
+            // but the start time differs from the one we captured at acquisition.
+            mockPlatform.ProcessStartTimes[DefaultLockData.PID] = 2000;
+
+            NamedPipeMessages.LockData newLockData = new NamedPipeMessages.LockData(4321, false, false, "git new", "456");
+            mockPlatform.ActiveProcesses.Add(newLockData.PID);
+            mockPlatform.ProcessStartTimes[newLockData.PID] = 3000;
+            gvfsLock.TryAcquireLockForExternalRequestor(newLockData, out existingExternalHolder).ShouldBeTrue();
+            existingExternalHolder.ShouldBeNull();
+            this.ValidateLockHeld(gvfsLock, newLockData);
+
+            mockPlatform.ActiveProcesses.Remove(DefaultLockData.PID);
+            mockPlatform.ActiveProcesses.Remove(newLockData.PID);
+            mockPlatform.ProcessStartTimes.Remove(DefaultLockData.PID);
+            mockPlatform.ProcessStartTimes.Remove(newLockData.PID);
+            mockTracer.VerifyAll();
+        }
+
+        /// <summary>
+        /// Inverse of the PID-recycle test: when start time still matches, the original holder
+        /// must still be considered the active holder and a new acquisition must be denied.
+        /// Guards against an over-eager orphan detector that would release any lock on every check.
+        /// </summary>
+        [TestCase]
+        public void TryAcquireLockForExternalRequestor_WhenHolderStartTimeMatches()
+        {
+            Mock<ITracer> mockTracer = new Mock<ITracer>(MockBehavior.Strict);
+            mockTracer.Setup(x => x.RelatedEvent(EventLevel.Informational, "TryAcquireLockExternal", It.IsAny<EventMetadata>()));
+            mockTracer.Setup(x => x.RelatedEvent(EventLevel.Verbose, "TryAcquireLockExternal", It.IsAny<EventMetadata>()));
+            MockPlatform mockPlatform = (MockPlatform)GVFSPlatform.Instance;
+
+            mockPlatform.ActiveProcesses.Add(DefaultLockData.PID);
+            mockPlatform.ProcessStartTimes[DefaultLockData.PID] = 1000;
+            GVFSLock gvfsLock = new GVFSLock(mockTracer.Object);
+            NamedPipeMessages.LockData existingExternalHolder;
+            gvfsLock.TryAcquireLockForExternalRequestor(DefaultLockData, out existingExternalHolder).ShouldBeTrue();
+            this.ValidateLockHeld(gvfsLock, DefaultLockData);
+
+            // Start time is unchanged -- holder is genuinely still alive; new acquire must be denied.
+            NamedPipeMessages.LockData newLockData = new NamedPipeMessages.LockData(4321, false, false, "git new", "456");
+            mockPlatform.ActiveProcesses.Add(newLockData.PID);
+            mockPlatform.ProcessStartTimes[newLockData.PID] = 3000;
+            gvfsLock.TryAcquireLockForExternalRequestor(newLockData, out existingExternalHolder).ShouldBeFalse();
+            this.ValidateExistingExternalHolder(DefaultLockData, existingExternalHolder);
+            this.ValidateLockHeld(gvfsLock, DefaultLockData);
+
+            mockPlatform.ActiveProcesses.Remove(DefaultLockData.PID);
+            mockPlatform.ActiveProcesses.Remove(newLockData.PID);
+            mockPlatform.ProcessStartTimes.Remove(DefaultLockData.PID);
+            mockPlatform.ProcessStartTimes.Remove(newLockData.PID);
+            mockTracer.VerifyAll();
+        }
+
         private GVFSLock AcquireDefaultLock(MockPlatform mockPlatform, ITracer mockTracer)
         {
             GVFSLock gvfsLock = new GVFSLock(mockTracer);
