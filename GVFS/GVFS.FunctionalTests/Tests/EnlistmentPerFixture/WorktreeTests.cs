@@ -191,6 +191,83 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase]
+        public void WorktreeOutsideEnlistmentTree()
+        {
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 8);
+            string tempDir = Path.Combine(Path.GetTempPath(), $"gvfs-remote-wt-{suffix}");
+            string worktreePath = Path.Combine(tempDir, "wt");
+            string branchName = $"remote-wt-test-{suffix}";
+
+            try
+            {
+                Directory.CreateDirectory(tempDir);
+
+                // 1. Create worktree outside the enlistment tree
+                ProcessResult addResult = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    $"worktree add -b {branchName} \"{worktreePath}\"");
+                addResult.ExitCode.ShouldEqual(0,
+                    $"worktree add failed: {addResult.Errors}");
+
+                // 2. Verify GVFS mount is running
+                this.AssertWorktreeMounted(worktreePath, "remote worktree");
+
+                // 3. Verify git status works from the worktree root
+                ProcessResult statusResult = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    worktreePath, "status --porcelain");
+                statusResult.ExitCode.ShouldEqual(0,
+                    $"git status from worktree root failed: {statusResult.Errors}");
+                statusResult.Output.Trim().ShouldBeEmpty(
+                    "Remote worktree should have clean status");
+
+                // 4. Verify projected files are visible
+                File.Exists(Path.Combine(worktreePath, "Readme.md")).ShouldBeTrue(
+                    "Readme.md should be projected in remote worktree");
+
+                // 5. Verify git status works from a subdirectory
+                string subDir = Path.Combine(worktreePath, "GVFS");
+                Directory.Exists(subDir).ShouldBeTrue(
+                    "Subdirectory GVFS should be projected");
+                ProcessResult subDirStatus = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    subDir, "status --porcelain");
+                subDirStatus.ExitCode.ShouldEqual(0,
+                    $"git status from subdirectory failed: {subDirStatus.Errors}");
+
+                // 6. Verify commits work
+                File.WriteAllText(
+                    Path.Combine(worktreePath, "remote-test.txt"),
+                    "created in remote worktree");
+                GitHelpers.InvokeGitAgainstGVFSRepo(worktreePath, "add remote-test.txt")
+                    .ExitCode.ShouldEqual(0);
+                GitHelpers.InvokeGitAgainstGVFSRepo(
+                    worktreePath, "commit -m \"commit from remote worktree\"")
+                    .ExitCode.ShouldEqual(0);
+
+                // 7. Verify commit is visible from primary repo
+                GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot, $"log -1 --format=%s {branchName}")
+                    .Output.ShouldContain(expectedSubstrings: new[] { "commit from remote worktree" });
+
+                // 8. Remove worktree
+                ProcessResult removeResult = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    $"worktree remove --force \"{worktreePath}\"");
+                removeResult.ExitCode.ShouldEqual(0,
+                    $"worktree remove failed: {removeResult.Errors}");
+                Directory.Exists(worktreePath).ShouldBeFalse(
+                    "Remote worktree directory should be deleted");
+            }
+            finally
+            {
+                this.ForceCleanupWorktree(worktreePath, branchName);
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, recursive: true); } catch { }
+                }
+            }
+        }
+
         private void InitWorktreeArrays(int count, out string[] paths, out string[] branches)
         {
             paths = new string[count];
