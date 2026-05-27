@@ -18,6 +18,25 @@
       but our .NET projects do.
       -->
     <RestorePackagesConfig>true</RestorePackagesConfig>
+
+    <!--
+      Set to true when building locally to allow Terrapin to upload missing
+      vcpkg assets to the shared cache. CI agents must keep this false so
+      vcpkg uses x-block-origin (fail fast instead of attempting direct
+      downloads from the public internet, which is blocked at the agent
+      network layer).
+    -->
+    <IsLocalBuild Condition="'$(IsLocalBuild)' == ''">false</IsLocalBuild>
+
+    <!--
+      Set to true on the official release pipeline to route vcpkg asset
+      downloads through the internal Terrapin cache via the
+      Microsoft.Build.Vcpkg SDK (an internal-only package). Defaults to
+      false so external contributors and the public GitHub Actions
+      PR-validation workflow continue to use the standard vcpkg flow
+      with direct downloads from the public internet.
+    -->
+    <UseTerrapinAssetCache Condition="'$(UseTerrapinAssetCache)' == ''">false</UseTerrapinAssetCache>
   </PropertyGroup>
 
   <!-- Managed project properties -->

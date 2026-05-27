@@ -111,6 +111,9 @@ extends:
                 inputs:
                   versionSpec: '6.x'
 
+              - task: NuGetAuthenticate@1
+                displayName: 'Authenticate to internal NuGet feed (for Microsoft.Build.Vcpkg)'
+
               - task: PowerShell@2
                 displayName: 'Install VS C++ workload (NativeAOT prerequisite)'
                 inputs:
@@ -120,6 +123,37 @@ extends:
                 displayName: 'Enable Projected File System (ProjFS)'
                 inputs:
                   filePath: $(Build.SourcesDirectory)\.azure-pipelines\scripts\enable-projfs.ps1
+
+              # Download the Microsoft.Build.Vcpkg NuGet package out-of-band so we
+              # can hand the build a path to TerrapinRetrievalTool.exe via
+              # -p:TerrapinRetrievalToolPath. The package is pulled from an
+              # internal NuGet feed (see .azure-pipelines/official-release-nuget.config).
+              # Downloading it this way -- rather than as an msbuild Sdk import --
+              # keeps the internal feed out of the root nuget.config that
+              # external contributors and the public GitHub Actions workflow see.
+              - task: NuGetCommand@2
+                displayName: 'Download Microsoft.Build.Vcpkg package (Terrapin retrieval tool)'
+                inputs:
+                  command: custom
+                  arguments: 'install Microsoft.Build.Vcpkg -Version 2026.5.25.434-aa40adda53 -ConfigFile $(Build.SourcesDirectory)\.azure-pipelines\official-release-nuget.config -OutputDirectory $(Agent.TempDirectory)\nuget-internal -ExcludeVersion -DirectDownload -NonInteractive'
+
+              # Restore vcpkg native dependencies through the Terrapin asset
+              # cache (the release pipeline's build agents have x-block-origin
+              # enforced and cannot download from the public internet). Runs the
+              # _RestoreVcpkgDependencies MSBuild target with
+              # UseTerrapinAssetCache=true and TerrapinRetrievalToolPath pointing
+              # at the binary extracted by the previous step. vcpkg downloads
+              # then route through https://vcpkg.storage.devpackages.microsoft.io.
+              # Build.bat's own vcpkg install step then skips because the libs
+              # are already present.
+              - script: |
+                  dotnet build "$(Build.SourcesDirectory)\GVFS\GVFS.Common\GVFS.Common.csproj" ^
+                    /t:_RestoreVcpkgDependencies ^
+                    -c $(BuildConfiguration) ^
+                    -p:UseTerrapinAssetCache=true ^
+                    -p:TerrapinRetrievalToolPath=$(Agent.TempDirectory)\nuget-internal\Microsoft.Build.Vcpkg\trt\TerrapinRetrievalTool.exe ^
+                    -v:detailed
+                displayName: 'Restore vcpkg native libraries (Terrapin cache)'
 
               - script: |
                   $(Build.SourcesDirectory)\scripts\Build.bat ^
