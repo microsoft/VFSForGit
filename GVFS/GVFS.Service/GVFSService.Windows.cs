@@ -5,6 +5,7 @@ using GVFS.Common.Tracing;
 using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
@@ -46,6 +47,46 @@ namespace GVFS.Service
                 metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
                 this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(GVFSService)}_{nameof(this.Run)}", metadata);
 
+                // Set up deferred telemetry pipe attachment FIRST, before any
+                // telemetry-emitting work (particularly PendingUpgradeHandler,
+                // whose Deferred/Complete events we want to capture).
+                //
+                // The service runs as SYSTEM and can't read the user's global
+                // git config (where gvfs.telemetry-pipe is configured) at
+                // startup.  The DeferredTelemetryAttacher adds a
+                // BufferingTelemetryListener that captures events in memory,
+                // then replays them once the real pipe listener attaches.
+                //
+                // Three attach paths exist:
+                //   1. TryAttachTelemetryPipeForAnySessions() below — tries
+                //      all Active/Disconnected sessions immediately.
+                //   2. OnSessionChange (SessionLogon) — fires when a new user
+                //      logs in after the service is already running.
+                //   3. StartRetryTimer — periodic retry (10s, 30s, 1m, 5m)
+                //      as a fallback, reads system config only (no user
+                //      config available without a session to impersonate).
+                string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+                if (!string.IsNullOrEmpty(gitBinRoot))
+                {
+                    this.telemetryAttacher = new DeferredTelemetryAttacher(
+                        this.tracer,
+                        GVFSConstants.Service.ServiceName,
+                        enlistmentId: null,
+                        mountId: null);
+                    this.telemetryAttacher.StartRetryTimer(gitBinRoot);
+
+                    // If a user is already logged in (e.g. service restart
+                    // during active session), try attaching immediately by
+                    // enumerating all interactive sessions.  This is needed
+                    // because WTSGetActiveConsoleSessionId only returns the
+                    // physical console session, which on Cloud PCs / DevBoxes
+                    // (RDP-only) has no logged-in user.  The actual user is
+                    // in an RDP session that the console-only check misses.
+                    // SessionLogon events also won't fire for sessions that
+                    // were already established before the service started.
+                    this.TryAttachTelemetryPipeForAnySessions();
+                }
+
                 // Check for a staged upgrade before doing anything else.
                 // If no GVFS.Mount processes are running (typical at boot or after
                 // unmount-all), copy staged files in-place and proceed normally.
@@ -76,29 +117,6 @@ namespace GVFS.Service
                     this.requestHandler.HandleRequest))
                 {
                     this.CheckEnableGitStatusCacheTokenFile();
-
-                    // Set up deferred telemetry pipe attachment.  The service
-                    // runs as SYSTEM and can't read the user's global git
-                    // config at startup, so the daemon listener can't be
-                    // created in the JsonTracer constructor.
-                    string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-                    if (!string.IsNullOrEmpty(gitBinRoot))
-                    {
-                        this.telemetryAttacher = new DeferredTelemetryAttacher(
-                            this.tracer,
-                            GVFSConstants.Service.ServiceName,
-                            enlistmentId: null,
-                            mountId: null);
-                        this.telemetryAttacher.StartRetryTimer(gitBinRoot);
-
-                        // If a user is already logged in (e.g. service restart
-                        // during active session), try attaching immediately.
-                        int activeSession = NativeMethods.GetActiveConsoleSessionId();
-                        if (activeSession > 0)
-                        {
-                            this.TryAttachTelemetryPipeForSession(activeSession);
-                        }
-                    }
 
                     using (ITracer activity = this.tracer.StartActivity("EnsurePrjFltHealthy", EventLevel.Informational))
                     {
@@ -472,6 +490,50 @@ namespace GVFS.Service
             catch (Exception e)
             {
                 this.tracer.RelatedWarning("TryAttachTelemetryPipe failed: {0}", e.Message);
+            }
+        }
+
+        /// <summary>
+        /// Enumerates all interactive sessions (Active and Disconnected)
+        /// and tries to attach the telemetry pipe using each session's
+        /// user profile.  Stops on the first successful attach.
+        /// </summary>
+        /// <remarks>
+        /// This method exists because the console-only check
+        /// (<c>WTSGetActiveConsoleSessionId</c>) fails on Cloud PCs and
+        /// RDP-only machines where the console session is in the Connected
+        /// state (login screen, no user).  Disconnected sessions are also
+        /// checked because an RDP user who disconnected without logging
+        /// off still has a valid token and git config.
+        /// </remarks>
+        private void TryAttachTelemetryPipeForAnySessions()
+        {
+            if (this.telemetryAttacher == null || this.telemetryAttacher.IsAttached)
+            {
+                return;
+            }
+
+            List<int> sessionIds = CurrentUser.GetInteractiveSessionIds(this.tracer);
+            if (sessionIds.Count == 0)
+            {
+                this.tracer.RelatedInfo("TryAttachTelemetryPipeForAnySessions: No interactive sessions found");
+                return;
+            }
+
+            foreach (int sessionId in sessionIds)
+            {
+                this.TryAttachTelemetryPipeForSession(sessionId);
+                if (this.telemetryAttacher.IsAttached)
+                {
+                    break;
+                }
+            }
+
+            if (!this.telemetryAttacher.IsAttached)
+            {
+                this.tracer.RelatedWarning(
+                    "TryAttachTelemetryPipeForAnySessions: Could not attach from any of {0} interactive session(s)",
+                    sessionIds.Count);
             }
         }
 

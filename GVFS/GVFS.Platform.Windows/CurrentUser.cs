@@ -134,7 +134,7 @@ namespace GVFS.Platform.Windows
                     if (CreateEnvironmentBlock(ref environment, duplicate, false))
                     {
                         STARTUP_INFO info = new STARTUP_INFO();
-                        info.Length = Marshal.SizeOf(typeof(STARTUP_INFO));
+                        info.Length = Marshal.SizeOf<STARTUP_INFO>();
 
                         PROCESS_INFORMATION procInfo = new PROCESS_INFORMATION();
                         if (CreateProcessAsUser(
@@ -193,6 +193,55 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
+        /// <summary>
+        /// Returns session IDs for sessions that have a logged-in user
+        /// whose token can be queried via <c>WTSQueryUserToken</c>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// WTS session states relevant to telemetry pipe attachment:
+        /// </para>
+        /// <list type="table">
+        /// <listheader><term>State</term><description>Meaning</description></listheader>
+        /// <item><term>Active</term><description>
+        ///   User logged in, session connected (console or RDP).
+        ///   Has a valid user token. This is the primary case.
+        /// </description></item>
+        /// <item><term>Connected</term><description>
+        ///   Client attached but no user logged in (e.g. the console
+        ///   session showing the Windows login screen on a Cloud PC).
+        ///   No user token — <c>WTSQueryUserToken</c> will fail.
+        /// </description></item>
+        /// <item><term>Disconnected</term><description>
+        ///   User logged in but client disconnected (e.g. closed RDP
+        ///   window without logging off). The user's profile, processes,
+        ///   and token are still available. Included so the service can
+        ///   attach telemetry even when no client is actively connected.
+        /// </description></item>
+        /// </list>
+        /// <para>
+        /// Session 0 is the services session and never has a user token,
+        /// even when its state is Disconnected. Excluded by the ID > 0
+        /// guard.
+        /// </para>
+        /// </remarks>
+        public static List<int> GetInteractiveSessionIds(ITracer tracer)
+        {
+            List<int> sessionIds = new List<int>();
+            List<WTS_SESSION_INFO> sessions = ListSessions(tracer);
+            foreach (WTS_SESSION_INFO session in sessions)
+            {
+                if (session.SessionID > 0 &&
+                    (session.State == ConnectionState.Active ||
+                     session.State == ConnectionState.Disconnected))
+                {
+                    sessionIds.Add(session.SessionID);
+                }
+            }
+
+            return sessionIds;
+        }
+
         public void Dispose()
         {
             if (this.token != IntPtr.Zero)
@@ -216,7 +265,10 @@ namespace GVFS.Platform.Windows
             }
             else
             {
-                TraceWin32Error(tracer, string.Format("Unable to query user token from session '{0}'.", sessionId));
+                // Warning, not error: sessions without a logged-in user
+                // (e.g. the console session on a Cloud PC) are expected.
+                Win32Exception e = new Win32Exception(Marshal.GetLastWin32Error());
+                tracer.RelatedWarning("Unable to query user token from session '{0}'. Exception: {1}", sessionId, e.Message);
             }
 
             return IntPtr.Zero;
@@ -234,12 +286,12 @@ namespace GVFS.Platform.Windows
                 int retval = WTSEnumerateSessions(IntPtr.Zero, 0, 1, ref sessionInfo, ref count);
                 if (retval != 0)
                 {
-                    int dataSize = Marshal.SizeOf(typeof(WTS_SESSION_INFO));
+                    int dataSize = Marshal.SizeOf<WTS_SESSION_INFO>();
                     long current = sessionInfo.ToInt64();
 
                     for (int i = 0; i < count; i++)
                     {
-                        WTS_SESSION_INFO si = (WTS_SESSION_INFO)Marshal.PtrToStructure((IntPtr)current, typeof(WTS_SESSION_INFO));
+                        WTS_SESSION_INFO si = Marshal.PtrToStructure<WTS_SESSION_INFO>((IntPtr)current);
                         current += dataSize;
 
                         output.Add(si);
