@@ -981,6 +981,9 @@ namespace GVFS.Platform.Windows
             }
             catch (GetFileStreamException e)
             {
+                requestMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: GetFileStreamException HResult 0x{e.HResult:X8}");
+                this.Context.Tracer.RelatedWarning(requestMetadata, nameof(this.GetFileStreamHandlerAsyncHandler) + "_GetFileStreamException");
+
                 this.TryCompleteCommand(commandId, (HResult)e.HResult);
                 return;
             }
