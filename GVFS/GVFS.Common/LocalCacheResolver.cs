@@ -33,7 +33,7 @@ namespace GVFS.Common
                 return true;
             }
 
-            return GVFSPlatform.Instance.TryGetDefaultLocalCacheRoot(enlistment.EnlistmentRoot, out localCacheRoot, out localCacheRootError);
+            return GVFSPlatform.Instance.TryGetDefaultLocalCacheRoot(enlistment.PrimaryEnlistmentRoot, out localCacheRoot, out localCacheRootError);
         }
 
         public bool TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(

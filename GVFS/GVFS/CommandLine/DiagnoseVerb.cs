@@ -77,7 +77,7 @@ namespace GVFS.CommandLine
 
                 this.WriteMessage(enlistment.GitBinPath);
                 this.WriteMessage(string.Empty);
-                this.WriteMessage("Enlistment root: " + enlistment.EnlistmentRoot);
+                this.WriteMessage("Enlistment root: " + enlistment.PrimaryEnlistmentRoot);
                 this.WriteMessage("Cache Server: " + CacheServerResolver.GetCacheServerFromConfig(enlistment));
 
                 string localCacheRoot;
@@ -101,8 +101,8 @@ namespace GVFS.CommandLine
                 this.ShowStatusWhileRunning(
                     () =>
                     {
-                        // .gvfs
-                        this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSPlatform.Instance.Constants.DotGVFSRoot, copySubFolders: false);
+                        // .gvfs (top-level files like mount.lock)
+                        this.CopyAllFiles(Path.GetDirectoryName(enlistment.DotGVFSRoot), archiveFolderPath, Path.GetFileName(enlistment.DotGVFSRoot), copySubFolders: false);
 
                         // driver
                         if (this.FlushKernelDriverLogs())
@@ -274,7 +274,7 @@ namespace GVFS.CommandLine
                 using (ITracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "DiagnoseVerb"))
                 {
                     string error;
-                    if (RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot), out error))
+                    if (RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out error))
                     {
                         RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error);
                         RepoMetadata.Instance.TryGetGitObjectsRoot(out gitObjectsRoot, out error);

@@ -145,7 +145,7 @@ namespace GVFS.UnitTests.Common
         public void EnlistmentRootIsPrimaryRoot()
         {
             GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
-            enlistment.EnlistmentRoot.ShouldEqual(this.primaryRoot);
+            enlistment.PrimaryEnlistmentRoot.ShouldEqual(this.primaryRoot);
         }
 
         [TestCase]

@@ -159,7 +159,7 @@ namespace GVFS.CommandLine
                 string.IsNullOrEmpty(this.Set) &&
                 string.IsNullOrEmpty(this.File)))
             {
-                this.ListSparseFolders(enlistment.EnlistmentRoot);
+                this.ListSparseFolders(enlistment.DotGVFSRoot);
                 return;
             }
 
@@ -183,7 +183,7 @@ namespace GVFS.CommandLine
 
                 HashSet<string> directories;
                 bool needToChangeProjection = false;
-                using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase()))
+                using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.DotGVFSRoot, new SqliteDatabase()))
                 {
                     SparseTable sparseTable = new SparseTable(database);
                     directories = sparseTable.GetAll();
@@ -555,9 +555,9 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void ListSparseFolders(string enlistmentRoot)
+        private void ListSparseFolders(string dotGVFSRoot)
         {
-            using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistmentRoot, new SqliteDatabase()))
+            using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), dotGVFSRoot, new SqliteDatabase()))
             {
                 SparseTable sparseTable = new SparseTable(database);
                 HashSet<string> directories = sparseTable.GetAll();

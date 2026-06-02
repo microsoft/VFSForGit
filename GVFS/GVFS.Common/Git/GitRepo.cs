@@ -16,12 +16,18 @@ namespace GVFS.Common.Git
         private PhysicalFileSystem fileSystem;
         private LibGit2RepoInvoker libgit2RepoInvoker;
         private Enlistment enlistment;
+        private string dotGVFSRoot;
 
         public GitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem, Func<LibGit2Repo> repoFactory = null)
         {
             this.tracer = tracer;
             this.enlistment = enlistment;
             this.fileSystem = fileSystem;
+
+            // Resolve the per-worktree .gvfs root if available; otherwise
+            // derive from EnlistmentRoot (primary enlistments).
+            this.dotGVFSRoot = (enlistment as GVFSEnlistment)?.DotGVFSRoot
+                ?? Path.Combine(enlistment.PrimaryEnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
 
             this.GVFSLock = new GVFSLock(tracer);
 
@@ -240,7 +246,7 @@ namespace GVFS.Common.Git
             {
                 if (corruptLooseObject)
                 {
-                    string corruptBlobsFolderPath = Path.Combine(this.enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.CorruptObjectsName);
+                    string corruptBlobsFolderPath = Path.Combine(this.dotGVFSRoot, GVFSConstants.DotGVFS.CorruptObjectsName);
                     string corruptBlobPath = Path.Combine(corruptBlobsFolderPath, Path.GetRandomFileName());
 
                     EventMetadata metadata = new EventMetadata();

@@ -29,7 +29,7 @@ namespace FastFetch
 
         public string FastFetchLogRoot
         {
-            get { return Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGit.Root, ".fastfetch"); }
+            get { return Path.Combine(this.PrimaryEnlistmentRoot, GVFSConstants.DotGit.Root, ".fastfetch"); }
         }
 
         public static GitEnlistment CreateFromCurrentDirectory(string gitBinPath)

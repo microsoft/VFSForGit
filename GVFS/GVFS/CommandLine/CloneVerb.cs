@@ -162,9 +162,9 @@ namespace GVFS.CommandLine
                         // Create the enlistment root explicitly with CreateDirectoryAccessibleByAuthUsers before calling
                         // AddLogFileEventListener to ensure that elevated and non-elevated users have access to the root.
                         string createDirectoryError;
-                        if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryAccessibleByAuthUsers(enlistment.EnlistmentRoot, out createDirectoryError))
+                        if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryAccessibleByAuthUsers(enlistment.PrimaryEnlistmentRoot, out createDirectoryError))
                         {
-                            this.ReportErrorAndExit($"Failed to create '{enlistment.EnlistmentRoot}': {createDirectoryError}");
+                            this.ReportErrorAndExit($"Failed to create '{enlistment.PrimaryEnlistmentRoot}': {createDirectoryError}");
                         }
 
                         tracer.AddLogFileEventListener(
@@ -172,7 +172,7 @@ namespace GVFS.CommandLine
                             EventLevel.Informational,
                             Keywords.Any);
                         tracer.WriteStartEvent(
-                            enlistment.EnlistmentRoot,
+                            enlistment.PrimaryEnlistmentRoot,
                             enlistment.RepoUrl,
                             this.CacheServerUrl,
                             new EventMetadata
@@ -214,7 +214,7 @@ namespace GVFS.CommandLine
                         this.Output.WriteLine("  Branch:       " + (string.IsNullOrWhiteSpace(this.Branch) ? "Default" : this.Branch));
                         this.Output.WriteLine("  Cache Server: " + cacheServer);
                         this.Output.WriteLine("  Local Cache:  " + resolvedLocalCacheRoot);
-                        this.Output.WriteLine("  Destination:  " + enlistment.EnlistmentRoot);
+                        this.Output.WriteLine("  Destination:  " + enlistment.PrimaryEnlistmentRoot);
 
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
 
@@ -291,7 +291,7 @@ namespace GVFS.CommandLine
                                     {
                                         UseShellExecute = true,
                                         WindowStyle = ProcessWindowStyle.Minimized,
-                                        WorkingDirectory = enlistment.EnlistmentRoot
+                                        WorkingDirectory = enlistment.PrimaryEnlistmentRoot
                                     });
                                 this.Output.WriteLine("\r\nPrefetch of commit graph has been started as a background process. Git operations involving history may be slower until prefetch has completed.\r\n");
                             }
@@ -457,7 +457,7 @@ namespace GVFS.CommandLine
                         return new Result(error);
                     }
 
-                    if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(enlistment.EnlistmentRoot, out string fsError))
+                    if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(enlistment.PrimaryEnlistmentRoot, out string fsError))
                     {
                         string error = $"FileSystem unsupported: {fsError}";
                         tracer.RelatedError(error);
@@ -754,7 +754,7 @@ namespace GVFS.CommandLine
         // TODO(#1364): Don't call this method on POSIX platforms (or have it no-op on them)
         private void CreateGitScript(GVFSEnlistment enlistment)
         {
-            FileInfo gitCmd = new FileInfo(Path.Combine(enlistment.EnlistmentRoot, "git.cmd"));
+            FileInfo gitCmd = new FileInfo(Path.Combine(enlistment.PrimaryEnlistmentRoot, "git.cmd"));
             using (FileStream fs = gitCmd.Create())
             using (StreamWriter writer = new StreamWriter(fs))
             {

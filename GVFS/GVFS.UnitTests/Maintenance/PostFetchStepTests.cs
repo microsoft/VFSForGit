@@ -91,7 +91,7 @@ namespace GVFS.UnitTests.Maintenance
             // Create enlistment using git process
             GVFSEnlistment enlistment = new MockGVFSEnlistment(this.gitProcess);
 
-            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
+            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.PrimaryEnlistmentRoot, null, null));
 
             // Create and return Context
             this.tracer = new MockTracer();

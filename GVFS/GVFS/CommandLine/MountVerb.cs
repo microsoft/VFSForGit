@@ -158,7 +158,7 @@ namespace GVFS.CommandLine
                     EventLevel.Verbose,
                     Keywords.Any);
                 tracer.WriteStartEvent(
-                    enlistment.EnlistmentRoot,
+                    enlistment.PrimaryEnlistmentRoot,
                     enlistment.RepoUrl,
                     cacheServerFromConfig.Url,
                     new EventMetadata
@@ -169,7 +169,7 @@ namespace GVFS.CommandLine
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
 
-                if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, this.Output, out errorMessage))
+                if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.WorkingDirectoryRoot, this.Output, out errorMessage))
                 {
                     tracer.RelatedEvent(
                         EventLevel.Informational,
@@ -181,7 +181,7 @@ namespace GVFS.CommandLine
                         });
 
                     if (!this.ShowStatusWhileRunning(
-                        () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
+                        () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.WorkingDirectoryRoot, out errorMessage); },
                         $"Attaching ProjFS to volume"))
                     {
                         this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
@@ -255,7 +255,7 @@ namespace GVFS.CommandLine
             // For worktrees, pass the worktree path so GVFS.Mount.exe creates the right enlistment
             string mountPath = enlistment.IsWorktree
                 ? enlistment.WorkingDirectoryRoot
-                : enlistment.EnlistmentRoot;
+                : enlistment.PrimaryEnlistmentRoot;
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Launching background process('{mountExecutableLocation}') for {mountPath}");
 
@@ -277,7 +277,7 @@ namespace GVFS.CommandLine
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for repo to be mounted");
 
-            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.NamedPipeName, enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
+            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.NamedPipeName, enlistment.WorkingDirectoryRoot, this.Unattended, out errorMessage);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
@@ -290,7 +290,7 @@ namespace GVFS.CommandLine
             // listed and unregistered independently of the primary enlistment.
             request.EnlistmentRoot = enlistment.IsWorktree
                 ? enlistment.WorkingDirectoryRoot
-                : enlistment.EnlistmentRoot;
+                : enlistment.PrimaryEnlistmentRoot;
 
             request.OwnerSID = GVFSPlatform.Instance.GetCurrentUser();
 

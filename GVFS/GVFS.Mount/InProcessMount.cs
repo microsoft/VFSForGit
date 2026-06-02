@@ -211,7 +211,7 @@ namespace GVFS.Mount
                     this.FailMountAndExit("The .git folder is missing or has invalid contents");
                 }
 
-                if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.EnlistmentRoot, out string fsError))
+                if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
                 {
                     this.FailMountAndExit("FileSystem unsupported: " + fsError);
                 }
@@ -277,7 +277,7 @@ namespace GVFS.Mount
 
                 try
                 {
-                    Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
+                    Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.WorkingDirectoryRoot;
                 }
                 catch (IOException)
                 {
@@ -365,7 +365,7 @@ namespace GVFS.Mount
             // Use try/finally to guarantee Shutdown() even if an unexpected
             // exception occurs — the singleton must not be left pointing at
             // the primary's metadata directory.
-            string primaryDotGVFS = Path.Combine(this.enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
+            string primaryDotGVFS = Path.Combine(this.enlistment.PrimaryEnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             string error;
             string gitObjectsRoot;
             string localCacheRoot;
@@ -996,7 +996,7 @@ namespace GVFS.Mount
         private void HandleGetStatusRequest(NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.GetStatus.Response response = new NamedPipeMessages.GetStatus.Response();
-            response.EnlistmentRoot = this.enlistment.EnlistmentRoot;
+            response.EnlistmentRoot = this.enlistment.WorkingDirectoryRoot;
             response.LocalCacheRoot = !string.IsNullOrWhiteSpace(this.enlistment.LocalCacheRoot) ? this.enlistment.LocalCacheRoot : this.enlistment.GitObjectsRoot;
             response.RepoUrl = this.enlistment.RepoUrl;
             response.CacheServer = this.cacheServer.ToString();
@@ -1082,7 +1082,7 @@ namespace GVFS.Mount
                 this.tracer.RelatedInfo("Git status cache is not enabled");
             }
 
-            this.gvfsDatabase = this.CreateOrReportAndExit(() => new GVFSDatabase(this.context.FileSystem, this.context.Enlistment.EnlistmentRoot, new SqliteDatabase()), "Failed to create database connection");
+            this.gvfsDatabase = this.CreateOrReportAndExit(() => new GVFSDatabase(this.context.FileSystem, this.context.Enlistment.DotGVFSRoot, new SqliteDatabase()), "Failed to create database connection");
             this.fileSystemCallbacks = this.CreateOrReportAndExit(
                 () =>
                 {
@@ -1193,7 +1193,7 @@ namespace GVFS.Mount
             {
                 string warning;
                 string error;
-                if (!GVFSPlatform.Instance.KernelDriver.IsSupported(this.enlistment.EnlistmentRoot, out warning, out error))
+                if (!GVFSPlatform.Instance.KernelDriver.IsSupported(this.enlistment.WorkingDirectoryRoot, out warning, out error))
                 {
                     this.FailMountAndExit("Error: {0}", error);
                 }

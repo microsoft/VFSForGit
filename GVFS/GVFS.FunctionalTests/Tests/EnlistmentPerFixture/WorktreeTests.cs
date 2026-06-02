@@ -268,6 +268,101 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase]
+        public void WorktreeUsesPerWorktreePlaceholderDatabase()
+        {
+            // Two commits where test4.txt has different content
+            const string CommitA = "5d7a7d4db1734fb468a4094469ec58d26301b59d";
+            const string CommitB = "fec239ea12de1eda6ae5329d4f345784d5b61ff9";
+            string testFileRelativePath = Path.Combine(
+                "Test_EPF_UpdatePlaceholderTests",
+                "LockToPreventUpdateAndDelete",
+                "test4.txt");
+            const string ContentAtCommitA = "TestFileLockToPreventUpdateAndDelete4 \r\n";
+            const string ContentAtCommitB = "Commit2LockToPreventUpdateAndDelete4 \r\n";
+
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 8);
+            string tempDir = Path.Combine(Path.GetTempPath(), $"gvfs-db-test-{suffix}");
+            string worktreePath = Path.Combine(tempDir, "wt");
+            string branchName = $"db-test-branch-{suffix}";
+
+            try
+            {
+                Directory.CreateDirectory(tempDir);
+
+                // 1. Checkout commitB in the primary and read the file to
+                //    create a placeholder with version B content.
+                GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot, $"checkout {CommitB}")
+                    .ExitCode.ShouldEqual(0, "checkout commitB in primary failed");
+
+                string primaryFilePath = Path.Combine(this.Enlistment.RepoRoot, testFileRelativePath);
+                File.ReadAllText(primaryFilePath).ShouldEqual(ContentAtCommitB,
+                    "Primary should have version B content");
+
+                // 2. Create a worktree at commitA and read the same file.
+                //    Without the fix, the worktree mount writes the placeholder
+                //    entry (SHA_A) to the primary's DB, overwriting SHA_B.
+                ProcessResult addResult = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    $"worktree add -b {branchName} \"{worktreePath}\" {CommitA}");
+                addResult.ExitCode.ShouldEqual(0,
+                    $"worktree add failed: {addResult.Errors}");
+
+                this.AssertWorktreeMounted(worktreePath, "db-test worktree");
+
+                string worktreeFilePath = Path.Combine(worktreePath, testFileRelativePath);
+                File.ReadAllText(worktreeFilePath).ShouldEqual(ContentAtCommitA,
+                    "Worktree should have version A content");
+
+                // 3. Checkout commitA in the primary.  UpdatePlaceholders reads
+                //    the placeholder DB to find files that need updating.
+                //    With a contaminated DB (SHA_A from worktree), the primary's
+                //    placeholder (on-disk SHA_B) looks up-to-date (DB says SHA_A,
+                //    index wants SHA_A — match) and the update is skipped.
+                //    The file retains stale commitB content.
+                GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot, $"checkout {CommitA}")
+                    .ExitCode.ShouldEqual(0, "checkout commitA in primary failed");
+
+                string contentAfterCheckout = File.ReadAllText(primaryFilePath);
+                contentAfterCheckout.ShouldEqual(ContentAtCommitA,
+                    $"After checkout to commitA, primary should have version A content.\n" +
+                    $"Got version B content instead — the worktree mount contaminated\n" +
+                    $"the primary's placeholder DB, causing UpdatePlaceholders to skip\n" +
+                    $"the update because the DB SHA matched the index SHA.");
+
+                // 4. Verify the per-worktree placeholder DB exists (isolation check)
+                GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(worktreePath);
+                Assert.IsNotNull(wtInfo, "Should be able to resolve worktree info");
+                string worktreeDbPath = Path.Combine(
+                    wtInfo.WorktreeGitDir, ".gvfs", "databases", "VFSForGit.sqlite");
+
+                bool dbExists = false;
+                for (int i = 0; i < 20; i++)
+                {
+                    if (File.Exists(worktreeDbPath))
+                    {
+                        dbExists = true;
+                        break;
+                    }
+
+                    System.Threading.Thread.Sleep(500);
+                }
+
+                Assert.IsTrue(dbExists,
+                    $"Per-worktree VFSForGit.sqlite should exist at {worktreeDbPath}");
+            }
+            finally
+            {
+                this.ForceCleanupWorktree(worktreePath, branchName);
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, recursive: true); } catch { }
+                }
+            }
+        }
+
         private void InitWorktreeArrays(int count, out string[] paths, out string[] branches)
         {
             paths = new string[count];

@@ -92,7 +92,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
             }
 
             string error;
-            if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer: null, enlistmentRoot: enlistment.EnlistmentRoot, error: out error))
+            if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer: null, enlistmentRoot: enlistment.PrimaryEnlistmentRoot, error: out error))
             {
                 this.ReportErrorAndExit(error);
             }
@@ -129,7 +129,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                     EventLevel.Verbose,
                     Keywords.Any);
                 tracer.WriteStartEvent(
-                    enlistment.EnlistmentRoot,
+                    enlistment.PrimaryEnlistmentRoot,
                     enlistment.RepoUrl,
                     "N/A",
                     new EventMetadata
@@ -214,7 +214,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                                 this.WriteMessage(tracer, "Repair succeeded, but requires some manual steps before remounting.");
                                 break;
                             case RepairJob.FixResult.Failure:
-                                this.WriteMessage(tracer, "Repair failed. " + ConsoleHelper.GetGVFSLogMessage(enlistment.EnlistmentRoot));
+                                this.WriteMessage(tracer, "Repair failed. " + ConsoleHelper.GetGVFSLogMessage(enlistment.PrimaryEnlistmentRoot));
                                 break;
                         }
 

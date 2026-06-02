@@ -248,7 +248,7 @@ namespace GVFS.UnitTests.Maintenance
 
             // Add object directory to file System
             List<MockDirectory> directories = new List<MockDirectory>() { gitObjectsRoot };
-            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, directories, null));
+            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.PrimaryEnlistmentRoot, directories, null));
 
             // Create and return Context
             this.tracer = new MockTracer();

@@ -138,7 +138,7 @@ namespace GVFS.CommandLine
                     EventLevel.Informational,
                     Keywords.Any);
                 tracer.WriteStartEvent(
-                    enlistment.EnlistmentRoot,
+                    enlistment.PrimaryEnlistmentRoot,
                     enlistment.RepoUrl,
                     cacheServerFromConfig.Url);
 
@@ -216,8 +216,8 @@ namespace GVFS.CommandLine
                 catch (AggregateException aggregateException)
                 {
                     this.Output.WriteLine(
-                        "Cannot prefetch {0}. " + ConsoleHelper.GetGVFSLogMessage(enlistment.EnlistmentRoot),
-                        enlistment.EnlistmentRoot);
+                        "Cannot prefetch {0}. " + ConsoleHelper.GetGVFSLogMessage(enlistment.WorkingDirectoryRoot),
+                        enlistment.WorkingDirectoryRoot);
                     foreach (Exception innerException in aggregateException.Flatten().InnerExceptions)
                     {
                         tracer.RelatedError(
@@ -234,8 +234,8 @@ namespace GVFS.CommandLine
                 catch (Exception e)
                 {
                     this.Output.WriteLine(
-                        "Cannot prefetch {0}. " + ConsoleHelper.GetGVFSLogMessage(enlistment.EnlistmentRoot),
-                        enlistment.EnlistmentRoot);
+                        "Cannot prefetch {0}. " + ConsoleHelper.GetGVFSLogMessage(enlistment.WorkingDirectoryRoot),
+                        enlistment.WorkingDirectoryRoot);
                     tracer.RelatedError(
                         new EventMetadata
                         {

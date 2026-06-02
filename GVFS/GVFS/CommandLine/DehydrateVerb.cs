@@ -91,7 +91,7 @@ namespace GVFS.CommandLine
                     EventLevel.Informational,
                     Keywords.Any);
                 tracer.WriteStartEvent(
-                    enlistment.EnlistmentRoot,
+                    enlistment.PrimaryEnlistmentRoot,
                     enlistment.RepoUrl,
                     CacheServerResolver.GetUrlFromConfig(enlistment),
                     new EventMetadata
@@ -160,7 +160,7 @@ you want to keep. If you choose not to, you can still find your uncommitted chan
 in the backup folder, but it will be harder to find them because 'git status'
 will not work in the backup.
 
-To actually execute the dehydrate, run 'gvfs dehydrate --confirm --full' from {enlistment.EnlistmentRoot}.
+To actually execute the dehydrate, run 'gvfs dehydrate --confirm --full' from {enlistment.PrimaryEnlistmentRoot}.
 ");
 
                     return;
@@ -196,13 +196,13 @@ from a parent of the folders list.
                 if (fullDehydrate && Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryBackingRoot))
                 {
                     /* If running from /src, the dehydrate would fail because of the handle we are holding on it. */
-                    this.Output.WriteLine($"Dehydrate --full must be run from {enlistment.EnlistmentRoot}");
+                    this.Output.WriteLine($"Dehydrate --full must be run from {enlistment.PrimaryEnlistmentRoot}");
                     return;
                 }
 
                 bool cleanStatus = this.StatusChecked || this.CheckGitStatus(tracer, enlistment, fullDehydrate);
 
-                string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
+                string backupRoot = Path.GetFullPath(Path.Combine(enlistment.PrimaryEnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 this.Output.WriteLine();
 
                 if (fullDehydrate)
@@ -223,7 +223,7 @@ from a parent of the folders list.
                     this.Unmount(tracer);
 
                     string error;
-                    if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.EnlistmentRoot, out error))
+                    if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.PrimaryEnlistmentRoot, out error))
                     {
                         this.ReportErrorAndExit(tracer, error);
                     }

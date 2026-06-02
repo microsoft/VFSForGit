@@ -216,7 +216,7 @@ namespace GVFS.CommandLine
             try
             {
                 string error;
-                if (RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot), out error))
+                if (RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out error))
                 {
                     if (!RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error))
                     {

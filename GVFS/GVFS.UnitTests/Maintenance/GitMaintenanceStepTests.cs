@@ -80,7 +80,7 @@ namespace GVFS.UnitTests.Maintenance
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
-            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
+            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.PrimaryEnlistmentRoot, null, null));
 
             this.context = new GVFSContext(tracer, fileSystem, null, enlistment);
         }

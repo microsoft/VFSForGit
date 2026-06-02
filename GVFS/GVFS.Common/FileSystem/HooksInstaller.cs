@@ -229,7 +229,7 @@ namespace GVFS.Common.FileSystem
                     metadata.Add(nameof(installedHookPath), installedHookPath);
                     metadata.Add("Exception", e.ToString());
                     context.Tracer.RelatedError(metadata, "Failed to compare " + hookName + " version");
-                    errorMessage = "Error comparing " + hookName + " versions. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.EnlistmentRoot);
+                    errorMessage = "Error comparing " + hookName + " versions. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.WorkingDirectoryRoot);
                     return false;
                 }
             }
@@ -248,7 +248,7 @@ namespace GVFS.Common.FileSystem
                     metadata.Add(nameof(installedHookPath), installedHookPath);
                     metadata.Add("Exception", e.ToString());
                     context.Tracer.RelatedError(metadata, "Failed to copy " + hookName + " to enlistment");
-                    errorMessage = "Error copying " + hookName + " to enlistment. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.EnlistmentRoot);
+                    errorMessage = "Error copying " + hookName + " to enlistment. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.WorkingDirectoryRoot);
                     return false;
                 }
             }

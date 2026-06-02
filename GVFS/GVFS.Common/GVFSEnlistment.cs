@@ -30,11 +30,11 @@ namespace GVFS.Common
                   flushFileBuffersForPacks: true,
                   authentication: authentication)
         {
-            this.NamedPipeName = GVFSPlatform.Instance.GetNamedPipeName(this.EnlistmentRoot);
-            this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
+            this.NamedPipeName = GVFSPlatform.Instance.GetNamedPipeName(this.PrimaryEnlistmentRoot);
+            this.DotGVFSRoot = Path.Combine(this.PrimaryEnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
             this.GitStatusCacheFolder = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.Name);
             this.GitStatusCachePath = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.CachePath);
-            this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.LogName);
+            this.GVFSLogsRoot = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.LogName);
             this.LocalObjectsRoot = Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Objects.Root);
         }
 
