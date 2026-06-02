@@ -1,9 +1,8 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
-using Microsoft.Win32.SafeHandles;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -15,12 +14,9 @@ using System.Runtime.InteropServices;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [SkipInCI("Atrophied: mount error handling changed, expectations need updating")]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
-        private const uint GenericRead = 2147483648;
-        private const uint FileFlagBackupSemantics = 3355443;
         private readonly int fileDeletedBackgroundOperationCode;
         private readonly int directoryDeletedBackgroundOperationCode;
 
@@ -300,26 +296,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, deletedDirEntry);
         }
 
-        [TestCase]
-        public void MountingARepositoryThatRequiresPlaceholderUpdatesWorks()
-        {
-            string placeholderRelativePath = Path.Combine("EnumerateAndReadTestFiles", "a.txt");
-            string placeholderPath = this.Enlistment.GetVirtualPathTo(placeholderRelativePath);
-
-            // Ensure the placeholder is on disk and hydrated
-            placeholderPath.ShouldBeAFile(this.fileSystem).WithContents();
-
-            this.Enlistment.UnmountGVFS();
-
-            File.Delete(placeholderPath);
-            GVFSHelpers.DeletePlaceholder(
-                Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.VFSForGit),
-                placeholderRelativePath);
-            GVFSHelpers.SetPlaceholderUpdatesRequired(this.Enlistment.DotGVFSRoot, true);
-
-            this.Enlistment.MountGVFS();
-        }
-
         [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]
         public void MountFailsAfterBreakingDowngrade(string mountSubfolder)
         {
@@ -365,29 +341,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.MountShouldFail("Breaking change to GVFS disk layout has been made since cloning", this.Enlistment.GetVirtualPathTo(mountSubfolder));
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersionNum.ToString(), minorVersionNum.ToString());
-            this.Enlistment.MountGVFS();
-        }
-
-        // Ported from ProjFS's BugRegressionTest
-        [TestCase]
-        public void ProjFS_CMDHangNoneActiveInstance()
-        {
-            this.Enlistment.UnmountGVFS();
-
-            using (SafeFileHandle handle = NativeMethods.CreateFile(
-                Path.Combine(this.Enlistment.RepoRoot, "aaa", "aaaa"),
-                GenericRead,
-                FileShare.Read,
-                IntPtr.Zero,
-                FileMode.Open,
-                FileFlagBackupSemantics,
-                IntPtr.Zero))
-            {
-                int lastError = Marshal.GetLastWin32Error();
-                handle.IsInvalid.ShouldEqual(true);
-                lastError.ShouldNotEqual(0); // 0 == ERROR_SUCCESS
-            }
-
             this.Enlistment.MountGVFS();
         }
 

@@ -60,7 +60,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        [SkipInCI("Atrophied: GVFS now mounts with corrupt blob sizes DB")]
         public void RepairFixesCorruptBlobSizesDatabase()
         {
             GVFSFunctionalTestEnlistment enlistment = this.CloneAndMountEnlistment();
@@ -74,7 +73,8 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             blobSizesDbPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.WriteAllText(blobSizesDbPath, "0000");
 
-            enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when blob size db is corrupt");
+            // GVFS now tolerates corrupt blob sizes DB on mount (recreates
+            // in-memory), but repair should still fix the underlying file.
             enlistment.Repair(confirm: true);
             enlistment.MountGVFS();
         }
