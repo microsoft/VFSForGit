@@ -487,13 +487,31 @@ You can specify a URL, a name of a configured cache server, or the special names
             out string error,
             bool checkLocalObjectCache = true)
         {
-            if (!checkLocalObjectCache || !repo.CommitAndRootTreeExists(commitId, out _))
+            if (checkLocalObjectCache && repo.CommitAndRootTreeExists(commitId, out _))
             {
-                if (!gitObjects.TryDownloadCommit(commitId))
+                if (repo.LooseObjectExists(commitId))
                 {
-                    error = "Could not download commit " + commitId + " from: " + Uri.EscapeDataString(objectRequestor.CacheServer.ObjectsEndpointUrl);
-                    return false;
+                    // The commit exists as a loose object (e.g., from a prior 'git show'
+                    // or 'git log' in a mounted enlistment). Loose commits do not include
+                    // their reachable trees — those would need to be fetched individually.
+                    // Download the commit pack which includes all reachable trees so that
+                    // operations like 'git checkout -f' can succeed without the read-object
+                    // hook.
                 }
+                else
+                {
+                    // The commit exists in a pack file (prefetch pack or a previous commit
+                    // pack download). Packs from the GVFS protocol include all reachable
+                    // trees, so we can safely skip re-downloading.
+                    error = null;
+                    return true;
+                }
+            }
+
+            if (!gitObjects.TryDownloadCommit(commitId))
+            {
+                error = "Could not download commit " + commitId + " from: " + Uri.EscapeDataString(objectRequestor.CacheServer.ObjectsEndpointUrl);
+                return false;
             }
 
             error = null;
