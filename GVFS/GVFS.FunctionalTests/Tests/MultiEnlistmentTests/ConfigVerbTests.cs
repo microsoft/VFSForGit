@@ -7,7 +7,6 @@ using System.Collections.Generic;
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
-    [Category(Categories.ExtraCoverage)]
     public class ConfigVerbTests : TestsWithMultiEnlistment
     {
         private const string IntegerSettingKey = "functionalTest_Integer";

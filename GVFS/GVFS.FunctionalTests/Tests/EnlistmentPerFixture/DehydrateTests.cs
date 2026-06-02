@@ -14,7 +14,6 @@ using System.Runtime.InteropServices;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [Category(Categories.ExtraCoverage)]
     public class DehydrateTests : TestsWithEnlistmentPerFixture
     {
         private const string FolderDehydrateSuccessfulMessage = "folder dehydrate successful.";

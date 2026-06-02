@@ -11,7 +11,6 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Windows.Tests
 {
     [TestFixture]
-    [Category(Categories.ExtraCoverage)]
     public class WindowsDiskLayoutUpgradeTests : DiskLayoutUpgradeTests
     {
         public const int CurrentDiskLayoutMajorVersion = 19;

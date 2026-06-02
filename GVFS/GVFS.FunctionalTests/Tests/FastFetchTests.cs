@@ -15,7 +15,6 @@ namespace GVFS.FunctionalTests.Tests
 {
     [TestFixture]
     [Category(Categories.FastFetch)]
-    [Category(Categories.ExtraCoverage)]
     public class FastFetchTests
     {
         private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";

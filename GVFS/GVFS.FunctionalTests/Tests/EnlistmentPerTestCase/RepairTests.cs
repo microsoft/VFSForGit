@@ -10,7 +10,6 @@ using System.Text;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
-    [Category(Categories.ExtraCoverage)]
     public class RepairTests : TestsWithEnlistmentPerTestCase
     {
         [OneTimeSetUp]

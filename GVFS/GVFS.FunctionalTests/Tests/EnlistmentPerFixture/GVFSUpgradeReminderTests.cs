@@ -12,7 +12,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [NonParallelizable]
-    [Category(Categories.ExtraCoverage)]
     public class UpgradeReminderTests : TestsWithEnlistmentPerFixture
     {
         private const string HighestAvailableVersionFileName = "HighestAvailableVersion";
