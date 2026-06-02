@@ -60,7 +60,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        [Category(Categories.NeedsReactionInCI)]
+        [SkipInCI("Atrophied: GVFS now mounts with corrupt blob sizes DB")]
         public void RepairFixesCorruptBlobSizesDatabase()
         {
             GVFSFunctionalTestEnlistment enlistment = this.CloneAndMountEnlistment();

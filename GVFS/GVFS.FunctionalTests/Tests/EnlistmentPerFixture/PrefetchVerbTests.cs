@@ -160,7 +160,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(13)]
-        [Category(Categories.NeedsReactionInCI)]
+        [SkipInCI("Flaky: stdin prefetch blob count varies in CI")]
         public void PrefetchFilesFromFileListStdIn()
         {
             // on case-insensitive filesystems, test case-blind matching
@@ -177,7 +177,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(14)]
-        [Category(Categories.NeedsReactionInCI)]
+        [SkipInCI("Flaky: stdin prefetch blob count varies in CI")]
         public void PrefetchFolderListFromStdin()
         {
             string input = string.Join(Environment.NewLine, PrefetchFolderList);

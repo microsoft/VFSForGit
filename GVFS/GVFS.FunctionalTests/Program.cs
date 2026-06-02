@@ -88,7 +88,7 @@ namespace GVFS.FunctionalTests
                 // flakey or broken when run in a CI environment.
                 if (runner.HasCustomArg("--ci"))
                 {
-                    excludeCategories.Add(Categories.NeedsReactionInCI);
+                    excludeCategories.Add(Categories.SkipInCI);
                 }
 
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;

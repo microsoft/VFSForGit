@@ -4,6 +4,6 @@
     {
         public const string FastFetch = "FastFetch";
         public const string GitCommands = "GitCommands";
-        public const string NeedsReactionInCI = "NeedsReactionInCI";
+        public const string SkipInCI = "SkipInCI";
     }
 }

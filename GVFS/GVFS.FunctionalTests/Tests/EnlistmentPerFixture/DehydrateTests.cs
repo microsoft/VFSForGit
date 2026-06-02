@@ -14,7 +14,7 @@ using System.Runtime.InteropServices;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [Category(Categories.NeedsReactionInCI)]
+    [SkipInCI("Atrophied: folder dehydrate behavior changed, expectations need updating")]
     public class DehydrateTests : TestsWithEnlistmentPerFixture
     {
         private const string FolderDehydrateSuccessfulMessage = "folder dehydrate successful.";

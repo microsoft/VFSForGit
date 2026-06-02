@@ -10,7 +10,7 @@ using System.Text;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
-    [Category(Categories.NeedsReactionInCI)]
+    [SkipInCI("Atrophied: GVFS now tolerates corrupt git index, preconditions need updating")]
     public class RepairTests : TestsWithEnlistmentPerTestCase
     {
         [OneTimeSetUp]
