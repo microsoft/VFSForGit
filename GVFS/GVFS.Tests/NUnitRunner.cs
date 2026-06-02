@@ -99,8 +99,7 @@ namespace GVFS.Tests
 
             // Now distribute the tests into the buckets
             Regex perFixtureRegex = new Regex(
-                @"^.*\.EnlistmentPerFixture\..+\.",
-                // @"^.*\.",
+                @"^.*\.(EnlistmentPerFixture|MultiEnlistmentTests)\..+\.",
                 RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
             for (uint i = 0; i < list.Length; i++)
             {
@@ -112,7 +111,8 @@ namespace GVFS.Tests
 
                 buckets[bucket.Item1].Add(test);
 
-                // Ensure that EnlistmentPerFixture tests of the same class are all in the same bucket
+                // Ensure that EnlistmentPerFixture and MultiEnlistmentTests
+                // tests of the same class are all in the same bucket
                 var match = perFixtureRegex.Match(test);
                 if (match.Success)
                 {

@@ -60,6 +60,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
+        [Category(Categories.NeedsReactionInCI)]
         public void RepairFixesCorruptBlobSizesDatabase()
         {
             GVFSFunctionalTestEnlistment enlistment = this.CloneAndMountEnlistment();
