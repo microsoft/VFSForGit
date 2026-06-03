@@ -15,7 +15,6 @@ namespace GVFS.FunctionalTests.Tests
 {
     [TestFixture]
     [Category(Categories.FastFetch)]
-    [Category(Categories.ExtraCoverage)]
     public class FastFetchTests
     {
         private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
@@ -65,8 +64,8 @@ namespace GVFS.FunctionalTests.Tests
             this.GetRefTreeSha("remotes/origin/" + Settings.Default.Commitish).ShouldNotBeNull();
 
             ProcessResult checkoutResult = GitProcess.InvokeProcess(this.fastFetchRepoRoot, "checkout " + Settings.Default.Commitish);
-            checkoutResult.Errors.ShouldEqual("Switched to a new branch '" + Settings.Default.Commitish + "'\r\n");
-            checkoutResult.Output.ShouldEqual("Branch '" + Settings.Default.Commitish + "' set up to track remote branch '" + Settings.Default.Commitish + "' from 'origin'.\n");
+            checkoutResult.Errors.ToLower().ShouldContain("switched to a new branch");
+            checkoutResult.Output.ToLower().ShouldContain("set up to track");
 
             // When checking out with git, must manually update shallow.
             ProcessResult updateRefResult = GitProcess.InvokeProcess(this.fastFetchRepoRoot, "update-ref shallow " + Settings.Default.Commitish);

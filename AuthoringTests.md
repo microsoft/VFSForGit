@@ -40,10 +40,9 @@ The functional tests are built on NUnit 3, which is available as a set of NuGet 
 
 #### Selecting Which Tests are Run
 
-By default, the functional tests run a subset of tests as a quick smoke test for developers.  There are three mutually exclusive arguments that can be passed to the functional tests to change this behavior:
+By default, the functional tests run all tests.  There are two mutually exclusive arguments that can be passed to the functional tests to change this behavior:
 
-- `--full-suite`: Run all configurations of all functional tests
-- `--extra-only`: Run only those tests marked as "ExtraCoverage" (i.e. the tests that are not run by default)
+- `--full-suite`: Run all configurations of all functional tests (tests all `ValidateWorkingTreeMode` values and all `FileSystemRunner` types)
 - `--windows-only`: Run only the tests marked as being Windows specific
 
 **NOTE** `Scripts\RunFunctionalTests.bat` already uses some of these arguments.  If you run the tests using `RunFunctionalTests.bat` consider locally modifying the script rather than passing these flags as arguments to the script.
