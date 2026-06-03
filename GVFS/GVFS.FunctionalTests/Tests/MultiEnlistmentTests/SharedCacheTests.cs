@@ -60,7 +60,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        [SkipInCI("Product bug: repair does not fully restore corrupt BlobSizes.sql — mount crashes after repair")]
         public void RepairFixesCorruptBlobSizesDatabase()
         {
             GVFSFunctionalTestEnlistment enlistment = this.CloneAndMountEnlistment();
@@ -74,9 +73,12 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             blobSizesDbPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.WriteAllText(blobSizesDbPath, "0000");
 
-            // GVFS now tolerates corrupt blob sizes DB on mount (recreates
-            // in-memory), but repair should still fix the underlying file.
+            // Repair should detect and fix the corrupt database
             enlistment.Repair(confirm: true);
+
+            // Verify repair actually cleaned up the corrupt file
+            blobSizesRoot.ShouldNotExistOnDisk(this.fileSystem);
+
             enlistment.MountGVFS();
         }
 
