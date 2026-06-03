@@ -12,7 +12,6 @@ using System.Threading;
 namespace GVFS.FunctionalTests.Windows.Tests
 {
     [TestFixture]
-    [Category(Categories.ExtraCoverage)]
     public class JunctionAndSubstTests : TestsWithEnlistmentPerFixture
     {
         private const string SubstDrive = "Q:";

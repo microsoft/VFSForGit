@@ -293,8 +293,47 @@ namespace GVFS.FunctionalTests.Tools
 
         public void UnmountAndDeleteAll()
         {
-            this.UnmountGVFS();
+            try
+            {
+                this.UnmountGVFS();
+            }
+            catch (TimeoutException)
+            {
+                // If unmount hangs (e.g., GVFS.Mount stuck after objects root
+                // deletion), kill the mount process so teardown can proceed.
+                Console.Error.WriteLine("[TEARDOWN] Unmount timed out, killing GVFS.Mount process");
+                this.KillMountProcess();
+            }
+
             this.DeleteEnlistment();
+        }
+
+        public void KillMountProcess()
+        {
+            try
+            {
+                foreach (var proc in System.Diagnostics.Process.GetProcessesByName("GVFS.Mount"))
+                {
+                    try
+                    {
+                        // Kill any GVFS.Mount whose working directory or command line
+                        // relates to this enlistment. Since we can't easily read the
+                        // command line cross-process without WMI, kill all mount processes
+                        // as a fallback — functional tests run in isolation anyway.
+                        Console.Error.WriteLine($"[TEARDOWN] Killing GVFS.Mount (PID {proc.Id})");
+                        proc.Kill();
+                        proc.WaitForExit(5000);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[TEARDOWN] Failed to kill PID {proc.Id}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[TEARDOWN] KillMountProcess failed: {ex.Message}");
+            }
         }
 
         public string GetVirtualPathTo(string path)
