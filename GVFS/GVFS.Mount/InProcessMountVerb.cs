@@ -115,7 +115,7 @@ namespace GVFS.Mount
             CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
             tracer.WriteStartEvent(
-                enlistment.EnlistmentRoot,
+                enlistment.WorkingDirectoryRoot,
                 enlistment.RepoUrl,
                 cacheServer.Url,
                 new EventMetadata

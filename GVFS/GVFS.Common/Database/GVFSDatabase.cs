@@ -21,10 +21,10 @@ namespace GVFS.Common.Database
         private IDbConnectionFactory connectionFactory;
         private BlockingCollection<IDbConnection> connectionPool;
 
-        public GVFSDatabase(PhysicalFileSystem fileSystem, string enlistmentRoot, IDbConnectionFactory connectionFactory, int initialPooledConnections = InitialPooledConnections)
+        public GVFSDatabase(PhysicalFileSystem fileSystem, string dotGVFSRoot, IDbConnectionFactory connectionFactory, int initialPooledConnections = InitialPooledConnections)
         {
             this.connectionPool = new BlockingCollection<IDbConnection>();
-            this.databasePath = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.VFSForGit);
+            this.databasePath = Path.Combine(dotGVFSRoot, GVFSConstants.DotGVFS.Databases.VFSForGit);
             this.connectionFactory = connectionFactory;
 
             string folderPath = Path.GetDirectoryName(this.databasePath);

@@ -36,7 +36,7 @@ namespace GVFS.Common.Maintenance
             // a "Device is not ready" error.
             try
             {
-                return context.FileSystem.DirectoryExists(context.Enlistment.EnlistmentRoot)
+                return context.FileSystem.DirectoryExists(context.Enlistment.WorkingDirectoryRoot)
                          && context.FileSystem.DirectoryExists(context.Enlistment.GitObjectsRoot);
             }
             catch (IOException)
