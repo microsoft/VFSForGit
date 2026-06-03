@@ -72,7 +72,7 @@ namespace FastFetch
                 commitToFetch = branchOrCommit;
             }
 
-            using (new IndexLock(this.Enlistment.EnlistmentRoot, this.Tracer))
+            using (new IndexLock(this.Enlistment.PrimaryEnlistmentRoot, this.Tracer))
             {
                 this.DownloadMissingCommit(commitToFetch, this.GitObjects);
 
@@ -124,7 +124,7 @@ namespace FastFetch
                         if (!indexGen.HasFailures)
                         {
                             Index newIndex = new Index(
-                                this.Enlistment.EnlistmentRoot,
+                                this.Enlistment.PrimaryEnlistmentRoot,
                                 this.Tracer,
                                 indexGen.TemporaryIndexFilePath,
                                 readOnly: false);
@@ -200,7 +200,7 @@ namespace FastFetch
 
             if (File.Exists(indexPath))
             {
-                Index output = new Index(this.Enlistment.EnlistmentRoot, this.Tracer, indexPath, readOnly: true);
+                Index output = new Index(this.Enlistment.PrimaryEnlistmentRoot, this.Tracer, indexPath, readOnly: true);
                 output.Parse();
                 return output;
             }

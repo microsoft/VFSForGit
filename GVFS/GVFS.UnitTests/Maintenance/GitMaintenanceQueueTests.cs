@@ -28,13 +28,13 @@ namespace GVFS.UnitTests.Maintenance
             GitMaintenanceQueue queue = new GitMaintenanceQueue(this.context);
             queue.EnlistmentRootReady().ShouldBeTrue();
 
-            this.fileSystem.Paths.Remove(this.enlistment.EnlistmentRoot);
+            this.fileSystem.Paths.Remove(this.enlistment.WorkingDirectoryRoot);
             queue.EnlistmentRootReady().ShouldBeFalse();
 
             this.fileSystem.Paths.Remove(this.enlistment.GitObjectsRoot);
             queue.EnlistmentRootReady().ShouldBeFalse();
 
-            this.fileSystem.Paths.Add(this.enlistment.EnlistmentRoot);
+            this.fileSystem.Paths.Add(this.enlistment.WorkingDirectoryRoot);
             queue.EnlistmentRootReady().ShouldBeFalse();
 
             this.fileSystem.Paths.Add(this.enlistment.GitObjectsRoot);
@@ -108,10 +108,10 @@ namespace GVFS.UnitTests.Maintenance
             ITracer tracer = new MockTracer();
             this.enlistment = new MockGVFSEnlistment();
 
-            // We need to have the EnlistmentRoot and GitObjectsRoot available for jobs to run
+            // We need to have the WorkingDirectoryRoot and GitObjectsRoot available for jobs to run
             this.fileSystem = new ReadyFileSystem(new string[]
             {
-                this.enlistment.EnlistmentRoot,
+                this.enlistment.WorkingDirectoryRoot,
                 this.enlistment.GitObjectsRoot
             });
 

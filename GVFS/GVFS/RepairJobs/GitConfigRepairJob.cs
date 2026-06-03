@@ -50,7 +50,7 @@ namespace GVFS.RepairJobs
             try
             {
                 GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
-                    this.Enlistment.EnlistmentRoot,
+                    this.Enlistment.PrimaryEnlistmentRoot,
                     this.Enlistment.GitBinPath,
                     authentication: null);
 

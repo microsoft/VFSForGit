@@ -240,7 +240,7 @@ namespace FastFetch
                 CacheServerInfo cacheServer = new CacheServerInfo(this.GetRemoteUrl(enlistment), null);
 
                 tracer.WriteStartEvent(
-                    enlistment.EnlistmentRoot,
+                    enlistment.PrimaryEnlistmentRoot,
                     enlistment.RepoUrl,
                     cacheServer.Url,
                     new EventMetadata

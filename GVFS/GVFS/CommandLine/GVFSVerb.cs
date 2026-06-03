@@ -96,7 +96,7 @@ namespace GVFS.CommandLine
 
         protected abstract string VerbName { get; }
 
-        public static bool TrySetRequiredGitConfigSettings(Enlistment enlistment)
+        public static bool TrySetRequiredGitConfigSettings(GVFSEnlistment enlistment)
         {
             Dictionary<string, string> requiredSettings = RequiredGitConfig.GetRequiredSettings(enlistment);
 
@@ -164,7 +164,7 @@ namespace GVFS.CommandLine
             where TVerb : GVFSVerb.ForExistingEnlistment, new()
         {
             TVerb verb = new TVerb();
-            verb.EnlistmentRootPathParameter = enlistment.EnlistmentRoot;
+            verb.EnlistmentRootPathParameter = enlistment.WorkingDirectoryRoot;
             verb.ServiceName = this.ServiceName;
             verb.Unattended = this.Unattended;
 
@@ -246,7 +246,7 @@ namespace GVFS.CommandLine
                     out error,
                     out _),
                 "Authenticating",
-                enlistment.EnlistmentRoot);
+                enlistment.WorkingDirectoryRoot);
 
             if (!result && fallbackCacheServer != null && !string.IsNullOrWhiteSpace(fallbackCacheServer.Url))
             {
@@ -677,7 +677,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             {
                 string warning;
                 string error;
-                if (!GVFSPlatform.Instance.KernelDriver.IsSupported(enlistment.EnlistmentRoot, out warning, out error))
+                if (!GVFSPlatform.Instance.KernelDriver.IsSupported(enlistment.WorkingDirectoryRoot, out warning, out error))
                 {
                     this.ReportErrorAndExit(tracer, $"Error: {error}");
                 }
@@ -935,7 +935,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 CacheServerInfo cacheServer)
             {
                 string error;
-                if (!RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot), out error))
+                if (!RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out error))
                 {
                     this.ReportErrorAndExit(tracer, "Failed to initialize repo metadata: " + error);
                 }

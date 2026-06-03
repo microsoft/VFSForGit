@@ -14,7 +14,7 @@ namespace GVFS.Common.Git
         /// Returns the dictionary of required git config settings for a GVFS enlistment.
         /// These settings override any existing local configuration values.
         /// </summary>
-        public static Dictionary<string, string> GetRequiredSettings(Enlistment enlistment)
+        public static Dictionary<string, string> GetRequiredSettings(GVFSEnlistment enlistment)
         {
             string expectedHooksPath = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName);
             expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
@@ -31,8 +31,7 @@ namespace GVFS.Common.Git
             if (!GVFSEnlistment.IsUnattended(tracer: null) && GVFSPlatform.Instance.IsGitStatusCacheSupported())
             {
                 gitStatusCachePath = Path.Combine(
-                    enlistment.EnlistmentRoot,
-                    GVFSPlatform.Instance.Constants.DotGVFSRoot,
+                    enlistment.DotGVFSRoot,
                     GVFSConstants.DotGVFS.GitStatusCache.CachePath);
 
                 gitStatusCachePath = Paths.ConvertPathToGitFormat(gitStatusCachePath);

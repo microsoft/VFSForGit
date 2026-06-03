@@ -54,7 +54,7 @@ namespace GVFS.Common
             List<IPlaceholderData> filePlaceholders = new List<IPlaceholderData>();
             List<IPlaceholderData> folderPlaceholders = new List<IPlaceholderData>();
 
-            using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.EnlistmentRoot, new SqliteDatabase()))
+            using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.DotGVFSRoot, new SqliteDatabase()))
             {
                 PlaceholderTable placeholderTable = new PlaceholderTable(database);
                 placeholderTable.GetAllEntries(out filePlaceholders, out folderPlaceholders);

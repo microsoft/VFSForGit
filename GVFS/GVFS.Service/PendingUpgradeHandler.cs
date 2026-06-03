@@ -82,16 +82,15 @@ namespace GVFS.Service
 
         /// <summary>
         /// Returns GVFS.Mount processes whose executable is in the install
-        /// directory. Processes from dev builds or other installs are excluded
-        /// so they don't block upgrades of the system install. If a process's
-        /// path cannot be read (access denied, 32/64-bit mismatch), it is
-        /// included conservatively.
+        /// directory (or any versioned subdirectory). Processes from dev builds
+        /// or other installs are excluded so they don't block upgrades of the
+        /// system install. If a process's path cannot be read (access denied,
+        /// 32/64-bit mismatch), it is included conservatively.
         /// Caller must dispose the returned Process objects.
         /// </summary>
         public static List<Process> GetInstalledMountProcesses(ITracer tracer)
         {
             string installDir = Configuration.AssemblyPath;
-            string expectedPath = Path.Combine(installDir, MountExeName);
             Process[] allMountProcesses = Process.GetProcessesByName(MountProcessName);
             List<Process> installed = new List<Process>();
 
@@ -101,8 +100,7 @@ namespace GVFS.Service
                 try
                 {
                     string processPath = process.MainModule?.FileName;
-                    if (processPath != null &&
-                        !PathComparer.Equals(processPath, expectedPath))
+                    if (processPath != null && !IsInstalledMountPath(installDir, processPath))
                     {
                         include = false;
                         tracer.RelatedInfo(
@@ -324,6 +322,26 @@ namespace GVFS.Service
         {
             return string.Equals(relativePath, ReadyMarkerFileName, StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(relativePath, Phase1CompleteMarkerFileName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Returns true if the given GVFS.Mount.exe path is under the install
+        /// directory — either in the flat layout (<c>{app}\GVFS.Mount.exe</c>)
+        /// or in a versioned subdirectory (<c>{app}\Versions\*\GVFS.Mount.exe</c>
+        /// or <c>{app}\Current\GVFS.Mount.exe</c>).
+        /// </summary>
+        private static bool IsInstalledMountPath(string installDir, string processPath)
+        {
+            // Verify filename is actually GVFS.Mount.exe (not some other exe
+            // under the install dir).
+            if (!PathComparer.Equals(Path.GetFileName(processPath), MountExeName))
+            {
+                return false;
+            }
+
+            // Verify the exe lives under the install directory.
+            string normalizedInstallDir = installDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return processPath.StartsWith(normalizedInstallDir, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

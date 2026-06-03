@@ -21,7 +21,7 @@ namespace GVFS.Common
                 throw new ArgumentException("Path to git.exe must be set");
             }
 
-            this.EnlistmentRoot = enlistmentRoot;
+            this.PrimaryEnlistmentRoot = enlistmentRoot;
             this.WorkingDirectoryRoot = workingDirectoryRoot;
             this.WorkingDirectoryBackingRoot = workingDirectoryBackingRoot;
             this.DotGitRoot = Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Root);
@@ -52,7 +52,7 @@ namespace GVFS.Common
             this.Authentication = authentication ?? new GitAuthentication(gitProcess, this.RepoUrl);
         }
 
-        public string EnlistmentRoot { get; }
+        public string PrimaryEnlistmentRoot { get; }
 
         // Path to the root of the working (i.e. "src") directory.
         // On platforms where the contents of the working directory are stored
