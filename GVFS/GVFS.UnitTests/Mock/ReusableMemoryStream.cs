@@ -67,7 +67,7 @@ namespace GVFS.UnitTests.Mock
             this.Position = position;
 
             byte[] bytes = new byte[length];
-            this.Read(bytes, 0, (int)length);
+            this.ReadExactly(bytes, 0, (int)length);
 
             this.Position = lastPosition;
 
