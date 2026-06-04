@@ -212,15 +212,15 @@ namespace GVFS.Common
                 fileSystem: fileSystem);
         }
 
-        public static bool WaitUntilMounted(ITracer tracer, string enlistmentRoot, bool unattended, out string errorMessage)
+        public static bool WaitUntilMounted(ITracer tracer, string enlistmentRoot, bool unattended, out string errorMessage, Action<string> onProgress = null)
         {
             string pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot);
-            return WaitUntilMounted(tracer, pipeName, enlistmentRoot, unattended, out errorMessage);
+            return WaitUntilMounted(tracer, pipeName, enlistmentRoot, unattended, out errorMessage, onProgress);
         }
 
-        public static bool WaitUntilMounted(ITracer tracer, string pipeName, string enlistmentRoot, bool unattended, out string errorMessage)
+        public static bool WaitUntilMounted(ITracer tracer, string pipeName, string enlistmentRoot, bool unattended, out string errorMessage, Action<string> onProgress = null)
         {
-            return WaitUntilMounted(tracer, pipeName, enlistmentRoot, unattended, mountProcessStatus: null, out errorMessage);
+            return WaitUntilMounted(tracer, pipeName, enlistmentRoot, unattended, mountProcessStatus: null, out errorMessage, onProgress);
         }
 
         /// <summary>
@@ -241,7 +241,8 @@ namespace GVFS.Common
             string enlistmentRoot,
             bool unattended,
             Func<MountProcessSnapshot> mountProcessStatus,
-            out string errorMessage)
+            out string errorMessage,
+            Action<string> onProgress = null)
         {
             tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Creating NamedPipeClient for pipe '{pipeName}'");
             tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Connecting to '{pipeName}'");
@@ -286,6 +287,11 @@ namespace GVFS.Common
                         }
                         else
                         {
+                            if (onProgress != null && !string.IsNullOrEmpty(getStatusResponse.MountProgress))
+                            {
+                                onProgress(getStatusResponse.MountProgress);
+                            }
+
                             tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Waiting 500ms for mount process to be ready");
                             Thread.Sleep(100);
                         }

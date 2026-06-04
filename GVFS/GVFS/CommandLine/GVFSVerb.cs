@@ -200,6 +200,22 @@ namespace GVFS.CommandLine
 
         protected bool ShowStatusWhileRunning(
             Func<bool> action,
+            Func<string> getMessage,
+            string message,
+            string gvfsLogEnlistmentRoot)
+        {
+            return ConsoleHelper.ShowStatusWhileRunning(
+                action,
+                getMessage,
+                message,
+                this.Output,
+                showSpinner: !this.Unattended && this.Output == Console.Out && !Console.IsOutputRedirected,
+                gvfsLogEnlistmentRoot: gvfsLogEnlistmentRoot,
+                initialDelayMs: 0);
+        }
+
+        protected bool ShowStatusWhileRunning(
+            Func<bool> action,
             string message,
             bool suppressGvfsLogMessage = false)
         {

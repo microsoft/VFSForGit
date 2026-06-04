@@ -22,6 +22,32 @@ namespace GVFS.Common
             string gvfsLogEnlistmentRoot,
             int initialDelayMs = 0)
         {
+            return ShowStatusWhileRunning(
+                action,
+                getMessage: null,
+                message: message,
+                output,
+                showSpinner,
+                gvfsLogEnlistmentRoot,
+                initialDelayMs);
+        }
+
+        /// <summary>
+        /// Runs an action while displaying a dynamic status message with a spinner.
+        /// The <paramref name="getMessage"/> delegate is called on each spinner tick
+        /// and may return a sub-status string (e.g. "Authenticating") that is appended
+        /// to <paramref name="message"/> in parentheses. When null or returning null,
+        /// only the base message is shown.
+        /// </summary>
+        public static bool ShowStatusWhileRunning(
+            Func<bool> action,
+            Func<string> getMessage,
+            string message,
+            TextWriter output,
+            bool showSpinner,
+            string gvfsLogEnlistmentRoot,
+            int initialDelayMs = 0)
+        {
             Func<ActionResult> actionResultAction =
                 () =>
                 {
@@ -30,6 +56,7 @@ namespace GVFS.Common
 
             ActionResult result = ShowStatusWhileRunning(
                 actionResultAction,
+                getMessage,
                 message,
                 output,
                 showSpinner,
@@ -41,6 +68,18 @@ namespace GVFS.Common
 
         public static ActionResult ShowStatusWhileRunning(
             Func<ActionResult> action,
+            string message,
+            TextWriter output,
+            bool showSpinner,
+            string gvfsLogEnlistmentRoot,
+            int initialDelayMs)
+        {
+            return ShowStatusWhileRunning(action, getMessage: null, message, output, showSpinner, gvfsLogEnlistmentRoot, initialDelayMs);
+        }
+
+        public static ActionResult ShowStatusWhileRunning(
+            Func<ActionResult> action,
+            Func<string> getMessage,
             string message,
             TextWriter output,
             bool showSpinner,
@@ -67,6 +106,7 @@ namespace GVFS.Common
                         {
                             int retries = 0;
                             char[] waiting = { '\u2014', '\\', '|', '/' };
+                            string lastProgress = null;
 
                             while (!isComplete)
                             {
@@ -76,7 +116,23 @@ namespace GVFS.Common
                                 }
                                 else
                                 {
-                                    output.Write("\r{0}...{1}", message, waiting[(retries / 2) % waiting.Length]);
+                                    string progress = getMessage?.Invoke();
+                                    string displayMessage = !string.IsNullOrEmpty(progress)
+                                        ? $"{message} ({progress})"
+                                        : message;
+
+                                    // Clear previous line content when message shrinks
+                                    string line = $"\r{displayMessage}...{waiting[(retries / 2) % waiting.Length]}";
+                                    if (lastProgress != null && lastProgress.Length > line.Length)
+                                    {
+                                        output.Write(line + new string(' ', lastProgress.Length - line.Length));
+                                    }
+                                    else
+                                    {
+                                        output.Write(line);
+                                    }
+
+                                    lastProgress = line;
                                     initialMessageWritten = true;
                                     actionIsDone.WaitOne(100);
                                 }
@@ -86,8 +142,16 @@ namespace GVFS.Common
 
                             if (initialMessageWritten)
                             {
-                                // Clear out any trailing waiting character
-                                output.Write("\r{0}...", message);
+                                // Clear out any trailing waiting character and sub-status
+                                string finalLine = $"\r{message}...";
+                                if (lastProgress != null && lastProgress.Length > finalLine.Length)
+                                {
+                                    output.Write(finalLine + new string(' ', lastProgress.Length - finalLine.Length) + $"\r{message}...");
+                                }
+                                else
+                                {
+                                    output.Write(finalLine);
+                                }
                             }
                         });
                     spinnerThread.Start();

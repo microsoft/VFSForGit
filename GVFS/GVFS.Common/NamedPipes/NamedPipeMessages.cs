@@ -35,6 +35,7 @@ namespace GVFS.Common.NamedPipes
             public class Response
             {
                 public string MountStatus { get; set; }
+                public string MountProgress { get; set; }
                 public string EnlistmentRoot { get; set; }
                 public string LocalCacheRoot { get; set; }
                 public string RepoUrl { get; set; }

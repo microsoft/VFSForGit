@@ -56,7 +56,8 @@ namespace GVFS.Mount
         private GVFSContext context;
         private GVFSGitObjects gitObjects;
 
-        private MountState currentState;
+        private volatile MountState currentState;
+        private volatile string mountProgressMessage;
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
@@ -195,58 +196,10 @@ namespace GVFS.Mount
 
             this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
 
-            // Local validations and git config run while we wait for the network
-            var localTask = Task.Run(() =>
-            {
-                Stopwatch sw = Stopwatch.StartNew();
-
-                this.ValidateGitVersion();
-                this.tracer.RelatedInfo("ParallelMount: ValidateGitVersion completed in {0}ms", sw.ElapsedMilliseconds);
-
-                this.ValidateHooksVersion();
-                this.ValidateFileSystemSupportsRequiredFeatures();
-
-                GitProcess git = new GitProcess(this.enlistment);
-                if (!git.IsValidRepo())
-                {
-                    this.FailMountAndExit("The .git folder is missing or has invalid contents");
-                }
-
-                if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
-                {
-                    this.FailMountAndExit("FileSystem unsupported: " + fsError);
-                }
-
-                this.tracer.RelatedInfo("ParallelMount: Local validations completed in {0}ms", sw.ElapsedMilliseconds);
-
-                if (!this.TrySetRequiredGitConfigSettings())
-                {
-                    this.FailMountAndExit("Unable to configure git repo");
-                }
-
-                this.LogEnlistmentInfoAndSetConfigValues();
-                this.tracer.RelatedInfo("ParallelMount: Local validations + git config completed in {0}ms", sw.ElapsedMilliseconds);
-            });
-
-            try
-            {
-                Task.WaitAll(networkTask, localTask);
-            }
-            catch (AggregateException ae)
-            {
-                this.FailMountAndExit(ae.Flatten().InnerExceptions[0].Message);
-            }
-
-            parallelTimer.Stop();
-            this.tracer.RelatedInfo("ParallelMount: All parallel tasks completed in {0}ms", parallelTimer.ElapsedMilliseconds);
-
-            ServerGVFSConfig serverGVFSConfig = networkTask.Result;
-
-            CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
-            this.cacheServer = cacheServerResolver.ResolveNameFromRemote(this.cacheServer.Url, serverGVFSConfig);
-
-            this.EnsureLocalCacheIsHealthy(serverGVFSConfig);
-
+            // Start the pipe server early so MountVerb can connect and poll progress
+            // during the parallel validation phase. Only GetStatus requests are
+            // handled while currentState == Mounting (see HandleRequest guard).
+            this.mountProgressMessage = "Authenticating and validating";
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
                 this.tracer.RelatedEvent(
@@ -254,6 +207,60 @@ namespace GVFS.Mount
                     $"{nameof(this.Mount)}_StartedNamedPipe",
                     new EventMetadata { { "NamedPipeName", this.enlistment.NamedPipeName } });
 
+                // Local validations and git config run while we wait for the network
+                Task localTask = Task.Run(() =>
+                {
+                    Stopwatch sw = Stopwatch.StartNew();
+
+                    this.ValidateGitVersion();
+                    this.tracer.RelatedInfo("ParallelMount: ValidateGitVersion completed in {0}ms", sw.ElapsedMilliseconds);
+
+                    this.ValidateHooksVersion();
+                    this.ValidateFileSystemSupportsRequiredFeatures();
+
+                    GitProcess git = new GitProcess(this.enlistment);
+                    if (!git.IsValidRepo())
+                    {
+                        this.FailMountAndExit("The .git folder is missing or has invalid contents");
+                    }
+
+                    if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
+                    {
+                        this.FailMountAndExit("FileSystem unsupported: " + fsError);
+                    }
+
+                    this.tracer.RelatedInfo("ParallelMount: Local validations completed in {0}ms", sw.ElapsedMilliseconds);
+
+                    if (!this.TrySetRequiredGitConfigSettings())
+                    {
+                        this.FailMountAndExit("Unable to configure git repo");
+                    }
+
+                    this.LogEnlistmentInfoAndSetConfigValues();
+                    this.tracer.RelatedInfo("ParallelMount: Local validations + git config completed in {0}ms", sw.ElapsedMilliseconds);
+                });
+
+                try
+                {
+                    Task.WaitAll(networkTask, localTask);
+                }
+                catch (AggregateException ae)
+                {
+                    this.FailMountAndExit(ae.Flatten().InnerExceptions[0].Message);
+                }
+
+                parallelTimer.Stop();
+                this.tracer.RelatedInfo("ParallelMount: All parallel tasks completed in {0}ms", parallelTimer.ElapsedMilliseconds);
+
+                ServerGVFSConfig serverGVFSConfig = networkTask.Result;
+
+                this.mountProgressMessage = "Resolving cache server";
+                CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
+                this.cacheServer = cacheServerResolver.ResolveNameFromRemote(this.cacheServer.Url, serverGVFSConfig);
+
+                this.EnsureLocalCacheIsHealthy(serverGVFSConfig);
+
+                this.mountProgressMessage = "Preparing mount";
                 this.context = this.CreateContext();
 
                 if (this.context.Unattended)
@@ -274,6 +281,7 @@ namespace GVFS.Mount
 
                 GVFSPlatform.Instance.ConfigureVisualStudio(this.enlistment.GitBinPath, this.tracer);
 
+                this.mountProgressMessage = "Starting virtualization";
                 this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer);
 
                 try
@@ -296,6 +304,7 @@ namespace GVFS.Mount
                     },
                     Keywords.Telemetry);
 
+                this.mountProgressMessage = null;
                 this.currentState = MountState.Ready;
 
                 this.unmountEvent.WaitOne();
@@ -474,6 +483,17 @@ namespace GVFS.Mount
         private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.Message message = NamedPipeMessages.Message.FromString(request);
+
+            // While mounting, only GetStatus requests are safe — other handlers depend
+            // on context, fileSystemCallbacks, etc. that aren't initialized yet.
+            // MountFailed is NOT guarded: HandleUnmountRequest needs to reach the
+            // "unmount even if mount failed" path so users aren't forced to kill the process.
+            if (message.Header != NamedPipeMessages.GetStatus.Request &&
+                this.currentState == MountState.Mounting)
+            {
+                connection.TrySendResponse(NamedPipeMessages.MountNotReadyResult);
+                return;
+            }
 
             switch (message.Header)
             {
@@ -1179,14 +1199,15 @@ namespace GVFS.Mount
             response.EnlistmentRoot = this.enlistment.WorkingDirectoryRoot;
             response.LocalCacheRoot = !string.IsNullOrWhiteSpace(this.enlistment.LocalCacheRoot) ? this.enlistment.LocalCacheRoot : this.enlistment.GitObjectsRoot;
             response.RepoUrl = this.enlistment.RepoUrl;
-            response.CacheServer = this.cacheServer.ToString();
-            response.LockStatus = this.context?.Repository.GVFSLock != null ? this.context.Repository.GVFSLock.GetStatus() : "Unavailable";
+            response.CacheServer = this.cacheServer?.ToString() ?? string.Empty;
+            response.LockStatus = this.context?.Repository?.GVFSLock != null ? this.context.Repository.GVFSLock.GetStatus() : "Unavailable";
             response.DiskLayoutVersion = $"{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion}.{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion}";
 
             switch (this.currentState)
             {
                 case MountState.Mounting:
                     response.MountStatus = NamedPipeMessages.GetStatus.Mounting;
+                    response.MountProgress = this.mountProgressMessage;
                     break;
 
                 case MountState.Ready:
