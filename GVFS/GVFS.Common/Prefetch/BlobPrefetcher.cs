@@ -476,7 +476,10 @@ namespace GVFS.Common.Prefetch
             {
                 using (LibGit2Repo repo = new LibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryBackingRoot))
                 {
-                    if (!repo.ObjectExists(commitSha))
+                    // Use ObjectCanBeParsed (revparse) rather than ObjectExists (odb_exists)
+                    // because commitSha may be a ref name or abbreviated SHA from CLI input
+                    // (e.g. FastFetch --commit), not necessarily a full 40-char hex SHA.
+                    if (!repo.ObjectCanBeParsed(commitSha))
                     {
                         if (!gitObjects.TryDownloadCommit(commitSha))
                         {

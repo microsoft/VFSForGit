@@ -3,12 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace GVFS.Common.Git
 {
     public class LibGit2Repo : IDisposable
     {
         private bool disposedValue = false;
+        private IntPtr odbHandle = IntPtr.Zero;
 
         public delegate void MultiVarConfigCallback(string value);
 
@@ -104,6 +106,55 @@ namespace GVFS.Common.Git
         }
 
         public virtual bool ObjectExists(string sha)
+        {
+            IntPtr odb = this.odbHandle;
+            if (odb == IntPtr.Zero)
+            {
+                if (Native.Odb.GetOdb(out IntPtr newOdb, this.RepoHandle) != Native.ResultCode.Success)
+                {
+                    return this.ObjectExistsFallback(sha);
+                }
+
+                IntPtr existing = Interlocked.CompareExchange(ref this.odbHandle, newOdb, IntPtr.Zero);
+                if (existing != IntPtr.Zero)
+                {
+                    // Another thread won the race — free our duplicate and use theirs
+                    Native.Odb.Free(newOdb);
+                    odb = existing;
+                }
+                else
+                {
+                    odb = newOdb;
+                }
+            }
+
+            GitOid oid;
+            if (Native.Odb.OidFromStr(out oid, sha) != Native.ResultCode.Success)
+            {
+                return false;
+            }
+
+            return Native.Odb.Exists(odb, ref oid) == 1;
+        }
+
+        private bool ObjectExistsFallback(string sha)
+        {
+            IntPtr objHandle;
+            if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.ResultCode.Success)
+            {
+                return false;
+            }
+
+            Native.Object.Free(objHandle);
+            return true;
+        }
+
+        /// <summary>
+        /// Checks whether the object can be fully parsed by libgit2 (not just that it exists).
+        /// Use this when you need to detect corrupt objects. For simple existence checks,
+        /// prefer <see cref="ObjectExists"/> which is faster.
+        /// </summary>
+        public virtual bool ObjectCanBeParsed(string sha)
         {
             IntPtr objHandle;
             if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.ResultCode.Success)
@@ -360,6 +411,12 @@ namespace GVFS.Common.Git
         {
             if (!this.disposedValue)
             {
+                if (this.odbHandle != IntPtr.Zero)
+                {
+                    Native.Odb.Free(this.odbHandle);
+                    this.odbHandle = IntPtr.Zero;
+                }
+
                 Native.Repo.Free(this.RepoHandle);
                 Native.Shutdown();
                 this.disposedValue = true;
@@ -502,6 +559,22 @@ namespace GVFS.Common.Git
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_repository_free")]
                 public static extern void Free(IntPtr repoHandle);
+            }
+
+            public static class Odb
+            {
+                [DllImport(Git2NativeLibName, EntryPoint = "git_repository_odb")]
+                public static extern ResultCode GetOdb(out IntPtr odbHandle, IntPtr repoHandle);
+
+                /// <returns>1 if the object exists, 0 otherwise</returns>
+                [DllImport(Git2NativeLibName, EntryPoint = "git_odb_exists")]
+                public static extern int Exists(IntPtr odbHandle, ref GitOid id);
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_odb_free")]
+                public static extern void Free(IntPtr odbHandle);
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_oid_fromstr")]
+                public static extern ResultCode OidFromStr(out GitOid oid, string str);
             }
 
             public static class Config
