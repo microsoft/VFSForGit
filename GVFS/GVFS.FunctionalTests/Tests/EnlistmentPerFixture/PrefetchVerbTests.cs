@@ -37,6 +37,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem = new SystemIORunner();
         }
 
+        [SetUp]
+        public void DeletePrefetchCache()
+        {
+            string cachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "BlobPrefetchCache.dat");
+            if (File.Exists(cachePath))
+            {
+                File.Delete(cachePath);
+            }
+        }
+
         [TestCase, Order(1)]
         public void PrefetchAllMustBeExplicit()
         {
