@@ -193,7 +193,7 @@ namespace GVFS.CommandLine
                 action,
                 message,
                 this.Output,
-                showSpinner: !this.Unattended && this.Output == Console.Out && !GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
+                showSpinner: !this.Unattended && this.Output == Console.Out && !Console.IsOutputRedirected,
                 gvfsLogEnlistmentRoot: gvfsLogEnlistmentRoot,
                 initialDelayMs: 0);
         }

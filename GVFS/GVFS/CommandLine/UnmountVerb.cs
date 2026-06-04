@@ -261,7 +261,7 @@ namespace GVFS.CommandLine
                             "gvfs unmount",
                             currentProcess.Id,
                             GVFSPlatform.Instance.IsElevated(),
-                            isConsoleOutputRedirectedToFile: GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
+                            isConsoleOutputRedirectedToFile: Console.IsOutputRedirected,
                             checkAvailabilityOnly: false,
                             gvfsEnlistmentRoot: enlistmentRoot,
                             gitCommandSessionId: string.Empty,
