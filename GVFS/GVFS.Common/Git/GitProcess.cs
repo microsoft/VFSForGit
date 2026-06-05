@@ -191,7 +191,8 @@ namespace GVFS.Common.Git
             Result result = this.InvokeGitAgainstDotGitFolder(
                 GenerateCredentialVerbCommand("reject"),
                 stdin => stdin.Write(stdinConfig),
-                null);
+                null,
+                usePreCommandHook: false);
 
             if (result.ExitCodeIsFailure)
             {
@@ -218,7 +219,8 @@ namespace GVFS.Common.Git
             Result result = this.InvokeGitAgainstDotGitFolder(
                 GenerateCredentialVerbCommand("approve"),
                 stdin => stdin.Write(stdinConfig),
-                null);
+                null,
+                usePreCommandHook: false);
 
             if (result.ExitCodeIsFailure)
             {
@@ -249,10 +251,13 @@ namespace GVFS.Common.Git
 
             using (ITracer activity = tracer.StartActivity("TryGetCertificatePassword", EventLevel.Informational))
             {
+                // See GetFromConfig for why pre-command hook is disabled
+                // for bootstrap-time git operations.
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
                     "credential fill",
                     stdin => stdin.Write("protocol=cert\npath=" + certificatePath + "\nusername=\n\n"),
-                    parseStdOutLine: null);
+                    parseStdOutLine: null,
+                    usePreCommandHook: false);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
@@ -300,10 +305,13 @@ namespace GVFS.Common.Git
 
             using (ITracer activity = tracer.StartActivity(nameof(this.TryGetCredential), EventLevel.Informational))
             {
+                // See GetFromConfig for why pre-command hook is disabled
+                // for bootstrap-time git operations.
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
                     GenerateCredentialVerbCommand("fill"),
                     stdin => stdin.Write($"url={repoUrl}\n\n"),
-                    parseStdOutLine: null);
+                    parseStdOutLine: null,
+                    usePreCommandHook: false);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
@@ -336,7 +344,10 @@ namespace GVFS.Common.Git
 
         public bool IsValidRepo()
         {
-            Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel");
+            // Mount-time bootstrap check - skip pre-command hook so a broken
+            // hook config in the enlistment can be detected and repaired
+            // rather than blocking the mount that would fix it.
+            Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel", usePreCommandHook: false);
             return result.ExitCodeIsSuccess;
         }
 
@@ -352,24 +363,34 @@ namespace GVFS.Common.Git
 
         public void DeleteFromLocalConfig(string settingName)
         {
-            this.InvokeGitAgainstDotGitFolder("config --local --unset-all " + settingName);
+            // git config operations never need the pre-command hook (no
+            // working-tree mutation). Skipping it also keeps mount bootstrap
+            // robust against a stale hook config that TryUpdateHooks will
+            // repair shortly. See GetFromConfig for the longer rationale.
+            this.InvokeGitAgainstDotGitFolder("config --local --unset-all " + settingName, usePreCommandHook: false);
         }
 
         public Result SetInLocalConfig(string settingName, string value, bool replaceAll = false)
         {
-            return this.InvokeGitAgainstDotGitFolder(string.Format(
-                "config --local {0} \"{1}\" \"{2}\"",
-                 replaceAll ? "--replace-all " : string.Empty,
-                 settingName,
-                 value));
+            // See DeleteFromLocalConfig for why pre-command hook is disabled.
+            return this.InvokeGitAgainstDotGitFolder(
+                string.Format(
+                    "config --local {0} \"{1}\" \"{2}\"",
+                    replaceAll ? "--replace-all " : string.Empty,
+                    settingName,
+                    value),
+                usePreCommandHook: false);
         }
 
         public Result AddInLocalConfig(string settingName, string value)
         {
-            return this.InvokeGitAgainstDotGitFolder(string.Format(
-                "config --local --add {0} {1}",
-                 settingName,
-                 value));
+            // See DeleteFromLocalConfig for why pre-command hook is disabled.
+            return this.InvokeGitAgainstDotGitFolder(
+                string.Format(
+                    "config --local --add {0} {1}",
+                    settingName,
+                    value),
+                usePreCommandHook: false);
         }
 
         public Result SetInFileConfig(string configFile, string settingName, string value, bool replaceAll = false)
@@ -384,7 +405,8 @@ namespace GVFS.Common.Git
 
         public bool TryGetConfigUrlMatch(string section, string repositoryUrl, out Dictionary<string, GitConfigSetting> configSettings)
         {
-            Result result = this.InvokeGitAgainstDotGitFolder($"config --get-urlmatch {section} {repositoryUrl}");
+            // See GetFromConfig for why pre-command hook is disabled.
+            Result result = this.InvokeGitAgainstDotGitFolder($"config --get-urlmatch {section} {repositoryUrl}", usePreCommandHook: false);
             if (result.ExitCodeIsFailure)
             {
                 configSettings = null;
@@ -399,7 +421,8 @@ namespace GVFS.Common.Git
         {
             configSettings = null;
             string localParameter = localOnly ? "--local" : string.Empty;
-            ConfigResult result = new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --list " + localParameter), "--list");
+            // See GetFromConfig for why pre-command hook is disabled.
+            ConfigResult result = new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --list " + localParameter, usePreCommandHook: false), "--list");
 
             if (result.TryParseAsString(out string output, out string _, string.Empty))
             {
@@ -425,15 +448,20 @@ namespace GVFS.Common.Git
             fileSystem = fileSystem ?? new PhysicalFileSystem();
 
             // This method is called at clone time, so the physical repo may not exist yet.
+            // Pre-command hook never applies to `git config` reads (no working tree
+            // mutation happens), and skipping the hook makes us robust to a broken
+            // hook config in the enlistment - which is exactly what we'd be trying
+            // to repair via TryUpdateHooks at mount time.
             return
                 fileSystem.DirectoryExists(this.workingDirectoryRoot) && !forceOutsideEnlistment
-                    ? new ConfigResult(this.InvokeGitAgainstDotGitFolder(command), settingName)
+                    ? new ConfigResult(this.InvokeGitAgainstDotGitFolder(command, usePreCommandHook: false), settingName)
                     : new ConfigResult(this.InvokeGitOutsideEnlistment(command), settingName);
         }
 
         public ConfigResult GetFromLocalConfig(string settingName)
         {
-            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local " + settingName), settingName);
+            // See GetFromConfig above for why pre-command hook is disabled here.
+            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local " + settingName, usePreCommandHook: false), settingName);
         }
 
         /// <summary>
