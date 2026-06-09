@@ -195,6 +195,47 @@ namespace GVFS.Common.Git
             return line.IndexOf(typeMarker, TypeMarkerStartIndex, typeMarker.Length, StringComparison.OrdinalIgnoreCase) == TypeMarkerStartIndex;
         }
 
+        /// <summary>
+        /// Parse the output of calling git ls-files -s (staging info).
+        /// This reads from the index, which is much faster than ls-tree on large repos.
+        /// ls-files only returns file entries (no tree entries).
+        /// </summary>
+        public static DiffTreeResult ParseFromLsFilesStagingLine(string line)
+        {
+            if (string.IsNullOrEmpty(line))
+            {
+                throw new ArgumentException("Line to parse cannot be null or empty", nameof(line));
+            }
+
+            /*
+             * Example output lines from ls-files -s
+             *
+             * 100644 44c5f5cba4b29d31c2ad06eed51ea02af76c27c0 0\tReadme.md
+             * 100755 196142fbb753c0a3c7c6690323db7aa0a11f41ec 0\tScripts/BuildGVFSForMac.sh
+             * ^-mode ^-sha                                    ^stage
+             *                                                   ^-tab
+             *                                                     ^-path
+             *
+             * Format: <mode> <sha> <stage>\t<path>
+             * Mode is 6 chars, space, SHA is 40 chars, space, stage digit(s), tab, path
+             */
+
+            int tabIndex = line.IndexOf('\t');
+            if (tabIndex < 0 || line.Length < 50)
+            {
+                return null;
+            }
+
+            DiffTreeResult blobAdd = new DiffTreeResult();
+            blobAdd.TargetMode = Convert.ToUInt16(line.Substring(0, 6), 8);
+            blobAdd.TargetIsSymLink = blobAdd.TargetMode == SymLinkFileIndexEntry;
+            blobAdd.TargetSha = line.Substring(7, GVFSConstants.ShaStringLength);
+            blobAdd.TargetPath = ConvertPathToUtf8Path(line.Substring(tabIndex + 1));
+            blobAdd.Operation = Operations.Add;
+
+            return blobAdd;
+        }
+
         private static string AppendPathSeparatorIfNeeded(string path)
         {
             return path.Last() == Path.DirectorySeparatorChar ? path : path + Path.DirectorySeparatorChar;
