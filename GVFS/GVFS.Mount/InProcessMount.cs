@@ -5,6 +5,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
@@ -516,6 +517,14 @@ namespace GVFS.Mount
                     this.HandleDehydrateFolders(message, connection);
                     break;
 
+                case NamedPipeMessages.PrefetchCommits.Request:
+                    this.HandlePrefetchCommitsRequest(connection);
+                    break;
+
+                case NamedPipeMessages.PrefetchBlobs.RequestHeader:
+                    this.HandlePrefetchBlobsRequest(message, connection);
+                    break;
+
                 case NamedPipeMessages.HydrationStatus.Request:
                     this.HandleGetHydrationStatusRequest(connection);
                     break;
@@ -988,6 +997,176 @@ namespace GVFS.Mount
             else
             {
                 response = new NamedPipeMessages.RunPostFetchJob.Response(NamedPipeMessages.RunPostFetchJob.MountNotReadyResult);
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private void HandlePrefetchCommitsRequest(NamedPipeServer.Connection connection)
+        {
+            this.tracer.RelatedInfo("Received prefetch commits request");
+
+            if (this.currentState != MountState.Ready)
+            {
+                connection.TrySendResponse(
+                    new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.MountNotReadyResult, null));
+                return;
+            }
+
+            NamedPipeMessages.PrefetchCommits.Response response;
+            try
+            {
+                // Use a callback to enqueue the post-fetch step directly on the
+                // maintenance scheduler, avoiding a re-entrant named pipe call.
+                PrefetchStep prefetchStep = new PrefetchStep(
+                    this.context,
+                    this.gitObjects,
+                    requireCacheLock: false,
+                    postFetchCallback: packIndexes =>
+                    {
+                        this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, packIndexes));
+                    });
+
+                string error;
+                bool success = prefetchStep.TryPrefetchCommitsAndTrees(out error);
+
+                response = new NamedPipeMessages.PrefetchCommits.Response
+                {
+                    Success = success,
+                    Error = error,
+                };
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedError("HandlePrefetchCommitsRequest: Exception: {0}", e.ToString());
+                response = new NamedPipeMessages.PrefetchCommits.Response
+                {
+                    Success = false,
+                    Error = e.Message,
+                };
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private void HandlePrefetchBlobsRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            this.tracer.RelatedInfo("Received prefetch blobs request");
+
+            if (this.currentState != MountState.Ready)
+            {
+                connection.TrySendResponse(
+                    new NamedPipeMessages.Message(NamedPipeMessages.PrefetchBlobs.MountNotReadyResult, null));
+                return;
+            }
+
+            NamedPipeMessages.PrefetchBlobs.Request request = NamedPipeMessages.PrefetchBlobs.Request.FromMessage(message);
+
+            // Validate inputs — do not trust IPC requests blindly
+            if (request.Files == null || request.Folders == null)
+            {
+                connection.TrySendResponse(new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = "Files and Folders must not be null",
+                }.CreateMessage());
+                return;
+            }
+
+            if (request.Files.Count == 0 && request.Folders.Count == 0)
+            {
+                connection.TrySendResponse(new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = "Files and Folders must not both be empty",
+                }.CreateMessage());
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(request.HeadCommitId))
+            {
+                connection.TrySendResponse(new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = "HeadCommitId must be specified",
+                }.CreateMessage());
+                return;
+            }
+
+            NamedPipeMessages.PrefetchBlobs.Response response;
+            try
+            {
+                // Create a fresh GitObjectsHttpRequestor using the mount's warm auth.
+                // BlobPrefetcher constructs its own PrefetchGitObjects internally.
+                using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(
+                    this.tracer, this.enlistment, this.cacheServer, this.retryConfig))
+                {
+                    // Open LastBlobPrefetch.dat so BlobPrefetcher can update noop state
+                    string lastPrefetchPath = Path.Combine(this.enlistment.DotGVFSRoot, "LastBlobPrefetch.dat");
+                    FileBasedDictionary<string, string> lastPrefetchArgs;
+                    string dictError;
+                    if (!FileBasedDictionary<string, string>.TryCreate(
+                            this.tracer, lastPrefetchPath, new PhysicalFileSystem(),
+                            out lastPrefetchArgs, out dictError))
+                    {
+                        this.tracer.RelatedWarning("HandlePrefetchBlobsRequest: Unable to load last prefetch args: " + dictError);
+                        lastPrefetchArgs = null;
+                    }
+
+                    // Cap thread counts to avoid starving virtualization callbacks
+                    int maxThreads = Math.Max(1, Environment.ProcessorCount / 2);
+                    int downloadThreads = Math.Min(maxThreads, 16);
+
+                    BlobPrefetcher blobPrefetcher = new BlobPrefetcher(
+                        this.tracer,
+                        this.enlistment,
+                        objectRequestor,
+                        request.Files,
+                        request.Folders,
+                        lastPrefetchArgs,
+                        chunkSize: 4000,
+                        searchThreadCount: maxThreads,
+                        downloadThreadCount: downloadThreads,
+                        indexThreadCount: maxThreads);
+
+                    int matchedBlobCount;
+                    int downloadedBlobCount;
+                    int hydratedFileCount;
+
+                    blobPrefetcher.PrefetchWithStats(
+                        request.HeadCommitId,
+                        isBranch: false,
+                        hydrateFilesAfterDownload: false,
+                        matchedBlobCount: out matchedBlobCount,
+                        downloadedBlobCount: out downloadedBlobCount,
+                        hydratedFileCount: out hydratedFileCount);
+
+                    response = new NamedPipeMessages.PrefetchBlobs.Response
+                    {
+                        Success = !blobPrefetcher.HasFailures,
+                        Error = blobPrefetcher.HasFailures ? "Blob prefetch encountered failures" : null,
+                        MatchedBlobCount = matchedBlobCount,
+                        DownloadedBlobCount = downloadedBlobCount,
+                    };
+                }
+            }
+            catch (BlobPrefetcher.FetchException e)
+            {
+                this.tracer.RelatedError("HandlePrefetchBlobsRequest: FetchException: {0}", e.Message);
+                response = new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = e.Message,
+                };
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedError("HandlePrefetchBlobsRequest: Exception: {0}", e.ToString());
+                response = new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = e.Message,
+                };
             }
 
             connection.TrySendResponse(response.CreateMessage());

@@ -97,10 +97,15 @@ namespace GVFS.Tests
                 priorityQueue.Add((i, buckets[i].Count));
             }
 
-            // Now distribute the tests into the buckets
-            Regex perFixtureRegex = new Regex(
-                @"^.*\.EnlistmentPerFixture\..+\.",
-                // @"^.*\.",
+            // Now distribute the tests into the buckets.
+            // Tests from the same fixture class must stay in the same bucket
+            // when the fixture shares a single enlistment across tests (both
+            // EnlistmentPerFixture classes and GitCommands fixture classes like
+            // GitCommandsTests, CheckoutTests, etc. use a shared enlistment).
+            // The regex captures "everything up to and including the class name"
+            // so that SomeClass.TestA and SomeClass.TestB share a prefix.
+            Regex fixtureRegex = new Regex(
+                @"^.*\.(?:EnlistmentPerFixture|GitCommands)\..+\.",
                 RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
             for (uint i = 0; i < list.Length; i++)
             {
@@ -112,8 +117,8 @@ namespace GVFS.Tests
 
                 buckets[bucket.Item1].Add(test);
 
-                // Ensure that EnlistmentPerFixture tests of the same class are all in the same bucket
-                var match = perFixtureRegex.Match(test);
+                // Ensure that fixture tests of the same class are all in the same bucket
+                var match = fixtureRegex.Match(test);
                 if (match.Success)
                 {
                     string prefix = match.Value;

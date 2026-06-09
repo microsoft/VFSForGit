@@ -313,6 +313,71 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
+        public static class PrefetchCommits
+        {
+            public const string Request = "PrefetchCommits";
+            public const string CompleteResult = "PrefetchCommitsComplete";
+            public const string MountNotReadyResult = "MountNotReady";
+
+            public class Response
+            {
+                public bool Success { get; set; }
+                public string Error { get; set; }
+
+                public static Response FromMessage(Message message)
+                {
+                    return GVFSJsonOptions.Deserialize<Response>(message.Body);
+                }
+
+                public Message CreateMessage()
+                {
+                    return new Message(CompleteResult, GVFSJsonOptions.Serialize(this));
+                }
+            }
+        }
+
+        public static class PrefetchBlobs
+        {
+            public const string RequestHeader = "PrefetchBlobs";
+            public const string CompleteResult = "PrefetchBlobsComplete";
+            public const string MountNotReadyResult = "MountNotReady";
+
+            public class Request
+            {
+                public List<string> Files { get; set; }
+                public List<string> Folders { get; set; }
+                public string HeadCommitId { get; set; }
+
+                public static Request FromMessage(Message message)
+                {
+                    return GVFSJsonOptions.Deserialize<Request>(message.Body);
+                }
+
+                public Message CreateMessage()
+                {
+                    return new Message(RequestHeader, GVFSJsonOptions.Serialize(this));
+                }
+            }
+
+            public class Response
+            {
+                public bool Success { get; set; }
+                public string Error { get; set; }
+                public int MatchedBlobCount { get; set; }
+                public int DownloadedBlobCount { get; set; }
+
+                public static Response FromMessage(Message message)
+                {
+                    return GVFSJsonOptions.Deserialize<Response>(message.Body);
+                }
+
+                public Message CreateMessage()
+                {
+                    return new Message(CompleteResult, GVFSJsonOptions.Serialize(this));
+                }
+            }
+        }
+
         public static class Notification
         {
             public class Request
