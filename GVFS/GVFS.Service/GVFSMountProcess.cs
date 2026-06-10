@@ -1,9 +1,9 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Tracing;
 using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
+using Microsoft.Win32.SafeHandles;
 using System;
-using System.Diagnostics;
 
 namespace GVFS.Service
 {
@@ -30,98 +30,79 @@ namespace GVFS.Service
 
             using (CurrentUser currentUser = new CurrentUser(this.tracer, sessionId))
             {
+                SafeProcessHandle mountHandle;
                 int mountProcessId;
-                if (!this.TryCallGVFSMount(repoRoot, currentUser, out mountProcessId))
+                if (!this.TryCallGVFSMount(repoRoot, currentUser, out mountHandle, out mountProcessId))
                 {
                     this.tracer.RelatedError($"{nameof(this.MountRepository)}: Unable to start the GVFS.exe process.");
                     return false;
                 }
 
-                string errorMessage;
-                string pipeName = GVFSPlatform.Instance.GetNamedPipeName(repoRoot);
-                string worktreeError;
-                GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(repoRoot, out worktreeError);
-                if (worktreeError != null)
+                // Always own the handle for the rest of this call so the
+                // kernel keeps the process object alive while we poll it.
+                using (mountHandle)
                 {
-                    this.tracer.RelatedError($"Failed to check worktree status for '{repoRoot}': {worktreeError}");
-                    return false;
-                }
-
-                if (wtInfo?.SharedGitDir != null)
-                {
-                    string enlistmentRoot = wtInfo.GetEnlistmentRoot();
-                    if (enlistmentRoot != null)
+                    string errorMessage;
+                    string pipeName = GVFSPlatform.Instance.GetNamedPipeName(repoRoot);
+                    string worktreeError;
+                    GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(repoRoot, out worktreeError);
+                    if (worktreeError != null)
                     {
-                        pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot) + wtInfo.PipeSuffix;
+                        this.tracer.RelatedError($"Failed to check worktree status for '{repoRoot}': {worktreeError}");
+                        return false;
                     }
-                }
 
-                // Track the spawned mount process so the wait short-circuits
-                // when it dies early — e.g. on argument-parsing failures that
-                // exit before any log file is created. Without this, the
-                // service would block for the full 60-second pipe timeout
-                // with no diagnostic beyond "not responding."
-                Process mountProcess = TryGetProcessById(this.tracer, mountProcessId);
-                Func<GVFSEnlistment.MountProcessSnapshot> snapshot =
-                    mountProcess == null
-                        ? (Func<GVFSEnlistment.MountProcessSnapshot>)null
-                        : () => SnapshotMountProcess(mountProcess, mountProcessId);
+                    if (wtInfo?.SharedGitDir != null)
+                    {
+                        string enlistmentRoot = wtInfo.GetEnlistmentRoot();
+                        if (enlistmentRoot != null)
+                        {
+                            pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot) + wtInfo.PipeSuffix;
+                        }
+                    }
 
-                try
-                {
+                    // Track the spawned mount process so the wait short-circuits
+                    // when it dies early — e.g. on argument-parsing failures that
+                    // exit before any log file is created. Without this, the
+                    // service would block for the full 60-second pipe timeout
+                    // with no diagnostic beyond "not responding."
+                    //
+                    // We use the SafeProcessHandle returned by TryRunAs rather
+                    // than Process.GetProcessById(pid) so we cannot race against
+                    // the child exiting between CreateProcessAsUser and the
+                    // lookup, and cannot alias a reused PID.
+                    SafeProcessHandle handle = mountHandle;
+                    Func<GVFSEnlistment.MountProcessSnapshot> snapshot =
+                        () => SnapshotMountProcess(handle, mountProcessId);
+
                     if (!GVFSEnlistment.WaitUntilMounted(this.tracer, pipeName, repoRoot, unattended: false, snapshot, out errorMessage))
                     {
                         this.tracer.RelatedError(errorMessage);
                         return false;
                     }
                 }
-                finally
-                {
-                    mountProcess?.Dispose();
-                }
             }
 
             return true;
         }
 
-        private static Process TryGetProcessById(ITracer tracer, int processId)
+        private static GVFSEnlistment.MountProcessSnapshot SnapshotMountProcess(SafeProcessHandle handle, int processId)
         {
-            try
+            if (!ProcessHandleHelper.HasExited(handle))
             {
-                return Process.GetProcessById(processId);
+                return new GVFSEnlistment.MountProcessSnapshot(processId, hasExited: false, exitCode: 0);
             }
-            catch (ArgumentException)
+
+            int exitCode;
+            if (!ProcessHandleHelper.TryGetExitCode(handle, out exitCode))
             {
-                // Process already exited between CreateProcessAsUser returning
-                // and us looking it up. Wait loop will catch this on first poll.
-                return null;
+                exitCode = -1;
             }
-            catch (InvalidOperationException e)
-            {
-                tracer.RelatedWarning($"{nameof(TryGetProcessById)}: Could not open handle to mount process Id {processId}: {e.Message}");
-                return null;
-            }
+
+            return new GVFSEnlistment.MountProcessSnapshot(processId, hasExited: true, exitCode: exitCode);
         }
 
-        private static GVFSEnlistment.MountProcessSnapshot SnapshotMountProcess(Process mountProcess, int processId)
-        {
-            try
-            {
-                if (mountProcess.HasExited)
-                {
-                    return new GVFSEnlistment.MountProcessSnapshot(processId, hasExited: true, exitCode: mountProcess.ExitCode);
-                }
-            }
-            catch (InvalidOperationException)
-            {
-                // No process associated — treat as exited so the caller fails fast.
-                return new GVFSEnlistment.MountProcessSnapshot(processId, hasExited: true, exitCode: -1);
-            }
-
-            return new GVFSEnlistment.MountProcessSnapshot(processId, hasExited: false, exitCode: 0);
-        }
-
-        private bool TryCallGVFSMount(string repoRoot, CurrentUser currentUser, out int processId)
+        private bool TryCallGVFSMount(string repoRoot, CurrentUser currentUser, out SafeProcessHandle processHandle, out int processId)
         {
             InternalVerbParameters mountInternal = new InternalVerbParameters(startedByService: true);
             return currentUser.TryRunAs(
@@ -133,8 +114,10 @@ namespace GVFS.Service
                     "--" + GVFSConstants.VerbParameters.InternalUseOnly,
                     mountInternal.ToJson(),
                 },
+                out processHandle,
                 out processId);
         }
     }
 }
+
 

@@ -1,5 +1,6 @@
 using GVFS.Common;
 using GVFS.Common.Tracing;
+using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -122,16 +123,25 @@ namespace GVFS.Platform.Windows
         /// strings here would re-introduce the quote-stripping bug that
         /// silently corrupts the service's <c>--internal_use_only</c> JSON.
         /// </param>
+        /// <param name="processHandle">
+        /// On success, an owned handle to the newly created process. Callers
+        /// can use <see cref="ProcessHandleHelper.HasExited"/> and
+        /// <see cref="ProcessHandleHelper.TryGetExitCode"/> to query the
+        /// child's liveness without racing on PID lookup (the kernel keeps
+        /// the process object alive as long as we hold the handle, even
+        /// after the child exits, so the handle is always queryable and
+        /// never aliases a reused PID). Callers must <see cref="SafeProcessHandle.Dispose"/>
+        /// it when done — usually with <c>using</c>.
+        /// </param>
         /// <param name="processId">
-        /// On success, the PID of the newly created process so the caller can
-        /// detect early termination (e.g. via
-        /// <see cref="System.Diagnostics.Process.GetProcessById(int)"/>)
-        /// instead of waiting the full pipe-connection timeout when the child
-        /// has already crashed.
+        /// On success, the PID of the newly created process (for logging
+        /// and diagnostics only — use <paramref name="processHandle"/> for
+        /// any liveness check).
         /// </param>
         /// <returns><c>true</c> if the process was successfully created.</returns>
-        public bool TryRunAs(string processName, string[] arguments, out int processId)
+        public bool TryRunAs(string processName, string[] arguments, out SafeProcessHandle processHandle, out int processId)
         {
+            processHandle = null;
             processId = 0;
             IntPtr environment = IntPtr.Zero;
             IntPtr duplicate = IntPtr.Zero;
@@ -171,17 +181,14 @@ namespace GVFS.Platform.Windows
                             startupInfo: ref info,
                             processInformation: out procInfo))
                         {
-                            try
-                            {
-                                processId = procInfo.ProcessId;
-                                this.tracer.RelatedInfo("Started process '{0}' with Id {1}", commandLine, processId);
-                            }
-                            finally
-                            {
-                                CloseHandle(procInfo.ProcessHandle);
-                                CloseHandle(procInfo.ThreadHandle);
-                            }
-
+                            // Always close the thread handle (we never use it).
+                            // Wrap the process handle in a SafeProcessHandle that
+                            // owns it; callers get a race-free liveness handle that
+                            // remains queryable even after the child exits.
+                            CloseHandle(procInfo.ThreadHandle);
+                            processId = procInfo.ProcessId;
+                            processHandle = new SafeProcessHandle(procInfo.ProcessHandle, ownsHandle: true);
+                            this.tracer.RelatedInfo("Started process '{0}' with Id {1}", commandLine, processId);
                             return true;
                         }
                         else
