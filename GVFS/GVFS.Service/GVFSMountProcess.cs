@@ -2,6 +2,8 @@
 using GVFS.Common.Tracing;
 using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
+using System;
+using System.Diagnostics;
 
 namespace GVFS.Service
 {
@@ -28,7 +30,8 @@ namespace GVFS.Service
 
             using (CurrentUser currentUser = new CurrentUser(this.tracer, sessionId))
             {
-                if (!this.CallGVFSMount(repoRoot, currentUser))
+                int mountProcessId;
+                if (!this.TryCallGVFSMount(repoRoot, currentUser, out mountProcessId))
                 {
                     this.tracer.RelatedError($"{nameof(this.MountRepository)}: Unable to start the GVFS.exe process.");
                     return false;
@@ -53,22 +56,85 @@ namespace GVFS.Service
                     }
                 }
 
-                if (!GVFSEnlistment.WaitUntilMounted(this.tracer, pipeName, repoRoot, false, out errorMessage))
+                // Track the spawned mount process so the wait short-circuits
+                // when it dies early — e.g. on argument-parsing failures that
+                // exit before any log file is created. Without this, the
+                // service would block for the full 60-second pipe timeout
+                // with no diagnostic beyond "not responding."
+                Process mountProcess = TryGetProcessById(this.tracer, mountProcessId);
+                Func<GVFSEnlistment.MountProcessSnapshot> snapshot =
+                    mountProcess == null
+                        ? (Func<GVFSEnlistment.MountProcessSnapshot>)null
+                        : () => SnapshotMountProcess(mountProcess, mountProcessId);
+
+                try
                 {
-                    this.tracer.RelatedError(errorMessage);
-                    return false;
+                    if (!GVFSEnlistment.WaitUntilMounted(this.tracer, pipeName, repoRoot, unattended: false, snapshot, out errorMessage))
+                    {
+                        this.tracer.RelatedError(errorMessage);
+                        return false;
+                    }
+                }
+                finally
+                {
+                    mountProcess?.Dispose();
                 }
             }
 
             return true;
         }
 
-        private bool CallGVFSMount(string repoRoot, CurrentUser currentUser)
+        private static Process TryGetProcessById(ITracer tracer, int processId)
+        {
+            try
+            {
+                return Process.GetProcessById(processId);
+            }
+            catch (ArgumentException)
+            {
+                // Process already exited between CreateProcessAsUser returning
+                // and us looking it up. Wait loop will catch this on first poll.
+                return null;
+            }
+            catch (InvalidOperationException e)
+            {
+                tracer.RelatedWarning($"{nameof(TryGetProcessById)}: Could not open handle to mount process Id {processId}: {e.Message}");
+                return null;
+            }
+        }
+
+        private static GVFSEnlistment.MountProcessSnapshot SnapshotMountProcess(Process mountProcess, int processId)
+        {
+            try
+            {
+                if (mountProcess.HasExited)
+                {
+                    return new GVFSEnlistment.MountProcessSnapshot(processId, hasExited: true, exitCode: mountProcess.ExitCode);
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // No process associated — treat as exited so the caller fails fast.
+                return new GVFSEnlistment.MountProcessSnapshot(processId, hasExited: true, exitCode: -1);
+            }
+
+            return new GVFSEnlistment.MountProcessSnapshot(processId, hasExited: false, exitCode: 0);
+        }
+
+        private bool TryCallGVFSMount(string repoRoot, CurrentUser currentUser, out int processId)
         {
             InternalVerbParameters mountInternal = new InternalVerbParameters(startedByService: true);
-            return currentUser.RunAs(
+            return currentUser.TryRunAs(
                 Configuration.Instance.GVFSLocation,
-                $"mount {repoRoot} --{GVFSConstants.VerbParameters.InternalUseOnly} {mountInternal.ToJson()}");
+                new[]
+                {
+                    "mount",
+                    repoRoot,
+                    "--" + GVFSConstants.VerbParameters.InternalUseOnly,
+                    mountInternal.ToJson(),
+                },
+                out processId);
         }
     }
 }
+
