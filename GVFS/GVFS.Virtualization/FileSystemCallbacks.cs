@@ -493,6 +493,69 @@ namespace GVFS.Virtualization
         }
 
         /// <summary>
+        /// Finds files that differ between HEAD and the given target commit and adds
+        /// them to ModifiedPaths. This prepares for a mixed reset operation by ensuring
+        /// git will clear skip-worktree for these entries, allowing it to detect
+        /// working-tree mismatches for files that were hydrated (read from ProjFS but
+        /// not modified, so not yet in ModifiedPaths).
+        /// </summary>
+        /// <param name="targetCommit">
+        /// The commit to diff against HEAD. If null or empty, defaults to HEAD (no-op).
+        /// </param>
+        /// <param name="addedCount">Number of paths added to ModifiedPaths.</param>
+        /// <returns>True if the operation succeeded, false on failure.</returns>
+        public bool AddResetDiffToModifiedPaths(string targetCommit, out int addedCount)
+        {
+            addedCount = 0;
+
+            if (string.IsNullOrEmpty(targetCommit))
+            {
+                // Resetting to HEAD is a no-op for the index — nothing to diff.
+                return true;
+            }
+
+            GitProcess gitProcess = new GitProcess(this.context.Enlistment);
+
+            GitProcess.Result result = gitProcess.DiffTreeNameOnly("HEAD", targetCommit);
+            if (result.ExitCodeIsSuccess && !string.IsNullOrEmpty(result.Output))
+            {
+                // Output is null-separated paths. The first entry from diff-tree is
+                // the target commit SHA (when given a commit, not a tree), skip it.
+                string[] parts = result.Output.Split(new[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
+
+                foreach (string gitPath in parts)
+                {
+                    // diff-tree with a commit (not tree) prefixes output with the
+                    // commit SHA on the first line. Skip anything that looks like a
+                    // hex SHA (40+ chars, no path separators).
+                    if (gitPath.Length >= 40 && !gitPath.Contains('/') && !gitPath.Contains('\\'))
+                    {
+                        continue;
+                    }
+
+                    string platformPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+                    if (this.modifiedPaths.TryAdd(platformPath, isFolder: false, isRetryable: out _))
+                    {
+                        addedCount++;
+                    }
+                }
+            }
+            else if (!result.ExitCodeIsSuccess)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("ExitCode", result.ExitCode);
+                metadata.Add("Errors", result.Errors ?? string.Empty);
+                metadata.Add("targetCommit", targetCommit);
+                this.context.Tracer.RelatedError(
+                    metadata,
+                    nameof(this.AddResetDiffToModifiedPaths) + ": git diff-tree failed");
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Writes the staged (index) versions of files to the working directory as
         /// full files, bypassing ProjFS. Uses "git checkout-index --force" with
         /// batched paths to minimize process invocations.

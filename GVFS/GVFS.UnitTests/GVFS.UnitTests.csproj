@@ -30,6 +30,9 @@
     <Compile Include="..\GVFS.Hooks\UnstageCommandParser.cs">
       <Link>Hooks\UnstageCommandParser.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Hooks\ResetCommandParser.cs">
+      <Link>Hooks\ResetCommandParser.cs</Link>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

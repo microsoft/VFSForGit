@@ -508,6 +508,10 @@ namespace GVFS.Mount
                     this.HandlePrepareForUnstageRequest(message, connection);
                     break;
 
+                case NamedPipeMessages.PrepareForReset.Request:
+                    this.HandlePrepareForResetRequest(message, connection);
+                    break;
+
                 case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
                     this.HandlePostFetchJobRequest(message, connection);
                     break;
@@ -820,6 +824,54 @@ namespace GVFS.Mount
                     metadata.Add("Exception", e.ToString());
                     this.tracer.RelatedError(metadata, nameof(this.HandlePrepareForUnstageRequest) + " failed");
                     response = new NamedPipeMessages.PrepareForUnstage.Response(NamedPipeMessages.PrepareForUnstage.FailureResult);
+                }
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
+        /// <summary>
+        /// Handles a request to prepare for a mixed reset operation.
+        /// Diffs HEAD against the target commit and adds changed files to ModifiedPaths
+        /// so that git will clear skip-worktree for them. Without this, hydrated files
+        /// (read but not modified) retain skip-worktree after the reset, hiding the
+        /// working-tree vs index mismatch from git status.
+        /// </summary>
+        private void HandlePrepareForResetRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.PrepareForReset.Response response;
+
+            if (this.currentState != MountState.Ready)
+            {
+                response = new NamedPipeMessages.PrepareForReset.Response(NamedPipeMessages.MountNotReadyResult);
+            }
+            else
+            {
+                try
+                {
+                    string targetCommit = message.Body;
+                    bool success = this.fileSystemCallbacks.AddResetDiffToModifiedPaths(targetCommit, out int addedCount);
+
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("addedToModifiedPaths", addedCount);
+                    metadata.Add("targetCommit", targetCommit ?? "(HEAD)");
+                    metadata.Add("success", success);
+                    this.tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        nameof(this.HandlePrepareForResetRequest),
+                        metadata);
+
+                    response = new NamedPipeMessages.PrepareForReset.Response(
+                        success
+                            ? NamedPipeMessages.PrepareForReset.SuccessResult
+                            : NamedPipeMessages.PrepareForReset.FailureResult);
+                }
+                catch (Exception e)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Exception", e.ToString());
+                    this.tracer.RelatedError(metadata, nameof(this.HandlePrepareForResetRequest) + " failed");
+                    response = new NamedPipeMessages.PrepareForReset.Response(NamedPipeMessages.PrepareForReset.FailureResult);
                 }
             }
 

@@ -47,6 +47,9 @@
     <Compile Include="..\GVFS.Common\NamedPipes\UnstageNamedPipeMessages.cs">
       <Link>Common\NamedPipes\UnstageNamedPipeMessages.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\ResetNamedPipeMessages.cs">
+      <Link>Common\NamedPipes\ResetNamedPipeMessages.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\HydrationStatusNamedPipeMessages.cs">
       <Link>Common\NamedPipes\HydrationStatusNamedPipeMessages.cs</Link>
     </Compile>

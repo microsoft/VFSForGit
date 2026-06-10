@@ -473,6 +473,18 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder("diff-tree -r -t " + sourceTreeish + " " + targetTreeish, null, onResult);
         }
 
+        /// <summary>
+        /// Runs "git diff-tree --name-only -r -z" between two tree-ish references,
+        /// returning only the file paths that differ. The output is null-byte separated
+        /// for safe parsing of paths containing special characters.
+        /// </summary>
+        public Result DiffTreeNameOnly(string sourceTreeish, string targetTreeish)
+        {
+            return this.InvokeGitInWorkingDirectoryRoot(
+                "diff-tree --name-only -r -z " + sourceTreeish + " " + targetTreeish,
+                useReadObjectHook: false);
+        }
+
         public Result CreateBranchWithUpstream(string branchToCreate, string upstreamBranch)
         {
             return this.InvokeGitAgainstDotGitFolder("branch " + branchToCreate + " --track " + upstreamBranch);

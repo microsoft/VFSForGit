@@ -130,6 +130,9 @@ namespace GVFS.Hooks
                         SendPrepareForUnstageMessage(command, args);
                     }
                     break;
+                case "reset":
+                    SendPrepareForResetMessage(args);
+                    break;
                 case "worktree":
                     RunWorktreePreCommand(args);
                     break;
