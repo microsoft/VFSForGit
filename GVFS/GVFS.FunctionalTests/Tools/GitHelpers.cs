@@ -130,6 +130,11 @@ namespace GVFS.FunctionalTests.Tools
             return input;
         }
 
+        /// <summary>
+        /// Runs a git command in the control repo and in the GVFS repo, and asserts
+        /// that the output and errors match. If the command is not "status", this
+        /// method then runs "status" in both repos and compares that output too.
+        /// </summary>
         public static void ValidateGitCommand(
             GVFSFunctionalTestEnlistment enlistment,
             ControlGitRepo controlGitRepo,
