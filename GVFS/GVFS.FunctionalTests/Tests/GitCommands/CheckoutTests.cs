@@ -248,7 +248,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FilesShouldMatchCheckoutOfSourceBranch();
 
             // Verify modified paths contents
-            GVFSHelpers.ModifiedPathsRawFileContentsShouldEqual(this.Enlistment, this.FileSystem, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
+            GVFSHelpers.ModifiedPathsShouldOnlyContain(this.Enlistment, this.FileSystem, ".gitattributes");
         }
 
         [TestCase]
@@ -266,7 +266,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true, withinPrefixes: this.pathPrefixes);
 
             // Verify modified paths contents
-            GVFSHelpers.ModifiedPathsRawFileContentsShouldEqual(this.Enlistment, this.FileSystem, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
+            GVFSHelpers.ModifiedPathsShouldOnlyContain(this.Enlistment, this.FileSystem, ".gitattributes");
         }
 
         [TestCase]

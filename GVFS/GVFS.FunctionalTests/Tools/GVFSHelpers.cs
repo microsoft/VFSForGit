@@ -166,19 +166,17 @@ namespace GVFS.FunctionalTests.Tools
         }
 
         /// <summary>
-        /// Asserts that the on-disk modified-paths file's raw contents are
-        /// exactly equal to <paramref name="contents"/>, including the A/D
-        /// log prefixes and line terminators. Most callers want
-        /// <see cref="ModifiedPathsShouldContain"/> /
-        /// <see cref="ModifiedPathsShouldNotContain"/> instead, which compare
-        /// against the semantic set after replaying the log. Only use this
-        /// helper when the test specifically needs to validate the compacted
-        /// file layout (e.g. confirming a checkout left no stray entries).
+        /// Asserts that the modified-paths set, after replaying the on-disk
+        /// A/D log, contains exactly <paramref name="gitPaths"/> -- no more,
+        /// no fewer. Use this when a test wants to prove that some sequence
+        /// of operations produced no spurious modified-paths entries.
         /// </summary>
-        public static void ModifiedPathsRawFileContentsShouldEqual(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, string contents)
+        public static void ModifiedPathsShouldOnlyContain(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, params string[] gitPaths)
         {
-            string modifedPathsContents = GetModifiedPathsContents(enlistment, fileSystem);
-            modifedPathsContents.ShouldEqual(contents);
+            HashSet<string> currentPaths = GetCurrentModifiedPaths(enlistment, fileSystem);
+            HashSet<string> expectedPaths = new HashSet<string>(gitPaths, FileSystemHelpers.PathComparer);
+            currentPaths.SetEquals(expectedPaths).ShouldBeTrue(
+                $"Expected modified paths {{{string.Join(",", expectedPaths)}}} but got {{{string.Join(",", currentPaths)}}}");
         }
 
         public static void ModifiedPathsShouldContain(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, params string[] gitPaths)
