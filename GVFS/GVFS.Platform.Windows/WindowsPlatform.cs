@@ -142,7 +142,7 @@ namespace GVFS.Platform.Windows
             string programArguments = string.Empty;
             try
             {
-                programArguments = string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg));
+                programArguments = string.Join(" ", args.Select(arg => CommandLineEscaping.EscapeArgument(arg)));
                 ProcessStartInfo processInfo = new ProcessStartInfo(programName, programArguments);
 
                 // UseShellExecute=true uses ShellExecuteEx which does NOT inherit
