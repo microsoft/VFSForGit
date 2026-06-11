@@ -199,6 +199,7 @@ namespace GVFS.Common.Git
         /// Parse the output of calling git ls-files -s (staging info).
         /// This reads from the index, which is much faster than ls-tree on large repos.
         /// ls-files only returns file entries (no tree entries).
+        /// Entries with stage != 0 (unmerged) are skipped to avoid duplicate/conflicting adds.
         /// </summary>
         public static DiffTreeResult ParseFromLsFilesStagingLine(string line)
         {
@@ -218,10 +219,24 @@ namespace GVFS.Common.Git
              *
              * Format: <mode> <sha> <stage>\t<path>
              * Mode is 6 chars, space, SHA is 40 chars, space, stage digit(s), tab, path
+             *
+             * During a merge conflict, the same path can appear multiple times with
+             * stage 1 (common ancestor), 2 (ours), and 3 (theirs). We only want
+             * stage 0 (normal) entries. In GVFS-mounted repos merge conflicts should
+             * not occur, but we filter defensively.
              */
 
             int tabIndex = line.IndexOf('\t');
             if (tabIndex < 0 || line.Length < 50)
+            {
+                return null;
+            }
+
+            // Stage is between the SHA and the tab: "<mode> <sha> <stage>\t<path>"
+            // Position 48 = 6 (mode) + 1 (space) + 40 (sha) + 1 (space)
+            int stageStart = 7 + GVFSConstants.ShaStringLength + 1;
+            string stageStr = line.Substring(stageStart, tabIndex - stageStart);
+            if (stageStr != "0")
             {
                 return null;
             }

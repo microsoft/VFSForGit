@@ -125,6 +125,12 @@ namespace GVFS.Common.Prefetch.Git
                     // ls-files reflects the index (HEAD), so we can only use it when
                     // targetTreeSha matches HEAD's tree. When they differ (e.g.,
                     // FastFetch checking out a different commit), fall back to ls-tree.
+                    //
+                    // ls-files only returns file entries (not tree/directory entries).
+                    // This is safe because the ls-files path only fires for gvfs prefetch
+                    // on a GVFS-mounted repo where directories are virtualized by PrjFlt
+                    // and don't need explicit creation. FastFetch force-checkout (which
+                    // needs directory operations) won't match HEAD and falls back to ls-tree.
                     bool usedLsFiles = false;
                     if (this.TargetMatchesHeadTree(targetTreeSha))
                     {
@@ -264,6 +270,10 @@ namespace GVFS.Common.Prefetch.Git
         /// Check whether targetTreeSha matches HEAD's tree SHA so we can safely
         /// use git ls-files -s (which reads the index reflecting HEAD) instead of
         /// git ls-tree (which walks a specific tree object).
+        ///
+        /// Note: callers may pass either a tree SHA or a commit SHA as targetTreeSha
+        /// (git ls-tree auto-peels commits). We resolve both sides to tree SHAs
+        /// before comparing.
         /// </summary>
         private bool TargetMatchesHeadTree(string targetTreeSha)
         {
@@ -272,14 +282,20 @@ namespace GVFS.Common.Prefetch.Git
                 using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot))
                 {
                     string headTreeSha = repo.GetTreeSha("HEAD");
-                    if (headTreeSha != null && string.Equals(headTreeSha, targetTreeSha, StringComparison.OrdinalIgnoreCase))
+
+                    // targetTreeSha may be a commit SHA (callers like BlobPrefetcher
+                    // pass commit IDs). Resolve it to a tree SHA for comparison.
+                    string targetResolvedTreeSha = repo.GetTreeSha(targetTreeSha) ?? targetTreeSha;
+
+                    if (headTreeSha != null && string.Equals(headTreeSha, targetResolvedTreeSha, StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
                     }
 
                     this.tracer.RelatedInfo(
-                        "TargetMatchesHeadTree: target {0} != HEAD {1}, will use ls-tree",
+                        "TargetMatchesHeadTree: target {0} (tree {1}) != HEAD tree {2}, will use ls-tree",
                         targetTreeSha,
+                        targetResolvedTreeSha,
                         headTreeSha ?? "(null)");
                     return false;
                 }
