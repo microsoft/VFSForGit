@@ -220,21 +220,47 @@ namespace GVFS.Common
 
         public static bool WaitUntilMounted(ITracer tracer, string pipeName, string enlistmentRoot, bool unattended, out string errorMessage)
         {
+            return WaitUntilMounted(tracer, pipeName, enlistmentRoot, unattended, mountProcessStatus: null, out errorMessage);
+        }
+
+        /// <summary>
+        /// Waits for the GVFS.Mount process to come up and signal readiness
+        /// over its named pipe.
+        /// </summary>
+        /// <param name="mountProcessStatus">
+        /// Optional snapshot delegate. When provided, the wait loop polls it
+        /// during pipe-connection attempts so the caller can fail fast if the
+        /// mount process exits before the pipe is created — instead of
+        /// blocking on the full 60-second pipe timeout. Callers that don't
+        /// have a handle to the child process (e.g. clients connecting to
+        /// somebody else's mount) pass <c>null</c>.
+        /// </param>
+        public static bool WaitUntilMounted(
+            ITracer tracer,
+            string pipeName,
+            string enlistmentRoot,
+            bool unattended,
+            Func<MountProcessSnapshot> mountProcessStatus,
+            out string errorMessage)
+        {
             tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Creating NamedPipeClient for pipe '{pipeName}'");
+            tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Connecting to '{pipeName}'");
 
             errorMessage = null;
-            using (NamedPipeClient pipeClient = new NamedPipeClient(pipeName))
+            int totalTimeoutMs = unattended ? 300000 : 60000;
+            NamedPipeClient pipeClient = TryConnectWithProcessTracking(
+                tracer,
+                pipeName,
+                totalTimeoutMs,
+                mountProcessStatus,
+                out errorMessage);
+            if (pipeClient == null)
             {
-                tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Connecting to '{pipeName}'");
+                return false;
+            }
 
-                int timeout = unattended ? 300000 : 60000;
-                if (!pipeClient.Connect(timeout))
-                {
-                    tracer.RelatedError($"{nameof(WaitUntilMounted)}: Failed to connect to '{pipeName}' after {timeout} ms");
-                    errorMessage = "Unable to mount because the GVFS.Mount process is not responding.";
-                    return false;
-                }
-
+            using (pipeClient)
+            {
                 tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Connected to '{pipeName}'");
 
                 while (true)
@@ -279,6 +305,86 @@ namespace GVFS.Common
                 }
             }
         }
+
+        private static NamedPipeClient TryConnectWithProcessTracking(
+            ITracer tracer,
+            string pipeName,
+            int totalTimeoutMs,
+            Func<MountProcessSnapshot> mountProcessStatus,
+            out string errorMessage)
+        {
+            errorMessage = null;
+
+            // When no process snapshot is supplied, fall back to a single
+            // long-timeout connect to preserve previous behavior for callers
+            // that don't own the mount process (e.g. external pipe clients).
+            if (mountProcessStatus == null)
+            {
+                NamedPipeClient pipeClient = new NamedPipeClient(pipeName);
+                if (pipeClient.Connect(totalTimeoutMs))
+                {
+                    return pipeClient;
+                }
+
+                pipeClient.Dispose();
+                tracer.RelatedError($"{nameof(WaitUntilMounted)}: Failed to connect to '{pipeName}' after {totalTimeoutMs} ms");
+                errorMessage = "Unable to mount because the GVFS.Mount process is not responding.";
+                return null;
+            }
+
+            // With process tracking, retry with short connect attempts so we
+            // can detect early termination within seconds.
+            const int PerAttemptTimeoutMs = 500;
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(totalTimeoutMs);
+            while (true)
+            {
+                MountProcessSnapshot snapshot = mountProcessStatus();
+                if (snapshot.HasExited)
+                {
+                    errorMessage = string.Format(
+                        "GVFS.Mount process (Id {0}) exited with code {1} before the named pipe was ready.",
+                        snapshot.ProcessId,
+                        snapshot.ExitCode);
+                    tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
+                    return null;
+                }
+
+                NamedPipeClient pipeClient = new NamedPipeClient(pipeName);
+                if (pipeClient.Connect(PerAttemptTimeoutMs))
+                {
+                    return pipeClient;
+                }
+
+                pipeClient.Dispose();
+
+                if (DateTime.UtcNow >= deadline)
+                {
+                    tracer.RelatedError($"{nameof(WaitUntilMounted)}: Failed to connect to '{pipeName}' after {totalTimeoutMs} ms (mount process Id {snapshot.ProcessId} still running)");
+                    errorMessage = "Unable to mount because the GVFS.Mount process is not responding.";
+                    return null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Snapshot of a child mount process's liveness, used by
+        /// <see cref="WaitUntilMounted(ITracer, string, string, bool, Func{MountProcessSnapshot}, out string)"/>
+        /// to short-circuit the pipe-wait when the child has crashed.
+        /// </summary>
+        public readonly struct MountProcessSnapshot
+        {
+            public MountProcessSnapshot(int processId, bool hasExited, int exitCode)
+            {
+                this.ProcessId = processId;
+                this.HasExited = hasExited;
+                this.ExitCode = exitCode;
+            }
+
+            public int ProcessId { get; }
+            public bool HasExited { get; }
+            public int ExitCode { get; }
+        }
+
 
         public void SetGitVersion(string gitVersion)
         {

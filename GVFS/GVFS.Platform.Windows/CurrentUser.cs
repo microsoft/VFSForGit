@@ -1,9 +1,12 @@
-﻿using GVFS.Common.Tracing;
+using GVFS.Common;
+using GVFS.Common.Tracing;
+using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Text;
 
 namespace GVFS.Platform.Windows
 {
@@ -108,18 +111,46 @@ namespace GVFS.Platform.Windows
 
         /// <summary>
         /// Launches a process for the current user.
-        /// This code will only work when running in a windows service running as LocalSystem
-        /// with the SE_TCB_NAME privilege.
+        /// This code will only work when running in a windows service running
+        /// as LocalSystem with the SE_TCB_NAME privilege.
         /// </summary>
-        /// <returns>True on successful process start</returns>
-        public bool RunAs(string processName, string args)
+        /// <param name="processName">Full path to the executable to launch.</param>
+        /// <param name="arguments">
+        /// Argument values exactly as the child process should see them in its
+        /// <c>argv</c>. Each value is escaped according to
+        /// <c>CommandLineToArgvW</c> rules so embedded quotes, spaces, and
+        /// backslashes round-trip safely. Passing pre-concatenated argument
+        /// strings here would re-introduce the quote-stripping bug that
+        /// silently corrupts the service's <c>--internal_use_only</c> JSON.
+        /// </param>
+        /// <param name="processHandle">
+        /// On success, an owned handle to the newly created process. Callers
+        /// can use <see cref="ProcessHandleHelper.HasExited"/> and
+        /// <see cref="ProcessHandleHelper.TryGetExitCode"/> to query the
+        /// child's liveness without racing on PID lookup (the kernel keeps
+        /// the process object alive as long as we hold the handle, even
+        /// after the child exits, so the handle is always queryable and
+        /// never aliases a reused PID). Callers must <see cref="SafeProcessHandle.Dispose"/>
+        /// it when done — usually with <c>using</c>.
+        /// </param>
+        /// <param name="processId">
+        /// On success, the PID of the newly created process (for logging
+        /// and diagnostics only — use <paramref name="processHandle"/> for
+        /// any liveness check).
+        /// </param>
+        /// <returns><c>true</c> if the process was successfully created.</returns>
+        public bool TryRunAs(string processName, string[] arguments, out SafeProcessHandle processHandle, out int processId)
         {
+            processHandle = null;
+            processId = 0;
             IntPtr environment = IntPtr.Zero;
             IntPtr duplicate = IntPtr.Zero;
             if (this.token == IntPtr.Zero)
             {
                 return false;
             }
+
+            string commandLine = BuildCommandLine(processName, arguments);
 
             try
             {
@@ -140,7 +171,7 @@ namespace GVFS.Platform.Windows
                         if (CreateProcessAsUser(
                             duplicate,
                             null,
-                            string.Format("\"{0}\" {1}", processName, args),
+                            commandLine,
                             IntPtr.Zero,
                             IntPtr.Zero,
                             inheritHandles: false,
@@ -150,16 +181,14 @@ namespace GVFS.Platform.Windows
                             startupInfo: ref info,
                             processInformation: out procInfo))
                         {
-                            try
-                            {
-                                this.tracer.RelatedInfo("Started process '{0} {1}' with Id {2}", processName, args, procInfo.ProcessId);
-                            }
-                            finally
-                            {
-                                CloseHandle(procInfo.ProcessHandle);
-                                CloseHandle(procInfo.ThreadHandle);
-                            }
-
+                            // Always close the thread handle (we never use it).
+                            // Wrap the process handle in a SafeProcessHandle that
+                            // owns it; callers get a race-free liveness handle that
+                            // remains queryable even after the child exits.
+                            CloseHandle(procInfo.ThreadHandle);
+                            processId = procInfo.ProcessId;
+                            processHandle = new SafeProcessHandle(procInfo.ProcessHandle, ownsHandle: true);
+                            this.tracer.RelatedInfo("Started process '{0}' with Id {1}", commandLine, processId);
                             return true;
                         }
                         else
@@ -191,6 +220,22 @@ namespace GVFS.Platform.Windows
             }
 
             return false;
+        }
+
+        private static string BuildCommandLine(string processName, string[] arguments)
+        {
+            StringBuilder builder = new StringBuilder();
+            builder.Append(CommandLineEscaping.EscapeArgument(processName));
+            if (arguments != null)
+            {
+                foreach (string argument in arguments)
+                {
+                    builder.Append(' ');
+                    builder.Append(CommandLineEscaping.EscapeArgument(argument));
+                }
+            }
+
+            return builder.ToString();
         }
 
         /// <summary>
