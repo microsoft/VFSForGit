@@ -136,6 +136,24 @@ A dir1/dir2
         }
 
         [TestCase]
+        public void AddFollowedByDeleteIsRecoveredOnLoad()
+        {
+            // Simulates the on-disk state during the window between a background
+            // operation completing and PostBackgroundOperation calling
+            // WriteAllEntriesAndFlush. The append log contains both the add and
+            // delete entries; a subsequent load must replay them and end with
+            // the path NOT in the modified-paths set.
+            const string AddThenDelete = "A temp.txt\r\nD temp.txt\r\n";
+
+            ModifiedPathsDatabase modifiedPathsDatabase = CreateModifiedPathsDatabase(AddThenDelete);
+
+            // Only the auto-added .gitattributes default entry should remain.
+            modifiedPathsDatabase.Count.ShouldEqual(1);
+            modifiedPathsDatabase.Contains(DefaultEntry, isFolder: false).ShouldBeTrue();
+            modifiedPathsDatabase.Contains("temp.txt", isFolder: false).ShouldBeFalse();
+        }
+
+        [TestCase]
         public void RemoveEntriesWithParentFolderEntry()
         {
             ModifiedPathsDatabase modifiedPathsDatabase = CreateModifiedPathsDatabase(EntriesToCompress);
