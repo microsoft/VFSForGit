@@ -760,6 +760,18 @@ namespace GVFS.Common.Git
                 parseStdOutLine);
         }
 
+        /// <summary>
+        /// Runs git ls-files -s to list all tracked files with their mode, SHA, and path.
+        /// Reads from the index (fast) rather than walking tree objects (slow).
+        /// </summary>
+        public Result LsFilesStaging(Action<string> parseStdOutLine)
+        {
+            return this.InvokeGitInWorkingDirectoryRoot(
+                "ls-files -s",
+                useReadObjectHook: false,
+                parseStdOutLine: parseStdOutLine);
+        }
+
         public Result LsFiles(Action<string> parseStdOutLine)
         {
             return this.InvokeGitInWorkingDirectoryRoot(
