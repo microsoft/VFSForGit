@@ -16,8 +16,6 @@ namespace GVFS.CommandLine
 {
     public abstract class GVFSVerb
     {
-        protected const string StartServiceInstructions = "Run 'sc start GVFS.Service' from an elevated command prompt to ensure it is running.";
-
         private readonly bool validateOriginURL;
 
         public GVFSVerb(bool validateOrigin = true)
@@ -570,8 +568,23 @@ You can specify a URL, a name of a configured cache server, or the special names
             {
                 if (!client.Connect())
                 {
-                    errorMessage = "GVFS.Service is not responding. " + GVFSVerb.StartServiceInstructions;
-                    return false;
+                    // Service not installed or not running (typical for the
+                    // user-level install model). In that model, the boot-time
+                    // EnableProjFSOnAllDrives scheduled task is responsible
+                    // for ensuring PrjFlt is enabled and attached to every
+                    // NTFS/ReFS volume - and re-attaching on volume-mount
+                    // events for newly-attached drives. So when the service
+                    // pipe is unavailable, the right answer is to return
+                    // success silently and let the caller proceed; if PrjFlt
+                    // is actually missing at mount time, the mount-process
+                    // filter check will surface a clearer "filter not
+                    // attached" error downstream.
+                    //
+                    // We deliberately do NOT fall back on BrokenPipeException
+                    // below: that indicates the service IS present but
+                    // crashed mid-request, and silently succeeding would
+                    // mask a real bug.
+                    return true;
                 }
 
                 try
