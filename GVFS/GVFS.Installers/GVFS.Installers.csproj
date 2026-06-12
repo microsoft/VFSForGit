@@ -3,6 +3,8 @@
   <PropertyGroup>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <LayoutPath>$(RepoOutPath)GVFS.Payload\bin\$(Configuration)\win-x64\</LayoutPath>
+    <ProjFSAttachScriptsDir>$(MSBuildThisFileDirectory)..\..\scripts\projfs-attach\</ProjFSAttachScriptsDir>
+    <ProjFSTaskXmlPath>$(IntermediateOutputPath)enable-projfs-on-all-drives-task.xml</ProjFSTaskXmlPath>
   </PropertyGroup>
 
   <ItemDefinitionGroup>
@@ -24,8 +26,12 @@
     <Content Include="info.bat" />
   </ItemGroup>
 
+  <Target Name="BuildProjFSTaskXml" BeforeTargets="CreateInstaller" Condition="'$(SkipCreateInstaller)' != 'true'">
+    <Exec Command='powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(ProjFSAttachScriptsDir)build-task-xml.ps1" -ScriptPath "$(ProjFSAttachScriptsDir)enable-projfs-on-all-drives.ps1" -TemplatePath "$(ProjFSAttachScriptsDir)enable-projfs-on-all-drives-task.xml.template" -OutputPath "$(ProjFSTaskXmlPath)"' />
+  </Target>
+
   <Target Name="CreateInstaller" BeforeTargets="Build" Condition="'$(SkipCreateInstaller)' != 'true'">
-    <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) Setup.iss /O"$(OutputPath)"' />
+    <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) /DProjFSTaskXml="$(ProjFSTaskXmlPath)" Setup.iss /O"$(OutputPath)"' />
   </Target>
 
   <Target Name="CleanInstaller" BeforeTargets="AfterClean">

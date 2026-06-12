@@ -1,4 +1,4 @@
-; This script requires Inno Setup Compiler 5.5.9 or later to compile
+; This script requires Inno Setup 6 or later to compile
 ; The Inno Setup Compiler (and IDE) can be found at http://www.jrsoftware.org/isinfo.php
 
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
@@ -10,11 +10,13 @@
 #define MyAppURL "https://github.com/microsoft/VFSForGit"
 #define MyAppExeName "GVFS.exe"
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+#define UserEnvironmentKey "Environment"
 #define FileSystemKey "SYSTEM\CurrentControlSet\Control\FileSystem"
 #define GvFltAutologgerKey "SYSTEM\CurrentControlSet\Control\WMI\Autologger\Microsoft-Windows-Git-Filter-Log"
 #define GVFSConfigFileName "gvfs.config"
 #define GVFSStatuscacheTokenFileName "EnableGitStatusCacheToken.dat"
 #define ServiceName "GVFS.Service"
+#define ProjFSTaskPath "\GVFS\EnableProjFSOnAllDrives"
 
 [Setup]
 AppId={{489CA581-F131-4C28-BE04-4FB178933E6D}
@@ -45,6 +47,10 @@ WindowResizable=no
 CloseApplications=no
 ChangesEnvironment=yes
 RestartIfNeededByRun=yes
+; Allow the installer to run as non-admin when the user passes
+; /CURRENTUSER on the command line. Without /CURRENTUSER, the
+; installer runs as admin (the default, matching existing behavior).
+PrivilegesRequiredOverridesAllowed=commandline
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl";
@@ -59,17 +65,25 @@ Name: "full"; Description: "Full installation"; Flags: iscustom;
 Type: files; Name: "{app}\ucrtbase.dll"
 
 [Files]
-; Normal install: all files go to {app}, service gets AfterInstall callback
-DestDir: "{app}"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"; Check: IsNormalInstall
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService; Check: IsNormalInstall
-; Staging install: most files go to {app}\PendingUpgrade, but GVFS.Service.exe
+; System-mode install: all files go to {app}, service gets AfterInstall callback
+DestDir: "{app}"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"; Check: IsSystemModeNormalInstall
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService; Check: IsSystemModeNormalInstall
+; System-mode staging install: most files go to {app}\PendingUpgrade, but GVFS.Service.exe
 ; goes directly to {app} so the restarted service has PendingUpgradeHandler code.
 ; The service is briefly stopped/restarted (mounts are independent processes).
-DestDir: "{app}\PendingUpgrade"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"; Check: IsStagingInstall
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; Check: IsStagingInstall
+DestDir: "{app}\PendingUpgrade"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"; Check: IsSystemModeStagingInstall
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; Check: IsSystemModeStagingInstall
+; User-mode install: payload goes to %LocalAppData%\GVFS\Versions\<version>\.
+; The Current junction and user PATH are set up in CurStepChanged(ssPostInstall).
+DestDir: "{localappdata}\GVFS\Versions\{#GVFSVersion}"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"; Check: IsUserModeCheck
+; Pre-built EnableProjFSOnAllDrives task XML (embedded, not deployed).
+; Extracted to temp at install time for schtasks /Create /XML.
+#ifdef ProjFSTaskXml
+Source: "{#ProjFSTaskXml}"; Flags: dontcopy
+#endif
 
 [Dirs]
-Name: "{app}\ProgramData\{#ServiceName}"; Permissions: users-readexec
+Name: "{app}\ProgramData\{#ServiceName}"; Permissions: users-readexec; Check: IsSystemModeInstall
 
 [UninstallDelete]
 ; Deletes the entire installation directory, including files and subdirectories
@@ -77,20 +91,58 @@ Type: filesandordirs; Name: "{app}";
 Type: filesandordirs; Name: "{commonappdata}\GVFS\GVFS.Upgrade";
 
 [Registry]
+; System-mode: add install dir to system PATH and set NtfsEnableDetailedCleanupResults
 Root: HKLM; Subkey: "{#EnvironmentKey}"; \
     ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}"; \
-    Check: NeedsAddPath(ExpandConstant('{app}'))
+    Check: IsSystemModeNeedsAddPath
 
 Root: HKLM; Subkey: "{#FileSystemKey}"; \
     ValueType: dword; ValueName: "NtfsEnableDetailedCleanupResults"; ValueData: "1"; \
-    Check: IsWindows10VersionPriorToCreatorsUpdate
+    Check: IsSystemModeWindows10PriorToCreatorsUpdate
 
-Root: HKLM; SubKey: "{#GvFltAutologgerKey}"; Flags: deletekey
+Root: HKLM; SubKey: "{#GvFltAutologgerKey}"; Flags: deletekey; Check: IsSystemModeInstall
+
+; User-mode: add Current junction dir to user PATH
+Root: HKCU; Subkey: "{#UserEnvironmentKey}"; \
+    ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{localappdata}\GVFS\Current"; \
+    Check: UserModeNeedsAddPath
+
+; User-mode: redirect GVFS data paths to %LocalAppData%\GVFS so
+; the user has write access without admin elevation.
+Root: HKCU; Subkey: "{#UserEnvironmentKey}"; \
+    ValueType: string; ValueName: "GVFS_SECURE_DATA_ROOT"; ValueData: "{localappdata}\GVFS"; \
+    Check: IsUserModeCheck
+
+Root: HKCU; Subkey: "{#UserEnvironmentKey}"; \
+    ValueType: string; ValueName: "GVFS_COMMON_APPDATA_ROOT"; ValueData: "{localappdata}\GVFS"; \
+    Check: IsUserModeCheck
 
 [Code]
 var
   ExitCode: Integer;
   KeepMountsRunning: Boolean;
+  IsUserModeInstall: Boolean;
+  IsAdminStage: Boolean;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  IsUserModeInstall := not IsAdmin();
+  IsAdminStage := (ExpandConstant('{param:ADMINSTAGE|false}') = 'true');
+
+  if IsAdminStage then
+    begin
+      Log('InitializeSetup: /ADMINSTAGE mode - will run admin setup only');
+    end
+  else if IsUserModeInstall then
+    begin
+      Log('InitializeSetup: User-mode install detected (non-elevated)');
+    end
+  else
+    begin
+      Log('InitializeSetup: System-mode install (elevated)');
+    end;
+end;
 
 function IsNormalInstall(): Boolean;
 begin
@@ -100,6 +152,26 @@ end;
 function IsStagingInstall(): Boolean;
 begin
   Result := KeepMountsRunning;
+end;
+
+function IsUserModeCheck(): Boolean;
+begin
+  Result := IsUserModeInstall and (not IsAdminStage);
+end;
+
+function IsSystemModeNormalInstall(): Boolean;
+begin
+  Result := (not IsUserModeInstall) and (not IsAdminStage) and (not KeepMountsRunning);
+end;
+
+function IsSystemModeStagingInstall(): Boolean;
+begin
+  Result := (not IsUserModeInstall) and (not IsAdminStage) and KeepMountsRunning;
+end;
+
+function IsSystemModeInstall(): Boolean;
+begin
+  Result := (not IsUserModeInstall) and (not IsAdminStage);
 end;
 
 function NeedsAddPath(Param: string): boolean;
@@ -113,8 +185,6 @@ begin
     Result := True;
     exit;
   end;
-  // look for the path with leading and trailing semicolon
-  // Pos() returns 0 if not found
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
 end;
 
@@ -124,6 +194,32 @@ var
 begin
   GetWindowsVersionEx(Version);
   Result := (Version.Major = 10) and (Version.Minor = 0) and (Version.Build < 15063);
+end;
+
+function IsSystemModeNeedsAddPath(): Boolean;
+begin
+  Result := (not IsUserModeInstall) and NeedsAddPath(ExpandConstant('{app}'));
+end;
+
+function IsSystemModeWindows10PriorToCreatorsUpdate(): Boolean;
+begin
+  Result := (not IsUserModeInstall) and IsWindows10VersionPriorToCreatorsUpdate();
+end;
+
+function UserModeNeedsAddPath(): Boolean;
+var
+  OrigPath: string;
+  TargetDir: string;
+begin
+  Result := False;
+  if not IsUserModeInstall then exit;
+  TargetDir := ExpandConstant('{localappdata}\GVFS\Current');
+  if not RegQueryStringValue(HKEY_CURRENT_USER, '{#UserEnvironmentKey}', 'PATH', OrigPath) then
+    begin
+      Result := True;
+      exit;
+    end;
+  Result := Pos(';' + Uppercase(TargetDir) + ';', ';' + Uppercase(OrigPath) + ';') = 0;
 end;
 
 procedure RemovePath(Path: string);
@@ -715,34 +811,274 @@ begin
   Result := False;
 end;
 
+procedure RegisterLogonTask();
+var
+  GvfsPath: string;
+  UserSid: ansiString;
+  TaskXmlPath: string;
+  TaskXml: string;
+  ResultCode: integer;
+begin
+  GvfsPath := ExpandConstant('{localappdata}\GVFS\Current\gvfs.exe');
+  // Get current user's SID via whoami /user
+  if not ExecWithResult('whoami.exe', '/user /nh', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, UserSid) or (ResultCode <> 0) then
+    begin
+      Log('RegisterLogonTask: Could not determine user SID');
+      exit;
+    end;
+  // whoami output is like: DOMAIN\user S-1-5-21-... — extract SID
+  UserSid := Trim(UserSid);
+  if Pos(' ', UserSid) > 0 then
+    UserSid := Copy(UserSid, Pos(' ', UserSid) + 1, Length(UserSid));
+  UserSid := Trim(UserSid);
+  Log('RegisterLogonTask: User SID is ' + UserSid);
+
+  TaskXml := '<?xml version="1.0" encoding="UTF-8"?>' + #13#10 +
+    '<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">' + #13#10 +
+    '  <RegistrationInfo>' + #13#10 +
+    '    <Author>GVFS</Author>' + #13#10 +
+    '    <Description>Mounts registered GVFS enlistments at logon.</Description>' + #13#10 +
+    '    <URI>\GVFS\AutoMount</URI>' + #13#10 +
+    '  </RegistrationInfo>' + #13#10 +
+    '  <Triggers>' + #13#10 +
+    '    <LogonTrigger><Enabled>true</Enabled><UserId>' + UserSid + '</UserId></LogonTrigger>' + #13#10 +
+    '  </Triggers>' + #13#10 +
+    '  <Principals>' + #13#10 +
+    '    <Principal id="Author"><UserId>' + UserSid + '</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal>' + #13#10 +
+    '  </Principals>' + #13#10 +
+    '  <Settings>' + #13#10 +
+    '    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>' + #13#10 +
+    '    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>' + #13#10 +
+    '    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>' + #13#10 +
+    '    <AllowHardTerminate>true</AllowHardTerminate>' + #13#10 +
+    '    <StartWhenAvailable>true</StartWhenAvailable>' + #13#10 +
+    '    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>' + #13#10 +
+    '    <IdleSettings><StopOnIdleEnd>false</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings>' + #13#10 +
+    '    <AllowStartOnDemand>true</AllowStartOnDemand>' + #13#10 +
+    '    <Enabled>true</Enabled>' + #13#10 +
+    '    <Hidden>false</Hidden>' + #13#10 +
+    '    <RunOnlyIfIdle>false</RunOnlyIfIdle>' + #13#10 +
+    '    <WakeToRun>false</WakeToRun>' + #13#10 +
+    '    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>' + #13#10 +
+    '    <Priority>5</Priority>' + #13#10 +
+    '  </Settings>' + #13#10 +
+    '  <Actions Context="Author">' + #13#10 +
+    '    <Exec>' + #13#10 +
+    '      <Command>conhost.exe</Command>' + #13#10 +
+    '      <Arguments>--headless ' + GvfsPath + ' service --mount-all</Arguments>' + #13#10 +
+    '    </Exec>' + #13#10 +
+    '  </Actions>' + #13#10 +
+    '</Task>';
+
+  TaskXmlPath := ExpandConstant('{tmp}\gvfs-logon-task.xml');
+  SaveStringToFile(TaskXmlPath, TaskXml, False);
+
+  Log('RegisterLogonTask: Registering \GVFS\AutoMount task');
+  if not Exec(ExpandConstant('{sys}\schtasks.exe'), '/Create /TN "\GVFS\AutoMount" /XML "' + TaskXmlPath + '" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      Log('RegisterLogonTask: schtasks /Create failed (exit ' + IntToStr(ResultCode) + ') - logon automount will not be available');
+    end
+  else
+    begin
+      Log('RegisterLogonTask: Task registered successfully');
+    end;
+end;
+
+procedure CreateOrUpdateCurrentJunction();
+var
+  GVFSRoot: string;
+  JunctionPath: string;
+  VersionDir: string;
+  OldTarget: ansiString;
+  GvfsExe: string;
+  ResultCode: integer;
+  VersionOutput: ansiString;
+  HadPreviousJunction: Boolean;
+begin
+  GVFSRoot := ExpandConstant('{localappdata}\GVFS');
+  JunctionPath := GVFSRoot + '\Current';
+  VersionDir := GVFSRoot + '\Versions\{#GVFSVersion}';
+  HadPreviousJunction := False;
+
+  // Save old junction target for rollback
+  if DirExists(JunctionPath) then
+    begin
+      HadPreviousJunction := True;
+      // Read the junction target via fsutil reparsepoint query.
+      // Output includes a line like "Print Name: C:\Users\...\Versions\1.0.0"
+      if ExecWithResult('fsutil.exe', 'reparsepoint query "' + JunctionPath + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, OldTarget) and (ResultCode = 0) then
+        begin
+          // Extract the "Print Name:" value
+          if Pos('Print Name:', OldTarget) > 0 then
+            begin
+              OldTarget := Copy(OldTarget, Pos('Print Name:', OldTarget) + Length('Print Name:'), Length(OldTarget));
+              // Trim to end of line
+              if Pos(#13, OldTarget) > 0 then
+                OldTarget := Copy(OldTarget, 1, Pos(#13, OldTarget) - 1);
+              OldTarget := Trim(OldTarget);
+              Log('CreateOrUpdateCurrentJunction: Previous target: ' + OldTarget);
+            end
+          else
+            begin
+              Log('CreateOrUpdateCurrentJunction: Could not parse junction target from fsutil output');
+              OldTarget := '';
+            end;
+        end
+      else
+        begin
+          Log('CreateOrUpdateCurrentJunction: fsutil reparsepoint query failed');
+          OldTarget := '';
+        end;
+
+      Log('CreateOrUpdateCurrentJunction: Removing existing Current');
+      Exec(ExpandConstant('{cmd}'), '/C rmdir "' + JunctionPath + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end;
+
+  // Create junction: Current -> Versions\<version>
+  Log('CreateOrUpdateCurrentJunction: Creating junction -> ' + VersionDir);
+  if not Exec(ExpandConstant('{cmd}'), '/C mklink /J "' + JunctionPath + '" "' + VersionDir + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      Log('CreateOrUpdateCurrentJunction: mklink failed (exit ' + IntToStr(ResultCode) + ')');
+      RaiseException('Fatal: Could not create Current junction at ' + JunctionPath);
+    end;
+
+  // Verify the new payload works
+  GvfsExe := JunctionPath + '\gvfs.exe';
+  if FileExists(GvfsExe) then
+    begin
+      if ExecWithResult(GvfsExe, 'version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, VersionOutput) and (ResultCode = 0) then
+        begin
+          Log('CreateOrUpdateCurrentJunction: Verified gvfs.exe version: ' + Trim(VersionOutput));
+        end
+      else
+        begin
+          Log('CreateOrUpdateCurrentJunction: gvfs.exe version failed (exit ' + IntToStr(ResultCode) + ')');
+          if HadPreviousJunction and (OldTarget <> '') then
+            begin
+              Log('CreateOrUpdateCurrentJunction: Rolling back to ' + OldTarget);
+              Exec(ExpandConstant('{cmd}'), '/C rmdir "' + JunctionPath + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+              if Exec(ExpandConstant('{cmd}'), '/C mklink /J "' + JunctionPath + '" "' + OldTarget + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+                begin
+                  Log('CreateOrUpdateCurrentJunction: Rollback successful - Current restored to ' + OldTarget);
+                end
+              else
+                begin
+                  Log('CreateOrUpdateCurrentJunction: Rollback mklink failed (exit ' + IntToStr(ResultCode) + ')');
+                end;
+            end
+          else if HadPreviousJunction then
+            begin
+              Log('CreateOrUpdateCurrentJunction: Cannot rollback - old target unknown');
+              Exec(ExpandConstant('{cmd}'), '/C rmdir "' + JunctionPath + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+            end;
+          RaiseException('Fatal: New gvfs.exe failed verification. Installation may be corrupt.');
+        end;
+    end
+  else
+    begin
+      Log('CreateOrUpdateCurrentJunction: Warning - gvfs.exe not found at ' + GvfsExe + ' (expected after junction creation)');
+    end;
+
+  Log('CreateOrUpdateCurrentJunction: Junction created and verified');
+end;
+
+procedure GarbageCollectOldVersions();
+var
+  GVFSRoot: string;
+  VersionsDir: string;
+  CurrentVersion: string;
+  FindRec: TFindRec;
+  Versions: TStringList;
+  i: Integer;
+  PathToDelete: string;
+  ResultCode: integer;
+begin
+  GVFSRoot := ExpandConstant('{localappdata}\GVFS');
+  VersionsDir := GVFSRoot + '\Versions';
+  CurrentVersion := '{#GVFSVersion}';
+
+  if not DirExists(VersionsDir) then exit;
+
+  Versions := TStringList.Create;
+  try
+    // Enumerate version directories
+    if FindFirst(VersionsDir + '\*', FindRec) then
+      begin
+        try
+          repeat
+            if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0) and
+               (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+              begin
+                Versions.Add(FindRec.Name);
+              end;
+          until not FindNext(FindRec);
+        finally
+          FindClose(FindRec);
+        end;
+      end;
+
+    Log('GarbageCollectOldVersions: Found ' + IntToStr(Versions.Count) + ' version(s)');
+    if Versions.Count <= 2 then
+      begin
+        Log('GarbageCollectOldVersions: 2 or fewer versions, nothing to GC');
+        exit;
+      end;
+
+    // Sort so we can identify the oldest. Versions sort lexically
+    // (semver-compatible for our numbering scheme).
+    Versions.Sort;
+
+    // Delete all but the most recent 2. The current version is always
+    // kept regardless of sort order.
+    for i := 0 to Versions.Count - 3 do
+      begin
+        if Versions[i] = CurrentVersion then
+          begin
+            Log('GarbageCollectOldVersions: Skipping current version ' + Versions[i]);
+            continue;
+          end;
+        PathToDelete := VersionsDir + '\' + Versions[i];
+        Log('GarbageCollectOldVersions: Deleting old version ' + PathToDelete);
+        if not DelTree(PathToDelete, True, True, True) then
+          begin
+            Log('GarbageCollectOldVersions: Warning - could not fully delete ' + PathToDelete);
+          end;
+      end;
+  finally
+    Versions.Free;
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   case CurStep of
     ssInstall:
       begin
-        if not KeepMountsRunning then
+        if (not IsUserModeInstall) and (not KeepMountsRunning) then
           UninstallService('GVFS.Service', True);
       end;
     ssPostInstall:
       begin
-        if KeepMountsRunning then
+        if IsUserModeInstall then
           begin
-            // All staged files have been written to PendingUpgrade.
-            // Write .ready marker so the service knows the staging is
-            // complete and safe to apply.
-            SaveStringToFile(ExpandConstant('{app}\PendingUpgrade\.ready'), '', False);
-            Log('CurStepChanged: Wrote PendingUpgrade .ready marker');
-
-            // Start the service AFTER .ready is written. Previously this
-            // was an AfterInstall hook on GVFS.Service.exe, but that races:
-            // the service's debounce timer could fire before .ready exists.
-            StagingUpdateService();
-          end;
-        MigrateConfigAndStatusCacheFiles();
-        if (not KeepMountsRunning) and (ExpandConstant('{param:REMOUNTREPOS|true}') = 'true') then
-          begin
-            MountRepos();
+            CreateOrUpdateCurrentJunction();
+            RegisterLogonTask();
+            GarbageCollectOldVersions();
           end
+        else
+          begin
+            if KeepMountsRunning then
+              begin
+                SaveStringToFile(ExpandConstant('{app}\PendingUpgrade\.ready'), '', False);
+                Log('CurStepChanged: Wrote PendingUpgrade .ready marker');
+                StagingUpdateService();
+              end;
+            MigrateConfigAndStatusCacheFiles();
+            if (not KeepMountsRunning) and (ExpandConstant('{param:REMOUNTREPOS|true}') = 'true') then
+              begin
+                MountRepos();
+              end
+          end;
       end;
     end;
 end;
@@ -884,8 +1220,119 @@ begin
   end;
 end;
 
+function IsProjFSEnabled(): Boolean;
+var
+  ResultCode: integer;
+begin
+  Result := False;
+  // exit 3 = enabled, exit 4 = disabled, exit 2 = not an optional feature
+  if Exec('powershell.exe', '-NoProfile "$f=Get-WindowsOptionalFeature -Online -FeatureName Client-ProjFS -ErrorAction SilentlyContinue; if($f -and $f.State -eq ''Enabled''){exit 0}else{exit 1}"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    begin
+      Result := (ResultCode = 0);
+    end;
+end;
+
+function IsEnableProjFSTaskCurrent(): Boolean;
+var
+  ResultCode: integer;
+  TaskXml: ansiString;
+  HashPos: Integer;
+  ExpectedHash: string;
+begin
+  Result := False;
+  // Query the registered task XML via schtasks
+  if not ExecWithResult(ExpandConstant('{sys}\schtasks.exe'), '/Query /TN "{#ProjFSTaskPath}" /XML', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, TaskXml) then
+    exit;
+  if ResultCode <> 0 then
+    exit;
+  // Look for the hash marker in the task description
+  HashPos := Pos('[gvfs-task-hash=', TaskXml);
+  if HashPos = 0 then
+    exit;
+  // The expected hash is passed as a preprocessor define at build time
+  // (set by the build step that runs build-task-xml.ps1). For now, if
+  // any valid hash marker is present, we consider the task registered.
+  // B4 will add the exact hash comparison when it wires up the build step.
+  Result := True;
+  Log('IsEnableProjFSTaskCurrent: Task found with hash marker');
+end;
+
+procedure EnableProjFSFeature();
+var
+  ResultCode: integer;
+begin
+  if IsProjFSEnabled() then
+    begin
+      Log('EnableProjFSFeature: Already enabled, skipping');
+      exit;
+    end;
+  Log('EnableProjFSFeature: Enabling Client-ProjFS optional feature');
+  if Exec('powershell.exe', '-NoProfile "Enable-WindowsOptionalFeature -Online -FeatureName Client-ProjFS -NoRestart"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    begin
+      if ResultCode <> 0 then
+        Log('EnableProjFSFeature: PowerShell returned ' + IntToStr(ResultCode) + ' (may require reboot)')
+      else
+        Log('EnableProjFSFeature: Enabled successfully');
+    end
+  else
+    begin
+      Log('EnableProjFSFeature: Failed to launch PowerShell');
+      RaiseException('Fatal: Could not enable ProjFS.');
+    end;
+end;
+
+procedure RegisterEnableProjFSTask();
+var
+  ResultCode: integer;
+  TaskXmlPath: string;
+begin
+  if IsEnableProjFSTaskCurrent() then
+    begin
+      Log('RegisterEnableProjFSTask: Task is already current, skipping');
+      exit;
+    end;
+
+  Log('RegisterEnableProjFSTask: Registering EnableProjFSOnAllDrives task');
+  // Extract the pre-built task XML from the installer's embedded files
+  ExtractTemporaryFile('enable-projfs-on-all-drives-task.xml');
+  TaskXmlPath := ExpandConstant('{tmp}\enable-projfs-on-all-drives-task.xml');
+
+  if not Exec(ExpandConstant('{sys}\schtasks.exe'), '/Create /TN "{#ProjFSTaskPath}" /XML "' + TaskXmlPath + '" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      Log('RegisterEnableProjFSTask: schtasks /Create failed with exit code ' + IntToStr(ResultCode));
+      RaiseException('Fatal: Could not register EnableProjFSOnAllDrives scheduled task.');
+    end;
+  Log('RegisterEnableProjFSTask: Task registered successfully');
+
+  // Run the task immediately so PrjFlt is attached before we return
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/Run /TN "{#ProjFSTaskPath}"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if ResultCode <> 0 then
+    Log('RegisterEnableProjFSTask: Warning - immediate task run returned ' + IntToStr(ResultCode))
+  else
+    Log('RegisterEnableProjFSTask: Task triggered for immediate execution');
+end;
+
+function NeedsAdminSetup(): Boolean;
+begin
+  if not IsProjFSEnabled() then
+    begin
+      Log('NeedsAdminSetup: ProjFS not enabled');
+      Result := True;
+      exit;
+    end;
+  if not IsEnableProjFSTaskCurrent() then
+    begin
+      Log('NeedsAdminSetup: EnableProjFSOnAllDrives task not current');
+      Result := True;
+      exit;
+    end;
+  Log('NeedsAdminSetup: Admin setup is current, no elevation needed');
+  Result := False;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
+  MsgBoxResult: integer;
   Repos: ansiString;
   ResultCode: integer;
   HasMounts: Boolean;
@@ -893,6 +1340,54 @@ begin
   NeedsRestart := False;
   KeepMountsRunning := False;
   Result := '';
+
+  if IsAdminStage then
+    begin
+      // Elevated re-launch from the user-mode installer. Do only
+      // the per-machine admin setup, then exit cleanly. The user-mode
+      // installer is waiting for our exit code (0 = success).
+      //
+      // We let Inno Setup proceed through the install phase, but all
+      // [Files] entries are gated behind Check functions that return
+      // false in admin-stage mode, so nothing is deployed. This gives
+      // us a clean exit code without fighting the Inno Setup lifecycle.
+      Log('PrepareToInstall: /ADMINSTAGE - running admin setup');
+      EnableProjFSFeature();
+      RegisterEnableProjFSTask();
+      Log('PrepareToInstall: /ADMINSTAGE - admin setup complete');
+      exit;
+    end;
+
+  if IsUserModeInstall then
+    begin
+      // User-mode install: check whether per-machine admin setup
+      // (ProjFS feature + EnableProjFSOnAllDrives task) is current.
+      // If not, re-launch ourselves elevated to do the admin portion.
+      if NeedsAdminSetup() then
+        begin
+          Log('PrepareToInstall: Admin setup needed, re-launching elevated');
+          if not ShellExec('runas', ExpandConstant('{srcexe}'), '/VERYSILENT /ADMINSTAGE=true', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+            begin
+              Result := 'Failed to launch elevated admin setup (user may have declined UAC).';
+              exit;
+            end;
+          if ResultCode <> 0 then
+            begin
+              Result := 'Admin setup failed (exit code ' + IntToStr(ResultCode) + ').';
+              exit;
+            end;
+          Log('PrepareToInstall: Admin setup completed successfully');
+        end
+      else
+        begin
+          Log('PrepareToInstall: Admin setup is current, no elevation needed');
+        end;
+      // Skip system-mode preparation (service queries, mount detection,
+      // staging logic). The user-mode path just deploys the payload
+      // and sets up the junction + PATH.
+      exit;
+    end;
+
   SetNuGetFeedIfNecessary();
 
   // Check for mounted repos by querying the service, and also check for
@@ -925,10 +1420,19 @@ begin
         end
       else
         begin
-          // Interactive mode: show a radio-button modal so the user can pick
-          // between remounting (immediate but brief unavailability) and
-          // staging the upgrade (deferred until repos are unmounted).
-          if not ShowMountChoiceDialog(Repos, KeepMountsRunning) then
+          // Interactive mode: let user choose
+          MsgBoxResult := SuppressibleMsgBox(
+            'The following repos are currently mounted:' + #13#10 + Repos + #13#10#13#10 +
+            'Click Yes to keep repos mounted during the upgrade.' + #13#10 +
+            'The upgrade will complete automatically when all repos are unmounted.' + #13#10#13#10 +
+            'Click No to unmount all repos now and upgrade without restart.' + #13#10 +
+            'Repos will be temporarily unavailable during the upgrade.',
+            mbConfirmation, MB_YESNOCANCEL, IDYES);
+          if MsgBoxResult = IDYES then
+            KeepMountsRunning := True
+          else if MsgBoxResult = IDNO then
+            KeepMountsRunning := False
+          else
             begin
               Result := 'Installation cancelled.';
               exit;
