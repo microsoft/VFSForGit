@@ -688,6 +688,42 @@ namespace GVFS.Common.Prefetch
             }
         }
 
+        /// <summary>
+        /// Updates the noop prefetch cache after a successful prefetch that was
+        /// handled externally (e.g. offloaded to the mount process). This mirrors
+        /// the logic in <see cref="SavePrefetchArgs"/> but is callable without a
+        /// BlobPrefetcher instance.
+        /// </summary>
+        public static void UpdateNoopCache(
+            FileBasedDictionary<string, string> prefetchCache,
+            int maxCacheSize,
+            string commitId,
+            List<string> files,
+            List<string> folders,
+            bool hydrate)
+        {
+            if (prefetchCache == null || maxCacheSize <= 0)
+            {
+                return;
+            }
+
+            string cacheKey = ComputeCacheKey(files, folders, hydrate);
+
+            Dictionary<string, string> allEntries = prefetchCache.GetAllKeysAndValues();
+            if (allEntries.Count >= maxCacheSize && !allEntries.ContainsKey(cacheKey))
+            {
+                using (Dictionary<string, string>.Enumerator enumerator = allEntries.GetEnumerator())
+                {
+                    if (enumerator.MoveNext())
+                    {
+                        prefetchCache.RemoveAndFlush(enumerator.Current.Key);
+                    }
+                }
+            }
+
+            prefetchCache.SetValueAndFlush(cacheKey, commitId);
+        }
+
         internal static string ComputeCacheKey(List<string> files, List<string> folders, bool hydrate)
         {
             List<string> sortedFiles = new List<string>(files);

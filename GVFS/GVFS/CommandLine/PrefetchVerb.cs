@@ -231,12 +231,15 @@ namespace GVFS.CommandLine
                                     cacheServerFromConfig,
                                     out objectRequestor,
                                     out resolvedCacheServer);
-                                this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, lastPrefetchArgs, objectRequestor, resolvedCacheServer);
+                                this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, prefetchCache, prefetchCacheSize, objectRequestor, resolvedCacheServer);
                             }
                             else
                             {
-                                // Mount handled download — now hydrate locally
+                                // Mount handled download — hydrate locally, then update noop
+                                // cache. Cache update is after hydration so a hydration failure
+                                // doesn't suppress the retry on the next run.
                                 this.HydrateMatchingFiles(tracer, enlistment, filesList, foldersList);
+                                BlobPrefetcher.UpdateNoopCache(prefetchCache, prefetchCacheSize, headCommitId, filesList, foldersList, this.HydrateFiles);
                             }
                         }
                         else if (!this.TryPrefetchBlobsViaMountProcess(tracer, enlistment, filesList, foldersList, headCommitId))
@@ -250,6 +253,11 @@ namespace GVFS.CommandLine
                                 out objectRequestor,
                                 out resolvedCacheServer);
                             this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, prefetchCache, prefetchCacheSize, objectRequestor, resolvedCacheServer);
+                        }
+                        else
+                        {
+                            // Mount handled download — update noop cache so repeat runs are skipped
+                            BlobPrefetcher.UpdateNoopCache(prefetchCache, prefetchCacheSize, headCommitId, filesList, foldersList, hydrate: false);
                         }
                     }
                 }

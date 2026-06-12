@@ -42,12 +42,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void PrefetchBlobsUnmountedFallsBackToDirectAuth()
         {
             // Unmount, then blob prefetch should fall back to direct auth
-            // and still succeed.
+            // and still succeed. Use a file not prefetched by earlier tests
+            // so the noop cache doesn't short-circuit.
             this.Enlistment.UnmountGVFS();
 
             try
             {
-                string output = this.Enlistment.Prefetch($"--files {Path.Combine("GVFS", "GVFS", "Program.cs")}");
+                string output = this.Enlistment.Prefetch($"--files {Path.Combine("GVFS", "GVFS.Common", "GVFSEnlistment.cs")}");
                 output.ShouldContain("Matched blobs:");
                 output.ShouldContain("Downloaded:");
             }
@@ -69,12 +70,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void PrefetchBlobsMountedAfterRemount()
         {
             // After unmount + remount, blob prefetch should work via
-            // the mount process again.
+            // the mount process again. Since this file was already
+            // prefetched in Order(1), the noop cache correctly detects
+            // there's nothing new to download.
             this.Enlistment.UnmountGVFS();
             this.Enlistment.MountGVFS();
 
             string output = this.Enlistment.Prefetch($"--files {Path.Combine("GVFS", "GVFS", "Program.cs")}");
-            output.ShouldContain("Matched blobs:");
+            output.ShouldContain("Nothing new to prefetch.");
         }
     }
 }
