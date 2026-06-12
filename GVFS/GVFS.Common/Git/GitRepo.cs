@@ -165,8 +165,13 @@ namespace GVFS.Common.Git
             size = 0;
 
             byte[] buffer = new byte[5];
-            input.Read(buffer, 0, buffer.Length);
-            if (!Enumerable.SequenceEqual(buffer, LooseBlobHeader))
+
+            // Verify bytesRead instead of using ReadExactly: a truncated header must
+            // return false (Corrupt) so the caller quarantines the file, rather than
+            // throwing EndOfStreamException which would be caught as IOException
+            // (Unknown) and skip quarantine.
+            int bytesRead = input.Read(buffer, 0, buffer.Length);
+            if (bytesRead < buffer.Length || !Enumerable.SequenceEqual(buffer, LooseBlobHeader))
             {
                 return false;
             }

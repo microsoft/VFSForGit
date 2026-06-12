@@ -391,7 +391,11 @@ namespace GVFS.Virtualization.Projection
 
             private void ReadNextPage()
             {
+                // Last page may be smaller than PageSize; partial fill is safe because
+                // the parser stops after entryCount entries and never reads stale bytes.
+#pragma warning disable CA2022 // Avoid inexact read
                 this.indexStream.Read(this.page, 0, PageSize);
+#pragma warning restore CA2022
                 this.nextByteIndex = 0;
             }
 
