@@ -331,11 +331,6 @@ namespace GVFS.Platform.Windows
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);
 
-        public override bool IsConsoleOutputRedirectedToFile()
-        {
-            return WindowsPlatform.IsConsoleOutputRedirectedToFileImplementation();
-        }
-
         public override bool IsGitStatusCacheSupported()
         {
             return File.Exists(Path.Combine(GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));

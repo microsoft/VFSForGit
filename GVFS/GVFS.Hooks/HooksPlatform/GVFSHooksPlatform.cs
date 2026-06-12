@@ -22,11 +22,6 @@ namespace GVFS.Hooks.HooksPlatform
             return WindowsPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
         }
 
-        public static bool IsConsoleOutputRedirectedToFile()
-        {
-            return WindowsPlatform.IsConsoleOutputRedirectedToFileImplementation();
-        }
-
         public static bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
