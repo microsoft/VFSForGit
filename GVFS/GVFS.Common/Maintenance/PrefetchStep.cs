@@ -19,10 +19,18 @@ namespace GVFS.Common.Maintenance
         private const int NoExistingPrefetchPacks = -1;
         private readonly TimeSpan timeBetweenPrefetches = TimeSpan.FromMinutes(70);
 
+        private readonly Action<List<string>> postFetchCallback;
+
         public PrefetchStep(GVFSContext context, GitObjects gitObjects, bool requireCacheLock = true)
+            : this(context, gitObjects, requireCacheLock, postFetchCallback: null)
+        {
+        }
+
+        public PrefetchStep(GVFSContext context, GitObjects gitObjects, bool requireCacheLock, Action<List<string>> postFetchCallback)
             : base(context, requireCacheLock)
         {
             this.GitObjects = gitObjects;
+            this.postFetchCallback = postFetchCallback;
         }
 
         public override string Area => "PrefetchStep";
@@ -280,6 +288,14 @@ namespace GVFS.Common.Maintenance
         {
             if (packIndexes.Count == 0)
             {
+                return;
+            }
+
+            // When running inside the mount process, use the injected callback to
+            // enqueue the post-fetch step directly (avoids re-entrant named pipe IPC).
+            if (this.postFetchCallback != null)
+            {
+                this.postFetchCallback(packIndexes);
                 return;
             }
 
