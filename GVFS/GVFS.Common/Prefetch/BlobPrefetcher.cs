@@ -290,7 +290,10 @@ namespace GVFS.Common.Prefetch
             //      * availableBlobs (out param): Locally available blob ids (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
             //      * MissingBlobs (property): Blob ids that are missing and need to be downloaded
             //      * AvailableBlobs (property): Same as availableBlobs
-            FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, diff.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
+            Func<IObjectExistenceChecker> checkerFactory = this.CreateObjectExistenceCheckerFactory(out IDisposable sharedCheckerOwner);
+            try
+            {
+            FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, diff.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment, checkerFactory);
 
             // downloader
             //  Inputs:
@@ -381,6 +384,90 @@ namespace GVFS.Common.Prefetch
             if (!this.HasFailures)
             {
                 this.SavePrefetchArgs(commitToFetch, hydrateFilesAfterDownload);
+            }
+            }
+            finally
+            {
+                sharedCheckerOwner?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Creates a factory for object existence checkers based on git config.
+        /// When gvfs.prefetch-use-idx is true, returns a factory that shares a single
+        /// PackIndexObjectExistenceChecker (thread-safe, read-only mmap) across all workers.
+        /// The shared instance is returned via <paramref name="sharedCheckerOwner"/> for
+        /// the caller to dispose after all workers complete.
+        /// Otherwise, returns a factory creating per-worker LibGit2ObjectExistenceChecker instances.
+        /// </summary>
+        private Func<IObjectExistenceChecker> CreateObjectExistenceCheckerFactory(out IDisposable sharedCheckerOwner)
+        {
+            sharedCheckerOwner = null;
+
+            bool usePackIdx = false;
+            try
+            {
+                GitProcess git = new GitProcess(this.Enlistment);
+                GitProcess.ConfigResult configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.PrefetchUseIdx);
+                if (!configResult.TryParseAsString(out string value, out string _) ||
+                    string.IsNullOrEmpty(value) ||
+                    !bool.TryParse(value, out usePackIdx))
+                {
+                    usePackIdx = GVFSConstants.GitConfig.PrefetchUseIdxDefault;
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Tracer.RelatedWarning("Failed to read {0} config: {1}", GVFSConstants.GitConfig.PrefetchUseIdx, ex.Message);
+            }
+
+            if (usePackIdx)
+            {
+                this.Tracer.RelatedInfo("Prefetch: Using pack-index object existence checker");
+                try
+                {
+                    PackIndexObjectExistenceChecker sharedChecker = new PackIndexObjectExistenceChecker(
+                        this.Tracer,
+                        this.Enlistment.LocalObjectsRoot,
+                        this.Enlistment.GitObjectsRoot);
+
+                    sharedCheckerOwner = sharedChecker;
+                    return () => new NonDisposingCheckerWrapper(sharedChecker);
+                }
+                catch (Exception ex)
+                {
+                    this.Tracer.RelatedWarning(
+                        "Failed to create pack-index checker, falling back to revparse: {0}",
+                        ex.Message);
+                }
+            }
+
+            this.Tracer.RelatedInfo("Prefetch: Using revparse object existence checker");
+            return () => new LibGit2ObjectExistenceChecker(this.Tracer, this.Enlistment.WorkingDirectoryBackingRoot);
+        }
+
+        /// <summary>
+        /// Wrapper that delegates to a shared checker but does not dispose it.
+        /// Allows shared thread-safe checkers to be used in using-blocks
+        /// without premature disposal.
+        /// </summary>
+        private class NonDisposingCheckerWrapper : IObjectExistenceChecker
+        {
+            private readonly IObjectExistenceChecker inner;
+
+            public NonDisposingCheckerWrapper(IObjectExistenceChecker inner)
+            {
+                this.inner = inner;
+            }
+
+            public bool ObjectExists(string sha)
+            {
+                return this.inner.ObjectExists(sha);
+            }
+
+            public void Dispose()
+            {
+                // No-op: the shared checker is owned by BlobPrefetcher
             }
         }
 

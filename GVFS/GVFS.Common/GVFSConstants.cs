@@ -48,6 +48,9 @@ namespace GVFS.Common
             public const bool ShowHydrationStatusDefault = false;
 
             public const string MaxHttpConnectionsConfig = GVFSPrefix + "max-http-connections";
+
+            public const string PrefetchUseIdx = GVFSPrefix + "prefetch-use-idx";
+            public const bool PrefetchUseIdxDefault = false;
         }
 
         public static class LocalGVFSConfig
