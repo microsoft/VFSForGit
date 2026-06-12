@@ -115,6 +115,18 @@ namespace GVFS.Common.Git
         }
 
         /// <summary>
+        /// Checks whether the object can be fully parsed by libgit2 (not just that it exists).
+        /// Use this to detect corrupt objects. For simple existence checks,
+        /// prefer <see cref="ObjectExists"/> which is faster.
+        /// </summary>
+        public virtual bool ObjectCanBeParsed(string sha)
+        {
+            bool output = false;
+            this.libgit2RepoInvoker.TryInvoke(repo => repo.ObjectCanBeParsed(sha), out output);
+            return output;
+        }
+
+        /// <summary>
         /// Try to find the size of a given blob by SHA1 hash.
         ///
         /// Returns true iff the blob exists as a loose object.
