@@ -187,11 +187,12 @@ namespace GVFS.CommandLine
                         string headCommitId;
                         List<string> filesList;
                         List<string> foldersList;
-                        FileBasedDictionary<string, string> lastPrefetchArgs;
+                        FileBasedDictionary<string, string> prefetchCache;
+                        int prefetchCacheSize;
 
-                        this.LoadBlobPrefetchArgs(tracer, enlistment, out headCommitId, out filesList, out foldersList, out lastPrefetchArgs);
+                        this.LoadBlobPrefetchArgs(tracer, enlistment, out headCommitId, out filesList, out foldersList, out prefetchCache, out prefetchCacheSize);
 
-                        if (BlobPrefetcher.IsNoopPrefetch(tracer, lastPrefetchArgs, headCommitId, filesList, foldersList, this.HydrateFiles))
+                        if (BlobPrefetcher.IsNoopPrefetch(tracer, prefetchCache, headCommitId, filesList, foldersList, this.HydrateFiles))
                         {
                             Console.WriteLine("All requested files are already available. Nothing new to prefetch.");
                         }
@@ -205,7 +206,7 @@ namespace GVFS.CommandLine
                                 cacheServerFromConfig,
                                 out objectRequestor,
                                 out resolvedCacheServer);
-                            this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, lastPrefetchArgs, objectRequestor, resolvedCacheServer);
+                            this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, prefetchCache, prefetchCacheSize, objectRequestor, resolvedCacheServer);
                         }
                     }
                 }
@@ -328,18 +329,38 @@ namespace GVFS.CommandLine
             out string headCommitId,
             out List<string> filesList,
             out List<string> foldersList,
-            out FileBasedDictionary<string, string> lastPrefetchArgs)
+            out FileBasedDictionary<string, string> prefetchCache,
+            out int prefetchCacheSize)
         {
             string error;
 
-            if (!FileBasedDictionary<string, string>.TryCreate(
-                    tracer,
-                    Path.Combine(enlistment.DotGVFSRoot, "LastBlobPrefetch.dat"),
-                    new PhysicalFileSystem(),
-                    out lastPrefetchArgs,
-                    out error))
+            // Read cache size from git config
+            prefetchCacheSize = BlobPrefetcher.DefaultPrefetchCacheSize;
+            GitProcess gitProcess = new GitProcess(enlistment);
+            if (gitProcess.TryGetFromConfig(BlobPrefetcher.PrefetchCacheSizeConfigKey, forceOutsideEnlistment: false, out string cacheSizeValue))
             {
-                tracer.RelatedWarning("Unable to load last prefetch args: " + error);
+                if (int.TryParse(cacheSizeValue, out int parsedSize))
+                {
+                    prefetchCacheSize = Math.Clamp(parsedSize, 0, BlobPrefetcher.MaxPrefetchCacheSize);
+                }
+                else
+                {
+                    tracer.RelatedWarning($"Invalid value '{cacheSizeValue}' for {BlobPrefetcher.PrefetchCacheSizeConfigKey}, using default {BlobPrefetcher.DefaultPrefetchCacheSize}");
+                }
+            }
+
+            prefetchCache = null;
+            if (prefetchCacheSize > 0)
+            {
+                if (!FileBasedDictionary<string, string>.TryCreate(
+                        tracer,
+                        Path.Combine(enlistment.DotGVFSRoot, BlobPrefetcher.BlobPrefetchCacheFile),
+                        new PhysicalFileSystem(),
+                        out prefetchCache,
+                        out error))
+                {
+                    tracer.RelatedWarning("Unable to load prefetch cache: " + error);
+                }
             }
 
             filesList = new List<string>();
@@ -355,7 +376,6 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(tracer, error);
             }
 
-            GitProcess gitProcess = new GitProcess(enlistment);
             GitProcess.Result result = gitProcess.RevParse(GVFSConstants.DotGit.HeadName);
             if (result.ExitCodeIsFailure)
             {
@@ -371,7 +391,8 @@ namespace GVFS.CommandLine
             string headCommitId,
             List<string> filesList,
             List<string> foldersList,
-            FileBasedDictionary<string, string> lastPrefetchArgs,
+            FileBasedDictionary<string, string> prefetchCache,
+            int prefetchCacheSize,
             GitObjectsHttpRequestor objectRequestor,
             CacheServerInfo cacheServer)
         {
@@ -381,7 +402,8 @@ namespace GVFS.CommandLine
                 objectRequestor,
                 filesList,
                 foldersList,
-                lastPrefetchArgs,
+                prefetchCache,
+                prefetchCacheSize,
                 ChunkSize,
                 SearchThreadCount,
                 DownloadThreadCount,
