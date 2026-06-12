@@ -164,9 +164,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
                 GVFSHelpers.SaveGitObjectsRoot(this.Enlistment.DotGVFSRoot, objectsRoot);
 
-                // Mount error messages go to the GVFS log, not stdout/stderr.
-                // Verify mount fails (exit code 3) without checking output text.
                 this.MountShouldFail(GVFSGenericError, expectedErrorMessage: null);
+                this.LatestGVFSLogShouldContain("Failed to determine local cache path from repo metadata");
             }
             finally
             {
@@ -201,6 +200,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 GVFSHelpers.SaveLocalCacheRoot(this.Enlistment.DotGVFSRoot, localCacheRoot);
 
                 this.MountShouldFail(GVFSGenericError, expectedErrorMessage: null);
+                this.LatestGVFSLogShouldContain("Failed to determine git objects root from repo metadata");
             }
             finally
             {
@@ -385,6 +385,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void MountShouldFail(string expectedErrorMessage, string mountWorkingDirectory = null)
         {
             this.MountShouldFail(GVFSGenericError, expectedErrorMessage, mountWorkingDirectory);
+        }
+
+        private void LatestGVFSLogShouldContain(string expectedMessage)
+        {
+            string logsRoot = this.Enlistment.GVFSLogsRoot;
+            logsRoot.ShouldBeADirectory(this.fileSystem);
+
+            string latestLog = Directory.GetFiles(logsRoot, "*.log")
+                .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+                .FirstOrDefault();
+
+            latestLog.ShouldNotBeNull("No GVFS log files found in " + logsRoot);
+            string logContents = File.ReadAllText(latestLog);
+            logContents.ShouldContain(expectedMessage);
         }
 
         private class MountSubfolders

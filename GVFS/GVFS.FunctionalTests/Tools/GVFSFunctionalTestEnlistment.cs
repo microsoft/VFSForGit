@@ -312,21 +312,34 @@ namespace GVFS.FunctionalTests.Tools
         {
             try
             {
-                foreach (var proc in System.Diagnostics.Process.GetProcessesByName("GVFS.Mount"))
+                // Find GVFS.Mount processes whose command line contains this
+                // enlistment root. Uses PowerShell's Get-CimInstance to read
+                // command lines without requiring System.Management.
+                string filter = this.EnlistmentRoot.Replace("\\", "\\\\");
+                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
                 {
-                    try
+                    Arguments = $"-NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\"Name='GVFS.Mount.exe'\\\" | Where-Object {{ $_.CommandLine -like '*{filter}*' }} | ForEach-Object {{ $_.ProcessId }}\"",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                var proc = System.Diagnostics.Process.Start(psi);
+                string output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit(10000);
+
+                foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (int.TryParse(line.Trim(), out int pid))
                     {
-                        // Kill any GVFS.Mount whose working directory or command line
-                        // relates to this enlistment. Since we can't easily read the
-                        // command line cross-process without WMI, kill all mount processes
-                        // as a fallback — functional tests run in isolation anyway.
-                        Console.Error.WriteLine($"[TEARDOWN] Killing GVFS.Mount (PID {proc.Id})");
-                        proc.Kill();
-                        proc.WaitForExit(5000);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine($"[TEARDOWN] Failed to kill PID {proc.Id}: {ex.Message}");
+                        Console.Error.WriteLine($"[TEARDOWN] Killing GVFS.Mount (PID {pid}) for {this.EnlistmentRoot}");
+                        try
+                        {
+                            System.Diagnostics.Process.GetProcessById(pid)?.Kill();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine($"[TEARDOWN] Failed to kill PID {pid}: {ex.Message}");
+                        }
                     }
                 }
             }
