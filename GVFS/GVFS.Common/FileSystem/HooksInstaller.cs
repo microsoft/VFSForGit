@@ -124,6 +124,28 @@ namespace GVFS.Common.FileSystem
                 return false;
             }
 
+            // Refresh the corresponding .hooks text files. These hold the
+            // absolute path of GVFS.Hooks.exe that the loader execs at hook
+            // time, and were originally written at clone time pointing at
+            // wherever GVFS was installed back then. If GVFS has moved
+            // (system-to-user migration, version-junction swap, hand-edited
+            // install), those paths go stale and the loader exits non-zero
+            // on every git invocation that fires a hook - making the
+            // enlistment unrecoverable through normal mount. Refreshing on
+            // every mount makes us self-healing against install-location
+            // drift, and is a no-op when paths are already current.
+            string precommandBasePath = Path.Combine(context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.PreCommandPath);
+            if (!GVFSPlatform.Instance.TryInstallGitCommandHooks(context, ExecutingDirectory, GVFSConstants.DotGit.Hooks.PreCommandHookName, precommandBasePath, out errorMessage))
+            {
+                return false;
+            }
+
+            string postcommandBasePath = Path.Combine(context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Hooks.PostCommandPath);
+            if (!GVFSPlatform.Instance.TryInstallGitCommandHooks(context, ExecutingDirectory, GVFSConstants.DotGit.Hooks.PostCommandHookName, postcommandBasePath, out errorMessage))
+            {
+                return false;
+            }
+
             return true;
         }
 
