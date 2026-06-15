@@ -34,6 +34,7 @@ jobs:
           - staging-then-clean
           - mount-safety-deferral
           - unmount-all-triggers-upgrade
+          - user-mode-cold-install
       fail-fast: false
 
     steps:
@@ -363,6 +364,46 @@ jobs:
             Write-Host "PASS: unmount-all triggers staged upgrade via process monitor"
           }
 
+          "user-mode-cold-install" {
+            Write-Host "=== Scenario: User-mode cold install + clone + mount ==="
+            # No LKG install — start from a clean machine with only Git.
+            # Install the new build in user mode, clone a test repo, mount.
+            $userGvfsDir = Join-Path $env:LOCALAPPDATA 'GVFS'
+
+            Install-GVFS $newInstaller @("/CURRENTUSER")
+
+            # Verify payload deployed to user dir
+            $gvfsExe = Join-Path $userGvfsDir 'Current\gvfs.exe'
+            if (-not (Test-Path $gvfsExe)) {
+              throw "gvfs.exe not found at $gvfsExe after user-mode install"
+            }
+            Write-Host "gvfs.exe found at $gvfsExe"
+
+            # Verify version
+            $version = & $gvfsExe version 2>&1
+            Write-Host "gvfs version: $version"
+            if ($LASTEXITCODE -ne 0) { throw "gvfs version failed" }
+
+            # Clone
+            $userEnlistment = "C:\gvfs-usermode-test"
+            if (Test-Path $userEnlistment) { Remove-Item $userEnlistment -Recurse -Force }
+            & $gvfsExe clone $testRepo $userEnlistment 2>&1 | Write-Host
+            if ($LASTEXITCODE -ne 0) { throw "gvfs clone failed" }
+
+            # Verify mount is running
+            $readmePath = Join-Path $userEnlistment "src\Readme.md"
+            if (-not (Test-Path $readmePath)) {
+              throw "Clone succeeded but $readmePath not accessible"
+            }
+            Write-Host "Repo accessible at $userEnlistment"
+
+            # Unmount
+            & $gvfsExe unmount $userEnlistment 2>&1 | Write-Host
+            if ($LASTEXITCODE -ne 0) { throw "gvfs unmount failed" }
+
+            Write-Host "PASS: User-mode cold install + clone + mount + unmount succeeded"
+          }
+
           default {
             throw "Unknown scenario: ${{ matrix.scenario }}"
           }
@@ -377,3 +418,4 @@ jobs:
         path: |
           C:\ProgramData\GVFS\GVFS.Service\Logs\
           C:\temp\gvfs-install-logs\
+          ${{ env.LOCALAPPDATA }}\GVFS\Logs\

@@ -133,14 +133,17 @@ begin
   if IsAdminStage then
     begin
       Log('InitializeSetup: /ADMINSTAGE mode - will run admin setup only');
+      Log('[GVFS-INSTALL] mode=adminstage');
     end
   else if IsUserModeInstall then
     begin
       Log('InitializeSetup: User-mode install detected (non-elevated)');
+      Log('[GVFS-INSTALL] mode=user');
     end
   else
     begin
       Log('InitializeSetup: System-mode install (elevated)');
+      Log('[GVFS-INSTALL] mode=system');
     end;
 end;
 
@@ -1312,6 +1315,129 @@ begin
     Log('RegisterEnableProjFSTask: Task triggered for immediate execution');
 end;
 
+function IsLegacySystemInstallPresent(): Boolean;
+var
+  ResultCode: integer;
+begin
+  // Check for GVFS.Service in SCM (exit 0 = exists, 1060 = not found)
+  Result := False;
+  if Exec(ExpandConstant('{sys}\SC.EXE'), 'query GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    begin
+      if ResultCode <> 1060 then
+        begin
+          Log('IsLegacySystemInstallPresent: GVFS.Service found in SCM');
+          Result := True;
+          exit;
+        end;
+    end;
+  // Also check for the legacy install directory
+  if DirExists(ExpandConstant('{commonpf}\VFS for Git')) then
+    begin
+      Log('IsLegacySystemInstallPresent: Legacy install directory exists');
+      Result := True;
+      exit;
+    end;
+  Log('IsLegacySystemInstallPresent: No legacy install detected');
+end;
+
+procedure MigrateLegacyInstall();
+var
+  ResultCode: integer;
+  LegacyDir: string;
+  LegacyRegistryPath: string;
+  UserLocalAppData: string;
+  UserRegistryDir: string;
+  WaitAttempts: integer;
+begin
+  LegacyDir := ExpandConstant('{commonpf}\VFS for Git');
+  Log('MigrateLegacyInstall: Starting migration from ' + LegacyDir);
+
+  // Use the original user's LocalAppData (passed from the non-elevated
+  // caller) so the repo-registry lands in the right user's directory
+  // even under Over-the-Shoulder UAC elevation.
+  UserLocalAppData := ExpandConstant('{param:USERLOCALAPPDATA|}');
+  if UserLocalAppData = '' then
+    UserLocalAppData := ExpandConstant('{localappdata}');
+  UserRegistryDir := UserLocalAppData + '\GVFS\GVFS.Service';
+
+  // 1. Force-unmount all repos via the legacy gvfs.exe (still on PATH
+  //    and still has a running service to talk to). This ensures no
+  //    mount processes hold open files in the legacy install directory,
+  //    allowing us to do a synchronous cleanup without a deferred task.
+  Log('MigrateLegacyInstall: Unmounting all repos via legacy gvfs.exe');
+  Exec(LegacyDir + '\GVFS.exe', 'service --unmount-all', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if ResultCode = 0 then
+    Log('MigrateLegacyInstall: Unmount-all succeeded')
+  else
+    Log('MigrateLegacyInstall: Unmount-all returned ' + IntToStr(ResultCode) + ' (continuing anyway)');
+
+  // Wait for GVFS.Mount processes from the legacy dir to exit (up to 30s)
+  WaitAttempts := 0;
+  while WaitAttempts < 30 do
+    begin
+      if not IsGVFSRunning() then
+        begin
+          Log('MigrateLegacyInstall: No GVFS processes running');
+          break;
+        end;
+      Log('MigrateLegacyInstall: Waiting for GVFS processes to exit (attempt ' + IntToStr(WaitAttempts + 1) + ')');
+      Sleep(1000);
+      WaitAttempts := WaitAttempts + 1;
+    end;
+  if WaitAttempts >= 30 then
+    Log('MigrateLegacyInstall: Warning - GVFS processes still running after 30s wait');
+
+  // 2. Stop and delete the service
+  StopService('GVFS.Service');
+  WaitForServiceProcessToExit('GVFS.Service');
+  if Exec(ExpandConstant('{sys}\SC.EXE'), 'delete GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    begin
+      if (ResultCode = 0) or (ResultCode = 1060) then
+        Log('MigrateLegacyInstall: Service deleted (or was already absent)')
+      else
+        Log('MigrateLegacyInstall: Warning - sc delete returned ' + IntToStr(ResultCode));
+    end;
+
+  // 3. Copy legacy repo-registry to user LocalRepoRegistry location.
+  //    DO NOT delete the source — a rollback to a system install needs
+  //    to find its repo-registry intact.
+  LegacyRegistryPath := ExpandConstant('{commonappdata}\GVFS\GVFS.Service\repo-registry');
+  if FileExists(LegacyRegistryPath) then
+    begin
+      if not DirExists(UserRegistryDir) then
+        ForceDirectories(UserRegistryDir);
+      if FileCopy(LegacyRegistryPath, UserRegistryDir + '\repo-registry', False) then
+        Log('MigrateLegacyInstall: Copied repo-registry to ' + UserRegistryDir)
+      else
+        Log('MigrateLegacyInstall: Warning - could not copy repo-registry');
+    end
+  else
+    Log('MigrateLegacyInstall: No legacy repo-registry found');
+
+  // 4. Remove legacy install dir from system PATH
+  RemovePath(LegacyDir);
+
+  // 5. Delete legacy AutoLogger registry key
+  if RegKeyExists(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\WMI\Autologger\Microsoft-Windows-Git-Filter-Log') then
+    begin
+      RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\WMI\Autologger\Microsoft-Windows-Git-Filter-Log');
+      Log('MigrateLegacyInstall: Deleted GvFlt AutoLogger key');
+    end;
+
+  // 6. Delete the legacy install directory synchronously.
+  //    Since we force-unmounted all repos above, no mount processes
+  //    should be holding files open. Any leftover files are inert
+  //    (no service, no PATH, no mounts) — just wasted disk space.
+  Log('MigrateLegacyInstall: Deleting legacy install directory ' + LegacyDir);
+  if not DelTree(LegacyDir, True, True, True) then
+    Log('MigrateLegacyInstall: Warning - could not fully delete ' + LegacyDir + ' (leftover files are inert)')
+  else
+    Log('MigrateLegacyInstall: Legacy install directory deleted');
+
+  Log('MigrateLegacyInstall: Migration steps complete');
+  Log('[GVFS-INSTALL] migration=complete legacy_dir=' + LegacyDir);
+end;
+
 function NeedsAdminSetup(): Boolean;
 begin
   if not IsProjFSEnabled() then
@@ -1323,6 +1449,12 @@ begin
   if not IsEnableProjFSTaskCurrent() then
     begin
       Log('NeedsAdminSetup: EnableProjFSOnAllDrives task not current');
+      Result := True;
+      exit;
+    end;
+  if IsLegacySystemInstallPresent() then
+    begin
+      Log('NeedsAdminSetup: Legacy system install detected');
       Result := True;
       exit;
     end;
@@ -1354,7 +1486,10 @@ begin
       Log('PrepareToInstall: /ADMINSTAGE - running admin setup');
       EnableProjFSFeature();
       RegisterEnableProjFSTask();
+      if IsLegacySystemInstallPresent() then
+        MigrateLegacyInstall();
       Log('PrepareToInstall: /ADMINSTAGE - admin setup complete');
+      Log('[GVFS-INSTALL] adminstage=complete');
       exit;
     end;
 
@@ -1366,7 +1501,7 @@ begin
       if NeedsAdminSetup() then
         begin
           Log('PrepareToInstall: Admin setup needed, re-launching elevated');
-          if not ShellExec('runas', ExpandConstant('{srcexe}'), '/VERYSILENT /ADMINSTAGE=true', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+          if not ShellExec('runas', ExpandConstant('{srcexe}'), ExpandConstant('/VERYSILENT /ADMINSTAGE=true /USERLOCALAPPDATA="{localappdata}"'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
             begin
               Result := 'Failed to launch elevated admin setup (user may have declined UAC).';
               exit;
@@ -1377,10 +1512,12 @@ begin
               exit;
             end;
           Log('PrepareToInstall: Admin setup completed successfully');
+          Log('[GVFS-INSTALL] admin_elevation=success');
         end
       else
         begin
           Log('PrepareToInstall: Admin setup is current, no elevation needed');
+          Log('[GVFS-INSTALL] admin_elevation=skipped');
         end;
       // Skip system-mode preparation (service queries, mount detection,
       // staging logic). The user-mode path just deploys the payload

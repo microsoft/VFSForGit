@@ -31,6 +31,40 @@ winget install --id Microsoft.VFSforGit
 You will need to continue using the `microsoft/git` version of Git, and it
 will notify you when new versions are available.
 
+### User-mode installation (opt-in)
+
+VFS for Git can be installed per-user (no admin required for routine
+operations) by passing `/CURRENTUSER` to the installer:
+
+```
+SetupGVFS.<version>.exe /CURRENTUSER
+```
+
+Or in silent mode:
+
+```
+SetupGVFS.<version>.exe /VERYSILENT /CURRENTUSER
+```
+
+This installs to `%LocalAppData%\GVFS\` instead of `C:\Program Files\`.
+A one-time admin elevation is required on first install to enable the
+ProjFS Windows feature and register a boot-time scheduled task — subsequent
+installs and upgrades require no elevation.
+
+### Migrating from a system install
+
+If you previously had VFS for Git installed system-wide and switch to a
+user-mode install via `/CURRENTUSER`, the installer automatically:
+
+1. Stops and removes the GVFS.Service Windows service
+2. Migrates your registered repo list to the user-mode location
+3. Removes the legacy install directory from the system PATH
+4. Registers a cleanup task that deletes the old `C:\Program Files\VFS for Git\`
+   files once any running legacy mounts have exited
+
+Running mounts are **not disrupted** — they continue to work until you
+unmount or reboot. After that, mounts use the user-mode install.
+
 
 ## Building VFS for Git
 

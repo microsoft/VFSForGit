@@ -7,6 +7,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
     [TestFixture]
     [NonParallelizable]
     [Category(Categories.ExtraCoverage)]
+    [Category(Categories.RequiresService)]
     public class ServiceVerbTests : TestsWithMultiEnlistment
     {
         private static readonly string[] EmptyRepoList = new string[] { };

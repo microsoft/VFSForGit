@@ -340,6 +340,15 @@ jobs:
     with:
       skip: ${{ needs.validate.outputs.skip }}
 
+  functional_tests_usermode:
+    name: Functional Tests (User-Mode)
+    needs: [validate, build]
+    uses: ./.github/workflows/functional-tests.yaml
+    with:
+      skip: ${{ needs.validate.outputs.skip }}
+      install_mode: user
+      output_prefix: UserMode
+
   upgrade_tests:
     name: Upgrade Tests
     needs: [validate, build]
@@ -350,7 +359,7 @@ jobs:
   result:
     runs-on: ubuntu-latest
     name: Build, Unit and Functional Tests Successful
-    needs: [functional_tests, upgrade_tests]
+    needs: [functional_tests, functional_tests_usermode, upgrade_tests]
 
     steps:
       - name: Success! # for easier identification of successful runs in the Checks Required for Pull Requests

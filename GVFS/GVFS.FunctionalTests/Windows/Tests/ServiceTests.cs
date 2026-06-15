@@ -14,6 +14,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
     [TestFixture]
     [NonParallelizable]
     [Category(Categories.ExtraCoverage)]
+    [Category(Categories.RequiresService)]
     public class ServiceTests : TestsWithEnlistmentPerFixture
     {
         private const string NativeLibPath = @"C:\Program Files\VFS for Git\ProjectedFSLib.dll";

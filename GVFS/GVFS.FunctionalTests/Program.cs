@@ -48,6 +48,12 @@ namespace GVFS.FunctionalTests
                 GVFSTestConfig.ReplaceInboxProjFS = true;
             }
 
+            if (runner.HasCustomArg("--no-service"))
+            {
+                Console.WriteLine("Running without GVFS.Service (user-mode install)");
+                GVFSTestConfig.NoService = true;
+            }
+
             GVFSTestConfig.LocalCacheRoot = runner.GetCustomArgWithParam("--shared-gvfs-cache-root");
 
             HashSet<string> includeCategories = new HashSet<string>();
@@ -101,6 +107,11 @@ namespace GVFS.FunctionalTests
                     excludeCategories.Add(Categories.NeedsReactionInCI);
                 }
 
+                if (GVFSTestConfig.NoService)
+                {
+                    excludeCategories.Add(Categories.RequiresService);
+                }
+
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
             }
 
@@ -151,11 +162,19 @@ namespace GVFS.FunctionalTests
                 ProjFSFilterInstaller.ReplaceInboxProjFS();
             }
 
-            Console.WriteLine("[CI-DEBUG] Installing service...");
-            Console.Out.Flush();
-            GVFSServiceProcess.InstallService();
-            Console.WriteLine("[CI-DEBUG] Service installed successfully");
-            Console.Out.Flush();
+            if (!GVFSTestConfig.NoService)
+            {
+                Console.WriteLine("[CI-DEBUG] Installing service...");
+                Console.Out.Flush();
+                GVFSServiceProcess.InstallService();
+                Console.WriteLine("[CI-DEBUG] Service installed successfully");
+                Console.Out.Flush();
+            }
+            else
+            {
+                Console.WriteLine("[CI-DEBUG] Skipping service install (--no-service)");
+                Console.Out.Flush();
+            }
 
             string serviceProgramDataDir = GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(
                 GVFSConstants.Service.ServiceName);

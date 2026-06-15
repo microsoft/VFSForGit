@@ -18,7 +18,7 @@ namespace GVFS.FunctionalTests
         [OneTimeTearDown]
         public void RunAfterAllTests()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !GVFSTestConfig.NoService)
             {
                 string serviceLogFolder = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
