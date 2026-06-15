@@ -3,7 +3,7 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
 using System.ComponentModel;
-using System.Diagnostics;
+
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -597,7 +597,10 @@ namespace GVFS.Common
 
         private bool TryDeleteStatusCacheFile()
         {
-            Debug.Assert(this.cacheFileLock.IsHeldByCurrentThread, "Attempting to delete the git status cache file without the cacheFileLock");
+            if (!this.cacheFileLock.IsHeldByCurrentThread)
+            {
+                throw new InvalidOperationException("Attempting to delete the git status cache file without the cacheFileLock");
+            }
 
             try
             {
@@ -635,7 +638,10 @@ namespace GVFS.Common
         /// <returns>True on success, False on failure</returns>
         private bool MoveCacheFileToFinalLocation(string tmpStatusFilePath)
         {
-            Debug.Assert(this.cacheFileLock.IsHeldByCurrentThread, "Attempting to update the git status cache file without the cacheFileLock");
+            if (!this.cacheFileLock.IsHeldByCurrentThread)
+            {
+                throw new InvalidOperationException("Attempting to update the git status cache file without the cacheFileLock");
+            }
 
             try
             {

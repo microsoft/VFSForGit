@@ -261,7 +261,7 @@ jobs:
 
     strategy:
       matrix:
-        configuration: [ Debug, Release ]
+        configuration: [ Release ]
       fail-fast: false
 
     steps:
