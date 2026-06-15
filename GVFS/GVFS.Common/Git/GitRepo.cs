@@ -107,6 +107,35 @@ namespace GVFS.Common.Git
             return output;
         }
 
+        /// <summary>
+        /// Check whether a given object SHA exists as a loose object file
+        /// in the shared cache or local object store.
+        /// </summary>
+        public virtual bool LooseObjectExists(string sha)
+        {
+            if (GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem)
+            {
+                sha = sha.ToLower();
+            }
+
+            string looseObjectPath = Path.Combine(
+                this.enlistment.GitObjectsRoot,
+                sha.Substring(0, 2),
+                sha.Substring(2));
+
+            if (this.fileSystem.FileExists(looseObjectPath))
+            {
+                return true;
+            }
+
+            looseObjectPath = Path.Combine(
+                this.enlistment.LocalObjectsRoot,
+                sha.Substring(0, 2),
+                sha.Substring(2));
+
+            return this.fileSystem.FileExists(looseObjectPath);
+        }
+
         public virtual bool ObjectExists(string blobSha)
         {
             bool output = false;
