@@ -54,6 +54,7 @@ namespace GVFS.Common
                 EventLevel eventLevel = writeToLogFile ? EventLevel.Informational : EventLevel.Verbose;
                 DateTime now = DateTime.Now;
                 metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
+                metadata.Add("Architecture", ProcessHelper.GetCurrentProcessArchitecture());
                 metadata.Add("MinutesUptime", (long)(now - this.startTime).TotalMinutes);
                 metadata.Add("MinutesSinceLast", (int)(now - this.lastHeartBeatTime).TotalMinutes);
                 this.lastHeartBeatTime = now;

@@ -274,6 +274,7 @@ namespace GVFS.Common.Tracing
             EventMetadata metadata = new EventMetadata();
 
             metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
+            metadata.Add("Architecture", ProcessHelper.GetCurrentProcessArchitecture());
 
             if (enlistmentRoot != null)
             {
