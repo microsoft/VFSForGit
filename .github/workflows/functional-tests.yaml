@@ -62,7 +62,7 @@ jobs:
     strategy:
       matrix:
         configuration: [ Debug, Release ]
-        architecture: [ x86_64, arm64 ]
+        architecture: [ x64, arm64 ]
         nr: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] # 12 parallel jobs to speed up the tests
       fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
 
@@ -104,7 +104,7 @@ jobs:
       continue-on-error: true
       uses: actions/download-artifact@v8
       with:
-        name: GVFS_${{ matrix.configuration }}
+        name: GVFS_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: gvfs
         repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}
@@ -114,7 +114,7 @@ jobs:
       if: steps.skip.outputs.result != 'true' && steps.download-gvfs.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
-        name: GVFS_${{ matrix.configuration }}
+        name: GVFS_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: gvfs
         repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}
@@ -126,7 +126,7 @@ jobs:
       continue-on-error: true
       uses: actions/download-artifact@v8
       with:
-        name: FunctionalTests_${{ matrix.configuration }}
+        name: FunctionalTests_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: ft
         repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}
@@ -136,7 +136,7 @@ jobs:
       if: steps.skip.outputs.result != 'true' && steps.download-ft.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
-        name: FunctionalTests_${{ matrix.configuration }}
+        name: FunctionalTests_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: ft
         repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}
@@ -147,7 +147,7 @@ jobs:
       continue-on-error: true
       uses: actions/download-artifact@v8
       with:
-        name: FastFetch_${{ matrix.configuration }}
+        name: FastFetch_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: ft
         repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}

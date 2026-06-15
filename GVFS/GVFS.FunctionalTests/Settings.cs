@@ -58,7 +58,20 @@ namespace GVFS.FunctionalTests.Properties
                 if (!string.IsNullOrEmpty(devModeOutDir))
                 {
                     string configuration = Environment.GetEnvironmentVariable("GVFS_DEV_CONFIGURATION") ?? "Debug";
-                    string payloadDir = Path.Combine(devModeOutDir, "GVFS.Payload", "bin", configuration, "win-x64");
+
+                    // Match the architecture of the running test process so the
+                    // test driver exercises the GVFS payload built for the same
+                    // arch. ProcessArchitecture comes from the AOT-published
+                    // RID, so the win-arm64 test exe finds the win-arm64
+                    // payload and the win-x64 test exe finds win-x64.
+                    string arch = RuntimeInformation.ProcessArchitecture switch
+                    {
+                        Architecture.Arm64 => "win-arm64",
+                        Architecture.X64 => "win-x64",
+                        _ => throw new PlatformNotSupportedException(
+                            $"Unsupported process architecture for GVFS functional tests: {RuntimeInformation.ProcessArchitecture}"),
+                    };
+                    string payloadDir = Path.Combine(devModeOutDir, "GVFS.Payload", "bin", configuration, arch);
 
                     PathToGVFS = Path.Combine(payloadDir, "gvfs.exe");
                     PathToGVFSService = Path.Combine(payloadDir, "GVFS.Service.exe");

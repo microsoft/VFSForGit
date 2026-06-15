@@ -84,14 +84,14 @@ jobs:
       continue-on-error: true
       uses: actions/download-artifact@v8
       with:
-        name: GVFS_${{ matrix.configuration }}
+        name: GVFS_${{ matrix.configuration }}_x64
         path: gvfs-new
 
     - name: Download current GVFS installer (retry)
       if: steps.skip.outputs.result != 'true' && steps.download-gvfs.outcome == 'failure'
       uses: actions/download-artifact@v8
       with:
-        name: GVFS_${{ matrix.configuration }}
+        name: GVFS_${{ matrix.configuration }}_x64
         path: gvfs-new
 
     # -- Setup --

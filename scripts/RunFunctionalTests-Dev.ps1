@@ -15,6 +15,10 @@
 .PARAMETER Configuration
     Build configuration: Debug (default) or Release.
 
+.PARAMETER Arch
+    Target CPU architecture: x64 (default) or arm64. Selects which
+    publish output (win-x64 or win-arm64) to put on PATH and to run.
+
 .PARAMETER ExtraArgs
     Additional arguments passed through to GVFS.FunctionalTests.exe
     (e.g. --test=GVFS.FunctionalTests.Tests.GVFSVerbTests.UnknownVerb)
@@ -22,11 +26,14 @@
 .EXAMPLE
     .\RunFunctionalTests-Dev.ps1
     .\RunFunctionalTests-Dev.ps1 -Configuration Release
+    .\RunFunctionalTests-Dev.ps1 -Configuration Release -Arch arm64
     .\RunFunctionalTests-Dev.ps1 -ExtraArgs "--test=GVFS.FunctionalTests.Tests.GVFSVerbTests.UnknownVerb"
     .\RunFunctionalTests-Dev.ps1 Debug --test=GVFS.FunctionalTests.Tests.EnlistmentPerFixture.WorktreeTests
 #>
 param(
     [string]$Configuration = "Debug",
+    [ValidateSet("x64","arm64")]
+    [string]$Arch = "x64",
     [Parameter(ValueFromRemainingArguments)]
     [string[]]$ExtraArgs
 )
@@ -58,14 +65,22 @@ $env:GVFS_TEST_DATA = Join-Path $env:TEMP "GVFS-FunctionalTest-$hash.$PID"
 $env:GVFS_COMMON_APPDATA_ROOT = Join-Path $env:GVFS_TEST_DATA "AppData"
 $env:GVFS_SECURE_DATA_ROOT = Join-Path $env:GVFS_TEST_DATA "ProgramData"
 
-# Put build output gvfs.exe on PATH
-$payloadDir = Join-Path $outDir "GVFS.Payload\bin\$Configuration\net10.0-windows10.0.17763.0\win-x64\publish"
+# Put build output gvfs.exe on PATH. The Payload csproj sets
+# <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+# and layout.bat assembles binaries under bin\<Configuration>\win-<arch>\,
+# so there is no net<tfm>\publish\ segment for this project.
+$payloadDir = Join-Path $outDir "GVFS.Payload\bin\$Configuration\win-$Arch"
+if (-not (Test-Path (Join-Path $payloadDir "GVFS.exe"))) {
+    Write-Error "Payload GVFS.exe not found at $payloadDir. Has the solution been built for $Arch / $Configuration?"
+    exit 1
+}
 $env:PATH = "$payloadDir;C:\Program Files\Git\cmd;$env:PATH"
 
 Write-Host "============================================"
 Write-Host "GVFS Functional Tests - Dev Mode (no admin)"
 Write-Host "============================================"
 Write-Host "Configuration:       $Configuration"
+Write-Host "Architecture:        $Arch"
 Write-Host "Build output:        $outDir"
 Write-Host "Test service:        $env:GVFS_TEST_SERVICE_NAME"
 Write-Host "Test data:           $env:GVFS_TEST_DATA"
@@ -87,8 +102,9 @@ if (-not $gitPath) {
 Write-Host "git location:        $($gitPath.Source)"
 Write-Host ""
 
-# Build test exe path
-$testExe = Join-Path $outDir "GVFS.FunctionalTests\bin\$Configuration\net10.0-windows10.0.17763.0\win-x64\publish\GVFS.FunctionalTests.exe"
+# Build test exe path. The FunctionalTests csproj is a regular AOT-published
+# executable, so it ends up under the standard publish layout.
+$testExe = Join-Path $outDir "GVFS.FunctionalTests\bin\$Configuration\net10.0-windows10.0.17763.0\win-$Arch\publish\GVFS.FunctionalTests.exe"
 if (-not (Test-Path $testExe)) {
     Write-Error "Test executable not found: $testExe`nRun Build.bat first."
     exit 1
