@@ -103,6 +103,7 @@ namespace GVFS.FunctionalTests.Tests
         }
 
         [TestCase]
+        [SkipInCI("Atrophied: test repo Scripts folder no longer exists on FunctionalTests/20201014 branch")]
         public void CanFetchAndCheckoutMultipleTimesUsingForceCheckoutFlag()
         {
             this.RunFastFetch($"--checkout --folders \"/GVFS\" -b {Settings.Default.Commitish}");
@@ -139,6 +140,7 @@ namespace GVFS.FunctionalTests.Tests
         }
 
         [TestCase]
+        [SkipInCI("Atrophied: test repo Scripts folder no longer exists on FunctionalTests/20201014 branch")]
         public void ForceCheckoutRequiresCheckout()
         {
             this.RunFastFetch($"--checkout --folders \"/Scripts\" -b {Settings.Default.Commitish}");

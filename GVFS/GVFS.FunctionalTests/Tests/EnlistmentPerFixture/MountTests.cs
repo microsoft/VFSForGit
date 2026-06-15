@@ -392,13 +392,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string logsRoot = this.Enlistment.GVFSLogsRoot;
             logsRoot.ShouldBeADirectory(this.fileSystem);
 
-            string latestLog = Directory.GetFiles(logsRoot, "*.log")
-                .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
-                .FirstOrDefault();
+            // Mount errors may be in GVFS.Mount's log, not the verb's log.
+            // Search all recent log files for the expected message.
+            string[] logFiles = Directory.GetFiles(logsRoot, "*.log");
+            logFiles.Length.ShouldBeAtLeast(1, "No GVFS log files found in " + logsRoot);
 
-            latestLog.ShouldNotBeNull("No GVFS log files found in " + logsRoot);
-            string logContents = File.ReadAllText(latestLog);
-            logContents.ShouldContain(expectedMessage);
+            foreach (string logFile in logFiles)
+            {
+                string contents = File.ReadAllText(logFile);
+                if (contents.Contains(expectedMessage))
+                {
+                    return;
+                }
+            }
+
+            // Not found in any log — fail with the contents of the most recent log for diagnostics
+            string latestLog = logFiles
+                .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+                .First();
+            string latestContents = File.ReadAllText(latestLog);
+            latestContents.ShouldContain(expectedMessage);
         }
 
         private class MountSubfolders
