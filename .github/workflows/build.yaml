@@ -255,13 +255,14 @@ jobs:
         path: MicrosoftGit
 
   build:
-    runs-on: windows-2025
+    runs-on: ${{ matrix.architecture == 'arm64' && 'windows-11-arm' || 'windows-2025' }}
     name: Build and Unit Test
     needs: validate
 
     strategy:
       matrix:
         configuration: [ Release ]
+        architecture: [ x64, arm64 ]
       fail-fast: false
 
     steps:
@@ -290,17 +291,10 @@ jobs:
       if: steps.skip.outputs.result != 'true'
       uses: microsoft/setup-msbuild@v3.0.0
 
-    - name: Install vcpkg native dependencies
-      if: steps.skip.outputs.result != 'true'
-      shell: cmd
-      run: |
-        "%VCPKG_INSTALLATION_ROOT%\vcpkg.exe" install --triplet x64-windows-static-aot --x-install-root=out\vcpkg_installed\static --x-manifest-root=src || exit /b 1
-        "%VCPKG_INSTALLATION_ROOT%\vcpkg.exe" install --triplet x64-windows-dynamic --x-install-root=out\vcpkg_installed\dynamic --x-manifest-root=src || exit /b 1
-
     - name: Build VFS for Git
       if: steps.skip.outputs.result != 'true'
       shell: cmd
-      run: src\scripts\Build.bat ${{ matrix.configuration }}
+      run: src\scripts\Build.bat ${{ matrix.configuration }} 0.2.173.2 minimal ${{ matrix.architecture }}
 
     - name: Run unit tests
       if: steps.skip.outputs.result != 'true'
@@ -316,21 +310,21 @@ jobs:
       if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v7
       with:
-        name: FunctionalTests_${{ matrix.configuration }}
+        name: FunctionalTests_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: artifacts\GVFS.FunctionalTests
 
     - name: Upload FastFetch drop
       if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v7
       with:
-        name: FastFetch_${{ matrix.configuration }}
+        name: FastFetch_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: artifacts\FastFetch
 
     - name: Upload GVFS installer
       if: steps.skip.outputs.result != 'true'
       uses: actions/upload-artifact@v7
       with:
-        name: GVFS_${{ matrix.configuration }}
+        name: GVFS_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: artifacts\GVFS.Installers
 
   functional_tests:

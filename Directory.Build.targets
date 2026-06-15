@@ -96,14 +96,14 @@
     <Error Condition="'$(UseTerrapinAssetCache)' == 'true' and ('$(TerrapinRetrievalToolPath)' == '' or !Exists('$(TerrapinRetrievalToolPath)'))"
            Text="UseTerrapinAssetCache=true but TerrapinRetrievalToolPath is empty or does not exist. The release pipeline must pre-download the Microsoft.Build.Vcpkg NuGet package and pass -p:TerrapinRetrievalToolPath=&lt;path-to-TerrapinRetrievalTool.exe&gt;." />
 
-    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet x64-windows-static-aot --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\static&quot; $(_VcpkgManifestArg) $(_VcpkgAssetSources)"
+    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet $(VfsArch)-windows-static-aot --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\static&quot; $(_VcpkgManifestArg) $(_VcpkgAssetSources)"
           StandardOutputImportance="High" StandardErrorImportance="High" />
-    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet x64-windows-dynamic --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\dynamic&quot; $(_VcpkgManifestArg) $(_VcpkgAssetSources)"
+    <Exec Command="&quot;$(_VcpkgExe)&quot; install --x-wait-for-lock --triplet $(VfsArch)-windows-dynamic --x-install-root=&quot;$(RepoOutPath)vcpkg_installed\dynamic&quot; $(_VcpkgManifestArg) $(_VcpkgAssetSources)"
           StandardOutputImportance="High" StandardErrorImportance="High" />
 
-    <Error Condition="!Exists('$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\git2.dll')"
+    <Error Condition="!Exists('$(RepoOutPath)vcpkg_installed\dynamic\$(VfsArch)-windows-dynamic\bin\git2.dll')"
            Text="vcpkg install completed but git2.dll (dynamic) is missing. Check vcpkg output above for errors." />
-    <Error Condition="!Exists('$(RepoOutPath)vcpkg_installed\static\x64-windows-static-aot\lib\git2.lib')"
+    <Error Condition="!Exists('$(RepoOutPath)vcpkg_installed\static\$(VfsArch)-windows-static-aot\lib\git2.lib')"
            Text="vcpkg install completed but git2.lib (static) is missing. Check vcpkg output above for errors." />
 
     <Touch Files="$(_VcpkgStampFile)" AlwaysCreate="true" />

@@ -23,10 +23,10 @@
     </ProjectReference>
     <ProjectReference Include="..\GVFS.UnitTests\GVFS.UnitTests.csproj" />
     <!-- Native tests are built separately by VS MSBuild; copy output directly -->
-    <None Include="$(RepoOutPath)GVFS.NativeTests\bin\x64\$(Configuration)\GVFS.NativeTests.dll">
+    <None Include="$(RepoOutPath)GVFS.NativeTests\bin\$(VfsNativePlatform)\$(Configuration)\GVFS.NativeTests.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="$(RepoOutPath)GVFS.NativeTests\bin\x64\$(Configuration)\GVFS.NativeTests.pdb">
+    <None Include="$(RepoOutPath)GVFS.NativeTests\bin\$(VfsNativePlatform)\$(Configuration)\GVFS.NativeTests.pdb">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
