@@ -14,6 +14,7 @@ namespace GVFS.CommandLine
     {
         private const string MountVerbName = "mount";
         private Process mountProcess;
+        private volatile string currentMountProgress;
 
         public string Verbosity { get; set; }
 
@@ -197,7 +198,9 @@ namespace GVFS.CommandLine
 
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
-                    "Mounting"))
+                    getMessage: () => this.currentMountProgress,
+                    "Mounting",
+                    enlistment.WorkingDirectoryRoot))
                 {
                     ReturnCode mountExitCode = ReturnCode.GenericError;
                     if (this.mountProcess != null)
@@ -277,7 +280,13 @@ namespace GVFS.CommandLine
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for repo to be mounted");
 
-            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.NamedPipeName, enlistment.WorkingDirectoryRoot, this.Unattended, out errorMessage);
+            return GVFSEnlistment.WaitUntilMounted(
+                tracer,
+                enlistment.NamedPipeName,
+                enlistment.WorkingDirectoryRoot,
+                this.Unattended,
+                out errorMessage,
+                onProgress: progress => this.currentMountProgress = progress);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
