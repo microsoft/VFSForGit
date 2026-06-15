@@ -495,68 +495,79 @@ namespace GVFS.Mount
                 return;
             }
 
-            switch (message.Header)
+            try
             {
-                case NamedPipeMessages.GetStatus.Request:
-                    this.HandleGetStatusRequest(connection);
-                    break;
+                switch (message.Header)
+                {
+                    case NamedPipeMessages.GetStatus.Request:
+                        this.HandleGetStatusRequest(connection);
+                        break;
 
-                case NamedPipeMessages.Unmount.Request:
-                    this.HandleUnmountRequest(connection);
-                    break;
+                    case NamedPipeMessages.Unmount.Request:
+                        this.HandleUnmountRequest(connection);
+                        break;
 
-                case NamedPipeMessages.AcquireLock.AcquireRequest:
-                    this.HandleLockRequest(message.Body, connection);
-                    break;
+                    case NamedPipeMessages.AcquireLock.AcquireRequest:
+                        this.HandleLockRequest(message.Body, connection);
+                        break;
 
-                case NamedPipeMessages.ReleaseLock.Request:
-                    this.HandleReleaseLockRequest(message.Body, connection);
-                    break;
+                    case NamedPipeMessages.ReleaseLock.Request:
+                        this.HandleReleaseLockRequest(message.Body, connection);
+                        break;
 
-                case NamedPipeMessages.DownloadObject.DownloadRequest:
-                    this.HandleDownloadObjectRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.DownloadObject.DownloadRequest:
+                        this.HandleDownloadObjectRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.ModifiedPaths.ListRequest:
-                    this.HandleModifiedPathsListRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.ModifiedPaths.ListRequest:
+                        this.HandleModifiedPathsListRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.PostIndexChanged.NotificationRequest:
-                    this.HandlePostIndexChangedRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.PostIndexChanged.NotificationRequest:
+                        this.HandlePostIndexChangedRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.PrepareForUnstage.Request:
-                    this.HandlePrepareForUnstageRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.PrepareForUnstage.Request:
+                        this.HandlePrepareForUnstageRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
-                    this.HandlePostFetchJobRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
+                        this.HandlePostFetchJobRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.DehydrateFolders.Dehydrate:
-                    this.HandleDehydrateFolders(message, connection);
-                    break;
+                    case NamedPipeMessages.DehydrateFolders.Dehydrate:
+                        this.HandleDehydrateFolders(message, connection);
+                        break;
 
-                case NamedPipeMessages.PrefetchCommits.Request:
-                    this.HandlePrefetchCommitsRequest(connection);
-                    break;
+                    case NamedPipeMessages.PrefetchCommits.Request:
+                        this.HandlePrefetchCommitsRequest(connection);
+                        break;
 
-                case NamedPipeMessages.PrefetchBlobs.RequestHeader:
-                    this.HandlePrefetchBlobsRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.PrefetchBlobs.RequestHeader:
+                        this.HandlePrefetchBlobsRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.HydrationStatus.Request:
-                    this.HandleGetHydrationStatusRequest(connection);
-                    break;
+                    case NamedPipeMessages.HydrationStatus.Request:
+                        this.HandleGetHydrationStatusRequest(connection);
+                        break;
 
-                default:
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", "Mount");
-                    metadata.Add("Header", message.Header);
-                    this.tracer.RelatedError(metadata, "HandleRequest: Unknown request");
+                    default:
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Area", "Mount");
+                        metadata.Add("Header", message.Header);
+                        this.tracer.RelatedError(metadata, "HandleRequest: Unknown request");
 
-                    connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
-                    break;
+                        connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
+                        break;
+                }
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", "Mount");
+                metadata.Add("Header", message.Header);
+                metadata.Add("Exception", e.ToString());
+                this.tracer.RelatedError(metadata, "HandleRequest: Unhandled exception in request handler");
             }
         }
 
@@ -901,56 +912,76 @@ namespace GVFS.Mount
                 }
                 else
                 {
-                    Stopwatch downloadTime = Stopwatch.StartNew();
+                    try
+                    {
+                        response = this.DownloadObject(objectSha);
+                    }
+                    catch (Exception e) when (e is not OutOfMemoryException)
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Area", "Mount");
+                        metadata.Add("objectSha", objectSha);
+                        metadata.Add("Exception", e.ToString());
+                        this.tracer.RelatedWarning(metadata, nameof(this.HandleDownloadObjectRequest) + ": Exception downloading object");
 
-                    /* If this is the root tree for a commit that was was just downloaded, assume that more
-                     * trees will be needed soon and download them as well by using the download commit API.
-                     *
-                     * Otherwise, or as a fallback if the commit download fails, download the object directly.
-                     */
-                    if (this.ShouldDownloadCommitPack(objectSha, out string commitSha)
-                        && this.gitObjects.TryDownloadCommit(commitSha))
-                    {
-                        this.DownloadedCommitPack(commitSha);
-                        response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
-                        // FUTURE: Should the stats be updated to reflect all the trees in the pack?
-                        // FUTURE: Should we try to clean up duplicate trees or increase depth of the commit download?
-                    }
-                    else if (this.gitObjects.TryDownloadAndSaveObject(objectSha, GVFSGitObjects.RequestSource.NamedPipeMessage) == GitObjects.DownloadAndSaveObjectResult.Success)
-                    {
-                        this.UpdateTreesForDownloadedCommits(objectSha);
-                        response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
-                    }
-                    else
-                    {
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.DownloadFailed);
-                    }
-
-
-                    Native.ObjectTypes? objectType;
-                    this.context.Repository.TryGetObjectType(objectSha, out objectType);
-                    this.context.Repository.GVFSLock.Stats.RecordObjectDownload(objectType == Native.ObjectTypes.Blob, downloadTime.ElapsedMilliseconds);
-
-                    if (objectType == Native.ObjectTypes.Commit
-                        && !this.context.Repository.CommitAndRootTreeExists(objectSha, out var treeSha)
-                        && !string.IsNullOrEmpty(treeSha))
-                    {
-                        /* If a commit is downloaded, it wasn't prefetched.
-                         * The trees for the commit may be needed soon depending on the context.
-                         * e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
-                         *
-                         * If any prefetch has been done there is probably a similar commit/tree in the graph,
-                         * but in case there isn't (such as if the cache server repack maintenance job is failing)
-                         * we should still try to avoid downloading an excessive number of loose trees for a commit.
-                         *
-                         * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
-                         */
-                        this.missingTreeTracker.AddMissingRootTree(treeSha: treeSha, commitSha: objectSha);
                     }
                 }
             }
 
             connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private NamedPipeMessages.DownloadObject.Response DownloadObject(string objectSha)
+        {
+            NamedPipeMessages.DownloadObject.Response response;
+            Stopwatch downloadTime = Stopwatch.StartNew();
+
+            /* If this is the root tree for a commit that was was just downloaded, assume that more
+             * trees will be needed soon and download them as well by using the download commit API.
+             *
+             * Otherwise, or as a fallback if the commit download fails, download the object directly.
+             */
+            if (this.ShouldDownloadCommitPack(objectSha, out string commitSha)
+                && this.gitObjects.TryDownloadCommit(commitSha))
+            {
+                this.DownloadedCommitPack(commitSha);
+                response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
+                // FUTURE: Should the stats be updated to reflect all the trees in the pack?
+                // FUTURE: Should we try to clean up duplicate trees or increase depth of the commit download?
+            }
+            else if (this.gitObjects.TryDownloadAndSaveObject(objectSha, GVFSGitObjects.RequestSource.NamedPipeMessage) == GitObjects.DownloadAndSaveObjectResult.Success)
+            {
+                this.UpdateTreesForDownloadedCommits(objectSha);
+                response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
+            }
+            else
+            {
+                response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.DownloadFailed);
+            }
+
+            Native.ObjectTypes? objectType;
+            this.context.Repository.TryGetObjectType(objectSha, out objectType);
+            this.context.Repository.GVFSLock.Stats.RecordObjectDownload(objectType == Native.ObjectTypes.Blob, downloadTime.ElapsedMilliseconds);
+
+            if (objectType == Native.ObjectTypes.Commit
+                && !this.context.Repository.CommitAndRootTreeExists(objectSha, out var treeSha)
+                && !string.IsNullOrEmpty(treeSha))
+            {
+                /* If a commit is downloaded, it wasn't prefetched.
+                 * The trees for the commit may be needed soon depending on the context.
+                 * e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
+                 *
+                 * If any prefetch has been done there is probably a similar commit/tree in the graph,
+                 * but in case there isn't (such as if the cache server repack maintenance job is failing)
+                 * we should still try to avoid downloading an excessive number of loose trees for a commit.
+                 *
+                 * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
+                 */
+                this.missingTreeTracker.AddMissingRootTree(treeSha: treeSha, commitSha: objectSha);
+            }
+
+            return response;
         }
 
         private bool ShouldDownloadCommitPack(string objectSha, out string commitSha)
