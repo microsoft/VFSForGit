@@ -3,12 +3,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace GVFS.Common
 {
     public static class ProcessHelper
     {
         private static string currentProcessVersion = null;
+        private static string currentProcessArchitecture = null;
 
         public static ProcessResult Run(string programName, string args, bool redirectOutput = true)
         {
@@ -80,6 +82,30 @@ namespace GVFS.Common
             }
 
             return currentProcessVersion;
+        }
+
+        /// <summary>
+        /// Returns the architecture of the running process as a .NET RID-style
+        /// lowercase string (e.g. "x64", "arm64"). Used by telemetry so each
+        /// emitted event records which native build is running, which lets us
+        /// distinguish ARM64-native installs from x64-under-Prism installs in
+        /// downstream analysis.
+        /// </summary>
+        public static string GetCurrentProcessArchitecture()
+        {
+            if (currentProcessArchitecture == null)
+            {
+                currentProcessArchitecture = RuntimeInformation.ProcessArchitecture switch
+                {
+                    Architecture.X64 => "x64",
+                    Architecture.Arm64 => "arm64",
+                    Architecture.X86 => "x86",
+                    Architecture.Arm => "arm",
+                    _ => RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant(),
+                };
+            }
+
+            return currentProcessArchitecture;
         }
 
         public static bool IsDevelopmentVersion()
