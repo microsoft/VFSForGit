@@ -304,7 +304,7 @@ jobs:
     - name: Create build artifacts
       if: steps.skip.outputs.result != 'true'
       shell: cmd
-      run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts
+      run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts ${{ matrix.architecture }}
 
     - name: Upload functional tests drop
       if: steps.skip.outputs.result != 'true'
