@@ -84,21 +84,11 @@ namespace GVFS.FunctionalTests
                         new object[] { validateMode },
                     };
 
-                if (runner.HasCustomArg("--extra-only"))
-                {
-                    Console.WriteLine("Running only the tests marked as ExtraCoverage");
-                    includeCategories.Add(Categories.ExtraCoverage);
-                }
-                else
-                {
-                    excludeCategories.Add(Categories.ExtraCoverage);
-                }
-
                 // If we're running in CI exclude tests that are currently
                 // flakey or broken when run in a CI environment.
                 if (runner.HasCustomArg("--ci"))
                 {
-                    excludeCategories.Add(Categories.NeedsReactionInCI);
+                    excludeCategories.Add(Categories.SkipInCI);
                 }
 
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;

@@ -21,7 +21,7 @@ namespace GVFS.Common.Database
 
                 try
                 {
-                    string sqliteConnectionString = CreateConnectionString(databasePath);
+                    string sqliteConnectionString = $"data source={databasePath};Pooling=False";
                     using (SqliteConnection integrityConnection = new SqliteConnection(sqliteConnectionString))
                     {
                         integrityConnection.Open();

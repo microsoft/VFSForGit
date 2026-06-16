@@ -54,6 +54,54 @@ namespace GVFS.Virtualization.BlobSize
             string folderPath = Path.GetDirectoryName(this.databasePath);
             this.fileSystem.CreateDirectory(folderPath);
 
+            try
+            {
+                this.InitializeDatabase();
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode == SqliteErrorCodes.Corrupt || ex.SqliteErrorCode == SqliteErrorCodes.NotADatabase)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(ex);
+                metadata.Add("SqliteErrorCode", ex.SqliteErrorCode);
+                this.tracer.RelatedWarning(metadata, $"{nameof(BlobSizes)}.{nameof(this.Initialize)}: database corrupt, deleting and recreating");
+
+                SqliteConnection.ClearAllPools();
+                this.DeleteDatabaseFiles();
+                this.InitializeDatabase();
+            }
+
+            this.flushDataThread = new Thread(this.FlushDbThreadMain);
+            this.flushDataThread.IsBackground = true;
+            this.flushDataThread.Start();
+        }
+
+        public virtual void Shutdown()
+        {
+            this.isStopping = true;
+            this.wakeUpFlushThread.Set();
+            this.flushDataThread.Join();
+        }
+
+        public virtual void AddSize(Sha1Id sha, long size)
+        {
+            this.queuedSizes.Enqueue(new BlobSize(sha, size));
+        }
+
+        public virtual void Flush()
+        {
+            this.wakeUpFlushThread.Set();
+        }
+
+        public void Dispose()
+        {
+            if (this.wakeUpFlushThread != null)
+            {
+                this.wakeUpFlushThread.Dispose();
+                this.wakeUpFlushThread = null;
+            }
+        }
+
+        private void InitializeDatabase()
+        {
             using (SqliteConnection connection = new SqliteConnection(this.sqliteConnectionString))
             {
                 connection.Open();
@@ -125,36 +173,13 @@ namespace GVFS.Virtualization.BlobSize
                     createTableCommand.ExecuteNonQuery();
                 }
             }
-
-            this.flushDataThread = new Thread(this.FlushDbThreadMain);
-            this.flushDataThread.IsBackground = true;
-            this.flushDataThread.Start();
         }
 
-        public virtual void Shutdown()
+        private void DeleteDatabaseFiles()
         {
-            this.isStopping = true;
-            this.wakeUpFlushThread.Set();
-            this.flushDataThread.Join();
-        }
-
-        public virtual void AddSize(Sha1Id sha, long size)
-        {
-            this.queuedSizes.Enqueue(new BlobSize(sha, size));
-        }
-
-        public virtual void Flush()
-        {
-            this.wakeUpFlushThread.Set();
-        }
-
-        public void Dispose()
-        {
-            if (this.wakeUpFlushThread != null)
-            {
-                this.wakeUpFlushThread.Dispose();
-                this.wakeUpFlushThread = null;
-            }
+            this.fileSystem.TryDeleteFile(this.databasePath);
+            this.fileSystem.TryDeleteFile(this.databasePath + "-wal");
+            this.fileSystem.TryDeleteFile(this.databasePath + "-shm");
         }
 
         private void FlushDbThreadMain()

@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 namespace GVFS.FunctionalTests.Tests
 {
     [TestFixture]
-    [Category(Categories.ExtraCoverage)]
     public class DiskLayoutVersionTests : TestsWithEnlistmentPerTestCase
     {
         private const int CurrentDiskLayoutMinorVersion = 0;

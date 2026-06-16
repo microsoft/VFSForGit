@@ -100,12 +100,13 @@ namespace GVFS.Tests
             // Now distribute the tests into the buckets.
             // Tests from the same fixture class must stay in the same bucket
             // when the fixture shares a single enlistment across tests (both
-            // EnlistmentPerFixture classes and GitCommands fixture classes like
-            // GitCommandsTests, CheckoutTests, etc. use a shared enlistment).
+            // EnlistmentPerFixture classes, MultiEnlistmentTests with [Order],
+            // and GitCommands fixture classes like GitCommandsTests, CheckoutTests,
+            // etc. use a shared enlistment).
             // The regex captures "everything up to and including the class name"
             // so that SomeClass.TestA and SomeClass.TestB share a prefix.
             Regex fixtureRegex = new Regex(
-                @"^.*\.(?:EnlistmentPerFixture|GitCommands)\..+\.",
+                @"^.*\.(?:EnlistmentPerFixture|MultiEnlistmentTests|GitCommands)\..+\.",
                 RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
             for (uint i = 0; i < list.Length; i++)
             {
