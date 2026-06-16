@@ -299,12 +299,12 @@ jobs:
     - name: Run unit tests
       if: steps.skip.outputs.result != 'true'
       shell: cmd
-      run: src\scripts\RunUnitTests.bat ${{ matrix.configuration }}
+      run: src\scripts\RunUnitTests.bat ${{ matrix.configuration }} ${{ matrix.architecture }}
 
     - name: Create build artifacts
       if: steps.skip.outputs.result != 'true'
       shell: cmd
-      run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts
+      run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts ${{ matrix.architecture }}
 
     - name: Upload functional tests drop
       if: steps.skip.outputs.result != 'true'

@@ -13,6 +13,14 @@
     -->
     <InstallerArchSuffix Condition="'$(VfsArch)' == 'arm64'">-arm64</InstallerArchSuffix>
     <InstallerArchSuffix Condition="'$(InstallerArchSuffix)' == ''"></InstallerArchSuffix>
+
+    <!--
+      Inno Setup ArchitecturesInstallIn64BitMode / ArchitecturesAllowed value.
+      x64 uses "x64compatible" (allows install on x64 and ARM64-via-Prism).
+      ARM64 uses "arm64" (native ARM64 only).
+    -->
+    <InstallerTargetArch Condition="'$(VfsArch)' == 'arm64'">arm64</InstallerTargetArch>
+    <InstallerTargetArch Condition="'$(InstallerTargetArch)' == ''">x64compatible</InstallerTargetArch>
   </PropertyGroup>
 
   <ItemDefinitionGroup>
@@ -35,7 +43,7 @@
   </ItemGroup>
 
   <Target Name="CreateInstaller" BeforeTargets="Build" Condition="'$(SkipCreateInstaller)' != 'true'">
-    <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) /DArchSuffix=$(InstallerArchSuffix) Setup.iss /O"$(OutputPath)"' />
+    <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) /DArchSuffix=$(InstallerArchSuffix) /DTargetArch=$(InstallerTargetArch) Setup.iss /O"$(OutputPath)"' />
   </Target>
 
   <Target Name="CleanInstaller" BeforeTargets="AfterClean">

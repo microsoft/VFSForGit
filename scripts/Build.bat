@@ -183,7 +183,7 @@ FOR %%P IN (
     "%VFS_SRCDIR%\GVFS\GVFS.PerfProfiling\GVFS.PerfProfiling.csproj"
 ) DO (
     ECHO Publishing %%~nP...
-    dotnet publish %%P --no-restore -v:%VERBOSITY% -c %CONFIGURATION% /p:VfsArch=%ARCH% || GOTO ERROR
+    dotnet publish %%P -v:%VERBOSITY% -c %CONFIGURATION% /p:VfsArch=%ARCH% || GOTO ERROR
 )
 
 ECHO ^*******************************
@@ -196,7 +196,7 @@ FOR %%P IN (
     "%VFS_SRCDIR%\GVFS\GVFS.Installers\GVFS.Installers.csproj"
 ) DO (
     ECHO Publishing %%~nP...
-    dotnet publish %%P --no-restore -v:%VERBOSITY% -c %CONFIGURATION% /p:VfsArch=%ARCH% || GOTO ERROR
+    dotnet publish %%P -v:%VERBOSITY% -c %CONFIGURATION% /p:VfsArch=%ARCH% || GOTO ERROR
 )
 
 GOTO :EOF
