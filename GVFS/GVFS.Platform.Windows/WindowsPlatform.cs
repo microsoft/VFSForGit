@@ -153,6 +153,12 @@ namespace GVFS.Platform.Windows
                 processInfo.UseShellExecute = true;
                 processInfo.WindowStyle = ProcessWindowStyle.Hidden;
 
+                // Set the working directory to the program's own directory so the
+                // background process does not hold a handle on the caller's CWD.
+                // This allows callers (e.g. bootstrapping tools) to clean up or
+                // delete their own directory after launching gvfs clone/mount.
+                processInfo.WorkingDirectory = Path.GetDirectoryName(programName);
+
                 Process executingProcess = new Process();
                 executingProcess.StartInfo = processInfo;
                 executingProcess.Start();
