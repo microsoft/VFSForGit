@@ -60,12 +60,11 @@ Type: files; Name: "{app}\ucrtbase.dll"
 
 [Files]
 ; Versioned install: all files go to {app}\Versions\{version}
-; Service binary gets AfterInstall callback to register service with binPath pointing to {app}\Current\GVFS.Service.exe
+; No service — using machine-wide logon task instead
 DestDir: "{app}\Versions\{#MyAppInstallerVersion}"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"
-DestDir: "{app}\Versions\{#MyAppInstallerVersion}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
 
 [Dirs]
-Name: "{app}\ProgramData\{#ServiceName}"; Permissions: users-readexec
+; No longer creating service ProgramData directory — not using service
 
 [UninstallDelete]
 ; Deletes the entire installation directory, including files and subdirectories
@@ -86,7 +85,6 @@ Root: HKLM; SubKey: "{#GvFltAutologgerKey}"; Flags: deletekey
 [Code]
 var
   ExitCode: Integer;
-  KeepMountsRunning: Boolean;
 
 function NeedsAddPath(Param: string): boolean;
 var
@@ -257,7 +255,7 @@ procedure WriteOnDiskVersion16CapableFile();
 var
   FilePath: string;
 begin
-  FilePath := ExpandConstant('{app}\Versions\{#MyAppInstallerVersion}\OnDiskVersion16CapableInstallation.dat');
+  FilePath := ExpandConstant('{app}\OnDiskVersion16CapableInstallation.dat');
   if not FileExists(FilePath) then
     begin
       Log('WriteOnDiskVersion16CapableFile: Writing file ' + FilePath);
@@ -265,49 +263,86 @@ begin
     end
 end;
 
-procedure InstallGVFSService();
+procedure RegisterAutoMountLogonTask();
 var
   ResultCode: integer;
   StatusText: string;
-  InstallSuccessful: Boolean;
+  GvfsExe: string;
+  TempXmlFile: string;
+  TaskXml: string;
 begin
-  InstallSuccessful := False;
-
   StatusText := WizardForm.StatusLabel.Caption;
-  WizardForm.StatusLabel.Caption := 'Installing GVFS.Service.';
+  WizardForm.StatusLabel.Caption := 'Registering AutoMount logon task...';
   WizardForm.ProgressGauge.Style := npbstMarquee;
 
-  // Spaces after the equal signs are REQUIRED.
-  // https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create#remarks
   try
-    // We must add additional quotes to the binPath to ensure that they survive argument parsing.
-    // Without quotes, sc.exe will try to start a file located at C:\Program if it exists.
-    // Use {app}\Current\GVFS.Service.exe so the service path survives version upgrades via junction swap.
-    if Exec(ExpandConstant('{sys}\SC.EXE'), ExpandConstant('create GVFS.Service binPath= "\"{app}\Current\GVFS.Service.exe\"" start= auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
-      begin
-        if Exec(ExpandConstant('{sys}\SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-          begin
-            if Exec(ExpandConstant('{sys}\SC.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-              begin
-                InstallSuccessful := True;
-              end;
-          end;
-      end;
+    GvfsExe := ExpandConstant('{app}\Current\gvfs.exe');
+    TempXmlFile := ExpandConstant('{tmp}\~taskxml.xml');
 
-    WriteOnDiskVersion16CapableFile();
+    // Machine-wide logon task using Interactive Users group (S-1-5-4).
+    // Fires for every interactive user at logon. Each user's gvfs service
+    // --mount-all reads their own LocalRepoRegistry.
+    TaskXml := '<?xml version="1.0" encoding="UTF-16"?>' + #13#10 +
+      '<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">' + #13#10 +
+      '  <RegistrationInfo>' + #13#10 +
+      '    <Author>GVFS</Author>' + #13#10 +
+      '    <Description>Mounts registered GVFS enlistments at logon for each interactive user. Required by VFS for Git.</Description>' + #13#10 +
+      '    <URI>\GVFS\AutoMount</URI>' + #13#10 +
+      '  </RegistrationInfo>' + #13#10 +
+      '  <Triggers>' + #13#10 +
+      '    <LogonTrigger>' + #13#10 +
+      '      <Enabled>true</Enabled>' + #13#10 +
+      '    </LogonTrigger>' + #13#10 +
+      '  </Triggers>' + #13#10 +
+      '  <Principals>' + #13#10 +
+      '    <Principal id="Author">' + #13#10 +
+      '      <GroupId>S-1-5-4</GroupId>' + #13#10 +
+      '      <RunLevel>LeastPrivilege</RunLevel>' + #13#10 +
+      '    </Principal>' + #13#10 +
+      '  </Principals>' + #13#10 +
+      '  <Settings>' + #13#10 +
+      '    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>' + #13#10 +
+      '    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>' + #13#10 +
+      '    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>' + #13#10 +
+      '    <AllowHardTerminate>true</AllowHardTerminate>' + #13#10 +
+      '    <StartWhenAvailable>true</StartWhenAvailable>' + #13#10 +
+      '    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>' + #13#10 +
+      '    <IdleSettings>' + #13#10 +
+      '      <StopOnIdleEnd>false</StopOnIdleEnd>' + #13#10 +
+      '      <RestartOnIdle>false</RestartOnIdle>' + #13#10 +
+      '    </IdleSettings>' + #13#10 +
+      '    <AllowStartOnDemand>true</AllowStartOnDemand>' + #13#10 +
+      '    <Enabled>true</Enabled>' + #13#10 +
+      '    <Hidden>false</Hidden>' + #13#10 +
+      '    <RunOnlyIfIdle>false</RunOnlyIfIdle>' + #13#10 +
+      '    <WakeToRun>false</WakeToRun>' + #13#10 +
+      '    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>' + #13#10 +
+      '    <Priority>5</Priority>' + #13#10 +
+      '  </Settings>' + #13#10 +
+      '  <Actions Context="Author">' + #13#10 +
+      '    <Exec>' + #13#10 +
+      '      <Command>conhost.exe</Command>' + #13#10 +
+      '      <Arguments>--headless "' + GvfsExe + '" service --mount-all</Arguments>' + #13#10 +
+      '    </Exec>' + #13#10 +
+      '  </Actions>' + #13#10 +
+      '</Task>';
+
+    SaveStringToFile(TempXmlFile, TaskXml, False);
+    Log('RegisterAutoMountLogonTask: Wrote task XML to ' + TempXmlFile);
+
+    // Create task folder if needed, then register task
+    Exec(ExpandConstant('{sys}\schtasks.exe'), '/Create /TN "\GVFS\AutoMount" /XML "' + TempXmlFile + '" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    if ResultCode = 0 then
+      Log('RegisterAutoMountLogonTask: Logon task registered successfully')
+    else
+      Log('RegisterAutoMountLogonTask: schtasks /Create returned ' + IntToStr(ResultCode));
+
+    DeleteFile(TempXmlFile);
   finally
     WizardForm.StatusLabel.Caption := StatusText;
     WizardForm.ProgressGauge.Style := npbstNormal;
   end;
-
-  if InstallSuccessful = False then
-    begin
-      RaiseException('Fatal: An error occured while installing GVFS.Service.');
-    end;
 end;
-
-// StagingUpdateService removed - staging upgrade flow replaced by versioned layout with junction swap.
-// Service install/start is handled in InstallGVFSService.
 
 function DeleteFileIfItExists(FilePath: string) : Boolean;
 begin
@@ -483,41 +518,6 @@ begin
   DeleteFile(TempFilename);
 end;
 
-procedure UnmountRepos();
-var
-  ResultCode: integer;
-begin
-  Exec('gvfs.exe', 'service --unmount-all', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-end;
-
-procedure MountRepos();
-var
-  StatusText: string;
-  MountOutput: ansiString;
-  ResultCode: integer;
-  MsgBoxText: string;
-begin
-  StatusText := WizardForm.StatusLabel.Caption;
-  WizardForm.StatusLabel.Caption := 'Mounting Repos.';
-  WizardForm.ProgressGauge.Style := npbstMarquee;
-
-  ExecWithResult(ExpandConstant('{app}') + '\gvfs.exe', 'service --mount-all', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, MountOutput);
-  WizardForm.StatusLabel.Caption := StatusText;
-  WizardForm.ProgressGauge.Style := npbstNormal;
-
-  // 4 = ReturnCode.FilterError
-  if (ResultCode = 4) then
-    begin
-      RaiseException('Fatal: Could not configure and start Windows Projected File System.');
-    end
-  else if (ResultCode <> 0) then
-    begin
-      MsgBoxText := 'Mounting one or more repos failed:' + #13#10 + MountOutput;
-      SuppressibleMsgBox(MsgBoxText, mbConfirmation, MB_OK, IDOK);
-      ExitCode := 17;
-    end;
-end;
-
 procedure MigrateFile(OldPath, NewPath : string);
 begin
   Log('MigrateFile(' + OldPath + ', ' + NewPath + ')');
@@ -543,7 +543,7 @@ var
   SecureAppDataDir: string;
 begin
   CommonAppDataDir := ExpandConstant('{commonappdata}\GVFS');
-  SecureAppDataDir := ExpandConstant('{app}\Current\ProgramData');
+  SecureAppDataDir := ExpandConstant('{app}\ProgramData');
 
   MigrateFile(CommonAppDataDir + '\{#GVFSConfigFileName}', SecureAppDataDir + '\{#GVFSConfigFileName}');
   MigrateFile(CommonAppDataDir + '\{#ServiceName}\{#GVFSStatuscacheTokenFileName}', SecureAppDataDir + '\{#ServiceName}\{#GVFSStatuscacheTokenFileName}');
@@ -668,6 +668,10 @@ begin
   Result := False;
 end;
 
+function UninstallNeedRestart(): Boolean;
+begin
+  Result := False;
+end;
 
 procedure CreateOrUpdateCurrentJunction();
 var
@@ -892,100 +896,22 @@ begin
     Log('[GVFS-INSTALL] GarbageCollectOldVersions: Keeping most recent old version ' + VersionDirs[Count - 1]);
 end;
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-var
-  ResultCode: integer;
-begin
-  NeedsRestart := False;
-  KeepMountsRunning := False;
-  Result := '';
-  SetNuGetFeedIfNecessary();
-
-  // Versioned layout: no staging flow. Just ensure no GVFS processes are holding locks.
-  Log('PrepareToInstall: Checking for running GVFS processes');
-  if IsGVFSRunning() then
-    begin
-      if WizardSilent() then
-        begin
-          // Silent mode: abort if GVFS is running (can't prompt user)
-          Result := 'GVFS is currently running. Please close all GVFS processes before upgrading.';
-          Log('PrepareToInstall: ' + Result);
-          exit;
-        end
-      else
-        begin
-          // Interactive mode: prompt to close GVFS
-          if MsgBox('VFS for Git is currently running.' + #13#10#13#10 +
-                    'Setup will now attempt to unmount all repos and stop the service.' + #13#10#13#10 +
-                    'Click OK to continue or Cancel to exit Setup.',
-                    mbConfirmation, MB_OKCANCEL) = IDCANCEL then
-            begin
-              Result := 'Setup cancelled by user.';
-              exit;
-            end;
-        end;
-    end;
-
-  // Clean upgrade: no staging. Remove any leftover staging dirs from old installs.
-  if DirExists(ExpandConstant('{app}\PendingUpgrade')) then
-    begin
-      Log('PrepareToInstall: Removing leftover PendingUpgrade directory');
-      DelTree(ExpandConstant('{app}\PendingUpgrade'), True, True, True);
-    end;
-  if DirExists(ExpandConstant('{app}\PreviousVersion')) then
-    begin
-      Log('PrepareToInstall: Removing leftover PreviousVersion directory');
-      DelTree(ExpandConstant('{app}\PreviousVersion'), True, True, True);
-    end;
-
-  // Unmount any repos
-  UnmountRepos();
-
-  // With CloseApplications=no, Restart Manager won't kill GVFS
-  // processes. If unmount-all didn't clean up everything (e.g.
-  // registry was empty), force-kill remaining processes.
-  if IsGVFSRunning() then
-    begin
-      Log('PrepareToInstall: GVFS processes still running after unmount, force-killing');
-      Exec('powershell.exe', '-NoProfile "Get-Process gvfs,gvfs.mount -ErrorAction SilentlyContinue | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      Sleep(2000);
-    end;
-
-  if not EnsureGvfsNotRunning() then
-    begin
-      Abort();
-    end;
-
-  StopService('GVFS.Service');
-  UninstallGvFlt();
-  UninstallProjFSIfNecessary();
-end;
-
-function UninstallNeedRestart(): Boolean;
-begin
-  Result := False;
-end;
-
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   case CurStep of
     ssInstall:
       begin
+        // Migrate from service-based install to user-level install:
+        // stop and delete the service if present, then register logon task.
+        Log('CurStepChanged ssInstall: Stopping and deleting GVFS.Service if present');
         UninstallService('GVFS.Service', True);
-        // Fix #2: Create junction BEFORE InstallGVFSService runs (which happens
-        // during file extraction). This ensures {app}\Current\GVFS.Service.exe
-        // exists when the service starts.
-        CreateOrUpdateCurrentJunction();
+        Log('CurStepChanged ssInstall: Registering AutoMount logon task');
+        RegisterAutoMountLogonTask();
       end;
     ssPostInstall:
       begin
-        // Fix #3: Remove legacy flat PATH entry on upgrade from flat layout.
-        // Safe because new PATH entry points to {app}\Current.
-        RemovePath(ExpandConstant('{app}'));
-        
-        // GC runs after junction is already in place (from ssInstall above)
-        GarbageCollectOldVersions();
         MigrateConfigAndStatusCacheFiles();
+        WriteOnDiskVersion16CapableFile();
       end;
     end;
 end;
@@ -1001,7 +927,56 @@ begin
     usUninstall:
       begin
         UninstallService('GVFS.Service', False);
-        RemovePath(ExpandConstant('{app}\Current'));
+        RemovePath(ExpandConstant('{app}'));
       end;
     end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: integer;
+begin
+  NeedsRestart := False;
+  Result := '';
+  SetNuGetFeedIfNecessary();
+
+  // User-level install model: no service, no staging flow, no mount/unmount.
+  // Just ensure no GVFS processes are running so files can be replaced.
+  Log('PrepareToInstall: Checking for running GVFS processes');
+  if IsGVFSRunning() then
+    begin
+      if WizardSilent() then
+        begin
+          Log('PrepareToInstall: Silent mode — killing GVFS processes');
+          Exec('powershell.exe', '-NoProfile "Get-Process gvfs,gvfs.mount -ErrorAction SilentlyContinue | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+          Sleep(2000);
+        end
+      else
+        begin
+          if not EnsureGvfsNotRunning() then
+            begin
+              Result := 'Installation cancelled.';
+              exit;
+            end;
+        end;
+    end;
+
+  // Clean up leftover staging directories from old installer versions
+  if DirExists(ExpandConstant('{app}\PendingUpgrade')) then
+    begin
+      Log('PrepareToInstall: Removing leftover PendingUpgrade directory');
+      DelTree(ExpandConstant('{app}\PendingUpgrade'), True, True, True);
+    end;
+  if DirExists(ExpandConstant('{app}\PreviousVersion')) then
+    begin
+      Log('PrepareToInstall: Removing leftover PreviousVersion directory');
+      DelTree(ExpandConstant('{app}\PreviousVersion'), True, True, True);
+    end;
+
+  // Stop the service if it exists (upgrade from old service-based install)
+  Log('PrepareToInstall: Stopping GVFS.Service if present');
+  StopService('GVFS.Service');
+
+  UninstallGvFlt();
+  UninstallProjFSIfNecessary();
 end;

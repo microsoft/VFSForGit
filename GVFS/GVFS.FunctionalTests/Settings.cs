@@ -65,8 +65,20 @@ namespace GVFS.FunctionalTests.Properties
                 }
                 else
                 {
-                    PathToGVFS = @"C:\Program Files\VFS for Git\GVFS.exe";
-                    PathToGVFSService = @"C:\Program Files\VFS for Git\GVFS.Service.exe";
+                    // User-level install path (LocalAppData) for user-mode testing.
+                    string userLevelGvfs = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "VFSForGit", "Current", "gvfs.exe");
+                    if (File.Exists(userLevelGvfs))
+                    {
+                        PathToGVFS = userLevelGvfs;
+                        PathToGVFSService = Path.Combine(Path.GetDirectoryName(userLevelGvfs), "GVFS.Service.exe");
+                    }
+                    else
+                    {
+                        PathToGVFS = @"C:\Program Files\VFS for Git\GVFS.exe";
+                        PathToGVFSService = @"C:\Program Files\VFS for Git\GVFS.Service.exe";
+                    }
                 }
 
                 PathToGit = @"C:\Program Files\Git\cmd\git.exe";

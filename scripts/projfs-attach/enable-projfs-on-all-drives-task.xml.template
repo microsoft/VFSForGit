@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<!--
+enable-projfs-on-all-drives-task.xml.template
+
+Scheduled task definition for the user-level GVFS install model.
+
+This is a TEMPLATE: build-task-xml.ps1 reads it, substitutes
+__SCRIPT_BASE64__ with the base64-encoded contents of
+enable-projfs-on-all-drives.ps1 and __TASK_HASH__ with the SHA-256
+of the un-substituted template + script combined (so the hash is
+stable across re-substitutions but changes when either input
+content changes).
+
+Registered once per machine at install time (admin elevation
+required). Once registered, runs as LocalSystem with no further
+UAC. No on-disk script file is deployed -- the body of the
+PowerShell script is embedded in the <Exec><Arguments> as
+-EncodedCommand <base64>.
+
+Two triggers:
+  1. BootTrigger - fires at OS startup. Re-attaches prjflt to every
+     NTFS/ReFS volume after reboot (FilterAttach is not persistent).
+  2. EventTrigger - subscribes to the Microsoft-Windows-Partition
+     Diagnostic event log, Event ID 1006 (partition online). This
+     event fires when a new partition becomes available, including
+     USB plug-in, VHD mount, and new partition creation.
+
+The Microsoft-Windows-Partition channel is enabled by default on
+Windows 10+ and fires reliably for both fixed and removable media.
+
+The Description contains the marker [gvfs-task-hash=__TASK_HASH__]
+which the installer's drift-detect uses to decide whether the
+registered task still matches the intended one (no rewrite needed)
+or has drifted (re-register required). Re-registration is the only
+operation that requires UAC; per-user GVFS upgrades that don't
+change this task body never need elevation.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Author>Microsoft\GVFS</Author>
+    <Description>Re-attaches the ProjFS filter (prjflt) to NTFS/ReFS volumes after reboot or volume mount. Required by VFS for Git in the user-level install model. [gvfs-task-hash=__TASK_HASH__]</Description>
+    <URI>\GVFS\EnableProjFSOnAllDrives</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <BootTrigger>
+      <Enabled>true</Enabled>
+    </BootTrigger>
+    <EventTrigger>
+      <Enabled>true</Enabled>
+      <Subscription>&lt;QueryList&gt;&lt;Query Id="0" Path="Microsoft-Windows-Partition/Diagnostic"&gt;&lt;Select Path="Microsoft-Windows-Partition/Diagnostic"&gt;*[System[Provider[@Name='Microsoft-Windows-Partition'] and (EventID=1006)]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;</Subscription>
+    </EventTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-18</UserId>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>Queue</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>
+    <Priority>5</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>powershell.exe</Command>
+      <Arguments>-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand __SCRIPT_BASE64__</Arguments>
+    </Exec>
+  </Actions>
+</Task>
