@@ -65,8 +65,8 @@ namespace GVFS.FunctionalTests.Properties
                 }
                 else
                 {
-                    PathToGVFS = @"C:\Program Files\VFS for Git\GVFS.exe";
-                    PathToGVFSService = @"C:\Program Files\VFS for Git\GVFS.Service.exe";
+                    PathToGVFS = @"C:\Program Files\VFS for Git\Current\GVFS.exe";
+                    PathToGVFSService = @"C:\Program Files\VFS for Git\Current\GVFS.Service.exe";
                 }
 
                 PathToGit = @"C:\Program Files\Git\cmd\git.exe";

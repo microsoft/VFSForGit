@@ -60,9 +60,10 @@ Type: files; Name: "{app}\ucrtbase.dll"
 
 [Files]
 ; Versioned install: all files go to {app}\Versions\{version}
-; Service binary gets AfterInstall callback to register service with binPath pointing to {app}\Current\GVFS.Service.exe
-DestDir: "{app}\Versions\{#MyAppInstallerVersion}"; Flags: ignoreversion recursesubdirs; Source:"{#LayoutDir}\*"
-DestDir: "{app}\Versions\{#MyAppInstallerVersion}"; Flags: ignoreversion; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
+; Service binary gets AfterInstall callback to register service
+; Check: ShouldDeployFiles skips copy on same-version reinstall (files locked by running processes).
+DestDir: "{app}\Versions\{#MyAppInstallerVersion}"; Flags: recursesubdirs; Source:"{#LayoutDir}\*"; Check: ShouldDeployFiles
+DestDir: "{app}\Versions\{#MyAppInstallerVersion}"; Source:"{#LayoutDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService; Check: ShouldDeployFiles
 
 [Dirs]
 Name: "{app}\ProgramData\{#ServiceName}"; Permissions: users-readexec
@@ -87,6 +88,12 @@ Root: HKLM; SubKey: "{#GvFltAutologgerKey}"; Flags: deletekey
 var
   ExitCode: Integer;
   KeepMountsRunning: Boolean;
+  SkipFileDeploy: Boolean;
+
+function ShouldDeployFiles(): Boolean;
+begin
+  Result := not SkipFileDeploy;
+end;
 
 function NeedsAddPath(Param: string): boolean;
 var
@@ -280,13 +287,12 @@ begin
   // Spaces after the equal signs are REQUIRED.
   // https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create#remarks
   try
-    // Create the Current junction first, so service registration can use the stable path
-    CreateOrUpdateCurrentJunction();
-
     // We must add additional quotes to the binPath to ensure that they survive argument parsing.
     // Without quotes, sc.exe will try to start a file located at C:\Program if it exists.
-    // Use {app}\Current\GVFS.Service.exe so the service path survives version upgrades via junction swap.
-    if Exec(ExpandConstant('{sys}\SC.EXE'), ExpandConstant('create GVFS.Service binPath= "\"{app}\Current\GVFS.Service.exe\"" start= auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+    // Use the direct versioned path for sc create + start since the Current junction
+    // isn't created until ssPostInstall (after file extraction). The junction path
+    // would be prettier but isn't available yet at AfterInstall time.
+    if Exec(ExpandConstant('{sys}\SC.EXE'), ExpandConstant('create GVFS.Service binPath= "\"{app}\Versions\{#MyAppInstallerVersion}\GVFS.Service.exe\"" start= auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
       begin
         if Exec(ExpandConstant('{sys}\SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
           begin
@@ -671,74 +677,56 @@ begin
   Result := False;
 end;
 
-function UninstallNeedRestart(): Boolean;
-begin
-  Result := False;
-end;
-
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-  case CurStep of
-    ssInstall:
-      begin
-        if not KeepMountsRunning then
-          UninstallService('GVFS.Service', True);
-      end;
-    ssPostInstall:
-      begin
-        CreateOrUpdateCurrentJunction();
-        GarbageCollectOldVersions();
-        MigrateConfigAndStatusCacheFiles();
-        if (not KeepMountsRunning) and (ExpandConstant('{param:REMOUNTREPOS|true}') = 'true') then
-          begin
-            MountRepos();
-          end
-      end;
-    end;
-end;
-
-function GetCustomSetupExitCode: Integer;
-begin
-  Result := ExitCode;
-end;
-
-procedure CurUninstallStepChanged(CurStep: TUninstallStep);
-begin
-  case CurStep of
-    usUninstall:
-      begin
-        UninstallService('GVFS.Service', False);
-        RemovePath(ExpandConstant('{app}\Current'));
-      end;
-    end;
-end;
 
 procedure CreateOrUpdateCurrentJunction();
 var
   AppDir: string;
   JunctionPath: string;
+  JunctionNew: string;
   VersionDir: string;
   ResultCode: integer;
 begin
   AppDir := ExpandConstant('{app}');
   JunctionPath := AppDir + '\Current';
+  JunctionNew := AppDir + '\Current.new';
   VersionDir := AppDir + '\Versions\{#MyAppInstallerVersion}';
 
   Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: Target version = {#MyAppInstallerVersion}');
 
-  // Remove existing junction if present
+  // Fix #4: Atomic junction swap using .new temporary
+  // Create new junction at Current.new
+  Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: Creating junction Current.new -> ' + VersionDir);
+  if not Exec(ExpandConstant('{cmd}'), '/C mklink /J "' + JunctionNew + '" "' + VersionDir + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: mklink /J failed with exit code ' + IntToStr(ResultCode));
+      RaiseException('Fatal: Could not create Current.new junction at ' + JunctionNew);
+    end;
+
+  // Remove existing Current junction if present
   if DirExists(JunctionPath) then
     begin
       Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: Removing existing Current junction');
-      Exec(ExpandConstant('{cmd}'), '/C rmdir "' + JunctionPath + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      if not Exec(ExpandConstant('{cmd}'), '/C rmdir "' + JunctionPath + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        begin
+          Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: WARNING - rmdir failed with exit code ' + IntToStr(ResultCode));
+          // Continue anyway - rename might still work
+        end;
     end;
 
-  // Create new junction: Current -> Versions\<version>
-  Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: Creating junction -> ' + VersionDir);
-  if not Exec(ExpandConstant('{cmd}'), '/C mklink /J "' + JunctionPath + '" "' + VersionDir + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+  // Rename Current.new -> Current
+  Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: Renaming Current.new -> Current');
+  if not Exec(ExpandConstant('{cmd}'), '/C ren "' + JunctionNew + '" Current', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
     begin
-      Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: mklink /J failed with exit code ' + IntToStr(ResultCode));
-      RaiseException('Fatal: Could not create Current junction at ' + JunctionPath);
+      Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: ren failed with exit code ' + IntToStr(ResultCode));
+      // Fallback: if Current.new exists, at least installer can reference it
+      if DirExists(JunctionNew) then
+        begin
+          Log('[GVFS-INSTALL] CreateOrUpdateCurrentJunction: WARNING - Using Current.new as fallback');
+        end
+      else
+        begin
+          RaiseException('Fatal: Could not rename Current.new to Current');
+        end;
     end
   else
     begin
@@ -793,11 +781,9 @@ var
   FlatVersion: string;
   FindRec: TFindRec;
   VersionDirs: array of string;
-  VersionTimes: array of Int64;
   Count: integer;
   I, J: integer;
   TempStr: string;
-  TempTime: Int64;
   VersionPath: string;
   CanDelete: Boolean;
 begin
@@ -830,7 +816,6 @@ begin
   // Enumerate version directories
   Count := 0;
   SetArrayLength(VersionDirs, 0);
-  SetArrayLength(VersionTimes, 0);
   
   if not DirExists(VersionsDir) then
     begin
@@ -848,9 +833,7 @@ begin
               if FindRec.Name <> CurrentVersion then
                 begin
                   SetArrayLength(VersionDirs, Count + 1);
-                  SetArrayLength(VersionTimes, Count + 1);
                   VersionDirs[Count] := FindRec.Name;
-                  VersionTimes[Count] := FindRec.Time;
                   Count := Count + 1;
                 end;
             end;
@@ -868,16 +851,13 @@ begin
 
   Log('[GVFS-INSTALL] GarbageCollectOldVersions: Found ' + IntToStr(Count) + ' old version(s)');
 
-  // Sort by time (bubble sort, oldest first)
+  // Sort by version name (oldest first — lower version strings sort earlier)
   for I := 0 to Count - 2 do
     begin
       for J := I + 1 to Count - 1 do
         begin
-          if VersionTimes[I] > VersionTimes[J] then
+          if CompareText(VersionDirs[I], VersionDirs[J]) > 0 then
             begin
-              TempTime := VersionTimes[I];
-              VersionTimes[I] := VersionTimes[J];
-              VersionTimes[J] := TempTime;
               TempStr := VersionDirs[I];
               VersionDirs[I] := VersionDirs[J];
               VersionDirs[J] := TempStr;
@@ -919,35 +899,29 @@ var
 begin
   NeedsRestart := False;
   KeepMountsRunning := False;
+  SkipFileDeploy := False;
   Result := '';
   SetNuGetFeedIfNecessary();
 
-  // Versioned layout: no staging flow. Just ensure no GVFS processes are holding locks.
-  Log('PrepareToInstall: Checking for running GVFS processes');
-  if IsGVFSRunning() then
+  // Same-version no-op: if Versions\{ver}\ already exists with gvfs.exe,
+  // this is a same-version reinstall. Skip file deployment to avoid conflicts
+  // with locked files. Still re-create junction and service registration.
+  if FileExists(ExpandConstant('{app}\Versions\{#MyAppInstallerVersion}\GVFS.exe')) then
     begin
-      if WizardSilent() then
-        begin
-          // Silent mode: abort if GVFS is running (can't prompt user)
-          Result := 'GVFS is currently running. Please close all GVFS processes before upgrading.';
-          Log('PrepareToInstall: ' + Result);
-          exit;
-        end
-      else
-        begin
-          // Interactive mode: prompt to close GVFS
-          if MsgBox('VFS for Git is currently running.' + #13#10#13#10 +
-                    'Setup will now attempt to unmount all repos and stop the service.' + #13#10#13#10 +
-                    'Click OK to continue or Cancel to exit Setup.',
-                    mbConfirmation, MB_OKCANCEL) = IDCANCEL then
-            begin
-              Result := 'Setup cancelled by user.';
-              exit;
-            end;
-        end;
+      Log('[GVFS-INSTALL] PrepareToInstall: Version {#MyAppInstallerVersion} already deployed - skipping file copy');
+      SkipFileDeploy := True;
+    end
+  else
+    begin
+      Log('[GVFS-INSTALL] PrepareToInstall: Deploying new version {#MyAppInstallerVersion}');
     end;
 
-  // Clean upgrade: no staging. Remove any leftover staging dirs from old installs.
+  // Versioned layout: new version deploys to a fresh Versions\{ver}\ folder,
+  // so running GVFS.Mount processes do NOT hold locks on the files we're writing.
+  // No need to force-close mounts or abort. Just stop the service for re-registration.
+  Log('PrepareToInstall: Versioned layout - skipping GVFS process check');
+
+  // Clean upgrade: remove leftover staging dirs from old installs.
   if DirExists(ExpandConstant('{app}\PendingUpgrade')) then
     begin
       Log('PrepareToInstall: Removing leftover PendingUpgrade directory');
@@ -959,25 +933,51 @@ begin
       DelTree(ExpandConstant('{app}\PreviousVersion'), True, True, True);
     end;
 
-  // Unmount any repos
-  UnmountRepos();
-
-  // With CloseApplications=no, Restart Manager won't kill GVFS
-  // processes. If unmount-all didn't clean up everything (e.g.
-  // registry was empty), force-kill remaining processes.
-  if IsGVFSRunning() then
-    begin
-      Log('PrepareToInstall: GVFS processes still running after unmount, force-killing');
-      Exec('powershell.exe', '-NoProfile "Get-Process gvfs,gvfs.mount -ErrorAction SilentlyContinue | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      Sleep(2000);
-    end;
-
-  if not EnsureGvfsNotRunning() then
-    begin
-      Abort();
-    end;
-
   StopService('GVFS.Service');
   UninstallGvFlt();
   UninstallProjFSIfNecessary();
+end;
+
+function UninstallNeedRestart(): Boolean;
+begin
+  Result := False;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  case CurStep of
+    ssInstall:
+      begin
+        if not SkipFileDeploy then
+          UninstallService('GVFS.Service', True);
+      end;
+    ssPostInstall:
+      begin
+        // Create the Current junction AFTER file extraction (the target
+        // Versions\{ver}\ directory must exist for mklink /J to succeed).
+        CreateOrUpdateCurrentJunction();
+
+        // Remove legacy flat PATH entry on upgrade from flat layout.
+        RemovePath(ExpandConstant('{app}'));
+        
+        GarbageCollectOldVersions();
+        MigrateConfigAndStatusCacheFiles();
+      end;
+    end;
+end;
+
+function GetCustomSetupExitCode: Integer;
+begin
+  Result := ExitCode;
+end;
+
+procedure CurUninstallStepChanged(CurStep: TUninstallStep);
+begin
+  case CurStep of
+    usUninstall:
+      begin
+        UninstallService('GVFS.Service', False);
+        RemovePath(ExpandConstant('{app}\Current'));
+      end;
+    end;
 end;
