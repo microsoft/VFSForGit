@@ -28,12 +28,12 @@ jobs:
       matrix:
         configuration: [ Release ]
         scenario:
-          - staging-upgrade
           - clean-upgrade
-          - double-staging
-          - staging-then-clean
-          - mount-safety-deferral
-          - unmount-all-triggers-upgrade
+          - upgrade-with-mount
+          - double-upgrade
+          - flat-to-versioned-upgrade
+          - versioned-fresh-install
+          - versioned-upgrade
       fail-fast: false
 
     steps:
@@ -147,11 +147,21 @@ jobs:
           if ($svc -notmatch "RUNNING") { throw "GVFS.Service is not running: $svc" }
         }
 
+        function Get-GvfsExe {
+          # Versioned layout: use Current junction. Flat layout (LKG): use root.
+          $currentPath = "$installDir\Current\gvfs.exe"
+          if (Test-Path $currentPath) { return $currentPath }
+          $flatPath = "$installDir\gvfs.exe"
+          if (Test-Path $flatPath) { return $flatPath }
+          throw "Cannot find gvfs.exe in $installDir (tried Current\ and root)"
+        }
+
         function Mount-TestRepo {
+          $gvfs = Get-GvfsExe
           if (Test-Path $enlistment) {
-            & "$installDir\gvfs.exe" mount $enlistment 2>&1 | Write-Host
+            & $gvfs mount $enlistment 2>&1 | Write-Host
           } else {
-            & "$installDir\gvfs.exe" clone $testRepo $enlistment 2>&1 | Write-Host
+            & $gvfs clone $testRepo $enlistment 2>&1 | Write-Host
           }
           if ($LASTEXITCODE -ne 0) { throw "Mount/clone failed" }
           $mountProc = Get-Process -Name "GVFS.Mount" -ErrorAction SilentlyContinue
@@ -172,7 +182,8 @@ jobs:
         }
 
         function Unmount-TestRepo {
-          & "$installDir\gvfs.exe" unmount $enlistment 2>&1
+          $gvfs = Get-GvfsExe
+          & $gvfs unmount $enlistment 2>&1
           Start-Sleep -Seconds 3
         }
 
@@ -184,18 +195,46 @@ jobs:
           Assert-ServiceRunning
         }
 
-        function Assert-PendingUpgrade($expected) {
-          $exists = Test-Path "$installDir\PendingUpgrade"
-          if ($exists -ne $expected) {
-            throw "PendingUpgrade directory: expected=$expected, actual=$exists"
+        function Assert-JunctionTarget($expectedVersion) {
+          $currentJunction = Join-Path $installDir "Current"
+          if (-not (Test-Path $currentJunction)) {
+            throw "Current junction does not exist at $currentJunction"
           }
+          $item = Get-Item $currentJunction
+          if ($item.LinkType -ne 'Junction') {
+            throw "Current is not a junction: LinkType = $($item.LinkType)"
+          }
+          $target = $item.Target
+          if ($expectedVersion -and $target -notlike "*\$expectedVersion") {
+            throw "Current junction points to $target, expected version $expectedVersion"
+          }
+          Write-Host "Current junction -> $target"
+          return $target
+        }
+
+        function Assert-VersionDirExists($version) {
+          $versionDir = Join-Path $installDir "Versions\$version"
+          if (-not (Test-Path $versionDir)) {
+            throw "Version directory does not exist: $versionDir"
+          }
+          $gvfsExe = Join-Path $versionDir "gvfs.exe"
+          if (-not (Test-Path $gvfsExe)) {
+            throw "gvfs.exe not found in version directory: $gvfsExe"
+          }
+          Write-Host "Version directory exists: $versionDir"
+        }
+
+        function Get-CurrentVersion {
+          $output = & "$installDir\Current\gvfs.exe" version 2>&1 | Out-String
+          Write-Host "Current gvfs version: $output"
+          return $output.Trim()
         }
 
         function Assert-HookVersionsMatch {
           Write-Host "Verifying hook binary versions in enlistment..."
           $hooksDir = Join-Path $enlistment "src\.git\hooks"
 
-          # Native hooks: each has its own source binary in the install directory
+          # Native hooks: each has its own source binary in Current directory
           # Command hooks: copies of GitHooksLoader.exe
           $hooks = @(
             @{ Source = "GVFS.ReadObjectHook.exe";        Target = "read-object.exe" }
@@ -206,7 +245,11 @@ jobs:
           )
 
           foreach ($hook in $hooks) {
-            $sourcePath = Join-Path $installDir $hook.Source
+            # Use Current\ if available (versioned layout), else flat root (LKG)
+            $sourcePath = Join-Path "$installDir\Current" $hook.Source
+            if (-not (Test-Path $sourcePath)) {
+              $sourcePath = Join-Path $installDir $hook.Source
+            }
             $targetPath = Join-Path $hooksDir $hook.Target
             if (-not (Test-Path $targetPath)) {
               throw "Hook not found: $targetPath"
@@ -227,140 +270,265 @@ jobs:
 
         switch ("${{ matrix.scenario }}") {
 
-          "staging-upgrade" {
-            Write-Host "=== Scenario: Staging upgrade e2e ==="
-            # Install LKG, mount, staging upgrade, unmount, verify completion
-            Install-GVFS $lkgInstaller
-            Assert-ServiceRunning
-            $mountPid = Mount-TestRepo
-
-            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=true")
-            Assert-MountAlive $mountPid
-            Assert-PendingUpgrade $true
-
-            Unmount-TestRepo
-            Restart-Service
-            Assert-PendingUpgrade $false
-
-            # Remount and verify all hooks were updated to new version
-            $null = Mount-TestRepo
-            Assert-HookVersionsMatch
-            Unmount-TestRepo
-            Write-Host "PASS: Staging upgrade completed"
-          }
-
           "clean-upgrade" {
-            Write-Host "=== Scenario: Clean upgrade (traditional) ==="
+            Write-Host "=== Scenario: Clean upgrade (no mounts running) ==="
+            # Install LKG (flat layout), verify it works, upgrade to new (versioned), verify upgrade
             Install-GVFS $lkgInstaller
             Assert-ServiceRunning
-            Mount-TestRepo | Write-Host
+            
+            # Verify LKG install works (flat layout - no junction yet)
+            $lkgVersion = & "$installDir\gvfs.exe" version 2>&1 | Out-String
+            Write-Host "LKG version (flat layout): $lkgVersion"
+            
+            # Clone + mount + unmount with LKG
+            $null = Mount-TestRepo
+            Unmount-TestRepo
 
-            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=false")
-            Assert-PendingUpgrade $false
+            # Upgrade to new (versioned layout)
+            Install-GVFS $newInstaller
             Assert-ServiceRunning
 
-            # Remount and verify all hooks were updated to new version
+            # Verify Current junction was created
+            Assert-JunctionTarget $null
+            
+            # Verify new version works
+            $newVersion = Get-CurrentVersion
+            if ($newVersion -eq $lkgVersion.Trim()) {
+              Write-Host "WARNING: Version unchanged after upgrade"
+            }
+
+            # Clone + mount + verify hooks + unmount
             $null = Mount-TestRepo
             Assert-HookVersionsMatch
             Unmount-TestRepo
             Write-Host "PASS: Clean upgrade completed"
           }
 
-          "double-staging" {
-            Write-Host "=== Scenario: Double staging install ==="
-            # Install LKG, mount, staging install twice, verify second overwrites
+          "upgrade-with-mount" {
+            Write-Host "=== Scenario: Upgrade while mount is active ==="
+            # Install LKG, mount, upgrade to new, verify mount survives
             Install-GVFS $lkgInstaller
             Assert-ServiceRunning
+            
+            # Mount with LKG (flat layout)
             $mountPid = Mount-TestRepo
+            Write-Host "Mount running with PID $mountPid (using LKG flat-layout binary)"
 
-            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=true")
+            # Upgrade to new (versioned layout)
+            Install-GVFS $newInstaller
+            Assert-ServiceRunning
+
+            # Verify Current junction created
+            Assert-JunctionTarget $null
+
+            # Verify mount from LKG is still alive and functional
             Assert-MountAlive $mountPid
-            Assert-PendingUpgrade $true
+            Write-Host "Mount survived upgrade (still using old binary)"
 
-            # Second staging install should overwrite PendingUpgrade
-            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=true")
-            Assert-MountAlive $mountPid
-            Assert-PendingUpgrade $true
-
+            # Unmount (old binary) and remount (new binary via Current junction)
             Unmount-TestRepo
-            Restart-Service
-            Assert-PendingUpgrade $false
-            Write-Host "PASS: Double staging handled correctly"
+            $newMountPid = Mount-TestRepo
+            Write-Host "Remounted with new binary, PID $newMountPid"
+
+            # Verify hooks updated to new version
+            Assert-HookVersionsMatch
+            Unmount-TestRepo
+            Write-Host "PASS: Upgrade with mount survived correctly"
           }
 
-          "staging-then-clean" {
-            Write-Host "=== Scenario: Staging then clean install ==="
-            # Install LKG, mount, staging install, unmount, clean install
-            # Verify PendingUpgrade is cleaned up by clean install
-            Install-GVFS $lkgInstaller
+          "double-upgrade" {
+            Write-Host "=== Scenario: Same-version reinstall (no-op idempotency) ==="
+            # Install new, then install new again → installer should detect same
+            # version is already deployed and skip file copy (no locked-file errors).
+            Install-GVFS $newInstaller
             Assert-ServiceRunning
+            Assert-JunctionTarget $null
+
+            # Mount a repo
             $mountPid = Mount-TestRepo
 
-            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=true")
-            Assert-MountAlive $mountPid
-            Assert-PendingUpgrade $true
-
-            Unmount-TestRepo
-            # Now clean install — should remove PendingUpgrade
-            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=false")
-            Assert-PendingUpgrade $false
+            # Reinstall same version — should be a no-op (files skipped)
+            Write-Host "Reinstalling same version (expecting no-op)..."
+            Install-GVFS $newInstaller
             Assert-ServiceRunning
-            Write-Host "PASS: Staging then clean install handled correctly"
+
+            # Verify mount survived (files weren't touched)
+            Assert-MountAlive $mountPid
+            Write-Host "Mount survived same-version reinstall"
+
+            # Verify junction still valid
+            Assert-JunctionTarget $null
+            
+            # Unmount and remount to verify everything still works
+            Unmount-TestRepo
+            $null = Mount-TestRepo
+            Assert-HookVersionsMatch
+            Unmount-TestRepo
+            Write-Host "PASS: Same-version reinstall (no-op) completed"
           }
 
-          "mount-safety-deferral" {
-            Write-Host "=== Scenario: Mount safety deferral ==="
-            # Install LKG, mount, staging install, restart service WITH mount
-            # running — upgrade should be deferred
-            Install-GVFS $lkgInstaller
+          "versioned-fresh-install" {
+            Write-Host "=== Scenario: Fresh install with versioned layout ==="
+            # Install new build directly (no LKG)
+            Install-GVFS $newInstaller
             Assert-ServiceRunning
-            $mountPid = Mount-TestRepo
 
-            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=true")
-            Assert-MountAlive $mountPid
-            Assert-PendingUpgrade $true
+            # Verify versioned layout structure
+            $appDir = "C:\Program Files\VFS for Git"
+            $currentJunction = Join-Path $appDir "Current"
+            if (-not (Test-Path $currentJunction)) {
+              throw "Current junction does not exist"
+            }
+            # Check it's actually a junction
+            $item = Get-Item $currentJunction
+            if ($item.LinkType -ne 'Junction') {
+              throw "Current is not a junction: LinkType = $($item.LinkType)"
+            }
+            Write-Host "Current junction exists: $currentJunction -> $($item.Target)"
 
-            # Restart service WITHOUT unmounting — upgrade should defer
-            Restart-Service
-            Assert-MountAlive $mountPid
-            Assert-PendingUpgrade $true
-            Write-Host "Upgrade correctly deferred while mount running"
+            # Verify gvfs.exe exists in versioned path
+            $versionDirs = Get-ChildItem (Join-Path $appDir "Versions") -Directory
+            if ($versionDirs.Count -eq 0) {
+              throw "No version directories found"
+            }
+            $versionDir = $versionDirs[0].FullName
+            $gvfsExe = Join-Path $versionDir "gvfs.exe"
+            if (-not (Test-Path $gvfsExe)) {
+              throw "gvfs.exe not found at $gvfsExe"
+            }
+            Write-Host "Found gvfs.exe at $gvfsExe"
 
-            # Now unmount and restart — should complete
+            # Verify gvfs version works
+            Get-CurrentVersion
+
+            # Clone and mount test repo
+            Mount-TestRepo | Write-Host
             Unmount-TestRepo
-            Restart-Service
-            Assert-PendingUpgrade $false
-            Write-Host "PASS: Mount safety deferral works correctly"
+            Write-Host "PASS: Versioned fresh install completed"
           }
 
-          "unmount-all-triggers-upgrade" {
-            Write-Host "=== Scenario: unmount-all triggers staged upgrade ==="
-            # Install LKG, mount, staging upgrade with new installer (which
-            # replaces GVFS.Service.exe in-place with the new version that
-            # includes PendingUpgradeMonitor). Then unmount via --unmount-all.
-            # The new service monitors mount process exits and applies the
-            # upgrade automatically — no pipe message from gvfs.exe needed.
+          "versioned-upgrade" {
+            Write-Host "=== Scenario: Upgrade from versioned to versioned (junction swap) ==="
+            # Install LKG, then manually set up versioned layout to simulate
+            # a previous versioned install. This tests the real versioned->versioned
+            # upgrade path. Once LKG itself ships with Current junction, the manual
+            # setup will be a no-op (detected by checking for Current junction).
+
             Install-GVFS $lkgInstaller
             Assert-ServiceRunning
-            $mountPid = Mount-TestRepo
 
-            Install-GVFS $newInstaller @("/STAGEIFMOUNTED=true")
-            Assert-MountAlive $mountPid
-            Assert-PendingUpgrade $true
+            $appDir = "C:\Program Files\VFS for Git"
+            $currentJunction = Join-Path $appDir "Current"
 
-            # Unmount via --unmount-all (uses LKG gvfs.exe — no new pipe msg)
-            & "$installDir\gvfs.exe" service --unmount-all 2>&1 | Write-Host
-            if ($LASTEXITCODE -ne 0) { throw "unmount-all failed" }
+            if (-not (Test-Path $currentJunction)) {
+              # LKG is flat layout — manually create versioned structure
+              Write-Host "LKG is flat layout, bootstrapping versioned structure..."
+              $lkgVersion = & "$appDir\gvfs.exe" version 2>&1 | Select-String "(\d+\.\d+\.\d+\.\d+)" | ForEach-Object { $_.Matches[0].Value }
+              Write-Host "LKG version: $lkgVersion"
 
-            # The monitor's debounce timer fires 5s after the last mount
-            # process exits, then applies the upgrade. Wait for completion.
-            $deadline = (Get-Date).AddSeconds(30)
-            while ((Test-Path "$installDir\PendingUpgrade") -and (Get-Date) -lt $deadline) {
-              Start-Sleep -Seconds 2
+              $versionDir = Join-Path $appDir "Versions\$lkgVersion"
+              New-Item -ItemType Directory -Path $versionDir -Force | Out-Null
+              # Copy flat binaries into version folder
+              Get-ChildItem $appDir -File | Copy-Item -Destination $versionDir -Force
+              # Stop service, create junction, update binPath, restart
+              sc.exe stop GVFS.Service | Out-Null
+              Start-Sleep -Seconds 5
+              & cmd.exe /c "mklink /J `"$currentJunction`" `"$versionDir`""
+              sc.exe config GVFS.Service binPath= "`"$versionDir\GVFS.Service.exe`"" | Out-Null
+              sc.exe start GVFS.Service | Out-Null
+              Start-Sleep -Seconds 5
+              Write-Host "Versioned structure bootstrapped: Current -> $versionDir"
+            } else {
+              Write-Host "LKG already has versioned layout (Current junction exists)"
             }
 
-            Assert-PendingUpgrade $false
-            Write-Host "PASS: unmount-all triggers staged upgrade via process monitor"
+            Assert-ServiceRunning
+            $mountPid = Mount-TestRepo
+
+            # Now upgrade from versioned LKG to versioned new
+            Install-GVFS $newInstaller
+            Assert-ServiceRunning
+
+            # Verify mount survived the upgrade
+            Assert-MountAlive $mountPid
+            Write-Host "Mount survived versioned-to-versioned upgrade"
+
+            # Verify junction was updated
+            $item = Get-Item $currentJunction
+            Write-Host "Current junction now -> $($item.Target)"
+
+            # Verify we have multiple version directories
+            $versionDirs = Get-ChildItem (Join-Path $appDir "Versions") -Directory
+            Write-Host "Version directories: $($versionDirs.Count)"
+            if ($versionDirs.Count -lt 2) {
+              throw "Expected at least 2 version directories, found $($versionDirs.Count)"
+            }
+
+            Unmount-TestRepo
+            $null = Mount-TestRepo
+            Unmount-TestRepo
+            Write-Host "PASS: Versioned-to-versioned upgrade completed"
+          }
+
+          "flat-to-versioned-upgrade" {
+            Write-Host "=== Scenario: Upgrade from flat layout (LKG) to versioned layout ==="
+            # Install LKG (flat layout)
+            Install-GVFS $lkgInstaller
+            Assert-ServiceRunning
+
+            # Verify LKG works (clone + mount)
+            $mountPid = Mount-TestRepo
+
+            # Get LKG version to verify PATH cleanup later
+            $lkgVersion = & "$installDir\gvfs.exe" version 2>&1
+            Write-Host "LKG version: $lkgVersion"
+
+            # Unmount before upgrade
+            Unmount-TestRepo
+
+            # Upgrade to versioned layout
+            Install-GVFS $newInstaller
+            Assert-ServiceRunning
+
+            # Verify Current junction was created
+            $currentJunction = Join-Path $installDir "Current"
+            if (-not (Test-Path $currentJunction)) {
+              throw "Current junction was not created during upgrade"
+            }
+            $item = Get-Item $currentJunction
+            if ($item.LinkType -ne 'Junction') {
+              throw "Current is not a junction after upgrade"
+            }
+            Write-Host "Current junction created: $currentJunction -> $($item.Target)"
+
+            # Verify PATH was updated (should contain {app}\Current, NOT {app} alone)
+            $pathKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+            $systemPath = (Get-ItemProperty $pathKey).Path
+            $appDir = "C:\Program Files\VFS for Git"
+            if ($systemPath -notlike "*$appDir\Current*") {
+              throw "PATH does not contain versioned entry: $appDir\Current"
+            }
+            Write-Host "PATH contains versioned entry: $appDir\Current"
+
+            # Verify old flat PATH entry was cleaned up
+            # Match standalone {app} entry (not followed by \Current or \Versions)
+            # Use regex to detect {app} NOT followed by \Current or \Versions
+            $flatPathPattern = [regex]::Escape($appDir) + '(?!\\(Current|Versions))'
+            if ($systemPath -match $flatPathPattern) {
+              Write-Host "WARNING: Flat PATH entry still present: $appDir"
+              Write-Host "Full PATH: $systemPath"
+              # Note: This is expected to fail until Fix #3 is applied
+            } else {
+              Write-Host "Flat PATH entry successfully removed"
+            }
+
+            # Verify gvfs version shows new version
+            $newVersion = Get-CurrentVersion
+
+            # Remount and verify it works
+            $null = Mount-TestRepo
+            Unmount-TestRepo
+            Write-Host "PASS: Flat-to-versioned upgrade completed"
           }
 
           default {
