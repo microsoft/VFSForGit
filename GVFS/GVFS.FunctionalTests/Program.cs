@@ -84,11 +84,21 @@ namespace GVFS.FunctionalTests
                         new object[] { validateMode },
                     };
 
+                if (runner.HasCustomArg("--extra-only"))
+                {
+                    Console.WriteLine("Running only the tests marked as ExtraCoverage");
+                    includeCategories.Add(Categories.ExtraCoverage);
+                }
+                else
+                {
+                    excludeCategories.Add(Categories.ExtraCoverage);
+                }
+
                 // If we're running in CI exclude tests that are currently
                 // flakey or broken when run in a CI environment.
                 if (runner.HasCustomArg("--ci"))
                 {
-                    excludeCategories.Add(Categories.SkipInCI);
+                    excludeCategories.Add(Categories.NeedsReactionInCI);
                 }
 
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
@@ -141,10 +151,7 @@ namespace GVFS.FunctionalTests
                 ProjFSFilterInstaller.ReplaceInboxProjFS();
             }
 
-            Console.WriteLine("[CI-DEBUG] Installing service...");
-            Console.Out.Flush();
-            GVFSServiceProcess.InstallService();
-            Console.WriteLine("[CI-DEBUG] Service installed successfully");
+            Console.WriteLine("[CI-DEBUG] Skipping service install (service removed)");
             Console.Out.Flush();
 
             string serviceProgramDataDir = GVFSPlatform.Instance.GetSecureDataRootForGVFSComponent(

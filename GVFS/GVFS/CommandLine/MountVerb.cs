@@ -14,7 +14,6 @@ namespace GVFS.CommandLine
     {
         private const string MountVerbName = "mount";
         private Process mountProcess;
-        private volatile string currentMountProgress;
 
         public string Verbosity { get; set; }
 
@@ -198,9 +197,7 @@ namespace GVFS.CommandLine
 
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
-                    getMessage: () => this.currentMountProgress,
-                    "Mounting",
-                    enlistment.WorkingDirectoryRoot))
+                    "Mounting"))
                 {
                     ReturnCode mountExitCode = ReturnCode.GenericError;
                     if (this.mountProcess != null)
@@ -238,7 +235,7 @@ namespace GVFS.CommandLine
                     tracer.RelatedInfo($"{nameof(this.Execute)}: Registering for automount");
 
                     if (this.ShowStatusWhileRunning(
-                        () => { return this.RegisterMount(enlistment, out errorMessage); },
+                        () => { return this.RegisterMount(enlistment, tracer, out errorMessage); },
                         "Registering for automount"))
                     {
                         tracer.RelatedInfo($"{nameof(this.Execute)}: Registered for automount");
@@ -280,35 +277,42 @@ namespace GVFS.CommandLine
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for repo to be mounted");
 
-            return GVFSEnlistment.WaitUntilMounted(
-                tracer,
-                enlistment.NamedPipeName,
-                enlistment.WorkingDirectoryRoot,
-                this.Unattended,
-                out errorMessage,
-                onProgress: progress => this.currentMountProgress = progress);
+            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.NamedPipeName, enlistment.WorkingDirectoryRoot, this.Unattended, out errorMessage);
         }
 
-        private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
+        private bool RegisterMount(GVFSEnlistment enlistment, ITracer tracer, out string errorMessage)
         {
             errorMessage = string.Empty;
 
-            NamedPipeMessages.RegisterRepoRequest request = new NamedPipeMessages.RegisterRepoRequest();
-
             // Worktree mounts register with their worktree path so they can be
             // listed and unregistered independently of the primary enlistment.
-            request.EnlistmentRoot = enlistment.IsWorktree
+            string enlistmentRoot = enlistment.IsWorktree
                 ? enlistment.WorkingDirectoryRoot
                 : enlistment.PrimaryEnlistmentRoot;
+            string ownerSID = GVFSPlatform.Instance.GetCurrentUser();
 
-            request.OwnerSID = GVFSPlatform.Instance.GetCurrentUser();
+            NamedPipeMessages.RegisterRepoRequest request = new NamedPipeMessages.RegisterRepoRequest();
+            request.EnlistmentRoot = enlistmentRoot;
+            request.OwnerSID = ownerSID;
 
             using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
             {
                 if (!client.Connect())
                 {
-                    errorMessage = "Unable to register repo because GVFS.Service is not responding.";
-                    return false;
+                    // Service not installed or not running (typical for the
+                    // user-level install model). Fall back to writing the
+                    // registry file directly. The service writes to the same
+                    // file at the same path when it IS running, so the two
+                    // models can co-exist or be migrated between without any
+                    // data being lost. We only reach this fallback when the
+                    // pipe doesn't exist at all - if the service is present
+                    // but mid-request crashes, that surfaces as
+                    // BrokenPipeException below and we deliberately do NOT
+                    // fall back (the service remains the authoritative
+                    // writer in that case).
+                    tracer.RelatedInfo($"{nameof(this.RegisterMount)}: GVFS.Service pipe unavailable; falling back to LocalRepoRegistry");
+                    LocalRepoRegistry localRegistry = LocalRepoRegistry.CreateForCurrentPlatform(tracer);
+                    return localRegistry.TryRegisterRepo(enlistmentRoot, ownerSID, out errorMessage);
                 }
 
                 try

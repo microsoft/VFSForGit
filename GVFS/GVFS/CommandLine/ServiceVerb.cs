@@ -1,6 +1,7 @@
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -156,8 +157,18 @@ namespace GVFS.CommandLine
             {
                 if (!client.Connect())
                 {
-                    errorMessage = "GVFS.Service is not responding.";
-                    return false;
+                    // Service not installed or not running (typical for the
+                    // user-level install model). Fall back to reading the
+                    // registry file directly. See the matching comment in
+                    // MountVerb.RegisterMount for the design rationale.
+                    LocalRepoRegistry localRegistry = LocalRepoRegistry.CreateForCurrentPlatform(NullTracer.Instance);
+                    if (!localRegistry.TryGetActiveRepos(out List<LocalRepoRegistration> activeRepos, out errorMessage))
+                    {
+                        return false;
+                    }
+
+                    repoList = activeRepos.Select(r => r.EnlistmentRoot).ToList();
+                    return true;
                 }
 
                 try
