@@ -128,8 +128,19 @@ namespace GVFS.Mount
             // TryInitializeAndQueryGVFSConfig combines the anonymous probe, credential fetch,
             // and config query into at most 2 HTTP requests (1 for anonymous repos), reusing
             // the same HttpClient/TCP connection.
+            Stopwatch mountPhaseTimer = Stopwatch.StartNew();
             Stopwatch parallelTimer = Stopwatch.StartNew();
             bool hasCacheServer = this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url);
+
+            this.tracer.RelatedEvent(
+                EventLevel.Informational,
+                "MountPhase",
+                new EventMetadata
+                {
+                    { "Phase", "ParallelMountStarted" },
+                    { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                },
+                Keywords.Telemetry);
 
             // When a cache server is configured locally, auth/config is best-effort:
             // mount can proceed without it. We still attempt it so GCM can pop up a
@@ -168,6 +179,19 @@ namespace GVFS.Mount
                 }
 
                 this.ValidateGVFSVersion(config, failOnError: !hasCacheServer);
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "NetworkValidationComplete" },
+                        { "DurationMs", sw.ElapsedMilliseconds },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
+
                 this.tracer.RelatedInfo("ParallelMount: Auth + config completed in {0}ms", sw.ElapsedMilliseconds);
                 return config;
             });
@@ -250,6 +274,18 @@ namespace GVFS.Mount
                     }
 
                     this.LogEnlistmentInfoAndSetConfigValues();
+
+                    this.tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        "MountPhase",
+                        new EventMetadata
+                        {
+                            { "Phase", "LocalValidationComplete" },
+                            { "DurationMs", sw.ElapsedMilliseconds },
+                            { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                        },
+                        Keywords.Telemetry);
+
                     this.tracer.RelatedInfo("ParallelMount: Local validations + git config completed in {0}ms", sw.ElapsedMilliseconds);
                 });
 
@@ -280,16 +316,58 @@ namespace GVFS.Mount
                 parallelTimer.Stop();
                 this.tracer.RelatedInfo("ParallelMount: All parallel tasks completed in {0}ms", parallelTimer.ElapsedMilliseconds);
 
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "ParallelMountComplete" },
+                        { "DurationMs", parallelTimer.ElapsedMilliseconds },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
                 ServerGVFSConfig serverGVFSConfig = hasCacheServer ? null : networkTask.Result;
 
                 this.mountProgressMessage = "Resolving cache server";
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
                 this.cacheServer = cacheServerResolver.ResolveNameFromRemote(this.cacheServer.Url, serverGVFSConfig);
 
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "CacheServerResolved" },
+                        { "CacheServerUrl", this.cacheServer.Url ?? string.Empty },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
                 this.EnsureLocalCacheIsHealthy(serverGVFSConfig);
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "LocalCacheHealthy" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
 
                 this.mountProgressMessage = "Preparing mount";
                 this.context = this.CreateContext();
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "ContextCreated" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
 
                 if (this.context.Unattended)
                 {
@@ -307,10 +385,42 @@ namespace GVFS.Mount
                     this.FailMountAndExit(errorMessage);
                 }
 
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "HooksUpdated" },
+                        { "Skipped", this.enlistment.IsWorktree },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
                 GVFSPlatform.Instance.ConfigureVisualStudio(this.enlistment.GitBinPath, this.tracer);
 
                 this.mountProgressMessage = "Starting virtualization";
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "VirtualizationStarting" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
                 this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer);
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "VirtualizationComplete" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
 
                 try
                 {
@@ -329,6 +439,7 @@ namespace GVFS.Mount
                         // Use TracingConstants.MessageKey.InfoMessage rather than TracingConstants.MessageKey.CriticalMessage
                         // as this message should not appear as an error
                         { TracingConstants.MessageKey.InfoMessage, "Virtual repo is ready" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
                     },
                     Keywords.Telemetry);
 
