@@ -129,7 +129,11 @@ namespace GVFS.Mount
             // and config query into at most 2 HTTP requests (1 for anonymous repos), reusing
             // the same HttpClient/TCP connection.
             Stopwatch parallelTimer = Stopwatch.StartNew();
+            bool hasCacheServer = this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url);
 
+            // When a cache server is configured locally, auth/config is best-effort:
+            // mount can proceed without it. We still attempt it so GCM can pop up a
+            // renewal prompt for stale tokens, but we don't block mount on the result.
             var networkTask = Task.Run(() =>
             {
                 Stopwatch sw = Stopwatch.StartNew();
@@ -139,22 +143,31 @@ namespace GVFS.Mount
 
                 if (!this.enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
                     this.tracer, this.enlistment, this.retryConfig,
-                    out config, out authConfigError, out isAuthFailure))
+                    out config, out authConfigError, out isAuthFailure,
+                    credentialTimeoutMs: hasCacheServer ? GitAuthentication.BackgroundCredentialTimeoutMs : GitAuthentication.DefaultCredentialTimeoutMs))
                 {
-                    if (this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url))
+                    if (hasCacheServer)
                     {
                         this.tracer.RelatedWarning("Mount will proceed with fallback cache server: " + authConfigError);
                         config = null;
                     }
                     else
                     {
+                        ReturnCode exitCode = ReturnCode.RemoteGvfsConfigError;
+                        if (isAuthFailure)
+                        {
+                            exitCode = authConfigError != null && authConfigError.Contains("Credential manager did not respond")
+                                ? ReturnCode.CredentialTimeout
+                                : ReturnCode.AuthenticationError;
+                        }
+
                         this.FailMountAndExit(
-                            isAuthFailure ? ReturnCode.AuthenticationError : ReturnCode.GenericError,
+                            exitCode,
                             "Unable to query /gvfs/config" + Environment.NewLine + authConfigError);
                     }
                 }
 
-                this.ValidateGVFSVersion(config);
+                this.ValidateGVFSVersion(config, failOnError: !hasCacheServer);
                 this.tracer.RelatedInfo("ParallelMount: Auth + config completed in {0}ms", sw.ElapsedMilliseconds);
                 return config;
             });
@@ -242,7 +255,22 @@ namespace GVFS.Mount
 
                 try
                 {
-                    Task.WaitAll(networkTask, localTask);
+                    if (hasCacheServer)
+                    {
+                        // With a cache server, don't block mount on the network task.
+                        // Auth runs in the background to warm credentials / pop GCM,
+                        // but mount proceeds immediately using the local cache server URL.
+                        localTask.Wait();
+
+                        // Observe background task exceptions so they don't go unhandled.
+                        networkTask.ContinueWith(
+                            t => this.tracer.RelatedWarning("Background auth task failed: " + t.Exception.Flatten().InnerExceptions[0].Message),
+                            TaskContinuationOptions.OnlyOnFaulted);
+                    }
+                    else
+                    {
+                        Task.WaitAll(networkTask, localTask);
+                    }
                 }
                 catch (AggregateException ae)
                 {
@@ -252,7 +280,7 @@ namespace GVFS.Mount
                 parallelTimer.Stop();
                 this.tracer.RelatedInfo("ParallelMount: All parallel tasks completed in {0}ms", parallelTimer.ElapsedMilliseconds);
 
-                ServerGVFSConfig serverGVFSConfig = networkTask.Result;
+                ServerGVFSConfig serverGVFSConfig = hasCacheServer ? null : networkTask.Result;
 
                 this.mountProgressMessage = "Resolving cache server";
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
@@ -1467,7 +1495,7 @@ namespace GVFS.Mount
             return serverGVFSConfig;
         }
 
-        private void ValidateGVFSVersion(ServerGVFSConfig config)
+        private void ValidateGVFSVersion(ServerGVFSConfig config, bool failOnError = true)
         {
             using (ITracer activity = this.tracer.StartActivity("ValidateGVFSVersion", EventLevel.Informational))
             {
@@ -1519,7 +1547,10 @@ namespace GVFS.Mount
                 }
 
                 activity.RelatedError("GVFS version {0} is not supported", currentVersion);
-                this.FailMountAndExit("ERROR: Your GVFS version is no longer supported. Install the latest and try again.");
+                if (failOnError)
+                {
+                    this.FailMountAndExit("ERROR: Your GVFS version is no longer supported. Install the latest and try again.");
+                }
             }
         }
 
