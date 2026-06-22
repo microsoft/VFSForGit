@@ -2,7 +2,25 @@
 
   <PropertyGroup>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <LayoutPath>$(RepoOutPath)GVFS.Payload\bin\$(Configuration)\win-x64\</LayoutPath>
+    <LayoutPath>$(RepoOutPath)GVFS.Payload\bin\$(Configuration)\win-$(VfsArch)\</LayoutPath>
+
+    <!--
+      Per-architecture suffix on the installer file name. x64 keeps the
+      historical SetupGVFS.<v>.exe naming so existing release pages and any
+      downstream tooling that hard-codes the name don't break. The ARM64
+      installer adds "-arm64" so both files can coexist as assets on the same
+      GitHub release.
+    -->
+    <InstallerArchSuffix Condition="'$(VfsArch)' == 'arm64'">-arm64</InstallerArchSuffix>
+    <InstallerArchSuffix Condition="'$(InstallerArchSuffix)' == ''"></InstallerArchSuffix>
+
+    <!--
+      Inno Setup ArchitecturesInstallIn64BitMode / ArchitecturesAllowed value.
+      x64 uses "x64compatible" (allows install on x64 and ARM64-via-Prism).
+      ARM64 uses "arm64" (native ARM64 only).
+    -->
+    <InstallerTargetArch Condition="'$(VfsArch)' == 'arm64'">arm64</InstallerTargetArch>
+    <InstallerTargetArch Condition="'$(InstallerTargetArch)' == ''">x64compatible</InstallerTargetArch>
   </PropertyGroup>
 
   <ItemDefinitionGroup>
@@ -25,7 +43,7 @@
   </ItemGroup>
 
   <Target Name="CreateInstaller" BeforeTargets="Build" Condition="'$(SkipCreateInstaller)' != 'true'">
-    <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) Setup.iss /O"$(OutputPath)"' />
+    <Exec Command='"$(PkgTools_InnoSetup)\tools\ISCC.exe" /DLayoutDir="$(LayoutPath)" /DGVFSVersion=$(GVFSVersion) /DArchSuffix=$(InstallerArchSuffix) /DTargetArch=$(InstallerTargetArch) Setup.iss /O"$(OutputPath)"' />
   </Target>
 
   <Target Name="CleanInstaller" BeforeTargets="AfterClean">

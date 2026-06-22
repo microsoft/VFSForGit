@@ -12,6 +12,7 @@ namespace GVFS.Common.Tracing
         private readonly string enlistmentId;
         private readonly string mountId;
         private readonly string vfsVersion;
+        private readonly string vfsArchitecture;
 
         private QueuedPipeStringWriter pipeWriter;
 
@@ -27,6 +28,7 @@ namespace GVFS.Common.Tracing
             this.enlistmentId = enlistmentId;
             this.mountId = mountId;
             this.vfsVersion = ProcessHelper.GetCurrentProcessVersion();
+            this.vfsArchitecture = ProcessHelper.GetCurrentProcessArchitecture();
 
             this.pipeWriter = new QueuedPipeStringWriter(
                 () => new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous),
@@ -131,6 +133,7 @@ namespace GVFS.Common.Tracing
             var pipeMessage = new PipeMessage
             {
                 Version = this.vfsVersion,
+                Architecture = this.vfsArchitecture,
                 ProviderName = this.providerName,
                 EventName = message.EventName,
                 EventLevel = message.Level,
@@ -153,6 +156,8 @@ namespace GVFS.Common.Tracing
         {
             [JsonPropertyName("version")]
             public string Version { get; set; }
+            [JsonPropertyName("architecture")]
+            public string Architecture { get; set; }
             [JsonPropertyName("providerName")]
             public string ProviderName { get; set; }
             [JsonPropertyName("eventName")]

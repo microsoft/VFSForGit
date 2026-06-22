@@ -37,14 +37,28 @@
       with direct downloads from the public internet.
     -->
     <UseTerrapinAssetCache Condition="'$(UseTerrapinAssetCache)' == ''">false</UseTerrapinAssetCache>
+
+    <!--
+      Target CPU architecture. Drives RID selection, vcpkg triplets, and the
+      native Platform mapping below. Default x64.
+      Valid values: x64, arm64 (lowercase; matches RID and vcpkg conventions).
+    -->
+    <VfsArch Condition="'$(VfsArch)' == ''">x64</VfsArch>
+
+    <!--
+      Native (vcxproj) Platform name corresponding to $(VfsArch).
+      vcxproj uses x64/ARM64 (mixed case); RID/vcpkg use x64/arm64 (lowercase).
+    -->
+    <VfsNativePlatform Condition="'$(VfsArch)' == 'arm64'">ARM64</VfsNativePlatform>
+    <VfsNativePlatform Condition="'$(VfsNativePlatform)' == ''">x64</VfsNativePlatform>
   </PropertyGroup>
 
   <!-- Managed project properties -->
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
     <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-$(VfsArch)</RuntimeIdentifier>
+    <PlatformTarget>$(VfsNativePlatform)</PlatformTarget>
     <SelfContained>true</SelfContained>
     <PublishAot>true</PublishAot>
     <OptimizationPreference>Speed</OptimizationPreference>
@@ -74,7 +88,7 @@
     See THIRD-PARTY-NOTICES.md for license details on these native libraries.
   -->
   <PropertyGroup Condition="'$(PublishAot)' == 'true'">
-    <VcpkgInstalledDir>$(RepoOutPath)vcpkg_installed\static\x64-windows-static-aot\</VcpkgInstalledDir>
+    <VcpkgInstalledDir>$(RepoOutPath)vcpkg_installed\static\$(VfsArch)-windows-static-aot\</VcpkgInstalledDir>
   </PropertyGroup>
 
   <!-- Set libgit2 library name unconditionally — all builds use vcpkg-sourced libgit2 -->
@@ -103,17 +117,17 @@
     Copy from the vcpkg dynamic build output.
   -->
   <ItemGroup Condition="'$(PublishAot)' != 'true' and '$(MSBuildProjectExtension)' == '.csproj' and '$(IncludeBuildOutput)' != 'false'">
-    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\git2.dll">
+    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\$(VfsArch)-windows-dynamic\bin\git2.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Link>git2.dll</Link>
     </Content>
-    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\pcre.dll">
+    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\$(VfsArch)-windows-dynamic\bin\pcre.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Link>pcre.dll</Link>
     </Content>
-    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\x64-windows-dynamic\bin\z.dll">
+    <Content Include="$(RepoOutPath)vcpkg_installed\dynamic\$(VfsArch)-windows-dynamic\bin\z.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Link>z.dll</Link>
@@ -122,7 +136,7 @@
 
   <!-- Native project properties -->
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.vcxproj'">
-    <Platform>x64</Platform>
+    <Platform>$(VfsNativePlatform)</Platform>
     <OutDir>$(ProjectOutPath)bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectOutPath)intermediate\$(Platform)\$(Configuration)\</IntDir>
     <GeneratedIncludePath>$(IntDir)include\</GeneratedIncludePath>

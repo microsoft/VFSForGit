@@ -14,6 +14,7 @@ namespace GVFS.UnitTests.Tracing
         public void TraceMessageDataIsCorrectFormat()
         {
             const string vfsVersion = "test-vfsVersion";
+            const string vfsArchitecture = "test-architecture";
             const string providerName = "test-ProviderName";
             const string eventName = "test-eventName";
             const EventLevel level = EventLevel.Error;
@@ -26,6 +27,7 @@ namespace GVFS.UnitTests.Tracing
             TelemetryDaemonEventListener.PipeMessage message = new TelemetryDaemonEventListener.PipeMessage
             {
                 Version = vfsVersion,
+                Architecture = vfsArchitecture,
                 ProviderName = providerName,
                 EventName = eventName,
                 EventLevel = level,
@@ -44,8 +46,9 @@ namespace GVFS.UnitTests.Tracing
             using (JsonDocument doc = JsonDocument.Parse(messageJson))
             {
                 JsonElement root = doc.RootElement;
-                root.EnumerateObject().Count().ShouldEqual(6);
+                root.EnumerateObject().Count().ShouldEqual(7);
                 root.GetProperty("version").GetString().ShouldEqual(vfsVersion);
+                root.GetProperty("architecture").GetString().ShouldEqual(vfsArchitecture);
                 root.GetProperty("providerName").GetString().ShouldEqual(providerName);
                 root.GetProperty("eventName").GetString().ShouldEqual(eventName);
                 root.GetProperty("eventLevel").GetInt32().ShouldEqual((int)level);
