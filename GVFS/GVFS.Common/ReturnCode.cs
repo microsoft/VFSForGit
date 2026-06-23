@@ -12,5 +12,7 @@
         DehydrateFolderFailures = 7,
         MountAlreadyRunning = 8,
         AuthenticationError = 9,
+        CredentialTimeout = 10,
+        RemoteGvfsConfigError = 11,
     }
 }

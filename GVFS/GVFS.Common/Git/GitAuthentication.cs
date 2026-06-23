@@ -13,8 +13,11 @@ namespace GVFS.Common.Git
     public class GitAuthentication
     {
         private const double MaxBackoffSeconds = 30;
+        public const int DefaultCredentialTimeoutMs = 30_000;
+        public const int BackgroundCredentialTimeoutMs = 120_000;
 
         private readonly Lock gitAuthLock = new Lock();
+        private readonly SemaphoreSlim credentialGate = new SemaphoreSlim(1, 1);
         private readonly ICredentialStore credentialStore;
         private readonly string repoUrl;
 
@@ -219,7 +222,8 @@ namespace GVFS.Common.Git
             RetryConfig retryConfig,
             out ServerGVFSConfig serverGVFSConfig,
             out string errorMessage,
-            out bool isAuthFailure)
+            out bool isAuthFailure,
+            int credentialTimeoutMs = DefaultCredentialTimeoutMs)
         {
             if (this.isInitialized)
             {
@@ -246,6 +250,7 @@ namespace GVFS.Common.Git
 
                 if (httpStatus != HttpStatusCode.Unauthorized)
                 {
+                    this.isInitialized = true;
                     errorMessage = "Unable to query /gvfs/config";
                     tracer.RelatedWarning("{0}: Config query failed with status {1}", nameof(this.TryInitializeAndQueryGVFSConfig), httpStatus?.ToString() ?? "None");
                     return false;
@@ -254,9 +259,13 @@ namespace GVFS.Common.Git
                 // Server requires authentication — fetch credentials
                 this.IsAnonymous = false;
 
-                if (!this.TryCallGitCredential(tracer, out errorMessage))
+                if (!this.TryCallGitCredential(tracer, out errorMessage, credentialTimeoutMs))
                 {
                     isAuthFailure = true;
+                    // Mark initialized even on failure so TryGetCredentials can
+                    // retry later (e.g., when mount proceeds with a cache server
+                    // and object downloads need auth).
+                    this.isInitialized = true;
                     tracer.RelatedWarning("{0}: Credential fetch failed: {1}", nameof(this.TryInitializeAndQueryGVFSConfig), errorMessage);
                     return false;
                 }
@@ -376,28 +385,45 @@ namespace GVFS.Common.Git
             this.numberOfAttempts++;
         }
 
-        private bool TryCallGitCredential(ITracer tracer, out string errorMessage)
+        private bool TryCallGitCredential(ITracer tracer, out string errorMessage, int timeoutMs = -1)
         {
-            string gitUsername;
-            string gitPassword;
-            if (!this.credentialStore.TryGetCredential(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage))
+            // Serialize credential fetches so only one git-credential-fill
+            // process runs at a time. Without this, a background auth task
+            // and a foreground object download could both spawn GCM prompts.
+            // Wait up to 60s for an in-flight fetch; if the gate is still
+            // held (e.g., background GCM prompt), fall through and let this
+            // caller spawn its own credential fetch.
+            bool acquired = this.credentialGate.Wait(60_000);
+            try
             {
-                this.UpdateBackoff();
-                return false;
-            }
+                string gitUsername;
+                string gitPassword;
+                if (!this.credentialStore.TryGetCredential(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage, timeoutMs))
+                {
+                    this.UpdateBackoff();
+                    return false;
+                }
 
-            if (!string.IsNullOrEmpty(gitUsername) && !string.IsNullOrEmpty(gitPassword))
-            {
-                this.cachedCredentialString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
-                this.isCachedCredentialStringApproved = false;
-            }
-            else
-            {
-                errorMessage = "Got back empty credentials from git";
-                return false;
-            }
+                if (!string.IsNullOrEmpty(gitUsername) && !string.IsNullOrEmpty(gitPassword))
+                {
+                    this.cachedCredentialString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
+                    this.isCachedCredentialStringApproved = false;
+                }
+                else
+                {
+                    errorMessage = "Got back empty credentials from git";
+                    return false;
+                }
 
-            return true;
+                return true;
+            }
+            finally
+            {
+                if (acquired)
+                {
+                    this.credentialGate.Release();
+                }
+            }
         }
     }
 }
