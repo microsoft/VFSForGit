@@ -241,7 +241,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypeFile,
                 DefaultSha,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.File}, {DefaultSha}) Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
@@ -374,7 +374,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypeFile,
                 DefaultSha,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.File}, {DefaultSha}) Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
@@ -398,7 +398,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypePartialFolder,
                 sha: null,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.PartialFolder}, ) Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
@@ -422,7 +422,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypeExpandedFolder,
                 sha: null,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.ExpandedFolder}, ) Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
@@ -446,7 +446,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypePossibleTombstoneFolder,
                 sha: null,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.Insert({DefaultPath}, {PlaceholderTable.PlaceholderData.PlaceholderType.PossibleTombstoneFolder}, ) Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
@@ -486,7 +486,7 @@ namespace GVFS.UnitTests.Common.Database
                     mockCommand.SetupSet(x => x.CommandText = "DELETE FROM Placeholder WHERE path = @path;").Throws(new Exception(DefaultExceptionMessage));
 
                     GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.Remove(DefaultPath));
-                    ex.Message.ShouldEqual($"PlaceholderTable.Remove({DefaultPath}) Exception");
+                    ex.Message.ShouldEqual($"PlaceholderTable.Remove Exception");
                     ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
                 });
         }
@@ -540,7 +540,7 @@ namespace GVFS.UnitTests.Common.Database
                     mockCommand.SetupSet(x => x.CommandText = "SELECT path, pathType, sha FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;").Throws(new Exception(DefaultExceptionMessage));
 
                     GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => placeholders.RemoveAllEntriesForFolder(DefaultPath));
-                    ex.Message.ShouldEqual($"PlaceholderTable.RemoveAllEntriesForFolder({DefaultPath}) Exception");
+                    ex.Message.ShouldEqual($"PlaceholderTable.RemoveAllEntriesForFolder Exception");
                     ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
                 });
         }
