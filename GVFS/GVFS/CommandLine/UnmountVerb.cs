@@ -1,5 +1,6 @@
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Tracing;
 using System;
 using System.Diagnostics;
 
@@ -204,7 +205,30 @@ namespace GVFS.CommandLine
             {
                 if (!client.Connect())
                 {
-                    errorMessage = "Unable to unregister repo because GVFS.Service is not responding. " + GVFSVerb.StartServiceInstructions;
+                    // Service not installed or not running (typical for the
+                    // user-level install model). Fall back to writing the
+                    // registry file directly. See the matching comment in
+                    // MountVerb.RegisterMount for the design rationale and
+                    // the deliberate decision NOT to fall back on
+                    // BrokenPipeException (the service-broken-mid-request
+                    // case).
+                    LocalRepoRegistry localRegistry = LocalRepoRegistry.CreateForCurrentPlatform(NullTracer.Instance);
+                    if (localRegistry.TryDeactivateRepo(rootPath, out errorMessage))
+                    {
+                        return true;
+                    }
+
+                    // TryDeactivateRepo returns false for two reasons:
+                    //   1. Entry not found — benign, nothing to unregister.
+                    //   2. I/O error — real failure, propagate to caller.
+                    // Distinguish by checking for the "non-existent" message
+                    // that TryDeactivateRepo produces for case 1.
+                    if (errorMessage != null && errorMessage.Contains("non-existent", StringComparison.OrdinalIgnoreCase))
+                    {
+                        errorMessage = string.Empty;
+                        return true;
+                    }
+
                     return false;
                 }
 

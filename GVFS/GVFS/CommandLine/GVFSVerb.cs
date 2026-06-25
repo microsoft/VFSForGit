@@ -16,8 +16,6 @@ namespace GVFS.CommandLine
 {
     public abstract class GVFSVerb
     {
-        protected const string StartServiceInstructions = "Run 'sc start GVFS.Service' from an elevated command prompt to ensure it is running.";
-
         private readonly bool validateOriginURL;
 
         public GVFSVerb(bool validateOrigin = true)
@@ -191,22 +189,6 @@ namespace GVFS.CommandLine
         {
             return ConsoleHelper.ShowStatusWhileRunning(
                 action,
-                message,
-                this.Output,
-                showSpinner: !this.Unattended && this.Output == Console.Out && !Console.IsOutputRedirected,
-                gvfsLogEnlistmentRoot: gvfsLogEnlistmentRoot,
-                initialDelayMs: 0);
-        }
-
-        protected bool ShowStatusWhileRunning(
-            Func<bool> action,
-            Func<string> getMessage,
-            string message,
-            string gvfsLogEnlistmentRoot)
-        {
-            return ConsoleHelper.ShowStatusWhileRunning(
-                action,
-                getMessage,
                 message,
                 this.Output,
                 showSpinner: !this.Unattended && this.Output == Console.Out && !Console.IsOutputRedirected,
@@ -586,8 +568,19 @@ You can specify a URL, a name of a configured cache server, or the special names
             {
                 if (!client.Connect())
                 {
-                    errorMessage = "GVFS.Service is not responding. " + GVFSVerb.StartServiceInstructions;
-                    return false;
+                    // Service not available (user-level install model). Trigger
+                    // the EnableProjFSOnAllDrives scheduled task to ensure
+                    // PrjFlt is attached to this volume. Task failures are not
+                    // fatal — if PrjFlt is truly missing at mount time, the
+                    // mount-process filter check will catch it.
+                    ProcessResult result = ProcessHelper.Run(
+                        "schtasks.exe",
+                        "/Run /TN \"\\GVFS\\EnableProjFSOnAllDrives\"");
+
+                    // Task not registered or failed — may be fine if PrjFlt
+                    // is already attached. Continue and let mount validate.
+                    errorMessage = string.Empty;
+                    return true;
                 }
 
                 try

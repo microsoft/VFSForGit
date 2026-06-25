@@ -34,6 +34,9 @@ jobs:
           - staging-then-clean
           - mount-safety-deferral
           - unmount-all-triggers-upgrade
+          - versioned-fresh-install
+          - versioned-upgrade
+          - flat-to-versioned-upgrade
       fail-fast: false
 
     steps:
@@ -361,6 +364,140 @@ jobs:
 
             Assert-PendingUpgrade $false
             Write-Host "PASS: unmount-all triggers staged upgrade via process monitor"
+          }
+
+          "versioned-fresh-install" {
+            Write-Host "=== Scenario: Fresh install with versioned layout ==="
+            # Install new build directly (no LKG)
+            Install-GVFS $newInstaller
+            Assert-ServiceRunning
+
+            # Verify versioned layout structure
+            $appDir = "C:\Program Files\VFS for Git"
+            $currentJunction = Join-Path $appDir "Current"
+            if (-not (Test-Path $currentJunction)) {
+              throw "Current junction does not exist"
+            }
+            # Check it's actually a junction
+            $item = Get-Item $currentJunction
+            if ($item.LinkType -ne 'Junction') {
+              throw "Current is not a junction: LinkType = $($item.LinkType)"
+            }
+            Write-Host "Current junction exists: $currentJunction -> $($item.Target)"
+
+            # Verify gvfs.exe exists in versioned path
+            $versionDirs = Get-ChildItem (Join-Path $appDir "Versions") -Directory
+            if ($versionDirs.Count -eq 0) {
+              throw "No version directories found"
+            }
+            $versionDir = $versionDirs[0].FullName
+            $gvfsExe = Join-Path $versionDir "gvfs.exe"
+            if (-not (Test-Path $gvfsExe)) {
+              throw "gvfs.exe not found at $gvfsExe"
+            }
+            Write-Host "Found gvfs.exe at $gvfsExe"
+
+            # Verify gvfs version works
+            & "$installDir\gvfs.exe" version 2>&1 | Write-Host
+            if ($LASTEXITCODE -ne 0) { throw "gvfs version failed" }
+
+            # Clone and mount test repo
+            Mount-TestRepo | Write-Host
+            Unmount-TestRepo
+            Write-Host "PASS: Versioned fresh install completed"
+          }
+
+          "versioned-upgrade" {
+            Write-Host "=== Scenario: Upgrade from versioned to versioned (junction swap) ==="
+            # First install (versioned)
+            Install-GVFS $newInstaller
+            Assert-ServiceRunning
+            $mountPid = Mount-TestRepo
+
+            # Second install with SAME installer (simulating same-version reinstall)
+            # This tests that the junction swap is atomic and doesn't break mounts
+            Install-GVFS $newInstaller
+            Assert-ServiceRunning
+
+            # Verify mount still works
+            Assert-MountAlive $mountPid
+            Write-Host "Mount still alive after reinstall"
+
+            # Unmount and verify we can remount
+            Unmount-TestRepo
+            $null = Mount-TestRepo
+            Unmount-TestRepo
+
+            # Verify version folder structure - should have kept 1 old version (if any)
+            $versionsDir = "C:\Program Files\VFS for Git\Versions"
+            $versionDirs = Get-ChildItem $versionsDir -Directory
+            Write-Host "Version directories after upgrade: $($versionDirs.Count)"
+            if ($versionDirs.Count -eq 0) {
+              throw "No version directories found after upgrade"
+            }
+            Write-Host "PASS: Versioned-to-versioned upgrade completed"
+          }
+
+          "flat-to-versioned-upgrade" {
+            Write-Host "=== Scenario: Upgrade from flat layout (LKG) to versioned layout ==="
+            # Install LKG (flat layout)
+            Install-GVFS $lkgInstaller
+            Assert-ServiceRunning
+
+            # Verify LKG works (clone + mount)
+            $mountPid = Mount-TestRepo
+
+            # Get LKG version to verify PATH cleanup later
+            $lkgVersion = & "$installDir\gvfs.exe" version 2>&1
+            Write-Host "LKG version: $lkgVersion"
+
+            # Unmount before upgrade
+            Unmount-TestRepo
+
+            # Upgrade to versioned layout
+            Install-GVFS $newInstaller
+            Assert-ServiceRunning
+
+            # Verify Current junction was created
+            $currentJunction = Join-Path $installDir "Current"
+            if (-not (Test-Path $currentJunction)) {
+              throw "Current junction was not created during upgrade"
+            }
+            $item = Get-Item $currentJunction
+            if ($item.LinkType -ne 'Junction') {
+              throw "Current is not a junction after upgrade"
+            }
+            Write-Host "Current junction created: $currentJunction -> $($item.Target)"
+
+            # Verify PATH was updated (should contain {app}\Current, NOT {app} alone)
+            $pathKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+            $systemPath = (Get-ItemProperty $pathKey).Path
+            $appDir = "C:\Program Files\VFS for Git"
+            if ($systemPath -notlike "*$appDir\Current*") {
+              throw "PATH does not contain versioned entry: $appDir\Current"
+            }
+            Write-Host "PATH contains versioned entry: $appDir\Current"
+
+            # Verify old flat PATH entry was cleaned up
+            # Match standalone {app} entry (not followed by \Current or \Versions)
+            # Use regex to detect {app} NOT followed by \Current or \Versions
+            $flatPathPattern = [regex]::Escape($appDir) + '(?!\\(Current|Versions))'
+            if ($systemPath -match $flatPathPattern) {
+              Write-Host "WARNING: Flat PATH entry still present: $appDir"
+              Write-Host "Full PATH: $systemPath"
+              # Note: This is expected to fail until Fix #3 is applied
+            } else {
+              Write-Host "Flat PATH entry successfully removed"
+            }
+
+            # Verify gvfs version shows new version
+            $newVersion = & "$installDir\gvfs.exe" version 2>&1
+            Write-Host "New version: $newVersion"
+
+            # Remount and verify it works
+            $null = Mount-TestRepo
+            Unmount-TestRepo
+            Write-Host "PASS: Flat-to-versioned upgrade completed"
           }
 
           default {

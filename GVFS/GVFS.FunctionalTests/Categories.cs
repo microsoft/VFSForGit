@@ -2,8 +2,9 @@
 {
     public static class Categories
     {
+        public const string ExtraCoverage = "ExtraCoverage";
         public const string FastFetch = "FastFetch";
         public const string GitCommands = "GitCommands";
-        public const string SkipInCI = "SkipInCI";
+        public const string NeedsReactionInCI = "NeedsReactionInCI";
     }
 }
