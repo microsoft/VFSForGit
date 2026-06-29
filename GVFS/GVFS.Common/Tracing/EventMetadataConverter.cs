@@ -119,6 +119,33 @@ namespace GVFS.Common.Tracing
                 case Enum e:
                     writer.WriteStringValue(e.ToString());
                     break;
+                case EventMetadata nested:
+                    writer.WriteStartObject();
+                    foreach (KeyValuePair<string, object> kvp in nested)
+                    {
+                        writer.WritePropertyName(kvp.Key);
+                        WriteValue(writer, kvp.Value);
+                    }
+
+                    writer.WriteEndObject();
+                    break;
+                case IDictionary<string, string> dict:
+                    writer.WriteStartObject();
+                    foreach (KeyValuePair<string, string> kvp in dict)
+                    {
+                        writer.WritePropertyName(kvp.Key);
+                        if (kvp.Value is null)
+                        {
+                            writer.WriteNullValue();
+                        }
+                        else
+                        {
+                            writer.WriteStringValue(kvp.Value);
+                        }
+                    }
+
+                    writer.WriteEndObject();
+                    break;
                 default:
                     writer.WriteStringValue(value.ToString());
                     break;
