@@ -9,6 +9,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 
 namespace GVFS.Common.Prefetch
@@ -32,7 +34,13 @@ namespace GVFS.Common.Prefetch
         private const string AreaPath = nameof(BlobPrefetcher);
         private static string pathSeparatorString = Path.DirectorySeparatorChar.ToString();
 
-        private FileBasedDictionary<string, string> lastPrefetchArgs;
+        public const string BlobPrefetchCacheFile = "BlobPrefetchCache.dat";
+        public const string PrefetchCacheSizeConfigKey = GVFSConstants.GitConfig.GVFSPrefix + "prefetch-cache-size";
+        public const int DefaultPrefetchCacheSize = 100;
+        public const int MaxPrefetchCacheSize = 1000;
+
+        private FileBasedDictionary<string, string> prefetchCache;
+        private int maxCacheSize;
 
         public BlobPrefetcher(
             ITracer tracer,
@@ -42,7 +50,7 @@ namespace GVFS.Common.Prefetch
             int searchThreadCount,
             int downloadThreadCount,
             int indexThreadCount)
-            : this(tracer, enlistment, objectRequestor, null, null, null, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
+            : this(tracer, enlistment, objectRequestor, null, null, null, DefaultPrefetchCacheSize, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
         {
         }
 
@@ -52,7 +60,8 @@ namespace GVFS.Common.Prefetch
             GitObjectsHttpRequestor objectRequestor,
             List<string> fileList,
             List<string> folderList,
-            FileBasedDictionary<string, string> lastPrefetchArgs,
+            FileBasedDictionary<string, string> prefetchCache,
+            int maxCacheSize,
             int chunkSize,
             int searchThreadCount,
             int downloadThreadCount,
@@ -70,7 +79,8 @@ namespace GVFS.Common.Prefetch
             this.FileList = fileList ?? new List<string>();
             this.FolderList = folderList ?? new List<string>();
 
-            this.lastPrefetchArgs = lastPrefetchArgs;
+            this.prefetchCache = prefetchCache;
+            this.maxCacheSize = maxCacheSize;
 
             // We never want to update config settings for a GVFSEnlistment
             this.SkipConfigUpdate = enlistment is GVFSEnlistment;
@@ -127,39 +137,26 @@ namespace GVFS.Common.Prefetch
 
         public static bool IsNoopPrefetch(
             ITracer tracer,
-            FileBasedDictionary<string, string> lastPrefetchArgs,
+            FileBasedDictionary<string, string> prefetchCache,
             string commitId,
             List<string> files,
             List<string> folders,
             bool hydrateFilesAfterDownload)
         {
-            if (lastPrefetchArgs != null &&
-                lastPrefetchArgs.TryGetValue(PrefetchArgs.CommitId, out string lastCommitId) &&
-                lastPrefetchArgs.TryGetValue(PrefetchArgs.Files, out string lastFilesString) &&
-                lastPrefetchArgs.TryGetValue(PrefetchArgs.Folders, out string lastFoldersString) &&
-                lastPrefetchArgs.TryGetValue(PrefetchArgs.Hydrate, out string lastHydrateString))
+            if (prefetchCache != null)
             {
-                string newFilesString = GVFSJsonOptions.Serialize(files);
-                string newFoldersString = GVFSJsonOptions.Serialize(folders);
-                bool isNoop =
-                    commitId == lastCommitId &&
-                    hydrateFilesAfterDownload.ToString() == lastHydrateString &&
-                    newFilesString == lastFilesString &&
-                    newFoldersString == lastFoldersString;
+                string cacheKey = ComputeCacheKey(files, folders, hydrateFilesAfterDownload);
+                bool hasEntry = prefetchCache.TryGetValue(cacheKey, out string cachedCommitId);
+                bool isNoop = hasEntry && commitId == cachedCommitId;
 
                 tracer.RelatedEvent(
                     EventLevel.Informational,
                     "BlobPrefetcher.IsNoopPrefetch",
                     new EventMetadata
                     {
-                        { "Last" + PrefetchArgs.CommitId, lastCommitId },
-                        { "Last" + PrefetchArgs.Files, lastFilesString },
-                        { "Last" + PrefetchArgs.Folders, lastFoldersString },
-                        { "Last" + PrefetchArgs.Hydrate, lastHydrateString },
-                        { "New" + PrefetchArgs.CommitId, commitId },
-                        { "New" + PrefetchArgs.Files, newFilesString },
-                        { "New" + PrefetchArgs.Folders, newFoldersString },
-                        { "New" + PrefetchArgs.Hydrate, hydrateFilesAfterDownload.ToString() },
+                        { "CacheKey", cacheKey },
+                        { "CachedCommitId", cachedCommitId ?? "(none)" },
+                        { "NewCommitId", commitId },
                         { "Result", isNoop },
                     });
 
@@ -293,7 +290,10 @@ namespace GVFS.Common.Prefetch
             //      * availableBlobs (out param): Locally available blob ids (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
             //      * MissingBlobs (property): Blob ids that are missing and need to be downloaded
             //      * AvailableBlobs (property): Same as availableBlobs
-            FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, diff.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
+            Func<IObjectExistenceChecker> checkerFactory = this.CreateObjectExistenceCheckerFactory(out IDisposable sharedCheckerOwner);
+            try
+            {
+            FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, diff.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment, checkerFactory);
 
             // downloader
             //  Inputs:
@@ -384,6 +384,90 @@ namespace GVFS.Common.Prefetch
             if (!this.HasFailures)
             {
                 this.SavePrefetchArgs(commitToFetch, hydrateFilesAfterDownload);
+            }
+            }
+            finally
+            {
+                sharedCheckerOwner?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Creates a factory for object existence checkers based on git config.
+        /// When gvfs.prefetch-use-idx is true, returns a factory that shares a single
+        /// PackIndexObjectExistenceChecker (thread-safe, read-only mmap) across all workers.
+        /// The shared instance is returned via <paramref name="sharedCheckerOwner"/> for
+        /// the caller to dispose after all workers complete.
+        /// Otherwise, returns a factory creating per-worker LibGit2ObjectExistenceChecker instances.
+        /// </summary>
+        private Func<IObjectExistenceChecker> CreateObjectExistenceCheckerFactory(out IDisposable sharedCheckerOwner)
+        {
+            sharedCheckerOwner = null;
+
+            bool usePackIdx = false;
+            try
+            {
+                GitProcess git = new GitProcess(this.Enlistment);
+                GitProcess.ConfigResult configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.PrefetchUseIdx);
+                if (!configResult.TryParseAsString(out string value, out string _) ||
+                    string.IsNullOrEmpty(value) ||
+                    !bool.TryParse(value, out usePackIdx))
+                {
+                    usePackIdx = GVFSConstants.GitConfig.PrefetchUseIdxDefault;
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Tracer.RelatedWarning("Failed to read {0} config: {1}", GVFSConstants.GitConfig.PrefetchUseIdx, ex.Message);
+            }
+
+            if (usePackIdx)
+            {
+                this.Tracer.RelatedInfo("Prefetch: Using pack-index object existence checker");
+                try
+                {
+                    PackIndexObjectExistenceChecker sharedChecker = new PackIndexObjectExistenceChecker(
+                        this.Tracer,
+                        this.Enlistment.LocalObjectsRoot,
+                        this.Enlistment.GitObjectsRoot);
+
+                    sharedCheckerOwner = sharedChecker;
+                    return () => new NonDisposingCheckerWrapper(sharedChecker);
+                }
+                catch (Exception ex)
+                {
+                    this.Tracer.RelatedWarning(
+                        "Failed to create pack-index checker, falling back to revparse: {0}",
+                        ex.Message);
+                }
+            }
+
+            this.Tracer.RelatedInfo("Prefetch: Using revparse object existence checker");
+            return () => new LibGit2ObjectExistenceChecker(this.Tracer, this.Enlistment.WorkingDirectoryBackingRoot);
+        }
+
+        /// <summary>
+        /// Wrapper that delegates to a shared checker but does not dispose it.
+        /// Allows shared thread-safe checkers to be used in using-blocks
+        /// without premature disposal.
+        /// </summary>
+        private class NonDisposingCheckerWrapper : IObjectExistenceChecker
+        {
+            private readonly IObjectExistenceChecker inner;
+
+            public NonDisposingCheckerWrapper(IObjectExistenceChecker inner)
+            {
+                this.inner = inner;
+            }
+
+            public bool ObjectExists(string sha)
+            {
+                return this.inner.ObjectExists(sha);
+            }
+
+            public void Dispose()
+            {
+                // No-op: the shared checker is owned by BlobPrefetcher
             }
         }
 
@@ -476,7 +560,10 @@ namespace GVFS.Common.Prefetch
             {
                 using (LibGit2Repo repo = new LibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryBackingRoot))
                 {
-                    if (!repo.ObjectExists(commitSha))
+                    // Use ObjectCanBeParsed (revparse) rather than ObjectExists (odb_exists)
+                    // because commitSha may be a ref name or abbreviated SHA from CLI input
+                    // (e.g. FastFetch --commit), not necessarily a full 40-char hex SHA.
+                    if (!repo.ObjectCanBeParsed(commitSha))
                     {
                         if (!gitObjects.TryDownloadCommit(commitSha))
                         {
@@ -580,17 +667,78 @@ namespace GVFS.Common.Prefetch
 
         private void SavePrefetchArgs(string targetCommit, bool hydrate)
         {
-            if (this.lastPrefetchArgs != null)
+            if (this.prefetchCache != null && this.maxCacheSize > 0)
             {
-                this.lastPrefetchArgs.SetValuesAndFlush(
-                    new[]
+                string cacheKey = ComputeCacheKey(this.FileList, this.FolderList, hydrate);
+
+                Dictionary<string, string> allEntries = this.prefetchCache.GetAllKeysAndValues();
+                if (allEntries.Count >= this.maxCacheSize && !allEntries.ContainsKey(cacheKey))
+                {
+                    // Evict one arbitrary entry to make room
+                    using (Dictionary<string, string>.Enumerator enumerator = allEntries.GetEnumerator())
                     {
-                        new KeyValuePair<string, string>(PrefetchArgs.CommitId, targetCommit),
-                        new KeyValuePair<string, string>(PrefetchArgs.Files, GVFSJsonOptions.Serialize(this.FileList)),
-                        new KeyValuePair<string, string>(PrefetchArgs.Folders, GVFSJsonOptions.Serialize(this.FolderList)),
-                        new KeyValuePair<string, string>(PrefetchArgs.Hydrate, hydrate.ToString()),
-                    });
+                        if (enumerator.MoveNext())
+                        {
+                            this.prefetchCache.RemoveAndFlush(enumerator.Current.Key);
+                        }
+                    }
+                }
+
+                this.prefetchCache.SetValueAndFlush(cacheKey, targetCommit);
             }
+        }
+
+        /// <summary>
+        /// Updates the noop prefetch cache after a successful prefetch that was
+        /// handled externally (e.g. offloaded to the mount process). This mirrors
+        /// the logic in <see cref="SavePrefetchArgs"/> but is callable without a
+        /// BlobPrefetcher instance.
+        /// </summary>
+        public static void UpdateNoopCache(
+            FileBasedDictionary<string, string> prefetchCache,
+            int maxCacheSize,
+            string commitId,
+            List<string> files,
+            List<string> folders,
+            bool hydrate)
+        {
+            if (prefetchCache == null || maxCacheSize <= 0)
+            {
+                return;
+            }
+
+            string cacheKey = ComputeCacheKey(files, folders, hydrate);
+
+            Dictionary<string, string> allEntries = prefetchCache.GetAllKeysAndValues();
+            if (allEntries.Count >= maxCacheSize && !allEntries.ContainsKey(cacheKey))
+            {
+                using (Dictionary<string, string>.Enumerator enumerator = allEntries.GetEnumerator())
+                {
+                    if (enumerator.MoveNext())
+                    {
+                        prefetchCache.RemoveAndFlush(enumerator.Current.Key);
+                    }
+                }
+            }
+
+            prefetchCache.SetValueAndFlush(cacheKey, commitId);
+        }
+
+        internal static string ComputeCacheKey(List<string> files, List<string> folders, bool hydrate)
+        {
+            List<string> sortedFiles = new List<string>(files);
+            sortedFiles.Sort(StringComparer.Ordinal);
+
+            List<string> sortedFolders = new List<string>(folders);
+            sortedFolders.Sort(StringComparer.Ordinal);
+
+            string compositeInput = string.Join("\n",
+                GVFSJsonOptions.Serialize(sortedFiles),
+                GVFSJsonOptions.Serialize(sortedFolders),
+                hydrate.ToString());
+
+            byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(compositeInput));
+            return Convert.ToHexString(hashBytes);
         }
 
         public class FetchException : Exception
@@ -599,14 +747,6 @@ namespace GVFS.Common.Prefetch
                 : base(string.Format(format, args))
             {
             }
-        }
-
-        private static class PrefetchArgs
-        {
-            public const string CommitId = "CommitId";
-            public const string Files = "Files";
-            public const string Folders = "Folders";
-            public const string Hydrate = "Hydrate";
         }
     }
 }

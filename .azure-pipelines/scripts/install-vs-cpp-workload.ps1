@@ -54,6 +54,13 @@ $cppWorkloads = @(
     'Microsoft.VisualStudio.Workload.VCTools'
 )
 
+# ARM64 cross-compilation requires an additional component that is not
+# included in the default C++ workload install. We ensure it's present
+# so that vcpkg and MSBuild can target arm64-windows triplets even when
+# running on an x64 host (or on an ARM64 host that only has the default
+# ARM64 → ARM64 native tools and not the broader "all targets" set).
+$arm64Component = 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+
 function Get-VsWhere {
     if (Test-Path $script:vswherePath) {
         return $script:vswherePath
@@ -106,11 +113,20 @@ function Invoke-VsSetup {
 # --- Locate or bootstrap vswhere ---
 $vswhereExe = Get-VsWhere
 
-# --- Quick exit if a VS install with the C++ workload is already present ---
+# --- Quick exit if a VS install with the C++ workload AND arm64 tools is already present ---
+# Check requires a C++ workload (either one) AND the ARM64 component.
+# vswhere -requires with -requiresAny means "any one of the listed components".
+# To enforce AND, we run vswhere with the ARM64 component as a hard requirement
+# and the C++ workloads as a separate check.
 $existing = Find-VsInstall -VswhereExe $vswhereExe -RequiredWorkloads $cppWorkloads
 if ($existing) {
-    Write-Host "VS install with C++ workload already present: $($existing.installationPath) ($($existing.productId))"
-    exit 0
+    # Also check for ARM64 component
+    $arm64Present = Find-VsInstall -VswhereExe $vswhereExe -RequiredWorkloads @($arm64Component)
+    if ($arm64Present) {
+        Write-Host "VS install with C++ workload + ARM64 tools already present: $($existing.installationPath) ($($existing.productId))"
+        exit 0
+    }
+    Write-Host "VS install has C++ workload but missing ARM64 tools; will add..."
 }
 
 # --- Find any VS install (regardless of workloads) ---
@@ -126,6 +142,7 @@ if (-not $install) {
 
     Invoke-VsSetup -ExePath $bootstrapper -Description 'VS Build Tools install' -ArgumentList @(
         '--add', 'Microsoft.VisualStudio.Workload.VCTools',
+        '--add', $arm64Component,
         '--includeRecommended',
         '--quiet',
         '--norestart',
@@ -151,6 +168,7 @@ if (-not $install) {
         'modify',
         '--installPath', $install.installationPath,
         '--add', $workload,
+        '--add', $arm64Component,
         '--includeRecommended',
         '--quiet',
         '--norestart',

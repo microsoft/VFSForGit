@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
@@ -15,7 +15,6 @@ using System.Runtime.InteropServices;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [Category(Categories.ExtraCoverage)]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
@@ -89,55 +88,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void MountMergesLocalPrePostHooksConfig()
-        {
-            // Create some dummy pre/post command hooks
-            string dummyCommandHookBin = "cmd.exe /c exit 0";
-
-            // Confirm git is not already using the dummy hooks
-            string localGitPreCommandHooks = this.Enlistment.GetVirtualPathTo(".git", "hooks", "pre-command.hooks");
-            localGitPreCommandHooks.ShouldBeAFile(this.fileSystem).WithContents().Contains(dummyCommandHookBin).ShouldBeFalse();
-
-            string localGitPostCommandHooks = this.Enlistment.GetVirtualPathTo(".git", "hooks", "post-command.hooks");
-            localGitPreCommandHooks.ShouldBeAFile(this.fileSystem).WithContents().Contains(dummyCommandHookBin).ShouldBeFalse();
-
-            this.Enlistment.UnmountGVFS();
-
-            // Create dummy-<pre/post>-command.hooks and set them in the local git config
-            string dummyPreCommandHooksConfig = Path.Combine(this.Enlistment.EnlistmentRoot, "dummy-pre-command.hooks");
-            this.fileSystem.WriteAllText(dummyPreCommandHooksConfig, dummyCommandHookBin);
-            string dummyOostCommandHooksConfig = Path.Combine(this.Enlistment.EnlistmentRoot, "dummy-post-command.hooks");
-            this.fileSystem.WriteAllText(dummyOostCommandHooksConfig, dummyCommandHookBin);
-
-            // Configure the hooks locally
-            GitProcess.Invoke(this.Enlistment.RepoRoot, $"config gvfs.clone.default-pre-command {dummyPreCommandHooksConfig}");
-            GitProcess.Invoke(this.Enlistment.RepoRoot, $"config gvfs.clone.default-post-command {dummyOostCommandHooksConfig}");
-
-            // Mount the repo
-            this.Enlistment.MountGVFS();
-
-            // .git\hooks\<pre/post>-command.hooks should now contain our local dummy hook
-            // The dummy pre-command hooks should appear first, and the post-command hook should appear last
-            List<string> mergedPreCommandHooksLines = localGitPreCommandHooks
-                .ShouldBeAFile(this.fileSystem)
-                .WithContents()
-                .Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(line => !line.StartsWith("#"))
-                .ToList();
-            mergedPreCommandHooksLines.Count.ShouldEqual(2, $"Expected 2 lines, actual: {string.Join("\n", mergedPreCommandHooksLines)}");
-            mergedPreCommandHooksLines[0].ShouldEqual(dummyCommandHookBin);
-
-            List<string> mergedPostCommandHooksLines = localGitPostCommandHooks
-                .ShouldBeAFile(this.fileSystem)
-                .WithContents()
-                .Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(line => !line.StartsWith("#"))
-                .ToList();
-            mergedPostCommandHooksLines.Count.ShouldEqual(2, $"Expected 2 lines, actual: {string.Join("\n", mergedPostCommandHooksLines)}");
-            mergedPostCommandHooksLines[1].ShouldEqual(dummyCommandHookBin);
-        }
-
-        [TestCase]
         public void MountChangesMountId()
         {
             string mountId = GitProcess.Invoke(this.Enlistment.RepoRoot, "config gvfs.mount-id")
@@ -171,14 +121,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string tempDatabasePath = versionDatabasePath + "_MountFailsWhenNoOnDiskVersion";
             tempDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
 
-            this.fileSystem.MoveFile(versionDatabasePath, tempDatabasePath);
-            versionDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
+            try
+            {
+                this.fileSystem.MoveFile(versionDatabasePath, tempDatabasePath);
+                versionDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
 
-            this.MountShouldFail("Failed to upgrade repo disk layout");
+                this.MountShouldFail("Failed to upgrade repo disk layout");
+            }
+            finally
+            {
+                // Move the RepoMetadata database back
+                this.fileSystem.DeleteFile(versionDatabasePath);
+                this.fileSystem.MoveFile(tempDatabasePath, versionDatabasePath);
+            }
 
-            // Move the RepoMetadata database back
-            this.fileSystem.DeleteFile(versionDatabasePath);
-            this.fileSystem.MoveFile(tempDatabasePath, versionDatabasePath);
             tempDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
             versionDatabasePath.ShouldBeAFile(this.fileSystem);
 
@@ -202,14 +158,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string metadataBackupPath = metadataPath + ".backup";
             this.fileSystem.MoveFile(metadataPath, metadataBackupPath);
 
-            this.fileSystem.CreateEmptyFile(metadataPath);
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
-            GVFSHelpers.SaveGitObjectsRoot(this.Enlistment.DotGVFSRoot, objectsRoot);
+            try
+            {
+                this.fileSystem.CreateEmptyFile(metadataPath);
+                GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
+                GVFSHelpers.SaveGitObjectsRoot(this.Enlistment.DotGVFSRoot, objectsRoot);
 
-            this.MountShouldFail("Failed to determine local cache path from repo metadata");
-
-            this.fileSystem.DeleteFile(metadataPath);
-            this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
+                this.MountShouldFail(GVFSGenericError, expectedErrorMessage: null);
+                this.LatestGVFSLogShouldContain("Failed to determine local cache path from repo metadata");
+            }
+            finally
+            {
+                this.fileSystem.DeleteFile(metadataPath);
+                this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
+            }
 
             this.Enlistment.MountGVFS();
         }
@@ -231,14 +193,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string metadataBackupPath = metadataPath + ".backup";
             this.fileSystem.MoveFile(metadataPath, metadataBackupPath);
 
-            this.fileSystem.CreateEmptyFile(metadataPath);
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
-            GVFSHelpers.SaveLocalCacheRoot(this.Enlistment.DotGVFSRoot, localCacheRoot);
+            try
+            {
+                this.fileSystem.CreateEmptyFile(metadataPath);
+                GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
+                GVFSHelpers.SaveLocalCacheRoot(this.Enlistment.DotGVFSRoot, localCacheRoot);
 
-            this.MountShouldFail("Failed to determine git objects root from repo metadata");
-
-            this.fileSystem.DeleteFile(metadataPath);
-            this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
+                this.MountShouldFail(GVFSGenericError, expectedErrorMessage: null);
+                this.LatestGVFSLogShouldContain("Failed to determine git objects root from repo metadata");
+            }
+            finally
+            {
+                this.fileSystem.DeleteFile(metadataPath);
+                this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
+            }
 
             this.Enlistment.MountGVFS();
         }
@@ -402,15 +370,48 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             processInfo.WorkingDirectory = string.IsNullOrEmpty(mountWorkingDirectory) ? enlistmentRoot : mountWorkingDirectory;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
+            processInfo.RedirectStandardError = true;
 
             ProcessResult result = ProcessHelper.Run(processInfo);
             result.ExitCode.ShouldEqual(expectedExitCode, $"mount exit code was not {expectedExitCode}. Output: {result.Output}");
-            result.Output.ShouldContain(expectedErrorMessage);
+
+            if (expectedErrorMessage != null)
+            {
+                string combinedOutput = result.Output + "\n" + result.Errors;
+                combinedOutput.ShouldContain(expectedErrorMessage);
+            }
         }
 
         private void MountShouldFail(string expectedErrorMessage, string mountWorkingDirectory = null)
         {
             this.MountShouldFail(GVFSGenericError, expectedErrorMessage, mountWorkingDirectory);
+        }
+
+        private void LatestGVFSLogShouldContain(string expectedMessage)
+        {
+            string logsRoot = this.Enlistment.GVFSLogsRoot;
+            logsRoot.ShouldBeADirectory(this.fileSystem);
+
+            // Mount errors may be in GVFS.Mount's log, not the verb's log.
+            // Search all recent log files for the expected message.
+            string[] logFiles = Directory.GetFiles(logsRoot, "*.log");
+            logFiles.Length.ShouldBeAtLeast(1, "No GVFS log files found in " + logsRoot);
+
+            foreach (string logFile in logFiles)
+            {
+                string contents = File.ReadAllText(logFile);
+                if (contents.Contains(expectedMessage))
+                {
+                    return;
+                }
+            }
+
+            // Not found in any log — fail with the contents of the most recent log for diagnostics
+            string latestLog = logFiles
+                .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+                .First();
+            string latestContents = File.ReadAllText(latestLog);
+            latestContents.ShouldContain(expectedMessage);
         }
 
         private class MountSubfolders

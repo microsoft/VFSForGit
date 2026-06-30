@@ -137,6 +137,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             {
                 this.CreateEnlistment();
             }
+            else if (!this.Enlistment.IsMounted())
+            {
+                Assert.Fail(
+                    "GVFS mount is not running for the shared enlistment. " +
+                    "A previous test likely caused the mount process to crash. " +
+                    "Check earlier test failures for the root cause.");
+            }
 
             if (this.validateWorkingTree == Settings.ValidateWorkingTreeMode.SparseMode)
             {

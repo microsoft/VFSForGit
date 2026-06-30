@@ -14,7 +14,6 @@ using System.Threading.Tasks;
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
-    [Category(Categories.ExtraCoverage)]
     public class SharedCacheTests : TestsWithMultiEnlistment
     {
         private const string WellKnownFile = "Readme.md";
@@ -74,8 +73,12 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             blobSizesDbPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.WriteAllText(blobSizesDbPath, "0000");
 
-            enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when blob size db is corrupt");
+            // Repair should detect and fix the corrupt database
             enlistment.Repair(confirm: true);
+
+            // Verify repair actually cleaned up the corrupt file
+            blobSizesRoot.ShouldNotExistOnDisk(this.fileSystem);
+
             enlistment.MountGVFS();
         }
 

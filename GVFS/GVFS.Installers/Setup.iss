@@ -16,6 +16,18 @@
 #define GVFSStatuscacheTokenFileName "EnableGitStatusCacheToken.dat"
 #define ServiceName "GVFS.Service"
 
+; Architecture directives: x64 builds allow installation on x64 and ARM64
+; (under Prism emulation); ARM64 builds target native ARM64 only.
+; ArchSuffix and TargetArch are set via /D on the ISCC command line from
+; GVFS.Installers.csproj; defaults handle the case where they're not set
+; (e.g. old invocations without the arch parameters).
+#ifndef TargetArch
+#define TargetArch "x64compatible"
+#endif
+#ifndef ArchSuffix
+#define ArchSuffix ""
+#endif
+
 [Setup]
 AppId={{489CA581-F131-4C28-BE04-4FB178933E6D}
 AppName={#MyAppName}
@@ -29,7 +41,7 @@ AppCopyright=Copyright (c) Microsoft 2021
 BackColor=clWhite
 BackSolid=yes
 DefaultDirName={pf}\{#MyAppName}
-OutputBaseFilename=SetupGVFS.{#GVFSVersion}
+OutputBaseFilename=SetupGVFS.{#GVFSVersion}{#ArchSuffix}
 OutputDir=Setup
 Compression=lzma2
 InternalCompressLevel=ultra64
@@ -38,8 +50,8 @@ MinVersion=10.0.17763
 DisableDirPage=yes
 DisableReadyPage=yes
 SetupIconFile="{#LayoutDir}\GitVirtualFileSystem.ico"
-ArchitecturesInstallIn64BitMode=x64compatible
-ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode={#TargetArch}
+ArchitecturesAllowed={#TargetArch}
 WizardImageStretch=no
 WindowResizable=no
 CloseApplications=no
@@ -763,9 +775,129 @@ begin
     end;
 end;
 
+// Shows a modal dialog letting the user choose how to handle mounted repos.
+// Returns True if the user clicked Continue, False if Cancel. On Continue,
+// KeepMounted is set to True if the user chose to stage the upgrade and
+// leave repos mounted, or False to unmount and remount immediately.
+function ShowMountChoiceDialog(Repos: String; var KeepMounted: Boolean): Boolean;
+var
+  Form: TForm;
+  HeaderLbl, ReposLbl, RemountDescLbl, KeepDescLbl: TNewStaticText;
+  RemountRadio, KeepRadio: TNewRadioButton;
+  BtnContinue, BtnCancel: TNewButton;
+  ButtonWidth, ButtonHeight, ContentWidth, Margin, IndentMargin: Integer;
+  ModalResult, Y: Integer;
+begin
+  Margin := ScaleX(15);
+  IndentMargin := ScaleX(34);
+  ButtonWidth := ScaleX(85);
+  ButtonHeight := ScaleY(25);
+
+  Form := TForm.Create(nil);
+  try
+    Form.Caption := 'Setup';
+    Form.BorderStyle := bsDialog;
+    Form.Position := poOwnerFormCenter;
+    Form.ClientWidth := ScaleX(520);
+    ContentWidth := Form.ClientWidth - (2 * Margin);
+
+    Y := ScaleY(15);
+
+    HeaderLbl := TNewStaticText.Create(Form);
+    HeaderLbl.Parent := Form;
+    HeaderLbl.Left := Margin;
+    HeaderLbl.Top := Y;
+    HeaderLbl.Caption := 'The following repos are currently mounted:';
+    HeaderLbl.AutoSize := True;
+    Y := HeaderLbl.Top + HeaderLbl.Height + ScaleY(4);
+
+    ReposLbl := TNewStaticText.Create(Form);
+    ReposLbl.Parent := Form;
+    ReposLbl.Left := IndentMargin;
+    ReposLbl.Top := Y;
+    ReposLbl.Width := Form.ClientWidth - IndentMargin - Margin;
+    ReposLbl.WordWrap := True;
+    ReposLbl.AutoSize := True;
+    ReposLbl.Caption := Trim(Repos);
+    Y := ReposLbl.Top + ReposLbl.Height + ScaleY(16);
+
+    RemountRadio := TNewRadioButton.Create(Form);
+    RemountRadio.Parent := Form;
+    RemountRadio.Left := Margin;
+    RemountRadio.Top := Y;
+    RemountRadio.Width := ContentWidth;
+    RemountRadio.Caption := 'Remount repos as part of the installation';
+    RemountRadio.Checked := True;
+    Y := RemountRadio.Top + RemountRadio.Height + ScaleY(2);
+
+    RemountDescLbl := TNewStaticText.Create(Form);
+    RemountDescLbl.Parent := Form;
+    RemountDescLbl.Left := IndentMargin;
+    RemountDescLbl.Top := Y;
+    RemountDescLbl.Width := Form.ClientWidth - IndentMargin - Margin;
+    RemountDescLbl.WordWrap := True;
+    RemountDescLbl.AutoSize := True;
+    RemountDescLbl.Caption := 'They will be temporarily unavailable.';
+    Y := RemountDescLbl.Top + RemountDescLbl.Height + ScaleY(14);
+
+    KeepRadio := TNewRadioButton.Create(Form);
+    KeepRadio.Parent := Form;
+    KeepRadio.Left := Margin;
+    KeepRadio.Top := Y;
+    KeepRadio.Width := ContentWidth;
+    KeepRadio.Caption := 'Keep repos mounted';
+    Y := KeepRadio.Top + KeepRadio.Height + ScaleY(2);
+
+    KeepDescLbl := TNewStaticText.Create(Form);
+    KeepDescLbl.Parent := Form;
+    KeepDescLbl.Left := IndentMargin;
+    KeepDescLbl.Top := Y;
+    KeepDescLbl.Width := Form.ClientWidth - IndentMargin - Margin;
+    KeepDescLbl.WordWrap := True;
+    KeepDescLbl.AutoSize := True;
+    KeepDescLbl.Caption := 'The upgrade will complete automatically when all repos are unmounted, or at next reboot.';
+    Y := KeepDescLbl.Top + KeepDescLbl.Height + ScaleY(20);
+
+    BtnContinue := TNewButton.Create(Form);
+    BtnContinue.Parent := Form;
+    BtnContinue.Width := ButtonWidth;
+    BtnContinue.Height := ButtonHeight;
+    BtnContinue.Top := Y;
+    BtnContinue.Left := Form.ClientWidth - Margin - ButtonWidth - ScaleX(10) - ButtonWidth;
+    BtnContinue.Caption := '&Continue';
+    BtnContinue.Default := True;
+    BtnContinue.ModalResult := mrOk;
+
+    BtnCancel := TNewButton.Create(Form);
+    BtnCancel.Parent := Form;
+    BtnCancel.Width := ButtonWidth;
+    BtnCancel.Height := ButtonHeight;
+    BtnCancel.Top := Y;
+    BtnCancel.Left := Form.ClientWidth - Margin - ButtonWidth;
+    BtnCancel.Caption := '&Cancel';
+    BtnCancel.Cancel := True;
+    BtnCancel.ModalResult := mrCancel;
+
+    Form.ClientHeight := Y + ButtonHeight + ScaleY(15);
+    Form.ActiveControl := BtnContinue;
+
+    ModalResult := Form.ShowModal();
+    if ModalResult = mrOk then
+      begin
+        KeepMounted := KeepRadio.Checked;
+        Result := True;
+      end
+    else
+      begin
+        Result := False;
+      end;
+  finally
+    Form.Free();
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  MsgBoxResult: integer;
   Repos: ansiString;
   ResultCode: integer;
   HasMounts: Boolean;
@@ -805,19 +937,10 @@ begin
         end
       else
         begin
-          // Interactive mode: let user choose
-          MsgBoxResult := SuppressibleMsgBox(
-            'The following repos are currently mounted:' + #13#10 + Repos + #13#10#13#10 +
-            'Click Yes to keep repos mounted during the upgrade.' + #13#10 +
-            'The upgrade will complete automatically when all repos are unmounted.' + #13#10#13#10 +
-            'Click No to unmount all repos now and upgrade without restart.' + #13#10 +
-            'Repos will be temporarily unavailable during the upgrade.',
-            mbConfirmation, MB_YESNOCANCEL, IDYES);
-          if MsgBoxResult = IDYES then
-            KeepMountsRunning := True
-          else if MsgBoxResult = IDNO then
-            KeepMountsRunning := False
-          else
+          // Interactive mode: show a radio-button modal so the user can pick
+          // between remounting (immediate but brief unavailability) and
+          // staging the upgrade (deferred until repos are unmounted).
+          if not ShowMountChoiceDialog(Repos, KeepMountsRunning) then
             begin
               Result := 'Installation cancelled.';
               exit;

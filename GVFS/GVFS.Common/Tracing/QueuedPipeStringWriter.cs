@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Concurrent;
-using System.Diagnostics;
+
 using System.IO.Pipes;
 using System.Text;
 using System.Threading;
@@ -86,7 +86,10 @@ namespace GVFS.Common.Tracing
             this.queue.CompleteAdding();
             this.writerThread.Join();
 
-            Debug.Assert(this.queue.IsCompleted, "Message queue should be empty after being stopped");
+            if (!this.queue.IsCompleted)
+            {
+                throw new InvalidOperationException("Message queue should be empty after being stopped");
+            }
         }
 
         public void Dispose()

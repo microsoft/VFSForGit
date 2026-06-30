@@ -5,6 +5,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
@@ -55,7 +56,8 @@ namespace GVFS.Mount
         private GVFSContext context;
         private GVFSGitObjects gitObjects;
 
-        private MountState currentState;
+        private volatile MountState currentState;
+        private volatile string mountProgressMessage;
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
@@ -126,8 +128,23 @@ namespace GVFS.Mount
             // TryInitializeAndQueryGVFSConfig combines the anonymous probe, credential fetch,
             // and config query into at most 2 HTTP requests (1 for anonymous repos), reusing
             // the same HttpClient/TCP connection.
+            Stopwatch mountPhaseTimer = Stopwatch.StartNew();
             Stopwatch parallelTimer = Stopwatch.StartNew();
+            bool hasCacheServer = this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url);
 
+            this.tracer.RelatedEvent(
+                EventLevel.Informational,
+                "MountPhase",
+                new EventMetadata
+                {
+                    { "Phase", "ParallelMountStarted" },
+                    { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                },
+                Keywords.Telemetry);
+
+            // When a cache server is configured locally, auth/config is best-effort:
+            // mount can proceed without it. We still attempt it so GCM can pop up a
+            // renewal prompt for stale tokens, but we don't block mount on the result.
             var networkTask = Task.Run(() =>
             {
                 Stopwatch sw = Stopwatch.StartNew();
@@ -137,22 +154,44 @@ namespace GVFS.Mount
 
                 if (!this.enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
                     this.tracer, this.enlistment, this.retryConfig,
-                    out config, out authConfigError, out isAuthFailure))
+                    out config, out authConfigError, out isAuthFailure,
+                    credentialTimeoutMs: hasCacheServer ? GitAuthentication.BackgroundCredentialTimeoutMs : GitAuthentication.DefaultCredentialTimeoutMs))
                 {
-                    if (this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url))
+                    if (hasCacheServer)
                     {
                         this.tracer.RelatedWarning("Mount will proceed with fallback cache server: " + authConfigError);
                         config = null;
                     }
                     else
                     {
+                        ReturnCode exitCode = ReturnCode.RemoteGvfsConfigError;
+                        if (isAuthFailure)
+                        {
+                            exitCode = authConfigError != null && authConfigError.Contains("Credential manager did not respond")
+                                ? ReturnCode.CredentialTimeout
+                                : ReturnCode.AuthenticationError;
+                        }
+
                         this.FailMountAndExit(
-                            isAuthFailure ? ReturnCode.AuthenticationError : ReturnCode.GenericError,
+                            exitCode,
                             "Unable to query /gvfs/config" + Environment.NewLine + authConfigError);
                     }
                 }
 
-                this.ValidateGVFSVersion(config);
+                this.ValidateGVFSVersion(config, failOnError: !hasCacheServer);
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "NetworkValidationComplete" },
+                        { "DurationMs", sw.ElapsedMilliseconds },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
+
                 this.tracer.RelatedInfo("ParallelMount: Auth + config completed in {0}ms", sw.ElapsedMilliseconds);
                 return config;
             });
@@ -194,58 +233,10 @@ namespace GVFS.Mount
 
             this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
 
-            // Local validations and git config run while we wait for the network
-            var localTask = Task.Run(() =>
-            {
-                Stopwatch sw = Stopwatch.StartNew();
-
-                this.ValidateGitVersion();
-                this.tracer.RelatedInfo("ParallelMount: ValidateGitVersion completed in {0}ms", sw.ElapsedMilliseconds);
-
-                this.ValidateHooksVersion();
-                this.ValidateFileSystemSupportsRequiredFeatures();
-
-                GitProcess git = new GitProcess(this.enlistment);
-                if (!git.IsValidRepo())
-                {
-                    this.FailMountAndExit("The .git folder is missing or has invalid contents");
-                }
-
-                if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
-                {
-                    this.FailMountAndExit("FileSystem unsupported: " + fsError);
-                }
-
-                this.tracer.RelatedInfo("ParallelMount: Local validations completed in {0}ms", sw.ElapsedMilliseconds);
-
-                if (!this.TrySetRequiredGitConfigSettings())
-                {
-                    this.FailMountAndExit("Unable to configure git repo");
-                }
-
-                this.LogEnlistmentInfoAndSetConfigValues();
-                this.tracer.RelatedInfo("ParallelMount: Local validations + git config completed in {0}ms", sw.ElapsedMilliseconds);
-            });
-
-            try
-            {
-                Task.WaitAll(networkTask, localTask);
-            }
-            catch (AggregateException ae)
-            {
-                this.FailMountAndExit(ae.Flatten().InnerExceptions[0].Message);
-            }
-
-            parallelTimer.Stop();
-            this.tracer.RelatedInfo("ParallelMount: All parallel tasks completed in {0}ms", parallelTimer.ElapsedMilliseconds);
-
-            ServerGVFSConfig serverGVFSConfig = networkTask.Result;
-
-            CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
-            this.cacheServer = cacheServerResolver.ResolveNameFromRemote(this.cacheServer.Url, serverGVFSConfig);
-
-            this.EnsureLocalCacheIsHealthy(serverGVFSConfig);
-
+            // Start the pipe server early so MountVerb can connect and poll progress
+            // during the parallel validation phase. Only GetStatus requests are
+            // handled while currentState == Mounting (see HandleRequest guard).
+            this.mountProgressMessage = "Authenticating and validating";
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
                 this.tracer.RelatedEvent(
@@ -253,7 +244,130 @@ namespace GVFS.Mount
                     $"{nameof(this.Mount)}_StartedNamedPipe",
                     new EventMetadata { { "NamedPipeName", this.enlistment.NamedPipeName } });
 
+                // Local validations and git config run while we wait for the network
+                Task localTask = Task.Run(() =>
+                {
+                    Stopwatch sw = Stopwatch.StartNew();
+
+                    this.ValidateGitVersion();
+                    this.tracer.RelatedInfo("ParallelMount: ValidateGitVersion completed in {0}ms", sw.ElapsedMilliseconds);
+
+                    this.ValidateHooksVersion();
+                    this.ValidateFileSystemSupportsRequiredFeatures();
+
+                    GitProcess git = new GitProcess(this.enlistment);
+                    if (!git.IsValidRepo())
+                    {
+                        this.FailMountAndExit("The .git folder is missing or has invalid contents");
+                    }
+
+                    if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
+                    {
+                        this.FailMountAndExit("FileSystem unsupported: " + fsError);
+                    }
+
+                    this.tracer.RelatedInfo("ParallelMount: Local validations completed in {0}ms", sw.ElapsedMilliseconds);
+
+                    if (!this.TrySetRequiredGitConfigSettings())
+                    {
+                        this.FailMountAndExit("Unable to configure git repo");
+                    }
+
+                    this.LogEnlistmentInfoAndSetConfigValues();
+
+                    this.tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        "MountPhase",
+                        new EventMetadata
+                        {
+                            { "Phase", "LocalValidationComplete" },
+                            { "DurationMs", sw.ElapsedMilliseconds },
+                            { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                        },
+                        Keywords.Telemetry);
+
+                    this.tracer.RelatedInfo("ParallelMount: Local validations + git config completed in {0}ms", sw.ElapsedMilliseconds);
+                });
+
+                try
+                {
+                    if (hasCacheServer)
+                    {
+                        // With a cache server, don't block mount on the network task.
+                        // Auth runs in the background to warm credentials / pop GCM,
+                        // but mount proceeds immediately using the local cache server URL.
+                        localTask.Wait();
+
+                        // Observe background task exceptions so they don't go unhandled.
+                        networkTask.ContinueWith(
+                            t => this.tracer.RelatedWarning("Background auth task failed: " + t.Exception.Flatten().InnerExceptions[0].Message),
+                            TaskContinuationOptions.OnlyOnFaulted);
+                    }
+                    else
+                    {
+                        Task.WaitAll(networkTask, localTask);
+                    }
+                }
+                catch (AggregateException ae)
+                {
+                    this.FailMountAndExit(ae.Flatten().InnerExceptions[0].Message);
+                }
+
+                parallelTimer.Stop();
+                this.tracer.RelatedInfo("ParallelMount: All parallel tasks completed in {0}ms", parallelTimer.ElapsedMilliseconds);
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "ParallelMountComplete" },
+                        { "DurationMs", parallelTimer.ElapsedMilliseconds },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
+                ServerGVFSConfig serverGVFSConfig = hasCacheServer ? null : networkTask.Result;
+
+                this.mountProgressMessage = "Resolving cache server";
+                CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
+                this.cacheServer = cacheServerResolver.ResolveNameFromRemote(this.cacheServer.Url, serverGVFSConfig);
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "CacheServerResolved" },
+                        { "CacheServerUrl", this.cacheServer.Url ?? string.Empty },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
+                this.EnsureLocalCacheIsHealthy(serverGVFSConfig);
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "LocalCacheHealthy" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
+                this.mountProgressMessage = "Preparing mount";
                 this.context = this.CreateContext();
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "ContextCreated" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
 
                 if (this.context.Unattended)
                 {
@@ -271,9 +385,42 @@ namespace GVFS.Mount
                     this.FailMountAndExit(errorMessage);
                 }
 
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "HooksUpdated" },
+                        { "Skipped", this.enlistment.IsWorktree },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
                 GVFSPlatform.Instance.ConfigureVisualStudio(this.enlistment.GitBinPath, this.tracer);
 
+                this.mountProgressMessage = "Starting virtualization";
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "VirtualizationStarting" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
+
                 this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer);
+
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MountPhase",
+                    new EventMetadata
+                    {
+                        { "Phase", "VirtualizationComplete" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
+                    },
+                    Keywords.Telemetry);
 
                 try
                 {
@@ -292,9 +439,11 @@ namespace GVFS.Mount
                         // Use TracingConstants.MessageKey.InfoMessage rather than TracingConstants.MessageKey.CriticalMessage
                         // as this message should not appear as an error
                         { TracingConstants.MessageKey.InfoMessage, "Virtual repo is ready" },
+                        { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
                     },
                     Keywords.Telemetry);
 
+                this.mountProgressMessage = null;
                 this.currentState = MountState.Ready;
 
                 this.unmountEvent.WaitOne();
@@ -474,60 +623,90 @@ namespace GVFS.Mount
         {
             NamedPipeMessages.Message message = NamedPipeMessages.Message.FromString(request);
 
-            switch (message.Header)
+            // While mounting, only GetStatus requests are safe — other handlers depend
+            // on context, fileSystemCallbacks, etc. that aren't initialized yet.
+            // MountFailed is NOT guarded: HandleUnmountRequest needs to reach the
+            // "unmount even if mount failed" path so users aren't forced to kill the process.
+            if (message.Header != NamedPipeMessages.GetStatus.Request &&
+                this.currentState == MountState.Mounting)
             {
-                case NamedPipeMessages.GetStatus.Request:
-                    this.HandleGetStatusRequest(connection);
-                    break;
+                connection.TrySendResponse(NamedPipeMessages.MountNotReadyResult);
+                return;
+            }
 
-                case NamedPipeMessages.Unmount.Request:
-                    this.HandleUnmountRequest(connection);
-                    break;
+            try
+            {
+                switch (message.Header)
+                {
+                    case NamedPipeMessages.GetStatus.Request:
+                        this.HandleGetStatusRequest(connection);
+                        break;
 
-                case NamedPipeMessages.AcquireLock.AcquireRequest:
-                    this.HandleLockRequest(message.Body, connection);
-                    break;
+                    case NamedPipeMessages.Unmount.Request:
+                        this.HandleUnmountRequest(connection);
+                        break;
 
-                case NamedPipeMessages.ReleaseLock.Request:
-                    this.HandleReleaseLockRequest(message.Body, connection);
-                    break;
+                    case NamedPipeMessages.AcquireLock.AcquireRequest:
+                        this.HandleLockRequest(message.Body, connection);
+                        break;
 
-                case NamedPipeMessages.DownloadObject.DownloadRequest:
-                    this.HandleDownloadObjectRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.ReleaseLock.Request:
+                        this.HandleReleaseLockRequest(message.Body, connection);
+                        break;
 
-                case NamedPipeMessages.ModifiedPaths.ListRequest:
-                    this.HandleModifiedPathsListRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.DownloadObject.DownloadRequest:
+                        this.HandleDownloadObjectRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.PostIndexChanged.NotificationRequest:
-                    this.HandlePostIndexChangedRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.ModifiedPaths.ListRequest:
+                        this.HandleModifiedPathsListRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.PrepareForUnstage.Request:
-                    this.HandlePrepareForUnstageRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.PostIndexChanged.NotificationRequest:
+                        this.HandlePostIndexChangedRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
-                    this.HandlePostFetchJobRequest(message, connection);
-                    break;
+                    case NamedPipeMessages.PrepareForUnstage.Request:
+                        this.HandlePrepareForUnstageRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.DehydrateFolders.Dehydrate:
-                    this.HandleDehydrateFolders(message, connection);
-                    break;
+                    case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
+                        this.HandlePostFetchJobRequest(message, connection);
+                        break;
 
-                case NamedPipeMessages.HydrationStatus.Request:
-                    this.HandleGetHydrationStatusRequest(connection);
-                    break;
+                    case NamedPipeMessages.DehydrateFolders.Dehydrate:
+                        this.HandleDehydrateFolders(message, connection);
+                        break;
 
-                default:
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", "Mount");
-                    metadata.Add("Header", message.Header);
-                    this.tracer.RelatedError(metadata, "HandleRequest: Unknown request");
+                    case NamedPipeMessages.PrefetchCommits.Request:
+                        this.HandlePrefetchCommitsRequest(connection);
+                        break;
 
-                    connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
-                    break;
+                    case NamedPipeMessages.PrefetchBlobs.RequestHeader:
+                        this.HandlePrefetchBlobsRequest(message, connection);
+                        break;
+
+                    case NamedPipeMessages.HydrationStatus.Request:
+                        this.HandleGetHydrationStatusRequest(connection);
+                        break;
+
+                    default:
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Area", "Mount");
+                        metadata.Add("Header", message.Header);
+                        this.tracer.RelatedError(metadata, "HandleRequest: Unknown request");
+
+                        connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
+                        break;
+                }
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", "Mount");
+                metadata.Add("Header", message.Header);
+                metadata.Add("Exception", e.ToString());
+                this.tracer.RelatedError(metadata, "HandleRequest: Unhandled exception in request handler");
             }
         }
 
@@ -872,56 +1051,76 @@ namespace GVFS.Mount
                 }
                 else
                 {
-                    Stopwatch downloadTime = Stopwatch.StartNew();
+                    try
+                    {
+                        response = this.DownloadObject(objectSha);
+                    }
+                    catch (Exception e) when (e is not OutOfMemoryException)
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Area", "Mount");
+                        metadata.Add("objectSha", objectSha);
+                        metadata.Add("Exception", e.ToString());
+                        this.tracer.RelatedWarning(metadata, nameof(this.HandleDownloadObjectRequest) + ": Exception downloading object");
 
-                    /* If this is the root tree for a commit that was was just downloaded, assume that more
-                     * trees will be needed soon and download them as well by using the download commit API.
-                     *
-                     * Otherwise, or as a fallback if the commit download fails, download the object directly.
-                     */
-                    if (this.ShouldDownloadCommitPack(objectSha, out string commitSha)
-                        && this.gitObjects.TryDownloadCommit(commitSha))
-                    {
-                        this.DownloadedCommitPack(commitSha);
-                        response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
-                        // FUTURE: Should the stats be updated to reflect all the trees in the pack?
-                        // FUTURE: Should we try to clean up duplicate trees or increase depth of the commit download?
-                    }
-                    else if (this.gitObjects.TryDownloadAndSaveObject(objectSha, GVFSGitObjects.RequestSource.NamedPipeMessage) == GitObjects.DownloadAndSaveObjectResult.Success)
-                    {
-                        this.UpdateTreesForDownloadedCommits(objectSha);
-                        response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
-                    }
-                    else
-                    {
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.DownloadFailed);
-                    }
-
-
-                    Native.ObjectTypes? objectType;
-                    this.context.Repository.TryGetObjectType(objectSha, out objectType);
-                    this.context.Repository.GVFSLock.Stats.RecordObjectDownload(objectType == Native.ObjectTypes.Blob, downloadTime.ElapsedMilliseconds);
-
-                    if (objectType == Native.ObjectTypes.Commit
-                        && !this.context.Repository.CommitAndRootTreeExists(objectSha, out var treeSha)
-                        && !string.IsNullOrEmpty(treeSha))
-                    {
-                        /* If a commit is downloaded, it wasn't prefetched.
-                         * The trees for the commit may be needed soon depending on the context.
-                         * e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
-                         *
-                         * If any prefetch has been done there is probably a similar commit/tree in the graph,
-                         * but in case there isn't (such as if the cache server repack maintenance job is failing)
-                         * we should still try to avoid downloading an excessive number of loose trees for a commit.
-                         *
-                         * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
-                         */
-                        this.missingTreeTracker.AddMissingRootTree(treeSha: treeSha, commitSha: objectSha);
                     }
                 }
             }
 
             connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private NamedPipeMessages.DownloadObject.Response DownloadObject(string objectSha)
+        {
+            NamedPipeMessages.DownloadObject.Response response;
+            Stopwatch downloadTime = Stopwatch.StartNew();
+
+            /* If this is the root tree for a commit that was was just downloaded, assume that more
+             * trees will be needed soon and download them as well by using the download commit API.
+             *
+             * Otherwise, or as a fallback if the commit download fails, download the object directly.
+             */
+            if (this.ShouldDownloadCommitPack(objectSha, out string commitSha)
+                && this.gitObjects.TryDownloadCommit(commitSha))
+            {
+                this.DownloadedCommitPack(commitSha);
+                response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
+                // FUTURE: Should the stats be updated to reflect all the trees in the pack?
+                // FUTURE: Should we try to clean up duplicate trees or increase depth of the commit download?
+            }
+            else if (this.gitObjects.TryDownloadAndSaveObject(objectSha, GVFSGitObjects.RequestSource.NamedPipeMessage) == GitObjects.DownloadAndSaveObjectResult.Success)
+            {
+                this.UpdateTreesForDownloadedCommits(objectSha);
+                response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
+            }
+            else
+            {
+                response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.DownloadFailed);
+            }
+
+            Native.ObjectTypes? objectType;
+            this.context.Repository.TryGetObjectType(objectSha, out objectType);
+            this.context.Repository.GVFSLock.Stats.RecordObjectDownload(objectType == Native.ObjectTypes.Blob, downloadTime.ElapsedMilliseconds);
+
+            if (objectType == Native.ObjectTypes.Commit
+                && !this.context.Repository.CommitAndRootTreeExists(objectSha, out var treeSha)
+                && !string.IsNullOrEmpty(treeSha))
+            {
+                /* If a commit is downloaded, it wasn't prefetched.
+                 * The trees for the commit may be needed soon depending on the context.
+                 * e.g. git log (without a pathspec) doesn't need trees, but git checkout does.
+                 *
+                 * If any prefetch has been done there is probably a similar commit/tree in the graph,
+                 * but in case there isn't (such as if the cache server repack maintenance job is failing)
+                 * we should still try to avoid downloading an excessive number of loose trees for a commit.
+                 *
+                 * Save the tree/commit so if more trees are requested we can download all the trees for the commit in a batch.
+                 */
+                this.missingTreeTracker.AddMissingRootTree(treeSha: treeSha, commitSha: objectSha);
+            }
+
+            return response;
         }
 
         private bool ShouldDownloadCommitPack(string objectSha, out string commitSha)
@@ -993,20 +1192,192 @@ namespace GVFS.Mount
             connection.TrySendResponse(response.CreateMessage());
         }
 
+        private void HandlePrefetchCommitsRequest(NamedPipeServer.Connection connection)
+        {
+            this.tracer.RelatedInfo("Received prefetch commits request");
+
+            if (this.currentState != MountState.Ready)
+            {
+                connection.TrySendResponse(
+                    new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.MountNotReadyResult, null));
+                return;
+            }
+
+            NamedPipeMessages.PrefetchCommits.Response response;
+            try
+            {
+                // Use a callback to enqueue the post-fetch step directly on the
+                // maintenance scheduler, avoiding a re-entrant named pipe call.
+                PrefetchStep prefetchStep = new PrefetchStep(
+                    this.context,
+                    this.gitObjects,
+                    requireCacheLock: false,
+                    postFetchCallback: packIndexes =>
+                    {
+                        this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, packIndexes));
+                    });
+
+                string error;
+                bool success = prefetchStep.TryPrefetchCommitsAndTrees(out error);
+
+                response = new NamedPipeMessages.PrefetchCommits.Response
+                {
+                    Success = success,
+                    Error = error,
+                };
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedError("HandlePrefetchCommitsRequest: Exception: {0}", e.ToString());
+                response = new NamedPipeMessages.PrefetchCommits.Response
+                {
+                    Success = false,
+                    Error = e.Message,
+                };
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private void HandlePrefetchBlobsRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            this.tracer.RelatedInfo("Received prefetch blobs request");
+
+            if (this.currentState != MountState.Ready)
+            {
+                connection.TrySendResponse(
+                    new NamedPipeMessages.Message(NamedPipeMessages.PrefetchBlobs.MountNotReadyResult, null));
+                return;
+            }
+
+            NamedPipeMessages.PrefetchBlobs.Request request = NamedPipeMessages.PrefetchBlobs.Request.FromMessage(message);
+
+            // Validate inputs — do not trust IPC requests blindly
+            if (request.Files == null || request.Folders == null)
+            {
+                connection.TrySendResponse(new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = "Files and Folders must not be null",
+                }.CreateMessage());
+                return;
+            }
+
+            if (request.Files.Count == 0 && request.Folders.Count == 0)
+            {
+                connection.TrySendResponse(new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = "Files and Folders must not both be empty",
+                }.CreateMessage());
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(request.HeadCommitId))
+            {
+                connection.TrySendResponse(new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = "HeadCommitId must be specified",
+                }.CreateMessage());
+                return;
+            }
+
+            NamedPipeMessages.PrefetchBlobs.Response response;
+            try
+            {
+                // Create a fresh GitObjectsHttpRequestor using the mount's warm auth.
+                // BlobPrefetcher constructs its own PrefetchGitObjects internally.
+                using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(
+                    this.tracer, this.enlistment, this.cacheServer, this.retryConfig))
+                {
+                    // Open LastBlobPrefetch.dat so BlobPrefetcher can update noop state
+                    string lastPrefetchPath = Path.Combine(this.enlistment.DotGVFSRoot, "LastBlobPrefetch.dat");
+                    FileBasedDictionary<string, string> lastPrefetchArgs;
+                    string dictError;
+                    if (!FileBasedDictionary<string, string>.TryCreate(
+                            this.tracer, lastPrefetchPath, new PhysicalFileSystem(),
+                            out lastPrefetchArgs, out dictError))
+                    {
+                        this.tracer.RelatedWarning("HandlePrefetchBlobsRequest: Unable to load last prefetch args: " + dictError);
+                        lastPrefetchArgs = null;
+                    }
+
+                    // Cap thread counts to avoid starving virtualization callbacks
+                    int maxThreads = Math.Max(1, Environment.ProcessorCount / 2);
+                    int downloadThreads = Math.Min(maxThreads, 16);
+
+                    BlobPrefetcher blobPrefetcher = new BlobPrefetcher(
+                        this.tracer,
+                        this.enlistment,
+                        objectRequestor,
+                        request.Files,
+                        request.Folders,
+                        prefetchCache: null,
+                        maxCacheSize: 0,
+                        chunkSize: 4000,
+                        searchThreadCount: maxThreads,
+                        downloadThreadCount: downloadThreads,
+                        indexThreadCount: maxThreads);
+
+                    int matchedBlobCount;
+                    int downloadedBlobCount;
+                    int hydratedFileCount;
+
+                    blobPrefetcher.PrefetchWithStats(
+                        request.HeadCommitId,
+                        isBranch: false,
+                        hydrateFilesAfterDownload: false,
+                        matchedBlobCount: out matchedBlobCount,
+                        downloadedBlobCount: out downloadedBlobCount,
+                        hydratedFileCount: out hydratedFileCount);
+
+                    response = new NamedPipeMessages.PrefetchBlobs.Response
+                    {
+                        Success = !blobPrefetcher.HasFailures,
+                        Error = blobPrefetcher.HasFailures ? "Blob prefetch encountered failures" : null,
+                        MatchedBlobCount = matchedBlobCount,
+                        DownloadedBlobCount = downloadedBlobCount,
+                    };
+                }
+            }
+            catch (BlobPrefetcher.FetchException e)
+            {
+                this.tracer.RelatedError("HandlePrefetchBlobsRequest: FetchException: {0}", e.Message);
+                response = new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = e.Message,
+                };
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedError("HandlePrefetchBlobsRequest: Exception: {0}", e.ToString());
+                response = new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = false,
+                    Error = e.Message,
+                };
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
         private void HandleGetStatusRequest(NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.GetStatus.Response response = new NamedPipeMessages.GetStatus.Response();
             response.EnlistmentRoot = this.enlistment.WorkingDirectoryRoot;
             response.LocalCacheRoot = !string.IsNullOrWhiteSpace(this.enlistment.LocalCacheRoot) ? this.enlistment.LocalCacheRoot : this.enlistment.GitObjectsRoot;
             response.RepoUrl = this.enlistment.RepoUrl;
-            response.CacheServer = this.cacheServer.ToString();
-            response.LockStatus = this.context?.Repository.GVFSLock != null ? this.context.Repository.GVFSLock.GetStatus() : "Unavailable";
+            response.CacheServer = this.cacheServer?.ToString() ?? string.Empty;
+            response.LockStatus = this.context?.Repository?.GVFSLock != null ? this.context.Repository.GVFSLock.GetStatus() : "Unavailable";
             response.DiskLayoutVersion = $"{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion}.{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion}";
 
             switch (this.currentState)
             {
                 case MountState.Mounting:
                     response.MountStatus = NamedPipeMessages.GetStatus.Mounting;
+                    response.MountProgress = this.mountProgressMessage;
                     break;
 
                 case MountState.Ready:
@@ -1235,7 +1606,7 @@ namespace GVFS.Mount
             return serverGVFSConfig;
         }
 
-        private void ValidateGVFSVersion(ServerGVFSConfig config)
+        private void ValidateGVFSVersion(ServerGVFSConfig config, bool failOnError = true)
         {
             using (ITracer activity = this.tracer.StartActivity("ValidateGVFSVersion", EventLevel.Informational))
             {
@@ -1287,7 +1658,10 @@ namespace GVFS.Mount
                 }
 
                 activity.RelatedError("GVFS version {0} is not supported", currentVersion);
-                this.FailMountAndExit("ERROR: Your GVFS version is no longer supported. Install the latest and try again.");
+                if (failOnError)
+                {
+                    this.FailMountAndExit("ERROR: Your GVFS version is no longer supported. Install the latest and try again.");
+                }
             }
         }
 

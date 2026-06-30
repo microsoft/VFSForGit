@@ -119,21 +119,52 @@ namespace GVFS.Common.Prefetch.Git
                 {
                     this.UpdatedWholeTree = true;
 
-                    // Nothing is checked out (fresh git init), so we must search the entire tree.
-                    GitProcess.Result result = this.git.LsTree(
-                        targetTreeSha,
-                        line => this.EnqueueOperationsFromLsTreeLine(activity, line),
-                        recursive: true,
-                        showAllTrees: true);
-
-                    if (result.ExitCodeIsFailure)
+                    // Prefer ls-files -s over ls-tree -r -t for full-tree enumeration.
+                    // ls-files reads the git index (~6.5s on a 2.5M-file repo) while
+                    // ls-tree walks every tree object (~24s on the same repo).
+                    // ls-files reflects the index (HEAD), so we can only use it when
+                    // targetTreeSha matches HEAD's tree. When they differ (e.g.,
+                    // FastFetch checking out a different commit), fall back to ls-tree.
+                    //
+                    // ls-files only returns file entries (not tree/directory entries).
+                    // This is safe because the ls-files path only fires for gvfs prefetch
+                    // on a GVFS-mounted repo where directories are virtualized by PrjFlt
+                    // and don't need explicit creation. FastFetch force-checkout (which
+                    // needs directory operations) won't match HEAD and falls back to ls-tree.
+                    bool usedLsFiles = false;
+                    if (this.TargetMatchesHeadTree(targetTreeSha))
                     {
-                        this.HasFailures = true;
-                        metadata.Add("Errors", result.Errors);
-                        metadata.Add("Output", result.Output.Length > 1024 ? result.Output.Substring(1024) : result.Output);
+                        GitProcess.Result result = this.git.LsFilesStaging(
+                            line => this.EnqueueOperationsFromLsFilesStagingLine(activity, line));
+
+                        if (result.ExitCodeIsSuccess)
+                        {
+                            usedLsFiles = true;
+                            metadata.Add("Operation", "LsFilesStaging");
+                        }
+                        else
+                        {
+                            this.tracer.RelatedWarning("ls-files -s failed, falling back to ls-tree: " + result.Errors);
+                        }
                     }
 
-                    metadata.Add("Operation", "LsTree");
+                    if (!usedLsFiles)
+                    {
+                        GitProcess.Result result = this.git.LsTree(
+                            targetTreeSha,
+                            line => this.EnqueueOperationsFromLsTreeLine(activity, line),
+                            recursive: true,
+                            showAllTrees: true);
+
+                        if (result.ExitCodeIsFailure)
+                        {
+                            this.HasFailures = true;
+                            metadata.Add("Errors", result.Errors);
+                            metadata.Add("Output", result.Output.Length > 1024 ? result.Output.Substring(1024) : result.Output);
+                        }
+
+                        metadata.Add("Operation", "LsTree");
+                    }
                 }
                 else
                 {
@@ -235,6 +266,47 @@ namespace GVFS.Common.Prefetch.Git
             }
         }
 
+        /// <summary>
+        /// Check whether targetTreeSha matches HEAD's tree SHA so we can safely
+        /// use git ls-files -s (which reads the index reflecting HEAD) instead of
+        /// git ls-tree (which walks a specific tree object).
+        ///
+        /// Note: callers may pass either a tree SHA or a commit SHA as targetTreeSha
+        /// (git ls-tree auto-peels commits). We resolve both sides to tree SHAs
+        /// before comparing.
+        /// </summary>
+        private bool TargetMatchesHeadTree(string targetTreeSha)
+        {
+            try
+            {
+                using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot))
+                {
+                    string headTreeSha = repo.GetTreeSha("HEAD");
+
+                    // targetTreeSha may be a commit SHA (callers like BlobPrefetcher
+                    // pass commit IDs). Resolve it to a tree SHA for comparison.
+                    string targetResolvedTreeSha = repo.GetTreeSha(targetTreeSha) ?? targetTreeSha;
+
+                    if (headTreeSha != null && string.Equals(headTreeSha, targetResolvedTreeSha, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+
+                    this.tracer.RelatedInfo(
+                        "TargetMatchesHeadTree: target {0} (tree {1}) != HEAD tree {2}, will use ls-tree",
+                        targetTreeSha,
+                        targetResolvedTreeSha,
+                        headTreeSha ?? "(null)");
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedWarning("TargetMatchesHeadTree: failed to resolve HEAD tree: " + e.Message);
+                return false;
+            }
+        }
+
         private void EnqueueOperationsFromLsTreeLine(ITracer activity, string line)
         {
             DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(line);
@@ -266,6 +338,24 @@ namespace GVFS.Common.Prefetch.Git
             {
                 this.EnqueueFileAddOperation(activity, result);
             }
+        }
+
+        private void EnqueueOperationsFromLsFilesStagingLine(ITracer activity, string line)
+        {
+            DiffTreeResult result = DiffTreeResult.ParseFromLsFilesStagingLine(line);
+            if (result == null)
+            {
+                this.tracer.RelatedError("Unrecognized ls-files -s line: {0}", line);
+                return;
+            }
+
+            if (!this.ShouldIncludeResult(result))
+            {
+                return;
+            }
+
+            // ls-files -s only returns file entries, never trees
+            this.EnqueueFileAddOperation(activity, result);
         }
 
         private void EnqueueOperationsFromDiffTreeLine(ITracer activity, string line)

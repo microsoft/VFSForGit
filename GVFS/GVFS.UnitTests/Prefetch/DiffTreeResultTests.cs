@@ -38,6 +38,15 @@ namespace GVFS.UnitTests.Prefetch
         private static readonly string InvalidLineFromLsTree = $"040000 bad {TestSha1}\t{TestTreePath1}";
         private static readonly string SymLinkLineFromLsTree = $"120000 blob {TestSha1}\t{TestTreePath1}";
 
+        // ls-files -s test data
+        private static readonly string BlobLineFromLsFilesStaging = $"100644 {TestSha1} 0\t{TestTreePath1}";
+        private static readonly string ExecutableBlobFromLsFilesStaging = $"100755 {TestSha1} 0\t{TestBlobPath1}";
+        private static readonly string SymLinkFromLsFilesStaging = $"120000 {TestSha1} 0\t{TestTreePath1}";
+        private static readonly string BlobWithSpacesFromLsFilesStaging = $"100644 {TestSha1} 0\t{TestBlobPath1}";
+        private static readonly string UnmergedStage1FromLsFilesStaging = $"100644 {TestSha1} 1\t{TestTreePath1}";
+        private static readonly string UnmergedStage2FromLsFilesStaging = $"100644 {Test2Sha1} 2\t{TestTreePath1}";
+        private static readonly string UnmergedStage3FromLsFilesStaging = $"100644 {TestSha1} 3\t{TestTreePath1}";
+
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromDiffTreeLine_NullLine()
@@ -339,6 +348,90 @@ namespace GVFS.UnitTests.Prefetch
 
             DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(BlobLineWithTreePathFromLsTree);
             this.ValidateDiffTreeResult(expected, result);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void ParseFromLsFilesStagingLine_NullLine()
+        {
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromLsFilesStagingLine(null));
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void ParseFromLsFilesStagingLine_EmptyLine()
+        {
+            Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromLsFilesStagingLine(string.Empty));
+        }
+
+        [TestCase]
+        public void ParseFromLsFilesStagingLine_InvalidLine()
+        {
+            DiffTreeResult.ParseFromLsFilesStagingLine("short").ShouldBeNull();
+        }
+
+        [TestCase]
+        public void ParseFromLsFilesStagingLine_BlobLine()
+        {
+            DiffTreeResult expected = new DiffTreeResult()
+            {
+                Operation = DiffTreeResult.Operations.Add,
+                SourceIsDirectory = false,
+                TargetIsDirectory = false,
+                TargetPath = TestTreePath1.Replace('/', Path.DirectorySeparatorChar),
+                SourceSha = null,
+                TargetSha = TestSha1
+            };
+
+            DiffTreeResult result = DiffTreeResult.ParseFromLsFilesStagingLine(BlobLineFromLsFilesStaging);
+            this.ValidateDiffTreeResult(expected, result);
+        }
+
+        [TestCase]
+        public void ParseFromLsFilesStagingLine_ExecutableBlob()
+        {
+            DiffTreeResult result = DiffTreeResult.ParseFromLsFilesStagingLine(ExecutableBlobFromLsFilesStaging);
+            result.ShouldNotBeNull();
+            result.Operation.ShouldEqual(DiffTreeResult.Operations.Add);
+            result.TargetMode.ShouldEqual(Convert.ToUInt16("100755", 8));
+            result.TargetSha.ShouldEqual(TestSha1);
+            result.TargetPath.ShouldEqual(TestBlobPath1.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        [TestCase]
+        public void ParseFromLsFilesStagingLine_SymLink()
+        {
+            DiffTreeResult result = DiffTreeResult.ParseFromLsFilesStagingLine(SymLinkFromLsFilesStaging);
+            result.ShouldNotBeNull();
+            result.TargetIsSymLink.ShouldBeTrue();
+            result.TargetSha.ShouldEqual(TestSha1);
+        }
+
+        [TestCase]
+        public void ParseFromLsFilesStagingLine_PathWithSpaces()
+        {
+            DiffTreeResult result = DiffTreeResult.ParseFromLsFilesStagingLine(BlobWithSpacesFromLsFilesStaging);
+            result.ShouldNotBeNull();
+            result.TargetPath.ShouldEqual(TestBlobPath1.Replace('/', Path.DirectorySeparatorChar));
+            result.TargetSha.ShouldEqual(TestSha1);
+        }
+
+        [TestCase]
+        public void ParseFromLsFilesStagingLine_UnmergedStage1_ReturnsNull()
+        {
+            DiffTreeResult.ParseFromLsFilesStagingLine(UnmergedStage1FromLsFilesStaging).ShouldBeNull();
+        }
+
+        [TestCase]
+        public void ParseFromLsFilesStagingLine_UnmergedStage2_ReturnsNull()
+        {
+            DiffTreeResult.ParseFromLsFilesStagingLine(UnmergedStage2FromLsFilesStaging).ShouldBeNull();
+        }
+
+        [TestCase]
+        public void ParseFromLsFilesStagingLine_UnmergedStage3_ReturnsNull()
+        {
+            DiffTreeResult.ParseFromLsFilesStagingLine(UnmergedStage3FromLsFilesStaging).ShouldBeNull();
         }
 
         [TestCase("040000 tree 73b881d52b607b0f3e9e620d36f556d3d233a11d\tGVFS", DiffTreeResult.TreeMarker, true)]

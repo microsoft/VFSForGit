@@ -21,7 +21,7 @@ namespace GVFS.Common.Database
 
                 try
                 {
-                    string sqliteConnectionString = CreateConnectionString(databasePath);
+                    string sqliteConnectionString = $"data source={databasePath};Pooling=False";
                     using (SqliteConnection integrityConnection = new SqliteConnection(sqliteConnectionString))
                     {
                         integrityConnection.Open();
@@ -59,9 +59,13 @@ namespace GVFS.Common.Database
 
         public static string CreateConnectionString(string databasePath)
         {
-            // Share-Cache mode allows multiple connections from the same process to share the same data cache
-            // http://www.sqlite.org/sharedcache.html
-            return $"data source={databasePath};Cache=Shared";
+            // Private cache (default) is correct for multi-threaded in-process access.
+            // Shared cache uses table-level locking and causes SQLITE_LOCKED when two connections
+            // in the same process hold concurrent read/write locks on the same table — exactly what
+            // UpdatePlaceholders' 8-thread parallel writes produce. WAL mode already provides
+            // concurrent read/write isolation; private cache adds nothing harmful and removes the
+            // table-level lock contention entirely.
+            return $"data source={databasePath}";
         }
 
         public IDbConnection OpenNewConnection(string databasePath)

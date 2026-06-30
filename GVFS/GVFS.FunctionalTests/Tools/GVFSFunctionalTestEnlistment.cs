@@ -293,8 +293,60 @@ namespace GVFS.FunctionalTests.Tools
 
         public void UnmountAndDeleteAll()
         {
-            this.UnmountGVFS();
+            try
+            {
+                this.UnmountGVFS();
+            }
+            catch (TimeoutException)
+            {
+                // If unmount hangs (e.g., GVFS.Mount stuck after objects root
+                // deletion), kill the mount process so teardown can proceed.
+                Console.Error.WriteLine("[TEARDOWN] Unmount timed out, killing GVFS.Mount process");
+                this.KillMountProcess();
+            }
+
             this.DeleteEnlistment();
+        }
+
+        public void KillMountProcess()
+        {
+            try
+            {
+                // Find GVFS.Mount processes whose command line contains this
+                // enlistment root. Uses PowerShell's Get-CimInstance to read
+                // command lines without requiring System.Management.
+                string filter = this.EnlistmentRoot.Replace("\\", "\\\\");
+                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
+                {
+                    Arguments = $"-NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\"Name='GVFS.Mount.exe'\\\" | Where-Object {{ $_.CommandLine -like '*{filter}*' }} | ForEach-Object {{ $_.ProcessId }}\"",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                var proc = System.Diagnostics.Process.Start(psi);
+                string output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit(10000);
+
+                foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (int.TryParse(line.Trim(), out int pid))
+                    {
+                        Console.Error.WriteLine($"[TEARDOWN] Killing GVFS.Mount (PID {pid}) for {this.EnlistmentRoot}");
+                        try
+                        {
+                            System.Diagnostics.Process.GetProcessById(pid)?.Kill();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine($"[TEARDOWN] Failed to kill PID {pid}: {ex.Message}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[TEARDOWN] KillMountProcess failed: {ex.Message}");
+            }
         }
 
         public string GetVirtualPathTo(string path)

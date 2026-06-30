@@ -107,10 +107,51 @@ namespace GVFS.Common.Git
             return output;
         }
 
+        /// <summary>
+        /// Check whether a given object SHA exists as a loose object file
+        /// in the shared cache or local object store.
+        /// </summary>
+        public virtual bool LooseObjectExists(string sha)
+        {
+            if (GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem)
+            {
+                sha = sha.ToLower();
+            }
+
+            string looseObjectPath = Path.Combine(
+                this.enlistment.GitObjectsRoot,
+                sha.Substring(0, 2),
+                sha.Substring(2));
+
+            if (this.fileSystem.FileExists(looseObjectPath))
+            {
+                return true;
+            }
+
+            looseObjectPath = Path.Combine(
+                this.enlistment.LocalObjectsRoot,
+                sha.Substring(0, 2),
+                sha.Substring(2));
+
+            return this.fileSystem.FileExists(looseObjectPath);
+        }
+
         public virtual bool ObjectExists(string blobSha)
         {
             bool output = false;
             this.libgit2RepoInvoker.TryInvoke(repo => repo.ObjectExists(blobSha), out output);
+            return output;
+        }
+
+        /// <summary>
+        /// Checks whether the object can be fully parsed by libgit2 (not just that it exists).
+        /// Use this to detect corrupt objects. For simple existence checks,
+        /// prefer <see cref="ObjectExists"/> which is faster.
+        /// </summary>
+        public virtual bool ObjectCanBeParsed(string sha)
+        {
+            bool output = false;
+            this.libgit2RepoInvoker.TryInvoke(repo => repo.ObjectCanBeParsed(sha), out output);
             return output;
         }
 
@@ -153,8 +194,13 @@ namespace GVFS.Common.Git
             size = 0;
 
             byte[] buffer = new byte[5];
-            input.Read(buffer, 0, buffer.Length);
-            if (!Enumerable.SequenceEqual(buffer, LooseBlobHeader))
+
+            // Verify bytesRead instead of using ReadExactly: a truncated header must
+            // return false (Corrupt) so the caller quarantines the file, rather than
+            // throwing EndOfStreamException which would be caught as IOException
+            // (Unknown) and skip quarantine.
+            int bytesRead = input.Read(buffer, 0, buffer.Length);
+            if (bytesRead < buffer.Length || !Enumerable.SequenceEqual(buffer, LooseBlobHeader))
             {
                 return false;
             }

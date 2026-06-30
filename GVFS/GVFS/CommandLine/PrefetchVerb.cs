@@ -3,11 +3,15 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Maintenance;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.CommandLine
 {
@@ -172,30 +176,14 @@ namespace GVFS.CommandLine
                             this.ReportErrorAndExit(tracer, "You can only specify --hydrate with --files or --folders");
                         }
 
-                        GitObjectsHttpRequestor objectRequestor;
-                        CacheServerInfo resolvedCacheServer;
-                        this.InitializeServerConnection(
-                            tracer,
-                            enlistment,
-                            cacheServerFromConfig,
-                            out objectRequestor,
-                            out resolvedCacheServer);
-                        this.PrefetchCommits(tracer, enlistment, objectRequestor, resolvedCacheServer);
-                    }
-                    else
-                    {
-                        string headCommitId;
-                        List<string> filesList;
-                        List<string> foldersList;
-                        FileBasedDictionary<string, string> lastPrefetchArgs;
+                        // Try offload silently — if mount isn't available this returns
+                        // false quickly and we fall through to the direct-auth path which
+                        // has its own spinner. We don't wrap this in ShowStatusWhileRunning
+                        // because a false return (mount unavailable) would print "Failed"
+                        // to the console, which is misleading for an expected fallback.
+                        bool offloadSucceeded = this.TryPrefetchCommitsViaMountProcess(tracer, enlistment);
 
-                        this.LoadBlobPrefetchArgs(tracer, enlistment, out headCommitId, out filesList, out foldersList, out lastPrefetchArgs);
-
-                        if (BlobPrefetcher.IsNoopPrefetch(tracer, lastPrefetchArgs, headCommitId, filesList, foldersList, this.HydrateFiles))
-                        {
-                            Console.WriteLine("All requested files are already available. Nothing new to prefetch.");
-                        }
-                        else
+                        if (!offloadSucceeded)
                         {
                             GitObjectsHttpRequestor objectRequestor;
                             CacheServerInfo resolvedCacheServer;
@@ -205,7 +193,71 @@ namespace GVFS.CommandLine
                                 cacheServerFromConfig,
                                 out objectRequestor,
                                 out resolvedCacheServer);
-                            this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, lastPrefetchArgs, objectRequestor, resolvedCacheServer);
+                            this.PrefetchCommits(tracer, enlistment, objectRequestor, resolvedCacheServer);
+                        }
+                    }
+                    else
+                    {
+                        string headCommitId;
+                        List<string> filesList;
+                        List<string> foldersList;
+                        FileBasedDictionary<string, string> prefetchCache;
+                        int prefetchCacheSize;
+
+                        this.LoadBlobPrefetchArgs(tracer, enlistment, out headCommitId, out filesList, out foldersList, out prefetchCache, out prefetchCacheSize);
+
+                        if (BlobPrefetcher.IsNoopPrefetch(tracer, prefetchCache, headCommitId, filesList, foldersList, this.HydrateFiles))
+                        {
+                            Console.WriteLine("All requested files are already available. Nothing new to prefetch.");
+                        }
+                        else if (filesList.Count == 0 && foldersList.Count == 0)
+                        {
+                            this.ReportErrorAndExit(tracer, "Did you mean to fetch all blobs? If so, specify `--files '*'` to confirm.");
+                        }
+                        else if (this.HydrateFiles)
+                        {
+                            // For --hydrate, try offloading the download phase to the mount
+                            // (without hydration), then hydrate locally in the verb process.
+                            // This avoids the mount process writing to ProjFS-virtualized files
+                            // (self-callback risk) while still benefiting from warm auth.
+                            if (!this.TryPrefetchBlobsViaMountProcess(tracer, enlistment, filesList, foldersList, headCommitId))
+                            {
+                                // Mount unavailable — fall back to direct auth for download
+                                GitObjectsHttpRequestor objectRequestor;
+                                CacheServerInfo resolvedCacheServer;
+                                this.InitializeServerConnection(
+                                    tracer,
+                                    enlistment,
+                                    cacheServerFromConfig,
+                                    out objectRequestor,
+                                    out resolvedCacheServer);
+                                this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, prefetchCache, prefetchCacheSize, objectRequestor, resolvedCacheServer);
+                            }
+                            else
+                            {
+                                // Mount handled download — hydrate locally, then update noop
+                                // cache. Cache update is after hydration so a hydration failure
+                                // doesn't suppress the retry on the next run.
+                                this.HydrateMatchingFiles(tracer, enlistment, filesList, foldersList);
+                                BlobPrefetcher.UpdateNoopCache(prefetchCache, prefetchCacheSize, headCommitId, filesList, foldersList, this.HydrateFiles);
+                            }
+                        }
+                        else if (!this.TryPrefetchBlobsViaMountProcess(tracer, enlistment, filesList, foldersList, headCommitId))
+                        {
+                            GitObjectsHttpRequestor objectRequestor;
+                            CacheServerInfo resolvedCacheServer;
+                            this.InitializeServerConnection(
+                                tracer,
+                                enlistment,
+                                cacheServerFromConfig,
+                                out objectRequestor,
+                                out resolvedCacheServer);
+                            this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, prefetchCache, prefetchCacheSize, objectRequestor, resolvedCacheServer);
+                        }
+                        else
+                        {
+                            // Mount handled download — update noop cache so repeat runs are skipped
+                            BlobPrefetcher.UpdateNoopCache(prefetchCache, prefetchCacheSize, headCommitId, filesList, foldersList, hydrate: false);
                         }
                     }
                 }
@@ -296,6 +348,137 @@ namespace GVFS.CommandLine
             objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, resolvedCacheServer, retryConfig);
         }
 
+        /// <summary>
+        /// Attempts to offload the commit prefetch to a running mount process,
+        /// which already has warm authentication. Returns true if the mount
+        /// handled the request (success or failure); returns false if offload
+        /// is unavailable and the caller should fall back to direct auth.
+        /// </summary>
+        private bool TryPrefetchCommitsViaMountProcess(ITracer tracer, GVFSEnlistment enlistment)
+        {
+            using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+            {
+                if (!pipeClient.Connect())
+                {
+                    tracer.RelatedInfo("TryPrefetchCommitsViaMountProcess: Mount not running, falling back to direct prefetch");
+                    return false;
+                }
+
+                NamedPipeMessages.Message request = new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.Request, null);
+                if (!pipeClient.TrySendRequest(request))
+                {
+                    tracer.RelatedWarning("TryPrefetchCommitsViaMountProcess: Failed to send request, falling back to direct prefetch");
+                    return false;
+                }
+
+                NamedPipeMessages.Message response;
+                if (!pipeClient.TryReadResponse(out response))
+                {
+                    tracer.RelatedWarning("TryPrefetchCommitsViaMountProcess: Failed to read response, falling back to direct prefetch");
+                    return false;
+                }
+
+                switch (response.Header)
+                {
+                    case NamedPipeMessages.PrefetchCommits.CompleteResult:
+                        NamedPipeMessages.PrefetchCommits.Response prefetchResponse =
+                            NamedPipeMessages.PrefetchCommits.Response.FromMessage(response);
+
+                        if (prefetchResponse.Success)
+                        {
+                            tracer.RelatedInfo("TryPrefetchCommitsViaMountProcess: Mount completed prefetch successfully");
+                            return true;
+                        }
+
+                        this.ReportErrorAndExit(tracer, "Prefetching commits and trees failed (via mount): " + prefetchResponse.Error);
+                        return true;
+
+                    case NamedPipeMessages.PrefetchCommits.MountNotReadyResult:
+                        tracer.RelatedInfo("TryPrefetchCommitsViaMountProcess: Mount not ready, falling back to direct prefetch");
+                        return false;
+
+                    default:
+                        // Older mount that doesn't recognize PrefetchCommits
+                        tracer.RelatedInfo("TryPrefetchCommitsViaMountProcess: Unexpected response '{0}', falling back to direct prefetch", response.Header);
+                        return false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Attempts to offload the blob prefetch to a running mount process,
+        /// which already has warm authentication. Returns true if the mount
+        /// handled the request (success or failure); returns false if offload
+        /// is unavailable and the caller should fall back to direct auth.
+        /// </summary>
+        private bool TryPrefetchBlobsViaMountProcess(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            List<string> filesList,
+            List<string> foldersList,
+            string headCommitId)
+        {
+            using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+            {
+                if (!pipeClient.Connect())
+                {
+                    tracer.RelatedInfo("TryPrefetchBlobsViaMountProcess: Mount not running, falling back to direct prefetch");
+                    return false;
+                }
+
+                NamedPipeMessages.PrefetchBlobs.Request request = new NamedPipeMessages.PrefetchBlobs.Request
+                {
+                    Files = filesList,
+                    Folders = foldersList,
+                    HeadCommitId = headCommitId,
+                };
+
+                if (!pipeClient.TrySendRequest(request.CreateMessage()))
+                {
+                    tracer.RelatedWarning("TryPrefetchBlobsViaMountProcess: Failed to send request, falling back to direct prefetch");
+                    return false;
+                }
+
+                NamedPipeMessages.Message response;
+                if (!pipeClient.TryReadResponse(out response))
+                {
+                    tracer.RelatedWarning("TryPrefetchBlobsViaMountProcess: Failed to read response, falling back to direct prefetch");
+                    return false;
+                }
+
+                switch (response.Header)
+                {
+                    case NamedPipeMessages.PrefetchBlobs.CompleteResult:
+                        NamedPipeMessages.PrefetchBlobs.Response blobResponse =
+                            NamedPipeMessages.PrefetchBlobs.Response.FromMessage(response);
+
+                        if (blobResponse.Success)
+                        {
+                            tracer.RelatedInfo("TryPrefetchBlobsViaMountProcess: Mount completed blob prefetch successfully");
+
+                            Console.WriteLine();
+                            Console.WriteLine("Stats:");
+                            Console.WriteLine("  Matched blobs:    " + blobResponse.MatchedBlobCount);
+                            Console.WriteLine("  Already cached:   " + (blobResponse.MatchedBlobCount - blobResponse.DownloadedBlobCount));
+                            Console.WriteLine("  Downloaded:       " + blobResponse.DownloadedBlobCount);
+
+                            return true;
+                        }
+
+                        this.ReportErrorAndExit(tracer, "Prefetching blobs failed (via mount): " + blobResponse.Error);
+                        return true;
+
+                    case NamedPipeMessages.PrefetchBlobs.MountNotReadyResult:
+                        tracer.RelatedInfo("TryPrefetchBlobsViaMountProcess: Mount not ready, falling back to direct prefetch");
+                        return false;
+
+                    default:
+                        tracer.RelatedInfo("TryPrefetchBlobsViaMountProcess: Unexpected response '{0}', falling back to direct prefetch", response.Header);
+                        return false;
+                }
+            }
+        }
+
         private void PrefetchCommits(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor, CacheServerInfo cacheServer)
         {
             bool success;
@@ -328,18 +511,38 @@ namespace GVFS.CommandLine
             out string headCommitId,
             out List<string> filesList,
             out List<string> foldersList,
-            out FileBasedDictionary<string, string> lastPrefetchArgs)
+            out FileBasedDictionary<string, string> prefetchCache,
+            out int prefetchCacheSize)
         {
             string error;
 
-            if (!FileBasedDictionary<string, string>.TryCreate(
-                    tracer,
-                    Path.Combine(enlistment.DotGVFSRoot, "LastBlobPrefetch.dat"),
-                    new PhysicalFileSystem(),
-                    out lastPrefetchArgs,
-                    out error))
+            // Read cache size from git config
+            prefetchCacheSize = BlobPrefetcher.DefaultPrefetchCacheSize;
+            GitProcess gitProcess = new GitProcess(enlistment);
+            if (gitProcess.TryGetFromConfig(BlobPrefetcher.PrefetchCacheSizeConfigKey, forceOutsideEnlistment: false, out string cacheSizeValue))
             {
-                tracer.RelatedWarning("Unable to load last prefetch args: " + error);
+                if (int.TryParse(cacheSizeValue, out int parsedSize))
+                {
+                    prefetchCacheSize = Math.Clamp(parsedSize, 0, BlobPrefetcher.MaxPrefetchCacheSize);
+                }
+                else
+                {
+                    tracer.RelatedWarning($"Invalid value '{cacheSizeValue}' for {BlobPrefetcher.PrefetchCacheSizeConfigKey}, using default {BlobPrefetcher.DefaultPrefetchCacheSize}");
+                }
+            }
+
+            prefetchCache = null;
+            if (prefetchCacheSize > 0)
+            {
+                if (!FileBasedDictionary<string, string>.TryCreate(
+                        tracer,
+                        Path.Combine(enlistment.DotGVFSRoot, BlobPrefetcher.BlobPrefetchCacheFile),
+                        new PhysicalFileSystem(),
+                        out prefetchCache,
+                        out error))
+                {
+                    tracer.RelatedWarning("Unable to load prefetch cache: " + error);
+                }
             }
 
             filesList = new List<string>();
@@ -355,7 +558,6 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(tracer, error);
             }
 
-            GitProcess gitProcess = new GitProcess(enlistment);
             GitProcess.Result result = gitProcess.RevParse(GVFSConstants.DotGit.HeadName);
             if (result.ExitCodeIsFailure)
             {
@@ -371,7 +573,8 @@ namespace GVFS.CommandLine
             string headCommitId,
             List<string> filesList,
             List<string> foldersList,
-            FileBasedDictionary<string, string> lastPrefetchArgs,
+            FileBasedDictionary<string, string> prefetchCache,
+            int prefetchCacheSize,
             GitObjectsHttpRequestor objectRequestor,
             CacheServerInfo cacheServer)
         {
@@ -381,7 +584,8 @@ namespace GVFS.CommandLine
                 objectRequestor,
                 filesList,
                 foldersList,
-                lastPrefetchArgs,
+                prefetchCache,
+                prefetchCacheSize,
                 ChunkSize,
                 SearchThreadCount,
                 DownloadThreadCount,
@@ -486,6 +690,102 @@ namespace GVFS.CommandLine
             }
 
             return "from origin (no cache server)";
+        }
+
+        /// <summary>
+        /// Hydrates files matching the file/folder filters by reading 1 byte from each.
+        /// Runs in the verb process (not the mount) to avoid ProjFS self-callbacks.
+        /// Blobs should already be in the object cache from a prior download phase.
+        /// </summary>
+        private void HydrateMatchingFiles(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            List<string> filesList,
+            List<string> foldersList)
+        {
+            string workingDir = enlistment.WorkingDirectoryRoot;
+            List<string> filesToHydrate = new List<string>();
+
+            // Collect files from folder filters
+            foreach (string folder in foldersList)
+            {
+                string normalizedFolder = folder.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar).TrimEnd(Path.DirectorySeparatorChar);
+                string fullFolderPath = Path.Combine(workingDir, normalizedFolder);
+                if (Directory.Exists(fullFolderPath))
+                {
+                    filesToHydrate.AddRange(Directory.EnumerateFiles(fullFolderPath, "*", SearchOption.AllDirectories));
+                }
+            }
+
+            // Collect files from file filters (supports simple prefix wildcards like *.txt)
+            foreach (string filePattern in filesList)
+            {
+                string normalizedPattern = filePattern.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+
+                if (normalizedPattern.StartsWith("*"))
+                {
+                    // Prefix wildcard — search entire working directory
+                    filesToHydrate.AddRange(Directory.EnumerateFiles(workingDir, normalizedPattern, SearchOption.AllDirectories));
+                }
+                else
+                {
+                    // Exact file path
+                    string fullPath = Path.Combine(workingDir, normalizedPattern);
+                    if (File.Exists(fullPath))
+                    {
+                        filesToHydrate.Add(fullPath);
+                    }
+                }
+            }
+
+            if (filesToHydrate.Count == 0)
+            {
+                tracer.RelatedInfo("HydrateMatchingFiles: No files to hydrate");
+                return;
+            }
+
+            int hydratedCount = 0;
+            int failedCount = 0;
+            int maxParallelism = Math.Max(1, Environment.ProcessorCount / 2);
+
+            bool success = true;
+            Func<bool> doHydrate = () =>
+            {
+                Parallel.ForEach(
+                    filesToHydrate,
+                    new ParallelOptions { MaxDegreeOfParallelism = maxParallelism },
+                    filePath =>
+                    {
+                        if (GVFSPlatform.Instance.FileSystem.HydrateFile(filePath, new byte[1]))
+                        {
+                            Interlocked.Increment(ref hydratedCount);
+                        }
+                        else
+                        {
+                            tracer.RelatedWarning("HydrateMatchingFiles: Failed to hydrate " + filePath);
+                            Interlocked.Increment(ref failedCount);
+                        }
+                    });
+
+                return failedCount == 0;
+            };
+
+            if (this.Verbose)
+            {
+                success = doHydrate();
+            }
+            else
+            {
+                success = this.ShowStatusWhileRunning(doHydrate, "Hydrating files");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("  Hydrated files:   " + hydratedCount);
+            if (failedCount > 0)
+            {
+                Console.WriteLine("  Failed to hydrate: " + failedCount);
+                Environment.ExitCode = 1;
+            }
         }
     }
 }

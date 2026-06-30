@@ -45,6 +45,7 @@ namespace GVFS.Service
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
+                metadata.Add("Architecture", ProcessHelper.GetCurrentProcessArchitecture());
                 this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(GVFSService)}_{nameof(this.Run)}", metadata);
 
                 // Set up deferred telemetry pipe attachment FIRST, before any

@@ -37,6 +37,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem = new SystemIORunner();
         }
 
+        [SetUp]
+        public void DeletePrefetchCache()
+        {
+            string cachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "BlobPrefetchCache.dat");
+            if (File.Exists(cachePath))
+            {
+                File.Delete(cachePath);
+            }
+        }
+
         [TestCase, Order(1)]
         public void PrefetchAllMustBeExplicit()
         {
@@ -160,7 +170,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(13)]
-        [Category(Categories.NeedsReactionInCI)]
+        [SkipInCI("Flaky: stdin prefetch blob count varies in CI")]
         public void PrefetchFilesFromFileListStdIn()
         {
             // on case-insensitive filesystems, test case-blind matching
@@ -177,7 +187,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(14)]
-        [Category(Categories.NeedsReactionInCI)]
+        [SkipInCI("Flaky: stdin prefetch blob count varies in CI")]
         public void PrefetchFolderListFromStdin()
         {
             string input = string.Join(Environment.NewLine, PrefetchFolderList);

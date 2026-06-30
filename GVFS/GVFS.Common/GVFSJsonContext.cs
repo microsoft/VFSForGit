@@ -39,6 +39,9 @@ namespace GVFS.Common
     [JsonSerializable(typeof(NamedPipeMessages.GetActiveRepoListRequest))]
     [JsonSerializable(typeof(NamedPipeMessages.GetActiveRepoListRequest.Response), TypeInfoPropertyName = "GetActiveRepoListResponse")]
     [JsonSerializable(typeof(NamedPipeMessages.BaseResponse<string>))]
+    [JsonSerializable(typeof(NamedPipeMessages.PrefetchCommits.Response), TypeInfoPropertyName = "PrefetchCommitsResponse")]
+    [JsonSerializable(typeof(NamedPipeMessages.PrefetchBlobs.Request), TypeInfoPropertyName = "PrefetchBlobsRequest")]
+    [JsonSerializable(typeof(NamedPipeMessages.PrefetchBlobs.Response), TypeInfoPropertyName = "PrefetchBlobsResponse")]
     [JsonSerializable(typeof(TelemetryDaemonEventListener.PipeMessage))]
     [JsonSerializable(typeof(PrettyConsoleEventListener.ConsoleOutputPayload))]
     internal partial class GVFSJsonContext : JsonSerializerContext

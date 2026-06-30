@@ -172,7 +172,7 @@ namespace GVFS.Common.Maintenance
             // may be more bad objects in the next batch after deleting the corrupt objects.
             foreach (string objectId in this.GetBatchOfLooseObjects(2 * this.MaxLooseObjectsInPack))
             {
-                if (!this.Context.Repository.ObjectExists(objectId))
+                if (!this.Context.Repository.ObjectCanBeParsed(objectId))
                 {
                     string objectFile = this.GetLooseObjectFileName(objectId);
 

@@ -196,7 +196,7 @@ namespace GVFS.Common
                  * the 4 bytes at offsets 8-11 of the index file. */
                 indexFile.Position = 8;
                 var bytes = new byte[4];
-                indexFile.Read(
+                indexFile.ReadExactly(
                     bytes, // Destination buffer
                     offset: 0, // Offset in destination buffer, not in indexFile
                     count: 4);

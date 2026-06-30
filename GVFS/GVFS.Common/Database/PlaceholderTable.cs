@@ -2,22 +2,21 @@
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
-using System.Threading;
+using System.Runtime.CompilerServices;
 
 namespace GVFS.Common.Database
 {
     /// <summary>
-    /// This class is for interacting with the Placeholder tablein the SQLite database
+    /// This class is for interacting with the Placeholder table in the SQLite database
     /// </summary>
-    public class PlaceholderTable : IPlaceholderCollection
+    public class PlaceholderTable : GVFSTable, IPlaceholderCollection
     {
-        private IGVFSConnectionPool connectionPool;
-        private Lock writerLock = new Lock();
-
         public PlaceholderTable(IGVFSConnectionPool connectionPool)
+            : base(connectionPool)
         {
-            this.connectionPool = connectionPool;
         }
+
+        protected override string TableName => nameof(PlaceholderTable);
 
         public static void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem)
         {
@@ -31,77 +30,61 @@ namespace GVFS.Common.Database
 
         public int GetCount()
         {
-            try
-            {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
+            return this.ExecuteNonCriticalRead(
+                command =>
                 {
                     command.CommandText = "SELECT count(path) FROM Placeholder;";
                     return Convert.ToInt32(command.ExecuteScalar());
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetCount)} Exception", ex);
-            }
+                },
+                fallbackValue: -1);
         }
 
         public void GetAllEntries(out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders)
         {
-            try
-            {
-                List<IPlaceholderData> tempFilePlaceholders = new List<IPlaceholderData>();
-                List<IPlaceholderData> tempFolderPlaceholders = new List<IPlaceholderData>();
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
-                {
-                    command.CommandText = "SELECT path, pathType, sha FROM Placeholder;";
-                    ReadPlaceholders(command, data =>
-                    {
-                        if (data.PathType == PlaceholderData.PlaceholderType.File)
-                        {
-                            tempFilePlaceholders.Add(data);
-                        }
-                        else
-                        {
-                            tempFolderPlaceholders.Add(data);
-                        }
-                    });
-                }
+            List<IPlaceholderData> tempFilePlaceholders = new List<IPlaceholderData>();
+            List<IPlaceholderData> tempFolderPlaceholders = new List<IPlaceholderData>();
 
-                filePlaceholders = tempFilePlaceholders;
-                folderPlaceholders = tempFolderPlaceholders;
-            }
-            catch (Exception ex)
+            this.ExecuteRead<object>(command =>
             {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetAllEntries)} Exception", ex);
-            }
+                tempFilePlaceholders.Clear();
+                tempFolderPlaceholders.Clear();
+
+                command.CommandText = "SELECT path, pathType, sha FROM Placeholder;";
+                ReadPlaceholders(command, data =>
+                {
+                    if (data.PathType == PlaceholderData.PlaceholderType.File)
+                    {
+                        tempFilePlaceholders.Add(data);
+                    }
+                    else
+                    {
+                        tempFolderPlaceholders.Add(data);
+                    }
+                });
+
+                return null;
+            });
+
+            filePlaceholders = tempFilePlaceholders;
+            folderPlaceholders = tempFolderPlaceholders;
         }
 
         public HashSet<string> GetAllFilePaths()
         {
-            try
+            return this.ExecuteRead(command =>
             {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
+                HashSet<string> fileEntries = new HashSet<string>();
+                command.CommandText = $"SELECT path FROM Placeholder WHERE pathType = {(int)PlaceholderData.PlaceholderType.File};";
+                using (IDataReader reader = command.ExecuteReader())
                 {
-                    HashSet<string> fileEntries = new HashSet<string>();
-                    command.CommandText = $"SELECT path FROM Placeholder WHERE pathType = {(int)PlaceholderData.PlaceholderType.File};";
-                    using (IDataReader reader = command.ExecuteReader())
+                    while (reader.Read())
                     {
-                        while (reader.Read())
-                        {
-                            fileEntries.Add(reader.GetString(0));
-                        }
+                        fileEntries.Add(reader.GetString(0));
                     }
-
-                    return fileEntries;
                 }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetAllFilePaths)} Exception", ex);
-            }
+
+                return fileEntries;
+            });
         }
 
         public void AddPlaceholderData(IPlaceholderData data)
@@ -134,112 +117,79 @@ namespace GVFS.Common.Database
                 throw new GVFSDatabaseException($"Invalid SHA '{sha ?? "null"}' for file {path}", innerException: null);
             }
 
-            this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.File, Sha = sha });
+            this.InsertPlaceholder(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.File, Sha = sha });
         }
 
         public void AddPartialFolder(string path, string sha)
         {
-            this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PartialFolder, Sha = sha });
+            this.InsertPlaceholder(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PartialFolder, Sha = sha });
         }
 
         public void AddExpandedFolder(string path)
         {
-            this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.ExpandedFolder });
+            this.InsertPlaceholder(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.ExpandedFolder });
         }
 
         public void AddPossibleTombstoneFolder(string path)
         {
-            this.Insert(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PossibleTombstoneFolder });
+            this.InsertPlaceholder(new PlaceholderData() { Path = path, PathType = PlaceholderData.PlaceholderType.PossibleTombstoneFolder });
         }
 
         public List<IPlaceholderData> RemoveAllEntriesForFolder(string path)
         {
             const string fromWhereClause = "FROM Placeholder WHERE path = @path OR path LIKE @pathWithDirectorySeparator;";
 
-            // Normalize the path to match what will be in the database
             path = GVFSDatabase.NormalizePath(path);
 
-            try
+            return this.ExecuteReadThenWrite(command =>
             {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
+                List<IPlaceholderData> removedPlaceholders = new List<IPlaceholderData>();
+                command.CommandText = $"SELECT path, pathType, sha {fromWhereClause}";
+                command.AddParameter("@path", DbType.String, $"{path}");
+                command.AddParameter("@pathWithDirectorySeparator", DbType.String, $"{path + Path.DirectorySeparatorChar}%");
+                ReadPlaceholders(command, data => removedPlaceholders.Add(data));
+
+                command.CommandText = $"DELETE {fromWhereClause}";
+
+                lock (this.WriterLock)
                 {
-                    List<IPlaceholderData> removedPlaceholders = new List<IPlaceholderData>();
-                    command.CommandText = $"SELECT path, pathType, sha {fromWhereClause}";
-                    command.AddParameter("@path", DbType.String, $"{path}");
-                    command.AddParameter("@pathWithDirectorySeparator", DbType.String, $"{path + Path.DirectorySeparatorChar}%");
-                    ReadPlaceholders(command, data => removedPlaceholders.Add(data));
-
-                    command.CommandText = $"DELETE {fromWhereClause}";
-
-                    lock (this.writerLock)
-                    {
-                        command.ExecuteNonQuery();
-                    }
-
-                    return removedPlaceholders;
+                    command.ExecuteNonQuery();
                 }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.RemoveAllEntriesForFolder)}({path}) Exception", ex);
-            }
+
+                return removedPlaceholders;
+            });
         }
 
         public void Remove(string path)
         {
-            try
+            this.ExecuteWrite(command =>
             {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
-                {
-                    command.CommandText = "DELETE FROM Placeholder WHERE path = @path;";
-                    command.AddParameter("@path", DbType.String, path);
-
-                    lock (this.writerLock)
-                    {
-                        command.ExecuteNonQuery();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.Remove)}({path}) Exception", ex);
-            }
+                command.CommandText = "DELETE FROM Placeholder WHERE path = @path;";
+                command.AddParameter("@path", DbType.String, path);
+                command.ExecuteNonQuery();
+            });
         }
 
         public int GetFilePlaceholdersCount()
         {
-            try
-            {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
+            return this.ExecuteNonCriticalRead(
+                command =>
                 {
                     command.CommandText = $"SELECT count(path) FROM Placeholder WHERE pathType = {(int)PlaceholderData.PlaceholderType.File};";
                     return Convert.ToInt32(command.ExecuteScalar());
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetCount)} Exception", ex);
-            }
+                },
+                fallbackValue: -1);
         }
 
         public int GetFolderPlaceholdersCount()
         {
-            try
-            {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
+            return this.ExecuteNonCriticalRead(
+                command =>
                 {
                     command.CommandText = $"SELECT count(path) FROM Placeholder WHERE pathType = {(int)PlaceholderData.PlaceholderType.PartialFolder};";
                     return Convert.ToInt32(command.ExecuteScalar());
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.GetCount)} Exception", ex);
-            }
+                },
+                fallbackValue: -1);
         }
 
         private static void ReadPlaceholders(IDbCommand command, Action<PlaceholderData> dataHandler)
@@ -262,12 +212,11 @@ namespace GVFS.Common.Database
             }
         }
 
-        private void Insert(PlaceholderData placeholder)
+        private void InsertPlaceholder(PlaceholderData placeholder, [CallerMemberName] string caller = null)
         {
             try
             {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
+                this.ExecuteWrite(command =>
                 {
                     command.CommandText = "INSERT OR REPLACE INTO Placeholder (path, pathType, sha) VALUES (@path, @pathType, @sha);";
                     command.AddParameter("@path", DbType.String, placeholder.Path);
@@ -282,15 +231,14 @@ namespace GVFS.Common.Database
                         command.AddParameter("@sha", DbType.String, placeholder.Sha);
                     }
 
-                    lock (this.writerLock)
-                    {
-                        command.ExecuteNonQuery();
-                    }
-                }
+                    command.ExecuteNonQuery();
+                }, caller);
             }
-            catch (Exception ex)
+            catch (GVFSDatabaseException ex)
             {
-                throw new GVFSDatabaseException($"{nameof(PlaceholderTable)}.{nameof(this.Insert)}({placeholder.Path}, {placeholder.PathType}, {placeholder.Sha}) Exception", ex);
+                throw new GVFSDatabaseException(
+                    $"{this.TableName}.{caller}({placeholder.Path}, {placeholder.PathType}, {placeholder.Sha ?? "null"}) Exception",
+                    ex.InnerException);
             }
         }
 
@@ -316,3 +264,4 @@ namespace GVFS.Common.Database
         }
     }
 }
+

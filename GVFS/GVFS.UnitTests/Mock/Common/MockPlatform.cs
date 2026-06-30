@@ -131,11 +131,6 @@ namespace GVFS.UnitTests.Mock.Common
             return "MockPath";
         }
 
-        public override bool IsConsoleOutputRedirectedToFile()
-        {
-            throw new NotSupportedException();
-        }
-
         public override bool IsElevated()
         {
             throw new NotSupportedException();

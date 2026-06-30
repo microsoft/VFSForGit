@@ -3,7 +3,8 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
-using System.Diagnostics;
+
+using System;
 using System.IO;
 
 namespace GVFS.UnitTests.Mock.Common
@@ -26,7 +27,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override string WriteTempPackFile(Stream stream)
         {
-            Debug.Assert(stream != null, "WriteTempPackFile should not receive a null stream");
+            ArgumentNullException.ThrowIfNull(stream);
 
             using (stream)
             using (StreamReader reader = new StreamReader(stream))

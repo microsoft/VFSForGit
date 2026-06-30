@@ -317,7 +317,7 @@ namespace GVFS.Hooks
                     fullCommand,
                     pid,
                     GVFSHooksPlatform.IsElevated(),
-                    isConsoleOutputRedirectedToFile: GVFSHooksPlatform.IsConsoleOutputRedirectedToFile(),
+                    isConsoleOutputRedirectedToFile: Console.IsOutputRedirected,
                     checkAvailabilityOnly: checkGvfsLockAvailabilityOnly,
                     gvfsEnlistmentRoot: null,
                     gitCommandSessionId: gitCommandSessionId,
@@ -337,7 +337,7 @@ namespace GVFS.Hooks
                 fullCommand,
                 pid,
                 GVFSHooksPlatform.IsElevated(),
-                GVFSHooksPlatform.IsConsoleOutputRedirectedToFile(),
+                Console.IsOutputRedirected,
                 response =>
                 {
                     if (response == null || response.ResponseData == null)

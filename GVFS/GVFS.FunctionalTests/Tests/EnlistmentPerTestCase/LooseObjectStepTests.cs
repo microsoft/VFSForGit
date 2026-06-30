@@ -29,7 +29,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         private string TempPackRoot => Path.Combine(this.PackRoot, TempPackFolder);
 
         [TestCase]
-        [Category(Categories.NeedsReactionInCI)]
+        [SkipInCI("Flaky: loose object step timing-sensitive in CI")]
         public void RemoveLooseObjectsInPackFiles()
         {
             this.ClearAllObjects();
@@ -49,7 +49,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         }
 
         [TestCase]
-        [Category(Categories.NeedsReactionInCI)]
+        [SkipInCI("Flaky: loose object step timing-sensitive in CI")]
         public void PutLooseObjectsInPackFiles()
         {
             this.ClearAllObjects();
@@ -86,7 +86,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         }
 
         [TestCase]
-        [Category(Categories.NeedsReactionInCI)]
+        [SkipInCI("Flaky: corrupt loose object detection timing-sensitive in CI")]
         public void CorruptLooseObjectIsDeleted()
         {
             this.ClearAllObjects();

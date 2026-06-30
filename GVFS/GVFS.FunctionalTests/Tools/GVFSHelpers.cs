@@ -165,34 +165,35 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static void ModifiedPathsContentsShouldEqual(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, string contents)
+        /// <summary>
+        /// Asserts that the modified-paths set, after replaying the on-disk
+        /// A/D log, contains exactly <paramref name="gitPaths"/> -- no more,
+        /// no fewer. Use this when a test wants to prove that some sequence
+        /// of operations produced no spurious modified-paths entries.
+        /// </summary>
+        public static void ModifiedPathsShouldOnlyContain(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, params string[] gitPaths)
         {
-            string modifedPathsContents = GetModifiedPathsContents(enlistment, fileSystem);
-            modifedPathsContents.ShouldEqual(contents);
+            HashSet<string> currentPaths = GetCurrentModifiedPaths(enlistment, fileSystem);
+            HashSet<string> expectedPaths = new HashSet<string>(gitPaths, FileSystemHelpers.PathComparer);
+            currentPaths.SetEquals(expectedPaths).ShouldBeTrue(
+                $"Expected modified paths {{{string.Join(",", expectedPaths)}}} but got {{{string.Join(",", currentPaths)}}}");
         }
 
         public static void ModifiedPathsShouldContain(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, params string[] gitPaths)
         {
-            string modifedPathsContents = GetModifiedPathsContents(enlistment, fileSystem);
-            string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
+            HashSet<string> currentPaths = GetCurrentModifiedPaths(enlistment, fileSystem);
             foreach (string gitPath in gitPaths)
             {
-                modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLineAddPrefix + gitPath, FileSystemHelpers.PathComparison));
+                currentPaths.ShouldContain(path => path.Equals(gitPath, FileSystemHelpers.PathComparison));
             }
         }
 
         public static void ModifiedPathsShouldNotContain(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, params string[] gitPaths)
         {
-            string modifedPathsContents = GetModifiedPathsContents(enlistment, fileSystem);
-            string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
+            HashSet<string> currentPaths = GetCurrentModifiedPaths(enlistment, fileSystem);
             foreach (string gitPath in gitPaths)
             {
-                modifedPathLines.ShouldNotContain(
-                    path =>
-                    {
-                        return path.Equals(ModifedPathsLineAddPrefix + gitPath, FileSystemHelpers.PathComparison) ||
-                               path.Equals(ModifedPathsLineDeletePrefix + gitPath, FileSystemHelpers.PathComparison);
-                    });
+                currentPaths.ShouldNotContain(path => path.Equals(gitPath, FileSystemHelpers.PathComparison));
             }
         }
 
@@ -228,6 +229,36 @@ namespace GVFS.FunctionalTests.Tools
             string modifiedPathsDatabase = Path.Combine(enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             return GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
+        }
+
+        /// <summary>
+        /// Returns the set of currently-modified paths by replaying the on-disk
+        /// modified paths log. The file is append-only between background-op
+        /// batches; <see cref="ModifiedPathsDatabase.WriteAllEntriesAndFlush"/>
+        /// compacts it after each batch finishes. Because
+        /// <see cref="GVFSFunctionalTestEnlistment.WaitForBackgroundOperations"/>
+        /// can return after the last task is dequeued but before that compaction
+        /// completes, callers must replay the A/D log entries the same way
+        /// <see cref="FileBasedCollection.TryLoadFromDisk"/> does on mount to
+        /// observe a consistent state.
+        /// </summary>
+        private static HashSet<string> GetCurrentModifiedPaths(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem)
+        {
+            string contents = GetModifiedPathsContents(enlistment, fileSystem);
+            HashSet<string> paths = new HashSet<string>(FileSystemHelpers.PathComparer);
+            foreach (string line in contents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (line.StartsWith(ModifedPathsLineAddPrefix, StringComparison.Ordinal))
+                {
+                    paths.Add(line.Substring(ModifedPathsLineAddPrefix.Length));
+                }
+                else if (line.StartsWith(ModifedPathsLineDeletePrefix, StringComparison.Ordinal))
+                {
+                    paths.Remove(line.Substring(ModifedPathsLineDeletePrefix.Length));
+                }
+            }
+
+            return paths;
         }
 
         private static T RunSqliteCommand<T>(string sqliteDbPath, Func<SqliteCommand, T> runCommand)

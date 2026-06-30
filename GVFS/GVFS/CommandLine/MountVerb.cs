@@ -14,6 +14,7 @@ namespace GVFS.CommandLine
     {
         private const string MountVerbName = "mount";
         private Process mountProcess;
+        private volatile string currentMountProgress;
 
         public string Verbosity { get; set; }
 
@@ -197,7 +198,9 @@ namespace GVFS.CommandLine
 
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
-                    "Mounting"))
+                    getMessage: () => this.currentMountProgress,
+                    "Mounting",
+                    enlistment.WorkingDirectoryRoot))
                 {
                     ReturnCode mountExitCode = ReturnCode.GenericError;
                     if (this.mountProcess != null)
@@ -277,7 +280,33 @@ namespace GVFS.CommandLine
 
             tracer.RelatedInfo($"{nameof(this.TryMount)}: Waiting for repo to be mounted");
 
-            return GVFSEnlistment.WaitUntilMounted(tracer, enlistment.NamedPipeName, enlistment.WorkingDirectoryRoot, this.Unattended, out errorMessage);
+            Process process = this.mountProcess;
+            Func<GVFSEnlistment.MountProcessSnapshot> snapshot = () =>
+            {
+                try
+                {
+                    if (!process.HasExited)
+                    {
+                        return new GVFSEnlistment.MountProcessSnapshot(process.Id, hasExited: false, exitCode: 0);
+                    }
+
+                    return new GVFSEnlistment.MountProcessSnapshot(process.Id, hasExited: true, exitCode: process.ExitCode);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Process object disposed or not started — treat as exited.
+                    return new GVFSEnlistment.MountProcessSnapshot(processId: 0, hasExited: true, exitCode: -1);
+                }
+            };
+
+            return GVFSEnlistment.WaitUntilMounted(
+                tracer,
+                enlistment.NamedPipeName,
+                enlistment.WorkingDirectoryRoot,
+                this.Unattended,
+                snapshot,
+                out errorMessage,
+                onProgress: progress => this.currentMountProgress = progress);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
