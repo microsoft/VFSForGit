@@ -78,6 +78,7 @@ namespace GVFS.UnitTests.Common.Database
         {
             Mock<IDbCommand> mockCommand = new Mock<IDbCommand>(MockBehavior.Strict);
             mockCommand.Setup(x => x.Dispose());
+            mockCommand.SetupSet(x => x.CommandTimeout = It.IsAny<int>());
 
             Mock<IDbConnection> mockConnection = new Mock<IDbConnection>(MockBehavior.Strict);
             mockConnection.Setup(x => x.CreateCommand()).Returns(mockCommand.Object);

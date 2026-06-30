@@ -1,20 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Data;
-using System.IO;
-using System.Threading;
 
 namespace GVFS.Common.Database
 {
-    public class SparseTable : ISparseCollection
+    public class SparseTable : GVFSTable, ISparseCollection
     {
-        private IGVFSConnectionPool connectionPool;
-        private Lock writerLock = new Lock();
-
         public SparseTable(IGVFSConnectionPool connectionPool)
+            : base(connectionPool)
         {
-            this.connectionPool = connectionPool;
         }
+
+        protected override string TableName => nameof(SparseTable);
 
         public static void CreateTable(IDbConnection connection, bool caseSensitiveFileSystem)
         {
@@ -28,72 +24,40 @@ namespace GVFS.Common.Database
 
         public void Add(string directoryPath)
         {
-            try
+            this.ExecuteWrite(command =>
             {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
-                {
-                    command.CommandText = "INSERT OR REPLACE INTO Sparse (path) VALUES (@path);";
-                    command.AddParameter("@path", DbType.String, GVFSDatabase.NormalizePath(directoryPath));
-
-                    lock (this.writerLock)
-                    {
-                        command.ExecuteNonQuery();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.Add)}({directoryPath}) Exception: {ex.ToString()}", ex);
-            }
+                command.CommandText = "INSERT OR REPLACE INTO Sparse (path) VALUES (@path);";
+                command.AddParameter("@path", DbType.String, GVFSDatabase.NormalizePath(directoryPath));
+                command.ExecuteNonQuery();
+            });
         }
 
         public HashSet<string> GetAll()
         {
-            try
+            return this.ExecuteRead(command =>
             {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
+                HashSet<string> directories = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
+                command.CommandText = $"SELECT path FROM Sparse;";
+                using (IDataReader reader = command.ExecuteReader())
                 {
-                    HashSet<string> directories = new HashSet<string>(GVFSPlatform.Instance.Constants.PathComparer);
-                    command.CommandText = $"SELECT path FROM Sparse;";
-                    using (IDataReader reader = command.ExecuteReader())
+                    while (reader.Read())
                     {
-                        while (reader.Read())
-                        {
-                            directories.Add(reader.GetString(0));
-                        }
+                        directories.Add(reader.GetString(0));
                     }
-
-                    return directories;
                 }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.GetAll)} Exception: {ex.ToString()}", ex);
-            }
+
+                return directories;
+            });
         }
 
         public void Remove(string directoryPath)
         {
-            try
+            this.ExecuteWrite(command =>
             {
-                using (IDbConnection connection = this.connectionPool.GetConnection())
-                using (IDbCommand command = connection.CreateCommand())
-                {
-                    command.CommandText = "DELETE FROM Sparse WHERE path = @path;";
-                    command.AddParameter("@path", DbType.String, GVFSDatabase.NormalizePath(directoryPath));
-
-                    lock (this.writerLock)
-                    {
-                        command.ExecuteNonQuery();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new GVFSDatabaseException($"{nameof(SparseTable)}.{nameof(this.Remove)}({directoryPath}) Exception: {ex.ToString()}", ex);
-            }
+                command.CommandText = "DELETE FROM Sparse WHERE path = @path;";
+                command.AddParameter("@path", DbType.String, GVFSDatabase.NormalizePath(directoryPath));
+                command.ExecuteNonQuery();
+            });
         }
     }
 }

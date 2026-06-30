@@ -71,7 +71,7 @@ namespace GVFS.UnitTests.Common.Database
                     mockCommand.SetupSet(x => x.CommandText = GetAllCommandString);
                     mockReader.Setup(x => x.Read()).Throws(new Exception(DefaultExceptionMessage));
                     GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => sparseTable.GetAll());
-                    ex.Message.ShouldContain("SparseTable.GetAll Exception:");
+                    ex.Message.ShouldContain("SparseTable.GetAll Exception");
                     ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
                 });
         }
@@ -187,7 +187,7 @@ namespace GVFS.UnitTests.Common.Database
                         if (throwException)
                         {
                             GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => sparseTable.Add(pathToPass));
-                            ex.Message.ShouldContain($"SparseTable.Add({expectedPath}) Exception");
+                            ex.Message.ShouldContain($"SparseTable.Add Exception");
                             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
                         }
                         else
@@ -201,7 +201,7 @@ namespace GVFS.UnitTests.Common.Database
                         if (throwException)
                         {
                             GVFSDatabaseException ex = Assert.Throws<GVFSDatabaseException>(() => sparseTable.Remove(pathToPass));
-                            ex.Message.ShouldContain($"SparseTable.Remove({expectedPath}) Exception");
+                            ex.Message.ShouldContain($"SparseTable.Remove Exception");
                             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
                         }
                         else
