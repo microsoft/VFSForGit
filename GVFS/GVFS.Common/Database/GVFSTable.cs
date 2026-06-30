@@ -15,6 +15,17 @@ namespace GVFS.Common.Database
         private const int MaxRetries = 5;
         private const int BaseRetryDelayMs = 50;
 
+        /// <summary>
+        /// Per-attempt busy-wait cap for SQLite lock contention. Microsoft.Data.Sqlite retries
+        /// BUSY/LOCKED internally at 150ms intervals until CommandTimeout elapses, so without
+        /// this cap the outer retries below would stack on top of the 30s default, yielding a
+        /// worst-case wait of 5 × 30s = ~150s. Setting a short per-command timeout bounds the
+        /// internal busy-wait to 2s per attempt; the outer retry loop then provides up to five
+        /// additional chances, for a total worst case of ~10.75s.
+        /// In production (lock hold times ≈ 10ms) this cap is never reached.
+        /// </summary>
+        private const int CommandTimeoutSeconds = 2;
+
         private readonly IGVFSConnectionPool connectionPool;
         private readonly Lock writerLock = new Lock();
 
@@ -34,27 +45,7 @@ namespace GVFS.Common.Database
         /// </summary>
         protected T ExecuteRead<T>(Func<IDbCommand, T> operation, [CallerMemberName] string caller = null)
         {
-            int attempt = 0;
-            while (true)
-            {
-                try
-                {
-                    using (IDbConnection connection = this.connectionPool.GetConnection())
-                    using (IDbCommand command = connection.CreateCommand())
-                    {
-                        return operation(command);
-                    }
-                }
-                catch (SqliteException ex) when (SqliteErrorCodes.IsTransientError(ex.SqliteErrorCode) && attempt < MaxRetries)
-                {
-                    attempt++;
-                    Thread.Sleep(BaseRetryDelayMs * attempt);
-                }
-                catch (Exception ex)
-                {
-                    throw new GVFSDatabaseException($"{this.TableName}.{caller} Exception", ex);
-                }
-            }
+            return this.ExecuteWithRetry(operation, caller);
         }
 
         /// <summary>
@@ -68,6 +59,7 @@ namespace GVFS.Common.Database
                 using (IDbConnection connection = this.connectionPool.GetConnection())
                 using (IDbCommand command = connection.CreateCommand())
                 {
+                    command.CommandTimeout = CommandTimeoutSeconds;
                     return operation(command);
                 }
             }
@@ -87,32 +79,17 @@ namespace GVFS.Common.Database
         /// </summary>
         protected void ExecuteWrite(Action<IDbCommand> operation, [CallerMemberName] string caller = null)
         {
-            int attempt = 0;
-            while (true)
-            {
-                try
+            this.ExecuteWithRetry<object>(
+                command =>
                 {
-                    using (IDbConnection connection = this.connectionPool.GetConnection())
-                    using (IDbCommand command = connection.CreateCommand())
+                    lock (this.writerLock)
                     {
-                        lock (this.writerLock)
-                        {
-                            operation(command);
-                        }
+                        operation(command);
                     }
 
-                    return;
-                }
-                catch (SqliteException ex) when (SqliteErrorCodes.IsTransientError(ex.SqliteErrorCode) && attempt < MaxRetries)
-                {
-                    attempt++;
-                    Thread.Sleep(BaseRetryDelayMs * attempt);
-                }
-                catch (Exception ex)
-                {
-                    throw new GVFSDatabaseException($"{this.TableName}.{caller} Exception", ex);
-                }
-            }
+                    return null;
+                },
+                caller);
         }
 
         /// <summary>
@@ -122,6 +99,11 @@ namespace GVFS.Common.Database
         /// </summary>
         protected T ExecuteReadThenWrite<T>(Func<IDbCommand, T> readThenWrite, [CallerMemberName] string caller = null)
         {
+            return this.ExecuteWithRetry(readThenWrite, caller);
+        }
+
+        private T ExecuteWithRetry<T>(Func<IDbCommand, T> operation, string caller)
+        {
             int attempt = 0;
             while (true)
             {
@@ -130,7 +112,8 @@ namespace GVFS.Common.Database
                     using (IDbConnection connection = this.connectionPool.GetConnection())
                     using (IDbCommand command = connection.CreateCommand())
                     {
-                        return readThenWrite(command);
+                        command.CommandTimeout = CommandTimeoutSeconds;
+                        return operation(command);
                     }
                 }
                 catch (SqliteException ex) when (SqliteErrorCodes.IsTransientError(ex.SqliteErrorCode) && attempt < MaxRetries)

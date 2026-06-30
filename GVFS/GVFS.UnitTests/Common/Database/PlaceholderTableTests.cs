@@ -241,7 +241,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypeFile,
                 DefaultSha,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.AddFile({DefaultPath}, File, {DefaultSha}) Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
@@ -374,7 +374,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypeFile,
                 DefaultSha,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.AddFile({DefaultPath}, File, {DefaultSha}) Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
@@ -398,7 +398,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypePartialFolder,
                 sha: null,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.AddPartialFolder({DefaultPath}, PartialFolder, null) Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
@@ -422,7 +422,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypeExpandedFolder,
                 sha: null,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.AddExpandedFolder({DefaultPath}, ExpandedFolder, null) Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 
@@ -446,7 +446,7 @@ namespace GVFS.UnitTests.Common.Database
                 PathTypePossibleTombstoneFolder,
                 sha: null,
                 throwException: true));
-            ex.Message.ShouldEqual($"PlaceholderTable.InsertPlaceholder Exception");
+            ex.Message.ShouldEqual($"PlaceholderTable.AddPossibleTombstoneFolder({DefaultPath}, PossibleTombstoneFolder, null) Exception");
             ex.InnerException.Message.ShouldEqual(DefaultExceptionMessage);
         }
 

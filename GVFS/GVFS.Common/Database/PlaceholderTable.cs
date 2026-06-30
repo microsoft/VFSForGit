@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
-using System.Threading;
+using System.Runtime.CompilerServices;
 
 namespace GVFS.Common.Database
 {
@@ -212,25 +212,34 @@ namespace GVFS.Common.Database
             }
         }
 
-        private void InsertPlaceholder(PlaceholderData placeholder)
+        private void InsertPlaceholder(PlaceholderData placeholder, [CallerMemberName] string caller = null)
         {
-            this.ExecuteWrite(command =>
+            try
             {
-                command.CommandText = "INSERT OR REPLACE INTO Placeholder (path, pathType, sha) VALUES (@path, @pathType, @sha);";
-                command.AddParameter("@path", DbType.String, placeholder.Path);
-                command.AddParameter("@pathType", DbType.Int32, (int)placeholder.PathType);
-
-                if (placeholder.Sha == null)
+                this.ExecuteWrite(command =>
                 {
-                    command.AddParameter("@sha", DbType.String, DBNull.Value);
-                }
-                else
-                {
-                    command.AddParameter("@sha", DbType.String, placeholder.Sha);
-                }
+                    command.CommandText = "INSERT OR REPLACE INTO Placeholder (path, pathType, sha) VALUES (@path, @pathType, @sha);";
+                    command.AddParameter("@path", DbType.String, placeholder.Path);
+                    command.AddParameter("@pathType", DbType.Int32, (int)placeholder.PathType);
 
-                command.ExecuteNonQuery();
-            });
+                    if (placeholder.Sha == null)
+                    {
+                        command.AddParameter("@sha", DbType.String, DBNull.Value);
+                    }
+                    else
+                    {
+                        command.AddParameter("@sha", DbType.String, placeholder.Sha);
+                    }
+
+                    command.ExecuteNonQuery();
+                }, caller);
+            }
+            catch (GVFSDatabaseException ex)
+            {
+                throw new GVFSDatabaseException(
+                    $"{this.TableName}.{caller}({placeholder.Path}, {placeholder.PathType}, {placeholder.Sha ?? "null"}) Exception",
+                    ex.InnerException);
+            }
         }
 
         public class PlaceholderData : IPlaceholderData
