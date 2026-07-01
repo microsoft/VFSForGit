@@ -24,8 +24,14 @@ namespace GVFS.Common.Git
             // path would split the command.  Git's config parser strips double quotes
             // but preserves single quotes, and bash treats single-quoted strings as
             // a single token.
+            //
+            // Include the platform's executable extension (matching the file actually
+            // written to disk by HooksInstaller) so the shell can exec it directly
+            // instead of probing PATHEXT candidates (.COM, .EXE, ...) on every hook
+            // invocation.
             string virtualFileSystemPath = "'" + Paths.ConvertPathToGitFormat(
-                Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName, GVFSConstants.DotGit.Hooks.VirtualFileSystemName)) + "'";
+                Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName, GVFSConstants.DotGit.Hooks.VirtualFileSystemName) +
+                GVFSPlatform.Instance.Constants.ExecutableExtension) + "'";
 
             string gitStatusCachePath = null;
             if (!GVFSEnlistment.IsUnattended(tracer: null) && GVFSPlatform.Instance.IsGitStatusCacheSupported())
