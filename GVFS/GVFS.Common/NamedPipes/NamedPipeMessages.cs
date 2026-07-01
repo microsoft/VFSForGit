@@ -518,6 +518,41 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
+        public class RunInstallerRequest
+        {
+            public const string Header = nameof(RunInstallerRequest);
+
+            /// <summary>
+            /// Full path to the installer executable.
+            /// </summary>
+            public string InstallerPath { get; set; }
+
+            /// <summary>
+            /// When true, skip Authenticode signature verification.
+            /// Product identity (ProductName) is still checked.
+            /// Intended for development/test builds only.
+            /// </summary>
+            public bool AllowUnsigned { get; set; }
+
+            public static RunInstallerRequest FromMessage(Message message)
+            {
+                return GVFSJsonOptions.Deserialize<RunInstallerRequest>(message.Body);
+            }
+
+            public Message ToMessage()
+            {
+                return new Message(Header, GVFSJsonOptions.Serialize(this));
+            }
+
+            public class Response : BaseResponse<RunInstallerRequest>
+            {
+                public static Response FromMessage(Message message)
+                {
+                    return GVFSJsonOptions.Deserialize<Response>(message.Body);
+                }
+            }
+        }
+
         public class BaseResponse<TRequest>
         {
             public const string Header = nameof(TRequest) + ResponseSuffix;

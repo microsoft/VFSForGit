@@ -38,6 +38,8 @@ namespace GVFS.Common
     [JsonSerializable(typeof(NamedPipeMessages.EnableAndAttachProjFSRequest.Response), TypeInfoPropertyName = "EnableAndAttachProjFSResponse")]
     [JsonSerializable(typeof(NamedPipeMessages.GetActiveRepoListRequest))]
     [JsonSerializable(typeof(NamedPipeMessages.GetActiveRepoListRequest.Response), TypeInfoPropertyName = "GetActiveRepoListResponse")]
+    [JsonSerializable(typeof(NamedPipeMessages.RunInstallerRequest))]
+    [JsonSerializable(typeof(NamedPipeMessages.RunInstallerRequest.Response), TypeInfoPropertyName = "RunInstallerResponse")]
     [JsonSerializable(typeof(NamedPipeMessages.BaseResponse<string>))]
     [JsonSerializable(typeof(NamedPipeMessages.PrefetchCommits.Response), TypeInfoPropertyName = "PrefetchCommitsResponse")]
     [JsonSerializable(typeof(NamedPipeMessages.PrefetchBlobs.Request), TypeInfoPropertyName = "PrefetchBlobsRequest")]
