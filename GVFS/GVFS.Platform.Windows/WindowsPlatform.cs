@@ -24,6 +24,10 @@ namespace GVFS.Platform.Windows
         private const string BuildLabRegistryValue = "BuildLab";
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
+        private const string ProfileListRegistryKey = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProfileList";
+        private const string ProfileImagePathRegistryValue = "ProfileImagePath";
+        private const string AdminProtectionProfilePrefix = "ADMIN_";
+
         public WindowsPlatform() : base(underConstruction: new UnderConstructionFlags())
         {
         }
@@ -74,6 +78,46 @@ namespace GVFS.Platform.Windows
             }
 
             return value;
+        }
+
+        /// <summary>
+        /// Detects whether the current process token belongs to a Windows "Administrator protection" (AP)
+        /// shadow admin account.
+        ///
+        /// Under AP, elevating produces a token whose user is a hidden, system-managed local account
+        /// (MACHINE\admin_&lt;user&gt;, SID S-1-5-21-...) with its own user profile named ADMIN_&lt;user&gt;. That
+        /// account's SID differs from the real (interactive) user's SID, so treating it as "the current user"
+        /// for file-ownership purposes is wrong.
+        ///
+        /// This inspects the running process's own token (its effective elevation identity) rather than the
+        /// TypeOfAdminApprovalMode policy value, so it is correct even across an AP policy change that has not
+        /// yet been rebooted (where the policy value is pending but elevation still yields a shadow admin).
+        /// </summary>
+        public static bool IsCurrentUserAdminProtectionShadowAccount()
+        {
+            using (WindowsIdentity currentUser = WindowsIdentity.GetCurrent())
+            {
+                SecurityIdentifier userSid = currentUser.User;
+
+                // AP shadow accounts are local machine accounts (S-1-5-21-...); the real interactive user is a
+                // domain or Entra ID account (e.g. S-1-12-1-...), which is not an "account SID" in this sense.
+                if (userSid == null || !userSid.IsAccountSid())
+                {
+                    return false;
+                }
+
+                string profilePath = GetStringFromRegistry(
+                    $"{ProfileListRegistryKey}\\{userSid.Value}",
+                    ProfileImagePathRegistryValue);
+                if (string.IsNullOrEmpty(profilePath))
+                {
+                    return false;
+                }
+
+                string profileFolderName = Path.GetFileName(
+                    profilePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                return profileFolderName.StartsWith(AdminProtectionProfilePrefix, StringComparison.OrdinalIgnoreCase);
+            }
         }
 
         public static bool TrySetDWordInRegistry(RegistryHive registryHive, string key, string valueName, uint value)

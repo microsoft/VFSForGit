@@ -327,6 +327,10 @@ namespace GVFS.Platform.Windows
         /// Also, even if the fix were in place, automount would still fail because it runs under SYSTEM account.
         ///
         /// This method ensures that the directory is owned by the current user (which is verified to work for SYSTEM account for automount).
+        ///
+        /// Exception: under Windows "Administrator protection" (AP), an elevated process runs as a profile-separated shadow admin
+        /// account (MACHINE\admin_&lt;user&gt;) whose SID differs from the real (non-elevated) user's. In that case the directory owner is
+        /// left as the Administrators group rather than being reassigned to the shadow admin (see the AP note inline).
         /// </summary>
         public void EnsureDirectoryIsOwnedByCurrentUser(string directoryPath)
         {
@@ -339,6 +343,25 @@ namespace GVFS.Platform.Windows
             SecurityIdentifier administratorsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
             if (directoryOwner == administratorsSid)
             {
+                // Under Windows "Administrator protection" (AP), an elevated process runs as a profile-separated shadow
+                // admin account (MACHINE\admin_<user>) whose SID differs from the real (non-elevated) user's. Reassigning
+                // ownership to the current user here would set the owner to that shadow admin, causing the real user to hit
+                // "fatal: detected dubious ownership" — git's Administrators-membership grace does not cover another specific
+                // user's SID. The shadow admin also cannot SetOwner to the real user's SID. Leaving the owner as the
+                // Administrators group is accepted by modern git and the libgit2 non-elevated-admin-owner overlay for any
+                // Administrators member (real user, shadow admin, and SYSTEM for automount alike), so skip the reassignment.
+                //
+                // Note: a libgit2 consumer that lacks the non-elevated-admin-owner patch (i.e. stock libgit2 without the
+                // Administrators-membership fix) will not be able to open an Administrators-owned repo. Addressing that would
+                // require setting git's safe.directory for the real user, but safe.directory is only honored from global/system
+                // config (never repo-local), and an elevated clone runs as the shadow admin — so covering the real user would
+                // mean mutating the real user's global gitconfig or machine-wide system config from the shadow admin. After
+                // consideration, GVFS is not the right place to do that; unpatched third-party libgit2 consumers are out of scope.
+                if (WindowsPlatform.IsCurrentUserAdminProtectionShadowAccount())
+                {
+                    return;
+                }
+
                 WindowsIdentity currentUser = WindowsIdentity.GetCurrent();
                 directorySecurity.SetOwner(currentUser.User);
                 directoryInfo.SetAccessControl(directorySecurity);
