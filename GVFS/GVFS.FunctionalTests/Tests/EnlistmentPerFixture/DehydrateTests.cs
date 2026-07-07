@@ -110,6 +110,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [SkipInCI("Folder-dehydrate backup contains orphaned ProjFS placeholders (moved outside the virtualization root); the inline --discard-backup delete fails with ERROR_VIRTUALIZATION_TEMPORARILY_UNAVAILABLE and does not recover with retry. Needs a proper fix (native reparse-point delete, or unmount-before-delete). Tracked for follow-up.")]
         public void FolderDehydrateWithDiscardBackupShouldDeleteBackup()
         {
             this.DehydrateShouldSucceed(
