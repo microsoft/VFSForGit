@@ -526,5 +526,59 @@ namespace GVFS.Common.FileSystem
 
             return true;
         }
+
+        /// <summary>
+        /// Retry deleting a directory (and all of its contents) until it succeeds or the maximum
+        /// number of retries is reached. This tolerates transient failures such as ProjFS
+        /// "provider temporarily unavailable" that can occur when the directory contains
+        /// virtualization placeholders shortly after a dehydrate remount.
+        /// </summary>
+        /// <param name="tracer">ITracer for logging and telemetry, can be null</param>
+        /// <param name="path">Path of directory to delete</param>
+        /// <param name="retryDelayMs">Amount of time to wait between each delete attempt. If 0, there will be no delays between attempts</param>
+        /// <param name="maxRetries">Maximum number of retries (if 0, a single attempt will be made)</param>
+        /// <returns>True if the delete succeeded, and false otherwise</returns>
+        public bool TryWaitForDirectoryDelete(
+            ITracer tracer,
+            string path,
+            int retryDelayMs,
+            int maxRetries)
+        {
+            int failureCount = 0;
+            while (this.DirectoryExists(path))
+            {
+                Exception exception = null;
+                if (!this.TryDeleteDirectory(path, out exception))
+                {
+                    if (failureCount >= maxRetries)
+                    {
+                        if (tracer != null)
+                        {
+                            EventMetadata metadata = new EventMetadata();
+                            if (exception != null)
+                            {
+                                metadata.Add("Exception", exception.ToString());
+                            }
+
+                            metadata.Add("path", path);
+                            metadata.Add("failureCount", failureCount + 1);
+                            metadata.Add("maxRetries", maxRetries);
+                            tracer.RelatedWarning(metadata, $"{nameof(this.TryWaitForDirectoryDelete)}: Failed to delete directory.");
+                        }
+
+                        return false;
+                    }
+
+                    ++failureCount;
+
+                    if (retryDelayMs > 0)
+                    {
+                        Thread.Sleep(retryDelayMs);
+                    }
+                }
+            }
+
+            return true;
+        }
     }
 }

@@ -23,6 +23,12 @@ namespace GVFS.CommandLine
 
         internal const string BackupFolderName = "dehydrate_backup";
 
+        // A dehydrate backup can contain ProjFS placeholders; deleting them immediately after a
+        // remount can transiently fail with "provider ... temporarily unavailable". Retry with a
+        // short backoff so --discard-backup / prune-backups reliably reclaim the space.
+        private const int BackupDeleteRetryDelayMs = 1000;
+        private const int BackupDeleteMaxRetries = 15;
+
         private PhysicalFileSystem fileSystem = new PhysicalFileSystem();
 
         public bool Confirmed { get; set; }
@@ -902,14 +908,14 @@ from a parent of the folders list.
 
             if (this.DiscardBackup)
             {
-                if (this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(backupRoot), $"Delete backup folder {backupRoot}", out string error))
+                if (this.fileSystem.TryWaitForDirectoryDelete(tracer, backupRoot, BackupDeleteRetryDelayMs, BackupDeleteMaxRetries))
                 {
                     this.WriteMessage(tracer, $"Deleted backup folder {backupRoot} (--discard-backup).");
                     this.TryRemoveEmptyBackupParent(tracer, backupRoot);
                 }
                 else
                 {
-                    this.WriteMessage(tracer, $"WARNING: Failed to delete backup folder {backupRoot}: {error}");
+                    this.WriteMessage(tracer, $"WARNING: Failed to delete backup folder {backupRoot}.");
                 }
             }
             else

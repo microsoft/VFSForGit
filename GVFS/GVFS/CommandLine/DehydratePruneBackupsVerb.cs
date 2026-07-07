@@ -11,6 +11,11 @@ namespace GVFS.CommandLine
     {
         private const string PruneBackupsVerbName = "prune-backups";
 
+        // Backups can contain ProjFS placeholders that transiently fail to delete right after a
+        // remount; retry with a short backoff so pruning reliably reclaims the space.
+        private const int BackupDeleteRetryDelayMs = 1000;
+        private const int BackupDeleteMaxRetries = 15;
+
         private PhysicalFileSystem fileSystem = new PhysicalFileSystem();
 
         public DehydratePruneBackupsVerb()
@@ -91,16 +96,9 @@ namespace GVFS.CommandLine
 
         private bool TryDeleteDirectory(ITracer tracer, string path)
         {
-            try
-            {
-                this.fileSystem.DeleteDirectory(path);
-                return true;
-            }
-            catch (Exception e)
-            {
-                tracer.RelatedError($"Failed to delete '{path}': {e.Message}");
-                return false;
-            }
+            // A backup can contain ProjFS placeholders that transiently fail to delete with
+            // "provider ... temporarily unavailable"; retry with a short backoff.
+            return this.fileSystem.TryWaitForDirectoryDelete(tracer, path, BackupDeleteRetryDelayMs, BackupDeleteMaxRetries);
         }
 
         private void WriteMessage(ITracer tracer, string message)
