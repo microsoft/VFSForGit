@@ -107,6 +107,35 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        public void FullDehydrateWithDiscardBackupShouldDeleteBackup()
+        {
+            this.DehydrateShouldSucceed(
+                new[] { "The repo was successfully dehydrated and remounted", "(--discard-backup)" },
+                confirm: true,
+                noStatus: false,
+                full: true,
+                discardBackup: true);
+
+            string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
+            backupFolder.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCase]
+        public void DehydratePruneBackupsShouldDeleteExistingBackups()
+        {
+            this.DehydrateShouldSucceed(new[] { "The repo was successfully dehydrated and remounted" }, confirm: true, noStatus: false, full: true);
+
+            string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
+            backupFolder.ShouldBeADirectory(this.fileSystem);
+
+            ProcessResult result = this.RunDehydratePruneBackupsProcess();
+            result.ExitCode.ShouldEqual(0, $"prune-backups exit code was {result.ExitCode}. Output: {result.Output}");
+            result.Output.ShouldContain(new[] { "Pruned" });
+
+            backupFolder.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCase]
         public void DehydrateShouldFailIfLocalCacheNotInMetadata()
         {
             this.Enlistment.UnmountGVFS();
@@ -570,9 +599,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        private void DehydrateShouldSucceed(string[] expectedInOutput, bool confirm, bool noStatus, bool full = false, params string[] foldersToDehydrate)
+        private void DehydrateShouldSucceed(string[] expectedInOutput, bool confirm, bool noStatus, bool full = false, bool discardBackup = false, params string[] foldersToDehydrate)
         {
-            ProcessResult result = this.RunDehydrateProcess(confirm, noStatus, full, foldersToDehydrate);
+            ProcessResult result = this.RunDehydrateProcess(confirm, noStatus, full, discardBackup, foldersToDehydrate);
             result.ExitCode.ShouldEqual(0, $"mount exit code was {result.ExitCode}. Output: {result.Output}");
 
             if (result.Output.Contains("Failed to move the src folder: Access to the path"))
@@ -586,12 +615,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void DehydrateShouldFail(string[] expectedErrorMessages, bool noStatus, bool full = false, params string[] foldersToDehydrate)
         {
-            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus, full: full, foldersToDehydrate: foldersToDehydrate);
+            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus, full: full, discardBackup: false, foldersToDehydrate: foldersToDehydrate);
             result.ExitCode.ShouldEqual(GVFSGenericError, $"mount exit code was not {GVFSGenericError}");
             result.Output.ShouldContain(expectedErrorMessages);
         }
 
-        private ProcessResult RunDehydrateProcess(bool confirm, bool noStatus, bool full = false, params string[] foldersToDehydrate)
+        private ProcessResult RunDehydrateProcess(bool confirm, bool noStatus, bool full = false, bool discardBackup = false, params string[] foldersToDehydrate)
         {
             string dehydrateFlags = string.Empty;
             if (confirm)
@@ -609,6 +638,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 dehydrateFlags += " --full ";
             }
 
+            if (discardBackup)
+            {
+                dehydrateFlags += " --discard-backup ";
+            }
+
             if (foldersToDehydrate.Length > 0)
             {
                 dehydrateFlags += $" --folders {string.Join(";", foldersToDehydrate)}";
@@ -620,6 +654,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             processInfo.Arguments = "dehydrate " + dehydrateFlags + " " + TestConstants.InternalUseOnlyFlag + " " + GVFSHelpers.GetInternalParameter();
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.WorkingDirectory = enlistmentRoot;
+            processInfo.UseShellExecute = false;
+            processInfo.RedirectStandardOutput = true;
+
+            return ProcessHelper.Run(processInfo);
+        }
+
+        private ProcessResult RunDehydratePruneBackupsProcess()
+        {
+            ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);
+            processInfo.Arguments = "dehydrate prune-backups " + TestConstants.InternalUseOnlyFlag + " " + GVFSHelpers.GetInternalParameter();
+            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            processInfo.WorkingDirectory = this.Enlistment.EnlistmentRoot;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
 
