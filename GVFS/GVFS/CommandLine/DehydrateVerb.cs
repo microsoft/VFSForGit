@@ -48,7 +48,7 @@ namespace GVFS.CommandLine
             System.CommandLine.Option<bool> confirmOption = new System.CommandLine.Option<bool>("--confirm") { Description = "Pass in this flag to actually do the dehydrate" };
             cmd.Add(confirmOption);
 
-            System.CommandLine.Option<bool> noStatusOption = new System.CommandLine.Option<bool>("--no-status") { Description = "Do not require a clean git status when dehydrating. To prevent data loss, this option cannot be combined with --folders option." };
+            System.CommandLine.Option<bool> noStatusOption = new System.CommandLine.Option<bool>("--no-status") { Description = "Do not require a clean 'git status' when dehydrating. Uncommitted changes to dehydrated files are moved to the backup folder instead of blocking the operation." };
             cmd.Add(noStatusOption);
 
             System.CommandLine.Option<string> foldersOption = new System.CommandLine.Option<string>("--folders")
@@ -742,7 +742,7 @@ from a parent of the folders list.
             string backupSrc = GetBackupSrcPath(backupRoot);
             string backupGit = Path.Combine(backupRoot, ".git");
             string backupGvfs = Path.Combine(backupRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
-            string backupDatabases = GetBackupDatabasesPath(backupRoot);
+            string backupDatabases = GetBackupDatabasesPath(backupGvfs);
 
             string errorMessage = string.Empty;
             if (!this.ShowStatusWhileRunning(

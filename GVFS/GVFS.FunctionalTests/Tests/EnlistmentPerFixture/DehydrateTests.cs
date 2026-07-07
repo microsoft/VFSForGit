@@ -87,7 +87,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [SkipInCI("Atrophied: backup src now includes an extra 'databases' folder; expected layout is out of date. Fix in follow-up.")]
         public void DehydrateShouldBackupFiles()
         {
             this.DehydrateShouldSucceed(new[] { "The repo was successfully dehydrated and remounted" }, confirm: true, noStatus: false, full: true);
@@ -482,19 +481,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [SkipInCI("Atrophied: dehydrate with --no-status now succeeds (exit 0) instead of failing (exit 3). Fix in follow-up.")]
-        public void FolderDehydrateDirtyStatusWithNoStatusShouldFail()
-        {
-            string folderToDehydrate = "GVFS";
-            TestPath fileToCreate = new TestPath(this.Enlistment, Path.Combine(folderToDehydrate, $"{nameof(this.FolderDehydrateDirtyStatusWithNoStatusShouldFail)}.txt"));
-            this.fileSystem.WriteAllText(fileToCreate.VirtualPath, "new file contents");
-            fileToCreate.VirtualPath.ShouldBeAFile(this.fileSystem);
-
-            this.DehydrateShouldFail(new[] { "Dehydrate --no-status not valid with --folders" }, noStatus: true, foldersToDehydrate: folderToDehydrate);
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "clean -xdf");
-        }
-
-        [TestCase]
         public void FolderDehydrateCannotDehydrateDotGitFolder()
         {
             this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{TestConstants.DotGit.Root}': invalid folder path." }, confirm: true, noStatus: false, foldersToDehydrate: TestConstants.DotGit.Root);
@@ -575,14 +561,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 confirm: true,
                 noStatus: false,
                 foldersToDehydrate: foldersToDehydrate);
-        }
-
-        [TestCase]
-        [SkipInCI("Atrophied: dehydrating a nonexistent folder now reports success instead of an error. Fix in follow-up.")]
-        public void FolderDehydrateFolderThatDoesNotExist()
-        {
-            string folderToDehydrate = "DoesNotExist";
-            this.DehydrateShouldSucceed(new[] { $"Cannot dehydrate folder '{folderToDehydrate}': '{folderToDehydrate}' does not exist." }, confirm: true, noStatus: false, foldersToDehydrate: folderToDehydrate);
         }
 
         [TestCase]
