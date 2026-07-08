@@ -91,7 +91,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public void RejectCredentials(ITracer tracer, string credentialString)
+        public void RejectCredentials(ITracer tracer, string credentialString, int credentialTimeoutMs = DefaultCredentialTimeoutMs)
         {
             lock (this.gitAuthLock)
             {
@@ -102,7 +102,7 @@ namespace GVFS.Common.Git
                     // We can't assume that the credential store's cached credential is the same as the one we have.
                     // Reload the credential from the store to ensure we're rejecting the correct one.
                     int attemptsBeforeCheckingExistingCredential = this.numberOfAttempts;
-                    if (this.TryCallGitCredential(tracer, out string getCredentialError))
+                    if (this.TryCallGitCredential(tracer, out string getCredentialError, credentialTimeoutMs))
                     {
                         if (this.cachedCredentialString != cachedCredentialAtStartOfReject)
                         {
@@ -153,7 +153,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool TryGetCredentials(ITracer tracer, out string credentialString, out string errorMessage)
+        public bool TryGetCredentials(ITracer tracer, out string credentialString, out string errorMessage, int credentialTimeoutMs = DefaultCredentialTimeoutMs)
         {
             if (!this.isInitialized)
             {
@@ -173,7 +173,7 @@ namespace GVFS.Common.Git
                             return false;
                         }
 
-                        if (!this.TryCallGitCredential(tracer, out errorMessage))
+                        if (!this.TryCallGitCredential(tracer, out errorMessage, credentialTimeoutMs))
                         {
                             return false;
                         }

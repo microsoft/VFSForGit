@@ -84,6 +84,16 @@ namespace GVFS.Common.Http
 
         protected ITracer Tracer { get; }
 
+        // Runtime credential fetches (object/pack downloads, incl. background
+        // maintenance prefetch) are bounded so a missed/ignored credential prompt
+        // can't hang forever. We use the generous BackgroundCredentialTimeoutMs
+        // (120s) rather than the 30s default: this same requestor is shared by
+        // interactive on-demand hydration and by the user-initiated prefetch/clone
+        // verbs, where a human may legitimately take longer than 30s to answer a
+        // GCM cold-start / MFA / smartcard prompt. 120s still bounds the hang while
+        // being long enough that a noticed prompt is not cut off spuriously.
+        protected virtual int CredentialTimeoutMs => GitAuthentication.BackgroundCredentialTimeoutMs;
+
         public static long GetNewRequestId()
         {
             return Interlocked.Increment(ref requestCount);
@@ -109,7 +119,7 @@ namespace GVFS.Common.Http
             string authString = null;
             string errorMessage;
             if (!this.authentication.IsAnonymous &&
-                !this.authentication.TryGetCredentials(this.Tracer, out authString, out errorMessage))
+                !this.authentication.TryGetCredentials(this.Tracer, out authString, out errorMessage, this.CredentialTimeoutMs))
             {
                 return new GitEndPointResponseData(
                     HttpStatusCode.Unauthorized,
@@ -234,7 +244,7 @@ namespace GVFS.Common.Http
                     }
                     else if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.BadRequest || response.StatusCode == HttpStatusCode.Redirect)
                     {
-                        this.authentication.RejectCredentials(this.Tracer, authString);
+                        this.authentication.RejectCredentials(this.Tracer, authString, this.CredentialTimeoutMs);
                         if (!this.authentication.IsBackingOff)
                         {
                             errorMessage = string.Format("Server returned error code {0} ({1}). Your PAT may be expired and we are asking for a new one. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
