@@ -110,7 +110,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [SkipInCI("Folder-dehydrate backup contains orphaned ProjFS placeholders (moved outside the virtualization root); the inline --discard-backup delete fails with ERROR_VIRTUALIZATION_TEMPORARILY_UNAVAILABLE and does not recover with retry. Needs a proper fix (native reparse-point delete, or unmount-before-delete). Tracked for follow-up.")]
         public void FolderDehydrateWithDiscardBackupShouldDeleteBackup()
         {
             this.DehydrateShouldSucceed(
@@ -119,6 +118,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 noStatus: false,
                 full: false,
                 discardBackup: true,
+                waitForBackupDelete: true,
                 foldersToDehydrate: "GVFS");
 
             string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
@@ -619,9 +619,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        private void DehydrateShouldSucceed(string[] expectedInOutput, bool confirm, bool noStatus, bool full = false, bool discardBackup = false, params string[] foldersToDehydrate)
+        private void DehydrateShouldSucceed(string[] expectedInOutput, bool confirm, bool noStatus, bool full = false, bool discardBackup = false, bool waitForBackupDelete = false, params string[] foldersToDehydrate)
         {
-            ProcessResult result = this.RunDehydrateProcess(confirm, noStatus, full, discardBackup, foldersToDehydrate);
+            ProcessResult result = this.RunDehydrateProcess(confirm, noStatus, full, discardBackup, waitForBackupDelete, foldersToDehydrate);
             result.ExitCode.ShouldEqual(0, $"mount exit code was {result.ExitCode}. Output: {result.Output}");
 
             if (result.Output.Contains("Failed to move the src folder: Access to the path"))
@@ -635,12 +635,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void DehydrateShouldFail(string[] expectedErrorMessages, bool noStatus, bool full = false, params string[] foldersToDehydrate)
         {
-            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus, full: full, discardBackup: false, foldersToDehydrate: foldersToDehydrate);
+            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus, full: full, discardBackup: false, waitForBackupDelete: false, foldersToDehydrate: foldersToDehydrate);
             result.ExitCode.ShouldEqual(GVFSGenericError, $"mount exit code was not {GVFSGenericError}");
             result.Output.ShouldContain(expectedErrorMessages);
         }
 
-        private ProcessResult RunDehydrateProcess(bool confirm, bool noStatus, bool full = false, bool discardBackup = false, params string[] foldersToDehydrate)
+        private ProcessResult RunDehydrateProcess(bool confirm, bool noStatus, bool full = false, bool discardBackup = false, bool waitForBackupDelete = false, params string[] foldersToDehydrate)
         {
             string dehydrateFlags = string.Empty;
             if (confirm)
@@ -661,6 +661,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             if (discardBackup)
             {
                 dehydrateFlags += " --discard-backup ";
+            }
+
+            if (waitForBackupDelete)
+            {
+                dehydrateFlags += " --wait-for-backup-delete ";
             }
 
             if (foldersToDehydrate.Length > 0)

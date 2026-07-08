@@ -23,12 +23,6 @@ namespace GVFS.CommandLine
 
         internal const string BackupFolderName = "dehydrate_backup";
 
-        // A dehydrate backup can contain ProjFS placeholders; deleting them immediately after a
-        // remount can transiently fail with "provider ... temporarily unavailable". Retry with a
-        // short backoff so --discard-backup / prune-backups reliably reclaim the space.
-        private const int BackupDeleteRetryDelayMs = 1000;
-        private const int BackupDeleteMaxRetries = 15;
-
         private PhysicalFileSystem fileSystem = new PhysicalFileSystem();
 
         public bool Confirmed { get; set; }
@@ -40,6 +34,8 @@ namespace GVFS.CommandLine
         public bool Full { get; set; }
 
         public bool DiscardBackup { get; set; }
+
+        public bool WaitForBackupDelete { get; set; }
 
         public string RunningVerbName { get; set; } = DehydrateVerbName;
         public string ActionName { get; set; } = DehydrateVerbName;
@@ -67,8 +63,11 @@ namespace GVFS.CommandLine
             System.CommandLine.Option<bool> fullOption = new System.CommandLine.Option<bool>("--full") { Description = "Perform a full dehydration that unmounts, backs up the entire src folder, and re-creates the virtualization root from scratch." };
             cmd.Add(fullOption);
 
-            System.CommandLine.Option<bool> discardBackupOption = new System.CommandLine.Option<bool>("--discard-backup") { Description = "Delete the backup folder after a successful dehydrate instead of keeping it. The backup is still created during the operation for safety and is only removed once the dehydrate succeeds." };
+            System.CommandLine.Option<bool> discardBackupOption = new System.CommandLine.Option<bool>("--discard-backup") { Description = "Delete the backup folder after a successful dehydrate instead of keeping it. The backup is still created during the operation for safety and is only removed once the dehydrate succeeds. By default the deletion runs in the background so the command returns promptly." };
             cmd.Add(discardBackupOption);
+
+            System.CommandLine.Option<bool> waitForBackupDeleteOption = new System.CommandLine.Option<bool>("--wait-for-backup-delete") { Description = "With --discard-backup, wait for the backup deletion to finish (and report the result) instead of deleting it in the background." };
+            cmd.Add(waitForBackupDeleteOption);
 
             System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
             cmd.Add(internalOption);
@@ -81,6 +80,7 @@ namespace GVFS.CommandLine
                     verb.Folders = result.GetValue(foldersOption) ?? "";
                     verb.Full = result.GetValue(fullOption);
                     verb.DiscardBackup = result.GetValue(discardBackupOption);
+                    verb.WaitForBackupDelete = result.GetValue(waitForBackupDeleteOption);
                 });
 
             // 'prune-backups' is a sub-verb of 'dehydrate' so it clearly only deletes backups
@@ -118,6 +118,7 @@ namespace GVFS.CommandLine
                         { "NoStatus", this.NoStatus },
                         { "Full", this.Full },
                         { "DiscardBackup", this.DiscardBackup },
+                        { "WaitForBackupDelete", this.WaitForBackupDelete },
                         { "NamedPipeName", enlistment.NamedPipeName },
                         { "Folders", this.Folders },
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
@@ -370,7 +371,7 @@ from a parent of the folders list.
 
             if (foldersToDehydrate.Count > 0)
             {
-                this.FinalizeBackup(tracer, backupRoot);
+                this.FinalizeBackup(tracer, enlistment, backupRoot);
             }
         }
 
@@ -493,7 +494,7 @@ from a parent of the folders list.
 
                     this.Output.WriteLine();
                     this.WriteMessage(tracer, "The repo was successfully dehydrated and remounted");
-                    this.FinalizeBackup(tracer, backupRoot);
+                    this.FinalizeBackup(tracer, enlistment, backupRoot);
                 }
             }
             else
@@ -896,7 +897,7 @@ from a parent of the folders list.
             return true;
         }
 
-        private void FinalizeBackup(ITracer tracer, string backupRoot)
+        private void FinalizeBackup(ITracer tracer, GVFSEnlistment enlistment, string backupRoot)
         {
             // Backup management is only exposed by the 'dehydrate' verb. When this code runs
             // on behalf of 'gvfs sparse --prune' (RunningVerbName != dehydrate), leave the backup
@@ -906,41 +907,55 @@ from a parent of the folders list.
                 return;
             }
 
-            if (this.DiscardBackup)
-            {
-                if (this.fileSystem.TryWaitForDirectoryDelete(tracer, backupRoot, BackupDeleteRetryDelayMs, BackupDeleteMaxRetries))
-                {
-                    this.WriteMessage(tracer, $"Deleted backup folder {backupRoot} (--discard-backup).");
-                    this.TryRemoveEmptyBackupParent(tracer, backupRoot);
-                }
-                else
-                {
-                    this.WriteMessage(tracer, $"WARNING: Failed to delete backup folder {backupRoot}.");
-                }
-            }
-            else
+            if (!this.DiscardBackup)
             {
                 this.WriteMessage(tracer, $"A backup was saved to {backupRoot}.");
                 this.WriteMessage(tracer, "To reclaim this space, delete it manually, or re-run 'gvfs dehydrate' with --discard-backup to delete the backup automatically after a successful dehydrate.");
                 this.WriteMessage(tracer, "To remove backups left by earlier dehydrate runs, run 'gvfs dehydrate prune-backups'.");
+                return;
             }
-        }
 
-        private void TryRemoveEmptyBackupParent(ITracer tracer, string backupRoot)
-        {
-            string backupParent = Path.GetDirectoryName(backupRoot);
-            this.TryIO(
-                tracer,
-                () =>
+            // The backup contains ProjFS placeholders that were moved outside the virtualization
+            // root. The process that just performed the dehydrate cannot delete them (the delete
+            // fails with "provider ... temporarily unavailable"), but a fresh process can. So we
+            // always delegate the deletion to a separate 'gvfs dehydrate prune-backups' process.
+            string gvfsExe = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSPlatform.Instance.Constants.GVFSExecutableName);
+            string[] args = new[]
+            {
+                DehydrateVerbName,
+                "prune-backups",
+                enlistment.PrimaryEnlistmentRoot,
+                "--backup-path",
+                backupRoot,
+            };
+
+            if (this.WaitForBackupDelete)
+            {
+                string argString = string.Join(" ", args.Select(CommandLineEscaping.EscapeArgument));
+                ProcessResult result = ProcessHelper.Run(gvfsExe, argString);
+                if (result.ExitCode == (int)ReturnCode.Success)
                 {
-                    if (this.fileSystem.DirectoryExists(backupParent) &&
-                        !Directory.EnumerateFileSystemEntries(backupParent).Any())
-                    {
-                        this.fileSystem.DeleteDirectory(backupParent);
-                    }
-                },
-                $"Remove empty backup folder {backupParent}",
-                out _);
+                    this.WriteMessage(tracer, $"Deleted backup folder {backupRoot} (--discard-backup).");
+                }
+                else
+                {
+                    this.WriteMessage(tracer, $"WARNING: Failed to delete backup folder {backupRoot}. Run 'gvfs dehydrate prune-backups' to retry.");
+                }
+            }
+            else
+            {
+                try
+                {
+                    GVFSPlatform.Instance.StartBackgroundVFS4GProcess(tracer, gvfsExe, args);
+                    this.WriteMessage(tracer, $"Deleting backup folder {backupRoot} in the background (--discard-backup).");
+                    this.WriteMessage(tracer, "Run 'gvfs dehydrate prune-backups' if you need to confirm or retry the deletion.");
+                }
+                catch (Exception e)
+                {
+                    this.WriteMessage(tracer, $"WARNING: Failed to start background deletion of backup folder {backupRoot}: {e.Message}");
+                    this.WriteMessage(tracer, "Run 'gvfs dehydrate prune-backups' to delete it.");
+                }
+            }
         }
 
         private void WriteMessage(ITracer tracer, string message)

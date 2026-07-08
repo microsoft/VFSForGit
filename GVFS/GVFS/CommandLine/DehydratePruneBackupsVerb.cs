@@ -23,6 +23,15 @@ namespace GVFS.CommandLine
         {
         }
 
+        /// <summary>
+        /// When set, only this single backup folder is deleted (instead of all backups). Used by
+        /// 'gvfs dehydrate --discard-backup', which launches this verb in a separate process to
+        /// delete just the backup it created. Deleting from a fresh process avoids the ProjFS
+        /// "provider temporarily unavailable" failure that occurs when the process that performed
+        /// the dehydrate tries to delete the (now-orphaned) placeholders itself.
+        /// </summary>
+        public string SingleBackupPath { get; set; }
+
         public static System.CommandLine.Command CreateCommand()
         {
             System.CommandLine.Command cmd = new System.CommandLine.Command(
@@ -32,10 +41,21 @@ namespace GVFS.CommandLine
             System.CommandLine.Argument<string> enlistmentArg = GVFSVerb.CreateEnlistmentPathArgument();
             cmd.Add(enlistmentArg);
 
+            System.CommandLine.Option<string> backupPathOption = new System.CommandLine.Option<string>("--backup-path")
+            {
+                Description = "Delete only the specified backup folder instead of all backups.",
+                Hidden = true,
+            };
+            cmd.Add(backupPathOption);
+
             System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
             cmd.Add(internalOption);
 
-            GVFSVerb.SetActionForVerbWithEnlistment<DehydratePruneBackupsVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true);
+            GVFSVerb.SetActionForVerbWithEnlistment<DehydratePruneBackupsVerb>(cmd, enlistmentArg, internalOption, defaultEnlistmentPathToCwd: true,
+                (verb, result) =>
+                {
+                    verb.SingleBackupPath = result.GetValue(backupPathOption);
+                });
 
             return cmd;
         }
@@ -54,7 +74,13 @@ namespace GVFS.CommandLine
                     EventLevel.Informational,
                     Keywords.Any);
 
-                string backupParent = Path.Combine(enlistment.PrimaryEnlistmentRoot, DehydrateVerb.BackupFolderName);
+                string backupParent = Path.GetFullPath(Path.Combine(enlistment.PrimaryEnlistmentRoot, DehydrateVerb.BackupFolderName));
+
+                if (!string.IsNullOrEmpty(this.SingleBackupPath))
+                {
+                    this.PruneSingleBackup(tracer, backupParent);
+                    return;
+                }
 
                 if (!this.fileSystem.DirectoryExists(backupParent))
                 {
@@ -84,13 +110,58 @@ namespace GVFS.CommandLine
                     }
                 }
 
-                // Remove the now-empty parent folder if everything was pruned.
-                if (!Directory.EnumerateFileSystemEntries(backupParent).Any())
-                {
-                    this.TryDeleteDirectory(tracer, backupParent);
-                }
+                this.TryRemoveEmptyParent(tracer, backupParent);
 
                 this.WriteMessage(tracer, $"Pruned {deleted} of {backups.Length} backup folder(s).");
+
+                if (deleted != backups.Length)
+                {
+                    this.ReportErrorAndExit(tracer, ReturnCode.GenericError, $"Failed to delete {backups.Length - deleted} backup folder(s).");
+                }
+            }
+        }
+
+        private void PruneSingleBackup(ITracer tracer, string backupParent)
+        {
+            string backup = Path.GetFullPath(this.SingleBackupPath);
+
+            // Only ever delete something that is actually a backup folder for this enlistment.
+            if (!this.IsPathWithin(backup, backupParent))
+            {
+                this.ReportErrorAndExit(tracer, ReturnCode.GenericError, $"Refusing to delete '{backup}': it is not a dehydrate backup folder under '{backupParent}'.");
+            }
+
+            if (!this.fileSystem.DirectoryExists(backup))
+            {
+                this.WriteMessage(tracer, $"Backup folder {backup} does not exist; nothing to delete.");
+                this.TryRemoveEmptyParent(tracer, backupParent);
+                return;
+            }
+
+            if (this.TryDeleteDirectory(tracer, backup))
+            {
+                this.WriteMessage(tracer, $"Deleted backup folder {backup}.");
+                this.TryRemoveEmptyParent(tracer, backupParent);
+            }
+            else
+            {
+                this.ReportErrorAndExit(tracer, ReturnCode.GenericError, $"Failed to delete backup folder {backup}.");
+            }
+        }
+
+        private bool IsPathWithin(string path, string parent)
+        {
+            string normalizedParent = Path.TrimEndingDirectorySeparator(Path.GetFullPath(parent));
+            string normalizedPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+            return normalizedPath.StartsWith(normalizedParent + Path.DirectorySeparatorChar, GVFSPlatform.Instance.Constants.PathComparison);
+        }
+
+        private void TryRemoveEmptyParent(ITracer tracer, string backupParent)
+        {
+            if (this.fileSystem.DirectoryExists(backupParent) &&
+                !Directory.EnumerateFileSystemEntries(backupParent).Any())
+            {
+                this.TryDeleteDirectory(tracer, backupParent);
             }
         }
 
