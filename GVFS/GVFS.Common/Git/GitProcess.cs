@@ -47,6 +47,12 @@ namespace GVFS.Common.Git
         /// </summary>
         private const int DefaultPostReadGraceMs = 60 * 1000;
 
+        /// <summary>
+        /// How long to wait for a killed process tree to actually exit before we give up
+        /// and read whatever the async stdout/stderr readers have captured so far.
+        /// </summary>
+        private const int ProcessKillTimeoutMs = 5_000;
+
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
         private static bool failedToSetEncoding = false;
         private static string expireTimeDateString;
@@ -202,7 +208,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage)
+        public virtual bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage, int timeoutMs = -1)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("url={0}\n", repoUrl);
@@ -223,7 +229,8 @@ namespace GVFS.Common.Git
             Result result = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
                 GenerateCredentialVerbCommand("reject"),
                 stdin => stdin.Write(stdinConfig),
-                usePreCommandHook: false);
+                usePreCommandHook: false,
+                timeoutMs: timeoutMs);
 
             if (result.ExitCodeIsFailure)
             {
@@ -237,7 +244,7 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public virtual bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage)
+        public virtual bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage, int timeoutMs = -1)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("url={0}\n", repoUrl);
@@ -250,7 +257,8 @@ namespace GVFS.Common.Git
             Result result = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
                 GenerateCredentialVerbCommand("approve"),
                 stdin => stdin.Write(stdinConfig),
-                usePreCommandHook: false);
+                usePreCommandHook: false,
+                timeoutMs: timeoutMs);
 
             if (result.ExitCodeIsFailure)
             {
@@ -327,11 +335,13 @@ namespace GVFS.Common.Git
             out string username,
             out string password,
             out string errorMessage,
+            out bool timedOut,
             int timeoutMs = -1)
         {
             username = null;
             password = null;
             errorMessage = null;
+            timedOut = false;
 
             using (ITracer activity = tracer.StartActivity(nameof(this.TryGetCredential), EventLevel.Informational))
             {
@@ -352,10 +362,21 @@ namespace GVFS.Common.Git
 
                     if (gitCredentialOutput.Errors.StartsWith("Operation timed out"))
                     {
+                        timedOut = true;
                         errorMessage = "Credential manager did not respond within " + (timeoutMs / 1000) + " seconds";
-                        tracer.RelatedWarning(
+
+                        // Structured fields (not just message text) so the rate of this bound
+                        // firing can be measured, and so a timeout can be correlated with a
+                        // later successful fetch to tell "prevented a hang" apart from
+                        // "cut off a prompt the user was about to answer".
+                        errorData.Add("Area", nameof(GitProcess));
+                        errorData.Add("Method", nameof(this.TryGetCredential));
+                        errorData.Add("timeoutMs", timeoutMs);
+                        errorData.Add("RepoUrl", repoUrl);
+                        tracer.RelatedEvent(
+                            EventLevel.Warning,
+                            "CredentialFetchTimedOut",
                             errorData,
-                            "Git credential fill timed out after " + timeoutMs + "ms",
                             Keywords.Network | Keywords.Telemetry);
                     }
                     else
@@ -1305,12 +1326,30 @@ namespace GVFS.Common.Git
                         {
                             this.executingProcess.BeginOutputReadLine();
 
-                            if (!this.executingProcess.WaitForExit(timeoutMs))
+                            if (!this.WaitForExitWithCancellation(timeoutMs, out bool cancellationRequested, cancellationToken))
                             {
-                                this.executingProcess.Kill();
+                                lock (this.processLock)
+                                {
+                                    if (this.executingProcess != null)
+                                    {
+                                        GVFSPlatform.Instance.TryKillProcessTree(this.executingProcess.Id, out int _, out string _);
+                                    }
+                                }
+
+                                if (this.WaitForExitWithCancellation(ProcessKillTimeoutMs, out bool _))
+                                {
+                                    this.executingProcess.WaitForExit();
+                                }
+
+                                if (cancellationRequested)
+                                {
+                                    throw new OperationCanceledException(cancellationToken);
+                                }
 
                                 return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
                             }
+
+                            this.executingProcess.WaitForExit();
                         }
                     }
 
