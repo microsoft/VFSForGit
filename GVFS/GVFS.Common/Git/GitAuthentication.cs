@@ -16,6 +16,13 @@ namespace GVFS.Common.Git
         public const int DefaultCredentialTimeoutMs = 30_000;
         public const int BackgroundCredentialTimeoutMs = 120_000;
 
+        /// <summary>
+        /// Minimum time to wait for an in-flight credential fetch before giving up on
+        /// serialization. The effective wait is never shorter than the fetch timeout
+        /// itself, so a slow but legitimate prompt cannot cause a second prompt.
+        /// </summary>
+        private const int DefaultCredentialGateWaitMs = 60_000;
+
         private readonly Lock gitAuthLock = new Lock();
         private readonly SemaphoreSlim credentialGate = new SemaphoreSlim(1, 1);
         private readonly ICredentialStore credentialStore;
@@ -68,7 +75,7 @@ namespace GVFS.Common.Git
 
         private GitSsl GitSsl { get; }
 
-        public void ApproveCredentials(ITracer tracer, string credentialString)
+        public void ApproveCredentials(ITracer tracer, string credentialString, int credentialTimeoutMs = DefaultCredentialTimeoutMs)
         {
             lock (this.gitAuthLock)
             {
@@ -86,7 +93,7 @@ namespace GVFS.Common.Git
                         string password;
                         if (TryParseCredentialString(this.cachedCredentialString, out username, out password))
                         {
-                            if (!this.credentialStore.TryStoreCredential(tracer, this.repoUrl, username, password, out string error))
+                            if (!this.credentialStore.TryStoreCredential(tracer, this.repoUrl, username, password, out string error, credentialTimeoutMs))
                             {
                                 // Storing credentials is best effort attempt - log failure, but do not fail
                                 tracer.RelatedWarning("Failed to store credential string: {0}", error);
@@ -107,7 +114,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public void RejectCredentials(ITracer tracer, string credentialString)
+        public void RejectCredentials(ITracer tracer, string credentialString, int credentialTimeoutMs = DefaultCredentialTimeoutMs)
         {
             lock (this.gitAuthLock)
             {
@@ -118,7 +125,7 @@ namespace GVFS.Common.Git
                     // We can't assume that the credential store's cached credential is the same as the one we have.
                     // Reload the credential from the store to ensure we're rejecting the correct one.
                     int attemptsBeforeCheckingExistingCredential = this.numberOfAttempts;
-                    if (this.TryCallGitCredential(tracer, out string getCredentialError))
+                    if (this.TryCallGitCredential(tracer, out string getCredentialError, out _, credentialTimeoutMs))
                     {
                         if (this.cachedCredentialString != cachedCredentialAtStartOfReject)
                         {
@@ -139,7 +146,7 @@ namespace GVFS.Common.Git
                     string password;
                     if (TryParseCredentialString(this.cachedCredentialString, out username, out password))
                     {
-                        if (!this.credentialStore.TryDeleteCredential(tracer, this.repoUrl, username, password, out string error))
+                        if (!this.credentialStore.TryDeleteCredential(tracer, this.repoUrl, username, password, out string error, credentialTimeoutMs))
                         {
                             // Deleting credentials is best effort attempt - log failure, but do not fail
                             tracer.RelatedWarning("Failed to delete credential string: {0}", error);
@@ -154,7 +161,7 @@ namespace GVFS.Common.Git
                             ["RepoUrl"] = this.repoUrl,
                         });
                         tracer.RelatedWarning(metadata, "Failed to parse credential string for rejection. Rejecting any credential for this repo URL.");
-                        this.credentialStore.TryDeleteCredential(tracer, this.repoUrl, username: null, password: null, error: out string error);
+                        this.credentialStore.TryDeleteCredential(tracer, this.repoUrl, username: null, password: null, error: out string error, timeoutMs: credentialTimeoutMs);
                     }
 
                     this.cachedCredentialString = null;
@@ -169,8 +176,20 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool TryGetCredentials(ITracer tracer, out string credentialString, out string errorMessage)
+        public bool TryGetCredentials(ITracer tracer, out string credentialString, out string errorMessage, int credentialTimeoutMs = DefaultCredentialTimeoutMs)
         {
+            return this.TryGetCredentials(tracer, out credentialString, out errorMessage, out _, credentialTimeoutMs);
+        }
+
+        /// <summary>
+        /// Fetches credentials, reporting via <paramref name="timedOut"/> whether the failure was
+        /// the credential manager exceeding its bound rather than a genuine auth failure. Callers
+        /// use this to avoid immediately retrying, which would re-prompt the user.
+        /// </summary>
+        public bool TryGetCredentials(ITracer tracer, out string credentialString, out string errorMessage, out bool timedOut, int credentialTimeoutMs = DefaultCredentialTimeoutMs)
+        {
+            timedOut = false;
+
             if (!this.isInitialized)
             {
                 // Initialization may still be running in the background (mount can
@@ -199,7 +218,7 @@ namespace GVFS.Common.Git
                             return false;
                         }
 
-                        if (!this.TryCallGitCredential(tracer, out errorMessage))
+                        if (!this.TryCallGitCredential(tracer, out errorMessage, out timedOut, credentialTimeoutMs))
                         {
                             return false;
                         }
@@ -285,7 +304,7 @@ namespace GVFS.Common.Git
                 // Server requires authentication — fetch credentials
                 this.IsAnonymous = false;
 
-                if (!this.TryCallGitCredential(tracer, out errorMessage, credentialTimeoutMs))
+                if (!this.TryCallGitCredential(tracer, out errorMessage, out _, credentialTimeoutMs))
                 {
                     isAuthFailure = true;
                     // Mark initialized even on failure so TryGetCredentials can
@@ -327,7 +346,7 @@ namespace GVFS.Common.Git
                 throw new InvalidOperationException("Already initialized");
             }
 
-            if (this.TryCallGitCredential(tracer, out errorMessage))
+            if (this.TryCallGitCredential(tracer, out errorMessage, out _))
             {
                 this.MarkInitialized();
                 return true;
@@ -419,20 +438,24 @@ namespace GVFS.Common.Git
             this.initializationComplete.Set();
         }
 
-        private bool TryCallGitCredential(ITracer tracer, out string errorMessage, int timeoutMs = -1)
+        private bool TryCallGitCredential(ITracer tracer, out string errorMessage, out bool timedOut, int timeoutMs = -1)
         {
             // Serialize credential fetches so only one git-credential-fill
             // process runs at a time. Without this, a background auth task
             // and a foreground object download could both spawn GCM prompts.
-            // Wait up to 60s for an in-flight fetch; if the gate is still
-            // held (e.g., background GCM prompt), fall through and let this
-            // caller spawn its own credential fetch.
-            bool acquired = this.credentialGate.Wait(60_000);
+            // Wait at least as long as the fetch itself may take; otherwise the
+            // gate would expire while the in-flight fetch is still legitimately
+            // waiting on the user, and we would fall through and spawn a second
+            // competing GCM prompt in exactly the slow-prompt case this bound
+            // exists to tolerate.
+            int gateTimeoutMs = timeoutMs < 0 ? DefaultCredentialGateWaitMs : Math.Max(DefaultCredentialGateWaitMs, timeoutMs);
+            bool acquired = this.credentialGate.Wait(gateTimeoutMs);
+            timedOut = false;
             try
             {
                 string gitUsername;
                 string gitPassword;
-                if (!this.credentialStore.TryGetCredential(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage, timeoutMs))
+                if (!this.credentialStore.TryGetCredential(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage, out timedOut, timeoutMs))
                 {
                     this.UpdateBackoff();
                     return false;
