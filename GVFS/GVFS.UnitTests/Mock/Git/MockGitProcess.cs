@@ -39,6 +39,17 @@ namespace GVFS.UnitTests.Mock.Git
         /// once with different flags.
         /// </summary>
         public List<GitInvocation> InvocationsRun { get; } = new List<GitInvocation>();
+
+        /// <summary>
+        /// The timeout passed to every InvokeGitImpl call, in order. Lets tests assert that a
+        /// caller actually plumbed a finite timeout rather than defaulting to -1 (infinite).
+        /// </summary>
+        public List<int> InvokedTimeoutMs { get; }
+
+        /// <summary>
+        /// The timeout passed to the most recent InvokeGitImpl call, or null if none has run.
+        /// </summary>
+        public int? LastInvokedTimeoutMs { get; private set; }
         public bool ShouldFail { get; set; }
         public Dictionary<string, Credential> StoredCredentials { get; } = new Dictionary<string, Credential>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, List<Credential>> CredentialApprovals { get; } = new Dictionary<string, List<Credential>>();
@@ -73,7 +84,7 @@ namespace GVFS.UnitTests.Mock.Git
             this.expectedCommandInfos.Add(commandInfo);
         }
 
-        public override bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string error)
+        public override bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string error, int timeoutMs = -1)
         {
             Credential credential = new Credential(username, password);
 
@@ -90,10 +101,10 @@ namespace GVFS.UnitTests.Mock.Git
             // Store the credential
             this.StoredCredentials[repoUrl] = credential;
 
-            return base.TryStoreCredential(tracer, repoUrl, username, password, out error);
+            return base.TryStoreCredential(tracer, repoUrl, username, password, out error, timeoutMs);
         }
 
-        public override bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string error)
+        public override bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string error, int timeoutMs = -1)
         {
             Credential credential = new Credential(username, password);
 
@@ -110,7 +121,7 @@ namespace GVFS.UnitTests.Mock.Git
             // Erase the credential
             this.StoredCredentials.Remove(repoUrl);
 
-            return base.TryDeleteCredential(tracer, repoUrl, username, password, out error);
+            return base.TryDeleteCredential(tracer, repoUrl, username, password, out error, timeoutMs);
         }
 
         protected override Result InvokeGitImpl(
@@ -130,6 +141,8 @@ namespace GVFS.UnitTests.Mock.Git
             this.CommandsRun.Add(command);
             this.DotGitDirectoriesUsed.Add(dotGitDirectory);
             this.InvocationsRun.Add(new GitInvocation(command, dotGitDirectory, mayRequireAuth, hasVisibleConsoleWindow));
+            this.LastInvokedTimeoutMs = timeoutMs;
+            this.InvokedTimeoutMs.Add(timeoutMs);
 
             if (this.ShouldFail)
             {
