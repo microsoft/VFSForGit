@@ -784,6 +784,17 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"" + objectDir + "\" --no-progress");
         }
 
+        /// <summary>
+        /// Verifies the integrity of a single packfile via its .idx. Returns a failure exit code if the
+        /// pack is truncated or otherwise unreadable. Used by pack maintenance recovery to determine
+        /// which pack is corrupt - the "could not load pack N" ordinal reported by the multi-pack-index
+        /// is an internal position, not a filename, so it cannot be mapped to a file directly.
+        /// </summary>
+        public Result VerifyPack(string packIndexPath)
+        {
+            return this.InvokeGitAgainstDotGitFolder("verify-pack \"" + packIndexPath + "\"");
+        }
+
         public Result RemoteAdd(string remoteName, string url)
         {
             return this.InvokeGitAgainstDotGitFolder("remote add " + remoteName + " " + url);
