@@ -44,6 +44,13 @@ namespace GVFS.Common
             public const string TrustPackIndexes = GVFSPrefix + "trust-pack-indexes";
             public const bool TrustPackIndexesDefault = true;
 
+            /* Kill switch for the destructive part of packfile-maintenance corruption recovery: when
+             * false, GVFS still detects and reports corrupt packs but does not delete them (or later
+             * prefetch packs) and does not request a restoring prefetch. Detection/telemetry is
+             * unaffected; the non-destructive multi-pack-index rewrite still runs. */
+            public const string EnablePackfileRecovery = GVFSPrefix + "enable-packfile-recovery";
+            public const bool EnablePackfileRecoveryDefault = true;
+
             public const string ShowHydrationStatus = GVFSPrefix + "show-hydration-status";
             public const bool ShowHydrationStatusDefault = false;
 
