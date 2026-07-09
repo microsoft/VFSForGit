@@ -18,8 +18,8 @@ namespace GVFS.CommandLine
     {
         private const string SparseVerbName = "sparse";
         private const string FolderListSeparator = ";";
-        private const char StatusPathSeparatorToken = '\0';
         private const char StatusRenameToken = 'R';
+        private const char StatusPathSeparatorToken = '\0';
         private const string PruneOptionName = "prune";
 
         private enum SetDirectoryTimeResult
@@ -628,29 +628,84 @@ namespace GVFS.CommandLine
         private void CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment, HashSet<string> sparseFolders)
         {
             GitProcess.Result statusResult = null;
-            HashSet<string> dirtyPathsNotInSparseSet = null;
+            HashSet<string> dirtyPathsNotInSparseSet = new HashSet<string>();
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
+                    dirtyPathsNotInSparseSet.Clear();
                     GitProcess git = new GitProcess(enlistment);
-                    statusResult = git.StatusPorcelain();
-                    if (statusResult.ExitCodeIsFailure)
+
+                    bool streamOutput = git.GetConfigBoolOrDefault(
+                        GVFSConstants.GitConfig.StreamGitStatusOutput,
+                        GVFSConstants.GitConfig.StreamGitStatusOutputDefault);
+
+                    if (streamOutput)
                     {
-                        return false;
+                        int seconds = git.GetConfigIntOrDefault(
+                            GVFSConstants.GitConfig.GitStatusStreamTimeoutSeconds,
+                            GVFSConstants.GitConfig.GitStatusStreamTimeoutSecondsDefault);
+                        int timeoutMs = (seconds > 0 && seconds <= int.MaxValue / 1000) ? seconds * 1000 : -1;
+
+                        // Stream porcelain -z records so we never buffer the whole status output. Each entry
+                        // is a primary "XY <path>" token; a rename adds a second token for the original path.
+                        bool expectingRenameOrigin = false;
+                        statusResult = git.StatusPorcelain(
+                            token =>
+                            {
+                                string gitPath;
+                                if (expectingRenameOrigin)
+                                {
+                                    expectingRenameOrigin = false;
+                                    gitPath = token;
+                                }
+                                else
+                                {
+                                    if (token.Length < 3)
+                                    {
+                                        return;
+                                    }
+
+                                    // Two status chars (XY) then a space, then the path.
+                                    expectingRenameOrigin = token[0] == StatusRenameToken || token[1] == StatusRenameToken;
+                                    gitPath = token.Substring(3);
+                                }
+
+                                if (!PathCoveredBySparseFolders(gitPath, sparseFolders))
+                                {
+                                    dirtyPathsNotInSparseSet.Add(gitPath);
+                                }
+                            },
+                            timeoutMs);
+
+                        if (statusResult.ExitCodeIsFailure)
+                        {
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        // Buffered fallback (gvfs.stream-git-status-output=false): capture the whole status
+                        // output, refuse to act on a truncated result, then parse it.
+                        statusResult = git.StatusPorcelain();
+                        if (statusResult.ExitCodeIsFailure)
+                        {
+                            return false;
+                        }
+
+                        if (statusResult.OutputTruncated)
+                        {
+                            // git status output exceeded the capture buffer. A partial status could omit
+                            // dirty paths and let sparse proceed over uncommitted changes (data loss), so
+                            // treat truncation as "cannot verify clean" and abort.
+                            tracer.RelatedError(
+                                new EventMetadata(),
+                                "git status output was truncated; aborting sparse to avoid acting on an incomplete status");
+                            return false;
+                        }
+
+                        dirtyPathsNotInSparseSet.UnionWith(this.GetPathsNotCoveredBySparseFolders(statusResult.Output, sparseFolders));
                     }
 
-                    if (statusResult.OutputTruncated)
-                    {
-                        // git status output exceeded the capture buffer. A partial status could omit
-                        // dirty paths and let sparse proceed over uncommitted changes (data loss), so
-                        // treat truncation as "cannot verify clean" and abort.
-                        tracer.RelatedError(
-                            new EventMetadata(),
-                            "git status output was truncated; aborting sparse to avoid acting on an incomplete status");
-                        return false;
-                    }
-
-                    dirtyPathsNotInSparseSet = this.GetPathsNotCoveredBySparseFolders(statusResult.Output, sparseFolders);
                     return dirtyPathsNotInSparseSet.Count == 0;
                 },
                 "Running git status",
