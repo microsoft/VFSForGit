@@ -113,15 +113,22 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void FolderDehydrateWithDiscardBackupShouldDeleteBackup()
         {
             this.DehydrateShouldSucceed(
-                new[] { "folder dehydrate successful", "(--discard-backup)" },
+                new[] { "folder dehydrate successful", "will be deleted in the background" },
                 confirm: true,
                 noStatus: false,
                 full: false,
                 discardBackup: true,
-                waitForBackupDelete: true,
                 foldersToDehydrate: "GVFS");
 
+            // --discard-backup deletes the backup in a detached process that only succeeds once
+            // this dehydrate process has exited, so poll for the backup folder to disappear.
             string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
+            Stopwatch timeout = Stopwatch.StartNew();
+            while (this.fileSystem.DirectoryExists(backupFolder) && timeout.Elapsed < TimeSpan.FromSeconds(60))
+            {
+                System.Threading.Thread.Sleep(500);
+            }
+
             backupFolder.ShouldNotExistOnDisk(this.fileSystem);
         }
 
@@ -619,9 +626,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        private void DehydrateShouldSucceed(string[] expectedInOutput, bool confirm, bool noStatus, bool full = false, bool discardBackup = false, bool waitForBackupDelete = false, params string[] foldersToDehydrate)
+        private void DehydrateShouldSucceed(string[] expectedInOutput, bool confirm, bool noStatus, bool full = false, bool discardBackup = false, params string[] foldersToDehydrate)
         {
-            ProcessResult result = this.RunDehydrateProcess(confirm, noStatus, full, discardBackup, waitForBackupDelete, foldersToDehydrate);
+            ProcessResult result = this.RunDehydrateProcess(confirm, noStatus, full, discardBackup, foldersToDehydrate);
             result.ExitCode.ShouldEqual(0, $"mount exit code was {result.ExitCode}. Output: {result.Output}");
 
             if (result.Output.Contains("Failed to move the src folder: Access to the path"))
@@ -635,12 +642,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void DehydrateShouldFail(string[] expectedErrorMessages, bool noStatus, bool full = false, params string[] foldersToDehydrate)
         {
-            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus, full: full, discardBackup: false, waitForBackupDelete: false, foldersToDehydrate: foldersToDehydrate);
+            ProcessResult result = this.RunDehydrateProcess(confirm: true, noStatus: noStatus, full: full, discardBackup: false, foldersToDehydrate: foldersToDehydrate);
             result.ExitCode.ShouldEqual(GVFSGenericError, $"mount exit code was not {GVFSGenericError}");
             result.Output.ShouldContain(expectedErrorMessages);
         }
 
-        private ProcessResult RunDehydrateProcess(bool confirm, bool noStatus, bool full = false, bool discardBackup = false, bool waitForBackupDelete = false, params string[] foldersToDehydrate)
+        private ProcessResult RunDehydrateProcess(bool confirm, bool noStatus, bool full = false, bool discardBackup = false, params string[] foldersToDehydrate)
         {
             string dehydrateFlags = string.Empty;
             if (confirm)
@@ -661,11 +668,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             if (discardBackup)
             {
                 dehydrateFlags += " --discard-backup ";
-            }
-
-            if (waitForBackupDelete)
-            {
-                dehydrateFlags += " --wait-for-backup-delete ";
             }
 
             if (foldersToDehydrate.Length > 0)

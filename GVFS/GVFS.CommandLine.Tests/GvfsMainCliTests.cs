@@ -294,13 +294,6 @@ namespace GVFS.CommandLine.Tests
         }
 
         [Test]
-        public void Dehydrate_DiscardBackupWithWait_ParsesCorrectly()
-        {
-            var parseResult = rootCommand.Parse(new[] { "dehydrate", "--confirm", "--discard-backup", "--wait-for-backup-delete" });
-            Assert.That(parseResult.Errors, Is.Empty, "dehydrate --discard-backup --wait-for-backup-delete should parse without errors");
-        }
-
-        [Test]
         public void Dehydrate_PruneBackups_BackupPath_ParsesCorrectly()
         {
             var parseResult = rootCommand.Parse(new[] { "dehydrate", "prune-backups", "--backup-path", @"C:\repo\dehydrate_backup\20260101_000000" });
@@ -389,7 +382,7 @@ namespace GVFS.CommandLine.Tests
         [Test]
         public void Dehydrate_HasAllExpectedOptions()
         {
-            var expected = new[] { "--confirm", "--no-status", "--folders", "--full", "--discard-backup", "--wait-for-backup-delete" };
+            var expected = new[] { "--confirm", "--no-status", "--folders", "--full", "--discard-backup" };
             foreach (var optName in expected)
             {
                 Assert.That(FindOptionOnCommand("dehydrate", optName), Is.Not.Null,
