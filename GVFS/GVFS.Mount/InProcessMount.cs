@@ -707,6 +707,7 @@ namespace GVFS.Mount
                 metadata.Add("Header", message.Header);
                 metadata.Add("Exception", e.ToString());
                 this.tracer.RelatedError(metadata, "HandleRequest: Unhandled exception in request handler");
+                throw;
             }
         }
 
