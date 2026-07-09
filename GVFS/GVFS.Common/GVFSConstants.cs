@@ -56,6 +56,20 @@ namespace GVFS.Common
             public const string MountProgress = GVFSPrefix + "mount-progress";
             public const bool MountProgressDefault = false;
 
+            /* Opt-in switch for NUL-delimited streaming of large "-z" git status/diff output.
+             * Default false: use the bounded-buffer path with its truncation fail-safes (the proven
+             * behavior). Set true to stream instead, which processes an arbitrarily large result
+             * without buffering it. Off by default per the feature-flag convention so the rollout
+             * infrastructure can enable streaming gradually. */
+            public const string StreamGitStatusOutput = GVFSPrefix + "stream-git-status-output";
+            public const bool StreamGitStatusOutputDefault = false;
+
+            /* Optional watchdog for the streaming status/diff read: kill the git process if it does
+             * not finish within this many seconds. Default -1 (infinite / disabled) so a legitimately
+             * long status on a very large working tree is never killed; operators can opt in. */
+            public const string GitStatusStreamTimeoutSeconds = GVFSPrefix + "git-status-stream-timeout-seconds";
+            public const int GitStatusStreamTimeoutSecondsDefault = -1;
+
             public const string MaxHttpConnectionsConfig = GVFSPrefix + "max-http-connections";
 
             public const string PrefetchUseIdx = GVFSPrefix + "prefetch-use-idx";
