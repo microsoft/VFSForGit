@@ -15,6 +15,28 @@ namespace GVFS.Common.Git
     {
         private const int HResultEHANDLE = -2147024890; // 0x80070006 E_HANDLE
 
+        /// <summary>
+        /// Upper bound on the number of characters buffered from a git process's stderr. Bounding
+        /// stderr prevents a pathologically noisy git command (e.g. 'multi-pack-index write' repeatedly
+        /// reporting "could not load pack N" against a corrupt packfile) from growing the capture buffer
+        /// until GVFS.Mount hits an OutOfMemoryException. stderr is a diagnostic stream, so truncating it
+        /// is safe: callers can observe it via <see cref="Result.ErrorsTruncated"/> and should log it,
+        /// but must not fail solely because of it.
+        /// </summary>
+        private const int MaxCapturedStdErrChars = 10 * 1024 * 1024; // ~20 MB of UTF-16
+
+        /// <summary>
+        /// Upper bound on the number of characters buffered from a git process's stdout when the caller
+        /// buffers the whole result (i.e. does not stream it line-by-line). Sized to hold the
+        /// machine-readable (-z) output of the largest real repositories - on the order of 2.8M
+        /// status/diff records on the biggest os.2020 branches - with headroom, while staying far below
+        /// the .NET maximum array/string size so the buffer itself cannot OOM. stdout can carry
+        /// correctness-critical data (e.g. the full staged-file list), so truncation here is surfaced via
+        /// <see cref="Result.OutputTruncated"/> and those callers fail safe rather than act on a partial
+        /// result.
+        /// </summary>
+        private const int MaxCapturedStdOutChars = 128 * 1024 * 1024; // ~256 MB of UTF-16
+
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
         private static bool failedToSetEncoding = false;
         private static string expireTimeDateString;
@@ -967,14 +989,19 @@ namespace GVFS.Common.Git
                 // Do not perform a synchronous read to the end of both redirected streams.
                 using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, gitObjectsDirectory: gitObjectsDirectory, usePreCommandHook: usePreCommandHook))
                 {
-                    StringBuilder output = new StringBuilder();
-                    StringBuilder errors = new StringBuilder();
+                    // Bound how much stdout/stderr we buffer so a pathologically noisy git command
+                    // cannot grow these buffers without limit until GVFS.Mount hits an
+                    // OutOfMemoryException. stderr gets a tight cap (it is diagnostic); stdout gets a
+                    // large cap sized for the biggest real repositories. Truncation is surfaced on the
+                    // Result so callers of correctness-critical commands can fail safe.
+                    BoundedGitOutputBuffer output = new BoundedGitOutputBuffer(MaxCapturedStdOutChars);
+                    BoundedGitOutputBuffer errors = new BoundedGitOutputBuffer(MaxCapturedStdErrChars);
 
                     this.executingProcess.ErrorDataReceived += (sender, args) =>
                     {
                         if (args.Data != null)
                         {
-                            errors.Append(args.Data + "\n");
+                            errors.AppendLine(args.Data);
                         }
                     };
                     this.executingProcess.OutputDataReceived += (sender, args) =>
@@ -987,7 +1014,7 @@ namespace GVFS.Common.Git
                             }
                             else
                             {
-                                output.Append(args.Data + "\n");
+                                output.AppendLine(args.Data);
                             }
                         }
                     };
@@ -1026,11 +1053,11 @@ namespace GVFS.Common.Git
                         {
                             this.executingProcess.Kill();
 
-                            return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode);
+                            return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
                         }
                     }
 
-                    return new Result(output.ToString(), errors.ToString(), this.executingProcess.ExitCode);
+                    return new Result(output.ToString(), errors.ToString(), this.executingProcess.ExitCode, output.Truncated, errors.Truncated);
                 }
             }
             catch (Win32Exception e)
@@ -1151,15 +1178,37 @@ namespace GVFS.Common.Git
             public const int GenericFailureCode = 1;
 
             public Result(string stdout, string stderr, int exitCode)
+                : this(stdout, stderr, exitCode, outputTruncated: false, errorsTruncated: false)
+            {
+            }
+
+            public Result(string stdout, string stderr, int exitCode, bool outputTruncated, bool errorsTruncated)
             {
                 this.Output = stdout;
                 this.Errors = stderr;
                 this.ExitCode = exitCode;
+                this.OutputTruncated = outputTruncated;
+                this.ErrorsTruncated = errorsTruncated;
             }
 
             public string Output { get; }
             public string Errors { get; }
             public int ExitCode { get; }
+
+            /// <summary>
+            /// True if the git process produced more stdout than the capture buffer allowed, so
+            /// <see cref="Output"/> is incomplete. Callers whose correctness depends on the full output
+            /// (e.g. the complete list of staged files) must treat this as a failure rather than acting
+            /// on a partial result.
+            /// </summary>
+            public bool OutputTruncated { get; }
+
+            /// <summary>
+            /// True if the git process produced more stderr than the capture buffer allowed, so
+            /// <see cref="Errors"/> is incomplete. This is expected for pathologically noisy commands and
+            /// is safe: callers should log it for diagnostics but should not fail solely because of it.
+            /// </summary>
+            public bool ErrorsTruncated { get; }
 
             public bool ExitCodeIsSuccess
             {
@@ -1181,6 +1230,65 @@ namespace GVFS.Common.Git
                 }
 
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Accumulates lines from a git process's redirected stdout or stderr while enforcing a hard
+        /// upper bound on the number of characters buffered. Once the cap is reached, further input is
+        /// dropped and a single truncation marker is appended. This prevents a noisy git command from
+        /// growing an unbounded StringBuilder until GVFS.Mount hits an OutOfMemoryException. Whether
+        /// truncation occurred is exposed via <see cref="Truncated"/>.
+        /// </summary>
+        public class BoundedGitOutputBuffer
+        {
+            private readonly StringBuilder builder = new StringBuilder();
+            private readonly int maxChars;
+            private bool truncated;
+
+            public BoundedGitOutputBuffer(int maxChars)
+            {
+                this.maxChars = maxChars;
+            }
+
+            /// <summary>
+            /// True once output has exceeded the cap and been truncated.
+            /// </summary>
+            public bool Truncated => this.truncated;
+
+            /// <summary>
+            /// Appends a single line (followed by a newline) unless doing so would exceed the cap. The
+            /// first time the cap is reached, as much of the line as fits is kept and a truncation marker
+            /// is appended; all subsequent lines are dropped.
+            /// </summary>
+            public void AppendLine(string line)
+            {
+                if (this.truncated)
+                {
+                    return;
+                }
+
+                // +1 accounts for the trailing newline we append after each line.
+                if (this.builder.Length + line.Length + 1 > this.maxChars)
+                {
+                    int remaining = this.maxChars - this.builder.Length;
+                    if (remaining > 0)
+                    {
+                        this.builder.Append(line, 0, Math.Min(remaining, line.Length));
+                    }
+
+                    this.builder.Append("\n[... GVFS truncated git output after " + this.maxChars + " characters to avoid OutOfMemoryException ...]\n");
+                    this.truncated = true;
+                    return;
+                }
+
+                this.builder.Append(line);
+                this.builder.Append('\n');
+            }
+
+            public override string ToString()
+            {
+                return this.builder.ToString();
             }
         }
 

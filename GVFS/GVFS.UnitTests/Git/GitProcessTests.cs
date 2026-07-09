@@ -10,6 +10,88 @@ namespace GVFS.UnitTests.Git
     public class GitProcessTests
     {
         [TestCase]
+        public void BoundedGitOutputBuffer_KeepsShortOutput()
+        {
+            GitProcess.BoundedGitOutputBuffer buffer = new GitProcess.BoundedGitOutputBuffer(1000);
+            buffer.AppendLine("line one");
+            buffer.AppendLine("line two");
+
+            buffer.Truncated.ShouldBeFalse();
+            buffer.ToString().ShouldEqual("line one\nline two\n");
+        }
+
+        [TestCase]
+        public void BoundedGitOutputBuffer_TruncatesBeyondCapWithoutUnboundedGrowth()
+        {
+            // Simulate a flood of output (e.g. 'multi-pack-index write' spewing "could not load pack"
+            // against a corrupt packfile). Before the cap this grew an unbounded StringBuilder until
+            // GVFS.Mount hit OutOfMemoryException.
+            const int Cap = 4096;
+            GitProcess.BoundedGitOutputBuffer buffer = new GitProcess.BoundedGitOutputBuffer(Cap);
+
+            const string NoisyLine = "error: could not load pack 2";
+            for (int i = 0; i < 1_000_000; i++)
+            {
+                buffer.AppendLine(NoisyLine);
+            }
+
+            buffer.Truncated.ShouldBeTrue();
+
+            string result = buffer.ToString();
+
+            // We appended ~28 million characters; the buffer must stay bounded near the cap
+            // (cap + a single one-time truncation marker), nowhere near the raw input size.
+            (result.Length < Cap + 200).ShouldBeTrue("Buffer grew beyond its cap: " + result.Length);
+            result.Contains("truncated").ShouldBeTrue();
+        }
+
+        [TestCase]
+        public void BoundedGitOutputBuffer_KeepsPartialLineThatCrossesCap()
+        {
+            GitProcess.BoundedGitOutputBuffer buffer = new GitProcess.BoundedGitOutputBuffer(10);
+            buffer.AppendLine("123456789012345");
+
+            buffer.Truncated.ShouldBeTrue();
+            string result = buffer.ToString();
+
+            // The portion of the line that fit under the cap is retained, then the marker.
+            result.StartsWith("1234567890").ShouldBeTrue();
+            result.Contains("truncated").ShouldBeTrue();
+        }
+
+        [TestCase]
+        public void BoundedGitOutputBuffer_ExactlyAtCapIsNotTruncated()
+        {
+            // "abcd" + "\n" == 5 chars == cap; must fit without tripping truncation.
+            GitProcess.BoundedGitOutputBuffer buffer = new GitProcess.BoundedGitOutputBuffer(5);
+            buffer.AppendLine("abcd");
+
+            buffer.Truncated.ShouldBeFalse();
+            buffer.ToString().ShouldEqual("abcd\n");
+        }
+
+        [TestCase]
+        public void Result_TruncationFlagsDefaultToFalse()
+        {
+            GitProcess.Result result = new GitProcess.Result("out", "err", 0);
+
+            result.OutputTruncated.ShouldBeFalse();
+            result.ErrorsTruncated.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void Result_TruncationFlagsRoundTripThroughConstructor()
+        {
+            GitProcess.Result outputTruncated = new GitProcess.Result("out", "err", 0, outputTruncated: true, errorsTruncated: false);
+            outputTruncated.OutputTruncated.ShouldBeTrue();
+            outputTruncated.ErrorsTruncated.ShouldBeFalse();
+
+            GitProcess.Result errorsTruncated = new GitProcess.Result("out", "err", 0, outputTruncated: false, errorsTruncated: true);
+            errorsTruncated.OutputTruncated.ShouldBeFalse();
+            errorsTruncated.ErrorsTruncated.ShouldBeTrue();
+        }
+
+        [TestCase]
         public void TryKillRunningProcess_NeverRan()
         {
             GitProcess process = new GitProcess(new MockGVFSEnlistment());

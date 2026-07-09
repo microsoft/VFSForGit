@@ -193,6 +193,17 @@ namespace GVFS.Common.Maintenance
                     throw new StoppingException();
                 }
 
+                if (result?.ErrorsTruncated == true)
+                {
+                    // stderr was too large to buffer fully and was truncated to avoid an
+                    // OutOfMemoryException (e.g. a corrupt packfile producing a flood of errors). This is
+                    // safe and non-fatal - record it for diagnostics but do not fail the command for it.
+                    this.Context.Tracer.RelatedWarning(
+                        metadata: null,
+                        message: $"{this.Area}: Git process {gitCommand} stderr was truncated to bound memory use",
+                        keywords: Keywords.Telemetry);
+                }
+
                 if (result?.ExitCodeIsFailure == true)
                 {
                     string errorMessage = result?.Errors == null ? string.Empty : result.Errors;
