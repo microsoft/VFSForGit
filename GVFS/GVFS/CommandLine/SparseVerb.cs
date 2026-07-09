@@ -639,6 +639,17 @@ namespace GVFS.CommandLine
                         return false;
                     }
 
+                    if (statusResult.OutputTruncated)
+                    {
+                        // git status output exceeded the capture buffer. A partial status could omit
+                        // dirty paths and let sparse proceed over uncommitted changes (data loss), so
+                        // treat truncation as "cannot verify clean" and abort.
+                        tracer.RelatedError(
+                            new EventMetadata(),
+                            "git status output was truncated; aborting sparse to avoid acting on an incomplete status");
+                        return false;
+                    }
+
                     dirtyPathsNotInSparseSet = this.GetPathsNotCoveredBySparseFolders(statusResult.Output, sparseFolders);
                     return dirtyPathsNotInSparseSet.Count == 0;
                 },
@@ -650,6 +661,10 @@ namespace GVFS.CommandLine
                 if (statusResult.ExitCodeIsFailure)
                 {
                     this.WriteMessage(tracer, "Failed to run git status: " + statusResult.Errors);
+                }
+                else if (statusResult.OutputTruncated)
+                {
+                    this.WriteMessage(tracer, "git status reported too many changes to process safely. Aborting to avoid acting on an incomplete status; reduce the number of pending changes and retry.");
                 }
                 else
                 {
