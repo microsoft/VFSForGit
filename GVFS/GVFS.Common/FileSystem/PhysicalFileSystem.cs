@@ -528,17 +528,18 @@ namespace GVFS.Common.FileSystem
         }
 
         /// <summary>
-        /// Retry deleting a directory (and all of its contents) until it succeeds or the maximum
-        /// number of retries is reached. This tolerates transient failures such as ProjFS
-        /// "provider temporarily unavailable" that can occur when the directory contains
-        /// virtualization placeholders shortly after a dehydrate remount.
+        /// Recursively deletes a directory that may contain ProjFS placeholders (for example a
+        /// 'gvfs dehydrate' backup folder) without recalling their content through the ProjFS
+        /// provider. This avoids the "provider ... temporarily unavailable" failure that a normal
+        /// recursive delete hits when the moved placeholders are enumerated while the provider is
+        /// busy or no longer projecting them. A small retry tolerates genuinely transient I/O.
         /// </summary>
         /// <param name="tracer">ITracer for logging and telemetry, can be null</param>
         /// <param name="path">Path of directory to delete</param>
         /// <param name="retryDelayMs">Amount of time to wait between each delete attempt. If 0, there will be no delays between attempts</param>
         /// <param name="maxRetries">Maximum number of retries (if 0, a single attempt will be made)</param>
         /// <returns>True if the delete succeeded, and false otherwise</returns>
-        public bool TryWaitForDirectoryDelete(
+        public virtual bool TryDeleteDirectoryWithoutProviderRecall(
             ITracer tracer,
             string path,
             int retryDelayMs,
@@ -547,23 +548,22 @@ namespace GVFS.Common.FileSystem
             int failureCount = 0;
             while (this.DirectoryExists(path))
             {
-                Exception exception = null;
-                if (!this.TryDeleteDirectory(path, out exception))
+                try
+                {
+                    NativeMethods.DeleteDirectoryWithoutProviderRecall(path);
+                }
+                catch (Exception exception)
                 {
                     if (failureCount >= maxRetries)
                     {
                         if (tracer != null)
                         {
                             EventMetadata metadata = new EventMetadata();
-                            if (exception != null)
-                            {
-                                metadata.Add("Exception", exception.ToString());
-                            }
-
+                            metadata.Add("Exception", exception.ToString());
                             metadata.Add("path", path);
                             metadata.Add("failureCount", failureCount + 1);
                             metadata.Add("maxRetries", maxRetries);
-                            tracer.RelatedWarning(metadata, $"{nameof(this.TryWaitForDirectoryDelete)}: Failed to delete directory.");
+                            tracer.RelatedWarning(metadata, $"{nameof(this.TryDeleteDirectoryWithoutProviderRecall)}: Failed to delete directory.");
                         }
 
                         return false;

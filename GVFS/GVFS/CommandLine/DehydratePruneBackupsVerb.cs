@@ -167,9 +167,10 @@ namespace GVFS.CommandLine
 
         private bool TryDeleteDirectory(ITracer tracer, string path)
         {
-            // A backup can contain ProjFS placeholders that transiently fail to delete with
-            // "provider ... temporarily unavailable"; retry with a short backoff.
-            return this.fileSystem.TryWaitForDirectoryDelete(tracer, path, BackupDeleteRetryDelayMs, BackupDeleteMaxRetries);
+            // A backup can contain ProjFS placeholders. Delete them without recalling their
+            // content through the (possibly busy or no-longer-projecting) provider, which would
+            // otherwise fail with "provider ... temporarily unavailable".
+            return this.fileSystem.TryDeleteDirectoryWithoutProviderRecall(tracer, path, BackupDeleteRetryDelayMs, BackupDeleteMaxRetries);
         }
 
         private void WriteMessage(ITracer tracer, string message)
