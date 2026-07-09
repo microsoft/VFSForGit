@@ -10,6 +10,7 @@ using GVFS.DiskLayoutUpgrades;
 using GVFS.Virtualization.Projection;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -917,8 +918,12 @@ from a parent of the folders list.
 
             // The backup contains ProjFS placeholders that were moved outside the virtualization
             // root. The process that just performed the dehydrate cannot delete them (the delete
-            // fails with "provider ... temporarily unavailable"), but a fresh process can. So we
-            // always delegate the deletion to a separate 'gvfs dehydrate prune-backups' process.
+            // fails with "provider ... temporarily unavailable" and does not recover with retry),
+            // but a fresh process that does NOT inherit this process's handles can. So we always
+            // delegate the deletion to a separate 'gvfs dehydrate prune-backups' process launched
+            // via StartBackgroundVFS4GProcess (ShellExecuteEx, which does not inherit handles).
+            // Using ProcessHelper.Run here instead would inherit this process's handles and hit the
+            // same "provider temporarily unavailable" failure.
             string gvfsExe = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSPlatform.Instance.Constants.GVFSExecutableName);
             string[] args = new[]
             {
@@ -929,32 +934,33 @@ from a parent of the folders list.
                 backupRoot,
             };
 
-            if (this.WaitForBackupDelete)
+            Process pruneProcess;
+            try
             {
-                string argString = string.Join(" ", args.Select(CommandLineEscaping.EscapeArgument));
-                ProcessResult result = ProcessHelper.Run(gvfsExe, argString);
-                if (result.ExitCode == (int)ReturnCode.Success)
-                {
-                    this.WriteMessage(tracer, $"Deleted backup folder {backupRoot} (--discard-backup).");
-                }
-                else
-                {
-                    this.WriteMessage(tracer, $"WARNING: Failed to delete backup folder {backupRoot}. Run 'gvfs dehydrate prune-backups' to retry.");
-                }
+                pruneProcess = GVFSPlatform.Instance.StartBackgroundVFS4GProcess(tracer, gvfsExe, args);
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage(tracer, $"WARNING: Failed to start deletion of backup folder {backupRoot}: {e.Message}");
+                this.WriteMessage(tracer, "Run 'gvfs dehydrate prune-backups' to delete it.");
+                return;
+            }
+
+            if (!this.WaitForBackupDelete)
+            {
+                this.WriteMessage(tracer, $"Deleting backup folder {backupRoot} in the background (--discard-backup).");
+                this.WriteMessage(tracer, "Run 'gvfs dehydrate prune-backups' if you need to confirm or retry the deletion.");
+                return;
+            }
+
+            pruneProcess.WaitForExit();
+            if (pruneProcess.ExitCode == (int)ReturnCode.Success)
+            {
+                this.WriteMessage(tracer, $"Deleted backup folder {backupRoot} (--discard-backup).");
             }
             else
             {
-                try
-                {
-                    GVFSPlatform.Instance.StartBackgroundVFS4GProcess(tracer, gvfsExe, args);
-                    this.WriteMessage(tracer, $"Deleting backup folder {backupRoot} in the background (--discard-backup).");
-                    this.WriteMessage(tracer, "Run 'gvfs dehydrate prune-backups' if you need to confirm or retry the deletion.");
-                }
-                catch (Exception e)
-                {
-                    this.WriteMessage(tracer, $"WARNING: Failed to start background deletion of backup folder {backupRoot}: {e.Message}");
-                    this.WriteMessage(tracer, "Run 'gvfs dehydrate prune-backups' to delete it.");
-                }
+                this.WriteMessage(tracer, $"WARNING: Failed to delete backup folder {backupRoot}. Run 'gvfs dehydrate prune-backups' to retry.");
             }
         }
 
