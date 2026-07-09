@@ -12,22 +12,7 @@ namespace GVFS.UnitTests.Windows.Windows.CommandLine
     [TestFixture]
     public class SparseVerbTests
     {
-        private const char StatusPathSeparatorToken = '\0';
-
         private static readonly HashSet<string> EmptySparseSet = new HashSet<string>();
-
-        [TestCase]
-        public void GetNextGitPathGetsPaths()
-        {
-            string testStatusOutput = $"a.txt{StatusPathSeparatorToken}";
-            ConfirmGitPathsParsed(testStatusOutput, new List<string>() { "a.txt" });
-
-            testStatusOutput = $"a.txt{StatusPathSeparatorToken}b.txt{StatusPathSeparatorToken}c.txt{StatusPathSeparatorToken}";
-            ConfirmGitPathsParsed(testStatusOutput, new List<string>() { "a.txt", "b.txt", "c.txt" });
-
-            testStatusOutput = $"a.txt{StatusPathSeparatorToken}d/b.txt{StatusPathSeparatorToken}d/c.txt{StatusPathSeparatorToken}";
-            ConfirmGitPathsParsed(testStatusOutput, new List<string>() { "a.txt", "d/b.txt", "d/c.txt" });
-        }
 
         [TestCase]
         public void PathCoveredBySparseFolders_RootPaths()
@@ -124,20 +109,6 @@ namespace GVFS.UnitTests.Windows.Windows.CommandLine
         private static void ConfirmAllPathsNotCovered(List<string> paths, HashSet<string> sparseSet)
         {
             CheckIfPathsCovered(paths, sparseSet, shouldBeCovered: false);
-        }
-
-        private static void ConfirmGitPathsParsed(string paths, List<string> expectedPaths)
-        {
-            int index = 0;
-            int listIndex = 0;
-            while (index < paths.Length - 1)
-            {
-                int nextSeparatorIndex = paths.IndexOf(StatusPathSeparatorToken, index);
-                string expectedGitPath = expectedPaths[listIndex];
-                SparseVerb.GetNextGitPath(ref index, paths).ShouldEqual(expectedGitPath);
-                index.ShouldEqual(nextSeparatorIndex + 1);
-                ++listIndex;
-            }
         }
 
         private static void CheckIfPathsCovered(List<string> paths, HashSet<string> sparseSet, bool shouldBeCovered)

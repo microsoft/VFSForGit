@@ -18,7 +18,6 @@ namespace GVFS.CommandLine
     {
         private const string SparseVerbName = "sparse";
         private const string FolderListSeparator = ";";
-        private const char StatusPathSeparatorToken = '\0';
         private const char StatusRenameToken = 'R';
         private const string PruneOptionName = "prune";
 
@@ -106,14 +105,6 @@ namespace GVFS.CommandLine
         }
 
         protected override string VerbName => SparseVerbName;
-
-        internal static string GetNextGitPath(ref int index, string statusOutput)
-        {
-            int endOfPathIndex = statusOutput.IndexOf(StatusPathSeparatorToken, index);
-            string gitPath = statusOutput.Substring(index, endOfPathIndex - index);
-            index = endOfPathIndex + 1;
-            return gitPath;
-        }
 
         internal static bool PathCoveredBySparseFolders(string gitPath, HashSet<string> sparseFolders)
         {
@@ -628,29 +619,48 @@ namespace GVFS.CommandLine
         private void CheckGitStatus(ITracer tracer, GVFSEnlistment enlistment, HashSet<string> sparseFolders)
         {
             GitProcess.Result statusResult = null;
-            HashSet<string> dirtyPathsNotInSparseSet = null;
+            HashSet<string> dirtyPathsNotInSparseSet = new HashSet<string>();
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
+                    dirtyPathsNotInSparseSet.Clear();
                     GitProcess git = new GitProcess(enlistment);
-                    statusResult = git.StatusPorcelain();
+
+                    // Stream porcelain -z records so we never buffer the whole status output. Each entry
+                    // is a primary "XY <path>" token; a rename adds a second token for the original path.
+                    bool expectingRenameOrigin = false;
+                    statusResult = git.StatusPorcelain(
+                        token =>
+                        {
+                            string gitPath;
+                            if (expectingRenameOrigin)
+                            {
+                                expectingRenameOrigin = false;
+                                gitPath = token;
+                            }
+                            else
+                            {
+                                if (token.Length < 3)
+                                {
+                                    return;
+                                }
+
+                                // Two status chars (XY) then a space, then the path.
+                                expectingRenameOrigin = token[0] == StatusRenameToken || token[1] == StatusRenameToken;
+                                gitPath = token.Substring(3);
+                            }
+
+                            if (!PathCoveredBySparseFolders(gitPath, sparseFolders))
+                            {
+                                dirtyPathsNotInSparseSet.Add(gitPath);
+                            }
+                        });
+
                     if (statusResult.ExitCodeIsFailure)
                     {
                         return false;
                     }
 
-                    if (statusResult.OutputTruncated)
-                    {
-                        // git status output exceeded the capture buffer. A partial status could omit
-                        // dirty paths and let sparse proceed over uncommitted changes (data loss), so
-                        // treat truncation as "cannot verify clean" and abort.
-                        tracer.RelatedError(
-                            new EventMetadata(),
-                            "git status output was truncated; aborting sparse to avoid acting on an incomplete status");
-                        return false;
-                    }
-
-                    dirtyPathsNotInSparseSet = this.GetPathsNotCoveredBySparseFolders(statusResult.Output, sparseFolders);
                     return dirtyPathsNotInSparseSet.Count == 0;
                 },
                 "Running git status",
@@ -661,10 +671,6 @@ namespace GVFS.CommandLine
                 if (statusResult.ExitCodeIsFailure)
                 {
                     this.WriteMessage(tracer, "Failed to run git status: " + statusResult.Errors);
-                }
-                else if (statusResult.OutputTruncated)
-                {
-                    this.WriteMessage(tracer, "git status reported too many changes to process safely. Aborting to avoid acting on an incomplete status; reduce the number of pending changes and retry.");
                 }
                 else
                 {
@@ -684,34 +690,6 @@ namespace GVFS.CommandLine
                 this.Output.WriteLine();
                 this.ReportErrorAndExit(tracer, "Sparse was aborted.");
             }
-        }
-
-        private HashSet<string> GetPathsNotCoveredBySparseFolders(string statusOutput, HashSet<string> sparseFolders)
-        {
-            HashSet<string> uncoveredPaths = new HashSet<string>();
-            int index = 0;
-            while (index < statusOutput.Length - 1)
-            {
-                bool isRename = statusOutput[index] == StatusRenameToken || statusOutput[index + 1] == StatusRenameToken;
-                index = index + 3;
-
-                string gitPath = GetNextGitPath(ref index, statusOutput);
-                if (!PathCoveredBySparseFolders(gitPath, sparseFolders))
-                {
-                    uncoveredPaths.Add(gitPath);
-                }
-
-                if (isRename)
-                {
-                    gitPath = GetNextGitPath(ref index, statusOutput);
-                    if (!PathCoveredBySparseFolders(gitPath, sparseFolders))
-                    {
-                        uncoveredPaths.Add(gitPath);
-                    }
-                }
-            }
-
-            return uncoveredPaths;
         }
 
         private void WriteMessage(ITracer tracer, string message)
