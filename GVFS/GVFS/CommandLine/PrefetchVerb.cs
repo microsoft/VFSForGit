@@ -157,6 +157,8 @@ namespace GVFS.CommandLine
                     metadata.Add("FilesFromStdIn", this.FilesFromStdIn);
                     metadata.Add("FoldersFromStdIn", this.FoldersFromStdIn);
                     metadata.Add("HydrateFiles", this.HydrateFiles);
+                    bool prefetchOffloadEnabled = this.IsPrefetchOffloadEnabled(tracer, enlistment);
+                    metadata.Add("PrefetchOffloadEnabled", prefetchOffloadEnabled);
                     tracer.RelatedEvent(EventLevel.Informational, "PerformPrefetch", metadata);
 
                     if (this.Commits)
@@ -181,7 +183,7 @@ namespace GVFS.CommandLine
                         // has its own spinner. We don't wrap this in ShowStatusWhileRunning
                         // because a false return (mount unavailable) would print "Failed"
                         // to the console, which is misleading for an expected fallback.
-                        bool offloadSucceeded = this.TryPrefetchCommitsViaMountProcess(tracer, enlistment);
+                        bool offloadSucceeded = prefetchOffloadEnabled && this.TryPrefetchCommitsViaMountProcess(tracer, enlistment);
 
                         if (!offloadSucceeded)
                         {
@@ -220,9 +222,12 @@ namespace GVFS.CommandLine
                             // (without hydration), then hydrate locally in the verb process.
                             // This avoids the mount process writing to ProjFS-virtualized files
                             // (self-callback risk) while still benefiting from warm auth.
-                            if (!this.TryPrefetchBlobsViaMountProcess(tracer, enlistment, filesList, foldersList, headCommitId))
+                            bool offloadSucceeded = prefetchOffloadEnabled &&
+                                this.TryPrefetchBlobsViaMountProcess(tracer, enlistment, filesList, foldersList, headCommitId);
+
+                            if (!offloadSucceeded)
                             {
-                                // Mount unavailable — fall back to direct auth for download
+                                // Mount unavailable/offload disabled — fall back to direct auth for download
                                 GitObjectsHttpRequestor objectRequestor;
                                 CacheServerInfo resolvedCacheServer;
                                 this.InitializeServerConnection(
@@ -242,7 +247,8 @@ namespace GVFS.CommandLine
                                 BlobPrefetcher.UpdateNoopCache(prefetchCache, prefetchCacheSize, headCommitId, filesList, foldersList, this.HydrateFiles);
                             }
                         }
-                        else if (!this.TryPrefetchBlobsViaMountProcess(tracer, enlistment, filesList, foldersList, headCommitId))
+                        else if (!prefetchOffloadEnabled ||
+                            !this.TryPrefetchBlobsViaMountProcess(tracer, enlistment, filesList, foldersList, headCommitId))
                         {
                             GitObjectsHttpRequestor objectRequestor;
                             CacheServerInfo resolvedCacheServer;
@@ -690,6 +696,15 @@ namespace GVFS.CommandLine
             }
 
             return "from origin (no cache server)";
+        }
+
+        private bool IsPrefetchOffloadEnabled(ITracer tracer, GVFSEnlistment enlistment)
+        {
+            using (LibGit2Repo repo = new LibGit2Repo(tracer, enlistment.WorkingDirectoryBackingRoot))
+            {
+                bool? enabled = repo.GetConfigBool(GVFSConstants.GitConfig.PrefetchOffload);
+                return enabled ?? GVFSConstants.GitConfig.PrefetchOffloadDefault;
+            }
         }
 
         /// <summary>

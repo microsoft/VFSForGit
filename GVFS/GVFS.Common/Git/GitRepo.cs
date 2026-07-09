@@ -77,6 +77,11 @@ namespace GVFS.Common.Git
             return this.libgit2RepoInvoker.TryInvoke(repo => repo.GetObjectType(sha), out objectType);
         }
 
+        public bool GetConfigBoolOrDefault(string key, bool defaultValue)
+        {
+            return this.libgit2RepoInvoker?.GetConfigBoolOrDefault(key, defaultValue) ?? defaultValue;
+        }
+
         public virtual bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
         {
             LooseBlobState state = this.GetLooseBlobState(blobSha, writeAction, out long size);
