@@ -11,7 +11,9 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
+using GVFS.Common.Tracing;
 
 namespace GVFS.UnitTests.Windows.Virtualization
 {
@@ -178,6 +180,80 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 tester.GitIndexProjection.EnumerationInMemory = true;
                 tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
                 tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
+            }
+        }
+
+        [TestCase]
+        public void HeartbeatMetadataReportsActiveEnumerationCount()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test" }))
+            {
+                tester.GitIndexProjection.EnumerationInMemory = true;
+
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, Guid.NewGuid(), "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(2, Guid.NewGuid(), "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+
+                EventMetadata metadata = new EventMetadata();
+                tester.WindowsVirtualizer.AddHeartbeatMetadata(metadata);
+
+                metadata.ContainsKey("ActiveEnumerationCount").ShouldBeTrue();
+                ((int)metadata["ActiveEnumerationCount"]).ShouldEqual(2);
+                metadata.ContainsKey("ActiveCommandCount").ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
+        public void StaleEnumerationsAreNotEvictedWhenDisabled()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test" }))
+            {
+                tester.GitIndexProjection.EnumerationInMemory = true;
+
+                // Eviction is disabled by default (gvfs.max-active-enumerations unset => 0). Even with
+                // a zero stale timeout - which would make every enumeration eligible - nothing is evicted.
+                tester.WindowsVirtualizer.MaxActiveEnumerationsForTest = 0;
+                tester.WindowsVirtualizer.ActiveEnumerationStaleTimeoutForTest = TimeSpan.Zero;
+
+                Guid firstId = Guid.NewGuid();
+                Guid secondId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, firstId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+                Thread.Sleep(20);
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(2, secondId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+
+                tester.WindowsVirtualizer.ForceEnumerationEvictionSweepForTest();
+
+                // Both enumerations are still present (a missing id would return InternalError).
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(firstId).ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(secondId).ShouldEqual(HResult.Ok);
+            }
+        }
+
+        [TestCase]
+        public void StaleEnumerationsAreEvictedWhenEnabledButLiveOnesAreKept()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test" }))
+            {
+                tester.GitIndexProjection.EnumerationInMemory = true;
+
+                // Enable eviction above 1 live enumeration, treating anything idle longer than 20ms as stale.
+                tester.WindowsVirtualizer.MaxActiveEnumerationsForTest = 1;
+                tester.WindowsVirtualizer.ActiveEnumerationStaleTimeoutForTest = TimeSpan.FromMilliseconds(20);
+
+                Guid staleId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, staleId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+
+                // Let the first enumeration age well past the stale timeout before adding a fresh one.
+                Thread.Sleep(200);
+
+                Guid freshId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(2, freshId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+
+                tester.WindowsVirtualizer.ForceEnumerationEvictionSweepForTest();
+
+                // The stale enumeration was evicted: its End now fails to find it (fails loudly, does
+                // not silently return partial results). The fresh enumeration is retained.
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(staleId).ShouldEqual(HResult.InternalError);
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(freshId).ShouldEqual(HResult.Ok);
             }
         }
 

@@ -278,6 +278,8 @@ namespace GVFS.Virtualization
             metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
             metadata.Add("FolderPlaceholderCount", this.placeholderDatabase.GetFolderPlaceholdersCount());
 
+            this.fileSystemVirtualizer?.AddHeartbeatMetadata(metadata);
+
             if (this.gitStatusCache.WriteTelemetryandReset(metadata))
             {
                 logToFile = true;

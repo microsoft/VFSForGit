@@ -111,6 +111,14 @@ namespace GVFS.Virtualization.FileSystem
 
         public abstract FileSystemResult DehydrateFolder(string relativePath);
 
+        /// <summary>
+        /// Adds platform-specific virtualization diagnostics (for example live directory-enumeration
+        /// counts) to the periodic Heartbeat telemetry event. The default implementation adds nothing.
+        /// </summary>
+        public virtual void AddHeartbeatMetadata(EventMetadata metadata)
+        {
+        }
+
         public void Dispose()
         {
             if (this.fileAndNetworkRequests != null)

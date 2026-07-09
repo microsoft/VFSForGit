@@ -33,12 +33,39 @@ namespace GVFS.Platform.Windows
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
 
+        // ProjFS does not always deliver EndDirectoryEnumeration for a StartDirectoryEnumeration
+        // (for example when an enumeration is cancelled), which leaks the corresponding
+        // ActiveEnumeration - and the projected item list it pins - in this.activeEnumerations. Over
+        // long-lived mounts this unbounded growth is a suspected contributor to the memory pressure
+        // that ultimately crashes GVFS.Mount in the native ProjFS command-completion path.
+        //
+        // Eviction of stale (never-ended) enumerations is OFF by default and enabled only when the
+        // gvfs.max-active-enumerations git config is set to a positive value: once activeEnumerations
+        // grows past that threshold, a throttled sweep evicts entries idle longer than a timeout.
+        // The count telemetry below is always emitted on the Heartbeat event so the leak can be
+        // observed in the field before eviction is turned on anywhere.
+        private static readonly TimeSpan ActiveEnumerationStaleTimeout = TimeSpan.FromMinutes(5);
+        private static readonly TimeSpan ActiveEnumerationEvictionSweepInterval = TimeSpan.FromMinutes(1);
+
+        // Effective staleness cutoff for a never-ended enumeration. Defaults to the constant above;
+        // overridable by tests via ActiveEnumerationStaleTimeoutForTest.
+        private TimeSpan activeEnumerationStaleTimeout = ActiveEnumerationStaleTimeout;
+
+        // 0 disables eviction (the default). When > 0, it is the count of live enumerations above
+        // which a sweep evicts stale ones. Read from git config (gvfs.max-active-enumerations).
+        private int maxActiveEnumerations;
+
+        // Monotonic (Environment.TickCount64, milliseconds) timestamp of the last eviction sweep, so
+        // the throttle cannot be disturbed by wall-clock adjustments.
+        private long lastEnumerationEvictionSweepTickCount = Environment.TickCount64;
+
         public WindowsFileSystemVirtualizer(GVFSContext context, GVFSGitObjects gitObjects)
             : this(
                   context,
                   gitObjects,
                   virtualizationInstance: null,
-                  numWorkerThreads: FileSystemVirtualizer.DefaultNumWorkerThreads)
+                  numWorkerThreads: FileSystemVirtualizer.DefaultNumWorkerThreads,
+                  maxActiveEnumerations: ReadMaxActiveEnumerationsFromConfig(context))
         {
         }
 
@@ -46,7 +73,8 @@ namespace GVFS.Platform.Windows
             GVFSContext context,
             GVFSGitObjects gitObjects,
             IVirtualizationInstance virtualizationInstance,
-            int numWorkerThreads)
+            int numWorkerThreads,
+            int maxActiveEnumerations = 0)
             : base(context, gitObjects, numWorkerThreads)
         {
             List<NotificationMapping> notificationMappings = new List<NotificationMapping>()
@@ -72,9 +100,145 @@ namespace GVFS.Platform.Windows
 
             this.activeEnumerations = new ConcurrentDictionary<Guid, ActiveEnumeration>();
             this.activeCommands = new ConcurrentDictionary<int, CancellationTokenSource>();
+
+            this.maxActiveEnumerations = maxActiveEnumerations;
         }
 
         protected override string EtwArea => ClassName;
+
+        public override void AddHeartbeatMetadata(EventMetadata metadata)
+        {
+            // Always emitted, even when eviction is disabled, so the size of the activeEnumerations
+            // collection (and thus whether the never-ended-enumeration leak is a real memory driver)
+            // can be observed in the field before enabling eviction anywhere.
+            metadata.Add("ActiveEnumerationCount", this.activeEnumerations.Count);
+            metadata.Add("ActiveCommandCount", this.activeCommands.Count);
+        }
+
+        /// <summary>
+        /// Reads the gvfs.max-active-enumerations git config value (0 = eviction disabled, the
+        /// default). Uses the in-process libgit2 repo (no git.exe spawn). Never throws: any failure
+        /// reading git config leaves eviction disabled.
+        /// </summary>
+        private static int ReadMaxActiveEnumerationsFromConfig(GVFSContext context)
+        {
+            try
+            {
+                if (context?.Repository != null &&
+                    context.Repository.TryGetConfigValue(GVFSConstants.GitConfig.MaxActiveEnumerationsConfig, out string rawValue))
+                {
+                    if (string.IsNullOrWhiteSpace(rawValue))
+                    {
+                        // Setting is unset: eviction disabled.
+                        return 0;
+                    }
+
+                    if (int.TryParse(rawValue.Trim(), out int value) && value > 0)
+                    {
+                        return value;
+                    }
+
+                    if (context.Tracer != null)
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Area", ClassName);
+                        metadata.Add("configValue", rawValue);
+                        context.Tracer.RelatedWarning(metadata, nameof(ReadMaxActiveEnumerationsFromConfig) + ": could not parse " + GVFSConstants.GitConfig.MaxActiveEnumerationsConfig + " as a positive int, leaving enumeration eviction disabled");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                if (context?.Tracer != null)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Area", ClassName);
+                    metadata.Add("Exception", e.ToString());
+                    context.Tracer.RelatedWarning(metadata, nameof(ReadMaxActiveEnumerationsFromConfig) + ": exception reading git config, leaving enumeration eviction disabled");
+                }
+            }
+
+            return 0;
+        }
+
+        private void MaybeEvictStaleEnumerations()
+        {
+            if (this.maxActiveEnumerations <= 0)
+            {
+                // Eviction disabled (gvfs.max-active-enumerations unset or non-positive).
+                return;
+            }
+
+            long now = Environment.TickCount64;
+            long last = Interlocked.Read(ref this.lastEnumerationEvictionSweepTickCount);
+            if (now - last < (long)ActiveEnumerationEvictionSweepInterval.TotalMilliseconds)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref this.lastEnumerationEvictionSweepTickCount, now, last) != last)
+            {
+                // Another thread just claimed this sweep interval.
+                return;
+            }
+
+            this.EvictStaleEnumerations();
+        }
+
+        private void EvictStaleEnumerations()
+        {
+            if (this.activeEnumerations.Count <= this.maxActiveEnumerations)
+            {
+                return;
+            }
+
+            long cutoff = Environment.TickCount64 - (long)this.activeEnumerationStaleTimeout.TotalMilliseconds;
+            int evictedCount = 0;
+            foreach (KeyValuePair<Guid, ActiveEnumeration> entry in this.activeEnumerations)
+            {
+                if (entry.Value.LastActivityTickCount < cutoff &&
+                    this.activeEnumerations.TryRemove(entry.Key, out _))
+                {
+                    evictedCount++;
+                }
+            }
+
+            if (evictedCount > 0)
+            {
+                EventMetadata metadata = this.CreateEventMetadata();
+                metadata.Add("evictedCount", evictedCount);
+                metadata.Add("remainingCount", this.activeEnumerations.Count);
+                metadata.Add("maxActiveEnumerations", this.maxActiveEnumerations);
+                metadata.Add("staleTimeoutMinutes", this.activeEnumerationStaleTimeout.TotalMinutes);
+                metadata.Add("gcTotalMemoryBytes", GC.GetTotalMemory(forceFullCollection: false));
+                metadata.Add(
+                    TracingConstants.MessageKey.WarningMessage,
+                    nameof(this.EvictStaleEnumerations) + ": evicted stale directory enumerations that ProjFS never ended, to bound memory usage");
+                this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.EvictStaleEnumerations), metadata, Keywords.Telemetry);
+            }
+        }
+
+        internal TimeSpan ActiveEnumerationStaleTimeoutForTest
+        {
+            set { this.activeEnumerationStaleTimeout = value; }
+        }
+
+        internal int MaxActiveEnumerationsForTest
+        {
+            set { this.maxActiveEnumerations = value; }
+        }
+
+        /// <summary>
+        /// Test-only: resets the sweep throttle and runs the same eviction path the enumeration hot
+        /// callback runs, so eviction behavior can be exercised deterministically.
+        /// </summary>
+        internal void ForceEnumerationEvictionSweepForTest()
+        {
+            Interlocked.Exchange(
+                ref this.lastEnumerationEvictionSweepTickCount,
+                Environment.TickCount64 - (long)ActiveEnumerationEvictionSweepInterval.TotalMilliseconds - 1);
+            this.MaybeEvictStaleEnumerations();
+        }
 
         /// <remarks>
         /// Public for unit testing
@@ -211,6 +375,8 @@ namespace GVFS.Platform.Windows
         {
             try
             {
+                this.MaybeEvictStaleEnumerations();
+
                 List<ProjectedFileInfo> projectedItems;
                 if (this.FileSystemCallbacks.GitIndexProjection.TryGetProjectedItemsFromMemory(virtualPath, out projectedItems))
                 {
@@ -286,6 +452,8 @@ namespace GVFS.Platform.Windows
 
                     return HResult.InternalError;
                 }
+
+                activeEnumeration.RecordActivity();
 
                 if (restartScan)
                 {
