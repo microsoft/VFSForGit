@@ -22,13 +22,21 @@ namespace GVFS.Common.Database
         public const int NotADatabase = 26;
 
         /// <summary>
-        /// Returns true if the error code represents a transient condition
-        /// that may resolve on retry (I/O errors, locking contention).
+        /// Returns true if the error code represents a transient locking condition
+        /// that is safe to retry. Only BUSY and LOCKED qualify: both mean the operation
+        /// was blocked before executing and was never committed, so retrying is idempotent.
+        ///
+        /// SQLITE_IOERR is intentionally excluded. An I/O error can fire during connection
+        /// disposal AFTER a write has already committed (e.g. WAL flush on close). Retrying
+        /// in that case would re-execute the read phase on an already-empty table and return
+        /// stale results — a risk that exists in ExecuteReadThenWrite (RemoveAllEntriesForFolder).
+        /// IOERR on a genuinely failed write will have been rolled back by SQLite atomically,
+        /// but we cannot distinguish that case at the catch site without inspecting whether
+        /// the write had already committed. The safe choice is to surface IOERR immediately.
         /// </summary>
         public static bool IsTransientError(int sqliteErrorCode)
         {
-            return sqliteErrorCode == DiskIOError
-                || sqliteErrorCode == Busy
+            return sqliteErrorCode == Busy
                 || sqliteErrorCode == Locked;
         }
     }
