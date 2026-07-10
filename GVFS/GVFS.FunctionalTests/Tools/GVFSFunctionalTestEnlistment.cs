@@ -2,6 +2,8 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests;
 using GVFS.Tests.Should;
+using NUnit.Framework;
+using NUnit.Framework.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -169,8 +171,74 @@ namespace GVFS.FunctionalTests.Tools
 
         public void DeleteEnlistment()
         {
+            this.CaptureFailureDiagnostics();
             TestResultsHelper.OutputGVFSLogs(this);
             RepositoryHelpers.DeleteTestDirectory(this.EnlistmentRoot);
+        }
+
+        /// <summary>
+        /// When the current test has failed, preserve post-mortem diagnostics for
+        /// this enlistment before the enlistment directory is deleted: a full-memory
+        /// minidump of each still-running GVFS.Mount process (so a mount *hang* can
+        /// be diagnosed) and a robust copy of the .gvfs/logs folder. Written under
+        /// <see cref="TestResultsHelper.DiagnosticsRoot"/> so CI can upload it.
+        /// Best-effort: never throws, so it cannot break teardown.
+        /// </summary>
+        public void CaptureFailureDiagnostics()
+        {
+            try
+            {
+                if (TestContext.CurrentContext.Result.Outcome.Status != TestStatus.Failed)
+                {
+                    return;
+                }
+
+                string destinationFolder = Path.Combine(
+                    TestResultsHelper.DiagnosticsRoot,
+                    SanitizeForPath(TestContext.CurrentContext.Test.Name) + "_" + Path.GetFileName(this.EnlistmentRoot));
+
+                Console.Error.WriteLine($"[DIAGNOSTICS] Test failed; capturing mount dumps and logs to '{destinationFolder}'");
+
+                // Dump the (possibly hung) mount process(es) first, while they are
+                // still alive and before the enlistment directory is deleted.
+                List<int> mountProcessIds = this.GetMountProcessIds();
+                if (mountProcessIds.Count == 0)
+                {
+                    Console.Error.WriteLine("[DIAGNOSTICS] No live GVFS.Mount process for this enlistment (already exited/crashed)");
+                }
+                else
+                {
+                    Directory.CreateDirectory(destinationFolder);
+                    foreach (int pid in mountProcessIds)
+                    {
+                        MiniDump.TryWrite(pid, Path.Combine(destinationFolder, $"GVFS.Mount_{pid}.dmp"));
+                    }
+                }
+
+                // Preserve the enlistment logs (robust to locked / partially-flushed files).
+                TestResultsHelper.CopyFilesWithFallback(this.GVFSLogsRoot, Path.Combine(destinationFolder, "logs"));
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DIAGNOSTICS] CaptureFailureDiagnostics failed: {ex.Message}");
+            }
+        }
+
+        private static string SanitizeForPath(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return "test";
+            }
+
+            foreach (char invalid in Path.GetInvalidFileNameChars())
+            {
+                name = name.Replace(invalid, '_');
+            }
+
+            // Flatten characters that are legal in file names but noisy in NUnit
+            // test names (parameterized cases, spaces).
+            return name.Replace('(', '_').Replace(')', '_').Replace(' ', '_').Replace(',', '_').Replace('"', '_');
         }
 
         public void CloneAndMount(bool skipPrefetch)
@@ -310,11 +378,32 @@ namespace GVFS.FunctionalTests.Tools
 
         public void KillMountProcess()
         {
+            foreach (int pid in this.GetMountProcessIds())
+            {
+                Console.Error.WriteLine($"[TEARDOWN] Killing GVFS.Mount (PID {pid}) for {this.EnlistmentRoot}");
+                try
+                {
+                    System.Diagnostics.Process.GetProcessById(pid)?.Kill();
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[TEARDOWN] Failed to kill PID {pid}: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns the process ids of the GVFS.Mount processes whose command line
+        /// references this enlistment root. Uses PowerShell's Get-CimInstance to
+        /// read command lines without requiring System.Management. Best-effort:
+        /// returns an empty list on any failure (e.g. non-Windows).
+        /// </summary>
+        private List<int> GetMountProcessIds()
+        {
+            List<int> processIds = new List<int>();
+
             try
             {
-                // Find GVFS.Mount processes whose command line contains this
-                // enlistment root. Uses PowerShell's Get-CimInstance to read
-                // command lines without requiring System.Management.
                 string filter = this.EnlistmentRoot.Replace("\\", "\\\\");
                 var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
                 {
@@ -331,22 +420,16 @@ namespace GVFS.FunctionalTests.Tools
                 {
                     if (int.TryParse(line.Trim(), out int pid))
                     {
-                        Console.Error.WriteLine($"[TEARDOWN] Killing GVFS.Mount (PID {pid}) for {this.EnlistmentRoot}");
-                        try
-                        {
-                            System.Diagnostics.Process.GetProcessById(pid)?.Kill();
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.Error.WriteLine($"[TEARDOWN] Failed to kill PID {pid}: {ex.Message}");
-                        }
+                        processIds.Add(pid);
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[TEARDOWN] KillMountProcess failed: {ex.Message}");
+                Console.Error.WriteLine($"[TEARDOWN] GetMountProcessIds failed: {ex.Message}");
             }
+
+            return processIds;
         }
 
         public string GetVirtualPathTo(string path)
