@@ -68,16 +68,21 @@ namespace GVFS.Common
         public abstract bool IsProcessActive(int processId);
 
         /// <summary>
-        /// Returns true and writes an opaque, OS-supplied process-identity token (e.g. process
-        /// creation time on Windows) when the process with the given PID is currently active.
-        /// The token has no meaning beyond identity comparison: two calls for the same underlying
-        /// process yield equal tokens, and a call after the OS has recycled the PID to a different
-        /// process yields a different token. Returns false (and startTime = 0) if the process
-        /// is no longer running, or if it could not be identified for any reason (e.g. permission
-        /// failure). Callers must treat a false return as "no identity information available" and
-        /// fall back to <see cref="IsProcessActive(int)"/> if they still need a liveness check.
+        /// Attempts to read an opaque, OS-supplied process-identity token (e.g. process creation
+        /// time on Windows) for the process with the given PID. The token has no meaning beyond
+        /// identity comparison: two calls for the same underlying process yield equal tokens, and
+        /// a call after the OS has recycled the PID to a different process yields a different token.
         /// </summary>
-        public abstract bool TryGetActiveProcessStartTime(int processId, out long startTime);
+        /// <param name="processId">The PID to inspect.</param>
+        /// <param name="startTime">The identity token, valid only when the result is <see cref="ProcessStartTimeResult.Success"/>.</param>
+        /// <returns>
+        /// A <see cref="ProcessStartTimeResult"/> describing the outcome. Callers making a
+        /// release-versus-hold decision about a lock holder must only treat
+        /// <see cref="ProcessStartTimeResult.ProcessNotFound"/> and
+        /// <see cref="ProcessStartTimeResult.Inaccessible"/> as evidence the original holder is gone;
+        /// <see cref="ProcessStartTimeResult.Indeterminate"/> means "unknown" and must not trigger a release.
+        /// </returns>
+        public abstract ProcessStartTimeResult TryGetActiveProcessStartTime(int processId, out long startTime);
 
         public abstract void IsServiceInstalledAndRunning(string name, out bool installed, out bool running);
         public abstract string GetNamedPipeName(string enlistmentRoot);

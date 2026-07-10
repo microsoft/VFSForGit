@@ -255,7 +255,7 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.IsProcessActiveImplementation(processId, tryGetProcessById: true);
         }
 
-        public override bool TryGetActiveProcessStartTime(int processId, out long startTime)
+        public override ProcessStartTimeResult TryGetActiveProcessStartTime(int processId, out long startTime)
         {
             return WindowsPlatform.TryGetActiveProcessStartTimeImplementation(processId, out startTime);
         }
