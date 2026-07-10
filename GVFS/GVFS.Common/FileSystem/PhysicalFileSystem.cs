@@ -526,59 +526,5 @@ namespace GVFS.Common.FileSystem
 
             return true;
         }
-
-        /// <summary>
-        /// Recursively deletes a directory that may contain ProjFS placeholders (for example a
-        /// 'gvfs dehydrate' backup folder) without recalling their content through the ProjFS
-        /// provider. This avoids the "provider ... temporarily unavailable" failure that a normal
-        /// recursive delete hits when the moved placeholders are enumerated while the provider is
-        /// busy or no longer projecting them. A small retry tolerates genuinely transient I/O.
-        /// </summary>
-        /// <param name="tracer">ITracer for logging and telemetry, can be null</param>
-        /// <param name="path">Path of directory to delete</param>
-        /// <param name="retryDelayMs">Amount of time to wait between each delete attempt. If 0, there will be no delays between attempts</param>
-        /// <param name="maxRetries">Maximum number of retries (if 0, a single attempt will be made)</param>
-        /// <returns>True if the delete succeeded, and false otherwise</returns>
-        public virtual bool TryDeleteDirectoryWithoutProviderRecall(
-            ITracer tracer,
-            string path,
-            int retryDelayMs,
-            int maxRetries)
-        {
-            int failureCount = 0;
-            while (this.DirectoryExists(path))
-            {
-                try
-                {
-                    NativeMethods.DeleteDirectoryWithoutProviderRecall(path);
-                }
-                catch (Exception exception)
-                {
-                    if (failureCount >= maxRetries)
-                    {
-                        if (tracer != null)
-                        {
-                            EventMetadata metadata = new EventMetadata();
-                            metadata.Add("Exception", exception.ToString());
-                            metadata.Add("path", path);
-                            metadata.Add("failureCount", failureCount + 1);
-                            metadata.Add("maxRetries", maxRetries);
-                            tracer.RelatedWarning(metadata, $"{nameof(this.TryDeleteDirectoryWithoutProviderRecall)}: Failed to delete directory.");
-                        }
-
-                        return false;
-                    }
-
-                    ++failureCount;
-
-                    if (retryDelayMs > 0)
-                    {
-                        Thread.Sleep(retryDelayMs);
-                    }
-                }
-            }
-
-            return true;
-        }
     }
 }

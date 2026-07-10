@@ -838,6 +838,27 @@ namespace GVFS.Mount
                         continue;
                     }
                 }
+
+                // The moved folders are ProjFS placeholders now outside the virtualization root.
+                // They can only be deleted while the repo is unmounted, so if the caller asked to
+                // discard the backup, delete it now (before we remount below). BackupFolderPath is
+                // the backup's 'src' folder; its parent is the backup root that holds everything.
+                if (request.DiscardBackup)
+                {
+                    string backupRoot = Path.GetDirectoryName(request.BackupFolderPath);
+                    try
+                    {
+                        this.context.FileSystem.DeleteDirectory(backupRoot);
+                        response.BackupDiscarded = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Exception", ex.ToString());
+                        metadata.Add("backupRoot", backupRoot);
+                        this.tracer.RelatedWarning(metadata, $"{nameof(this.BackupFoldersWhileUnmounted)}: Failed to discard backup folder.");
+                    }
+                }
             }
             finally
             {

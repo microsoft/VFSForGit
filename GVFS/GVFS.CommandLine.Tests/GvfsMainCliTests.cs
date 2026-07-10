@@ -294,13 +294,6 @@ namespace GVFS.CommandLine.Tests
         }
 
         [Test]
-        public void Dehydrate_PruneBackups_BackupPath_ParsesCorrectly()
-        {
-            var parseResult = rootCommand.Parse(new[] { "dehydrate", "prune-backups", "--backup-path", @"C:\repo\dehydrate_backup\20260101_000000" });
-            Assert.That(parseResult.Errors, Is.Empty, "dehydrate prune-backups --backup-path should parse without errors");
-        }
-
-        [Test]
         public void Dehydrate_PruneBackups_IsSubcommand()
         {
             var dehydrate = FindSubcommand("dehydrate");

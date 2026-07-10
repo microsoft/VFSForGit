@@ -112,39 +112,67 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void FolderDehydrateWithDiscardBackupShouldDeleteBackup()
         {
+            // Hydrate files under the folder first so the dehydrate moves real ProjFS placeholders
+            // into the backup. Those placeholders can only be deleted while the repo is unmounted,
+            // which is exactly what --discard-backup does (it deletes during the dehydrate's
+            // unmounted window). Without hydration the backup has no placeholders and would not
+            // exercise this path.
+            this.HydrateFolder("GVFS");
+
             this.DehydrateShouldSucceed(
-                new[] { "folder dehydrate successful", "will be deleted in the background" },
+                new[] { "folder dehydrate successful", "(--discard-backup)" },
                 confirm: true,
                 noStatus: false,
                 full: false,
                 discardBackup: true,
                 foldersToDehydrate: "GVFS");
 
-            // --discard-backup deletes the backup in a detached process that only succeeds once
-            // this dehydrate process has exited, so poll for the backup folder to disappear.
             string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
-            Stopwatch timeout = Stopwatch.StartNew();
-            while (this.fileSystem.DirectoryExists(backupFolder) && timeout.Elapsed < TimeSpan.FromSeconds(60))
-            {
-                System.Threading.Thread.Sleep(500);
-            }
-
             backupFolder.ShouldNotExistOnDisk(this.fileSystem);
         }
 
         [TestCase]
-        public void DehydratePruneBackupsShouldDeleteExistingBackups()
+        public void DehydratePruneBackupsShouldDeleteExistingBackupsWhenUnmounted()
         {
+            this.HydrateFolder("GVFS");
+
             this.DehydrateShouldSucceed(new[] { "folder dehydrate successful" }, confirm: true, noStatus: false, full: false, foldersToDehydrate: "GVFS");
 
             string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
             backupFolder.ShouldBeADirectory(this.fileSystem);
+
+            // A backup with moved placeholders can only be pruned while unmounted.
+            this.Enlistment.UnmountGVFS();
 
             ProcessResult result = this.RunDehydratePruneBackupsProcess();
             result.ExitCode.ShouldEqual(0, $"prune-backups exit code was {result.ExitCode}. Output: {result.Output}");
             result.Output.ShouldContain(new[] { "Pruned" });
 
             backupFolder.ShouldNotExistOnDisk(this.fileSystem);
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void DehydratePruneBackupsWhileMountedReportsUnmountGuidance()
+        {
+            this.HydrateFolder("GVFS");
+
+            this.DehydrateShouldSucceed(new[] { "folder dehydrate successful" }, confirm: true, noStatus: false, full: false, foldersToDehydrate: "GVFS");
+
+            string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
+            backupFolder.ShouldBeADirectory(this.fileSystem);
+
+            // Pruning while mounted cannot delete the placeholder backup; the verb should fail and
+            // tell the user to unmount first.
+            ProcessResult result = this.RunDehydratePruneBackupsProcess();
+            result.ExitCode.ShouldEqual(GVFSGenericError, $"prune-backups should fail while mounted. Output: {result.Output}");
+            result.Output.ShouldContain(new[] { "Run 'gvfs unmount'" });
+
+            // Clean up the leftover backup while unmounted so it does not leak into later tests.
+            this.Enlistment.UnmountGVFS();
+            RepositoryHelpers.DeleteTestDirectory(backupFolder);
+            this.Enlistment.MountGVFS();
         }
 
         [TestCase]
@@ -697,6 +725,30 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             processInfo.RedirectStandardOutput = true;
 
             return ProcessHelper.Run(processInfo);
+        }
+
+        // Hydrate some files under the given root-level folder so that a subsequent folder
+        // dehydrate moves real ProjFS placeholders into the backup.
+        private void HydrateFolder(string folder)
+        {
+            string folderPath = Path.Combine(this.Enlistment.RepoRoot, folder);
+            int hydrated = 0;
+            foreach (string file in Directory.EnumerateFiles(folderPath, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    File.ReadAllBytes(file);
+                    hydrated++;
+                }
+                catch
+                {
+                }
+
+                if (hydrated >= 25)
+                {
+                    break;
+                }
+            }
         }
 
         private SafeFileHandle OpenFolderHandle(string path)
