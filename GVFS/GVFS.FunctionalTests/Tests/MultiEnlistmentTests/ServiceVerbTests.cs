@@ -1,6 +1,7 @@
 ﻿using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
@@ -9,6 +10,19 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
     public class ServiceVerbTests : TestsWithMultiEnlistment
     {
         private static readonly string[] EmptyRepoList = new string[] { };
+        private readonly string fixtureServiceName = "Test.GVFS.Service.ServiceVerbTests." + Guid.NewGuid().ToString("N");
+
+        [OneTimeSetUp]
+        public void StartFixtureService()
+        {
+            GVFSServiceProcess.InstallService(this.fixtureServiceName);
+        }
+
+        [OneTimeTearDown]
+        public void StopFixtureService()
+        {
+            GVFSServiceProcess.UninstallService(this.fixtureServiceName);
+        }
 
         [TestCase]
         public void ServiceCommandsWithNoRepos()
@@ -21,20 +35,22 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         [TestCase]
         public void ServiceCommandsWithMultipleRepos()
         {
-            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment();
-            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment();
+            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment(serviceName: this.fixtureServiceName);
+            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment(serviceName: this.fixtureServiceName);
 
             string[] repoRootList = new string[] { enlistment1.EnlistmentRoot, enlistment2.EnlistmentRoot };
 
             GVFSProcess gvfsProcess1 = new GVFSProcess(
                 GVFSTestConfig.PathToGVFS,
                 enlistment1.EnlistmentRoot,
-                enlistment1.LocalCacheRoot);
+                enlistment1.LocalCacheRoot,
+                this.fixtureServiceName);
 
             GVFSProcess gvfsProcess2 = new GVFSProcess(
                 GVFSTestConfig.PathToGVFS,
                 enlistment2.EnlistmentRoot,
-                enlistment2.LocalCacheRoot);
+                enlistment2.LocalCacheRoot,
+                this.fixtureServiceName);
 
             this.RunServiceCommandAndCheckOutput("--list-mounted", expectedRepoRoots: repoRootList);
             this.RunServiceCommandAndCheckOutput("--unmount-all", expectedRepoRoots: repoRootList);
@@ -57,14 +73,15 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         [TestCase]
         public void ServiceCommandsWithMountAndUnmount()
         {
-            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment();
+            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment(serviceName: this.fixtureServiceName);
 
             string[] repoRootList = new string[] { enlistment1.EnlistmentRoot };
 
             GVFSProcess gvfsProcess1 = new GVFSProcess(
                 GVFSTestConfig.PathToGVFS,
                 enlistment1.EnlistmentRoot,
-                enlistment1.LocalCacheRoot);
+                enlistment1.LocalCacheRoot,
+                this.fixtureServiceName);
 
             this.RunServiceCommandAndCheckOutput("--list-mounted", expectedRepoRoots: repoRootList);
 
@@ -88,7 +105,8 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             GVFSProcess gvfsProcess = new GVFSProcess(
                 GVFSTestConfig.PathToGVFS,
                 enlistmentRoot: null,
-                localCacheRoot: null);
+                localCacheRoot: null,
+                serviceName: this.fixtureServiceName);
 
             string result = gvfsProcess.RunServiceVerb(argument);
             result.ShouldContain(expectedRepoRoots);

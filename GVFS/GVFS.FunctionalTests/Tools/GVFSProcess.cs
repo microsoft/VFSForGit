@@ -14,17 +14,23 @@ namespace GVFS.FunctionalTests.Tools
         private readonly string pathToGVFS;
         private readonly string enlistmentRoot;
         private readonly string localCacheRoot;
+        private readonly string serviceName;
 
         public GVFSProcess(GVFSFunctionalTestEnlistment enlistment)
-            : this(GVFSTestConfig.PathToGVFS, enlistment.EnlistmentRoot, Path.Combine(enlistment.EnlistmentRoot, GVFSTestConfig.DotGVFSRoot))
+            : this(
+                  GVFSTestConfig.PathToGVFS,
+                  enlistment.EnlistmentRoot,
+                  Path.Combine(enlistment.EnlistmentRoot, GVFSTestConfig.DotGVFSRoot),
+                  enlistment.ServiceName)
         {
         }
 
-        public GVFSProcess(string pathToGVFS, string enlistmentRoot, string localCacheRoot)
+        public GVFSProcess(string pathToGVFS, string enlistmentRoot, string localCacheRoot, string serviceName = null)
         {
             this.pathToGVFS = pathToGVFS;
             this.enlistmentRoot = enlistmentRoot;
             this.localCacheRoot = localCacheRoot;
+            this.serviceName = serviceName;
         }
 
         public void Clone(string repositorySource, string branchToCheckout, bool skipPrefetch)
@@ -141,13 +147,13 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS(
                 "dehydrate \"" + this.enlistmentRoot + "\"",
                 expectedExitCode: SuccessExitCode,
-                internalParameter: GVFSHelpers.GetInternalParameter("\\\"LooseObjects\\\""));
+                internalParameter: GVFSHelpers.GetInternalParameter("\\\"LooseObjects\\\"", serviceName: this.serviceName));
         }
 
         public string PackfileMaintenanceStep(long? batchSize)
         {
             string sizeString = batchSize.HasValue ? $"\\\"{batchSize.Value}\\\"" : "null";
-            string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PackfileMaintenance\\\"", sizeString);
+            string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PackfileMaintenance\\\"", sizeString, this.serviceName);
             return this.CallGVFS(
                 "dehydrate \"" + this.enlistmentRoot + "\"",
                 expectedExitCode: SuccessExitCode,
@@ -156,7 +162,7 @@ namespace GVFS.FunctionalTests.Tools
 
         public string PostFetchStep()
         {
-            string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PostFetch\\\"");
+            string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PostFetch\\\"", serviceName: this.serviceName);
             return this.CallGVFS(
                 "dehydrate \"" + this.enlistmentRoot + "\"",
                 expectedExitCode: SuccessExitCode,
@@ -246,7 +252,7 @@ namespace GVFS.FunctionalTests.Tools
 
             if (internalParameter == null)
             {
-                internalParameter = GVFSHelpers.GetInternalParameter();
+                internalParameter = GVFSHelpers.GetInternalParameter(serviceName: this.serviceName);
             }
 
             processInfo.Arguments = args + " " + TestConstants.InternalUseOnlyFlag + " " + internalParameter;

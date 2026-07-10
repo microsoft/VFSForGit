@@ -31,13 +31,15 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         protected GVFSFunctionalTestEnlistment CreateNewEnlistment(
             string localCacheRoot = null,
             string branch = null,
-            bool skipPrefetch = false)
+            bool skipPrefetch = false,
+            string serviceName = null)
         {
             GVFSFunctionalTestEnlistment output = GVFSFunctionalTestEnlistment.CloneAndMount(
                 GVFSTestConfig.PathToGVFS,
                 branch,
                 localCacheRoot,
-                skipPrefetch);
+                skipPrefetch,
+                serviceName);
             this.enlistmentsToDelete.Add(output);
             return output;
         }
