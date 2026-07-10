@@ -73,7 +73,7 @@ namespace GVFS.CommandLine
             {
                 foreach (string repoRoot in repoList)
                 {
-                    if (this.IsRepoMounted(repoRoot))
+                    if (this.IsRepoReady(repoRoot))
                     {
                         this.Output.WriteLine(repoRoot);
                     }
@@ -93,7 +93,7 @@ namespace GVFS.CommandLine
 
                 foreach (string repoRoot in repoList)
                 {
-                    if (!this.IsRepoMounted(repoRoot))
+                    if (this.IsRepoAvailableToMount(repoRoot))
                     {
                         this.Output.WriteLine("\r\nMounting repo at " + repoRoot);
                         ReturnCode result = this.Execute<MountVerb>(repoRoot);
@@ -118,7 +118,7 @@ namespace GVFS.CommandLine
 
                 foreach (string repoRoot in repoList)
                 {
-                    if (this.IsRepoMounted(repoRoot))
+                    if (this.IsRepoAvailableToUnmount(repoRoot))
                     {
                         this.Output.WriteLine("\r\nUnmounting repo at " + repoRoot);
                         ReturnCode result = this.Execute<UnmountVerb>(
@@ -199,8 +199,35 @@ namespace GVFS.CommandLine
             }
         }
 
-        private bool IsRepoMounted(string repoRoot)
+        private bool IsRepoReady(string repoRoot)
         {
+            // For --list-mounted: only a repo whose mount is fully Ready is reported as mounted.
+            return this.TryGetRepoMountStatus(repoRoot, out string mountStatus)
+                && mountStatus.Equals(NamedPipeMessages.GetStatus.Ready, StringComparison.Ordinal);
+        }
+
+        private bool IsRepoAvailableToMount(string repoRoot)
+        {
+            // For --mount-all: a repo can be mounted only when no live mount process is
+            // answering for it (i.e. it is not already Mounting, Ready, Unmounting, or MountFailed).
+            return !this.TryGetRepoMountStatus(repoRoot, out _);
+        }
+
+        private bool IsRepoAvailableToUnmount(string repoRoot)
+        {
+            // For --unmount-all: only unmount a repo whose mount is in a state that accepts an
+            // unmount request. A repo already Unmounting is reaching the desired state on its own,
+            // and one still Mounting rejects the request, so both are skipped to avoid spurious
+            // "Already unmounting" / "not mounted" failures during concurrent teardown.
+            return this.TryGetRepoMountStatus(repoRoot, out string mountStatus)
+                && (mountStatus.Equals(NamedPipeMessages.GetStatus.Ready, StringComparison.Ordinal)
+                    || mountStatus.Equals(NamedPipeMessages.GetStatus.MountFailed, StringComparison.Ordinal));
+        }
+
+        private bool TryGetRepoMountStatus(string repoRoot, out string mountStatus)
+        {
+            mountStatus = null;
+
             // Hide the output of status
             StringWriter statusOutput = new StringWriter();
             ReturnCode result = this.Execute<StatusVerb>(
@@ -210,9 +237,20 @@ namespace GVFS.CommandLine
                     verb.Output = statusOutput;
                 });
 
-            if (result == ReturnCode.Success)
+            if (result != ReturnCode.Success)
             {
-                return true;
+                // No live mount process is answering for this repo.
+                return false;
+            }
+
+            foreach (string line in statusOutput.ToString().Split('\n'))
+            {
+                string trimmedLine = line.Trim();
+                if (trimmedLine.StartsWith(StatusVerb.MountStatusOutputPrefix, StringComparison.Ordinal))
+                {
+                    mountStatus = trimmedLine.Substring(StatusVerb.MountStatusOutputPrefix.Length).Trim();
+                    return true;
+                }
             }
 
             return false;
