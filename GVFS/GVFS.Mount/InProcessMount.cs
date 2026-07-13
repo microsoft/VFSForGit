@@ -132,19 +132,27 @@ namespace GVFS.Mount
             Stopwatch parallelTimer = Stopwatch.StartNew();
             bool hasCacheServer = this.cacheServer != null && !string.IsNullOrWhiteSpace(this.cacheServer.Url);
 
+            // Fire-and-forget background auth is gated behind gvfs.background-cache-auth
+            // (default off). When the flag is off, mount blocks on auth/config
+            // synchronously even if a cache server is configured (pre-existing behavior).
+            bool useBackgroundAuth = hasCacheServer && this.IsBackgroundCacheAuthEnabled();
+
             this.tracer.RelatedEvent(
                 EventLevel.Informational,
                 "MountPhase",
                 new EventMetadata
                 {
                     { "Phase", "ParallelMountStarted" },
+                    { "HasCacheServer", hasCacheServer },
+                    { "UseBackgroundAuth", useBackgroundAuth },
                     { "ElapsedMs", mountPhaseTimer.ElapsedMilliseconds },
                 },
                 Keywords.Telemetry);
 
-            // When a cache server is configured locally, auth/config is best-effort:
-            // mount can proceed without it. We still attempt it so GCM can pop up a
-            // renewal prompt for stale tokens, but we don't block mount on the result.
+            // With background auth enabled, auth/config is best-effort: mount can
+            // proceed without it. We still attempt it so GCM can pop up a renewal
+            // prompt for stale tokens, but we don't block mount on the result. A
+            // longer credential timeout is acceptable only because we don't block.
             var networkTask = Task.Run(() =>
             {
                 Stopwatch sw = Stopwatch.StartNew();
@@ -155,7 +163,7 @@ namespace GVFS.Mount
                 if (!this.enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
                     this.tracer, this.enlistment, this.retryConfig,
                     out config, out authConfigError, out isAuthFailure,
-                    credentialTimeoutMs: hasCacheServer ? GitAuthentication.BackgroundCredentialTimeoutMs : GitAuthentication.DefaultCredentialTimeoutMs))
+                    credentialTimeoutMs: useBackgroundAuth ? GitAuthentication.BackgroundCredentialTimeoutMs : GitAuthentication.DefaultCredentialTimeoutMs))
                 {
                     if (hasCacheServer)
                     {
@@ -291,9 +299,9 @@ namespace GVFS.Mount
 
                 try
                 {
-                    if (hasCacheServer)
+                    if (useBackgroundAuth)
                     {
-                        // With a cache server, don't block mount on the network task.
+                        // With background auth, don't block mount on the network task.
                         // Auth runs in the background to warm credentials / pop GCM,
                         // but mount proceeds immediately using the local cache server URL.
                         localTask.Wait();
@@ -327,7 +335,10 @@ namespace GVFS.Mount
                     },
                     Keywords.Telemetry);
 
-                ServerGVFSConfig serverGVFSConfig = hasCacheServer ? null : networkTask.Result;
+                // Only background auth leaves the network task potentially unfinished;
+                // in that case we resolve the cache server from local config (null).
+                // Otherwise we waited on the network task and can use its result.
+                ServerGVFSConfig serverGVFSConfig = useBackgroundAuth ? null : networkTask.Result;
 
                 this.mountProgressMessage = "Resolving cache server";
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
@@ -460,6 +471,31 @@ namespace GVFS.Mount
                     fileSystem),
                 "Failed to read git repo");
             return new GVFSContext(this.tracer, fileSystem, gitRepo, this.enlistment);
+        }
+
+        private bool IsBackgroundCacheAuthEnabled()
+        {
+            // Read the flag via libgit2 (in-process) rather than spawning git.exe.
+            // The GVFSContext (and its shared libgit2 repo) is not created until
+            // later in mount, so open a short-lived repo here just for the config
+            // read. Default to off on any failure.
+            try
+            {
+                using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot))
+                {
+                    return repo.GetConfigBool(GVFSConstants.GitConfig.BackgroundCacheAuth)
+                        ?? GVFSConstants.GitConfig.BackgroundCacheAuthDefault;
+                }
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedWarning(
+                    "Failed to read {0} config, defaulting to {1}: {2}",
+                    GVFSConstants.GitConfig.BackgroundCacheAuth,
+                    GVFSConstants.GitConfig.BackgroundCacheAuthDefault,
+                    e.Message);
+                return GVFSConstants.GitConfig.BackgroundCacheAuthDefault;
+            }
         }
 
         private void ValidateMountPoints()
