@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using GVFS.Common.Git;
 using GVFS.Tests;
 using GVFS.Tests.Should;
@@ -271,6 +273,73 @@ namespace GVFS.UnitTests.Git
             dut.TryGetCredentials(tracer, out var newAuthString, out _).ShouldBeTrue();
             newAuthString.ShouldNotEqual(authString);
             gitProcess.CredentialRejections.ShouldBeEmpty();
+        }
+
+        [TestCase]
+        public void TryGetCredentialsBeforeInitializationDoesNotThrow()
+        {
+            // Regression test for a mount crash: when a cache server is configured,
+            // mount starts virtualization before the background auth/config query
+            // finishes initializing. A directory enumeration then calls
+            // TryGetCredentials while IsAnonymous has already been set false but
+            // initialization has not completed. The previous behavior threw an
+            // InvalidOperationException straight into the ProjFS callback, crashing
+            // the mount process. It must instead fail gracefully (retryable).
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+
+            // Keep the wait short so an uninitialized instance reports failure
+            // quickly instead of blocking for the full background timeout.
+            dut.InitializationWaitTimeoutMs = 10;
+
+            string authString = null;
+            string error = null;
+            bool result = true;
+
+            Assert.DoesNotThrow(() => result = dut.TryGetCredentials(tracer, out authString, out error));
+
+            result.ShouldBeFalse("TryGetCredentials should fail (not throw) before initialization completes");
+            error.ShouldNotBeNull("A retryable error message should be returned");
+        }
+
+        [TestCase]
+        public void TryGetCredentialsWaitsForBackgroundInitializationThenSucceeds()
+        {
+            // A caller that arrives before initialization completes should block
+            // until initialization finishes, then return the fetched credentials -
+            // this is the correct behavior for the background cache-server auth path.
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.InitializationWaitTimeoutMs = 30_000;
+
+            string authString = null;
+            string error = null;
+            bool result = false;
+
+            using (ManualResetEventSlim consumerStarted = new ManualResetEventSlim(false))
+            {
+                Task consumer = Task.Run(() =>
+                {
+                    consumerStarted.Set();
+                    result = dut.TryGetCredentials(tracer, out authString, out error);
+                });
+
+                // Ensure the consumer has begun waiting on initialization before we
+                // complete it, so we exercise the wait path rather than a no-op.
+                consumerStarted.Wait();
+                Thread.Sleep(50);
+
+                dut.TryInitializeAndRequireAuth(tracer, out _);
+
+                consumer.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("Consumer should unblock once initialization completes");
+            }
+
+            result.ShouldBeTrue("TryGetCredentials should succeed after initialization: " + error);
+            authString.ShouldNotBeNull("A credential string should be returned");
         }
 
         private MockGitProcess GetGitProcess()
