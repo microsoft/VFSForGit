@@ -171,57 +171,83 @@ namespace GVFS.FunctionalTests.Tools
 
         public void DeleteEnlistment()
         {
-            this.CaptureFailureDiagnostics();
+            this.CaptureFailureLogs();
             TestResultsHelper.OutputGVFSLogs(this);
             RepositoryHelpers.DeleteTestDirectory(this.EnlistmentRoot);
         }
 
         /// <summary>
-        /// When the current test has failed, preserve post-mortem diagnostics for
-        /// this enlistment before the enlistment directory is deleted: a full-memory
-        /// minidump of each still-running GVFS.Mount process (so a mount *hang* can
-        /// be diagnosed) and a robust copy of the .gvfs/logs folder. Written under
-        /// <see cref="TestResultsHelper.DiagnosticsRoot"/> so CI can upload it.
-        /// Best-effort: never throws, so it cannot break teardown.
+        /// When the current test has failed, writes a full-memory minidump of each still-running
+        /// GVFS.Mount process for this enlistment, so a mount *hang* can be diagnosed after the fact.
+        /// Must be called before the mount is unmounted or killed - once the process is gone (whether
+        /// cleanly unmounted or force-killed) there is nothing left to dump. Written under
+        /// <see cref="TestResultsHelper.DiagnosticsRoot"/> so CI can upload it. Best-effort: never
+        /// throws, so it cannot break teardown.
         /// </summary>
         public void CaptureFailureDiagnostics()
         {
             try
             {
-                if (TestContext.CurrentContext.Result.Outcome.Status != TestStatus.Failed)
+                if (!this.TryGetFailureDiagnosticsFolder(out string destinationFolder))
                 {
                     return;
                 }
 
-                string destinationFolder = Path.Combine(
-                    TestResultsHelper.DiagnosticsRoot,
-                    SanitizeForPath(TestContext.CurrentContext.Test.Name) + "_" + Path.GetFileName(this.EnlistmentRoot));
-
-                Console.Error.WriteLine($"[DIAGNOSTICS] Test failed; capturing mount dumps and logs to '{destinationFolder}'");
-
-                // Dump the (possibly hung) mount process(es) first, while they are
-                // still alive and before the enlistment directory is deleted.
                 List<int> mountProcessIds = this.GetMountProcessIds();
                 if (mountProcessIds.Count == 0)
                 {
                     Console.Error.WriteLine("[DIAGNOSTICS] No live GVFS.Mount process for this enlistment (already exited/crashed)");
-                }
-                else
-                {
-                    Directory.CreateDirectory(destinationFolder);
-                    foreach (int pid in mountProcessIds)
-                    {
-                        MiniDump.TryWrite(pid, Path.Combine(destinationFolder, $"GVFS.Mount_{pid}.dmp"));
-                    }
+                    return;
                 }
 
-                // Preserve the enlistment logs (robust to locked / partially-flushed files).
-                TestResultsHelper.CopyFilesWithFallback(this.GVFSLogsRoot, Path.Combine(destinationFolder, "logs"));
+                Console.Error.WriteLine($"[DIAGNOSTICS] Test failed; capturing mount dump(s) to '{destinationFolder}'");
+                Directory.CreateDirectory(destinationFolder);
+                foreach (int pid in mountProcessIds)
+                {
+                    MiniDump.TryWrite(pid, Path.Combine(destinationFolder, $"GVFS.Mount_{pid}.dmp"));
+                }
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[DIAGNOSTICS] CaptureFailureDiagnostics failed: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// When the current test has failed, preserves the enlistment's .gvfs/logs folder (robust to
+        /// locked / partially-flushed files) under <see cref="TestResultsHelper.DiagnosticsRoot"/>
+        /// before the enlistment directory is deleted. Best-effort: never throws.
+        /// </summary>
+        private void CaptureFailureLogs()
+        {
+            try
+            {
+                if (!this.TryGetFailureDiagnosticsFolder(out string destinationFolder))
+                {
+                    return;
+                }
+
+                Console.Error.WriteLine($"[DIAGNOSTICS] Test failed; capturing logs to '{destinationFolder}'");
+                TestResultsHelper.CopyFilesWithFallback(this.GVFSLogsRoot, Path.Combine(destinationFolder, "logs"));
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DIAGNOSTICS] CaptureFailureLogs failed: {ex.Message}");
+            }
+        }
+
+        private bool TryGetFailureDiagnosticsFolder(out string destinationFolder)
+        {
+            destinationFolder = null;
+            if (TestContext.CurrentContext.Result.Outcome.Status != TestStatus.Failed)
+            {
+                return false;
+            }
+
+            destinationFolder = Path.Combine(
+                TestResultsHelper.DiagnosticsRoot,
+                SanitizeForPath(TestContext.CurrentContext.Test.Name) + "_" + Path.GetFileName(this.EnlistmentRoot));
+            return true;
         }
 
         private static string SanitizeForPath(string name)
@@ -361,6 +387,10 @@ namespace GVFS.FunctionalTests.Tools
 
         public void UnmountAndDeleteAll()
         {
+            // Capture the mount dump before unmounting or killing anything - once the mount process is
+            // gone (whether it unmounts cleanly or is force-killed below) there is nothing left to dump.
+            this.CaptureFailureDiagnostics();
+
             try
             {
                 this.UnmountGVFS();
@@ -404,7 +434,13 @@ namespace GVFS.FunctionalTests.Tools
 
             try
             {
-                string filter = this.EnlistmentRoot.Replace("\\", "\\\\");
+                // Match on the enlistment's unique leaf folder id rather than the
+                // full path. PowerShell's -like treats '\' as a literal (not an
+                // escape), so doubling backslashes in the full path would produce a
+                // pattern that never matches a real (single-backslash) command line.
+                // The leaf id is unique and free of path separators and wildcard
+                // metacharacters, so it needs no escaping.
+                string filter = Path.GetFileName(this.EnlistmentRoot.TrimEnd('\\', '/'));
                 var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
                 {
                     Arguments = $"-NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\"Name='GVFS.Mount.exe'\\\" | Where-Object {{ $_.CommandLine -like '*{filter}*' }} | ForEach-Object {{ $_.ProcessId }}\"",
@@ -412,11 +448,43 @@ namespace GVFS.FunctionalTests.Tools
                     UseShellExecute = false,
                     CreateNoWindow = true,
                 };
-                var proc = System.Diagnostics.Process.Start(psi);
-                string output = proc.StandardOutput.ReadToEnd();
-                proc.WaitForExit(10000);
 
-                foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                var output = new System.Text.StringBuilder();
+
+                // Read output asynchronously via the event, rather than a blocking ReadToEnd() before
+                // WaitForExit(): ReadToEnd() blocks until the process closes its stdout handle, so if the
+                // helper itself hangs, the later WaitForExit(10000) timeout is never reached at all. With
+                // async reads, WaitForExit is the only blocking call, so it enforces a real timeout and we
+                // can kill the helper if it does not exit in time.
+                using (var proc = new System.Diagnostics.Process { StartInfo = psi })
+                {
+                    proc.OutputDataReceived += (sender, args) =>
+                    {
+                        if (args.Data != null)
+                        {
+                            output.AppendLine(args.Data);
+                        }
+                    };
+
+                    proc.Start();
+                    proc.BeginOutputReadLine();
+
+                    if (!proc.WaitForExit(10000))
+                    {
+                        Console.Error.WriteLine("[TEARDOWN] GetMountProcessIds helper timed out; killing it");
+                        try
+                        {
+                            proc.Kill();
+                            proc.WaitForExit(2000);
+                        }
+                        catch (Exception killEx)
+                        {
+                            Console.Error.WriteLine($"[TEARDOWN] Failed to kill GetMountProcessIds helper: {killEx.Message}");
+                        }
+                    }
+                }
+
+                foreach (string line in output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries))
                 {
                     if (int.TryParse(line.Trim(), out int pid))
                     {
