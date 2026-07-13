@@ -51,6 +51,13 @@ namespace GVFS.Common
 
             public const string PrefetchUseIdx = GVFSPrefix + "prefetch-use-idx";
             public const bool PrefetchUseIdxDefault = false;
+
+            /* Gates the background (fire-and-forget) auth + /gvfs/config behavior on
+             * mount when a cache server is configured locally. When false (default),
+             * mount blocks on auth/config synchronously before starting virtualization.
+             * When true, auth runs in the background so mount is not delayed. */
+            public const string BackgroundCacheAuth = GVFSPrefix + "background-cache-auth";
+            public const bool BackgroundCacheAuthDefault = false;
         }
 
         public static class LocalGVFSConfig
