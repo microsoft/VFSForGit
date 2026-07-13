@@ -159,14 +159,11 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
-                metadata.Count.ShouldEqual(9);
+                metadata.Count.ShouldEqual(8);
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
                 metadata.TryGetValue("FilePlaceholderCreation", out object fileNestedMetadata);
                 GVFSJsonOptions.Serialize(fileNestedMetadata).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe\"");
                 GVFSJsonOptions.Serialize(fileNestedMetadata).ShouldContain("\"ProcessCount1\":1");
-                metadata.ContainsKey("FeatureFlags").ShouldBeTrue();
-                metadata.TryGetValue("FeatureFlags", out object featureFlagsMetadata);
-                GVFSJsonOptions.Serialize(featureFlagsMetadata).ShouldContain("\"PrefetchOffload\":false");
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 1);
                 metadata.ShouldContain("FolderPlaceholderCount", 0);
@@ -185,16 +182,13 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel = writeToLogFile2 ? EventLevel.Informational : EventLevel.Verbose;
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
-                metadata.Count.ShouldEqual(9);
+                metadata.Count.ShouldEqual(8);
 
                 // Only processes that have created placeholders since the last heartbeat should be named
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
                 metadata.TryGetValue("FilePlaceholderCreation", out object fileNestedMetadata2);
                 GVFSJsonOptions.Serialize(fileNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");
                 GVFSJsonOptions.Serialize(fileNestedMetadata2).ShouldContain("\"ProcessCount1\":2");
-                metadata.ContainsKey("FeatureFlags").ShouldBeTrue();
-                metadata.TryGetValue("FeatureFlags", out object featureFlagsMetadata2);
-                GVFSJsonOptions.Serialize(featureFlagsMetadata2).ShouldContain("\"PrefetchOffload\":false");
                 metadata.ContainsKey("FolderPlaceholderCreation").ShouldBeTrue();
                 metadata.TryGetValue("FolderPlaceholderCreation", out object folderNestedMetadata2);
                 GVFSJsonOptions.Serialize(folderNestedMetadata2).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe2\"");

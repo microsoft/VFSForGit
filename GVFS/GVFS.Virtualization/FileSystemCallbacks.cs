@@ -277,7 +277,6 @@ namespace GVFS.Virtualization
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
             metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
             metadata.Add("FolderPlaceholderCount", this.placeholderDatabase.GetFolderPlaceholdersCount());
-            metadata.Add("FeatureFlags", this.GetFeatureFlagMetadata());
 
             this.fileSystemVirtualizer?.AddHeartbeatMetadata(metadata);
 
@@ -294,17 +293,6 @@ namespace GVFS.Virtualization
                     sizeStatsOnly: true));
 
             return metadata;
-        }
-
-        private EventMetadata GetFeatureFlagMetadata()
-        {
-            bool prefetchOffloadEnabled = this.context.Repository.GetConfigBoolOrDefault(
-                GVFSConstants.GitConfig.PrefetchOffload,
-                GVFSConstants.GitConfig.PrefetchOffloadDefault);
-
-            EventMetadata featureFlags = new EventMetadata();
-            featureFlags.Add("PrefetchOffload", prefetchOffloadEnabled);
-            return featureFlags;
         }
 
         public bool TryDehydrateFolder(string relativePath, out string errorMessage)
