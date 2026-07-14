@@ -21,6 +21,14 @@ namespace GVFS.Common.Git
         private readonly ICredentialStore credentialStore;
         private readonly string repoUrl;
 
+        // Signaled when initialization completes (success or failure). Callers of
+        // TryGetCredentials that arrive before initialization is done wait on this
+        // rather than throwing. This matters when mount starts virtualization while
+        // auth initialization is still running in the background (cache-server path):
+        // a directory enumeration can call TryGetCredentials before the background
+        // TryInitializeAndQueryGVFSConfig has set isInitialized.
+        private readonly ManualResetEventSlim initializationComplete = new ManualResetEventSlim(false);
+
         private int numberOfAttempts = 0;
         private DateTime lastAuthAttempt = DateTime.MinValue;
 
@@ -49,6 +57,14 @@ namespace GVFS.Common.Git
         }
 
         public bool IsAnonymous { get; private set; } = true;
+
+        /// <summary>
+        /// How long a caller of <see cref="TryGetCredentials"/> will wait for
+        /// initialization to complete before giving up with a retryable error.
+        /// Defaults to the maximum time initialization itself can take (a
+        /// background credential fetch). Overridable for tests.
+        /// </summary>
+        internal int InitializationWaitTimeoutMs { get; set; } = BackgroundCredentialTimeoutMs;
 
         private GitSsl GitSsl { get; }
 
@@ -157,7 +173,17 @@ namespace GVFS.Common.Git
         {
             if (!this.isInitialized)
             {
-                throw new InvalidOperationException("This auth instance must be initialized before it can be used");
+                // Initialization may still be running in the background (mount can
+                // start virtualization before the background auth/config query has
+                // finished when a cache server is configured). Wait for it to
+                // complete rather than throwing an unhandled exception into the
+                // virtualization callback, which would crash the mount process.
+                if (!this.initializationComplete.Wait(this.InitializationWaitTimeoutMs))
+                {
+                    credentialString = null;
+                    errorMessage = "Timed out waiting for authentication to initialize";
+                    return false;
+                }
             }
 
             credentialString = this.cachedCredentialString;
@@ -243,14 +269,14 @@ namespace GVFS.Common.Git
                 if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out _))
                 {
                     this.IsAnonymous = true;
-                    this.isInitialized = true;
+                    this.MarkInitialized();
                     tracer.RelatedInfo("{0}: Anonymous access succeeded, config obtained in one request", nameof(this.TryInitializeAndQueryGVFSConfig));
                     return true;
                 }
 
                 if (httpStatus != HttpStatusCode.Unauthorized)
                 {
-                    this.isInitialized = true;
+                    this.MarkInitialized();
                     errorMessage = "Unable to query /gvfs/config";
                     tracer.RelatedWarning("{0}: Config query failed with status {1}", nameof(this.TryInitializeAndQueryGVFSConfig), httpStatus?.ToString() ?? "None");
                     return false;
@@ -265,12 +291,12 @@ namespace GVFS.Common.Git
                     // Mark initialized even on failure so TryGetCredentials can
                     // retry later (e.g., when mount proceeds with a cache server
                     // and object downloads need auth).
-                    this.isInitialized = true;
+                    this.MarkInitialized();
                     tracer.RelatedWarning("{0}: Credential fetch failed: {1}", nameof(this.TryInitializeAndQueryGVFSConfig), errorMessage);
                     return false;
                 }
 
-                this.isInitialized = true;
+                this.MarkInitialized();
 
                 // Retry with credentials using the same ConfigHttpRequestor (reuses HttpClient/connection)
                 HttpStatusCode? retryHttpStatus;
@@ -303,7 +329,7 @@ namespace GVFS.Common.Git
 
             if (this.TryCallGitCredential(tracer, out errorMessage))
             {
-                this.isInitialized = true;
+                this.MarkInitialized();
                 return true;
             }
 
@@ -383,6 +409,14 @@ namespace GVFS.Common.Git
         {
             this.lastAuthAttempt = DateTime.Now;
             this.numberOfAttempts++;
+        }
+
+        private void MarkInitialized()
+        {
+            // Publish isInitialized before signaling so a waiter that wakes up
+            // observes the initialized state.
+            this.isInitialized = true;
+            this.initializationComplete.Set();
         }
 
         private bool TryCallGitCredential(ITracer tracer, out string errorMessage, int timeoutMs = -1)
