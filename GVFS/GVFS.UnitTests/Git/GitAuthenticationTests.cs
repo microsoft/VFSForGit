@@ -273,6 +273,48 @@ namespace GVFS.UnitTests.Git
             gitProcess.CredentialRejections.ShouldBeEmpty();
         }
 
+        [TestCase]
+        public void TryGetCredentialsTimesOutWhenCredentialManagerDoesNotRespond()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            string authString;
+            string err;
+            dut.TryGetCredentials(tracer, out authString, out err).ShouldEqual(true, "Initial credential fetch should succeed: " + err);
+
+            // Override the fill command to simulate a credential manager timeout
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result(string.Empty, "Operation timed out: git credential fill", GitProcess.Result.GenericFailureCode),
+                matchPrefix: true);
+
+            // Reject clears the cache so the next TryGetCredentials must refetch
+            dut.RejectCredentials(tracer, authString);
+
+            // The re-fetch should time out
+            dut.TryGetCredentials(tracer, out authString, out err, credentialTimeoutMs: 1000).ShouldEqual(false, "Expected timeout to cause failure");
+            err.ShouldContain("did not respond");
+        }
+
+        [TestCase]
+        public void TryGetCredentialsSucceedsWithExplicitTimeout()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            string cred;
+            string err;
+            dut.TryGetCredentials(tracer, out cred, out err, credentialTimeoutMs: 30000).ShouldEqual(true, "Expected success with explicit timeout: " + err);
+            cred.ShouldNotBeNull();
+        }
+
         private MockGitProcess GetGitProcess()
         {
             MockGitProcess gitProcess = new MockGitProcess();
