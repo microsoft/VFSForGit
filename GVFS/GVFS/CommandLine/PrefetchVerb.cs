@@ -700,11 +700,19 @@ namespace GVFS.CommandLine
 
         private bool IsPrefetchOffloadEnabled(ITracer tracer, GVFSEnlistment enlistment)
         {
-            using (LibGit2Repo repo = new LibGit2Repo(tracer, enlistment.WorkingDirectoryBackingRoot))
+            try
             {
-                bool? enabled = repo.GetConfigBool(GVFSConstants.GitConfig.PrefetchOffload);
-                return enabled ?? GVFSConstants.GitConfig.PrefetchOffloadDefault;
+                using (LibGit2Repo repo = new LibGit2Repo(tracer, enlistment.WorkingDirectoryBackingRoot))
+                {
+                    bool? enabled = repo.GetConfigBool(GVFSConstants.GitConfig.PrefetchOffload);
+                    return enabled ?? GVFSConstants.GitConfig.PrefetchOffloadDefault;
+                }
             }
+            catch (Exception ex)
+            {
+                tracer.RelatedWarning($"Failed to read '{GVFSConstants.GitConfig.PrefetchOffload}' config; defaulting to {GVFSConstants.GitConfig.PrefetchOffloadDefault}: {ex.GetType().Name}: {ex.Message}");
+                return GVFSConstants.GitConfig.PrefetchOffloadDefault;
+            }
         }
 
         /// <summary>
