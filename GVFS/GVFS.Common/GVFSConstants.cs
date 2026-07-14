@@ -63,10 +63,6 @@ namespace GVFS.Common
 
         public static class LocalGVFSConfig
         {
-            public const string UpgradeRing = "upgrade.ring";
-            public const string UpgradeFeedPackageName = "upgrade.feedpackagename";
-            public const string UpgradeFeedUrl = "upgrade.feedurl";
-            public const string OrgInfoServerUrl = "upgrade.orgInfoServerUrl";
             public const string USNJournalUpdates = "usn.updateDirectories";
         }
 
@@ -275,18 +271,6 @@ namespace GVFS.Common
             {
                 public const string SkipLock = "skip-wait-for-lock";
             }
-        }
-
-        public static class UpgradeVerbMessages
-        {
-            public const string GVFSUpgrade = "`gvfs upgrade`";
-            public const string GVFSUpgradeDryRun = "`gvfs upgrade --dry-run`";
-            public const string NoUpgradeCheckPerformed = "No upgrade check was performed.";
-            public const string NoneRingConsoleAlert = "Upgrade ring set to \"None\". " + NoUpgradeCheckPerformed;
-            public const string NoRingConfigConsoleAlert = "Upgrade ring is not set. " + NoUpgradeCheckPerformed;
-            public const string InvalidRingConsoleAlert = "Upgrade ring set to unknown value. " + NoUpgradeCheckPerformed;
-            public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `gvfs config " + LocalGVFSConfig.UpgradeRing + " [\"Fast\"|\"Slow\"|\"None\"]` from a command prompt.";
-            public const string UnmountRepoWarning = "Upgrade will unmount and remount gvfs repos, ensure you are at a stopping point.";
         }
     }
 }
