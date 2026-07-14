@@ -180,6 +180,28 @@ namespace GVFS.Common.Git
             return succeeded;
         }
 
+        /// <summary>
+        /// Reads a git config value through the in-process libgit2 repo (no git.exe spawn).
+        /// </summary>
+        /// <param name="name">Config setting name (e.g. "gvfs.max-active-enumerations").</param>
+        /// <param name="value">
+        /// The config value, or null if the setting is unset. Only meaningful when this returns true.
+        /// </param>
+        /// <returns>
+        /// true if the libgit2 repo was available and the lookup ran (the setting may still be unset,
+        /// in which case <paramref name="value"/> is null); false if no libgit2 repo is available.
+        /// </returns>
+        public virtual bool TryGetConfigValue(string name, out string value)
+        {
+            value = null;
+            if (this.libgit2RepoInvoker == null)
+            {
+                return false;
+            }
+
+            return this.libgit2RepoInvoker.TryInvoke(repo => repo.GetConfigString(name), out value);
+        }
+
         public void Dispose()
         {
             if (this.libgit2RepoInvoker != null)
