@@ -53,6 +53,13 @@ namespace GVFS.UnitTests.Mock.Common
         /// </summary>
         public Dictionary<int, long> ProcessStartTimes { get; } = new Dictionary<int, long>();
 
+        /// <summary>
+        /// Optional per-PID result overrides for <see cref="TryGetActiveProcessStartTime"/>, used by
+        /// tests that exercise the non-Success outcomes (Inaccessible / Indeterminate). When a PID is
+        /// present here, the specified result is returned regardless of <see cref="ActiveProcesses"/>.
+        /// </summary>
+        public Dictionary<int, ProcessStartTimeResult> ProcessStartTimeResults { get; } = new Dictionary<int, ProcessStartTimeResult>();
+
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
             throw new NotSupportedException();
@@ -141,19 +148,31 @@ namespace GVFS.UnitTests.Mock.Common
             return this.ActiveProcesses.Contains(processId);
         }
 
-        public override bool TryGetActiveProcessStartTime(int processId, out long startTime)
+        public override ProcessStartTimeResult TryGetActiveProcessStartTime(int processId, out long startTime)
         {
+            startTime = 0;
+
+            // Explicit result override wins, so tests can exercise Inaccessible / Indeterminate.
+            if (this.ProcessStartTimeResults.TryGetValue(processId, out ProcessStartTimeResult overrideResult))
+            {
+                if (overrideResult == ProcessStartTimeResult.Success)
+                {
+                    startTime = this.ProcessStartTimes.TryGetValue(processId, out long overrideTime) ? overrideTime : processId;
+                }
+
+                return overrideResult;
+            }
+
             if (this.ActiveProcesses.Contains(processId))
             {
                 // If the test populated an explicit start time use that, otherwise fall back
                 // to a deterministic non-zero value so test scenarios that don't care about
                 // PID identity (the existing majority of unit tests) keep working.
                 startTime = this.ProcessStartTimes.TryGetValue(processId, out long stored) ? stored : processId;
-                return true;
+                return ProcessStartTimeResult.Success;
             }
 
-            startTime = 0;
-            return false;
+            return ProcessStartTimeResult.ProcessNotFound;
         }
 
         public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)

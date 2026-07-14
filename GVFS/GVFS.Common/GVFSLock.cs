@@ -47,7 +47,8 @@ namespace GVFS.Common
             // failure on OpenProcess for a different-integrity caller) we still accept the
             // lock and fall back to the legacy PID-only orphan check; record the fallback in
             // telemetry so we can spot if it becomes common.
-            long? requestorStartTime = GVFSPlatform.Instance.TryGetActiveProcessStartTime(requestor.PID, out long startTime)
+            long? requestorStartTime =
+                GVFSPlatform.Instance.TryGetActiveProcessStartTime(requestor.PID, out long startTime) == ProcessStartTimeResult.Success
                 ? startTime
                 : (long?)null;
             if (requestorStartTime == null)
@@ -214,6 +215,17 @@ namespace GVFS.Common
                     this.ReleaseLockForTerminatedProcess(existingExternalHolder.PID, terminationReason);
                     this.tracer.SetGitCommandSessionId(string.Empty);
                     existingExternalHolder = null;
+                }
+                else if (terminationReason == "StartTimeIndeterminate" && existingExternalHolder != null)
+                {
+                    // We could not determine whether the holder is still alive, so we deliberately
+                    // kept the lock rather than risk releasing one that is still held. Record it so
+                    // we can see whether these transient failures ever happen in the field (and,
+                    // if a holder ever gets stuck this way, why the lock was not released).
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("CurrentLockHolder", existingExternalHolder.ToString());
+                    metadata.Add("Reason", terminationReason);
+                    this.tracer.RelatedEvent(EventLevel.Verbose, "ExternalHolderLivenessIndeterminate", metadata);
                 }
 
                 return existingExternalHolder == null;
@@ -460,17 +472,43 @@ namespace GVFS.Common
                     {
                         // Identity check: confirm the same process still owns this PID by comparing
                         // the OS-supplied process start time we captured at acquisition with the
-                        // current one. A mismatch means the original holder exited and Windows
-                        // recycled the PID to a different process (the bug this code fixes).
-                        if (!GVFSPlatform.Instance.TryGetActiveProcessStartTime(pid, out long currentStartTime))
+                        // current one. We only conclude the holder is gone (and release its lock)
+                        // when we have positive evidence, so that a transient failure to read the
+                        // start time can never release a lock that is still legitimately held.
+                        ProcessStartTimeResult result = GVFSPlatform.Instance.TryGetActiveProcessStartTime(pid, out long currentStartTime);
+                        switch (result)
                         {
-                            externalHolderTerminatedWithoutReleasingLock = true;
-                            terminationReason = "ProcessNotActive";
-                        }
-                        else if (currentStartTime != capturedStartTime)
-                        {
-                            externalHolderTerminatedWithoutReleasingLock = true;
-                            terminationReason = "PidRecycled";
+                            case ProcessStartTimeResult.Success when currentStartTime == capturedStartTime:
+                                // Same process, still alive. Keep the lock.
+                                break;
+
+                            case ProcessStartTimeResult.Success:
+                                // A different, still-running process now owns this PID: the original
+                                // holder exited and Windows recycled the PID (the bug this fixes).
+                                externalHolderTerminatedWithoutReleasingLock = true;
+                                terminationReason = "PidRecycled";
+                                break;
+
+                            case ProcessStartTimeResult.ProcessNotFound:
+                                // Positive evidence the holder is gone (no such PID, or it exited).
+                                externalHolderTerminatedWithoutReleasingLock = true;
+                                terminationReason = "ProcessExited";
+                                break;
+
+                            case ProcessStartTimeResult.Inaccessible:
+                                // We could open the holder at acquire time, and that access is stable
+                                // for the process's lifetime, so an access-denied result now means the
+                                // PID refers to a different process: the original holder is gone.
+                                externalHolderTerminatedWithoutReleasingLock = true;
+                                terminationReason = "HolderInaccessible";
+                                break;
+
+                            case ProcessStartTimeResult.Indeterminate:
+                            default:
+                                // We could not determine liveness (e.g. transient resource error).
+                                // Do NOT release: keep the lock and let the next poll re-evaluate.
+                                terminationReason = "StartTimeIndeterminate";
+                                break;
                         }
                     }
                     else
