@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
@@ -11,8 +12,8 @@ namespace GVFS.FunctionalTests.Tools
 {
     public static class GVFSServiceProcess
     {
-        private static readonly string ServiceNameArgument = "--servicename=" + TestServiceName;
-        private static Process consoleServiceProcess;
+        private static readonly Dictionary<string, Process> ConsoleServiceProcesses =
+            new Dictionary<string, Process>(System.StringComparer.OrdinalIgnoreCase);
 
         public static string TestServiceName
         {
@@ -25,76 +26,97 @@ namespace GVFS.FunctionalTests.Tools
 
         public static void InstallService()
         {
+            InstallService(TestServiceName);
+        }
+
+        public static void InstallService(string serviceName)
+        {
             if (GVFSTestConfig.IsDevMode)
             {
-                StartServiceAsConsoleProcess();
+                StartServiceAsConsoleProcess(serviceName);
             }
             else
             {
-                InstallWindowsService();
+                InstallWindowsService(serviceName);
             }
         }
 
         public static void UninstallService()
         {
+            UninstallService(TestServiceName);
+        }
+
+        public static void UninstallService(string serviceName)
+        {
             if (GVFSTestConfig.IsDevMode)
             {
-                StopConsoleServiceProcess();
-                CleanupServiceData();
+                StopConsoleServiceProcess(serviceName);
+                CleanupServiceData(serviceName);
             }
             else
             {
-                UninstallWindowsService();
+                UninstallWindowsService(serviceName);
             }
         }
 
         public static void StartService()
         {
+            StartService(TestServiceName);
+        }
+
+        public static void StartService(string serviceName)
+        {
             if (GVFSTestConfig.IsDevMode)
             {
-                StartServiceAsConsoleProcess();
+                StartServiceAsConsoleProcess(serviceName);
             }
             else
             {
-                StartWindowsService();
+                StartWindowsService(serviceName);
             }
         }
 
         public static void StopService()
         {
+            StopService(TestServiceName);
+        }
+
+        public static void StopService(string serviceName)
+        {
             if (GVFSTestConfig.IsDevMode)
             {
-                StopConsoleServiceProcess();
+                StopConsoleServiceProcess(serviceName);
             }
             else
             {
-                StopWindowsService();
+                StopWindowsService(serviceName);
             }
         }
 
-        private static void StartServiceAsConsoleProcess()
+        private static void StartServiceAsConsoleProcess(string serviceName)
         {
-            StopConsoleServiceProcess();
+            StopConsoleServiceProcess(serviceName);
 
             string pathToService = GetPathToService();
             Console.WriteLine("Starting test service in console mode: " + pathToService);
 
             ProcessStartInfo startInfo = new ProcessStartInfo(pathToService);
-            startInfo.Arguments = $"--console {ServiceNameArgument}";
+            startInfo.Arguments = $"--console --servicename={serviceName}";
             startInfo.UseShellExecute = false;
             startInfo.CreateNoWindow = true;
             startInfo.RedirectStandardOutput = true;
             startInfo.RedirectStandardError = true;
 
-            consoleServiceProcess = Process.Start(startInfo);
+            Process consoleServiceProcess = Process.Start(startInfo);
             consoleServiceProcess.ShouldNotBeNull("Failed to start test service process");
+            ConsoleServiceProcesses[serviceName] = consoleServiceProcess;
 
             // Consume output asynchronously to prevent buffer deadlock
             consoleServiceProcess.BeginOutputReadLine();
             consoleServiceProcess.BeginErrorReadLine();
 
             // Wait for the service to start listening on its named pipe
-            string pipeName = TestServiceName + ".pipe";
+            string pipeName = serviceName + ".pipe";
             int retries = 50;
             while (retries-- > 0)
             {
@@ -116,39 +138,43 @@ namespace GVFS.FunctionalTests.Tools
             throw new System.TimeoutException("Timed out waiting for test service pipe: " + pipeName);
         }
 
-        private static void StopConsoleServiceProcess()
+        private static void StopConsoleServiceProcess(string serviceName)
         {
-            if (consoleServiceProcess != null && !consoleServiceProcess.HasExited)
+            Process consoleServiceProcess;
+            if (ConsoleServiceProcesses.TryGetValue(serviceName, out consoleServiceProcess))
             {
-                try
+                if (consoleServiceProcess != null && !consoleServiceProcess.HasExited)
                 {
-                    Console.WriteLine("Stopping test service console process (PID: " + consoleServiceProcess.Id + ")");
-                    consoleServiceProcess.Kill();
-                    consoleServiceProcess.WaitForExit(5000);
-                }
-                catch (InvalidOperationException)
-                {
-                    // Process already exited
+                    try
+                    {
+                        Console.WriteLine("Stopping test service console process (PID: " + consoleServiceProcess.Id + ")");
+                        consoleServiceProcess.Kill();
+                        consoleServiceProcess.WaitForExit(5000);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // Process already exited
+                    }
                 }
 
-                consoleServiceProcess = null;
+                ConsoleServiceProcesses.Remove(serviceName);
             }
         }
 
-        private static void CleanupServiceData()
+        private static void CleanupServiceData(string serviceName)
         {
             string commonAppDataRoot = Environment.GetEnvironmentVariable("GVFS_COMMON_APPDATA_ROOT");
             string serviceData;
             if (!string.IsNullOrEmpty(commonAppDataRoot))
             {
-                serviceData = Path.Combine(commonAppDataRoot, TestServiceName);
+                serviceData = Path.Combine(commonAppDataRoot, serviceName);
             }
             else
             {
                 serviceData = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                     "GVFS",
-                    TestServiceName);
+                    serviceName);
             }
 
             DirectoryInfo serviceDataDir = new DirectoryInfo(serviceData);
@@ -158,14 +184,14 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        private static void InstallWindowsService()
+        private static void InstallWindowsService(string serviceName)
         {
-            Console.WriteLine("Installing " + TestServiceName);
+            Console.WriteLine("Installing " + serviceName);
 
-            UninstallWindowsService();
+            UninstallWindowsService(serviceName);
 
             // Wait for delete to complete. If the services control panel is open, this will never complete.
-            while (RunScCommand("query", TestServiceName).ExitCode == 0)
+            while (RunScCommand("query", serviceName).ExitCode == 0)
             {
                 Thread.Sleep(1000);
             }
@@ -178,23 +204,23 @@ namespace GVFS.FunctionalTests.Tools
 
             string createServiceArguments = string.Format(
                 "{0} binPath= \"{1}\"",
-                TestServiceName,
+                serviceName,
                 pathToService);
 
             ProcessResult result = RunScCommand("create", createServiceArguments);
             result.ExitCode.ShouldEqual(0, "Failure while running sc create " + createServiceArguments + "\r\n" + result.Output);
 
-            StartWindowsService();
+            StartWindowsService(serviceName);
         }
 
-        private static void UninstallWindowsService()
+        private static void UninstallWindowsService(string serviceName)
         {
-            StopWindowsService();
+            StopWindowsService(serviceName);
 
-            RunScCommand("delete", TestServiceName);
+            RunScCommand("delete", serviceName);
 
             // Make sure to delete any test service data state
-            string serviceData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GVFS", TestServiceName);
+            string serviceData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GVFS", serviceName);
             DirectoryInfo serviceDataDir = new DirectoryInfo(serviceData);
             if (serviceDataDir.Exists)
             {
@@ -202,24 +228,24 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        private static void StartWindowsService()
+        private static void StartWindowsService(string serviceName)
         {
-            ServiceController testService = ServiceController.GetServices().SingleOrDefault(service => service.ServiceName == TestServiceName);
-            testService.ShouldNotBeNull($"{TestServiceName} does not exist as a service");
+            ServiceController testService = ServiceController.GetServices().SingleOrDefault(service => service.ServiceName == serviceName);
+            testService.ShouldNotBeNull($"{serviceName} does not exist as a service");
 
-            using (ServiceController controller = new ServiceController(TestServiceName))
+            using (ServiceController controller = new ServiceController(serviceName))
             {
-                controller.Start(new[] { ServiceNameArgument });
+                controller.Start(new[] { "--servicename=" + serviceName });
                 controller.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));
                 controller.Status.ShouldEqual(ServiceControllerStatus.Running);
             }
         }
 
-        private static void StopWindowsService()
+        private static void StopWindowsService(string serviceName)
         {
             try
             {
-                ServiceController testService = ServiceController.GetServices().SingleOrDefault(service => service.ServiceName == TestServiceName);
+                ServiceController testService = ServiceController.GetServices().SingleOrDefault(service => service.ServiceName == serviceName);
                 if (testService != null)
                 {
                     if (testService.Status == ServiceControllerStatus.Running)

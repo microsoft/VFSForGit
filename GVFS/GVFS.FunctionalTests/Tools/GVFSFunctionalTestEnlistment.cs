@@ -20,12 +20,20 @@ namespace GVFS.FunctionalTests.Tools
         private static readonly string ZeroBackgroundOperations = "Background operations: 0" + Environment.NewLine;
 
         private GVFSProcess gvfsProcess;
+        private readonly string serviceName;
 
-        private GVFSFunctionalTestEnlistment(string pathToGVFS, string enlistmentRoot, string repoUrl, string commitish, string localCacheRoot = null)
+        private GVFSFunctionalTestEnlistment(
+            string pathToGVFS,
+            string enlistmentRoot,
+            string repoUrl,
+            string commitish,
+            string localCacheRoot = null,
+            string serviceName = null)
         {
             this.EnlistmentRoot = enlistmentRoot;
             this.RepoUrl = repoUrl;
             this.Commitish = commitish;
+            this.serviceName = serviceName;
 
             if (localCacheRoot == null)
             {
@@ -43,7 +51,7 @@ namespace GVFS.FunctionalTests.Tools
             }
 
             this.LocalCacheRoot = localCacheRoot;
-            this.gvfsProcess = new GVFSProcess(pathToGVFS, this.EnlistmentRoot, this.LocalCacheRoot);
+            this.gvfsProcess = new GVFSProcess(pathToGVFS, this.EnlistmentRoot, this.LocalCacheRoot, this.serviceName);
         }
 
         public string EnlistmentRoot
@@ -57,6 +65,7 @@ namespace GVFS.FunctionalTests.Tools
         }
 
         public string LocalCacheRoot { get; }
+        public string ServiceName => this.serviceName;
 
         public string RepoBackingRoot
         {
@@ -102,24 +111,25 @@ namespace GVFS.FunctionalTests.Tools
         {
             string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
             string localCache = GVFSFunctionalTestEnlistment.GetRepoSpecificLocalCacheRoot(enlistmentRoot);
-            return CloneAndMount(pathToGvfs, enlistmentRoot, null, localCache, skipPrefetch);
+            return CloneAndMount(pathToGvfs, enlistmentRoot, null, localCache, skipPrefetch, serviceName: null);
         }
 
         public static GVFSFunctionalTestEnlistment CloneAndMount(
             string pathToGvfs,
             string commitish = null,
             string localCacheRoot = null,
-            bool skipPrefetch = false)
+            bool skipPrefetch = false,
+            string serviceName = null)
         {
             string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
-            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCacheRoot, skipPrefetch);
+            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCacheRoot, skipPrefetch, serviceName);
         }
 
-        public static GVFSFunctionalTestEnlistment CloneAndMountEnlistmentWithSpacesInPath(string pathToGvfs, string commitish = null)
+        public static GVFSFunctionalTestEnlistment CloneAndMountEnlistmentWithSpacesInPath(string pathToGvfs, string commitish = null, string serviceName = null)
         {
             string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRootWithSpaces();
             string localCache = GVFSFunctionalTestEnlistment.GetRepoSpecificLocalCacheRoot(enlistmentRoot);
-            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCache);
+            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCache, skipPrefetch: false, serviceName: serviceName);
         }
 
         public static string GetUniqueEnlistmentRoot()
@@ -387,14 +397,21 @@ namespace GVFS.FunctionalTests.Tools
                 objectHash.Substring(2));
         }
 
-        private static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string enlistmentRoot, string commitish, string localCacheRoot, bool skipPrefetch = false)
+        private static GVFSFunctionalTestEnlistment CloneAndMount(
+            string pathToGvfs,
+            string enlistmentRoot,
+            string commitish,
+            string localCacheRoot,
+            bool skipPrefetch = false,
+            string serviceName = null)
         {
             GVFSFunctionalTestEnlistment enlistment = new GVFSFunctionalTestEnlistment(
                 pathToGvfs,
                 enlistmentRoot ?? GetUniqueEnlistmentRoot(),
                 GVFSTestConfig.RepoToClone,
                 commitish ?? Properties.Settings.Default.Commitish,
-                localCacheRoot ?? GVFSTestConfig.LocalCacheRoot);
+                localCacheRoot ?? GVFSTestConfig.LocalCacheRoot,
+                serviceName);
 
             try
             {
