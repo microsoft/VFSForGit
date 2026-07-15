@@ -98,6 +98,75 @@ namespace GVFS.UnitTests.Windows.Virtualization
         }
 
         [TestCase]
+        public void DeleteFileReturnsIOErrorWhenVirtualizationInstanceThrows()
+        {
+            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
+            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
+            {
+                // A native ProjFS failure (for example a NullReferenceException surfaced from
+                // projectedfslib.dll under memory pressure) must fail this single delete rather than
+                // propagate out and crash the mount.
+                mockVirtualization.DeleteFileException = new NullReferenceException("simulated native ProjFS failure");
+
+                UpdateFailureReason failureReason = UpdateFailureReason.DirtyData;
+                virtualizer
+                    .DeleteFile("test.txt", UpdatePlaceholderType.AllowReadOnly, out failureReason)
+                    .ShouldEqual(new FileSystemResult(FSResult.IOError, (int)HResult.InternalError));
+                failureReason.ShouldEqual(UpdateFailureReason.NoFailure);
+            }
+        }
+
+        [TestCase]
+        public void OutboundProjFSOperationsReturnFailureWhenVirtualizationInstanceThrows()
+        {
+            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
+            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
+            {
+                // Every GVFS-initiated native ProjFS operation must fail the single call rather than
+                // propagate a native exception (e.g. a NullReferenceException from projectedfslib.dll
+                // under memory pressure) and crash the mount.
+                mockVirtualization.NativeCallException = new NullReferenceException("simulated native ProjFS failure");
+
+                virtualizer
+                    .ClearNegativePathCache(out uint _)
+                    .ShouldEqual(new FileSystemResult(FSResult.IOError, (int)HResult.InternalError));
+
+                UpdateFailureReason failureReason = UpdateFailureReason.DirtyData;
+                virtualizer
+                    .UpdatePlaceholderIfNeeded(
+                        "test.txt",
+                        DateTime.Now,
+                        DateTime.Now,
+                        DateTime.Now,
+                        DateTime.Now,
+                        0,
+                        15,
+                        string.Empty,
+                        UpdatePlaceholderType.AllowReadOnly,
+                        out failureReason)
+                    .ShouldEqual(new FileSystemResult(FSResult.IOError, (int)HResult.InternalError));
+                failureReason.ShouldEqual(UpdateFailureReason.NoFailure);
+            }
+        }
+
+        [TestCase]
+        public void WritePlaceholderOperationsReturnFailureWhenVirtualizationInstanceThrows()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.MockVirtualization.NativeCallException = new NullReferenceException("simulated native ProjFS failure");
+
+                tester.WindowsVirtualizer
+                    .WritePlaceholderFile("test.txt", endOfFile: 15, sha: new string('0', 40))
+                    .ShouldEqual(new FileSystemResult(FSResult.IOError, (int)HResult.InternalError));
+
+                tester.WindowsVirtualizer
+                    .WritePlaceholderDirectory("testDir")
+                    .ShouldEqual(new FileSystemResult(FSResult.IOError, (int)HResult.InternalError));
+            }
+        }
+
+        [TestCase]
         public void UpdatePlaceholderIfNeeded()
         {
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
@@ -547,6 +616,34 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 result.ShouldEqual(tester.MockVirtualization.WriteFileReturnResult);
                 MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
                 mockTracker.RelatedErrorEvents.ShouldBeEmpty();
+            }
+        }
+
+        [TestCase]
+        public void OnStartDirectoryEnumerationCleansUpEnumerationWhenNativeCompletionFails()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.WaitRelatedEventName = "StartDirectoryEnumerationAsyncHandler_CommandNotCompleted";
+
+                // Simulate the native ProjFS completion faulting under memory pressure. TryInvokeProjFS
+                // must swallow the exception so the mount survives, and because ProjFS never accepted the
+                // completion no EndDirectoryEnumeration callback will arrive. The enumeration registered by
+                // the async handler must therefore be removed here rather than leaked.
+                tester.MockVirtualization.CompleteCommandException = new NullReferenceException("simulated native ProjFS failure");
+
+                Guid enumerationGuid = Guid.NewGuid();
+                tester.GitIndexProjection.EnumerationInMemory = false;
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
+
+                // Deterministically wait for the async handler to reach its cleanup path (the enumeration is
+                // removed immediately before this event is emitted). If the native failure were reported as a
+                // successful completion, this event would never fire.
+                mockTracker.WaitForRelatedEvent();
+
+                // The enumeration must already have been removed, so End cannot find it.
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.InternalError);
             }
         }
     }

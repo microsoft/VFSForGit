@@ -283,14 +283,21 @@ namespace GVFS.Platform.Windows
 
         public override FileSystemResult ClearNegativePathCache(out uint totalEntryCount)
         {
-            HResult result = this.virtualizationInstance.ClearNegativePathCache(out totalEntryCount);
+            uint entryCount = 0;
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.ClearNegativePathCache(out entryCount),
+                nameof(this.ClearNegativePathCache));
+            totalEntryCount = entryCount;
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
 
         public override FileSystemResult DeleteFile(string relativePath, UpdatePlaceholderType updateFlags, out UpdateFailureReason failureReason)
         {
             UpdateFailureCause failureCause = UpdateFailureCause.NoFailure;
-            HResult result = this.virtualizationInstance.DeleteFile(relativePath, (UpdateType)updateFlags, out failureCause);
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.DeleteFile(relativePath, (UpdateType)updateFlags, out failureCause),
+                nameof(this.DeleteFile),
+                relativePath);
             failureReason = (UpdateFailureReason)failureCause;
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
@@ -301,17 +308,20 @@ namespace GVFS.Platform.Windows
             string sha)
         {
             FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
-            HResult result = this.virtualizationInstance.WritePlaceholderInfo(
-                relativePath,
-                properties.CreationTimeUTC,
-                properties.LastAccessTimeUTC,
-                properties.LastWriteTimeUTC,
-                changeTime: properties.LastWriteTimeUTC,
-                fileAttributes: FileAttributes.Archive,
-                endOfFile: endOfFile,
-                isDirectory: false,
-                contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
-                providerId: PlaceholderVersionId);
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.WritePlaceholderInfo(
+                    relativePath,
+                    properties.CreationTimeUTC,
+                    properties.LastAccessTimeUTC,
+                    properties.LastWriteTimeUTC,
+                    changeTime: properties.LastWriteTimeUTC,
+                    fileAttributes: FileAttributes.Archive,
+                    endOfFile: endOfFile,
+                    isDirectory: false,
+                    contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
+                    providerId: PlaceholderVersionId),
+                nameof(this.WritePlaceholderFile),
+                relativePath);
 
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
@@ -319,17 +329,20 @@ namespace GVFS.Platform.Windows
         public override FileSystemResult WritePlaceholderDirectory(string relativePath)
         {
             FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
-            HResult result = this.virtualizationInstance.WritePlaceholderInfo(
-                relativePath,
-                properties.CreationTimeUTC,
-                properties.LastAccessTimeUTC,
-                properties.LastWriteTimeUTC,
-                changeTime: properties.LastWriteTimeUTC,
-                fileAttributes: FileAttributes.Directory,
-                endOfFile: 0,
-                isDirectory: true,
-                contentId: FolderContentId,
-                providerId: PlaceholderVersionId);
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.WritePlaceholderInfo(
+                    relativePath,
+                    properties.CreationTimeUTC,
+                    properties.LastAccessTimeUTC,
+                    properties.LastWriteTimeUTC,
+                    changeTime: properties.LastWriteTimeUTC,
+                    fileAttributes: FileAttributes.Directory,
+                    endOfFile: 0,
+                    isDirectory: true,
+                    contentId: FolderContentId,
+                    providerId: PlaceholderVersionId),
+                nameof(this.WritePlaceholderDirectory),
+                relativePath);
 
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
@@ -347,18 +360,21 @@ namespace GVFS.Platform.Windows
             out UpdateFailureReason failureReason)
         {
             UpdateFailureCause failureCause = UpdateFailureCause.NoFailure;
-            HResult result = this.virtualizationInstance.UpdateFileIfNeeded(
-                relativePath,
-                creationTime,
-                lastAccessTime,
-                lastWriteTime,
-                changeTime,
-                fileAttributes,
-                endOfFile,
-                ConvertShaToContentId(shaContentId),
-                PlaceholderVersionId,
-                (UpdateType)updateFlags,
-                out failureCause);
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.UpdateFileIfNeeded(
+                    relativePath,
+                    creationTime,
+                    lastAccessTime,
+                    lastWriteTime,
+                    changeTime,
+                    fileAttributes,
+                    endOfFile,
+                    ConvertShaToContentId(shaContentId),
+                    PlaceholderVersionId,
+                    (UpdateType)updateFlags,
+                    out failureCause),
+                nameof(this.UpdatePlaceholderIfNeeded),
+                relativePath);
             failureReason = (UpdateFailureReason)failureCause;
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
@@ -820,11 +836,99 @@ namespace GVFS.Platform.Windows
             CancellationTokenSource cancellationSource;
             if (this.activeCommands.TryRemove(commandId, out cancellationSource))
             {
-                this.virtualizationInstance.CompleteCommand(commandId, result);
-                return true;
+                // Track whether the native completion actually ran. If CompleteCommand faults under
+                // memory pressure, TryInvokeProjFS swallows the exception so the mount survives, but
+                // ProjFS never accepted the completion and so will not drive the matching
+                // EndDirectoryEnumeration callback. In that case we must report the command as not
+                // completed so callers clean up any state they registered (for example the active
+                // enumeration) instead of leaking it.
+                bool completionHandedOffToProjFS = false;
+                this.TryInvokeProjFS(
+                    () =>
+                    {
+                        HResult completionResult = this.virtualizationInstance.CompleteCommand(commandId, result);
+                        completionHandedOffToProjFS = true;
+                        return completionResult;
+                    },
+                    nameof(this.TryCompleteCommand),
+                    addDetails: metadata =>
+                    {
+                        metadata.Add("commandId", commandId);
+                        metadata.Add("completionResult", result.ToString("X") + "(" + result.ToString("G") + ")");
+                    });
+
+                return completionHandedOffToProjFS;
             }
 
             return false;
+        }
+
+        private void AddMemoryPressureData(EventMetadata metadata)
+        {
+            metadata.Add("activeEnumerations", this.activeEnumerations.Count);
+            metadata.Add("activeCommands", this.activeCommands.Count);
+            metadata.Add("gcTotalMemoryBytes", GC.GetTotalMemory(forceFullCollection: false));
+        }
+
+        /// <summary>
+        /// Invokes a GVFS-initiated native ProjFS operation, converting a native failure into a
+        /// failed <see cref="HResult"/> instead of a process crash.
+        /// </summary>
+        /// <remarks>
+        /// A native ProjFS call can fault under memory pressure (for example a NullReferenceException
+        /// surfaced from projectedfslib.dll). If that exception escaped, it would tear down
+        /// GVFS.Mount, orphaning the virtualization root and causing every subsequent placeholder
+        /// access to fail with STATUS_FILE_SYSTEM_VIRTUALIZATION_UNAVAILABLE (0xC000CE01). Callers
+        /// map the returned non-Ok HResult to a failure result and continue serving the mount.
+        ///
+        /// This is used for outbound operations that are safe to fail individually. Operations that
+        /// mutate projection state use <see cref="InvokeProjFSOrThrow"/> instead, which logs the same
+        /// telemetry but rethrows. Callback completions funnel through <see cref="TryCompleteCommand"/>
+        /// (which uses this guard); the file-stream handler already fails a single hydration on any
+        /// exception.
+        /// </remarks>
+        private HResult TryInvokeProjFS(Func<HResult> nativeCall, string operationName, string relativePath = null, Action<EventMetadata> addDetails = null)
+        {
+            try
+            {
+                return nativeCall();
+            }
+            catch (Exception e)
+            {
+                this.LogProjFSNativeFailure(operationName, e, relativePath, addDetails);
+                return HResult.InternalError;
+            }
+        }
+
+        /// <summary>
+        /// Invokes a GVFS-initiated native ProjFS operation for which swallowing a failure is unsafe
+        /// (for example because it mutates projection state). Emits the same high-signal
+        /// <c>*_NativeFailure</c> telemetry as <see cref="TryInvokeProjFS"/> for the memory-pressure
+        /// diagnostics, then rethrows so the mount fails fast rather than continuing in an
+        /// inconsistent state.
+        /// </summary>
+        private HResult InvokeProjFSOrThrow(Func<HResult> nativeCall, string operationName, string relativePath = null, Action<EventMetadata> addDetails = null)
+        {
+            try
+            {
+                return nativeCall();
+            }
+            catch (Exception e)
+            {
+                this.LogProjFSNativeFailure(operationName, e, relativePath, addDetails);
+                throw;
+            }
+        }
+
+        private void LogProjFSNativeFailure(string operationName, Exception e, string relativePath, Action<EventMetadata> addDetails)
+        {
+            EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
+            addDetails?.Invoke(metadata);
+            this.AddMemoryPressureData(metadata);
+            metadata.Add(
+                TracingConstants.MessageKey.ErrorMessage,
+                operationName + ": native ProjFS call threw under suspected memory pressure");
+            this.Context.Tracer.RelatedError(metadata, operationName + "_NativeFailure", Keywords.Telemetry);
         }
 
         private void StartDirectoryEnumerationAsyncHandler(
@@ -888,10 +992,12 @@ namespace GVFS.Platform.Windows
 
             if (!this.TryCompleteCommand(commandId, result))
             {
-                // Command has already been canceled, and no EndDirectoryEnumeration callback will be received
+                // Either the command was already canceled or the native completion failed under
+                // memory pressure; in both cases no EndDirectoryEnumeration callback will arrive, so
+                // remove the enumeration we just registered rather than leaking it.
 
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}: TryCompleteCommand returned false, command already canceled");
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}: TryCompleteCommand returned false; command canceled or native completion failed");
                 metadata.Add("commandId", commandId);
                 metadata.Add("enumerationId", enumerationId);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
@@ -899,7 +1005,7 @@ namespace GVFS.Platform.Windows
                 ActiveEnumeration activeEnumeration;
                 bool activeEnumerationsUpdated = this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration);
                 metadata.Add("activeEnumerationsUpdated", activeEnumerationsUpdated);
-                this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}_CommandAlreadyCanceled", metadata);
+                this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}_CommandNotCompleted", metadata);
             }
         }
 
@@ -1238,10 +1344,13 @@ namespace GVFS.Platform.Windows
             string triggeringProcessImageFileName)
         {
             string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
-            HResult hr = this.virtualizationInstance.MarkDirectoryAsPlaceholder(
-                directoryPath,
-                FolderContentId,
-                PlaceholderVersionId);
+            HResult hr = this.InvokeProjFSOrThrow(
+                () => this.virtualizationInstance.MarkDirectoryAsPlaceholder(
+                    directoryPath,
+                    FolderContentId,
+                    PlaceholderVersionId),
+                nameof(this.MarkDirectoryAsPlaceholder),
+                virtualPath);
 
             if (hr == HResult.Ok)
             {

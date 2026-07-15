@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Virtualization.Projection;
 using Microsoft.Windows.ProjFS;
 using System;
