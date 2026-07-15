@@ -59,6 +59,9 @@ namespace GVFS.Common
              * When true, auth runs in the background so mount is not delayed. */
             public const string BackgroundCacheAuth = GVFSPrefix + "background-cache-auth";
             public const bool BackgroundCacheAuthDefault = false;
+
+            public const string PrefetchOffload = GVFSPrefix + "prefetch-offload";
+            public const bool PrefetchOffloadDefault = false;
         }
 
         public static class LocalGVFSConfig
