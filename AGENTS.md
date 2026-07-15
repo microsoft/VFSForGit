@@ -166,6 +166,39 @@ Do not manually delete or re-run vcpkg unless you've changed an overlay
 port. If you've copied `out\` from another enlistment as a build-time
 shortcut, vcpkg results come along with it.
 
+## What ships in a public release
+
+The signed release pipeline builds several artifacts, but the **public GitHub
+release only carries the installer and symbols**: `SetupGVFS.<version>.exe`
+(per arch) and `Symbols.zip`.
+
+- **FastFetch is NOT shipped publicly.** `FastFetch.exe` is built and
+  ESRP-signed as a pipeline artifact, but it is not attached to the GitHub
+  release. Treat FastFetch-only changes as **non-shipping** when scoping a
+  release or writing changelog notes — they don't reach the installer end
+  users get.
+- **Git is NOT bundled.** VFS for Git does not ship Microsoft Git. PRs titled
+  "update default Microsoft Git version" change only the CI `GIT_VERSION` in
+  `.github/workflows/build.yaml` (used to install Git for build + functional
+  test runs) — they are **non-shipping**. The only shipped Git constraint is
+  the compiled `MinimumGitVersion` constant in `Version.props`, which is
+  changed separately and rarely.
+
+## Feature flags
+
+Product feature flags are **git config** keys under the `gvfs.` prefix (not a
+separate config system). To add one, mirror `gvfs.show-hydration-status`:
+
+- Declare the key name and default in `GVFS.Common/GVFSConstants.cs` under
+  `GitConfig` (e.g. `ShowHydrationStatus = GVFSPrefix + "show-hydration-status"`
+  and `ShowHydrationStatusDefault = false`).
+- Read it via `repo.GetConfigBoolOrDefault(name, default)` (or
+  `LibGit2RepoInvoker.GetConfigBoolOrDefault`) at the point of use.
+
+Default new gates to `false` and gate the **runtime entry point** into a
+feature, not its build, so the code still compiles and ships (and keeps
+getting exercised) while its behavior stays off by default.
+
 ## Coding standards
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for StyleCop rules, error-handling
