@@ -152,7 +152,7 @@ namespace GVFS.CommandLine
 
                 CacheServerInfo cacheServer = null;
                 ServerGVFSConfig serverGVFSConfig = null;
-                bool trustPackIndexes;
+                bool trustPackIndexes = GVFSConstants.GitConfig.TrustPackIndexesDefault;
 
                 using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
@@ -248,12 +248,14 @@ namespace GVFS.CommandLine
                     {
                         tracer.RelatedError(cloneResult.ErrorMessage);
                     }
-
-                    trustPackIndexes = LibGit2RepoExtensions.GetConfigBoolOrDefault(
-                        tracer,
-                        enlistment.WorkingDirectoryBackingRoot,
-                        GVFSConstants.GitConfig.TrustPackIndexes,
-                        GVFSConstants.GitConfig.TrustPackIndexesDefault);
+                    else
+                    {
+                        trustPackIndexes = LibGit2Repo.GetConfigBoolOrDefault(
+                            tracer,
+                            enlistment.WorkingDirectoryBackingRoot,
+                            GVFSConstants.GitConfig.TrustPackIndexes,
+                            GVFSConstants.GitConfig.TrustPackIndexesDefault);
+                    }
                 }
 
                 if (cloneResult.Success)

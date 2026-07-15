@@ -7,16 +7,16 @@ using System.IO;
 namespace GVFS.UnitTests.Common
 {
     [TestFixture]
-    public class LibGit2RepoExtensionsTests
+    public class LibGit2RepoConfigLookupTests
     {
         [TestCase]
         public void GetConfigBoolOrDefaultOnRepoReturnsConfiguredValue()
         {
             MockTracer tracer = new MockTracer();
 
-            using (MockConfigRepo repo = new MockConfigRepo(true))
+            using (MockConfigRepo repo = new MockConfigRepo(tracer, true))
             {
-                bool value = repo.GetConfigBoolOrDefault(tracer, "gvfs.test", false);
+                bool value = repo.GetConfigBoolOrDefault("gvfs.test", false);
 
                 value.ShouldEqual(true);
                 tracer.RelatedWarningEvents.Count.ShouldEqual(0);
@@ -28,9 +28,9 @@ namespace GVFS.UnitTests.Common
         {
             MockTracer tracer = new MockTracer();
 
-            using (MockConfigRepo repo = new MockConfigRepo(new LibGit2Exception("boom")))
+            using (MockConfigRepo repo = new MockConfigRepo(tracer, new LibGit2Exception("boom")))
             {
-                bool value = repo.GetConfigBoolOrDefault(tracer, "gvfs.test", false);
+                bool value = repo.GetConfigBoolOrDefault("gvfs.test", false);
 
                 value.ShouldEqual(false);
                 tracer.RelatedWarningEvents.Count.ShouldEqual(1);
@@ -43,7 +43,7 @@ namespace GVFS.UnitTests.Common
         {
             MockTracer tracer = new MockTracer();
 
-            bool value = LibGit2RepoExtensions.GetConfigBoolOrDefault(
+            bool value = LibGit2Repo.GetConfigBoolOrDefault(
                 tracer,
                 Path.Combine("Z:\\", "path", "that", "does", "not", "exist"),
                 "gvfs.test",
@@ -59,14 +59,14 @@ namespace GVFS.UnitTests.Common
             private readonly bool? value;
             private readonly System.Exception exceptionToThrow;
 
-            public MockConfigRepo(bool? value)
-                : base()
+            public MockConfigRepo(MockTracer tracer, bool? value)
+                : base(tracer)
             {
                 this.value = value;
             }
 
-            public MockConfigRepo(System.Exception exceptionToThrow)
-                : base()
+            public MockConfigRepo(MockTracer tracer, System.Exception exceptionToThrow)
+                : base(tracer)
             {
                 this.exceptionToThrow = exceptionToThrow;
             }

@@ -700,7 +700,7 @@ namespace GVFS.CommandLine
 
         private bool IsPrefetchOffloadEnabled(ITracer tracer, GVFSEnlistment enlistment)
         {
-            return LibGit2RepoExtensions.GetConfigBoolOrDefault(
+            return LibGit2Repo.GetConfigBoolOrDefault(
                 tracer,
                 enlistment.WorkingDirectoryBackingRoot,
                 GVFSConstants.GitConfig.PrefetchOffload,

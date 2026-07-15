@@ -475,7 +475,7 @@ namespace GVFS.Mount
 
         private bool IsBackgroundCacheAuthEnabled()
         {
-            return LibGit2RepoExtensions.GetConfigBoolOrDefault(
+            return LibGit2Repo.GetConfigBoolOrDefault(
                 this.tracer,
                 this.enlistment.WorkingDirectoryBackingRoot,
                 GVFSConstants.GitConfig.BackgroundCacheAuth,

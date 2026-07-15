@@ -26,9 +26,6 @@
     <Compile Include="..\GVFS.Common\Git\LibGit2Repo.cs">
       <Link>Common\Git\LibGit2Repo.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.Common\Git\LibGit2RepoExtensions.cs">
-      <Link>Common\Git\LibGit2RepoExtensions.cs</Link>
-    </Compile>
     <Compile Include="..\GVFS.Common\Git\LibGit2RepoInvoker.cs">
       <Link>Common\Git\LibGit2RepoInvoker.cs</Link>
     </Compile>

@@ -171,7 +171,7 @@ namespace GVFS.Hooks
 
         private static bool ConfigurationAllowsHydrationStatus()
         {
-            return LibGit2RepoExtensions.GetConfigBoolOrDefault(
+            return LibGit2Repo.GetConfigBoolOrDefault(
                 NullTracer.Instance,
                 normalizedCurrentDirectory,
                 GVFSConstants.GitConfig.ShowHydrationStatus,
