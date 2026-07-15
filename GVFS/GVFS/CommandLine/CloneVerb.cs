@@ -249,10 +249,11 @@ namespace GVFS.CommandLine
                         tracer.RelatedError(cloneResult.ErrorMessage);
                     }
 
-                    using (var repo = new LibGit2RepoInvoker(tracer, enlistment.WorkingDirectoryBackingRoot))
-                    {
-                        trustPackIndexes = repo.GetConfigBoolOrDefault(GVFSConstants.GitConfig.TrustPackIndexes, GVFSConstants.GitConfig.TrustPackIndexesDefault);
-                    }
+                    trustPackIndexes = LibGit2RepoExtensions.GetConfigBoolOrDefault(
+                        tracer,
+                        enlistment.WorkingDirectoryBackingRoot,
+                        GVFSConstants.GitConfig.TrustPackIndexes,
+                        GVFSConstants.GitConfig.TrustPackIndexesDefault);
                 }
 
                 if (cloneResult.Success)

@@ -475,27 +475,11 @@ namespace GVFS.Mount
 
         private bool IsBackgroundCacheAuthEnabled()
         {
-            // Read the flag via libgit2 (in-process) rather than spawning git.exe.
-            // The GVFSContext (and its shared libgit2 repo) is not created until
-            // later in mount, so open a short-lived repo here just for the config
-            // read. Default to off on any failure.
-            try
-            {
-                using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot))
-                {
-                    return repo.GetConfigBool(GVFSConstants.GitConfig.BackgroundCacheAuth)
-                        ?? GVFSConstants.GitConfig.BackgroundCacheAuthDefault;
-                }
-            }
-            catch (Exception e)
-            {
-                this.tracer.RelatedWarning(
-                    "Failed to read {0} config, defaulting to {1}: {2}",
-                    GVFSConstants.GitConfig.BackgroundCacheAuth,
-                    GVFSConstants.GitConfig.BackgroundCacheAuthDefault,
-                    e.Message);
-                return GVFSConstants.GitConfig.BackgroundCacheAuthDefault;
-            }
+            return LibGit2RepoExtensions.GetConfigBoolOrDefault(
+                this.tracer,
+                this.enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.GitConfig.BackgroundCacheAuth,
+                GVFSConstants.GitConfig.BackgroundCacheAuthDefault);
         }
 
         private void ValidateMountPoints()
