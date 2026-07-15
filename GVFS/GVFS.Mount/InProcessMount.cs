@@ -58,6 +58,12 @@ namespace GVFS.Mount
 
         private volatile MountState currentState;
         private volatile string mountProgressMessage;
+
+        // When false (default), the mount process does not surface progress phase
+        // strings over the named pipe, so the CLI falls back to its static spinner.
+        // This gates only the display layer; the early-pipe reliability infrastructure
+        // (early pipe start, HandleRequest Mounting guard, null-safe GetStatus) is unaffected.
+        private bool reportMountProgress;
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
@@ -240,6 +246,11 @@ namespace GVFS.Mount
                 });
 
             this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
+
+            // Read the display-layer flag once before the pipe opens so the very first
+            // GetStatus request is served consistently. Only gates the progress strings;
+            // the pipe still starts early regardless (reliability infrastructure).
+            this.reportMountProgress = this.ShouldReportMountProgress();
 
             // Start the pipe server early so MountVerb can connect and poll progress
             // during the parallel validation phase. Only GetStatus requests are
@@ -614,6 +625,27 @@ namespace GVFS.Mount
             {
                 this.FailMountAndExit("Failed to create mount point. Mount path exceeds the maximum number of allowed characters");
                 return null;
+            }
+        }
+
+        private bool ShouldReportMountProgress()
+        {
+            // Read via a transient LibGit2Repo rather than the context's shared
+            // LibGit2RepoInvoker: the invoker isn't created until CreateContext (after the
+            // pipe starts), and its constructor force-loads the object store, which we must
+            // not do on the pre-pipe critical path. A raw LibGit2Repo opens only the repo
+            // handle + config (no object store) and gives native git-bool parsing.
+            try
+            {
+                using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot))
+                {
+                    return repo.GetConfigBool(GVFSConstants.GitConfig.MountProgress) ?? GVFSConstants.GitConfig.MountProgressDefault;
+                }
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedWarning($"Failed to read {GVFSConstants.GitConfig.MountProgress} config, using default: {e.Message}");
+                return GVFSConstants.GitConfig.MountProgressDefault;
             }
         }
 
@@ -1414,7 +1446,11 @@ namespace GVFS.Mount
             {
                 case MountState.Mounting:
                     response.MountStatus = NamedPipeMessages.GetStatus.Mounting;
-                    response.MountProgress = this.mountProgressMessage;
+                    if (this.reportMountProgress)
+                    {
+                        response.MountProgress = this.mountProgressMessage;
+                    }
+
                     break;
 
                 case MountState.Ready:

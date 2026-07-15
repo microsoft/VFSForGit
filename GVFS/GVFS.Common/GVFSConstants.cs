@@ -48,6 +48,14 @@ namespace GVFS.Common
             public const string ShowHydrationStatus = GVFSPrefix + "show-hydration-status";
             public const bool ShowHydrationStatusDefault = false;
 
+            /* Gates the CLI mount-progress display layer (progress phase strings surfaced
+             * over the named pipe during `gvfs mount`). Disabled by default so stabilization
+             * builds keep the reliability-relevant early-pipe infrastructure without shipping
+             * the newer progress-display behavior. The early pipe, HandleRequest Mounting
+             * guard, volatile currentState, and null-safe GetStatus are always on regardless. */
+            public const string MountProgress = GVFSPrefix + "mount-progress";
+            public const bool MountProgressDefault = false;
+
             public const string MaxHttpConnectionsConfig = GVFSPrefix + "max-http-connections";
 
             public const string PrefetchUseIdx = GVFSPrefix + "prefetch-use-idx";
