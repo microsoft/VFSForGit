@@ -73,6 +73,31 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase]
+        public void CloneWithNonExistentBranchFailsWithBranchError()
+        {
+            string newEnlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+
+            ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);
+            processInfo.Arguments = $"clone {GVFSTestConfig.RepoToClone} {newEnlistmentRoot} --branch nonexistent/branch/that/does/not/exist";
+            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            processInfo.CreateNoWindow = true;
+            processInfo.WorkingDirectory = Path.GetDirectoryName(this.Enlistment.EnlistmentRoot);
+            processInfo.UseShellExecute = false;
+            processInfo.RedirectStandardOutput = true;
+
+            ProcessResult result = ProcessHelper.Run(processInfo);
+            result.ExitCode.ShouldEqual(GVFSGenericError);
+
+            // The clone should surface the real, actionable failure...
+            result.Output.ShouldContain("Remote branch nonexistent/branch/that/does/not/exist not found in upstream origin");
+
+            // ...and NOT the misleading downstream exception that used to be thrown when
+            // a LibGit2RepoInvoker was constructed against a src folder that was never created.
+            result.Output.ShouldNotContain(false, "Couldn't open repo");
+            result.Output.ShouldNotContain(false, "InvalidDataException");
+        }
+
         private void SubfolderCloneShouldFail()
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);

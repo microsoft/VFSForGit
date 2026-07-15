@@ -152,7 +152,7 @@ namespace GVFS.CommandLine
 
                 CacheServerInfo cacheServer = null;
                 ServerGVFSConfig serverGVFSConfig = null;
-                bool trustPackIndexes;
+                bool trustPackIndexes = false;
 
                 using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
@@ -248,10 +248,17 @@ namespace GVFS.CommandLine
                     {
                         tracer.RelatedError(cloneResult.ErrorMessage);
                     }
-
-                    using (var repo = new LibGit2RepoInvoker(tracer, enlistment.WorkingDirectoryBackingRoot))
+                    else
                     {
-                        trustPackIndexes = repo.GetConfigBoolOrDefault(GVFSConstants.GitConfig.TrustPackIndexes, GVFSConstants.GitConfig.TrustPackIndexesDefault);
+                        // Only inspect the freshly-cloned repo when the clone succeeded. On a failed
+                        // clone the 'src' working directory was never created, so constructing a
+                        // LibGit2RepoInvoker here would log a misleading "Couldn't open repo" warning
+                        // and throw an InvalidDataException that masks the real failure (e.g. the
+                        // "Remote branch ... not found in upstream origin" error surfaced below).
+                        using (var repo = new LibGit2RepoInvoker(tracer, enlistment.WorkingDirectoryBackingRoot))
+                        {
+                            trustPackIndexes = repo.GetConfigBoolOrDefault(GVFSConstants.GitConfig.TrustPackIndexes, GVFSConstants.GitConfig.TrustPackIndexesDefault);
+                        }
                     }
                 }
 
