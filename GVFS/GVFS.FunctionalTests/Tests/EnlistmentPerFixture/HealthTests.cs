@@ -160,6 +160,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             List<int> directoryHydrationLevels,
             string enlistmentHealthStatus)
         {
+            this.Enlistment.WaitForBackgroundOperations();
             string rawOutput = this.Enlistment.Health(directory);
             List<string> healthOutputLines = new List<string>(rawOutput.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
 

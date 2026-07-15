@@ -29,6 +29,7 @@ namespace GVFS.Common
             public const string MaxRetriesConfig = GVFSPrefix + "max-retries";
             public const string TimeoutSecondsConfig = GVFSPrefix + "timeout-seconds";
             public const string GitStatusCacheBackoffConfig = GVFSPrefix + "status-cache-backoff-seconds";
+            public const string MaxActiveEnumerationsConfig = GVFSPrefix + "max-active-enumerations";
             public const string MountId = GVFSPrefix + "mount-id";
             public const string EnlistmentId = GVFSPrefix + "enlistment-id";
             public const string CacheServer = GVFSPrefix + "cache-server";
@@ -47,18 +48,32 @@ namespace GVFS.Common
             public const string ShowHydrationStatus = GVFSPrefix + "show-hydration-status";
             public const bool ShowHydrationStatusDefault = false;
 
+            /* Gates the CLI mount-progress display layer (progress phase strings surfaced
+             * over the named pipe during `gvfs mount`). Disabled by default so stabilization
+             * builds keep the reliability-relevant early-pipe infrastructure without shipping
+             * the newer progress-display behavior. The early pipe, HandleRequest Mounting
+             * guard, volatile currentState, and null-safe GetStatus are always on regardless. */
+            public const string MountProgress = GVFSPrefix + "mount-progress";
+            public const bool MountProgressDefault = false;
+
             public const string MaxHttpConnectionsConfig = GVFSPrefix + "max-http-connections";
 
             public const string PrefetchUseIdx = GVFSPrefix + "prefetch-use-idx";
             public const bool PrefetchUseIdxDefault = false;
+
+            /* Gates the background (fire-and-forget) auth + /gvfs/config behavior on
+             * mount when a cache server is configured locally. When false (default),
+             * mount blocks on auth/config synchronously before starting virtualization.
+             * When true, auth runs in the background so mount is not delayed. */
+            public const string BackgroundCacheAuth = GVFSPrefix + "background-cache-auth";
+            public const bool BackgroundCacheAuthDefault = false;
+
+            public const string PrefetchOffload = GVFSPrefix + "prefetch-offload";
+            public const bool PrefetchOffloadDefault = false;
         }
 
         public static class LocalGVFSConfig
         {
-            public const string UpgradeRing = "upgrade.ring";
-            public const string UpgradeFeedPackageName = "upgrade.feedpackagename";
-            public const string UpgradeFeedUrl = "upgrade.feedurl";
-            public const string OrgInfoServerUrl = "upgrade.orgInfoServerUrl";
             public const string USNJournalUpdates = "usn.updateDirectories";
         }
 
@@ -267,18 +282,6 @@ namespace GVFS.Common
             {
                 public const string SkipLock = "skip-wait-for-lock";
             }
-        }
-
-        public static class UpgradeVerbMessages
-        {
-            public const string GVFSUpgrade = "`gvfs upgrade`";
-            public const string GVFSUpgradeDryRun = "`gvfs upgrade --dry-run`";
-            public const string NoUpgradeCheckPerformed = "No upgrade check was performed.";
-            public const string NoneRingConsoleAlert = "Upgrade ring set to \"None\". " + NoUpgradeCheckPerformed;
-            public const string NoRingConfigConsoleAlert = "Upgrade ring is not set. " + NoUpgradeCheckPerformed;
-            public const string InvalidRingConsoleAlert = "Upgrade ring set to unknown value. " + NoUpgradeCheckPerformed;
-            public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `gvfs config " + LocalGVFSConfig.UpgradeRing + " [\"Fast\"|\"Slow\"|\"None\"]` from a command prompt.";
-            public const string UnmountRepoWarning = "Upgrade will unmount and remount gvfs repos, ensure you are at a stopping point.";
         }
     }
 }

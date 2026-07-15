@@ -23,6 +23,10 @@ namespace GVFS.CommandLine
 
         private const string StatusVerbName = "status";
 
+        // Prefix used when writing the mount status line to output. ServiceVerb parses
+        // this to recover a repo's MountState without re-implementing the pipe protocol.
+        public const string MountStatusOutputPrefix = "Mount status: ";
+
         protected override string VerbName
         {
             get { return StatusVerbName; }
@@ -47,7 +51,7 @@ namespace GVFS.CommandLine
                     this.Output.WriteLine("Repo URL: " + getStatusResponse.RepoUrl);
                     this.Output.WriteLine("Cache Server: " + getStatusResponse.CacheServer);
                     this.Output.WriteLine("Local Cache: " + getStatusResponse.LocalCacheRoot);
-                    this.Output.WriteLine("Mount status: " + getStatusResponse.MountStatus);
+                    this.Output.WriteLine(MountStatusOutputPrefix + getStatusResponse.MountStatus);
                     this.Output.WriteLine("GVFS Lock: " + getStatusResponse.LockStatus);
                     this.Output.WriteLine("Background operations: " + getStatusResponse.BackgroundOperationCount);
                     this.Output.WriteLine("Disk layout version: " + getStatusResponse.DiskLayoutVersion);

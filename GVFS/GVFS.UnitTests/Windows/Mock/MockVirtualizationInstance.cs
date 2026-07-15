@@ -62,6 +62,18 @@ namespace GVFS.UnitTests.Windows.Mock
         public HResult DeleteFileResult { get; set; }
         public UpdateFailureCause DeleteFileUpdateFailureCause { get; set; }
 
+        // When set, DeleteFile throws this to simulate a native ProjFS failure (e.g. a
+        // NullReferenceException surfaced from projectedfslib.dll under memory pressure).
+        public Exception DeleteFileException { get; set; }
+
+        // When set, the other GVFS-initiated native operations (ClearNegativePathCache,
+        // WritePlaceholderInfo, UpdateFileIfNeeded) throw this to simulate a native ProjFS failure.
+        public Exception NativeCallException { get; set; }
+
+        // When set, CompleteCommand throws this to simulate the native ProjFS completion faulting
+        // under memory pressure (e.g. a NullReferenceException surfaced from projectedfslib.dll).
+        public Exception CompleteCommandException { get; set; }
+
         public HResult UpdateFileIfNeededResult { get; set; }
         public UpdateFailureCause UpdateFileIfNeededFailureCase { get; set; }
 
@@ -82,6 +94,11 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public HResult ClearNegativePathCache(out uint totalEntryNumber)
         {
+            if (this.NativeCallException != null)
+            {
+                throw this.NativeCallException;
+            }
+
             totalEntryNumber = this.NegativePathCacheCount;
             this.NegativePathCacheCount = 0;
             return HResult.Ok;
@@ -89,12 +106,22 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public HResult DeleteFile(string relativePath, UpdateType updateFlags, out UpdateFailureCause failureReason)
         {
+            if (this.DeleteFileException != null)
+            {
+                throw this.DeleteFileException;
+            }
+
             failureReason = this.DeleteFileUpdateFailureCause;
             return this.DeleteFileResult;
         }
 
         public HResult UpdateFileIfNeeded(string relativePath, DateTime creationTime, DateTime lastAccessTime, DateTime lastWriteTime, DateTime changeTime, FileAttributes fileAttributes, long endOfFile, byte[] contentId, byte[] providerId, UpdateType updateFlags, out UpdateFailureCause failureReason)
         {
+            if (this.NativeCallException != null)
+            {
+                throw this.NativeCallException;
+            }
+
             failureReason = this.UpdateFileIfNeededFailureCase;
             return this.UpdateFileIfNeededResult;
         }
@@ -121,6 +148,11 @@ namespace GVFS.UnitTests.Windows.Mock
             byte[] contentId,
             byte[] epochId)
         {
+            if (this.NativeCallException != null)
+            {
+                throw this.NativeCallException;
+            }
+
             this.CreatedPlaceholders.Add(relativePath);
             this.placeholderCreated.Set();
             return HResult.Ok;
@@ -169,6 +201,11 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public HResult CompleteCommand(int commandId, HResult completionResult)
         {
+            if (this.CompleteCommandException != null)
+            {
+                throw this.CompleteCommandException;
+            }
+
             this.completionResult = completionResult;
             this.commandCompleted.Set();
             return HResult.Ok;

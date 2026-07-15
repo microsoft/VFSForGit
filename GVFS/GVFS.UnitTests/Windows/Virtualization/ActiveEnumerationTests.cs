@@ -46,6 +46,20 @@ namespace GVFS.UnitTests.Windows.Virtualization
         }
 
         [TestCase]
+        public void RecordActivityUpdatesLastActivityTime()
+        {
+            long beforeCreate = Environment.TickCount64;
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(new List<ProjectedFileInfo>());
+
+            // The constructor records initial activity.
+            (activeEnumeration.LastActivityTickCount >= beforeCreate).ShouldBeTrue();
+
+            long beforeRecord = Environment.TickCount64;
+            activeEnumeration.RecordActivity();
+            (activeEnumeration.LastActivityTickCount >= beforeRecord).ShouldBeTrue();
+        }
+
+        [TestCase]
         public void EnumerateSingleEntryList()
         {
             List<ProjectedFileInfo> entries = new List<ProjectedFileInfo>()

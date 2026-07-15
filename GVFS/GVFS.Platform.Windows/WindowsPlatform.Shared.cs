@@ -3,6 +3,7 @@ using Microsoft.Win32.SafeHandles;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 
 namespace GVFS.Platform.Windows
@@ -13,6 +14,9 @@ namespace GVFS.Platform.Windows
         public const string UpgradeConfirmMessage = "`gvfs upgrade --confirm`";
 
         private const int StillActive = 259; /* from Win32 STILL_ACTIVE */
+
+        private const int ErrorAccessDenied = 5;         /* ERROR_ACCESS_DENIED */
+        private const int ErrorInvalidParameter = 87;    /* ERROR_INVALID_PARAMETER */
 
         public static bool IsElevatedImplementation()
         {
@@ -54,15 +58,14 @@ namespace GVFS.Platform.Windows
         }
 
         /// <summary>
-        /// Returns true if a process with the given PID is currently active AND writes its
-        /// creation timestamp (raw FILETIME, 100-ns ticks since 1601) to <paramref name="startTime"/>.
-        /// The returned value is intended for identity comparison only -- two calls for the
-        /// same underlying process (no PID reuse) always yield equal values; if the OS recycles
-        /// a PID to a new process the value will differ. Returns false (and startTime = 0)
-        /// if the process is gone, has terminated (but its kernel object lingers due to an
-        /// outstanding handle elsewhere), or cannot be opened for QueryLimitedInformation.
+        /// Attempts to read a process's creation timestamp (raw FILETIME, 100-ns ticks since 1601)
+        /// for identity comparison. The value written to <paramref name="startTime"/> is only valid
+        /// when the return value is <see cref="ProcessStartTimeResult.Success"/>; two calls for the
+        /// same underlying process yield equal values, and a recycled PID yields a different value.
+        /// The failure values are deliberately distinct so that the orphan-lock detector can release
+        /// a lock only on positive evidence (see <see cref="ProcessStartTimeResult"/>).
         /// </summary>
-        public static bool TryGetActiveProcessStartTimeImplementation(int processId, out long startTime)
+        public static ProcessStartTimeResult TryGetActiveProcessStartTimeImplementation(int processId, out long startTime)
         {
             startTime = 0;
 
@@ -70,24 +73,52 @@ namespace GVFS.Platform.Windows
             {
                 if (process.IsInvalid)
                 {
-                    return false;
+                    // Classify the failure by the Win32 error so callers can distinguish "the holder
+                    // is gone" from "we could not tell". OpenProcess sets last error on failure and
+                    // the P/Invoke is declared SetLastError=true, so the value is preserved here.
+                    int error = Marshal.GetLastWin32Error();
+                    switch (error)
+                    {
+                        case ErrorInvalidParameter:
+                            // No process exists with this PID.
+                            return ProcessStartTimeResult.ProcessNotFound;
+
+                        case ErrorAccessDenied:
+                            // A process exists but we cannot open it. Because we only reach the
+                            // identity check for holders we successfully opened at acquire time,
+                            // and OpenProcess(QueryLimitedInformation) access is stable for a
+                            // process's lifetime, this means the PID now refers to a different
+                            // process than the original holder.
+                            return ProcessStartTimeResult.Inaccessible;
+
+                        default:
+                            // Transient/unclassified (e.g. ERROR_NOT_ENOUGH_MEMORY). We do not know
+                            // whether the original holder is alive.
+                            return ProcessStartTimeResult.Indeterminate;
+                    }
                 }
 
                 // GetProcessTimes succeeds for terminated processes whose kernel object still
                 // exists (e.g., an outstanding handle elsewhere). Confirm the process is still
                 // running before trusting the creation time as an identity marker.
-                if (!NativeMethods.GetExitCodeProcess(process, out uint exitCode) || exitCode != StillActive)
+                if (!NativeMethods.GetExitCodeProcess(process, out uint exitCode))
                 {
-                    return false;
+                    return ProcessStartTimeResult.Indeterminate;
+                }
+
+                if (exitCode != StillActive)
+                {
+                    // The process was opened but has already exited.
+                    return ProcessStartTimeResult.ProcessNotFound;
                 }
 
                 if (!NativeMethods.GetProcessTimes(process, out long creationTime, out _, out _, out _))
                 {
-                    return false;
+                    return ProcessStartTimeResult.Indeterminate;
                 }
 
                 startTime = creationTime;
-                return true;
+                return ProcessStartTimeResult.Success;
             }
         }
 

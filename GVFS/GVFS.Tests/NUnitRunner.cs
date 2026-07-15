@@ -98,16 +98,29 @@ namespace GVFS.Tests
             }
 
             // Now distribute the tests into the buckets.
-            // Tests from the same fixture class must stay in the same bucket
-            // when the fixture shares a single enlistment across tests (both
-            // EnlistmentPerFixture classes, MultiEnlistmentTests with [Order],
-            // and GitCommands fixture classes like GitCommandsTests, CheckoutTests,
-            // etc. use a shared enlistment).
-            // The regex captures "everything up to and including the class name"
-            // so that SomeClass.TestA and SomeClass.TestB share a prefix.
+            //
+            // Some test classes share state across test methods and must land in the
+            // same slice.  The regex captures a per-class prefix so that all methods of
+            // those classes are grouped together.
+            //
+            // Classes that MUST stay together:
+            //   EnlistmentPerFixture.*  — share a single mounted enlistment for the
+            //                             whole fixture; tests may be order-dependent.
+            //   MultiEnlistmentTests.ConfigVerbTests — uses [Order(1..8)]; each test
+            //                             reads/writes GVFS config set by the previous.
+            //
+            // Classes that are safe to split (do NOT add to this regex):
+            //   GitCommands.*      — each test resets state via git-checkout in [SetUp]
+            //                        or gets a fresh per-test enlistment.
+            //   SharedCacheTests   — [SetUp] generates a new Guid-based cache path per
+            //                        test; no shared state across test methods.
+            //   ServiceVerbTests   — [NonParallelizable] prevents within-process
+            //                        concurrency; different slices run on different
+            //                        machines so cross-slice isolation is guaranteed.
             Regex fixtureRegex = new Regex(
-                @"^.*\.(?:EnlistmentPerFixture|MultiEnlistmentTests|GitCommands)\..+\.",
+                @"^.*\.(?:EnlistmentPerFixture\..+|MultiEnlistmentTests\.ConfigVerbTests)\.",
                 RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
             for (uint i = 0; i < list.Length; i++)
             {
                 var test = list[i].Trim();

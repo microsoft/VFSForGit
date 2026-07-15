@@ -1,6 +1,7 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Virtualization.Projection;
 using Microsoft.Windows.ProjFS;
+using System;
 using System.Collections.Generic;
 
 namespace GVFS.Platform.Windows
@@ -20,9 +21,27 @@ namespace GVFS.Platform.Windows
             this.fileInfoEnumerator = new ProjectedFileInfoEnumerator(fileInfos);
             this.ResetEnumerator();
             this.MoveNext();
+            this.RecordActivity();
         }
 
         public delegate bool FileNamePatternMatcher(string name, string pattern);
+
+        /// <summary>
+        /// Monotonic tick count (<see cref="Environment.TickCount64"/>, milliseconds) of the most
+        /// recent activity (creation or enumeration read) on this enumeration. Used to identify
+        /// enumerations that ProjFS never ended, so their memory can be reclaimed. A monotonic
+        /// source is used (rather than wall-clock time) so that NTP/clock adjustments cannot cause a
+        /// live-but-idle enumeration to be misjudged as stale.
+        /// </summary>
+        public long LastActivityTickCount { get; private set; }
+
+        /// <summary>
+        /// Records that this enumeration was just touched, so it is not treated as abandoned.
+        /// </summary>
+        public void RecordActivity()
+        {
+            this.LastActivityTickCount = Environment.TickCount64;
+        }
 
         /// <summary>
         /// true if Current refers to an element in the enumeration, false if Current is past the end of the collection

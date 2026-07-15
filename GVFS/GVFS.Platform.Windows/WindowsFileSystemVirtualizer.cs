@@ -33,12 +33,39 @@ namespace GVFS.Platform.Windows
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
 
+        // ProjFS does not always deliver EndDirectoryEnumeration for a StartDirectoryEnumeration
+        // (for example when an enumeration is cancelled), which leaks the corresponding
+        // ActiveEnumeration - and the projected item list it pins - in this.activeEnumerations. Over
+        // long-lived mounts this unbounded growth is a suspected contributor to the memory pressure
+        // that ultimately crashes GVFS.Mount in the native ProjFS command-completion path.
+        //
+        // Eviction of stale (never-ended) enumerations is OFF by default and enabled only when the
+        // gvfs.max-active-enumerations git config is set to a positive value: once activeEnumerations
+        // grows past that threshold, a throttled sweep evicts entries idle longer than a timeout.
+        // The count telemetry below is always emitted on the Heartbeat event so the leak can be
+        // observed in the field before eviction is turned on anywhere.
+        private static readonly TimeSpan ActiveEnumerationStaleTimeout = TimeSpan.FromMinutes(5);
+        private static readonly TimeSpan ActiveEnumerationEvictionSweepInterval = TimeSpan.FromMinutes(1);
+
+        // Effective staleness cutoff for a never-ended enumeration. Defaults to the constant above;
+        // overridable by tests via ActiveEnumerationStaleTimeoutForTest.
+        private TimeSpan activeEnumerationStaleTimeout = ActiveEnumerationStaleTimeout;
+
+        // 0 disables eviction (the default). When > 0, it is the count of live enumerations above
+        // which a sweep evicts stale ones. Read from git config (gvfs.max-active-enumerations).
+        private int maxActiveEnumerations;
+
+        // Monotonic (Environment.TickCount64, milliseconds) timestamp of the last eviction sweep, so
+        // the throttle cannot be disturbed by wall-clock adjustments.
+        private long lastEnumerationEvictionSweepTickCount = Environment.TickCount64;
+
         public WindowsFileSystemVirtualizer(GVFSContext context, GVFSGitObjects gitObjects)
             : this(
                   context,
                   gitObjects,
                   virtualizationInstance: null,
-                  numWorkerThreads: FileSystemVirtualizer.DefaultNumWorkerThreads)
+                  numWorkerThreads: FileSystemVirtualizer.DefaultNumWorkerThreads,
+                  maxActiveEnumerations: ReadMaxActiveEnumerationsFromConfig(context))
         {
         }
 
@@ -46,7 +73,8 @@ namespace GVFS.Platform.Windows
             GVFSContext context,
             GVFSGitObjects gitObjects,
             IVirtualizationInstance virtualizationInstance,
-            int numWorkerThreads)
+            int numWorkerThreads,
+            int maxActiveEnumerations = 0)
             : base(context, gitObjects, numWorkerThreads)
         {
             List<NotificationMapping> notificationMappings = new List<NotificationMapping>()
@@ -72,9 +100,145 @@ namespace GVFS.Platform.Windows
 
             this.activeEnumerations = new ConcurrentDictionary<Guid, ActiveEnumeration>();
             this.activeCommands = new ConcurrentDictionary<int, CancellationTokenSource>();
+
+            this.maxActiveEnumerations = maxActiveEnumerations;
         }
 
         protected override string EtwArea => ClassName;
+
+        public override void AddHeartbeatMetadata(EventMetadata metadata)
+        {
+            // Always emitted, even when eviction is disabled, so the size of the activeEnumerations
+            // collection (and thus whether the never-ended-enumeration leak is a real memory driver)
+            // can be observed in the field before enabling eviction anywhere.
+            metadata.Add("ActiveEnumerationCount", this.activeEnumerations.Count);
+            metadata.Add("ActiveCommandCount", this.activeCommands.Count);
+        }
+
+        /// <summary>
+        /// Reads the gvfs.max-active-enumerations git config value (0 = eviction disabled, the
+        /// default). Uses the in-process libgit2 repo (no git.exe spawn). Never throws: any failure
+        /// reading git config leaves eviction disabled.
+        /// </summary>
+        private static int ReadMaxActiveEnumerationsFromConfig(GVFSContext context)
+        {
+            try
+            {
+                if (context?.Repository != null &&
+                    context.Repository.TryGetConfigValue(GVFSConstants.GitConfig.MaxActiveEnumerationsConfig, out string rawValue))
+                {
+                    if (string.IsNullOrWhiteSpace(rawValue))
+                    {
+                        // Setting is unset: eviction disabled.
+                        return 0;
+                    }
+
+                    if (int.TryParse(rawValue.Trim(), out int value) && value > 0)
+                    {
+                        return value;
+                    }
+
+                    if (context.Tracer != null)
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Area", ClassName);
+                        metadata.Add("configValue", rawValue);
+                        context.Tracer.RelatedWarning(metadata, nameof(ReadMaxActiveEnumerationsFromConfig) + ": could not parse " + GVFSConstants.GitConfig.MaxActiveEnumerationsConfig + " as a positive int, leaving enumeration eviction disabled");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                if (context?.Tracer != null)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Area", ClassName);
+                    metadata.Add("Exception", e.ToString());
+                    context.Tracer.RelatedWarning(metadata, nameof(ReadMaxActiveEnumerationsFromConfig) + ": exception reading git config, leaving enumeration eviction disabled");
+                }
+            }
+
+            return 0;
+        }
+
+        private void MaybeEvictStaleEnumerations()
+        {
+            if (this.maxActiveEnumerations <= 0)
+            {
+                // Eviction disabled (gvfs.max-active-enumerations unset or non-positive).
+                return;
+            }
+
+            long now = Environment.TickCount64;
+            long last = Interlocked.Read(ref this.lastEnumerationEvictionSweepTickCount);
+            if (now - last < (long)ActiveEnumerationEvictionSweepInterval.TotalMilliseconds)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref this.lastEnumerationEvictionSweepTickCount, now, last) != last)
+            {
+                // Another thread just claimed this sweep interval.
+                return;
+            }
+
+            this.EvictStaleEnumerations();
+        }
+
+        private void EvictStaleEnumerations()
+        {
+            if (this.activeEnumerations.Count <= this.maxActiveEnumerations)
+            {
+                return;
+            }
+
+            long cutoff = Environment.TickCount64 - (long)this.activeEnumerationStaleTimeout.TotalMilliseconds;
+            int evictedCount = 0;
+            foreach (KeyValuePair<Guid, ActiveEnumeration> entry in this.activeEnumerations)
+            {
+                if (entry.Value.LastActivityTickCount < cutoff &&
+                    this.activeEnumerations.TryRemove(entry.Key, out _))
+                {
+                    evictedCount++;
+                }
+            }
+
+            if (evictedCount > 0)
+            {
+                EventMetadata metadata = this.CreateEventMetadata();
+                metadata.Add("evictedCount", evictedCount);
+                metadata.Add("remainingCount", this.activeEnumerations.Count);
+                metadata.Add("maxActiveEnumerations", this.maxActiveEnumerations);
+                metadata.Add("staleTimeoutMinutes", this.activeEnumerationStaleTimeout.TotalMinutes);
+                metadata.Add("gcTotalMemoryBytes", GC.GetTotalMemory(forceFullCollection: false));
+                metadata.Add(
+                    TracingConstants.MessageKey.WarningMessage,
+                    nameof(this.EvictStaleEnumerations) + ": evicted stale directory enumerations that ProjFS never ended, to bound memory usage");
+                this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.EvictStaleEnumerations), metadata, Keywords.Telemetry);
+            }
+        }
+
+        internal TimeSpan ActiveEnumerationStaleTimeoutForTest
+        {
+            set { this.activeEnumerationStaleTimeout = value; }
+        }
+
+        internal int MaxActiveEnumerationsForTest
+        {
+            set { this.maxActiveEnumerations = value; }
+        }
+
+        /// <summary>
+        /// Test-only: resets the sweep throttle and runs the same eviction path the enumeration hot
+        /// callback runs, so eviction behavior can be exercised deterministically.
+        /// </summary>
+        internal void ForceEnumerationEvictionSweepForTest()
+        {
+            Interlocked.Exchange(
+                ref this.lastEnumerationEvictionSweepTickCount,
+                Environment.TickCount64 - (long)ActiveEnumerationEvictionSweepInterval.TotalMilliseconds - 1);
+            this.MaybeEvictStaleEnumerations();
+        }
 
         /// <remarks>
         /// Public for unit testing
@@ -119,14 +283,21 @@ namespace GVFS.Platform.Windows
 
         public override FileSystemResult ClearNegativePathCache(out uint totalEntryCount)
         {
-            HResult result = this.virtualizationInstance.ClearNegativePathCache(out totalEntryCount);
+            uint entryCount = 0;
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.ClearNegativePathCache(out entryCount),
+                nameof(this.ClearNegativePathCache));
+            totalEntryCount = entryCount;
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
 
         public override FileSystemResult DeleteFile(string relativePath, UpdatePlaceholderType updateFlags, out UpdateFailureReason failureReason)
         {
             UpdateFailureCause failureCause = UpdateFailureCause.NoFailure;
-            HResult result = this.virtualizationInstance.DeleteFile(relativePath, (UpdateType)updateFlags, out failureCause);
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.DeleteFile(relativePath, (UpdateType)updateFlags, out failureCause),
+                nameof(this.DeleteFile),
+                relativePath);
             failureReason = (UpdateFailureReason)failureCause;
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
@@ -137,17 +308,20 @@ namespace GVFS.Platform.Windows
             string sha)
         {
             FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
-            HResult result = this.virtualizationInstance.WritePlaceholderInfo(
-                relativePath,
-                properties.CreationTimeUTC,
-                properties.LastAccessTimeUTC,
-                properties.LastWriteTimeUTC,
-                changeTime: properties.LastWriteTimeUTC,
-                fileAttributes: FileAttributes.Archive,
-                endOfFile: endOfFile,
-                isDirectory: false,
-                contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
-                providerId: PlaceholderVersionId);
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.WritePlaceholderInfo(
+                    relativePath,
+                    properties.CreationTimeUTC,
+                    properties.LastAccessTimeUTC,
+                    properties.LastWriteTimeUTC,
+                    changeTime: properties.LastWriteTimeUTC,
+                    fileAttributes: FileAttributes.Archive,
+                    endOfFile: endOfFile,
+                    isDirectory: false,
+                    contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
+                    providerId: PlaceholderVersionId),
+                nameof(this.WritePlaceholderFile),
+                relativePath);
 
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
@@ -155,17 +329,20 @@ namespace GVFS.Platform.Windows
         public override FileSystemResult WritePlaceholderDirectory(string relativePath)
         {
             FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
-            HResult result = this.virtualizationInstance.WritePlaceholderInfo(
-                relativePath,
-                properties.CreationTimeUTC,
-                properties.LastAccessTimeUTC,
-                properties.LastWriteTimeUTC,
-                changeTime: properties.LastWriteTimeUTC,
-                fileAttributes: FileAttributes.Directory,
-                endOfFile: 0,
-                isDirectory: true,
-                contentId: FolderContentId,
-                providerId: PlaceholderVersionId);
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.WritePlaceholderInfo(
+                    relativePath,
+                    properties.CreationTimeUTC,
+                    properties.LastAccessTimeUTC,
+                    properties.LastWriteTimeUTC,
+                    changeTime: properties.LastWriteTimeUTC,
+                    fileAttributes: FileAttributes.Directory,
+                    endOfFile: 0,
+                    isDirectory: true,
+                    contentId: FolderContentId,
+                    providerId: PlaceholderVersionId),
+                nameof(this.WritePlaceholderDirectory),
+                relativePath);
 
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
@@ -183,18 +360,21 @@ namespace GVFS.Platform.Windows
             out UpdateFailureReason failureReason)
         {
             UpdateFailureCause failureCause = UpdateFailureCause.NoFailure;
-            HResult result = this.virtualizationInstance.UpdateFileIfNeeded(
-                relativePath,
-                creationTime,
-                lastAccessTime,
-                lastWriteTime,
-                changeTime,
-                fileAttributes,
-                endOfFile,
-                ConvertShaToContentId(shaContentId),
-                PlaceholderVersionId,
-                (UpdateType)updateFlags,
-                out failureCause);
+            HResult result = this.TryInvokeProjFS(
+                () => this.virtualizationInstance.UpdateFileIfNeeded(
+                    relativePath,
+                    creationTime,
+                    lastAccessTime,
+                    lastWriteTime,
+                    changeTime,
+                    fileAttributes,
+                    endOfFile,
+                    ConvertShaToContentId(shaContentId),
+                    PlaceholderVersionId,
+                    (UpdateType)updateFlags,
+                    out failureCause),
+                nameof(this.UpdatePlaceholderIfNeeded),
+                relativePath);
             failureReason = (UpdateFailureReason)failureCause;
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
@@ -211,6 +391,8 @@ namespace GVFS.Platform.Windows
         {
             try
             {
+                this.MaybeEvictStaleEnumerations();
+
                 List<ProjectedFileInfo> projectedItems;
                 if (this.FileSystemCallbacks.GitIndexProjection.TryGetProjectedItemsFromMemory(virtualPath, out projectedItems))
                 {
@@ -286,6 +468,8 @@ namespace GVFS.Platform.Windows
 
                     return HResult.InternalError;
                 }
+
+                activeEnumeration.RecordActivity();
 
                 if (restartScan)
                 {
@@ -652,11 +836,99 @@ namespace GVFS.Platform.Windows
             CancellationTokenSource cancellationSource;
             if (this.activeCommands.TryRemove(commandId, out cancellationSource))
             {
-                this.virtualizationInstance.CompleteCommand(commandId, result);
-                return true;
+                // Track whether the native completion actually ran. If CompleteCommand faults under
+                // memory pressure, TryInvokeProjFS swallows the exception so the mount survives, but
+                // ProjFS never accepted the completion and so will not drive the matching
+                // EndDirectoryEnumeration callback. In that case we must report the command as not
+                // completed so callers clean up any state they registered (for example the active
+                // enumeration) instead of leaking it.
+                bool completionHandedOffToProjFS = false;
+                this.TryInvokeProjFS(
+                    () =>
+                    {
+                        HResult completionResult = this.virtualizationInstance.CompleteCommand(commandId, result);
+                        completionHandedOffToProjFS = true;
+                        return completionResult;
+                    },
+                    nameof(this.TryCompleteCommand),
+                    addDetails: metadata =>
+                    {
+                        metadata.Add("commandId", commandId);
+                        metadata.Add("completionResult", result.ToString("X") + "(" + result.ToString("G") + ")");
+                    });
+
+                return completionHandedOffToProjFS;
             }
 
             return false;
+        }
+
+        private void AddMemoryPressureData(EventMetadata metadata)
+        {
+            metadata.Add("activeEnumerations", this.activeEnumerations.Count);
+            metadata.Add("activeCommands", this.activeCommands.Count);
+            metadata.Add("gcTotalMemoryBytes", GC.GetTotalMemory(forceFullCollection: false));
+        }
+
+        /// <summary>
+        /// Invokes a GVFS-initiated native ProjFS operation, converting a native failure into a
+        /// failed <see cref="HResult"/> instead of a process crash.
+        /// </summary>
+        /// <remarks>
+        /// A native ProjFS call can fault under memory pressure (for example a NullReferenceException
+        /// surfaced from projectedfslib.dll). If that exception escaped, it would tear down
+        /// GVFS.Mount, orphaning the virtualization root and causing every subsequent placeholder
+        /// access to fail with STATUS_FILE_SYSTEM_VIRTUALIZATION_UNAVAILABLE (0xC000CE01). Callers
+        /// map the returned non-Ok HResult to a failure result and continue serving the mount.
+        ///
+        /// This is used for outbound operations that are safe to fail individually. Operations that
+        /// mutate projection state use <see cref="InvokeProjFSOrThrow"/> instead, which logs the same
+        /// telemetry but rethrows. Callback completions funnel through <see cref="TryCompleteCommand"/>
+        /// (which uses this guard); the file-stream handler already fails a single hydration on any
+        /// exception.
+        /// </remarks>
+        private HResult TryInvokeProjFS(Func<HResult> nativeCall, string operationName, string relativePath = null, Action<EventMetadata> addDetails = null)
+        {
+            try
+            {
+                return nativeCall();
+            }
+            catch (Exception e)
+            {
+                this.LogProjFSNativeFailure(operationName, e, relativePath, addDetails);
+                return HResult.InternalError;
+            }
+        }
+
+        /// <summary>
+        /// Invokes a GVFS-initiated native ProjFS operation for which swallowing a failure is unsafe
+        /// (for example because it mutates projection state). Emits the same high-signal
+        /// <c>*_NativeFailure</c> telemetry as <see cref="TryInvokeProjFS"/> for the memory-pressure
+        /// diagnostics, then rethrows so the mount fails fast rather than continuing in an
+        /// inconsistent state.
+        /// </summary>
+        private HResult InvokeProjFSOrThrow(Func<HResult> nativeCall, string operationName, string relativePath = null, Action<EventMetadata> addDetails = null)
+        {
+            try
+            {
+                return nativeCall();
+            }
+            catch (Exception e)
+            {
+                this.LogProjFSNativeFailure(operationName, e, relativePath, addDetails);
+                throw;
+            }
+        }
+
+        private void LogProjFSNativeFailure(string operationName, Exception e, string relativePath, Action<EventMetadata> addDetails)
+        {
+            EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
+            addDetails?.Invoke(metadata);
+            this.AddMemoryPressureData(metadata);
+            metadata.Add(
+                TracingConstants.MessageKey.ErrorMessage,
+                operationName + ": native ProjFS call threw under suspected memory pressure");
+            this.Context.Tracer.RelatedError(metadata, operationName + "_NativeFailure", Keywords.Telemetry);
         }
 
         private void StartDirectoryEnumerationAsyncHandler(
@@ -720,10 +992,12 @@ namespace GVFS.Platform.Windows
 
             if (!this.TryCompleteCommand(commandId, result))
             {
-                // Command has already been canceled, and no EndDirectoryEnumeration callback will be received
+                // Either the command was already canceled or the native completion failed under
+                // memory pressure; in both cases no EndDirectoryEnumeration callback will arrive, so
+                // remove the enumeration we just registered rather than leaking it.
 
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}: TryCompleteCommand returned false, command already canceled");
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}: TryCompleteCommand returned false; command canceled or native completion failed");
                 metadata.Add("commandId", commandId);
                 metadata.Add("enumerationId", enumerationId);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
@@ -731,7 +1005,7 @@ namespace GVFS.Platform.Windows
                 ActiveEnumeration activeEnumeration;
                 bool activeEnumerationsUpdated = this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration);
                 metadata.Add("activeEnumerationsUpdated", activeEnumerationsUpdated);
-                this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}_CommandAlreadyCanceled", metadata);
+                this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}_CommandNotCompleted", metadata);
             }
         }
 
@@ -1070,10 +1344,13 @@ namespace GVFS.Platform.Windows
             string triggeringProcessImageFileName)
         {
             string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
-            HResult hr = this.virtualizationInstance.MarkDirectoryAsPlaceholder(
-                directoryPath,
-                FolderContentId,
-                PlaceholderVersionId);
+            HResult hr = this.InvokeProjFSOrThrow(
+                () => this.virtualizationInstance.MarkDirectoryAsPlaceholder(
+                    directoryPath,
+                    FolderContentId,
+                    PlaceholderVersionId),
+                nameof(this.MarkDirectoryAsPlaceholder),
+                virtualPath);
 
             if (hr == HResult.Ok)
             {

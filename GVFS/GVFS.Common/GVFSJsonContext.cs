@@ -23,7 +23,6 @@ namespace GVFS.Common
     [JsonSerializable(typeof(List<string>))]
     [JsonSerializable(typeof(List<GitObjectsHttpRequestor.GitObjectSize>))]
     [JsonSerializable(typeof(ServerGVFSConfig))]
-    [JsonSerializable(typeof(VersionResponse))]
     [JsonSerializable(typeof(InternalVerbParameters))]
     [JsonSerializable(typeof(CacheServerInfo))]
     [JsonSerializable(typeof(NamedPipeMessages.GetStatus.Response), TypeInfoPropertyName = "GetStatusResponse")]

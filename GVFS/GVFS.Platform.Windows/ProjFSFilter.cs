@@ -87,7 +87,7 @@ namespace GVFS.Platform.Windows
 
         /// <summary>
         /// Attempts to attach the ProjFS filter driver to the volume containing the enlistment.
-        /// If FilterAttach returns ACCESS_DENIED but the ProjFS service is already running,
+        /// If an unelevated caller gets ACCESS_DENIED but the ProjFS service is already running,
         /// the filter is presumed to already be attached and the call succeeds.
         /// </summary>
         public static bool TryAttachToVolume(string enlistmentRoot, ITracer tracer, out string errorMessage)
@@ -98,14 +98,22 @@ namespace GVFS.Platform.Windows
             }
 
             // FilterAttach requires SE_LOAD_DRIVER_PRIVILEGE, which is typically only
-            // granted to administrators. When the caller lacks this privilege but the
-            // ProjFS service is confirmed running, the filter is probably already
-            // attached to the volume — treat ACCESS_DENIED as success in that case.
+            // granted to administrators. An UNELEVATED caller therefore always gets
+            // ACCESS_DENIED regardless of whether the filter is actually attached, so
+            // when the ProjFS service is confirmed running we presume the (already
+            // elevated) service attached the filter and treat this as success.
+            //
+            // We intentionally do NOT tolerate ACCESS_DENIED for an ELEVATED caller
+            // (e.g. GVFS.Service, which runs as LocalSystem): an elevated caller holds
+            // the privilege, so ACCESS_DENIED there is a genuine failure (AV/EDR lock,
+            // Group Policy, or driver corruption) that must surface rather than be
+            // silently swallowed and leave the mount in a broken state.
             if (errorMessage != null
                 && errorMessage.Contains(AccessDeniedResult.ToString())
+                && !WindowsPlatform.IsElevatedImplementation()
                 && IsServiceRunning(tracer))
             {
-                tracer.RelatedInfo($"{nameof(TryAttachToVolume)}: FilterAttach returned ACCESS_DENIED, but ProjFS service is running. Proceeding.");
+                tracer.RelatedInfo($"{nameof(TryAttachToVolume)}: FilterAttach returned ACCESS_DENIED to an unelevated caller, but ProjFS service is running. Proceeding.");
                 errorMessage = null;
                 return true;
             }

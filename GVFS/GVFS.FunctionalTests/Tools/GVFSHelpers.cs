@@ -197,9 +197,13 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static string GetInternalParameter(string maintenanceJob = "null", string packfileMaintenanceBatchSize = "null")
+        public static string GetInternalParameter(
+            string maintenanceJob = "null",
+            string packfileMaintenanceBatchSize = "null",
+            string serviceName = null)
         {
-            return $"\"{{\\\"ServiceName\\\":\\\"{GVFSServiceProcess.TestServiceName}\\\"," +
+            string effectiveServiceName = string.IsNullOrWhiteSpace(serviceName) ? GVFSServiceProcess.TestServiceName : serviceName;
+            return $"\"{{\\\"ServiceName\\\":\\\"{effectiveServiceName}\\\"," +
                     "\\\"StartedByService\\\":false," +
                     $"\\\"MaintenanceJob\\\":{maintenanceJob}," +
                     $"\\\"PackfileMaintenanceBatchSize\\\":{packfileMaintenanceBatchSize}}}\"";
