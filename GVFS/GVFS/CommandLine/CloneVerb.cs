@@ -364,7 +364,7 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private Result TryCreateEnlistment(
+        internal Result TryCreateEnlistment(
             string fullEnlistmentRootPathParameter,
             string normalizedEnlistementRootPath,
             out GVFSEnlistment enlistment)
@@ -816,7 +816,7 @@ git %*
             return new Result(true);
         }
 
-        private class Result
+        internal class Result
         {
             public Result(bool success)
             {
