@@ -4,9 +4,9 @@ run-name: ${{ inputs.run_name || 'VFS for Git' }}
 
 on:
   pull_request:
-    branches: [ master, releases/shipped ]
+    branches: [ master, releases/shipped, vnext ]
   push:
-    branches: [ master, releases/shipped ]
+    branches: [ master, releases/shipped, vnext ]
   workflow_dispatch:
     inputs:
       git_version:
