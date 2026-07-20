@@ -20,6 +20,8 @@ namespace GVFS.UnitTests.Mock.Git
         }
 
         public bool CancelTryCopyBlobContentStream { get; set; }
+        public bool ThrowOnTryCopyBlobContentStream { get; set; }
+        public bool ThrowIOExceptionDuringCopy { get; set; }
         public uint FileLength { get; set; } = DefaultFileLength;
 
         public override bool TryDownloadCommit(string objectSha)
@@ -43,11 +45,29 @@ namespace GVFS.UnitTests.Mock.Git
             string sha,
             CancellationToken cancellationToken,
             RequestSource requestSource,
-            Action<Stream, long> writeAction)
+            Action<Stream, long> writeAction,
+            out GVFSGitObjects.BlobHydrationFailureCategory failureCategory)
         {
+            failureCategory = GVFSGitObjects.BlobHydrationFailureCategory.None;
+
             if (this.CancelTryCopyBlobContentStream)
             {
                 throw new OperationCanceledException();
+            }
+
+            if (this.ThrowOnTryCopyBlobContentStream)
+            {
+                // A non-cancellation, non-GetFileStreamException exception exercises the generic
+                // catch in GetFileStreamHandlerAsyncHandler (BlobHydrationFailureCategory.Unexpected).
+                throw new InvalidOperationException("Simulated unexpected hydration failure");
+            }
+
+            if (this.ThrowIOExceptionDuringCopy)
+            {
+                // The served length matches the requested length (so no size mismatch), but reading
+                // the blob content throws IOException, exercising the LocalIO copy-failure path.
+                writeAction(new ThrowOnReadStream(this.FileLength), this.FileLength);
+                return true;
             }
 
             writeAction(
@@ -55,6 +75,26 @@ namespace GVFS.UnitTests.Mock.Git
                 this.FileLength);
 
             return true;
+        }
+
+        private sealed class ThrowOnReadStream : Stream
+        {
+            public ThrowOnReadStream(long length)
+            {
+                this.Length = length;
+            }
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length { get; }
+            public override long Position { get; set; }
+
+            public override int Read(byte[] buffer, int offset, int count) => throw new IOException("Simulated IO failure while reading blob content");
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
         }
 
         public override string[] ReadPackFileNames(string packFolderPath, string prefixFilter = "")
