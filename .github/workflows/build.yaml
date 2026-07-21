@@ -283,7 +283,7 @@ jobs:
 
     - name: Install .NET SDK
       if: steps.skip.outputs.result != 'true'
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         global-json-file: src/global.json
 
