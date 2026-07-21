@@ -54,7 +54,9 @@ namespace GVFS.Common.Maintenance
                 return;
             }
 
-            if (this.gitObjects.IsUsingCacheServer())
+            bool usingCacheServer = this.gitObjects.IsUsingCacheServer();
+
+            if (usingCacheServer)
             {
                 TimeSpan prefetchPeriod = TimeSpan.FromMinutes(15);
                 this.stepTimers.Add(new Timer(
@@ -70,8 +72,16 @@ namespace GVFS.Common.Maintenance
                 dueTime: this.looseObjectsDueTime,
                 period: this.looseObjectsPeriod));
 
+            // When packfile-maintenance recovery removes a corrupt prefetch pack (and the later prefetch
+            // packs that depend on it), it needs a prefetch to re-download them and rebuild the
+            // commit-graph. This is only meaningful when a cache server is in use; otherwise the objects
+            // are restored on demand.
+            Action requestPrefetch = usingCacheServer
+                ? () => this.queue.TryEnqueue(new PrefetchStep(this.context, this.gitObjects))
+                : (Action)null;
+
             this.stepTimers.Add(new Timer(
-                (state) => this.queue.TryEnqueue(new PackfileMaintenanceStep(this.context)),
+                (state) => this.queue.TryEnqueue(new PackfileMaintenanceStep(this.context, requestPrefetch: requestPrefetch)),
                 state: null,
                 dueTime: this.packfileDueTime,
                 period: this.packfilePeriod));
