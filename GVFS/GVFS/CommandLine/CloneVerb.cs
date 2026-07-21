@@ -152,7 +152,7 @@ namespace GVFS.CommandLine
 
                 CacheServerInfo cacheServer = null;
                 ServerGVFSConfig serverGVFSConfig = null;
-                bool trustPackIndexes;
+                bool trustPackIndexes = GVFSConstants.GitConfig.TrustPackIndexesDefault;
 
                 using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
@@ -248,10 +248,13 @@ namespace GVFS.CommandLine
                     {
                         tracer.RelatedError(cloneResult.ErrorMessage);
                     }
-
-                    using (var repo = new LibGit2RepoInvoker(tracer, enlistment.WorkingDirectoryBackingRoot))
+                    else
                     {
-                        trustPackIndexes = repo.GetConfigBoolOrDefault(GVFSConstants.GitConfig.TrustPackIndexes, GVFSConstants.GitConfig.TrustPackIndexesDefault);
+                        trustPackIndexes = LibGit2Repo.GetConfigBoolOrDefault(
+                            tracer,
+                            enlistment.WorkingDirectoryBackingRoot,
+                            GVFSConstants.GitConfig.TrustPackIndexes,
+                            GVFSConstants.GitConfig.TrustPackIndexesDefault);
                     }
                 }
 
@@ -361,7 +364,7 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private Result TryCreateEnlistment(
+        internal Result TryCreateEnlistment(
             string fullEnlistmentRootPathParameter,
             string normalizedEnlistementRootPath,
             out GVFSEnlistment enlistment)
@@ -813,7 +816,7 @@ git %*
             return new Result(true);
         }
 
-        private class Result
+        internal class Result
         {
             public Result(bool success)
             {
