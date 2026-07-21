@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 using GVFS.Common.Tracing;
 
 namespace GVFS.UnitTests.Windows.Virtualization
@@ -327,6 +328,42 @@ namespace GVFS.UnitTests.Windows.Virtualization
         }
 
         [TestCase]
+        public void GetDirectoryEnumerationTagsEvictedVersusUnknownId()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test" }))
+            {
+                tester.GitIndexProjection.EnumerationInMemory = true;
+
+                tester.WindowsVirtualizer.MaxActiveEnumerationsForTest = 1;
+                tester.WindowsVirtualizer.ActiveEnumerationStaleTimeoutForTest = TimeSpan.FromMilliseconds(20);
+
+                Guid staleId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, staleId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+
+                Thread.Sleep(200);
+
+                Guid freshId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(2, freshId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+
+                tester.WindowsVirtualizer.ForceEnumerationEvictionSweepForTest();
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+
+                // A Get for the evicted enumeration is attributed to GVFS eviction (self-inflicted).
+                // results is unused on the failure path, so null is safe.
+                tester.MockVirtualization.RequiredCallbacks.GetDirectoryEnumerationCallback(3, staleId, string.Empty, false, null).ShouldEqual(HResult.InternalError);
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"Evicted\"")).ShouldBeTrue();
+
+                // A Get for an ID GVFS never held is attributed to a ProjFS unknown-ID delivery.
+                Guid neverSeenId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.GetDirectoryEnumerationCallback(4, neverSeenId, string.Empty, false, null).ShouldEqual(HResult.InternalError);
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"Unknown\"")).ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
         public void GetPlaceholderInformationHandlerPathNotProjected()
         {
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
@@ -600,6 +637,72 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                 HResult result = tester.MockVirtualization.WaitForCompletionStatus();
                 result.ShouldEqual(tester.MockVirtualization.WriteFileReturnResult);
+
+                // The failure is tagged as a ProjFS write failure (a cause outside gvfs.exe's
+                // control) so telemetry can bucket it apart from actionable hydration failures.
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("\"BlobHydrationFailureCategory\":\"ProjFSWriteFailed\"")).ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void OnGetFileStreamTagsSizeMismatch()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                // The blob length served (FileLength) differs from the length ProjFS requested
+                // (DefaultFileLength), so hydration fails with a size mismatch (actionable cause).
+                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
+                mockGVFSGitObjects.FileLength = MockGVFSGitObjects.DefaultFileLength - 1;
+
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
+                tester.MockVirtualization.WaitForCompletionStatus();
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("\"BlobHydrationFailureCategory\":\"SizeMismatch\"")).ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void OnGetFileStreamTagsUnexpectedException()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                // A non-cancellation, non-GetFileStreamException failure hits the generic catch and
+                // is tagged Unexpected so it can be triaged separately from known causes.
+                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
+                mockGVFSGitObjects.ThrowOnTryCopyBlobContentStream = true;
+
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
+                tester.MockVirtualization.WaitForCompletionStatus();
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("\"BlobHydrationFailureCategory\":\"Unexpected\"")).ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void OnGetFileStreamTagsLocalIO()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                // Reading the blob content throws IOException while copying to the ProjFS buffer,
+                // so hydration fails with the LocalIO cause (outside gvfs.exe's control).
+                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
+                mockGVFSGitObjects.ThrowIOExceptionDuringCopy = true;
+
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
+                tester.MockVirtualization.WaitForCompletionStatus();
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("\"BlobHydrationFailureCategory\":\"LocalIO\"")).ShouldBeTrue();
             }
         }
 
