@@ -1,14 +1,102 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Text;
 
 namespace GVFS.UnitTests.Git
 {
     [TestFixture]
     public class GitProcessTests
     {
+        [TestCase]
+        public void ReadStdOutTokens_SplitsOnNul()
+        {
+            List<string> tokens = ReadTokens("a.txt\0d/b.txt\0d/c.txt\0");
+            tokens.ShouldMatchInOrder("a.txt", "d/b.txt", "d/c.txt");
+        }
+
+        [TestCase]
+        public void ReadStdOutTokens_EmptyInputYieldsNoTokens()
+        {
+            ReadTokens(string.Empty).Count.ShouldEqual(0);
+        }
+
+        [TestCase]
+        public void ReadStdOutTokens_PreservesEmptyRecords()
+        {
+            // diff --name-status -z emits status and path as separate records; an empty record must
+            // still be delivered so a caller's status/path state machine stays aligned.
+            List<string> tokens = ReadTokens("A\0path\0\0after-empty\0");
+            tokens.ShouldMatchInOrder("A", "path", string.Empty, "after-empty");
+        }
+
+        [TestCase]
+        public void ReadStdOutTokens_FlushesTrailingRecordWithoutNul()
+        {
+            List<string> tokens = ReadTokens("a.txt\0trailing");
+            tokens.ShouldMatchInOrder("a.txt", "trailing");
+        }
+
+        [TestCase]
+        public void ReadStdOutTokens_ReassemblesRecordSpanningReadBoundary()
+        {
+            // A single record longer than the internal 8192-char read buffer must be reassembled across
+            // multiple reads rather than split.
+            string longPath = new string('x', 20000);
+            List<string> tokens = ReadTokens("short\0" + longPath + "\0");
+
+            tokens.Count.ShouldEqual(2);
+            tokens[0].ShouldEqual("short");
+            tokens[1].ShouldEqual(longPath);
+        }
+
+        [TestCase]
+        public void DiffCachedNameStatus_StreamsRecordsAsTokens()
+        {
+            MockGitProcess git = new MockGitProcess();
+            git.SetExpectedCommandResult(
+                "diff --cached --name-status -z --no-renames",
+                () => new GitProcess.Result("A\0added.txt\0M\0modified.txt\0", string.Empty, GitProcess.Result.SuccessCode));
+
+            List<string> tokens = new List<string>();
+            GitProcess.Result result = git.DiffCachedNameStatus(t => tokens.Add(t));
+
+            result.ExitCodeIsSuccess.ShouldBeTrue();
+            tokens.ShouldMatchInOrder("A", "added.txt", "M", "modified.txt");
+        }
+
+        [TestCase]
+        public void StatusPorcelain_StreamsRecordsAsTokens()
+        {
+            MockGitProcess git = new MockGitProcess();
+            git.SetExpectedCommandResult(
+                "status -uall --porcelain -z",
+                () => new GitProcess.Result("A  added.txt\0 M modified.txt\0", string.Empty, GitProcess.Result.SuccessCode));
+
+            List<string> tokens = new List<string>();
+            GitProcess.Result result = git.StatusPorcelain(t => tokens.Add(t));
+
+            result.ExitCodeIsSuccess.ShouldBeTrue();
+            tokens.ShouldMatchInOrder("A  added.txt", " M modified.txt");
+        }
+
+        private static List<string> ReadTokens(string content)
+        {
+            List<string> tokens = new List<string>();
+            using (MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(content)))
+            using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+            {
+                GitProcess.ReadStdOutTokens(reader, token => tokens.Add(token));
+            }
+
+            return tokens;
+        }
+
         [TestCase]
         public void BoundedGitOutputBuffer_KeepsShortOutput()
         {

@@ -568,17 +568,24 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: allowObjectDownloads);
         }
 
-        public Result StatusPorcelain()
+        /// <summary>
+        /// Streams "git status" output in porcelain -z form, delivering each NUL-terminated record to
+        /// <paramref name="parseStdOutToken"/> as it is read. This avoids buffering the entire status
+        /// output, which can be large in a big working tree.
+        /// </summary>
+        public Result StatusPorcelain(Action<string> parseStdOutToken)
         {
             string command = "status -uall --porcelain -z";
-            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: false);
+            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: false, parseStdOutToken: parseStdOutToken);
         }
 
         /// <summary>
-        /// Returns staged file changes (index vs HEAD) as null-separated pairs of
-        /// status and path: "A\0path1\0M\0path2\0D\0path3\0".
-        /// Status codes: A=added, M=modified, D=deleted, R=renamed, C=copied.
+        /// Streams staged file changes (index vs HEAD) as NUL-separated records: each change is emitted
+        /// as two records, a status token ("A", "M", "D", ...) followed by a path token. The records are
+        /// delivered to <paramref name="parseStdOutToken"/> as they are read, so an arbitrarily large
+        /// staged set is processed without buffering the whole list.
         /// </summary>
+        /// <param name="parseStdOutToken">Receives each NUL-terminated record (status, path, status, path, ...).</param>
         /// <param name="pathspecs">Inline pathspecs to scope the diff, or null for all.</param>
         /// <param name="pathspecFromFile">
         /// Path to a file containing additional pathspecs (one per line), forwarded
@@ -588,7 +595,7 @@ namespace GVFS.Common.Git
         /// When true and pathspecFromFile is set, pathspec entries in the file are
         /// separated by NUL instead of newline (--pathspec-file-nul).
         /// </param>
-        public Result DiffCachedNameStatus(string[] pathspecs = null, string pathspecFromFile = null, bool pathspecFileNul = false)
+        public Result DiffCachedNameStatus(Action<string> parseStdOutToken, string[] pathspecs = null, string pathspecFromFile = null, bool pathspecFileNul = false)
         {
             string command = "diff --cached --name-status -z --no-renames";
 
@@ -606,7 +613,7 @@ namespace GVFS.Common.Git
                 command += " -- " + string.Join(" ", pathspecs.Select(p => QuoteGitPath(p)));
             }
 
-            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: false);
+            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: false, parseStdOutToken: parseStdOutToken);
         }
 
         /// <summary>
@@ -975,11 +982,28 @@ namespace GVFS.Common.Git
             Action<string> parseStdOutLine,
             int timeoutMs,
             string gitObjectsDirectory = null,
-            bool usePreCommandHook = true)
+            bool usePreCommandHook = true,
+            Action<string> parseStdOutToken = null)
         {
             if (failedToSetEncoding && writeStdIn != null)
             {
                 return new Result(string.Empty, "Attempting to use to stdin, but the process does not have the right input encodings set.", Result.GenericFailureCode);
+            }
+
+            // NUL-delimited streaming reads stdout synchronously on this thread, so it cannot honor a
+            // finite timeout (the timeout is only enforced once stdout reaches EOF). It also cannot be
+            // combined with line streaming. Callers that use it always pass an infinite timeout.
+            if (parseStdOutToken != null)
+            {
+                if (parseStdOutLine != null)
+                {
+                    throw new InvalidOperationException($"{nameof(parseStdOutToken)} cannot be combined with {nameof(parseStdOutLine)}.");
+                }
+
+                if (timeoutMs != -1)
+                {
+                    throw new InvalidOperationException($"{nameof(parseStdOutToken)} requires an infinite timeout.");
+                }
             }
 
             try
@@ -1004,20 +1028,26 @@ namespace GVFS.Common.Git
                             errors.AppendLine(args.Data);
                         }
                     };
-                    this.executingProcess.OutputDataReceived += (sender, args) =>
+
+                    // In NUL-delimited streaming mode we read stdout ourselves (below) rather than using
+                    // the line-based async reader, so we do not subscribe OutputDataReceived.
+                    if (parseStdOutToken == null)
                     {
-                        if (args.Data != null)
+                        this.executingProcess.OutputDataReceived += (sender, args) =>
                         {
-                            if (parseStdOutLine != null)
+                            if (args.Data != null)
                             {
-                                parseStdOutLine(args.Data);
+                                if (parseStdOutLine != null)
+                                {
+                                    parseStdOutLine(args.Data);
+                                }
+                                else
+                                {
+                                    output.AppendLine(args.Data);
+                                }
                             }
-                            else
-                            {
-                                output.AppendLine(args.Data);
-                            }
-                        }
-                    };
+                        };
+                    }
 
                     lock (this.executionLock)
                     {
@@ -1046,14 +1076,32 @@ namespace GVFS.Common.Git
                         writeStdIn?.Invoke(this.executingProcess.StandardInput);
                         this.executingProcess.StandardInput.Close();
 
-                        this.executingProcess.BeginOutputReadLine();
+                        // Always drain stderr asynchronously so the child can never block writing to it.
                         this.executingProcess.BeginErrorReadLine();
 
-                        if (!this.executingProcess.WaitForExit(timeoutMs))
+                        if (parseStdOutToken != null)
                         {
-                            this.executingProcess.Kill();
+                            // Read stdout synchronously, splitting on NUL and handing each record to the
+                            // callback as it arrives. Because stderr is drained asynchronously above, a
+                            // synchronous stdout read cannot deadlock. Only a single record is held in
+                            // memory at a time, so an arbitrarily large result (e.g. every staged file in
+                            // a monorepo) is processed without buffering the whole thing.
+                            ReadStdOutTokens(this.executingProcess.StandardOutput, parseStdOutToken);
 
-                            return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
+                            // stdout is at EOF; block until the process fully exits so the async stderr
+                            // reads complete before we read ExitCode/Errors.
+                            this.executingProcess.WaitForExit();
+                        }
+                        else
+                        {
+                            this.executingProcess.BeginOutputReadLine();
+
+                            if (!this.executingProcess.WaitForExit(timeoutMs))
+                            {
+                                this.executingProcess.Kill();
+
+                                return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
+                            }
                         }
                     }
 
@@ -1073,6 +1121,42 @@ namespace GVFS.Common.Git
         private static string GenerateCredentialVerbCommand(string verb)
         {
             return $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential {verb}";
+        }
+
+        /// <summary>
+        /// Reads a redirected stdout stream that is NUL-delimited (git's "-z" machine-readable format),
+        /// invoking <paramref name="parseStdOutToken"/> once per NUL-terminated record as it is read.
+        /// Only a single record is accumulated at a time, so an arbitrarily large result is processed
+        /// without buffering the entire stream.
+        /// </summary>
+        internal static void ReadStdOutTokens(StreamReader reader, Action<string> parseStdOutToken)
+        {
+            StringBuilder token = new StringBuilder();
+            char[] buffer = new char[8192];
+            int read;
+
+            while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                for (int i = 0; i < read; i++)
+                {
+                    if (buffer[i] == '\0')
+                    {
+                        parseStdOutToken(token.ToString());
+                        token.Clear();
+                    }
+                    else
+                    {
+                        token.Append(buffer[i]);
+                    }
+                }
+            }
+
+            // git's -z output always terminates the final record with a NUL, so there should be nothing
+            // left here. Flush any trailing partial record defensively rather than dropping it.
+            if (token.Length > 0)
+            {
+                parseStdOutToken(token.ToString());
+            }
         }
 
         private static string ParseValue(string contents, string prefix)
@@ -1128,7 +1212,8 @@ namespace GVFS.Common.Git
             string command,
             bool useReadObjectHook,
             Action<StreamWriter> writeStdIn = null,
-            Action<string> parseStdOutLine = null)
+            Action<string> parseStdOutLine = null,
+            Action<string> parseStdOutToken = null)
         {
             return this.InvokeGitImpl(
                 command,
@@ -1137,7 +1222,8 @@ namespace GVFS.Common.Git
                 useReadObjectHook: useReadObjectHook,
                 writeStdIn: writeStdIn,
                 parseStdOutLine: parseStdOutLine,
-                timeoutMs: -1);
+                timeoutMs: -1,
+                parseStdOutToken: parseStdOutToken);
         }
 
         /// <summary>

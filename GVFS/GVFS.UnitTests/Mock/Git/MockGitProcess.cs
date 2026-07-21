@@ -84,7 +84,8 @@ namespace GVFS.UnitTests.Mock.Git
             Action<string> parseStdOutLine,
             int timeoutMs,
             string gitObjectsDirectory = null,
-            bool usePrecommandHook = true)
+            bool usePrecommandHook = true,
+            Action<string> parseStdOutToken = null)
         {
             this.CommandsRun.Add(command);
 
@@ -122,6 +123,19 @@ namespace GVFS.UnitTests.Mock.Git
                 }
                 /* Future: result.Output should be set to null in this case */
             }
+
+            if (parseStdOutToken != null && !string.IsNullOrEmpty(result.Output))
+            {
+                // Mirror production ReadStdOutTokens: deliver every NUL-terminated record, including
+                // empty ones, and drop only the trailing empty element produced by the final NUL.
+                string[] tokens = result.Output.Split('\0');
+                int count = (tokens.Length > 0 && tokens[tokens.Length - 1].Length == 0) ? tokens.Length - 1 : tokens.Length;
+                for (int i = 0; i < count; i++)
+                {
+                    parseStdOutToken(tokens[i]);
+                }
+            }
+
             return result;
         }
 

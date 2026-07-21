@@ -435,43 +435,35 @@ namespace GVFS.Virtualization
                 }
             }
 
-            // Query all staged files in one call using --name-status -z.
-            // Output format: "A\0path1\0M\0path2\0D\0path3\0"
-            GitProcess.Result result = gitProcess.DiffCachedNameStatus(pathspecs, pathspecFromFile, pathspecFileNul);
+            // Query all staged files in one call using --name-status -z, streaming the records so we
+            // never buffer the entire (potentially huge) staged file list in memory. Records arrive in
+            // pairs: a status token ("A", "M", "D", ...) followed by a path token.
+            List<string> addedFilePaths = new List<string>();
+            int added = 0;
+            string pendingStatus = null;
 
-            if (result.OutputTruncated)
-            {
-                // The staged-file list exceeded the capture buffer. Acting on a partial list would leave
-                // some staged files out of ModifiedPaths (skip-worktree not cleared, stale placeholders),
-                // which is worse than failing. Fail safe and let the caller retry.
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("ExitCode", result.ExitCode);
-                this.context.Tracer.RelatedError(
-                    metadata,
-                    nameof(this.AddStagedFilesToModifiedPaths) + ": git diff --cached output was truncated; refusing to update ModifiedPaths from a partial staged-file list");
-                return false;
-            }
-
-            if (result.ExitCodeIsSuccess && !string.IsNullOrEmpty(result.Output))
-            {
-                string[] parts = result.Output.Split(new[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
-                List<string> addedFilePaths = new List<string>();
-
-                // Parts alternate: status, path, status, path, ...
-                for (int i = 0; i + 1 < parts.Length; i += 2)
+            GitProcess.Result result = gitProcess.DiffCachedNameStatus(
+                token =>
                 {
-                    string status = parts[i];
-                    string gitPath = parts[i + 1];
+                    if (pendingStatus == null)
+                    {
+                        pendingStatus = token;
+                        return;
+                    }
 
+                    string status = pendingStatus;
+                    pendingStatus = null;
+
+                    string gitPath = token;
                     if (string.IsNullOrEmpty(gitPath))
                     {
-                        continue;
+                        return;
                     }
 
                     string platformPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
                     if (this.modifiedPaths.TryAdd(platformPath, isFolder: false, isRetryable: out _))
                     {
-                        addedCount++;
+                        added++;
                     }
 
                     // Added files (in index but not in HEAD) are ProjFS placeholders that
@@ -481,8 +473,15 @@ namespace GVFS.Virtualization
                     {
                         addedFilePaths.Add(gitPath);
                     }
-                }
+                },
+                pathspecs,
+                pathspecFromFile,
+                pathspecFileNul);
 
+            addedCount = added;
+
+            if (result.ExitCodeIsSuccess)
+            {
                 // Write added files from the git object store to disk as full files
                 // so they persist across projection changes. Batched into as few git
                 // process invocations as possible.
@@ -494,7 +493,7 @@ namespace GVFS.Virtualization
                     }
                 }
             }
-            else if (!result.ExitCodeIsSuccess)
+            else
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("ExitCode", result.ExitCode);
