@@ -11,6 +11,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Threading;
@@ -56,9 +57,122 @@ namespace GVFS.UnitTests.Git
                     ValidTestObjectFileSha1,
                     new CancellationToken(),
                     GVFSGitObjects.RequestSource.FileStreamCallback,
-                    (stream, length) => Assert.Fail("Should not be able to call copy stream callback"))
+                    (stream, length) => Assert.Fail("Should not be able to call copy stream callback"),
+                    out GVFSGitObjects.BlobHydrationFailureCategory _)
                     .ShouldEqual(false);
             }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void TerminalBlobHydrationFailureIsTaggedWithCategory()
+        {
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) => true;
+            fileSystem.OnOpenFileStream = (path, fileMode, fileAccess) =>
+            {
+                if (fileAccess == FileAccess.Write)
+                {
+                    return new MemoryStream();
+                }
+
+                throw new FileNotFoundException();
+            };
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+            using (httpObjects.InputStream = new MemoryStream(this.validTestObjectFileContents))
+            {
+                httpObjects.MediaType = GVFSConstants.MediaTypes.LooseObjectMediaType;
+                GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out MockTracer tracer);
+
+                bool copied = dut.TryCopyBlobContentStream(
+                    ValidTestObjectFileSha1,
+                    new CancellationToken(),
+                    GVFSGitObjects.RequestSource.FileStreamCallback,
+                    (stream, length) => Assert.Fail("Should not be able to call copy stream callback"),
+                    out GVFSGitObjects.BlobHydrationFailureCategory failureCategory);
+                copied.ShouldEqual(false);
+
+                // The terminal failure carries a specific BlobHydrationFailureCategory so telemetry
+                // can tell failures outside gvfs.exe's control apart from actionable ones. Here the
+                // local copy misses and the download then fails, so the cause is NetworkUnavailable —
+                // surfaced both on the telemetry event and via the out parameter.
+                failureCategory.ShouldEqual(GVFSGitObjects.BlobHydrationFailureCategory.NetworkUnavailable);
+                string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
+                terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"NetworkUnavailable\"");
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void TerminalBlobHydrationFailureTagsObjectNotOnServer()
+        {
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) => true;
+            fileSystem.OnOpenFileStream = (path, mode, access) =>
+            {
+                if (access == FileAccess.Write)
+                {
+                    return new MemoryStream();
+                }
+
+                throw new FileNotFoundException();
+            };
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+            httpObjects.StatusCodeToReturn = HttpStatusCode.NotFound;
+            GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out MockTracer tracer);
+
+            bool copied = dut.TryCopyBlobContentStream(
+                ValidTestObjectFileSha1,
+                new CancellationToken(),
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("Should not be able to call copy stream callback"),
+                out GVFSGitObjects.BlobHydrationFailureCategory failureCategory);
+            copied.ShouldEqual(false);
+
+            // The server returned 404, so the blob is genuinely missing on the server (actionable).
+            failureCategory.ShouldEqual(GVFSGitObjects.BlobHydrationFailureCategory.ObjectNotOnServer);
+            string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
+            terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"ObjectNotOnServer\"");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void TerminalBlobHydrationFailureTagsLocalCopyFailed()
+        {
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) => true;
+            fileSystem.OnOpenFileStream = (path, mode, access) =>
+            {
+                if (access == FileAccess.Write)
+                {
+                    return new MemoryStream();
+                }
+
+                throw new FileNotFoundException();
+            };
+            fileSystem.OnMoveFile = (source, target) => { };
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+
+            // Serve fresh content on every attempt so the download succeeds; the failure must then be
+            // attributed to the local copy that keeps failing afterward, not to the download.
+            httpObjects.ContentBytesToServe = this.validTestObjectFileContents;
+            httpObjects.MediaType = GVFSConstants.MediaTypes.LooseObjectMediaType;
+            GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out MockTracer tracer);
+
+            bool copied = dut.TryCopyBlobContentStream(
+                ValidTestObjectFileSha1,
+                new CancellationToken(),
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("Should not be able to call copy stream callback"),
+                out GVFSGitObjects.BlobHydrationFailureCategory failureCategory);
+            copied.ShouldEqual(false);
+
+            failureCategory.ShouldEqual(GVFSGitObjects.BlobHydrationFailureCategory.LocalCopyFailed);
+            string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
+            terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"LocalCopyFailed\"");
         }
 
         [TestCase]
@@ -541,12 +655,18 @@ namespace GVFS.UnitTests.Git
 
         private GVFSGitObjects CreateTestableGVFSGitObjects(GitObjectsHttpRequestor httpObjects, MockFileSystemWithCallbacks fileSystem)
         {
-            MockTracer tracer = new MockTracer();
+            return this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out _);
+        }
+
+        private GVFSGitObjects CreateTestableGVFSGitObjects(GitObjectsHttpRequestor httpObjects, MockFileSystemWithCallbacks fileSystem, out MockTracer tracer)
+        {
+            MockTracer localTracer = new MockTracer();
+            tracer = localTracer;
             GVFSEnlistment enlistment = new GVFSEnlistment(TestEnlistmentRoot, "https://fakeRepoUrl", "fakeGitBinPath", authentication: null);
             enlistment.InitializeCachePathsFromKey(TestLocalCacheRoot, TestObjectRoot);
-            GitRepo repo = new GitRepo(tracer, enlistment, fileSystem, () => new MockLibGit2Repo(tracer));
+            GitRepo repo = new GitRepo(localTracer, enlistment, fileSystem, () => new MockLibGit2Repo(localTracer));
 
-            GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
+            GVFSContext context = new GVFSContext(localTracer, fileSystem, repo, enlistment);
             GVFSGitObjects dut = new UnsafeGVFSGitObjects(context, httpObjects);
             return dut;
         }
@@ -565,6 +685,8 @@ namespace GVFS.UnitTests.Git
 
             public Stream InputStream { get; set; }
             public string MediaType { get; set; }
+            public HttpStatusCode? StatusCodeToReturn { get; set; }
+            public byte[] ContentBytesToServe { get; set; }
 
             public static MemoryStream GetRandomStream(int size)
             {
@@ -595,10 +717,26 @@ namespace GVFS.UnitTests.Git
                 Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
                 bool preferBatchedLooseObjects)
             {
+                if (this.StatusCodeToReturn.HasValue)
+                {
+                    // Simulate the server returning a non-OK status (e.g. 404) so callers can exercise
+                    // the ObjectNotOnServer path.
+                    return new RetryWrapper<GitObjectTaskResult>.InvocationResult(
+                        0,
+                        error: null,
+                        result: new GitObjectTaskResult(this.StatusCodeToReturn.Value));
+                }
+
+                // Serve a fresh stream per call when ContentBytesToServe is set so the download
+                // succeeds even across retries (InputStream would be consumed after the first read).
+                Stream contentStream = this.ContentBytesToServe != null
+                    ? new MemoryStream(this.ContentBytesToServe)
+                    : this.InputStream;
+
                 using (GitEndPointResponseData response = new GitEndPointResponseData(
                     HttpStatusCode.OK,
                     this.MediaType,
-                    this.InputStream,
+                    contentStream,
                     message: null,
                     onResponseDisposed: null))
                 {

@@ -59,6 +59,24 @@ namespace GVFS.Platform.Windows
         // the throttle cannot be disturbed by wall-clock adjustments.
         private long lastEnumerationEvictionSweepTickCount = Environment.TickCount64;
 
+        // Enumeration IDs recently removed by EvictStaleEnumerations, mapped to the monotonic tick at
+        // which they were evicted. Retained briefly so a later GetDirectoryEnumeration for an evicted
+        // ID can be attributed to GVFS eviction (self-inflicted) rather than a ProjFS unknown-ID
+        // delivery. Bounded by pruning during each sweep; empty while eviction is disabled (the default).
+        private readonly ConcurrentDictionary<Guid, long> recentlyEvictedEnumerations = new ConcurrentDictionary<Guid, long>();
+
+        /// <summary>
+        /// Why a GetDirectoryEnumeration failed to find its enumeration ID. Recorded on the failure
+        /// telemetry so a self-inflicted eviction can be told apart from a ProjFS unknown-ID delivery.
+        /// Kept in sync with the telemetry bucketing in devprod.git.telemetry
+        /// (gvfs-regression-signatures.kql).
+        /// </summary>
+        public enum EnumerationFailureReason
+        {
+            Unknown = 0,   // ProjFS delivered an ID GVFS never held or already ended (outside gvfs.exe's control).
+            Evicted,       // GVFS's own stale-enumeration eviction removed a live enumeration (self-inflicted).
+        }
+
         public WindowsFileSystemVirtualizer(GVFSContext context, GVFSGitObjects gitObjects)
             : this(
                   context,
@@ -187,19 +205,51 @@ namespace GVFS.Platform.Windows
 
         private void EvictStaleEnumerations()
         {
+            long now = Environment.TickCount64;
+
+            // Prune the eviction-tracking map on every sweep, independent of whether an eviction
+            // happens this pass, so entries never outlive the window in which a stale
+            // GetDirectoryEnumeration could still arrive for an evicted ID. (If this ran only when
+            // Count > max below, the last evicted batch would linger once activity subsided.) Guids
+            // are never reused, so there is no need to prune on re-add. Cheap no-op while empty
+            // (the default, since eviction is off).
+            if (!this.recentlyEvictedEnumerations.IsEmpty)
+            {
+                long trackingCutoff = now - (long)(2 * this.activeEnumerationStaleTimeout.TotalMilliseconds);
+                foreach (KeyValuePair<Guid, long> tracked in this.recentlyEvictedEnumerations)
+                {
+                    if (tracked.Value < trackingCutoff)
+                    {
+                        this.recentlyEvictedEnumerations.TryRemove(tracked.Key, out _);
+                    }
+                }
+            }
+
             if (this.activeEnumerations.Count <= this.maxActiveEnumerations)
             {
                 return;
             }
 
-            long cutoff = Environment.TickCount64 - (long)this.activeEnumerationStaleTimeout.TotalMilliseconds;
+            long cutoff = now - (long)this.activeEnumerationStaleTimeout.TotalMilliseconds;
             int evictedCount = 0;
             foreach (KeyValuePair<Guid, ActiveEnumeration> entry in this.activeEnumerations)
             {
-                if (entry.Value.LastActivityTickCount < cutoff &&
-                    this.activeEnumerations.TryRemove(entry.Key, out _))
+                if (entry.Value.LastActivityTickCount < cutoff)
                 {
-                    evictedCount++;
+                    // Record the eviction BEFORE removing from activeEnumerations so a concurrent
+                    // GetDirectoryEnumeration for this ID always finds it in one map or the other,
+                    // and is never mis-attributed to a ProjFS unknown-ID delivery.
+                    this.recentlyEvictedEnumerations[entry.Key] = now;
+                    if (this.activeEnumerations.TryRemove(entry.Key, out _))
+                    {
+                        evictedCount++;
+                    }
+                    else
+                    {
+                        // Lost the race (e.g. a normal EndDirectoryEnumeration removed it first);
+                        // it was not evicted by us, so undo the tracking entry.
+                        this.recentlyEvictedEnumerations.TryRemove(entry.Key, out _);
+                    }
                 }
             }
 
@@ -464,6 +514,16 @@ namespace GVFS.Platform.Windows
                     EventMetadata metadata = this.CreateEventMetadata(enumerationId);
                     metadata.Add("filterFileName", filterFileName);
                     metadata.Add("restartScan", restartScan);
+
+                    // Distinguish a failure caused by GVFS's own stale-enumeration eviction
+                    // (self-inflicted, fixable) from ProjFS delivering an ID GVFS never held or
+                    // already ended (outside gvfs.exe's control). Kept in sync with the telemetry
+                    // bucketing in devprod.git.telemetry (gvfs-regression-signatures.kql).
+                    EnumerationFailureReason enumerationFailureReason = this.recentlyEvictedEnumerations.ContainsKey(enumerationId)
+                        ? EnumerationFailureReason.Evicted
+                        : EnumerationFailureReason.Unknown;
+                    metadata.Add(nameof(EnumerationFailureReason), enumerationFailureReason.ToString());
+
                     this.Context.Tracer.RelatedError(metadata, nameof(this.GetDirectoryEnumerationCallback) + ": Failed to find active enumeration ID");
 
                     return HResult.InternalError;
@@ -1180,6 +1240,7 @@ namespace GVFS.Platform.Windows
                         if (blobLength != length)
                         {
                             requestMetadata.Add("blobLength", blobLength);
+                            requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), GVFSGitObjects.BlobHydrationFailureCategory.SizeMismatch.ToString());
                             this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: Actual file length (blobLength) does not match requested length");
 
                             throw new GetFileStreamException(HResult.InternalError);
@@ -1204,6 +1265,7 @@ namespace GVFS.Platform.Windows
                                 catch (IOException e)
                                 {
                                     requestMetadata.Add("Exception", e.ToString());
+                                    requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), GVFSGitObjects.BlobHydrationFailureCategory.LocalIO.ToString());
                                     this.Context.Tracer.RelatedError(requestMetadata, "IOException while copying to unmanaged buffer.");
 
                                     throw new GetFileStreamException("IOException while copying to unmanaged buffer: " + e.Message, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
@@ -1225,6 +1287,7 @@ namespace GVFS.Platform.Windows
 
                                         default:
                                             {
+                                                requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), GVFSGitObjects.BlobHydrationFailureCategory.ProjFSWriteFailed.ToString());
                                                 this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.virtualizationInstance.WriteFileData)} failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
                                             }
 
@@ -1235,8 +1298,10 @@ namespace GVFS.Platform.Windows
                                 }
                             }
                         }
-                    }))
+                    },
+                    out GVFSGitObjects.BlobHydrationFailureCategory failureCategory))
                 {
+                    requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), failureCategory.ToString());
                     this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                     this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
@@ -1264,6 +1329,7 @@ namespace GVFS.Platform.Windows
             catch (Exception e)
             {
                 requestMetadata.Add("Exception", e.ToString());
+                requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), GVFSGitObjects.BlobHydrationFailureCategory.Unexpected.ToString());
                 this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                 this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
