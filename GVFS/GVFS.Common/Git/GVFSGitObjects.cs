@@ -3,6 +3,7 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading;
@@ -89,9 +90,18 @@ namespace GVFS.Common.Git
                     {
                         metadata.Add("Exception", errorArgs.Error.ToString());
 
-                        // An IOException here can also originate in the download/network layer, but
-                        // we cannot tell where it came from, so it is bucketed as local IO.
-                        category = errorArgs.Error is IOException
+                        // A RetryableException wraps its real cause in InnerException, so inspect the
+                        // inner exception rather than the RetryableException type. On this branch the
+                        // exception arrives from Context.Repository.TryCopyBlobContentStream - typically
+                        // StreamUtil wrapping an IOException while reading a corrupt/truncated local
+                        // loose object (UnauthorizedAccessException/Win32Exception are treated the same
+                        // as they belong to the local disk/IO family). Without this unwrap every
+                        // RetryableException - the single largest hydration-failure bucket in the field -
+                        // is misattributed to NetworkUnavailable even when the cause is local disk/IO. A
+                        // stream-read IOException can still originate in the download layer, but we cannot
+                        // tell where it came from, so it is bucketed as local IO.
+                        Exception rootError = (errorArgs.Error as RetryableException)?.InnerException ?? errorArgs.Error;
+                        category = rootError is IOException || rootError is UnauthorizedAccessException || rootError is Win32Exception
                             ? BlobHydrationFailureCategory.LocalIO
                             : BlobHydrationFailureCategory.NetworkUnavailable;
                     }
