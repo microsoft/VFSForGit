@@ -208,7 +208,23 @@ namespace GVFS.CommandLine
 
             bool healthyRepo = (enlistmentHealthData.PlaceholderPercentage + enlistmentHealthData.ModifiedPathsPercentage) < MaximumHealthyHydration;
 
-            this.Output.WriteLine("\nRepository status: " + (healthyRepo ? "OK" : "Highly Hydrated"));
+            // Only label the summary as "Repository status" when the calculation actually covered
+            // the whole enlistment. When the user scoped the check to a subdirectory (via -d or by
+            // running from a subdirectory of the enlistment) the number describes only that subtree,
+            // so label it accordingly to avoid falsely reporting the repository as highly hydrated.
+            bool isWholeRepo = string.IsNullOrEmpty(enlistmentHealthData.TargetDirectory)
+                || enlistmentHealthData.TargetDirectory == GVFSConstants.GitPathSeparatorString;
+
+            string statusLabel = isWholeRepo
+                ? "Repository status"
+                : "Directory status (" + enlistmentHealthData.TargetDirectory.TrimEnd(GVFSConstants.GitPathSeparator) + ")";
+
+            this.Output.WriteLine("\n" + statusLabel + ": " + (healthyRepo ? "OK" : "Highly Hydrated"));
+
+            if (!isWholeRepo)
+            {
+                this.Output.WriteLine("To see the full repository status, switch to the root of the repository and re-run 'gvfs health'.");
+            }
         }
 
         /// <summary>

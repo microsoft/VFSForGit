@@ -262,9 +262,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void ValidateEnlistmentStatus(string outputLine, string statusMessage)
         {
-            // Regex to extract the status message for the enlistment
-            // "Repository status: <status-message>"
-            Match lineMatch = Regex.Match(outputLine, @"^Repository status:\s*(.*)$");
+            // Regex to extract the status message for the enlistment. The verb prints
+            // "Repository status: <status-message>" when the calculation covers the whole enlistment,
+            // and "Directory status (<path>): <status-message>" when scoped to a subdirectory.
+            Match lineMatch = Regex.Match(outputLine, @"^(?:Repository status|Directory status \([^)]*\)):\s*(.*)$");
 
             string outputtedStatusMessage = lineMatch.Groups[1].Value;
 
