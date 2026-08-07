@@ -248,14 +248,8 @@ namespace GVFS.CommandLine
                     {
                         tracer.RelatedError(cloneResult.ErrorMessage);
                     }
-                    else
-                    {
-                        trustPackIndexes = LibGit2Repo.GetConfigBoolOrDefault(
-                            tracer,
-                            enlistment.WorkingDirectoryBackingRoot,
-                            GVFSConstants.GitConfig.TrustPackIndexes,
-                            GVFSConstants.GitConfig.TrustPackIndexesDefault);
-                    }
+
+                    trustPackIndexes = this.GetTrustPackIndexes(tracer, cloneResult, enlistment);
                 }
 
                 if (cloneResult.Success)
@@ -364,7 +358,30 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private Result TryCreateEnlistment(
+        /// <summary>
+        /// Determines whether pack indexes should be trusted for the newly cloned enlistment.
+        /// Only reads the enlistment's git config when <paramref name="cloneResult"/> indicates
+        /// the clone succeeded; <paramref name="enlistment"/> is null when the clone failed
+        /// (e.g. TryCreateEnlistment failed because the target directory was not empty), and must
+        /// not be dereferenced in that case. This gating is what fixes the NullReferenceException
+        /// regression where `gvfs clone` into a non-empty directory used to crash instead of
+        /// reporting "exists and is not empty".
+        /// </summary>
+        internal bool GetTrustPackIndexes(ITracer tracer, Result cloneResult, GVFSEnlistment enlistment)
+        {
+            if (!cloneResult.Success)
+            {
+                return GVFSConstants.GitConfig.TrustPackIndexesDefault;
+            }
+
+            return LibGit2Repo.GetConfigBoolOrDefault(
+                tracer,
+                enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.GitConfig.TrustPackIndexes,
+                GVFSConstants.GitConfig.TrustPackIndexesDefault);
+        }
+
+        internal Result TryCreateEnlistment(
             string fullEnlistmentRootPathParameter,
             string normalizedEnlistementRootPath,
             out GVFSEnlistment enlistment)
@@ -816,7 +833,7 @@ git %*
             return new Result(true);
         }
 
-        private class Result
+        internal class Result
         {
             public Result(bool success)
             {
