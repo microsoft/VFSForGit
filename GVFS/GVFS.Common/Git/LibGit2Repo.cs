@@ -39,8 +39,13 @@ namespace GVFS.Common.Git
         }
 
         protected LibGit2Repo()
+            : this(NullTracer.Instance)
         {
-            this.Tracer = NullTracer.Instance;
+        }
+
+        protected LibGit2Repo(ITracer tracer)
+        {
+            this.Tracer = tracer;
         }
 
         ~LibGit2Repo()
@@ -303,6 +308,55 @@ namespace GVFS.Common.Git
             finally
             {
                 Native.Config.Free(configHandle);
+            }
+        }
+
+        /// <summary>
+        /// Reads a boolean config value from this already-open repo, falling back to
+        /// <paramref name="defaultValue"/> if the key is unset or the read fails for any reason
+        /// (e.g. a corrupt/unreadable config).
+        /// </summary>
+        public bool GetConfigBoolOrDefault(string key, bool defaultValue)
+        {
+            try
+            {
+                return this.GetConfigBool(key) ?? defaultValue;
+            }
+            catch (Exception e)
+            {
+                this.Tracer.RelatedWarning($"Failed to read {key} config, using default: {e.Message}");
+                return defaultValue;
+            }
+        }
+
+        /// <summary>
+        /// Reads a single boolean config value from the repo at <paramref name="repoPath"/>,
+        /// opening and disposing a transient <see cref="LibGit2Repo"/> for the lookup. Prefer
+        /// this over <see cref="LibGit2RepoInvoker"/> for one-off config reads:
+        /// LibGit2RepoInvoker.InitializeSharedRepo forces the object store to load, which is
+        /// wasted work when all that's needed is a single config value. Falls back to
+        /// <paramref name="defaultValue"/> if the repo can't be opened or the read fails for any
+        /// reason.
+        /// </summary>
+        public static bool GetConfigBoolOrDefault(ITracer tracer, string repoPath, string key, bool defaultValue)
+        {
+            try
+            {
+                using (LibGit2Repo repo = new LibGit2Repo(tracer, repoPath))
+                {
+                    return repo.GetConfigBoolOrDefault(key, defaultValue);
+                }
+            }
+            catch (InvalidDataException)
+            {
+                // The LibGit2Repo constructor already logged a RelatedWarning with the native
+                // failure reason before throwing; avoid logging the same failure twice.
+                return defaultValue;
+            }
+            catch (Exception e)
+            {
+                tracer.RelatedWarning($"Failed to read {key} config, using default: {e.Message}");
+                return defaultValue;
             }
         }
 
