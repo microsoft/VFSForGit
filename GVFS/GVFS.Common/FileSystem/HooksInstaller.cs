@@ -2,7 +2,6 @@
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -183,7 +182,7 @@ namespace GVFS.Common.FileSystem
                 {
                     if (retriesLeft == 0)
                     {
-                        errorMessage = re.InnerException.ToString();
+                        errorMessage = (re.InnerException ?? re).ToString();
                         return false;
                     }
 
@@ -209,7 +208,7 @@ namespace GVFS.Common.FileSystem
             return TryUpdateHook(context, hook.Name, installedHookPath, enlistmentHookPath, out errorMessage);
         }
 
-        private static bool TryUpdateHook(
+        internal static bool TryUpdateHook(
             GVFSContext context,
             string hookName,
             string installedHookPath,
@@ -228,47 +227,66 @@ namespace GVFS.Common.FileSystem
             {
                 copyHook = true;
 
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Area", "Mount");
-                metadata.Add(nameof(enlistmentHookPath), enlistmentHookPath);
-                metadata.Add(nameof(installedHookPath), installedHookPath);
-                metadata.Add(TracingConstants.MessageKey.WarningMessage, hookName + " not found in enlistment, copying from installation folder");
-                context.Tracer.RelatedWarning(hookName + " MissingFromEnlistment", metadata);
+                EventMetadata metadata = CreateHookEventMetadata(installedHookPath, enlistmentHookPath);
+                metadata.Add("HookUpdateResult", "MissingFromEnlistment");
+                context.Tracer.RelatedWarning(metadata, hookName + " not found in enlistment, copying from installation folder", Keywords.Telemetry);
             }
             else
             {
                 try
                 {
-                    FileVersionInfo enlistmentVersion = FileVersionInfo.GetVersionInfo(enlistmentHookPath);
-                    FileVersionInfo installedVersion = FileVersionInfo.GetVersionInfo(installedHookPath);
-                    copyHook = enlistmentVersion.FileVersion != installedVersion.FileVersion;
+                    // Compare the enlistment hook against the installed hook by FileVersion.
+                    // These native hook binaries embed their GVFS version in the PE version
+                    // resource, so the version differs only when a GVFS upgrade changed the
+                    // hook - which is rare (roughly monthly) compared to daily mounts. So the
+                    // common daily mount does no copy, and a copy happens on the first mount
+                    // after an upgrade.
+                    copyHook = !HookVersionsMatch(context, installedHookPath, enlistmentHookPath);
                 }
                 catch (Exception e)
                 {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", "Mount");
-                    metadata.Add(nameof(enlistmentHookPath), enlistmentHookPath);
-                    metadata.Add(nameof(installedHookPath), installedHookPath);
+                    // Reading the version opens the hook files, either of which can be
+                    // transiently locked (open handle, AV scan) - the same failure class the
+                    // copy path is hardened against. Do not fail the mount here: assume the
+                    // enlistment hook may be stale, set copyHook so the resilient copy path
+                    // runs (retry with backoff, then the "already matches" recheck). If a lock
+                    // persists, that path reports the error after exhausting retries.
+                    EventMetadata metadata = CreateHookEventMetadata(installedHookPath, enlistmentHookPath);
                     metadata.Add("Exception", e.ToString());
-                    context.Tracer.RelatedError(metadata, "Failed to compare " + hookName + " version");
-                    errorMessage = "Error comparing " + hookName + " versions. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.WorkingDirectoryRoot);
-                    return false;
+                    metadata.Add("HookUpdateResult", "CompareFailed");
+                    context.Tracer.RelatedWarning(metadata, "Failed to compare " + hookName + " version; will attempt to refresh the hook", Keywords.Telemetry);
+                    copyHook = true;
                 }
             }
 
             if (copyHook)
             {
-                try
+                // Retry the copy with backoff, matching the clone-time InstallHooks path.
+                // The enlistment hook can be transiently locked (open handle, AV scan),
+                // in which case the rename fails with a RetryableException wrapping
+                // ERROR_ACCESS_DENIED. A transient lock must not be fatal to the mount.
+                if (!TryHooksInstallationAction(() => CopyHook(context, installedHookPath, enlistmentHookPath), out string copyError))
                 {
-                    CopyHook(context, installedHookPath, enlistmentHookPath);
-                }
-                catch (Exception e)
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", "Mount");
-                    metadata.Add(nameof(enlistmentHookPath), enlistmentHookPath);
-                    metadata.Add(nameof(installedHookPath), installedHookPath);
-                    metadata.Add("Exception", e.ToString());
+                    // The copy could not complete after retries. If the enlistment hook
+                    // already matches the installed one, the binary is correct and the
+                    // lock is harmless - treat it as success rather than killing the mount.
+                    if (HookExistsAndVersionMatches(context, installedHookPath, enlistmentHookPath))
+                    {
+                        EventMetadata alreadyCorrect = CreateHookEventMetadata(installedHookPath, enlistmentHookPath);
+                        alreadyCorrect.Add("CopyError", copyError);
+                        alreadyCorrect.Add("HookUpdateResult", "LockedButAlreadyCorrect");
+                        context.Tracer.RelatedWarning(
+                            alreadyCorrect,
+                            hookName + " could not be re-copied but already matches the installed hook; continuing",
+                            Keywords.Telemetry);
+
+                        errorMessage = null;
+                        return true;
+                    }
+
+                    EventMetadata metadata = CreateHookEventMetadata(installedHookPath, enlistmentHookPath);
+                    metadata.Add("Exception", copyError);
+                    metadata.Add("HookUpdateResult", "CopyFailed");
                     context.Tracer.RelatedError(metadata, "Failed to copy " + hookName + " to enlistment");
                     errorMessage = "Error copying " + hookName + " to enlistment. " + ConsoleHelper.GetGVFSLogMessage(context.Enlistment.WorkingDirectoryRoot);
                     return false;
@@ -277,6 +295,55 @@ namespace GVFS.Common.FileSystem
 
             errorMessage = null;
             return true;
+        }
+
+        /// <summary>
+        /// Seeds an <see cref="EventMetadata"/> with the fields common to every mount-time
+        /// hook-update outcome. Callers add an outcome-specific "HookUpdateResult" value (and
+        /// any exception detail) so all outcomes are queryable by that field.
+        /// </summary>
+        private static EventMetadata CreateHookEventMetadata(string installedHookPath, string enlistmentHookPath)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Area", "Mount");
+            metadata.Add(nameof(enlistmentHookPath), enlistmentHookPath);
+            metadata.Add(nameof(installedHookPath), installedHookPath);
+            return metadata;
+        }
+
+        /// <summary>
+        /// Returns true only when both files report the same, non-empty FileVersion. An
+        /// absent/empty version is treated as "cannot confirm identical" (not a match), so the
+        /// resilient copy path runs. Otherwise two version-less binaries would compare equal
+        /// (string.Equals(null, null) == true) and the hook would never be refreshed, silently
+        /// defeating the self-heal this comparison provides. Both files must exist.
+        /// </summary>
+        private static bool HookVersionsMatch(GVFSContext context, string installedHookPath, string enlistmentHookPath)
+        {
+            string installedVersion = context.FileSystem.GetFileVersion(installedHookPath);
+            string enlistmentVersion = context.FileSystem.GetFileVersion(enlistmentHookPath);
+
+            return !string.IsNullOrEmpty(installedVersion)
+                && string.Equals(installedVersion, enlistmentVersion, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Returns true only when the enlistment hook exists and its FileVersion matches the
+        /// installed hook. Any failure to read or compare (for example, the file is exclusively
+        /// locked) is treated as "does not match" so callers do not mistake an unknown state
+        /// for success.
+        /// </summary>
+        private static bool HookExistsAndVersionMatches(GVFSContext context, string installedHookPath, string enlistmentHookPath)
+        {
+            try
+            {
+                return context.FileSystem.FileExists(enlistmentHookPath)
+                    && HookVersionsMatch(context, installedHookPath, enlistmentHookPath);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         public class HooksConfigurationException : Exception
