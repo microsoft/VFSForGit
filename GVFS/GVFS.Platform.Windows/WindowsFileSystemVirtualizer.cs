@@ -29,6 +29,14 @@ namespace GVFS.Platform.Windows
         private const int MaxBlobStreamBufferSize = 64 * 1024;
         private const int MinPrjLibThreads = 5;
 
+        // Paired telemetry event names for the read-time corrupt-placeholder self-heal (see
+        // GetFileStreamHandlerAsyncHandler). Defined once and shared by every emit site so the two
+        // events stay greppable and cannot drift; _MalformedBlobShaRepaired + _MalformedBlobShaRepairFailed
+        // together account for every non-aborted repair attempt (a read cancelled mid-repair, or aborted
+        // because the app closed the handle, emits neither - it is retried, not a repair outcome).
+        private const string MalformedShaRepairedEventName = nameof(GetFileStreamHandlerAsyncHandler) + "_MalformedBlobShaRepaired";
+        private const string MalformedShaRepairFailedEventName = nameof(GetFileStreamHandlerAsyncHandler) + "_MalformedBlobShaRepairFailed";
+
         private IVirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
@@ -763,6 +771,7 @@ namespace GVFS.Platform.Windows
                         length,
                         streamGuid,
                         sha,
+                        virtualPath,
                         metadata,
                         triggeringProcessImageFileName),
                     () =>
@@ -1221,6 +1230,7 @@ namespace GVFS.Platform.Windows
             uint length,
             Guid streamGuid,
             string sha,
+            string virtualPath,
             EventMetadata requestMetadata,
             string triggeringProcessImageFileName)
         {
@@ -1229,10 +1239,62 @@ namespace GVFS.Platform.Windows
                 return;
             }
 
+            // Hoisted above the try so the catch handlers can tell whether a failure occurred while
+            // repairing a malformed placeholder SHA and still emit the paired repair telemetry. The
+            // _MalformedBlobShaRepaired and _MalformedBlobShaRepairFailed events must together account
+            // for every non-aborted repair attempt, so a post-recovery hydration failure that THROWS
+            // (size mismatch, local IO, ProjFS write failure, or any other exception) must be funneled
+            // too - not just the TryCopyBlobContentStream-returned-false miss. A read cancelled
+            // mid-repair, or aborted because the app closed the handle (HResult.Handle), emits neither.
+            string hydrationSha = sha;
+            bool repairingMalformedSha = false;
+
             try
             {
+                // Read-time self-heal for a corrupt placeholder whose stored content-id is not a valid
+                // SHA (for example the all-NUL content-id of a corrupt placeholder). #2074 fails such a
+                // read cleanly to stop the crash and retry storm; here we go one step further and repair
+                // the underlying data. The authoritative SHA for this path still exists in the git index
+                // projection, so recover it and hydrate from that instead of the corrupt content-id. A
+                // successful hydration writes the whole file, which converts the placeholder into a full
+                // file on disk - the corrupt content-id is superseded and future reads never call back.
+                //
+                // We deliberately do NOT rewrite the placeholder's content-id in place (via
+                // UpdateFileIfNeeded): the reader holds the file open for this GetFileData, so an in-place
+                // update fails with ERROR_SHARING_VIOLATION. Confirmed empirically against real inbox
+                // ProjFS: (1) serving the full content converts the placeholder to a full file so a second
+                // read issues no GetFileData callback, and (2) UpdateFileIfNeeded on the file mid-read
+                // returns 0x80070020 (ERROR_SHARING_VIOLATION). So hydrating from the recovered SHA is
+                // both sufficient (the file is repaired for good) and the only option that works here.
+                if (!SHA1Util.IsValidShaFormat(sha))
+                {
+                    if (!this.TryRecoverShaForMalformedPlaceholder(
+                        virtualPath,
+                        cancellationToken,
+                        requestMetadata,
+                        out hydrationSha))
+                    {
+                        // Could not recover a valid SHA (path deleted/renamed, or the projection lookup
+                        // threw). Fall back to the same clean, non-crashing failure as #2074. The repair
+                        // miss is already funneled by TryRecoverShaForMalformedPlaceholder.
+                        requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), GVFSGitObjects.BlobHydrationFailureCategory.Unexpected.ToString());
+                        this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+                        return;
+                    }
+
+                    repairingMalformedSha = true;
+
+                    // Note: hydrating the recovered SHA goes through TryCopyBlobContentStream's normal
+                    // download + retry budget. For a projected file whose blob is genuinely unavailable
+                    // this costs a projection lookup plus that budget on every read - the same cost any
+                    // valid-but-unavailable placeholder already pays - rather than #2074's cheap
+                    // fast-fail. Accepted: the corruption is rare and this narrow sub-case (corrupt
+                    // content-id AND path projected AND blob missing) is bounded per read and never
+                    // re-crashes or retry-storms the way the original unhandled ArgumentException did.
+                }
+
                 if (!this.GitObjects.TryCopyBlobContentStream(
-                    sha,
+                    hydrationSha,
                     cancellationToken,
                     GVFSGitObjects.RequestSource.FileStreamCallback,
                     (stream, blobLength) =>
@@ -1302,10 +1364,27 @@ namespace GVFS.Platform.Windows
                     out GVFSGitObjects.BlobHydrationFailureCategory failureCategory))
                 {
                     requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), failureCategory.ToString());
+
+                    if (repairingMalformedSha)
+                    {
+                        // We recovered a valid SHA from the projection but TryCopyBlobContentStream
+                        // reported a clean miss (the blob itself is unavailable). Funnel it distinctly
+                        // from a projection miss.
+                        this.EmitMalformedShaRepairFailed(requestMetadata, MalformedShaRepairFailureReason.HydrateFailed, hydrationSha);
+                    }
+
                     this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                     this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                     return;
+                }
+
+                if (repairingMalformedSha)
+                {
+                    // The corrupt placeholder was hydrated from the recovered SHA, so it is now a full
+                    // file on disk. Emit a distinct event (paired with #2074's *_MalformedBlobSha
+                    // detection) so we can watch the corrupt-placeholder population drain in telemetry.
+                    this.EmitMalformedShaRepaired(requestMetadata, hydrationSha);
                 }
             }
             catch (OperationCanceledException)
@@ -1321,6 +1400,16 @@ namespace GVFS.Platform.Windows
             catch (GetFileStreamException e)
             {
                 requestMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: GetFileStreamException HResult 0x{e.HResult:X8}");
+
+                // Funnel a post-recovery hydration failure that threw (size mismatch, local IO, ProjFS
+                // write failure). Exclude HResult.Handle: that means the application closed the file
+                // handle before hydration finished, so the repair attempt was aborted by the reader, not
+                // failed - counting it would inflate the repair-failure rate.
+                if (repairingMalformedSha && (HResult)e.HResult != HResult.Handle)
+                {
+                    this.EmitMalformedShaRepairFailed(requestMetadata, MalformedShaRepairFailureReason.HydrateException, hydrationSha);
+                }
+
                 this.Context.Tracer.RelatedWarning(requestMetadata, nameof(this.GetFileStreamHandlerAsyncHandler) + "_GetFileStreamException");
 
                 this.TryCompleteCommand(commandId, (HResult)e.HResult);
@@ -1330,6 +1419,12 @@ namespace GVFS.Platform.Windows
             {
                 requestMetadata.Add("Exception", e.ToString());
                 requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), GVFSGitObjects.BlobHydrationFailureCategory.Unexpected.ToString());
+
+                if (repairingMalformedSha)
+                {
+                    this.EmitMalformedShaRepairFailed(requestMetadata, MalformedShaRepairFailureReason.HydrateException, hydrationSha);
+                }
+
                 this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                 this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
@@ -1338,6 +1433,110 @@ namespace GVFS.Platform.Windows
 
             this.FileSystemCallbacks.OnPlaceholderFileHydrated(triggeringProcessImageFileName);
             this.TryCompleteCommand(commandId, HResult.Ok);
+        }
+
+        /// <summary>
+        /// The reason a corrupt-placeholder repair attempt failed, tagged on the
+        /// _MalformedBlobShaRepairFailed telemetry event so the failure population is diagnosable.
+        /// </summary>
+        private enum MalformedShaRepairFailureReason
+        {
+            ProjectionMiss,       // The path is no longer projected as a file, so no authoritative SHA exists.
+            ProjectionException,  // The projection lookup threw while recovering the SHA.
+            HydrateFailed,        // A SHA was recovered but TryCopyBlobContentStream reported a clean miss.
+            HydrateException,     // A SHA was recovered but hydration threw (see BlobHydrationFailureCategory).
+        }
+
+        /// <summary>
+        /// Recovers the authoritative blob SHA for a corrupt placeholder from the git index projection.
+        /// A corrupt placeholder presents a malformed content-id (for example 40 NUL characters), but the
+        /// path is still projected, so the projection can supply the correct SHA. Returns true and sets
+        /// <paramref name="recoveredSha"/> when a SHA is found; otherwise emits a distinct repair-failed
+        /// telemetry event (with the reason) and returns false so the caller can fail the read cleanly
+        /// instead of crashing. Never swallows <see cref="OperationCanceledException"/>.
+        /// </summary>
+        private bool TryRecoverShaForMalformedPlaceholder(
+            string virtualPath,
+            CancellationToken cancellationToken,
+            EventMetadata requestMetadata,
+            out string recoveredSha)
+        {
+            recoveredSha = null;
+            MalformedShaRepairFailureReason repairFailedReason;
+
+            try
+            {
+                // Recover the authoritative SHA for this path from the git index projection. Pass a null
+                // BlobSizesConnection: repair needs only the SHA, not the blob size, so size resolution
+                // (which can throw SizesUnavailableException) is skipped - a size-lookup fault must not
+                // deny a SHA-only self-heal.
+                //
+                // The projection is read live, so a concurrent checkout / projection update can change
+                // the SHA projected for this path between when ProjFS opened the placeholder and now.
+                // Serving the currently-projected SHA is the best available answer for an already-corrupt
+                // placeholder and matches the normal placeholder-creation path, which reads the same live
+                // projection; the corrupt content-id carries no trustworthy prior revision to prefer.
+                ProjectedFileInfo fileInfo = this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo(
+                    cancellationToken,
+                    blobSizesConnection: null,
+                    virtualPath,
+                    out string _);
+
+                if (fileInfo != null && !fileInfo.IsFolder)
+                {
+                    // ProjectedFileInfo.Sha is a strongly-typed Sha1Id, which always renders as 40 hex
+                    // characters, so the recovered SHA is well-formed by construction.
+                    recoveredSha = fileInfo.Sha.ToString();
+                    return true;
+                }
+
+                // The path is no longer projected as a file (for example it was deleted or renamed), so
+                // there is no authoritative SHA to repair it with.
+                repairFailedReason = MalformedShaRepairFailureReason.ProjectionMiss;
+            }
+            catch (OperationCanceledException)
+            {
+                // Let the caller's handler treat cancellation exactly as it does for a normal read.
+                throw;
+            }
+            catch (Exception e)
+            {
+                // Any other projection failure is treated as an unrecoverable repair miss rather than a
+                // crash: we are already on the rare corrupt-placeholder branch, so failing cleanly is
+                // safer than propagating and exiting the mount.
+                repairFailedReason = MalformedShaRepairFailureReason.ProjectionException;
+                requestMetadata.Add("RepairException", e.ToString());
+            }
+
+            this.EmitMalformedShaRepairFailed(requestMetadata, repairFailedReason, recoveredSha: null);
+            return false;
+        }
+
+        /// <summary>
+        /// Emits the telemetry event marking a corrupt placeholder as repaired (hydrated from the
+        /// recovered SHA). Paired with <see cref="EmitMalformedShaRepairFailed"/> so the two events
+        /// together account for every repair attempt.
+        /// </summary>
+        private void EmitMalformedShaRepaired(EventMetadata requestMetadata, string recoveredSha)
+        {
+            requestMetadata["recoveredSha"] = SHA1Util.ToLoggableShaString(recoveredSha);
+            this.Context.Tracer.RelatedEvent(EventLevel.Warning, MalformedShaRepairedEventName, requestMetadata, Keywords.Telemetry);
+        }
+
+        /// <summary>
+        /// Emits the telemetry event marking a corrupt-placeholder repair attempt as failed, tagged with
+        /// the <paramref name="reason"/>. Emitted on every repair-failure exit so that
+        /// (repaired + repair-failed) accounts for every non-aborted repair attempt.
+        /// </summary>
+        private void EmitMalformedShaRepairFailed(EventMetadata requestMetadata, MalformedShaRepairFailureReason reason, string recoveredSha)
+        {
+            requestMetadata["RepairFailedReason"] = reason.ToString();
+            if (recoveredSha != null)
+            {
+                requestMetadata["recoveredSha"] = SHA1Util.ToLoggableShaString(recoveredSha);
+            }
+
+            this.Context.Tracer.RelatedEvent(EventLevel.Warning, MalformedShaRepairFailedEventName, requestMetadata, Keywords.Telemetry);
         }
 
         private void NotifyNewFileCreatedHandler(
