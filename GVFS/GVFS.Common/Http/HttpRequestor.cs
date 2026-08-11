@@ -22,6 +22,7 @@ namespace GVFS.Common.Http
         private static long requestCount = 0;
         private static SemaphoreSlim availableConnections;
         private static int connectionLimitConfigured = 0;
+        private static bool releaseConnectionBeforeCredentialReject = GVFSConstants.GitConfig.ReleaseConnectionBeforeCredentialRejectDefault;
 
         private readonly ProductInfoHeaderValue userAgentHeader;
 
@@ -38,6 +39,17 @@ namespace GVFS.Common.Http
         }
 
         protected HttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment)
+            : this(tracer, retryConfig, enlistment, handlerOverride: null)
+        {
+        }
+
+        /// <summary>
+        /// Test-only constructor that injects a custom <see cref="HttpMessageHandler"/> so
+        /// <see cref="SendRequest"/> can be exercised without real network I/O. Production code
+        /// uses the parameterless-handler overload, which builds a configured
+        /// <see cref="SocketsHttpHandler"/>.
+        /// </summary>
+        internal HttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment, HttpMessageHandler handlerOverride)
         {
             this.RetryConfig = retryConfig;
 
@@ -50,6 +62,7 @@ namespace GVFS.Common.Http
             if (Interlocked.CompareExchange(ref connectionLimitConfigured, 1, 0) == 0)
             {
                 TryApplyConnectionLimitFromConfig(tracer, enlistment);
+                TryApplyReleaseConnectionBeforeRejectFromConfig(tracer, enlistment);
             }
 
             // WARNING: Do NOT set Credentials or ServerCredentials on this handler.
@@ -61,14 +74,23 @@ namespace GVFS.Common.Http
             // GVFS cache servers and Azure DevOps accept PAT/OAuth tokens via the
             // "Authorization: Basic <base64>" header that SendRequest already attaches.
             // Transport-level credentials are redundant and purely wasteful.
-            SocketsHttpHandler handler = new SocketsHttpHandler()
+            HttpMessageHandler handler;
+            if (handlerOverride != null)
             {
-                MaxConnectionsPerServer = Environment.ProcessorCount,
-                PooledConnectionLifetime = Timeout.InfiniteTimeSpan,
-                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
-            };
+                handler = handlerOverride;
+            }
+            else
+            {
+                SocketsHttpHandler socketsHandler = new SocketsHttpHandler()
+                {
+                    MaxConnectionsPerServer = Environment.ProcessorCount,
+                    PooledConnectionLifetime = Timeout.InfiniteTimeSpan,
+                    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+                };
 
-            this.authentication.ConfigureSocketsHandlerSslIfNeeded(this.Tracer, handler, enlistment.CreateGitProcess());
+                this.authentication.ConfigureSocketsHandlerSslIfNeeded(this.Tracer, socketsHandler, enlistment.CreateGitProcess());
+                handler = socketsHandler;
+            }
 
             this.client = new HttpClient(handler)
             {
@@ -83,6 +105,20 @@ namespace GVFS.Common.Http
         public RetryConfig RetryConfig { get; }
 
         protected ITracer Tracer { get; }
+
+        /// <summary>
+        /// Number of currently-available connection-pool permits. Test-only observability hook
+        /// for asserting that <see cref="SendRequest"/> releases its slot at the right time.
+        /// </summary>
+        internal static int AvailableConnectionCount => availableConnections.CurrentCount;
+
+        /// <summary>
+        /// When true, <see cref="SendRequest"/> releases the connection-pool slot before running
+        /// the (potentially slow) credential-reject leg on a 401. Off by default; enabled via
+        /// <see cref="GVFSConstants.GitConfig.ReleaseConnectionBeforeCredentialReject"/>. Overridable
+        /// in tests.
+        /// </summary>
+        protected virtual bool ShouldReleaseConnectionBeforeCredentialReject => releaseConnectionBeforeCredentialReject;
 
         // Runtime credential fetches (object/pack downloads, incl. background
         // maintenance prefetch) are bounded so a missed/ignored credential prompt
@@ -120,7 +156,7 @@ namespace GVFS.Common.Http
             string authString = null;
             string errorMessage;
             if (!this.authentication.IsAnonymous &&
-                !this.authentication.TryGetCredentials(this.Tracer, out authString, out errorMessage, out bool credentialFetchTimedOut, this.CredentialTimeoutMs))
+                !this.authentication.TryGetCredentials(this.Tracer, out authString, out errorMessage, out bool credentialFetchTimedOut, this.CredentialTimeoutMs, cancellationToken))
             {
                 return new GitEndPointResponseData(
                     HttpStatusCode.Unauthorized,
@@ -192,6 +228,11 @@ namespace GVFS.Common.Http
             GitEndPointResponseData gitEndPointResponseData = null;
             HttpResponseMessage response = null;
 
+            // Tracks whether we already released the connection-pool slot inside the try body
+            // (F06 early-release before the credential-reject leg). The finally block must not
+            // release a second time, which would corrupt the semaphore's permit count.
+            bool connectionReleasedEarly = false;
+
             try
             {
                 requestStopwatch.Restart();
@@ -223,7 +264,7 @@ namespace GVFS.Common.Http
 
                     if (!this.authentication.IsAnonymous)
                     {
-                        this.authentication.ApproveCredentials(this.Tracer, authString, this.CredentialTimeoutMs);
+                        this.authentication.ApproveCredentials(this.Tracer, authString, this.CredentialTimeoutMs, cancellationToken);
                     }
 
                     Stream responseStream = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
@@ -238,39 +279,54 @@ namespace GVFS.Common.Http
                 else
                 {
                     errorMessage = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                    int statusInt = (int)response.StatusCode;
+                    HttpStatusCode statusCode = response.StatusCode;
+                    int statusInt = (int)statusCode;
 
-                    bool shouldRetry = ShouldRetry(response.StatusCode);
+                    bool shouldRetry = ShouldRetry(statusCode);
 
-                    if (response.StatusCode == HttpStatusCode.Unauthorized &&
+                    if (statusCode == HttpStatusCode.Unauthorized &&
                         this.authentication.IsAnonymous)
                     {
                         shouldRetry = false;
                         errorMessage = "Anonymous request was rejected with a 401";
                     }
-                    else if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.BadRequest || response.StatusCode == HttpStatusCode.Redirect)
+                    else if (statusCode == HttpStatusCode.Unauthorized || statusCode == HttpStatusCode.BadRequest || statusCode == HttpStatusCode.Redirect)
                     {
-                        this.authentication.RejectCredentials(this.Tracer, authString, this.CredentialTimeoutMs);
+                        if (this.ShouldReleaseConnectionBeforeCredentialReject)
+                        {
+                            // F06: the error body is already buffered into errorMessage, and the
+                            // reject leg can block for a long time on a slow or hung credential
+                            // helper. Free the process-wide connection slot before that wait so
+                            // healthy parallel requests are not starved by credential contention.
+                            // The finally block honors connectionReleasedEarly so a reject that
+                            // throws (e.g. on cancellation) does not double-release the permit.
+                            response.Dispose();
+                            response = null;
+                            availableConnections.Release();
+                            connectionReleasedEarly = true;
+                        }
+
+                        this.authentication.RejectCredentials(this.Tracer, authString, this.CredentialTimeoutMs, cancellationToken);
                         if (!this.authentication.IsBackingOff)
                         {
-                            errorMessage = string.Format("Server returned error code {0} ({1}). Your PAT may be expired and we are asking for a new one. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
+                            errorMessage = string.Format("Server returned error code {0} ({1}). Your PAT may be expired and we are asking for a new one. Original error message from server: {2}", statusInt, statusCode, errorMessage);
                         }
                         else
                         {
-                            errorMessage = string.Format("Server returned error code {0} ({1}) after successfully renewing your PAT. You may not have access to this repo. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
+                            errorMessage = string.Format("Server returned error code {0} ({1}) after successfully renewing your PAT. You may not have access to this repo. Original error message from server: {2}", statusInt, statusCode, errorMessage);
                         }
                     }
                     else
                     {
-                        errorMessage = string.Format("Server returned error code {0} ({1}). Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
+                        errorMessage = string.Format("Server returned error code {0} ({1}). Original error message from server: {2}", statusInt, statusCode, errorMessage);
                     }
 
                     gitEndPointResponseData = new GitEndPointResponseData(
-                        response.StatusCode,
-                        new GitObjectsHttpException(response.StatusCode, errorMessage),
+                        statusCode,
+                        new GitObjectsHttpException(statusCode, errorMessage),
                         shouldRetry,
-                        message: response,
-                        onResponseDisposed: () => availableConnections.Release());
+                        message: connectionReleasedEarly ? null : response,
+                        onResponseDisposed: connectionReleasedEarly ? (Action)null : () => availableConnections.Release());
                 }
             }
             catch (TaskCanceledException)
@@ -320,7 +376,12 @@ namespace GVFS.Common.Http
                         response.Dispose();
                     }
 
-                    availableConnections.Release();
+                    // Don't release a second time if the connection slot was already freed
+                    // early (F06) before a reject leg that then threw (e.g. on cancellation).
+                    if (!connectionReleasedEarly)
+                    {
+                        availableConnections.Release();
+                    }
                 }
             }
 
@@ -445,6 +506,45 @@ namespace GVFS.Common.Http
                 metadata.Add("Exception", e.ToString());
                 tracer.RelatedWarning(metadata, "HttpRequestor: Failed to read gvfs.max-http-connections config, using default");
             }
+        }
+
+        private static void TryApplyReleaseConnectionBeforeRejectFromConfig(ITracer tracer, Enlistment enlistment)
+        {
+            try
+            {
+                GitProcess.ConfigResult result = enlistment.CreateGitProcess().GetFromConfig(GVFSConstants.GitConfig.ReleaseConnectionBeforeCredentialReject);
+                if (!result.TryParseAsString(out string value, out string error))
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("error", error);
+                    tracer.RelatedWarning(metadata, "HttpRequestor: Failed to read gvfs.release-connection-before-credential-reject config, using default");
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(value) && IsGitConfigTrue(value))
+                {
+                    releaseConnectionBeforeCredentialReject = true;
+
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("value", value);
+                    tracer.RelatedEvent(EventLevel.Informational, "HttpRequestor_ReleaseConnectionBeforeCredentialRejectEnabled", metadata);
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                tracer.RelatedWarning(metadata, "HttpRequestor: Failed to read gvfs.release-connection-before-credential-reject config, using default");
+            }
+        }
+
+        private static bool IsGitConfigTrue(string value)
+        {
+            // Mirror git's boolean truthiness for config values.
+            return value.Equals("true", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("1", StringComparison.Ordinal)
+                || value.Equals("yes", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("on", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

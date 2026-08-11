@@ -77,6 +77,12 @@ namespace GVFS.Common
 
             public const string PrefetchOffload = GVFSPrefix + "prefetch-offload";
             public const bool PrefetchOffloadDefault = false;
+
+            /* Off-by-default flag (stabilization ship). When enabled, HttpRequestor releases
+             * its process-wide connection-pool slot before running the credential-reject leg on
+             * a 401, so a slow credential helper cannot starve healthy parallel requests. */
+            public const string ReleaseConnectionBeforeCredentialReject = GVFSPrefix + "release-connection-before-credential-reject";
+            public const bool ReleaseConnectionBeforeCredentialRejectDefault = false;
         }
 
         public static class LocalGVFSConfig

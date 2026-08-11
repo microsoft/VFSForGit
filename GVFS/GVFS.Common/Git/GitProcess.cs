@@ -198,7 +198,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage, int timeoutMs = -1)
+        public virtual bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage, int timeoutMs = -1, CancellationToken cancellationToken = default)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("url={0}\n", repoUrl);
@@ -221,7 +221,8 @@ namespace GVFS.Common.Git
                 stdin => stdin.Write(stdinConfig),
                 null,
                 usePreCommandHook: false,
-                timeoutMs: timeoutMs);
+                timeoutMs: timeoutMs,
+                cancellationToken: cancellationToken);
 
             if (result.ExitCodeIsFailure)
             {
@@ -235,7 +236,7 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public virtual bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage, int timeoutMs = -1)
+        public virtual bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string errorMessage, int timeoutMs = -1, CancellationToken cancellationToken = default)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("url={0}\n", repoUrl);
@@ -250,7 +251,8 @@ namespace GVFS.Common.Git
                 stdin => stdin.Write(stdinConfig),
                 null,
                 usePreCommandHook: false,
-                timeoutMs: timeoutMs);
+                timeoutMs: timeoutMs,
+                cancellationToken: cancellationToken);
 
             if (result.ExitCodeIsFailure)
             {
@@ -329,7 +331,8 @@ namespace GVFS.Common.Git
             out string password,
             out string errorMessage,
             out bool timedOut,
-            int timeoutMs = -1)
+            int timeoutMs = -1,
+            CancellationToken cancellationToken = default)
         {
             username = null;
             password = null;
@@ -345,7 +348,8 @@ namespace GVFS.Common.Git
                     stdin => stdin.Write($"url={repoUrl}\n\n"),
                     parseStdOutLine: null,
                     usePreCommandHook: false,
-                    timeoutMs: timeoutMs);
+                    timeoutMs: timeoutMs,
+                    cancellationToken: cancellationToken);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
@@ -996,7 +1000,8 @@ namespace GVFS.Common.Git
             Action<string> parseStdOutLine,
             int timeoutMs,
             string gitObjectsDirectory = null,
-            bool usePreCommandHook = true)
+            bool usePreCommandHook = true,
+            CancellationToken cancellationToken = default)
         {
             if (failedToSetEncoding && writeStdIn != null)
             {
@@ -1070,7 +1075,12 @@ namespace GVFS.Common.Git
                         this.executingProcess.BeginOutputReadLine();
                         this.executingProcess.BeginErrorReadLine();
 
-                        if (!this.executingProcess.WaitForExit(timeoutMs))
+                        bool cancellationRequested = false;
+                        bool exited = cancellationToken.CanBeCanceled
+                            ? this.WaitForExitWithCancellation(timeoutMs, cancellationToken, out cancellationRequested)
+                            : this.executingProcess.WaitForExit(timeoutMs);
+
+                        if (!exited)
                         {
                             // Kill the entire process tree. Killing only git.exe would leave
                             // helper children (e.g. an interactive credential manager prompt)
@@ -1080,6 +1090,14 @@ namespace GVFS.Common.Git
                             // Give the tree a bounded chance to actually exit so the async
                             // stdout/stderr readers flush before we read their buffers.
                             this.executingProcess.WaitForExit(ProcessKillTimeoutMs);
+
+                            if (cancellationRequested)
+                            {
+                                // The caller (e.g. mount shutdown or a cancelled request) asked us
+                                // to stop. Surface cancellation rather than a timeout so callers such
+                                // as RetryWrapper abort promptly instead of retrying the operation.
+                                throw new OperationCanceledException(cancellationToken);
+                            }
 
                             return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
                         }
@@ -1095,6 +1113,46 @@ namespace GVFS.Common.Git
             finally
             {
                 this.executingProcess = null;
+            }
+        }
+
+        /// <summary>
+        /// Waits for the currently executing git process to exit, giving up when the
+        /// timeout elapses or the caller cancels. Polls at a short interval so cancellation
+        /// (e.g. mount shutdown) is observed promptly even though <see cref="Process.WaitForExit(int)"/>
+        /// has no cancellation-aware overload.
+        /// </summary>
+        /// <returns>True if the process exited on its own; false if it must be killed.</returns>
+        private bool WaitForExitWithCancellation(int timeoutMs, CancellationToken cancellationToken, out bool cancellationRequested)
+        {
+            const int PollIntervalMs = 100;
+            cancellationRequested = false;
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            while (true)
+            {
+                int waitMs = PollIntervalMs;
+                if (timeoutMs >= 0)
+                {
+                    long remainingMs = timeoutMs - stopwatch.ElapsedMilliseconds;
+                    if (remainingMs <= 0)
+                    {
+                        return false;
+                    }
+
+                    waitMs = (int)Math.Min(PollIntervalMs, remainingMs);
+                }
+
+                if (this.executingProcess.WaitForExit(waitMs))
+                {
+                    return true;
+                }
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    cancellationRequested = true;
+                    return false;
+                }
             }
         }
 
@@ -1183,7 +1241,8 @@ namespace GVFS.Common.Git
             Action<string> parseStdOutLine,
             bool usePreCommandHook = true,
             string gitObjectsDirectory = null,
-            int timeoutMs = -1)
+            int timeoutMs = -1,
+            CancellationToken cancellationToken = default)
         {
             // This git command should not need/use the working directory of the repo.
             // Run git.exe in Environment.SystemDirectory to ensure the git.exe process
@@ -1197,7 +1256,8 @@ namespace GVFS.Common.Git
                 parseStdOutLine: parseStdOutLine,
                 timeoutMs: timeoutMs,
                 gitObjectsDirectory: gitObjectsDirectory,
-                usePreCommandHook: usePreCommandHook);
+                usePreCommandHook: usePreCommandHook,
+                cancellationToken: cancellationToken);
         }
 
         public class Result
