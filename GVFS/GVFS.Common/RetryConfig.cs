@@ -19,6 +19,7 @@ namespace GVFS.Common
         /// prompt. It still bounds the indefinite hang.
         /// </summary>
         public const int DefaultCredentialTimeoutSeconds = 120;
+        public const int MaxCredentialTimeoutSeconds = int.MaxValue / 1000;
 
         private const string EtwArea = nameof(RetryConfig);
 
@@ -187,6 +188,16 @@ namespace GVFS.Common
                 out credentialTimeoutSeconds,
                 out error))
             {
+                return false;
+            }
+
+            if (credentialTimeoutSeconds > MaxCredentialTimeoutSeconds)
+            {
+                error = string.Format(
+                    "Invalid value {0} for setting {1}, value must be less than or equal to {2}",
+                    credentialTimeoutSeconds,
+                    GVFSConstants.GitConfig.CredentialTimeoutSeconds,
+                    MaxCredentialTimeoutSeconds);
                 return false;
             }
 

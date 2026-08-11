@@ -422,7 +422,10 @@ namespace GVFS.Common.Http
                     {
                         if (response.HasErrors)
                         {
-                            bool shouldFallBack = hasFallbackEndPoint && !useFallbackEndPoint;
+                            bool shouldFallBack = ShouldFallBackToGlobalEndpoint(
+                                hasFallbackEndPoint,
+                                useFallbackEndPoint,
+                                response);
                             if (shouldFallBack)
                             {
                                 this.TraceCacheServerFallback(
@@ -490,6 +493,16 @@ namespace GVFS.Common.Http
                         return result;
                     }
                 });
+        }
+
+        internal static bool ShouldFallBackToGlobalEndpoint(
+            bool hasFallbackEndPoint,
+            bool useFallbackEndPoint,
+            GitEndPointResponseData response)
+        {
+            return hasFallbackEndPoint &&
+                !useFallbackEndPoint &&
+                !response.CredentialFetchTimedOut;
         }
 
         private RetryWrapper<GitObjectTaskResult>.CallbackResult HandleProtocolException(
