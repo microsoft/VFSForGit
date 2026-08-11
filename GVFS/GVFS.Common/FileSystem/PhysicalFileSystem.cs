@@ -258,19 +258,9 @@ namespace GVFS.Common.FileSystem
             return Directory.GetFiles(directoryPath, mask);
         }
 
-        public virtual FileVersionInfo GetVersionInfo(string path)
+        public virtual string GetFileVersion(string path)
         {
-            return FileVersionInfo.GetVersionInfo(path);
-        }
-
-        public virtual bool FileVersionsMatch(FileVersionInfo versionInfo1, FileVersionInfo versionInfo2)
-        {
-            return versionInfo1.FileVersion == versionInfo2.FileVersion;
-        }
-
-        public virtual bool ProductVersionsMatch(FileVersionInfo versionInfo1, FileVersionInfo versionInfo2)
-        {
-            return versionInfo1.ProductVersion == versionInfo2.ProductVersion;
+            return FileVersionInfo.GetVersionInfo(path).FileVersion;
         }
 
         public bool TryWriteTempFileAndRename(string destinationPath, string contents, out Exception handledException)
@@ -310,7 +300,7 @@ namespace GVFS.Common.FileSystem
             }
         }
 
-        public bool TryCopyToTempFileAndRename(string sourcePath, string destinationPath, out Exception handledException)
+        public virtual bool TryCopyToTempFileAndRename(string sourcePath, string destinationPath, out Exception handledException)
         {
             handledException = null;
             string tempFilePath = destinationPath + ".temp";

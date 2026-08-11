@@ -3,6 +3,7 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading;
@@ -33,14 +34,48 @@ namespace GVFS.Common.Git
             SymLinkCreation,
         }
 
+        /// <summary>
+        /// Why a blob-hydration request ultimately failed. Recorded on the terminal failure
+        /// telemetry so failures outside gvfs.exe's control (network, local disk/IO, ProjFS)
+        /// can be told apart from failures that point at an actionable bug or a server/data
+        /// problem. Kept in sync with the telemetry bucketing in the devprod.git.telemetry
+        /// workbook (gvfs-regression-signatures.kql).
+        /// </summary>
+        public enum BlobHydrationFailureCategory
+        {
+            None = 0,
+
+            // Outside gvfs.exe's control:
+            NetworkUnavailable,   // A network/HTTP-layer exception while fetching the blob.
+            DownloadFailed,       // The blob download reported failure (transient/unclassified).
+            LocalIO,              // IOException reading the local object or streaming to the ProjFS buffer.
+            ProjFSWriteFailed,    // ProjFS WriteFileData returned a non-recoverable error.
+
+            // Actionable (bug, corruption, or server/data problem):
+            ObjectNotOnServer,    // The cache server returned 404 for the blob.
+            LocalCopyFailed,      // Blob downloaded, but the subsequent local copy still failed.
+            SizeMismatch,         // Blob length did not match the length ProjFS requested.
+            Unexpected,           // Unclassified exception.
+        }
+
         protected GVFSContext Context { get; private set; }
 
         public virtual bool TryCopyBlobContentStream(
             string sha,
             CancellationToken cancellationToken,
             RequestSource requestSource,
-            Action<Stream, long> writeAction)
+            Action<Stream, long> writeAction,
+            out BlobHydrationFailureCategory failureCategory)
         {
+            // Track the outcome of the most recent attempt so that the terminal failure
+            // telemetry can attribute the failure to a cause (network vs. object-missing vs.
+            // local copy) that is otherwise collapsed into the bool return value below. The
+            // final category is also surfaced via the out parameter so the caller can tag its
+            // own terminal telemetry with the same cause.
+            DownloadAndSaveObjectResult lastDownloadResult = DownloadAndSaveObjectResult.Error;
+            bool downloadSucceededButCopyFailed = false;
+            BlobHydrationFailureCategory capturedCategory = BlobHydrationFailureCategory.None;
+
             RetryWrapper<bool> retrier = new RetryWrapper<bool>(this.GitObjectRequestor.RetryConfig.MaxAttempts, cancellationToken);
             retrier.OnFailure +=
                 errorArgs =>
@@ -50,10 +85,44 @@ namespace GVFS.Common.Git
                     metadata.Add("AttemptNumber", errorArgs.TryCount);
                     metadata.Add("WillRetry", errorArgs.WillRetry);
 
+                    BlobHydrationFailureCategory category;
                     if (errorArgs.Error != null)
                     {
                         metadata.Add("Exception", errorArgs.Error.ToString());
+
+                        // A RetryableException wraps its real cause in InnerException, so inspect the
+                        // inner exception rather than the RetryableException type. On this branch the
+                        // exception arrives from Context.Repository.TryCopyBlobContentStream - typically
+                        // StreamUtil wrapping an IOException while reading a corrupt/truncated local
+                        // loose object (UnauthorizedAccessException/Win32Exception are treated the same
+                        // as they belong to the local disk/IO family). Without this unwrap every
+                        // RetryableException - the single largest hydration-failure bucket in the field -
+                        // is misattributed to NetworkUnavailable even when the cause is local disk/IO. A
+                        // stream-read IOException can still originate in the download layer, but we cannot
+                        // tell where it came from, so it is bucketed as local IO.
+                        Exception rootError = (errorArgs.Error as RetryableException)?.InnerException ?? errorArgs.Error;
+                        category = rootError is IOException || rootError is UnauthorizedAccessException || rootError is Win32Exception
+                            ? BlobHydrationFailureCategory.LocalIO
+                            : BlobHydrationFailureCategory.NetworkUnavailable;
                     }
+                    else if (downloadSucceededButCopyFailed)
+                    {
+                        category = BlobHydrationFailureCategory.LocalCopyFailed;
+                    }
+                    else if (lastDownloadResult == DownloadAndSaveObjectResult.ObjectNotOnServer)
+                    {
+                        category = BlobHydrationFailureCategory.ObjectNotOnServer;
+                    }
+                    else
+                    {
+                        // The download reported failure without an exception; the cause (network,
+                        // disk-save, etc.) is unclassified, so use the neutral DownloadFailed bucket
+                        // rather than over-asserting NetworkUnavailable.
+                        category = BlobHydrationFailureCategory.DownloadFailed;
+                    }
+
+                    capturedCategory = category;
+                    metadata.Add(nameof(BlobHydrationFailureCategory), category.ToString());
 
                     string message = "TryCopyBlobContentStream: Failed to provide blob contents";
                     if (errorArgs.WillRetry)
@@ -76,19 +145,25 @@ namespace GVFS.Common.Git
                     }
                     else
                     {
+                        downloadSucceededButCopyFailed = false;
+
                         // Pass in false for retryOnFailure because the retrier in this method manages multiple attempts
-                        if (this.TryDownloadAndSaveObject(sha, cancellationToken, requestSource, retryOnFailure: false) == DownloadAndSaveObjectResult.Success)
+                        lastDownloadResult = this.TryDownloadAndSaveObject(sha, cancellationToken, requestSource, retryOnFailure: false);
+                        if (lastDownloadResult == DownloadAndSaveObjectResult.Success)
                         {
                             if (this.Context.Repository.TryCopyBlobContentStream(sha, writeAction))
                             {
                                 return new RetryWrapper<bool>.CallbackResult(true);
                             }
+
+                            downloadSucceededButCopyFailed = true;
                         }
 
                         return new RetryWrapper<bool>.CallbackResult(error: null, shouldRetry: true);
                     }
                 });
 
+            failureCategory = invokeResult.Result ? BlobHydrationFailureCategory.None : capturedCategory;
             return invokeResult.Result;
         }
 
