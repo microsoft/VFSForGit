@@ -4,9 +4,9 @@ run-name: ${{ inputs.run_name || 'VFS for Git' }}
 
 on:
   pull_request:
-    branches: [ master, releases/shipped ]
+    branches: [ master, releases/shipped, vnext ]
   push:
-    branches: [ master, releases/shipped ]
+    branches: [ master, releases/shipped, vnext ]
   workflow_dispatch:
     inputs:
       git_version:
@@ -24,7 +24,7 @@ permissions:
   checks: read
 
 env:
-  GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.54.0.vfs.0.5' }}
+  GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.55.0.vfs.0.6' }}
 
 jobs:
   validate:
@@ -283,7 +283,7 @@ jobs:
 
     - name: Install .NET SDK
       if: steps.skip.outputs.result != 'true'
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         global-json-file: src/global.json
 
