@@ -84,9 +84,9 @@ namespace GVFS.Common
             public const string MaxHttpConnectionsConfig = GVFSPrefix + "max-http-connections";
 
             /// <summary>
-            /// Overrides how long a runtime credential fetch may block waiting on the
-            /// credential manager, in seconds. 0 or negative restores the pre-bound
-            /// behavior of waiting indefinitely. Read once into <see cref="RetryConfig"/>.
+            /// Overrides how long credential operations started by HTTP requests can wait for
+            /// the credential manager, in seconds. 0 or negative selects an unbounded wait.
+            /// Startup authentication continues to use its fixed startup bound.
             /// </summary>
             public const string CredentialTimeoutSeconds = GVFSPrefix + "credential-timeout-seconds";
 
@@ -102,6 +102,7 @@ namespace GVFS.Common
 
             public const string PrefetchOffload = GVFSPrefix + "prefetch-offload";
             public const bool PrefetchOffloadDefault = false;
+
         }
 
         public static class LocalGVFSConfig

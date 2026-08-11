@@ -19,6 +19,7 @@ namespace GVFS.Common
         /// prompt. It still bounds the indefinite hang.
         /// </summary>
         public const int DefaultCredentialTimeoutSeconds = 120;
+        public const int MaxCredentialTimeoutSeconds = int.MaxValue / 1000;
 
         private const string EtwArea = nameof(RetryConfig);
 
@@ -134,13 +135,15 @@ namespace GVFS.Common
                         { "MaxRetries", retryConfig.MaxRetries },
                         { "CredentialTimeoutMs", retryConfig.CredentialTimeoutMs },
                         { TracingConstants.MessageKey.InfoMessage, "RetryConfigLoaded" }
-                    });
+                    },
+                    Keywords.Telemetry);
             }
 
             return true;
         }
 
-        private static bool TryLoadMaxRetries(GitProcess git, out int attempts, out string error)        {
+        private static bool TryLoadMaxRetries(GitProcess git, out int attempts, out string error)
+        {
             return TryGetFromGitConfig(
                 git,
                 GVFSConstants.GitConfig.MaxRetriesConfig,
@@ -187,6 +190,16 @@ namespace GVFS.Common
                 out credentialTimeoutSeconds,
                 out error))
             {
+                return false;
+            }
+
+            if (credentialTimeoutSeconds > MaxCredentialTimeoutSeconds)
+            {
+                error = string.Format(
+                    "Invalid value {0} for setting {1}, value must be less than or equal to {2}",
+                    credentialTimeoutSeconds,
+                    GVFSConstants.GitConfig.CredentialTimeoutSeconds,
+                    MaxCredentialTimeoutSeconds);
                 return false;
             }
 

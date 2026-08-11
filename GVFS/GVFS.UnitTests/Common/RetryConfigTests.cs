@@ -133,12 +133,40 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void TryLoadConfigTreatsNegativeCredentialTimeoutAsUnbounded()
+        {
+            MockGitProcess gitProcess = this.CreateGitProcessWithCredentialTimeout("-5");
+
+            RetryConfig.TryLoadFromGitConfig(null, gitProcess, out RetryConfig config, out string error).ShouldBeTrue(error);
+            config.CredentialTimeoutMs.ShouldEqual(-1, "A negative value should select an unbounded wait");
+        }
+
+        [TestCase]
+        public void TryLoadConfigRejectsCredentialTimeoutThatOverflowsMilliseconds()
+        {
+            int tooLarge = RetryConfig.MaxCredentialTimeoutSeconds + 1;
+            MockGitProcess gitProcess = this.CreateGitProcessWithCredentialTimeout(tooLarge.ToString());
+
+            RetryConfig.TryLoadFromGitConfig(null, gitProcess, out _, out string error).ShouldBeFalse();
+            error.ShouldContain("less than or equal to");
+        }
+
+        [TestCase]
         public void RetryConfigDefaultsCredentialTimeoutWhenNotLoadedFromConfig()
         {
             // Requestors constructed with a hand-built RetryConfig (tests, FastFetch, profiling)
             // must still get a bounded credential fetch rather than an unbounded default.
             new RetryConfig().CredentialTimeoutMs.ShouldEqual(RetryConfig.DefaultCredentialTimeoutSeconds * 1000);
             new RetryConfig(3, TimeSpan.FromSeconds(30)).CredentialTimeoutMs.ShouldEqual(RetryConfig.DefaultCredentialTimeoutSeconds * 1000);
+        }
+
+        private MockGitProcess CreateGitProcessWithCredentialTimeout(string credentialTimeoutSeconds)
+        {
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult("config gvfs.max-retries", () => new GitProcess.Result("3", string.Empty, GitProcess.Result.SuccessCode));
+            gitProcess.SetExpectedCommandResult("config gvfs.timeout-seconds", () => new GitProcess.Result("30", string.Empty, GitProcess.Result.SuccessCode));
+            gitProcess.SetExpectedCommandResult("config gvfs.credential-timeout-seconds", () => new GitProcess.Result(credentialTimeoutSeconds, string.Empty, GitProcess.Result.SuccessCode));
+            return gitProcess;
         }
     }
 }

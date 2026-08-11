@@ -70,11 +70,13 @@ namespace GVFS.Common.Git
             public DownloadAttemptResult(
                 DownloadAndSaveObjectResult result,
                 HttpStatusCode? httpStatusCode,
-                bool shouldRecordFailure = true)
+                bool shouldRecordFailure = true,
+                bool credentialOperationTimedOut = false)
             {
                 this.Result = result;
                 this.HttpStatusCode = httpStatusCode;
                 this.ShouldRecordFailure = shouldRecordFailure;
+                this.CredentialOperationTimedOut = credentialOperationTimedOut;
             }
 
             public DownloadAndSaveObjectResult Result { get; }
@@ -84,6 +86,8 @@ namespace GVFS.Common.Git
             public HttpStatusCode? HttpStatusCode { get; }
 
             public bool ShouldRecordFailure { get; }
+
+            public bool CredentialOperationTimedOut { get; }
         }
 
         protected GVFSContext Context { get; private set; }
@@ -171,6 +175,7 @@ namespace GVFS.Common.Git
 
                     capturedCategory = category;
                     metadata.Add(nameof(BlobHydrationFailureCategory), category.ToString());
+                    metadata.Add("CredentialOperationTimedOut", lastDownloadResult?.CredentialOperationTimedOut ?? false);
 
                     // Surface the HTTP status of the last download attempt so telemetry can tell a
                     // genuine auth failure (401/400/302) apart from a transient one (408/5xx/503),
@@ -225,7 +230,7 @@ namespace GVFS.Common.Git
 
                         return new RetryWrapper<bool>.CallbackResult(
                             error: null,
-                            shouldRetry: true,
+                            shouldRetry: !lastDownloadResult.CredentialOperationTimedOut,
                             result: false,
                             shouldRecordFailure: lastDownloadResult?.ShouldRecordFailure ?? true);
                     }
@@ -368,6 +373,7 @@ namespace GVFS.Common.Git
             // known. A default (zero) status means the result carried no HTTP response, so it is
             // treated as "no status".
             HttpStatusCode? httpStatusCode = null;
+            bool credentialOperationTimedOut = output.Result?.CredentialOperationTimedOut ?? false;
             if (output.Result != null && output.Result.HttpStatusCodeResult != 0)
             {
                 httpStatusCode = output.Result.HttpStatusCodeResult;
@@ -380,7 +386,8 @@ namespace GVFS.Common.Git
                     return new DownloadAttemptResult(
                         DownloadAndSaveObjectResult.Success,
                         httpStatusCode,
-                        output.ShouldRecordFailure);
+                        output.ShouldRecordFailure,
+                        credentialOperationTimedOut);
                 }
 
                 if (output.Result.HttpStatusCodeResult == HttpStatusCode.NotFound)
@@ -389,14 +396,16 @@ namespace GVFS.Common.Git
                     return new DownloadAttemptResult(
                         DownloadAndSaveObjectResult.ObjectNotOnServer,
                         httpStatusCode,
-                        output.ShouldRecordFailure);
+                        output.ShouldRecordFailure,
+                        credentialOperationTimedOut);
                 }
             }
 
             return new DownloadAttemptResult(
                 DownloadAndSaveObjectResult.Error,
                 httpStatusCode,
-                output.ShouldRecordFailure);
+                output.ShouldRecordFailure,
+                credentialOperationTimedOut);
         }
     }
 }

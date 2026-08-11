@@ -21,6 +21,7 @@ namespace GVFS.Common.Http
 
         private static long requestCount = 0;
         private static SemaphoreSlim availableConnections;
+        private static readonly object connectionConfigurationLock = new object();
         private static int connectionLimitConfigured = 0;
 
         private readonly ProductInfoHeaderValue userAgentHeader;
@@ -61,9 +62,13 @@ namespace GVFS.Common.Http
 
             // On first instantiation, check git config for a custom connection limit.
             // This runs before any requests are made (during mount initialization).
-            if (Interlocked.CompareExchange(ref connectionLimitConfigured, 1, 0) == 0)
+            lock (connectionConfigurationLock)
             {
-                TryApplyConnectionLimitFromConfig(tracer, enlistment);
+                if (connectionLimitConfigured == 0)
+                {
+                    TryApplyConnectionLimitFromConfig(tracer, enlistment);
+                    connectionLimitConfigured = 1;
+                }
             }
 
             HttpMessageHandler handler = handlerOverride;
@@ -102,6 +107,12 @@ namespace GVFS.Common.Http
         public RetryConfig RetryConfig { get; }
 
         protected ITracer Tracer { get; }
+
+        /// <summary>
+        /// Number of currently-available connection-pool permits. Test-only observability hook
+        /// for asserting that <see cref="SendRequest"/> releases its slot at the right time.
+        /// </summary>
+        internal static int AvailableConnectionCount => availableConnections.CurrentCount;
 
         // Runtime credential fetches (object/pack downloads, incl. background
         // maintenance prefetch) are bounded so a missed/ignored credential prompt
@@ -152,14 +163,17 @@ namespace GVFS.Common.Http
                     out authString,
                     out errorMessage,
                     out bool credentialFetchTimedOut,
-                    this.CredentialTimeoutMs))
+                    this.CredentialTimeoutMs,
+                    cancellationToken))
                 {
                     return new GitEndPointResponseData(
                         HttpStatusCode.Unauthorized,
                         new GitObjectsHttpException(HttpStatusCode.Unauthorized, errorMessage),
                         shouldRetry: !credentialFetchTimedOut,
                         message: null,
-                        onResponseDisposed: null);
+                        onResponseDisposed: null,
+                        shouldRecordFailure: !credentialFetchTimedOut,
+                        credentialFetchTimedOut: credentialFetchTimedOut);
                 }
 
                 // Initialization may finish anonymously while this request waits.
@@ -223,6 +237,10 @@ namespace GVFS.Common.Http
             GitEndPointResponseData gitEndPointResponseData = null;
             HttpResponseMessage response = null;
 
+            // Tracks whether the connection-pool slot was released before credential rejection.
+            // The finally block must not release it a second time.
+            bool connectionReleasedEarly = false;
+
             try
             {
                 requestStopwatch.Restart();
@@ -254,7 +272,7 @@ namespace GVFS.Common.Http
 
                     if (!sendAnonymous)
                     {
-                        this.authentication.ApproveCredentials(this.Tracer, authString, this.CredentialTimeoutMs);
+                        this.authentication.ApproveCredentials(this.Tracer, authString, this.CredentialTimeoutMs, cancellationToken);
                     }
                     else if (!forceAnonymous)
                     {
@@ -273,10 +291,12 @@ namespace GVFS.Common.Http
                 else
                 {
                     errorMessage = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                    int statusInt = (int)response.StatusCode;
+                    HttpStatusCode statusCode = response.StatusCode;
+                    int statusInt = (int)statusCode;
 
                     bool shouldRetry = ShouldRetry(response.StatusCode);
                     bool shouldRecordFailure = shouldRetry;
+                    bool credentialOperationTimedOut = false;
 
                     if (sendAnonymous &&
                         ShouldRejectCredentials(response.StatusCode, errorMessage))
@@ -310,28 +330,46 @@ namespace GVFS.Common.Http
                     }
                     else if (ShouldRejectCredentials(response.StatusCode, errorMessage))
                     {
-                        this.authentication.RejectCredentials(this.Tracer, authString, this.CredentialTimeoutMs);
-                        if (!this.authentication.IsBackingOff)
+                        // The response body is buffered, so the network operation is complete.
+                        // Release the process-wide permit before the credential helper runs so a
+                        // slow rejection cannot starve unrelated requests.
+                        response.Dispose();
+                        response = null;
+                        availableConnections.Release();
+                        connectionReleasedEarly = true;
+
+                        credentialOperationTimedOut = this.authentication.RejectCredentials(this.Tracer, authString, this.CredentialTimeoutMs, cancellationToken);
+                        if (credentialOperationTimedOut)
                         {
-                            errorMessage = string.Format("Server returned error code {0} ({1}). Your PAT may be expired and we are asking for a new one. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
+                            shouldRetry = false;
+                            errorMessage = string.Format(
+                                "Credential rejection timed out while handling server error code {0} ({1}). Original error message from server: {2}",
+                                statusInt,
+                                statusCode,
+                                errorMessage);
+                        }
+                        else if (!this.authentication.IsBackingOff)
+                        {
+                            errorMessage = string.Format("Server returned error code {0} ({1}). Your PAT may be expired and we are asking for a new one. Original error message from server: {2}", statusInt, statusCode, errorMessage);
                         }
                         else
                         {
-                            errorMessage = string.Format("Server returned error code {0} ({1}) after successfully renewing your PAT. You may not have access to this repo. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
+                            errorMessage = string.Format("Server returned error code {0} ({1}) after successfully renewing your PAT. You may not have access to this repo. Original error message from server: {2}", statusInt, statusCode, errorMessage);
                         }
                     }
                     else
                     {
-                        errorMessage = string.Format("Server returned error code {0} ({1}). Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
+                        errorMessage = string.Format("Server returned error code {0} ({1}). Original error message from server: {2}", statusInt, statusCode, errorMessage);
                     }
 
                     gitEndPointResponseData = new GitEndPointResponseData(
-                        response.StatusCode,
-                        new GitObjectsHttpException(response.StatusCode, errorMessage),
+                        statusCode,
+                        new GitObjectsHttpException(statusCode, errorMessage),
                         shouldRetry,
-                        message: response,
-                        onResponseDisposed: () => availableConnections.Release(),
-                        shouldRecordFailure: shouldRecordFailure);
+                        message: connectionReleasedEarly ? null : response,
+                        onResponseDisposed: connectionReleasedEarly ? (Action)null : () => availableConnections.Release(),
+                        shouldRecordFailure: shouldRecordFailure,
+                        credentialFetchTimedOut: credentialOperationTimedOut);
                 }
             }
             catch (TaskCanceledException)
@@ -381,7 +419,12 @@ namespace GVFS.Common.Http
                         response.Dispose();
                     }
 
-                    availableConnections.Release();
+                    // Don't release a second time if the connection slot was already freed
+                    // early before a reject leg that then threw (e.g. on cancellation).
+                    if (!connectionReleasedEarly)
+                    {
+                        availableConnections.Release();
+                    }
                 }
             }
 
@@ -564,5 +607,6 @@ namespace GVFS.Common.Http
                 tracer.RelatedWarning(metadata, "HttpRequestor: Failed to read gvfs.max-http-connections config, using default");
             }
         }
+
     }
 }

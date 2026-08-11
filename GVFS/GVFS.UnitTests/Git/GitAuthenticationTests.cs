@@ -13,6 +13,7 @@ using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using GVFS.Tests;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using GVFS.UnitTests.Mock.Http;
@@ -591,7 +592,7 @@ namespace GVFS.UnitTests.Git
                 MockGitProcess gitProcess = new MockGitProcess();
                 gitProcess.SetExpectedCommandResult(
                     $"{AzureDevOpsUseHttpPathString} credential fill",
-                    () => new GitProcess.Result(string.Empty, "Operation timed out waiting for a response", GitProcess.Result.GenericFailureCode));
+                    () => new GitProcess.Result(string.Empty, "Operation timed out waiting for a response", GitProcess.Result.GenericFailureCode, false, false, timedOut: true));
 
                 gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out string error, timeoutMs: 5000)
                     .ShouldEqual(false, "Credential fill should report failure when git times out");
@@ -627,7 +628,7 @@ namespace GVFS.UnitTests.Git
                 MockGitProcess gitProcess = new MockGitProcess();
                 gitProcess.SetExpectedCommandResult(
                     "credential fill",
-                    () => new GitProcess.Result(string.Empty, "Operation timed out waiting for a response", GitProcess.Result.GenericFailureCode));
+                    () => new GitProcess.Result(string.Empty, "Operation timed out waiting for a response", GitProcess.Result.GenericFailureCode, false, false, timedOut: true));
 
                 gitProcess.TryGetCertificatePassword(tracer, CertificatePath, out string password, out string error)
                     .ShouldEqual(false, "Certificate password fill should report failure when git times out");
@@ -1074,6 +1075,314 @@ namespace GVFS.UnitTests.Git
             handler.AuthorizationHeaders[0].ShouldEqual(null, "The first request should be anonymous");
             handler.AuthorizationHeaders[1].StartsWith("Basic ", StringComparison.Ordinal)
                 .ShouldEqual(true, "Promotion must affect the next request without prior initialization");
+        }
+
+        [TestCase]
+        public void TryGetCredentialsCancellationInterruptsInitializationWait()
+        {
+            MockTracer tracer = new MockTracer();
+            GitAuthentication dut = new GitAuthentication(this.GetGitProcess(), "mock://repoUrl")
+            {
+                InitializationWaitTimeoutMs = 30_000,
+            };
+
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                cts.Cancel();
+
+                Assert.Throws<OperationCanceledException>(
+                    () => dut.TryGetCredentials(tracer, out _, out _, cancellationToken: cts.Token));
+            }
+        }
+
+        [TestCase]
+        public void TryGetCredentialsReportsTimedOutOnlyForTimeouts()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            dut.TryGetCredentials(tracer, out string authString, out string error, out bool timedOut)
+                .ShouldBeTrue("Initial credential fetch should succeed: " + error);
+            timedOut.ShouldBeFalse();
+
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result(string.Empty, "fatal: could not read Username", GitProcess.Result.GenericFailureCode),
+                matchPrefix: true);
+
+            dut.RejectCredentials(tracer, authString);
+            dut.TryGetCredentials(tracer, out _, out _, out timedOut).ShouldBeFalse();
+            timedOut.ShouldBeFalse("A generic credential failure is not a timeout");
+
+            MockGitProcess timingOutProcess = this.GetGitProcess();
+            GitAuthentication timingOutDut = new GitAuthentication(timingOutProcess, "mock://repoUrl");
+            timingOutDut.TryInitializeAndRequireAuth(tracer, out _);
+            timingOutDut.TryGetCredentials(tracer, out string timingOutAuth, out error).ShouldBeTrue();
+            timingOutDut.RejectCredentials(tracer, timingOutAuth);
+            timingOutProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result(string.Empty, "Operation timed out: git credential fill", GitProcess.Result.GenericFailureCode, false, false, timedOut: true),
+                matchPrefix: true);
+
+            timingOutDut.TryGetCredentials(tracer, out _, out error, out timedOut, credentialTimeoutMs: 1000).ShouldBeFalse();
+            timedOut.ShouldBeTrue("A credential manager timeout must be terminal");
+            timingOutProcess.LastInvokedTimeoutMs.ShouldEqual(1000);
+            error.ShouldContain("within 1 seconds");
+        }
+
+        [TestCase]
+        public void RejectCredentialsBoundsReloadAndDeleteToOneDeadline()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.TryGetCredentials(tracer, out string authString, out _).ShouldBeTrue();
+
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () =>
+                {
+                    Thread.Sleep(150);
+                    return new GitProcess.Result("username=username\r\npassword=password0\r\n", string.Empty, GitProcess.Result.SuccessCode);
+                },
+                matchPrefix: true);
+            gitProcess.InvokedTimeoutMs.Clear();
+            dut.RejectCredentials(tracer, authString, credentialTimeoutMs: 1000);
+
+            gitProcess.InvokedTimeoutMs.Count.ShouldEqual(2);
+            gitProcess.InvokedTimeoutMs.ShouldNotContain(timeout => timeout < 0);
+            gitProcess.LastInvokedTimeoutMs.Value.ShouldBeAtLeast(1);
+            gitProcess.LastInvokedTimeoutMs.Value.ShouldBeAtMost(900);
+        }
+
+        [TestCase]
+        public void ApproveCredentialsUsesTimeoutAndProtectsActiveHelperFromCancellation()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.TryGetCredentials(tracer, out string authString, out _).ShouldBeTrue();
+
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                dut.ApproveCredentials(tracer, authString, credentialTimeoutMs: 1234, cancellationToken: cts.Token);
+
+                gitProcess.LastInvokedTimeoutMs.ShouldEqual(1234);
+                gitProcess.LastInvokedCancellationToken.CanBeCanceled.ShouldBeFalse();
+            }
+        }
+
+        [TestCase]
+        public void ReloadTimeoutIsTerminalAndSkipsDelete()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.TryGetCredentials(tracer, out string authString, out _).ShouldBeTrue();
+
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result(string.Empty, "Operation timed out: git credential fill", GitProcess.Result.GenericFailureCode, false, false, timedOut: true),
+                matchPrefix: true);
+            int deleteCount = gitProcess.CommandsRun.Count(command => command.Contains("credential reject"));
+
+            dut.RejectCredentials(tracer, authString, credentialTimeoutMs: 1000).ShouldBeTrue();
+
+            gitProcess.CommandsRun.Count(command => command.Contains("credential reject")).ShouldEqual(deleteCount);
+            dut.TryGetCredentials(tracer, out _, out _, out bool timedOut).ShouldBeFalse();
+            timedOut.ShouldBeTrue("Timeout backoff must remain terminal");
+        }
+
+        [TestCase]
+        public void DeleteTimeoutIsTerminal()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.TryGetCredentials(tracer, out string authString, out _).ShouldBeTrue();
+
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential reject",
+                () => new GitProcess.Result(string.Empty, "Operation timed out: git credential reject", GitProcess.Result.GenericFailureCode, false, false, timedOut: true),
+                matchPrefix: true);
+
+            dut.RejectCredentials(tracer, authString, credentialTimeoutMs: 1000).ShouldBeTrue();
+            dut.TryGetCredentials(tracer, out _, out _, out bool timedOut).ShouldBeFalse();
+            timedOut.ShouldBeTrue("Delete timeout backoff must remain terminal");
+        }
+
+        [TestCase]
+        public void ActiveCredentialFillIgnoresPerRequestCancellation()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.TryGetCredentials(tracer, out string authString, out _).ShouldBeTrue();
+            dut.RejectCredentials(tracer, authString);
+
+            using (ManualResetEventSlim reached = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim block = new ManualResetEventSlim(false))
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                gitProcess.InvokeReachedBlock = reached;
+                gitProcess.BlockInvokeUntilSignaled = block;
+
+                Exception caught = null;
+                Thread worker = new Thread(() =>
+                {
+                    try
+                    {
+                        dut.TryGetCredentials(tracer, out _, out _, GitAuthentication.BackgroundCredentialTimeoutMs, cts.Token);
+                    }
+                    catch (Exception e)
+                    {
+                        caught = e;
+                    }
+                })
+                {
+                    IsBackground = true,
+                };
+                worker.Start();
+
+                reached.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+                cts.Cancel();
+                worker.Join(TimeSpan.FromMilliseconds(100)).ShouldBeFalse();
+                block.Set();
+                worker.Join(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+                caught.ShouldBeNull();
+                gitProcess.LastInvokedCancellationToken.CanBeCanceled.ShouldBeFalse();
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void CancellationInterruptsAuthenticationLockWaitBeforeHelperOwnership()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.TryGetCredentials(tracer, out string authString, out _).ShouldBeTrue();
+            dut.RejectCredentials(tracer, authString);
+
+            using (ManualResetEventSlim reached = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim block = new ManualResetEventSlim(false))
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                gitProcess.InvokeReachedBlock = reached;
+                gitProcess.BlockInvokeUntilSignaled = block;
+
+                Exception firstError = null;
+                Thread first = new Thread(() =>
+                {
+                    try
+                    {
+                        dut.TryGetCredentials(tracer, out _, out _, GitAuthentication.BackgroundCredentialTimeoutMs);
+                    }
+                    catch (Exception e)
+                    {
+                        firstError = e;
+                    }
+                })
+                {
+                    IsBackground = true,
+                };
+                first.Start();
+
+                reached.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+                cts.Cancel();
+                Assert.Throws<OperationCanceledException>(
+                    () => dut.TryGetCredentials(tracer, out _, out _, cancellationToken: cts.Token));
+
+                block.Set();
+                first.Join(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+                firstError.ShouldBeNull();
+            }
+        }
+
+        [TestCase]
+        public void CredentialGateTimeoutDoesNotStartConcurrentHelper()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl")
+            {
+                CredentialGateWaitTimeoutMs = 20,
+            };
+
+            using (ManualResetEventSlim reached = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim block = new ManualResetEventSlim(false))
+            {
+                gitProcess.InvokeReachedBlock = reached;
+                gitProcess.BlockInvokeUntilSignaled = block;
+
+                Thread first = new Thread(() => dut.TryInitializeAndRequireAuth(tracer, out _, credentialTimeoutMs: 20))
+                {
+                    IsBackground = true,
+                };
+                first.Start();
+
+                reached.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+                int commandCount = gitProcess.CommandsRun.Count;
+
+                dut.TryInitializeAndRequireAuth(tracer, out string error, credentialTimeoutMs: 20).ShouldBeFalse();
+                error.ShouldContain("another credential operation");
+                gitProcess.CommandsRun.Count.ShouldEqual(commandCount);
+
+                gitProcess.BlockInvokeUntilSignaled = null;
+                block.Set();
+                first.Join(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
+        public void ActiveCredentialReloadIgnoresPerRequestCancellation()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.TryGetCredentials(tracer, out string authString, out _).ShouldBeTrue();
+
+            using (ManualResetEventSlim reached = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim block = new ManualResetEventSlim(false))
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                gitProcess.InvokeReachedBlock = reached;
+                gitProcess.BlockInvokeUntilSignaled = block;
+
+                Exception caught = null;
+                Thread worker = new Thread(() =>
+                {
+                    try
+                    {
+                        dut.RejectCredentials(tracer, authString, GitAuthentication.BackgroundCredentialTimeoutMs, cts.Token);
+                    }
+                    catch (Exception e)
+                    {
+                        caught = e;
+                    }
+                })
+                {
+                    IsBackground = true,
+                };
+                worker.Start();
+
+                reached.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+                cts.Cancel();
+                worker.Join(TimeSpan.FromMilliseconds(100)).ShouldBeFalse();
+                block.Set();
+                worker.Join(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+                caught.ShouldBeNull();
+                gitProcess.LastInvokedCancellationToken.CanBeCanceled.ShouldBeFalse();
+            }
         }
 
         private MockGitProcess GetGitProcess()

@@ -1,8 +1,16 @@
+using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System;
 using System.Net;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Http
 {
@@ -83,6 +91,231 @@ namespace GVFS.UnitTests.Http
             Uri uri = new Uri("https://alice:secret@cache.example.com:8443/private/path?token=sensitive#fragment");
 
             HttpRequestor.GetAuthorityForTelemetry(uri).ShouldEqual("cache.example.com:8443");
+        }
+
+        private const string RepoUrl = "mock://repoUrl";
+        private const string AzureDevOpsUseHttpPathString = "-c credential.\"https://dev.azure.com\".useHttpPath=true";
+
+        [TestCase]
+        public void SendRequestReleasesConnectionBeforeCredentialReject()
+        {
+            this.RunConnectionReleaseTest();
+        }
+
+        [TestCase]
+        public void SendRequestDoesNotDoubleReleaseConnectionWhenCancellationWaitsForActiveReject()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = CreateGitProcess();
+            GitAuthentication authentication = CreateInitializedAuthentication(tracer, gitProcess);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(gitProcess, authentication);
+
+            using (ManualResetEventSlim reached = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim block = new ManualResetEventSlim(false))
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            using (StubHttpMessageHandler handler = new StubHttpMessageHandler(HttpStatusCode.Unauthorized, "unauthorized"))
+            using (TestingHttpRequestor requestor = new TestingHttpRequestor(tracer, new RetryConfig(), enlistment, handler))
+            {
+                int before = HttpRequestor.AvailableConnectionCount;
+                gitProcess.InvokeReachedBlock = reached;
+                gitProcess.BlockInvokeUntilSignaled = block;
+
+                Exception caught = null;
+                Thread worker = new Thread(() =>
+                {
+                    try
+                    {
+                        using (requestor.Send(cts.Token))
+                        {
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        caught = e;
+                    }
+                });
+                worker.IsBackground = true;
+                worker.Start();
+
+                reached.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true, "The reject leg should have started a git invocation");
+                HttpRequestor.AvailableConnectionCount.ShouldEqual(before, "The connection slot should have been released before the reject leg ran");
+
+                cts.Cancel();
+                worker.Join(TimeSpan.FromMilliseconds(100)).ShouldBeFalse(
+                    "Cancellation must not terminate an active shared credential helper");
+                block.Set();
+                worker.Join(TimeSpan.FromSeconds(5)).ShouldBeTrue(
+                    "The request should finish after the active credential helper returns");
+
+                caught.ShouldBeNull("Cancellation must not abort an active credential rejection");
+
+                // The key invariant: the early release plus the canceled reject must not
+                // double-release the process-wide connection permit.
+                HttpRequestor.AvailableConnectionCount.ShouldEqual(before, "The connection slot must be released exactly once, not double-released");
+            }
+        }
+
+        [TestCase]
+        public void CredentialTimeoutDoesNotFallBackToGlobalEndpoint()
+        {
+            using (GitEndPointResponseData response = new GitEndPointResponseData(
+                HttpStatusCode.Unauthorized,
+                new GitObjectsHttpException(HttpStatusCode.Unauthorized, "credential timeout"),
+                shouldRetry: false,
+                message: null,
+                onResponseDisposed: null,
+                credentialFetchTimedOut: true))
+            {
+                GitObjectsHttpRequestor.ShouldFallBackToGlobalEndpoint(
+                    hasFallbackEndPoint: true,
+                    useFallbackEndPoint: false,
+                    response)
+                    .ShouldBeFalse("A second endpoint uses the same timed-out credential provider");
+            }
+        }
+
+        [TestCase]
+        public void CredentialRejectTimeoutStopsCurrentRequestRetries()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = CreateGitProcess();
+            GitAuthentication authentication = CreateInitializedAuthentication(tracer, gitProcess);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(gitProcess, authentication);
+
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result(string.Empty, "Operation timed out: git credential fill", GitProcess.Result.GenericFailureCode, false, false, timedOut: true),
+                matchPrefix: true);
+
+            using (StubHttpMessageHandler handler = new StubHttpMessageHandler(HttpStatusCode.Unauthorized, "unauthorized"))
+            using (TestingHttpRequestor requestor = new TestingHttpRequestor(tracer, new RetryConfig(), enlistment, handler))
+            using (GitEndPointResponseData response = requestor.Send(CancellationToken.None))
+            {
+                response.ShouldRetry.ShouldBeFalse("The current request must stop after credential rejection times out");
+                response.CredentialFetchTimedOut.ShouldBeTrue("Endpoint fallback must see the terminal credential timeout");
+            }
+        }
+
+        private static MockGitProcess CreateGitProcess()
+        {
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.UserName", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
+            gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.Password", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
+            gitProcess.SetExpectedCommandResult("config --get-urlmatch http mock://repoUrl", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
+            // HttpRequestor reads the connection limit on the first instance.
+            gitProcess.SetExpectedCommandResult("config gvfs.max-http-connections", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
+            int rejections = 0;
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result("username=username\r\npassword=password" + rejections + "\r\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential approve",
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential reject",
+                () =>
+                {
+                    rejections++;
+                    return new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode);
+                });
+
+            return gitProcess;
+        }
+
+        private static GitAuthentication CreateInitializedAuthentication(MockTracer tracer, MockGitProcess gitProcess)
+        {
+            GitAuthentication authentication = new GitAuthentication(gitProcess, RepoUrl);
+            authentication.TryInitializeAndRequireAuth(tracer, out _);
+
+            // Populate the credential cache so SendRequest attaches auth and reaches the reject leg.
+            authentication.TryGetCredentials(tracer, out _, out _).ShouldBeTrue();
+
+            // Force the non-anonymous path; production determines this by probing the server.
+            authentication.SetIsAnonymousForTesting(false);
+
+            return authentication;
+        }
+
+        private void RunConnectionReleaseTest()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = CreateGitProcess();
+            GitAuthentication authentication = CreateInitializedAuthentication(tracer, gitProcess);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(gitProcess, authentication);
+
+            using (ManualResetEventSlim reached = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim block = new ManualResetEventSlim(false))
+            using (StubHttpMessageHandler handler = new StubHttpMessageHandler(HttpStatusCode.Unauthorized, "unauthorized"))
+            using (TestingHttpRequestor requestor = new TestingHttpRequestor(tracer, new RetryConfig(), enlistment, handler))
+            {
+                int before = HttpRequestor.AvailableConnectionCount;
+                gitProcess.InvokeReachedBlock = reached;
+                gitProcess.BlockInvokeUntilSignaled = block;
+
+                GitEndPointResponseData response = null;
+                Thread worker = new Thread(() => response = requestor.Send(CancellationToken.None));
+                worker.IsBackground = true;
+                worker.Start();
+
+                reached.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true, "The reject leg should have started a git invocation");
+
+                HttpRequestor.AvailableConnectionCount.ShouldEqual(before, "The connection slot should be released before the reject leg runs");
+
+                block.Set();
+                worker.Join(TimeSpan.FromSeconds(5)).ShouldEqual(true, "The request should complete after the reject leg unblocks");
+
+                response.ShouldNotBeNull("Expected a response");
+                response.HasErrors.ShouldEqual(true, "Expected a 401 error response");
+                response.Dispose();
+
+                HttpRequestor.AvailableConnectionCount.ShouldEqual(before, "The connection slot should be fully released after completion");
+            }
+        }
+
+        private sealed class TestingHttpRequestor : HttpRequestor
+        {
+            public TestingHttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment, HttpMessageHandler handler)
+                : base(tracer, retryConfig, enlistment, handler)
+            {
+            }
+
+            protected override int CredentialTimeoutMs => GitAuthentication.BackgroundCredentialTimeoutMs;
+
+            public GitEndPointResponseData Send(CancellationToken cancellationToken)
+            {
+                return this.SendRequest(
+                    GetNewRequestId(),
+                    new Uri("https://mock.gvfs/gvfs/objects"),
+                    HttpMethod.Get,
+                    requestContent: null,
+                    cancellationToken: cancellationToken);
+            }
+        }
+
+        private sealed class StubHttpMessageHandler : HttpMessageHandler
+        {
+            private readonly HttpStatusCode statusCode;
+            private readonly string body;
+
+            public StubHttpMessageHandler(HttpStatusCode statusCode, string body)
+            {
+                this.statusCode = statusCode;
+                this.body = body;
+            }
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                HttpResponseMessage response = new HttpResponseMessage(this.statusCode)
+                {
+                    Content = new StringContent(this.body),
+                };
+
+                return Task.FromResult(response);
+            }
         }
     }
 }

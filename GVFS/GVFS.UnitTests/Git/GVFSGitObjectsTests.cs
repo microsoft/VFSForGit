@@ -185,6 +185,44 @@ namespace GVFS.UnitTests.Git
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
+        public void CredentialTimeoutStopsOuterBlobHydrationRetries()
+        {
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) => true;
+            fileSystem.OnOpenFileStream = (path, mode, access) =>
+            {
+                if (access == FileAccess.Write)
+                {
+                    return new MemoryStream();
+                }
+
+                throw new FileNotFoundException();
+            };
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects
+            {
+                StatusCodeToReturn = HttpStatusCode.Unauthorized,
+                CredentialOperationTimedOut = true,
+            };
+            GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out MockTracer tracer);
+
+            dut.TryCopyBlobContentStream(
+                ValidTestObjectFileSha1,
+                CancellationToken.None,
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("A timed-out download must not provide blob content"),
+                out _)
+                .ShouldBeFalse();
+
+            httpObjects.TryDownloadObjectsCallCount.ShouldEqual(
+                1,
+                "A credential timeout must stop the current hydration operation instead of entering its outer retry loop");
+            string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
+            terminalError.ShouldContain("\"CredentialOperationTimedOut\":true");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void TerminalBlobHydrationFailureRecordsHttpStatusCode()
         {
             MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
@@ -1077,6 +1115,7 @@ namespace GVFS.UnitTests.Git
             public string MediaType { get; set; }
             public HttpStatusCode? StatusCodeToReturn { get; set; }
             public bool ShouldRecordFailureToReturn { get; set; } = true;
+            public bool CredentialOperationTimedOut { get; set; }
 
             // When true, TryDownloadObjects returns a failing result built from GitObjectTaskResult(bool),
             // i.e. Result is non-null but carries no HTTP status (HttpStatusCodeResult == 0). This
@@ -1127,7 +1166,9 @@ namespace GVFS.UnitTests.Git
                     return new RetryWrapper<GitObjectTaskResult>.InvocationResult(
                         0,
                         error: null,
-                        result: new GitObjectTaskResult(this.StatusCodeToReturn.Value),
+                        result: new GitObjectTaskResult(
+                            this.StatusCodeToReturn.Value,
+                            credentialOperationTimedOut: this.CredentialOperationTimedOut),
                         shouldRecordFailure: this.ShouldRecordFailureToReturn);
                 }
 

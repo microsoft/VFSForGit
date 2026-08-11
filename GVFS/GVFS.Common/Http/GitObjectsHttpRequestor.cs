@@ -82,7 +82,10 @@ namespace GVFS.Common.Http
                     {
                         using (GitEndPointResponseData response = this.SendProtocolRequest(requestId, gvfsEndpoint, HttpMethod.Post, objectIdsJson, cancellationToken))
                         {
-                            if (response.HasErrors && !useGlobalCacheServer && !useOrigin)
+                            if (response.HasErrors &&
+                                !response.CredentialFetchTimedOut &&
+                                !useGlobalCacheServer &&
+                                !useOrigin)
                             {
                                 this.TraceCacheServerFallback(
                                     requestId,
@@ -430,7 +433,10 @@ namespace GVFS.Common.Http
                     {
                         if (response.HasErrors)
                         {
-                            bool shouldFallBack = hasFallbackEndPoint && !useFallbackEndPoint;
+                            bool shouldFallBack = ShouldFallBackToGlobalEndpoint(
+                                hasFallbackEndPoint,
+                                useFallbackEndPoint,
+                                response);
                             if (shouldFallBack)
                             {
                                 this.TraceCacheServerFallback(
@@ -445,7 +451,7 @@ namespace GVFS.Common.Http
                             return new RetryWrapper<GitObjectTaskResult>.CallbackResult(
                                 response.Error,
                                 shouldFallBack || response.ShouldRetry,
-                                new GitObjectTaskResult(response.StatusCode, requestEndPoint),
+                                new GitObjectTaskResult(response.StatusCode, requestEndPoint, response.CredentialFetchTimedOut),
                                 shouldRecordFailure: response.ShouldRecordFailure && !shouldFallBack);
                         }
 
@@ -498,6 +504,16 @@ namespace GVFS.Common.Http
                         return result;
                     }
                 });
+        }
+
+        internal static bool ShouldFallBackToGlobalEndpoint(
+            bool hasFallbackEndPoint,
+            bool useFallbackEndPoint,
+            GitEndPointResponseData response)
+        {
+            return hasFallbackEndPoint &&
+                !useFallbackEndPoint &&
+                !response.CredentialFetchTimedOut;
         }
 
         private RetryWrapper<GitObjectTaskResult>.CallbackResult HandleProtocolException(
@@ -621,21 +637,24 @@ namespace GVFS.Common.Http
                 this.RequestUri = requestUri;
             }
 
-            public GitObjectTaskResult(HttpStatusCode statusCode, Uri requestUri = null)
+            public GitObjectTaskResult(HttpStatusCode statusCode, Uri requestUri = null, bool credentialOperationTimedOut = false)
                 : this(statusCode == HttpStatusCode.OK, requestUri)
             {
                 this.HttpStatusCodeResult = statusCode;
+                this.CredentialOperationTimedOut = credentialOperationTimedOut;
             }
 
             public bool Success { get; }
             public HttpStatusCode HttpStatusCodeResult { get; private set; }
             public Uri RequestUri { get; }
+            public bool CredentialOperationTimedOut { get; private set; }
 
             public GitObjectTaskResult WithRequestUri(Uri requestUri)
             {
                 return new GitObjectTaskResult(this.Success, requestUri)
                 {
                     HttpStatusCodeResult = this.HttpStatusCodeResult,
+                    CredentialOperationTimedOut = this.CredentialOperationTimedOut,
                 };
             }
         }

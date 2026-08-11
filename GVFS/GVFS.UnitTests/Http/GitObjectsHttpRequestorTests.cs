@@ -345,6 +345,21 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        public void SizesCredentialTimeoutDoesNotRetryOrFallBack()
+        {
+            TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 3);
+            requestor.EnqueueResponse(
+                HttpStatusCode.Unauthorized,
+                shouldRetry: false,
+                credentialOperationTimedOut: true);
+
+            requestor.QueryForFileSizes(new[] { "0123456789abcdef" }, CancellationToken.None);
+
+            requestor.RequestUris.Count.ShouldEqual(1);
+            requestor.RequestUris[0].AbsoluteUri.ShouldEqual(EndpointCacheServerUrl + "/gvfs/sizes");
+        }
+
+        [TestCase]
         public void SizesHttpFallbackDoesNotChargeCircuitBreaker()
         {
             TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0);
@@ -434,9 +449,10 @@ namespace GVFS.UnitTests.Http
                 HttpStatusCode statusCode,
                 string body = "",
                 bool shouldRetry = false,
-                bool shouldRecordFailure = true)
+                bool shouldRecordFailure = true,
+                bool credentialOperationTimedOut = false)
             {
-                this.responses.Enqueue(Tuple.Create(statusCode, body, shouldRetry, shouldRecordFailure));
+                this.responses.Enqueue(Tuple.Create(statusCode, body, shouldRetry, shouldRecordFailure, credentialOperationTimedOut));
             }
 
             public void EnqueueException(Exception exception)
@@ -474,7 +490,7 @@ namespace GVFS.UnitTests.Http
                         onResponseDisposed: null);
                 }
 
-                Tuple<HttpStatusCode, string, bool, bool> response = (Tuple<HttpStatusCode, string, bool, bool>)nextResponse;
+                Tuple<HttpStatusCode, string, bool, bool, bool> response = (Tuple<HttpStatusCode, string, bool, bool, bool>)nextResponse;
 
                 if (response.Item1 == HttpStatusCode.OK)
                 {
@@ -492,7 +508,8 @@ namespace GVFS.UnitTests.Http
                     shouldRetry: response.Item3,
                     message: null,
                     onResponseDisposed: null,
-                    shouldRecordFailure: response.Item4);
+                    shouldRecordFailure: response.Item4,
+                    credentialFetchTimedOut: response.Item5);
             }
         }
 
