@@ -343,6 +343,22 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void TryGetCredentialsCancellationInterruptsInitializationWait()
+        {
+            MockTracer tracer = new MockTracer();
+            GitAuthentication dut = new GitAuthentication(this.GetGitProcess(), "mock://repoUrl");
+            dut.InitializationWaitTimeoutMs = 30_000;
+
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                cts.Cancel();
+
+                Assert.Throws<OperationCanceledException>(
+                    () => dut.TryGetCredentials(tracer, out _, out _, cancellationToken: cts.Token));
+            }
+        }
+
+        [TestCase]
         public void TryGetCredentialsTimesOutWhenCredentialManagerDoesNotRespond()
         {
             MockTracer tracer = new MockTracer();
@@ -459,6 +475,160 @@ namespace GVFS.UnitTests.Git
             string err;
             dut.TryGetCredentials(tracer, out cred, out err, credentialTimeoutMs: 30000).ShouldEqual(true, "Expected success with explicit timeout: " + err);
             cred.ShouldNotBeNull();
+        }
+
+        [TestCase]
+        public void RejectCredentialsPlumbsCancellationTokenToGitProcess()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            string authString;
+            dut.TryGetCredentials(tracer, out authString, out _).ShouldBeTrue();
+
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                // The reject leg reloads and then erases the credential; both spawn a git process.
+                // Assert the caller's token reached the git invocation. Without the plumbing the
+                // recorded token would be the default (non-cancelable) CancellationToken.
+                dut.RejectCredentials(tracer, authString, GitAuthentication.DefaultCredentialTimeoutMs, cts.Token);
+
+                gitProcess.LastInvokedCancellationToken.CanBeCanceled.ShouldEqual(true, "Expected the caller's cancellation token to reach the git invocation");
+                gitProcess.LastInvokedCancellationToken.ShouldEqual(cts.Token, "Expected the exact caller token to reach the git invocation");
+            }
+        }
+
+        [TestCase]
+        public void TryGetCredentialsCancellationInterruptsBlockedFetch()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            string authString;
+            dut.TryGetCredentials(tracer, out authString, out _).ShouldBeTrue();
+
+            // Clear the cache so the next TryGetCredentials must re-fetch through git.
+            dut.RejectCredentials(tracer, authString);
+
+            using (ManualResetEventSlim reached = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim block = new ManualResetEventSlim(false))
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                gitProcess.InvokeReachedBlock = reached;
+                gitProcess.BlockInvokeUntilSignaled = block;
+
+                Exception caught = null;
+                Thread worker = new Thread(() =>
+                {
+                    try
+                    {
+                        dut.TryGetCredentials(tracer, out _, out _, GitAuthentication.BackgroundCredentialTimeoutMs, cts.Token);
+                    }
+                    catch (Exception e)
+                    {
+                        caught = e;
+                    }
+                });
+                worker.IsBackground = true;
+                worker.Start();
+
+                reached.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true, "The git credential invocation should have started");
+
+                // Cancellation must interrupt the in-flight fetch instead of waiting the full
+                // 120s bound. Without the token reaching InvokeGitImpl the worker blocks forever
+                // and this Join times out.
+                cts.Cancel();
+                worker.Join(TimeSpan.FromSeconds(5)).ShouldEqual(true, "Cancellation should have unblocked the credential fetch promptly");
+
+                caught.ShouldNotBeNull("Expected the canceled fetch to throw");
+                (caught is OperationCanceledException).ShouldEqual(true, "Expected an OperationCanceledException, got: " + caught);
+
+                gitProcess.BlockInvokeUntilSignaled = null;
+                dut.TryGetCredentials(tracer, out _, out string error).ShouldEqual(
+                    true,
+                    "The credential gate should remain usable after cancellation: " + error);
+            }
+        }
+
+        [TestCase]
+        public void CredentialGateTimeoutDoesNotStartConcurrentCredentialProcess()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.CredentialGateWaitTimeoutMs = 20;
+
+            using (ManualResetEventSlim reached = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim block = new ManualResetEventSlim(false))
+            {
+                gitProcess.InvokeReachedBlock = reached;
+                gitProcess.BlockInvokeUntilSignaled = block;
+
+                Thread first = new Thread(() => dut.TryInitializeAndRequireAuth(tracer, out _));
+                first.IsBackground = true;
+                first.Start();
+
+                reached.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue("The first credential process should hold the gate");
+                int commandsBeforeSecondCall = gitProcess.CommandsRun.Count;
+
+                dut.TryInitializeAndRequireAuth(tracer, out string error).ShouldBeFalse("The second call should time out on the credential gate");
+                error.ShouldContain("another credential operation");
+                gitProcess.CommandsRun.Count.ShouldEqual(commandsBeforeSecondCall, "A gate timeout must not start another credential process");
+
+                gitProcess.BlockInvokeUntilSignaled = null;
+                block.Set();
+                first.Join(TimeSpan.FromSeconds(5)).ShouldBeTrue("The first credential process should finish");
+            }
+        }
+
+        [TestCase]
+        public void RejectCredentialsCancellationInterruptsBlockedReload()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            string authString;
+            dut.TryGetCredentials(tracer, out authString, out _).ShouldBeTrue();
+
+            using (ManualResetEventSlim reached = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim block = new ManualResetEventSlim(false))
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                gitProcess.InvokeReachedBlock = reached;
+                gitProcess.BlockInvokeUntilSignaled = block;
+
+                Exception caught = null;
+                Thread worker = new Thread(() =>
+                {
+                    try
+                    {
+                        dut.RejectCredentials(tracer, authString, GitAuthentication.BackgroundCredentialTimeoutMs, cts.Token);
+                    }
+                    catch (Exception e)
+                    {
+                        caught = e;
+                    }
+                });
+                worker.IsBackground = true;
+                worker.Start();
+
+                reached.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true, "The reject leg should have started a git invocation");
+
+                cts.Cancel();
+                worker.Join(TimeSpan.FromSeconds(5)).ShouldEqual(true, "Cancellation should have unblocked the reject leg promptly");
+
+                caught.ShouldNotBeNull("Expected the canceled reject to throw");
+                (caught is OperationCanceledException).ShouldEqual(true, "Expected an OperationCanceledException, got: " + caught);
+            }
         }
 
         private MockGitProcess GetGitProcess()
