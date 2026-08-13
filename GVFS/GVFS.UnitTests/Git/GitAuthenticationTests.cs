@@ -60,6 +60,11 @@ namespace GVFS.UnitTests.Git
             GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
             dut.TryInitializeAndRequireAuth(tracer, out _);
 
+            // This test exercises backoff reset after success, independent of the
+            // consecutive-rejection gate; erase an approved credential on the first
+            // rejection so each iteration forwards exactly one rejection.
+            dut.RejectionThresholdForApprovedCredential = 1;
+
             string authString;
             string error;
 
@@ -273,6 +278,101 @@ namespace GVFS.UnitTests.Git
             dut.TryGetCredentials(tracer, out var newAuthString, out _).ShouldBeTrue();
             newAuthString.ShouldNotEqual(authString);
             gitProcess.CredentialRejections.ShouldBeEmpty();
+        }
+
+        [TestCase]
+        public void ApprovedCredentialIsNotErasedUntilThresholdConsecutiveRejections()
+        {
+            // Regression test for a credential-rejection storm: a credential the server has
+            // already accepted must survive intermittent/transient non-auth failures. It is
+            // only erased after a run of consecutive rejections with no intervening success.
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.RejectionThresholdForApprovedCredential = 3;
+
+            string authString;
+            string error;
+
+            dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "Failed to get initial credential");
+            dut.ApproveCredentials(tracer, authString);
+
+            // The first (threshold - 1) rejections of an approved credential are deferred.
+            for (int i = 0; i < dut.RejectionThresholdForApprovedCredential - 1; ++i)
+            {
+                dut.RejectCredentials(tracer, authString);
+            }
+
+            gitProcess.CredentialRejections.Count.ShouldEqual(0, "Approved credential should not be erased before the threshold");
+            dut.TryGetCredentials(tracer, out string stillCachedAuth, out error).ShouldEqual(true);
+            stillCachedAuth.ShouldEqual(authString, "The approved credential should still be cached and reused");
+
+            // The threshold-th consecutive rejection erases the credential.
+            dut.RejectCredentials(tracer, authString);
+            gitProcess.CredentialRejections["mock://repoUrl"].Count.ShouldEqual(1, "Approved credential should be erased once the threshold is reached");
+
+            dut.TryGetCredentials(tracer, out string refreshedAuth, out error).ShouldEqual(true);
+            refreshedAuth.ShouldNotEqual(authString, "A new credential should be fetched after erasing the old one");
+        }
+
+        [TestCase]
+        public void SuccessResetsConsecutiveRejectionCount()
+        {
+            // A successful use between rejections resets the consecutive-rejection count, so a
+            // credential that keeps succeeding is never erased no matter how many isolated
+            // rejections it accumulates over time.
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.RejectionThresholdForApprovedCredential = 3;
+
+            string authString;
+            string error;
+
+            dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "Failed to get initial credential");
+            dut.ApproveCredentials(tracer, authString);
+
+            // Accumulate rejections just short of the threshold...
+            dut.RejectCredentials(tracer, authString);
+            dut.RejectCredentials(tracer, authString);
+
+            // ...then a success resets the count.
+            dut.ApproveCredentials(tracer, authString);
+
+            // Another run just short of the threshold must still not erase the credential.
+            dut.RejectCredentials(tracer, authString);
+            dut.RejectCredentials(tracer, authString);
+
+            gitProcess.CredentialRejections.Count.ShouldEqual(0, "A success between rejections should reset the consecutive-rejection count");
+            dut.TryGetCredentials(tracer, out string stillCachedAuth, out error).ShouldEqual(true);
+            stillCachedAuth.ShouldEqual(authString, "The credential should still be cached and reused after an intervening success");
+        }
+
+        [TestCase]
+        public void NeverApprovedCredentialIsErasedOnFirstRejection()
+        {
+            // A credential the server has never accepted (e.g. a genuinely expired PAT at first
+            // use) is not gated: it is erased on the first rejection so normal re-auth is fast.
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+            dut.RejectionThresholdForApprovedCredential = 3;
+
+            string authString;
+            string error;
+
+            dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "Failed to get initial credential");
+
+            // No ApproveCredentials call - the credential was never accepted by the server.
+            dut.RejectCredentials(tracer, authString);
+
+            gitProcess.CredentialRejections["mock://repoUrl"].Count.ShouldEqual(1, "A never-approved credential should be erased on the first rejection");
         }
 
         [TestCase]

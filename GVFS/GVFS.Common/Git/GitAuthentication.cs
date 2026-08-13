@@ -13,6 +13,17 @@ namespace GVFS.Common.Git
     public class GitAuthentication
     {
         private const double MaxBackoffSeconds = 30;
+
+        // An already-approved credential (one the server has accepted at least once this
+        // generation) is only erased after this many *consecutive* rejections with no
+        // intervening success. A single intermittent or transient non-auth blob-download
+        // failure (e.g. a spurious 401/400/302, or one classified as auth under load) must
+        // not erase a credential that sibling requests are still using successfully, because
+        // erasing it forces a GCM re-auth and can trigger a consent-popup storm. A credential
+        // that has never succeeded (e.g. a genuinely expired PAT at first use) is still erased
+        // on the first rejection, so normal re-authentication is unaffected.
+        private const int DefaultRejectionThresholdForApprovedCredential = 3;
+
         public const int DefaultCredentialTimeoutMs = 30_000;
         public const int BackgroundCredentialTimeoutMs = 120_000;
 
@@ -31,6 +42,11 @@ namespace GVFS.Common.Git
 
         private int numberOfAttempts = 0;
         private DateTime lastAuthAttempt = DateTime.MinValue;
+
+        // Consecutive rejections of the currently-cached credential since the last successful
+        // use. Reset to 0 on every approval (successful use) and on erase. Used to gate erasing
+        // an already-approved credential (see RejectionThresholdForApprovedCredential).
+        private int consecutiveRejections = 0;
 
         private string cachedCredentialString;
         private bool isCachedCredentialStringApproved = false;
@@ -66,6 +82,13 @@ namespace GVFS.Common.Git
         /// </summary>
         internal int InitializationWaitTimeoutMs { get; set; } = BackgroundCredentialTimeoutMs;
 
+        /// <summary>
+        /// Number of consecutive rejections (with no intervening success) required
+        /// before an already-approved credential is erased. See
+        /// <see cref="DefaultRejectionThresholdForApprovedCredential"/>. Overridable for tests.
+        /// </summary>
+        internal int RejectionThresholdForApprovedCredential { get; set; } = DefaultRejectionThresholdForApprovedCredential;
+
         private GitSsl GitSsl { get; }
 
         public void ApproveCredentials(ITracer tracer, string credentialString)
@@ -77,6 +100,11 @@ namespace GVFS.Common.Git
                 {
                     this.numberOfAttempts = 0;
                     this.lastAuthAttempt = DateTime.MinValue;
+
+                    // A successful use clears the consecutive-rejection count so that only an
+                    // uninterrupted run of rejections (no intervening success) can erase the
+                    // credential.
+                    this.consecutiveRejections = 0;
 
                     // Tell Git to store the valid credential if we haven't already
                     // done so for this cached credential.
@@ -112,6 +140,12 @@ namespace GVFS.Common.Git
             lock (this.gitAuthLock)
             {
                 string cachedCredentialAtStartOfReject = this.cachedCredentialString;
+
+                // Snapshot the approved-state now: the reload below (TryCallGitCredential)
+                // unconditionally clears isCachedCredentialStringApproved even when it re-fetches
+                // an identical credential, so we cannot read the flag after the reload.
+                bool wasApprovedAtStartOfReject = this.isCachedCredentialStringApproved;
+
                 // Don't stomp a different credential
                 if (credentialString == cachedCredentialAtStartOfReject && cachedCredentialAtStartOfReject != null)
                 {
@@ -124,12 +158,44 @@ namespace GVFS.Common.Git
                         {
                             // If the store already had a different credential, we don't want to reject it without trying it.
                             this.isCachedCredentialStringApproved = false;
+                            this.consecutiveRejections = 0;
                             return;
                         }
                     }
                     else
                     {
                         tracer.RelatedWarning(getCredentialError);
+                    }
+
+                    // Defer erasing an already-approved credential until it has been rejected
+                    // several times in a row with no intervening success. This stops a single
+                    // intermittent/transient non-auth blob-download failure - one of many
+                    // concurrent downloads sharing this credential - from erasing a credential
+                    // that is actually valid, which forces a GCM re-auth and can cause a
+                    // consent-popup storm. A never-approved credential (e.g. a genuinely expired
+                    // PAT at first use) is not gated and is erased immediately below. This check
+                    // runs after the reload above so a credential that genuinely changed
+                    // underneath us is still detected and adopted (above), not deferred; at this
+                    // point the cached credential is unchanged from the approved one.
+                    if (wasApprovedAtStartOfReject)
+                    {
+                        this.consecutiveRejections++;
+                        if (this.consecutiveRejections < this.RejectionThresholdForApprovedCredential)
+                        {
+                            // The reload cleared the approved flag; restore it because the
+                            // credential is unchanged and the server has already accepted it, so
+                            // the next rejection is still gated and the count keeps accumulating.
+                            this.isCachedCredentialStringApproved = true;
+
+                            EventMetadata deferMetadata = new EventMetadata();
+                            deferMetadata.Add("consecutiveRejections", this.consecutiveRejections);
+                            deferMetadata.Add("threshold", this.RejectionThresholdForApprovedCredential);
+                            tracer.RelatedEvent(
+                                EventLevel.Informational,
+                                "RejectCredentials_DeferredForApprovedCredential",
+                                deferMetadata);
+                            return;
+                        }
                     }
 
                     // If we can we should pass the actual username/password values we used (and found to be invalid)
@@ -159,6 +225,7 @@ namespace GVFS.Common.Git
 
                     this.cachedCredentialString = null;
                     this.isCachedCredentialStringApproved = false;
+                    this.consecutiveRejections = 0;
 
                     // Backoff may have already been incremented by a failure in TryCallGitCredential
                     if (attemptsBeforeCheckingExistingCredential == this.numberOfAttempts)
