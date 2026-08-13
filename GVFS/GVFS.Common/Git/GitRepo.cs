@@ -357,12 +357,20 @@ namespace GVFS.Common.Git
         private LooseBlobState GetLooseBlobState(string blobSha, Action<Stream, long> writeAction, out long size)
         {
             // A corrupt placeholder can carry a malformed content-id (for example 40 NUL
-            // bytes instead of a hex SHA). Such a value holds characters that are illegal
-            // in a file path, so Path.Combine below throws ArgumentException ("Illegal
-            // characters in path"). ArgumentException is not handled by RetryWrapper, so it
-            // bypasses both the retry logic and the download fallback and fails the
-            // hydration permanently. Reject the malformed SHA up front and report it as an
-            // invalid loose object, which the callers treat as a clean, non-retryable miss.
+            // bytes instead of a hex SHA). Reject it up front and report an invalid loose
+            // object, which the callers treat as a clean, non-retryable miss.
+            //
+            // The behavior of Path.Combine below is runtime-dependent, so validating here
+            // (rather than relying on an exception) is required on modern .NET:
+            //   - On .NET Framework, Path.Combine throws ArgumentException ("Illegal
+            //     characters in path") on the NUL bytes. ArgumentException is not handled by
+            //     RetryWrapper, so it bypasses both the retry logic and the download fallback
+            //     and fails the hydration permanently (a retry storm - the original symptom).
+            //   - On modern .NET (.NET Core/5+), Path.Combine no longer validates path
+            //     characters, so it does NOT throw; the bogus path simply misses on disk and
+            //     the request would fall through to a server download that the gateway rejects
+            //     with HTTP 400 (ICM 850075166). The download path is guarded separately in
+            //     GVFSGitObjects.TryDownloadAndSaveObject.
             if (!SHA1Util.IsValidShaFormat(blobSha))
             {
                 size = -1;

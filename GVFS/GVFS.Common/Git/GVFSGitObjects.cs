@@ -208,6 +208,27 @@ namespace GVFS.Common.Git
             RequestSource requestSource,
             bool retryOnFailure)
         {
+            // Defense in depth for a malformed object id (for example a corrupt placeholder's
+            // all-NUL content-id). On .NET Framework Path.Combine threw ArgumentException on
+            // such a value; on modern .NET it does not, so a malformed SHA silently misses the
+            // local object store and would otherwise be sent to the cache server, which rejects
+            // the URL with HTTP 400 - and GVFS then erases a valid credential (HttpRequestor
+            // treats 400 as an auth failure), producing a credential-prompt storm. Callers other
+            // than blob hydration reach this method WITHOUT going through the
+            // TryCopyBlobContentStream guard - the git.exe read-object hook (NamedPipeMessage,
+            // via InProcessMount) and the gitattributes GVFSVerb - so reject a malformed SHA here
+            // for every caller before any request is built.
+            if (!SHA1Util.IsValidShaFormat(objectId))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("sha", SHA1Util.ToLoggableShaString(objectId));
+                metadata.Add("RequestSource", requestSource.ToString());
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.TryDownloadAndSaveObject) + ": Refusing to download object with malformed SHA");
+                this.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.TryDownloadAndSaveObject) + "_MalformedBlobSha", metadata, Keywords.Telemetry);
+
+                return DownloadAndSaveObjectResult.Error;
+            }
+
             if (objectId == GVFSConstants.AllZeroSha)
             {
                 return DownloadAndSaveObjectResult.Error;

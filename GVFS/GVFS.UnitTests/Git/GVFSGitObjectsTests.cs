@@ -361,6 +361,56 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void TryDownloadAndSaveObjectDoesNotSendMalformedShaToServer()
+        {
+            // Regression for the customer HTTP-400 mode (ICM 850075166). On modern .NET a
+            // corrupt placeholder's all-NUL SHA does not throw in Path.Combine, so it misses
+            // locally and, without this guard, is sent to the cache server, which rejects the
+            // URL with HTTP 400 - and GVFS then erases a valid credential, producing a GCM
+            // prompt storm. This download path is reached by callers OTHER than blob hydration
+            // (the git.exe read-object hook via NamedPipeMessage, and the gitattributes
+            // GVFSVerb), which do not go through the TryCopyBlobContentStream guard, so it must
+            // be rejected at the download method itself for every request source.
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) => false;
+            fileSystem.OnOpenFileStream = (path, mode, access) => new MemoryStream();
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+            GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out MockTracer tracer);
+
+            string[] malformedShas =
+            {
+                new string('\0', 40),
+                string.Empty,
+                new string('0', 39),
+                new string('0', 20) + "\0" + new string('0', 19),
+            };
+
+            GVFSGitObjects.RequestSource[] sources =
+            {
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                GVFSGitObjects.RequestSource.NamedPipeMessage,
+                GVFSGitObjects.RequestSource.GVFSVerb,
+            };
+
+            foreach (string malformedSha in malformedShas)
+            {
+                foreach (GVFSGitObjects.RequestSource source in sources)
+                {
+                    GitObjects.DownloadAndSaveObjectResult result = GitObjects.DownloadAndSaveObjectResult.Success;
+                    Assert.DoesNotThrow(
+                        () => result = dut.TryDownloadAndSaveObject(malformedSha, source),
+                        "TryDownloadAndSaveObject must not throw for a malformed SHA");
+                    result.ShouldEqual(GitObjects.DownloadAndSaveObjectResult.Error);
+                }
+            }
+
+            // No malformed SHA reached the network, and the rejection is diagnosable.
+            httpObjects.TryDownloadObjectsCallCount.ShouldEqual(0);
+            tracer.RelatedEventNames.ShouldContain(e => e == "TryDownloadAndSaveObject_MalformedBlobSha");
+        }
+
+        [TestCase]
         public void CoalescesMultipleConcurrentRequestsForSameObject()
         {
             ManualResetEventSlim downloadStarted = new ManualResetEventSlim(false);
@@ -884,6 +934,10 @@ namespace GVFS.UnitTests.Git
             public HttpStatusCode? StatusCodeToReturn { get; set; }
             public byte[] ContentBytesToServe { get; set; }
 
+            // Number of times a network download was actually attempted. Lets a test prove a
+            // malformed SHA is rejected before any request reaches the server.
+            public int TryDownloadObjectsCallCount { get; private set; }
+
             public static MemoryStream GetRandomStream(int size)
             {
                 Random randy = new Random(0);
@@ -913,6 +967,8 @@ namespace GVFS.UnitTests.Git
                 Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
                 bool preferBatchedLooseObjects)
             {
+                this.TryDownloadObjectsCallCount++;
+
                 if (this.StatusCodeToReturn.HasValue)
                 {
                     // Simulate the server returning a non-OK status (e.g. 404) so callers can exercise
