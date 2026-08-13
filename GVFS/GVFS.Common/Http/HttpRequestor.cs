@@ -232,7 +232,7 @@ namespace GVFS.Common.Http
                         shouldRetry = false;
                         errorMessage = "Anonymous request was rejected with a 401";
                     }
-                    else if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.BadRequest || response.StatusCode == HttpStatusCode.Redirect)
+                    else if (ShouldRejectCredentials(response.StatusCode))
                     {
                         this.authentication.RejectCredentials(this.Tracer, authString);
                         if (!this.authentication.IsBackingOff)
@@ -324,6 +324,24 @@ namespace GVFS.Common.Http
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Determines whether an HTTP status code indicates an authentication failure
+        /// that warrants rejecting (erasing) the stored credential.
+        /// </summary>
+        /// <remarks>
+        /// Only 401 (Unauthorized) and 302 (Redirect to the Azure DevOps sign-in page)
+        /// are genuine authentication failures. A 400 (Bad Request) is a request/formatting
+        /// problem (e.g. a malformed object URL), NOT an expired credential - an expired or
+        /// invalid credential always returns 401 or 302. Rejecting credentials on 400 erased
+        /// valid credentials and caused a storm of credential-manager popups, so 400 must NOT
+        /// reject credentials.
+        /// </remarks>
+        internal static bool ShouldRejectCredentials(HttpStatusCode statusCode)
+        {
+            return statusCode == HttpStatusCode.Unauthorized ||
+                   statusCode == HttpStatusCode.Redirect;
         }
 
         private static string GetSingleHeaderOrEmpty(HttpHeaders headers, string headerName)
