@@ -259,18 +259,39 @@ namespace GVFS.Common.Git
             }
             try
             {
-                string value;
-                Native.ResultCode resultCode = Native.Config.GetString(out value, configHandle, name);
-                if (resultCode == Native.ResultCode.NotFound)
+                // git_config_get_string returns a borrowed pointer whose lifetime is tied to the
+                // config, so libgit2 only allows it on a snapshot (read-only) config. Calling it on
+                // the live config returned by git_repository_config fails with "get_string called on
+                // a live config object". Snapshot the config first, then read the string from it.
+                IntPtr snapshotHandle;
+                if (Native.Config.Snapshot(out snapshotHandle, configHandle) != Native.ResultCode.Success)
                 {
-                    return null;
-                }
-                else if (resultCode != Native.ResultCode.Success)
-                {
-                    throw new LibGit2Exception($"Failed to get config value for '{name}': {Native.GetLastError()}");
+                    throw new LibGit2Exception($"Failed to snapshot config for '{name}': {Native.GetLastError()}");
                 }
 
-                return value;
+                try
+                {
+                    // git_config_get_string yields a borrowed pointer owned by the (snapshot)
+                    // config, so it is retrieved as an IntPtr and copied manually. Marshalling it
+                    // directly as an out string would make the interop marshaller free the pointer
+                    // with CoTaskMemFree, corrupting libgit2's heap (mismatched allocator).
+                    IntPtr valuePtr;
+                    Native.ResultCode resultCode = Native.Config.GetString(out valuePtr, snapshotHandle, name);
+                    if (resultCode == Native.ResultCode.NotFound)
+                    {
+                        return null;
+                    }
+                    else if (resultCode != Native.ResultCode.Success)
+                    {
+                        throw new LibGit2Exception($"Failed to get config value for '{name}': {Native.GetLastError()}");
+                    }
+
+                    return valuePtr == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(valuePtr);
+                }
+                finally
+                {
+                    Native.Config.Free(snapshotHandle);
+                }
             }
             finally
             {
@@ -585,8 +606,11 @@ namespace GVFS.Common.Git
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_open_default")]
                 public static extern ResultCode GetGlobalAndSystemConfig(out IntPtr configHandle);
 
+                [DllImport(Git2NativeLibName, EntryPoint = "git_config_snapshot")]
+                public static extern ResultCode Snapshot(out IntPtr snapshotConfigHandle, IntPtr configHandle);
+
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_string")]
-                public static extern ResultCode GetString(out string value, IntPtr configHandle, string name);
+                public static extern ResultCode GetString(out IntPtr value, IntPtr configHandle, string name);
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_multivar_foreach")]
                 public static extern ResultCode GetMultivarForeach(
