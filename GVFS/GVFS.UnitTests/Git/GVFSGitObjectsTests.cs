@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
@@ -155,6 +155,124 @@ namespace GVFS.UnitTests.Git
             failureCategory.ShouldEqual(GVFSGitObjects.BlobHydrationFailureCategory.ObjectNotOnServer);
             string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
             terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"ObjectNotOnServer\"");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void TerminalBlobHydrationFailureRecordsHttpStatusCode()
+        {
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) => true;
+            fileSystem.OnOpenFileStream = (path, mode, access) =>
+            {
+                if (access == FileAccess.Write)
+                {
+                    return new MemoryStream();
+                }
+
+                throw new FileNotFoundException();
+            };
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+
+            // Force the download to fail with 401. The DownloadFailed bucket collapses auth and
+            // transient failures, so the terminal event must also carry the HTTP status to tell
+            // a real 401 apart from a transient failure.
+            httpObjects.StatusCodeToReturn = HttpStatusCode.Unauthorized;
+            GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out MockTracer tracer);
+
+            bool copied = dut.TryCopyBlobContentStream(
+                ValidTestObjectFileSha1,
+                new CancellationToken(),
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("Should not be able to call copy stream callback"),
+                out GVFSGitObjects.BlobHydrationFailureCategory failureCategory);
+            copied.ShouldEqual(false);
+
+            // A 401 is not classified as ObjectNotOnServer, so it lands in the neutral
+            // DownloadFailed bucket; the HTTP status is what distinguishes it.
+            failureCategory.ShouldEqual(GVFSGitObjects.BlobHydrationFailureCategory.DownloadFailed);
+            string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
+            terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"DownloadFailed\"");
+            terminalError.ShouldContain("\"HttpStatusCode\":401");
+            terminalError.ShouldContain("\"HttpStatusName\":\"Unauthorized\"");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void TerminalBlobHydrationFailureRecordsTransientHttpStatusCode()
+        {
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) => true;
+            fileSystem.OnOpenFileStream = (path, mode, access) =>
+            {
+                if (access == FileAccess.Write)
+                {
+                    return new MemoryStream();
+                }
+
+                throw new FileNotFoundException();
+            };
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+
+            // A transient 503 must also carry the HTTP status so it can be told apart from a real
+            // auth failure - both share the DownloadFailed category.
+            httpObjects.StatusCodeToReturn = HttpStatusCode.ServiceUnavailable;
+            GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out MockTracer tracer);
+
+            bool copied = dut.TryCopyBlobContentStream(
+                ValidTestObjectFileSha1,
+                new CancellationToken(),
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("Should not be able to call copy stream callback"),
+                out GVFSGitObjects.BlobHydrationFailureCategory failureCategory);
+            copied.ShouldEqual(false);
+
+            failureCategory.ShouldEqual(GVFSGitObjects.BlobHydrationFailureCategory.DownloadFailed);
+            string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
+            terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"DownloadFailed\"");
+            terminalError.ShouldContain("\"HttpStatusCode\":503");
+            terminalError.ShouldContain("\"HttpStatusName\":\"ServiceUnavailable\"");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void TerminalBlobHydrationFailureOmitsHttpStatusWhenDownloadHasNoStatus()
+        {
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) => true;
+            fileSystem.OnOpenFileStream = (path, mode, access) =>
+            {
+                if (access == FileAccess.Write)
+                {
+                    return new MemoryStream();
+                }
+
+                throw new FileNotFoundException();
+            };
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+
+            // The download fails without an HTTP response (no status). The terminal event must NOT
+            // carry a status - in particular it must never emit "HttpStatusCode":0 for a status that
+            // was never received.
+            httpObjects.FailWithoutStatus = true;
+            GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out MockTracer tracer);
+
+            bool copied = dut.TryCopyBlobContentStream(
+                ValidTestObjectFileSha1,
+                new CancellationToken(),
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("Should not be able to call copy stream callback"),
+                out GVFSGitObjects.BlobHydrationFailureCategory failureCategory);
+            copied.ShouldEqual(false);
+
+            failureCategory.ShouldEqual(GVFSGitObjects.BlobHydrationFailureCategory.DownloadFailed);
+            string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
+            terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"DownloadFailed\"");
+            terminalError.ShouldNotContain(false, "HttpStatusCode");
+            terminalError.ShouldNotContain(false, "HttpStatusName");
         }
 
         [TestCase]
@@ -707,15 +825,15 @@ namespace GVFS.UnitTests.Git
             wave2Started.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue("Wave 2 download should have started");
 
             // Capture wave 2's Lazy from the dictionary
-            Lazy<GitObjects.DownloadAndSaveObjectResult> wave2Lazy;
+            Lazy<GVFSGitObjects.DownloadAttemptResult> wave2Lazy;
             dut.inflightDownloads.TryGetValue(ValidTestObjectFileSha1, out wave2Lazy).ShouldBeTrue("Wave 2 Lazy should be in dictionary");
 
             // Simulate a straggling wave-1 thread: create a different Lazy and try to remove it.
             // With value-aware removal, this must NOT remove wave 2's Lazy.
-            Lazy<GitObjects.DownloadAndSaveObjectResult> staleLazy =
-                new Lazy<GitObjects.DownloadAndSaveObjectResult>(() => GitObjects.DownloadAndSaveObjectResult.Success);
-            bool staleRemoved = ((ICollection<KeyValuePair<string, Lazy<GitObjects.DownloadAndSaveObjectResult>>>)dut.inflightDownloads)
-                .Remove(new KeyValuePair<string, Lazy<GitObjects.DownloadAndSaveObjectResult>>(ValidTestObjectFileSha1, staleLazy));
+            Lazy<GVFSGitObjects.DownloadAttemptResult> staleLazy =
+                new Lazy<GVFSGitObjects.DownloadAttemptResult>(() => new GVFSGitObjects.DownloadAttemptResult(GitObjects.DownloadAndSaveObjectResult.Success, httpStatusCode: null));
+            bool staleRemoved = ((ICollection<KeyValuePair<string, Lazy<GVFSGitObjects.DownloadAttemptResult>>>)dut.inflightDownloads)
+                .Remove(new KeyValuePair<string, Lazy<GVFSGitObjects.DownloadAttemptResult>>(ValidTestObjectFileSha1, staleLazy));
 
             staleRemoved.ShouldBeFalse("Straggling finally must not remove wave 2's Lazy");
             dut.inflightDownloads.ContainsKey(ValidTestObjectFileSha1).ShouldBeTrue("Wave 2 Lazy must survive");
@@ -796,6 +914,12 @@ namespace GVFS.UnitTests.Git
             public Stream InputStream { get; set; }
             public string MediaType { get; set; }
             public HttpStatusCode? StatusCodeToReturn { get; set; }
+
+            // When true, TryDownloadObjects returns a failing result built from GitObjectTaskResult(bool),
+            // i.e. Result is non-null but carries no HTTP status (HttpStatusCodeResult == 0). This
+            // exercises the "download failed without a status" branch of the telemetry status capture.
+            public bool FailWithoutStatus { get; set; }
+
             public byte[] ContentBytesToServe { get; set; }
 
             public static MemoryStream GetRandomStream(int size)
@@ -835,6 +959,16 @@ namespace GVFS.UnitTests.Git
                         0,
                         error: null,
                         result: new GitObjectTaskResult(this.StatusCodeToReturn.Value));
+                }
+
+                if (this.FailWithoutStatus)
+                {
+                    // A download that failed without an HTTP response: Result is non-null but its
+                    // HttpStatusCodeResult stays 0, so no status should reach telemetry.
+                    return new RetryWrapper<GitObjectTaskResult>.InvocationResult(
+                        0,
+                        error: null,
+                        result: new GitObjectTaskResult(false));
                 }
 
                 // Serve a fresh stream per call when ContentBytesToServe is set so the download
