@@ -331,6 +331,86 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void TryCopyBlobContentStreamFailsCleanlyForCorruptAllNullByteSha()
+        {
+            // A corrupt placeholder can present a content-id of 40 NUL bytes instead of a
+            // hex SHA. Those characters are illegal in a file path, so building a loose
+            // object path from them used to throw an unhandled ArgumentException that
+            // bypassed retry and download fallback and permanently failed (and retry-stormed)
+            // the hydration. The read must now fail cleanly with no exception.
+            this.AssertMalformedShaHydrationFailsCleanly(new string('\0', 40));
+        }
+
+        [TestCase]
+        public void TryCopyBlobContentStreamFailsCleanlyForOtherMalformedShas()
+        {
+            this.AssertMalformedShaHydrationFailsCleanly(string.Empty);
+            this.AssertMalformedShaHydrationFailsCleanly("0123456789");
+            this.AssertMalformedShaHydrationFailsCleanly(new string('0', 39));
+            this.AssertMalformedShaHydrationFailsCleanly("000000000000000000000000000000000000000g");
+
+            // 40 chars long but with a NUL embedded among hex digits — the realistic
+            // corrupt-content-id shape that actually reproduces the original "Illegal
+            // characters in path" ArgumentException (length passes, hex check fails).
+            this.AssertMalformedShaHydrationFailsCleanly(new string('0', 20) + "\0" + new string('0', 19));
+
+            // 40 chars long with an embedded backslash. Unlike NUL this would NOT have thrown
+            // pre-fix (backslash is a legal path separator), but it is still non-hex, so the
+            // guard must reject it as a clean miss rather than probe a bogus path.
+            this.AssertMalformedShaHydrationFailsCleanly(new string('a', 20) + "\\" + new string('a', 19));
+        }
+
+        [TestCase]
+        public void TryDownloadAndSaveObjectDoesNotSendMalformedShaToServer()
+        {
+            // Regression for the customer HTTP-400 mode (ICM 850075166). On modern .NET a
+            // corrupt placeholder's all-NUL SHA does not throw in Path.Combine, so it misses
+            // locally and, without this guard, is sent to the cache server, which rejects the
+            // URL with HTTP 400 - and GVFS then erases a valid credential, producing a GCM
+            // prompt storm. This download path is reached by callers OTHER than blob hydration
+            // (the git.exe read-object hook via NamedPipeMessage, and the gitattributes
+            // GVFSVerb), which do not go through the TryCopyBlobContentStream guard, so it must
+            // be rejected at the download method itself for every request source.
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) => false;
+            fileSystem.OnOpenFileStream = (path, mode, access) => new MemoryStream();
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+            GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out MockTracer tracer);
+
+            string[] malformedShas =
+            {
+                new string('\0', 40),
+                string.Empty,
+                new string('0', 39),
+                new string('0', 20) + "\0" + new string('0', 19),
+            };
+
+            GVFSGitObjects.RequestSource[] sources =
+            {
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                GVFSGitObjects.RequestSource.NamedPipeMessage,
+                GVFSGitObjects.RequestSource.GVFSVerb,
+            };
+
+            foreach (string malformedSha in malformedShas)
+            {
+                foreach (GVFSGitObjects.RequestSource source in sources)
+                {
+                    GitObjects.DownloadAndSaveObjectResult result = GitObjects.DownloadAndSaveObjectResult.Success;
+                    Assert.DoesNotThrow(
+                        () => result = dut.TryDownloadAndSaveObject(malformedSha, source),
+                        "TryDownloadAndSaveObject must not throw for a malformed SHA");
+                    result.ShouldEqual(GitObjects.DownloadAndSaveObjectResult.Error);
+                }
+            }
+
+            // No malformed SHA reached the network, and the rejection is diagnosable.
+            httpObjects.TryDownloadObjectsCallCount.ShouldEqual(0);
+            tracer.RelatedEventNames.ShouldContain(e => e == "TryDownloadAndSaveObject_MalformedBlobSha");
+        }
+
+        [TestCase]
         public void CoalescesMultipleConcurrentRequestsForSameObject()
         {
             ManualResetEventSlim downloadStarted = new ManualResetEventSlim(false);
@@ -751,6 +831,62 @@ namespace GVFS.UnitTests.Git
             }
         }
 
+        private void AssertMalformedShaHydrationFailsCleanly(string malformedSha)
+        {
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = (path) =>
+            {
+                Assert.Fail("A malformed SHA must never be turned into a filesystem path");
+                return false;
+            };
+
+            MockTracer tracer = new MockTracer();
+            GVFSEnlistment enlistment = new GVFSEnlistment(TestEnlistmentRoot, "https://fakeRepoUrl", "fakeGitBinPath", authentication: null);
+            enlistment.InitializeCachePathsFromKey(TestLocalCacheRoot, TestObjectRoot);
+            GitRepo repo = new GitRepo(tracer, enlistment, fileSystem, () => new MockLibGit2Repo(tracer));
+            GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
+            GVFSGitObjects gitObjects = new UnsafeGVFSGitObjects(context, new MockHttpGitObjects());
+
+            // GitRepo layer: must not throw ArgumentException ("Illegal characters in path"),
+            // and must report a clean miss.
+            bool repoResult = true;
+            Assert.DoesNotThrow(
+                () => repoResult = repo.TryCopyBlobContentStream(
+                    malformedSha,
+                    (stream, length) => Assert.Fail("Should not copy any content for a malformed SHA")),
+                "GitRepo.TryCopyBlobContentStream must not throw for a malformed SHA");
+            repoResult.ShouldEqual(false);
+
+            // GVFSGitObjects layer: must fail fast with no throw. The out category stays
+            // Unexpected (a malformed SHA gets no dedicated telemetry category).
+            bool copied = true;
+            GVFSGitObjects.BlobHydrationFailureCategory failureCategory = GVFSGitObjects.BlobHydrationFailureCategory.None;
+            Assert.DoesNotThrow(
+                () => copied = gitObjects.TryCopyBlobContentStream(
+                    malformedSha,
+                    new CancellationToken(),
+                    GVFSGitObjects.RequestSource.FileStreamCallback,
+                    (stream, length) => Assert.Fail("Should not copy any content for a malformed SHA"),
+                    out failureCategory),
+                "GVFSGitObjects.TryCopyBlobContentStream must not throw for a malformed SHA");
+            copied.ShouldEqual(false);
+            failureCategory.ShouldEqual(GVFSGitObjects.BlobHydrationFailureCategory.Unexpected);
+
+            // The short-circuit must happen BEFORE the retry/download loop: a malformed SHA
+            // must never reach a server download. The retrier logs "Failed to provide blob
+            // contents" on every attempt, so its absence proves no download/retry ran.
+            bool anyDownloadAttemptLogged = tracer.RelatedErrorEvents
+                .Concat(tracer.RelatedWarningEvents)
+                .Any(e => e.Contains("Failed to provide blob contents"));
+            anyDownloadAttemptLogged.ShouldEqual(false);
+
+            // The corrupt-placeholder read must stay diagnosable: both guard layers emit their
+            // distinct greppable *_MalformedBlobSha event. Assert the emission so a regression
+            // that silently dropped the warning would fail here.
+            tracer.RelatedEventNames.ShouldContain(e => e == "GetLooseBlobState_MalformedBlobSha");
+            tracer.RelatedEventNames.ShouldContain(e => e == "TryCopyBlobContentStream_MalformedBlobSha");
+        }
+
         private GVFSGitObjects CreateTestableGVFSGitObjects(GitObjectsHttpRequestor httpObjects, MockFileSystemWithCallbacks fileSystem)
         {
             return this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out _);
@@ -798,6 +934,10 @@ namespace GVFS.UnitTests.Git
             public HttpStatusCode? StatusCodeToReturn { get; set; }
             public byte[] ContentBytesToServe { get; set; }
 
+            // Number of times a network download was actually attempted. Lets a test prove a
+            // malformed SHA is rejected before any request reaches the server.
+            public int TryDownloadObjectsCallCount { get; private set; }
+
             public static MemoryStream GetRandomStream(int size)
             {
                 Random randy = new Random(0);
@@ -827,6 +967,8 @@ namespace GVFS.UnitTests.Git
                 Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
                 bool preferBatchedLooseObjects)
             {
+                this.TryDownloadObjectsCallCount++;
+
                 if (this.StatusCodeToReturn.HasValue)
                 {
                     // Simulate the server returning a non-OK status (e.g. 404) so callers can exercise

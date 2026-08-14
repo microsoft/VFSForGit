@@ -9,7 +9,37 @@ namespace GVFS.Common
     {
         public static bool IsValidShaFormat(string sha)
         {
-            return sha.Length == 40 && sha.All(c => Uri.IsHexDigit(c));
+            return sha != null && sha.Length == 40 && sha.All(c => Uri.IsHexDigit(c));
+        }
+
+        /// <summary>
+        /// Returns a log-safe rendering of a value that was expected to be a
+        /// 40-character hex SHA but is not. Non-hex characters (for example the
+        /// NUL bytes of a corrupt placeholder content-id) are escaped as \uXXXX
+        /// so the value stays greppable in telemetry and carries no control
+        /// characters.
+        /// </summary>
+        public static string ToLoggableShaString(string sha)
+        {
+            if (sha == null)
+            {
+                return "(null)";
+            }
+
+            StringBuilder builder = new StringBuilder(sha.Length);
+            foreach (char c in sha)
+            {
+                if (Uri.IsHexDigit(c))
+                {
+                    builder.Append(c);
+                }
+                else
+                {
+                    builder.AppendFormat("\\u{0:x4}", (int)c);
+                }
+            }
+
+            return builder.ToString();
         }
 
         public static string SHA1HashStringForUTF8String(string s)
