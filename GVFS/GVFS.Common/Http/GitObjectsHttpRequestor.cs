@@ -29,6 +29,58 @@ namespace GVFS.Common.Http
 
         public CacheServerInfo CacheServer { get; private set; }
 
+        /// <summary>
+        /// SKETCH (design proposal). Probe the cache server's own objects endpoint with a
+        /// known-good, well-formed SHA (the git empty tree). This exercises the SAME host and
+        /// auth path that returned the 400, so the probe's status cleanly separates
+        /// "credential is bad" (401/302) from "the request was malformed" (any other status).
+        /// A 404 here still proves auth succeeded - we reached "not found" past the auth gate.
+        /// </summary>
+        /// <summary>
+        /// SKETCH (design proposal). Probe the objects endpoint of the SAME host that returned the
+        /// 400 (cache server or origin) with a known-good, well-formed SHA (the git empty tree), so
+        /// the probe exercises the same auth path. A 404 here still proves auth succeeded - we
+        /// reached "not found" past the auth gate.
+        /// </summary>
+        protected override Uri GetCredentialProbeUri(Uri failedRequestUri)
+        {
+            string objectsEndpoint = null;
+
+            if (this.CacheServer != null &&
+                !string.IsNullOrEmpty(this.CacheServer.ObjectsEndpointUrl) &&
+                HostMatches(failedRequestUri, this.CacheServer.ObjectsEndpointUrl))
+            {
+                objectsEndpoint = this.CacheServer.ObjectsEndpointUrl;
+            }
+            else if (!string.IsNullOrEmpty(this.enlistment.RepoUrl))
+            {
+                // The 400 came from origin (or the host could not be matched to the cache server).
+                objectsEndpoint = this.enlistment.RepoUrl + GVFSConstants.Endpoints.GVFSObjects;
+            }
+
+            if (string.IsNullOrEmpty(objectsEndpoint))
+            {
+                return null;
+            }
+
+            try
+            {
+                return new Uri(objectsEndpoint.TrimEnd('/') + "/" + GVFSConstants.WellKnownObjects.EmptyTreeSha);
+            }
+            catch (UriFormatException)
+            {
+                // A malformed endpoint cannot be probed; caller treats null as "do not reject".
+                return null;
+            }
+        }
+
+        private static bool HostMatches(Uri uri, string candidateUrl)
+        {
+            return uri != null &&
+                   Uri.TryCreate(candidateUrl, UriKind.Absolute, out Uri candidate) &&
+                   string.Equals(uri.Host, candidate.Host, StringComparison.OrdinalIgnoreCase);
+        }
+
         public virtual List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
         {
             long requestId = HttpRequestor.GetNewRequestId();

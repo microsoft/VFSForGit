@@ -105,6 +105,14 @@ namespace GVFS.Common
             public const string InfoRefs = "/info/refs?service=git-upload-pack";
         }
 
+        public static class WellKnownObjects
+        {
+            // SKETCH (design proposal): the git empty-tree object. Its SHA is a fixed constant
+            // that every git server recognizes, so it is a safe, well-formed target for a
+            // credential probe - the probe URL never depends on possibly-corrupt request input.
+            public const string EmptyTreeSha = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+        }
+
         public static class SpecialGitFiles
         {
             public const string GitAttributes = ".gitattributes";
