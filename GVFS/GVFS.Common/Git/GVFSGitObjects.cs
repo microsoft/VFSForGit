@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Http;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
@@ -15,14 +15,14 @@ namespace GVFS.Common.Git
         private static readonly TimeSpan NegativeCacheTTL = TimeSpan.FromSeconds(30);
 
         private ConcurrentDictionary<string, DateTime> objectNegativeCache;
-        internal ConcurrentDictionary<string, Lazy<DownloadAndSaveObjectResult>> inflightDownloads;
+        internal ConcurrentDictionary<string, Lazy<DownloadAttemptResult>> inflightDownloads;
 
         public GVFSGitObjects(GVFSContext context, GitObjectsHttpRequestor objectRequestor)
             : base(context.Tracer, context.Enlistment, objectRequestor, context.FileSystem)
         {
             this.Context = context;
             this.objectNegativeCache = new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
-            this.inflightDownloads = new ConcurrentDictionary<string, Lazy<DownloadAndSaveObjectResult>>(StringComparer.OrdinalIgnoreCase);
+            this.inflightDownloads = new ConcurrentDictionary<string, Lazy<DownloadAttemptResult>>(StringComparer.OrdinalIgnoreCase);
         }
 
         public enum RequestSource
@@ -56,6 +56,28 @@ namespace GVFS.Common.Git
             LocalCopyFailed,      // Blob downloaded, but the subsequent local copy still failed.
             SizeMismatch,         // Blob length did not match the length ProjFS requested.
             Unexpected,           // Unclassified exception.
+        }
+
+        /// <summary>
+        /// Carries the outcome of an object download together with the HTTP status of the last
+        /// download attempt. The public <see cref="DownloadAndSaveObjectResult"/> enum only records
+        /// success/not-found/error, which collapses genuine auth failures (401/400/302) and
+        /// transient failures (408/5xx/pool-exhaustion 503) into a single "error" outcome. The
+        /// status is retained here so the terminal blob-hydration telemetry can tell them apart.
+        /// </summary>
+        internal class DownloadAttemptResult
+        {
+            public DownloadAttemptResult(DownloadAndSaveObjectResult result, HttpStatusCode? httpStatusCode)
+            {
+                this.Result = result;
+                this.HttpStatusCode = httpStatusCode;
+            }
+
+            public DownloadAndSaveObjectResult Result { get; }
+
+            // The HTTP status of the last download attempt, or null when no HTTP response was
+            // received (for example an exhausted retry that ended in an exception).
+            public HttpStatusCode? HttpStatusCode { get; }
         }
 
         protected GVFSContext Context { get; private set; }
@@ -92,7 +114,7 @@ namespace GVFS.Common.Git
             // local copy) that is otherwise collapsed into the bool return value below. The
             // final category is also surfaced via the out parameter so the caller can tag its
             // own terminal telemetry with the same cause.
-            DownloadAndSaveObjectResult lastDownloadResult = DownloadAndSaveObjectResult.Error;
+            DownloadAttemptResult lastDownloadResult = null;
             bool downloadSucceededButCopyFailed = false;
             BlobHydrationFailureCategory capturedCategory = BlobHydrationFailureCategory.None;
 
@@ -129,7 +151,7 @@ namespace GVFS.Common.Git
                     {
                         category = BlobHydrationFailureCategory.LocalCopyFailed;
                     }
-                    else if (lastDownloadResult == DownloadAndSaveObjectResult.ObjectNotOnServer)
+                    else if (lastDownloadResult?.Result == DownloadAndSaveObjectResult.ObjectNotOnServer)
                     {
                         category = BlobHydrationFailureCategory.ObjectNotOnServer;
                     }
@@ -143,6 +165,22 @@ namespace GVFS.Common.Git
 
                     capturedCategory = category;
                     metadata.Add(nameof(BlobHydrationFailureCategory), category.ToString());
+
+                    // Surface the HTTP status of the last download attempt so telemetry can tell a
+                    // genuine auth failure (401/400/302) apart from a transient one (408/5xx/503),
+                    // both of which otherwise land in the DownloadFailed bucket. Only attach it when
+                    // the failure is attributable to the download itself (DownloadFailed or
+                    // ObjectNotOnServer). On the exception (LocalIO/NetworkUnavailable) and
+                    // LocalCopyFailed paths lastDownloadResult can hold a status captured on an
+                    // earlier attempt, so the status would be stale and misattribute the failure.
+                    bool statusIsAttributable =
+                        category == BlobHydrationFailureCategory.DownloadFailed ||
+                        category == BlobHydrationFailureCategory.ObjectNotOnServer;
+                    if (statusIsAttributable && lastDownloadResult?.HttpStatusCode != null)
+                    {
+                        metadata.Add("HttpStatusCode", (int)lastDownloadResult.HttpStatusCode.Value);
+                        metadata.Add("HttpStatusName", lastDownloadResult.HttpStatusCode.Value.ToString());
+                    }
 
                     string message = "TryCopyBlobContentStream: Failed to provide blob contents";
                     if (errorArgs.WillRetry)
@@ -169,7 +207,7 @@ namespace GVFS.Common.Git
 
                         // Pass in false for retryOnFailure because the retrier in this method manages multiple attempts
                         lastDownloadResult = this.TryDownloadAndSaveObject(sha, cancellationToken, requestSource, retryOnFailure: false);
-                        if (lastDownloadResult == DownloadAndSaveObjectResult.Success)
+                        if (lastDownloadResult.Result == DownloadAndSaveObjectResult.Success)
                         {
                             if (this.Context.Repository.TryCopyBlobContentStream(sha, writeAction))
                             {
@@ -189,7 +227,7 @@ namespace GVFS.Common.Git
 
         public DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectId, RequestSource requestSource)
         {
-            return this.TryDownloadAndSaveObject(objectId, CancellationToken.None, requestSource, retryOnFailure: true);
+            return this.TryDownloadAndSaveObject(objectId, CancellationToken.None, requestSource, retryOnFailure: true).Result;
         }
 
         public bool TryGetBlobSizeLocally(string sha, out long length)
@@ -202,7 +240,7 @@ namespace GVFS.Common.Git
             return this.GitObjectRequestor.QueryForFileSizes(objectIds, cancellationToken);
         }
 
-        private DownloadAndSaveObjectResult TryDownloadAndSaveObject(
+        private DownloadAttemptResult TryDownloadAndSaveObject(
             string objectId,
             CancellationToken cancellationToken,
             RequestSource requestSource,
@@ -231,7 +269,7 @@ namespace GVFS.Common.Git
 
             if (objectId == GVFSConstants.AllZeroSha)
             {
-                return DownloadAndSaveObjectResult.Error;
+                return new DownloadAttemptResult(DownloadAndSaveObjectResult.Error, httpStatusCode: null);
             }
 
             DateTime negativeCacheRequestTime;
@@ -239,7 +277,7 @@ namespace GVFS.Common.Git
             {
                 if (negativeCacheRequestTime > DateTime.Now.Subtract(NegativeCacheTTL))
                 {
-                    return DownloadAndSaveObjectResult.ObjectNotOnServer;
+                    return new DownloadAttemptResult(DownloadAndSaveObjectResult.ObjectNotOnServer, httpStatusCode: null);
                 }
 
                 this.objectNegativeCache.TryRemove(objectId, out negativeCacheRequestTime);
@@ -251,9 +289,9 @@ namespace GVFS.Common.Git
             // captured by the Lazy factory. Subsequent coalesced callers inherit those
             // settings. In practice this is fine because the primary concurrent path
             // (NamedPipeMessage from git.exe) always uses CancellationToken.None.
-            Lazy<DownloadAndSaveObjectResult> newLazy = new Lazy<DownloadAndSaveObjectResult>(
+            Lazy<DownloadAttemptResult> newLazy = new Lazy<DownloadAttemptResult>(
                 () => this.DoDownloadAndSaveObject(objectId, cancellationToken, requestSource, retryOnFailure));
-            Lazy<DownloadAndSaveObjectResult> lazy = this.inflightDownloads.GetOrAdd(objectId, newLazy);
+            Lazy<DownloadAttemptResult> lazy = this.inflightDownloads.GetOrAdd(objectId, newLazy);
 
             if (!ReferenceEquals(lazy, newLazy))
             {
@@ -281,13 +319,13 @@ namespace GVFS.Common.Git
         /// .NET Framework 4.7.1. When we upgrade to .NET 10 (backlog), this can be
         /// replaced with ConcurrentDictionary.TryRemove(KeyValuePair).
         /// </summary>
-        private bool TryRemoveInflightDownload(string objectId, Lazy<DownloadAndSaveObjectResult> lazy)
+        private bool TryRemoveInflightDownload(string objectId, Lazy<DownloadAttemptResult> lazy)
         {
-            return ((ICollection<KeyValuePair<string, Lazy<DownloadAndSaveObjectResult>>>)this.inflightDownloads)
-                .Remove(new KeyValuePair<string, Lazy<DownloadAndSaveObjectResult>>(objectId, lazy));
+            return ((ICollection<KeyValuePair<string, Lazy<DownloadAttemptResult>>>)this.inflightDownloads)
+                .Remove(new KeyValuePair<string, Lazy<DownloadAttemptResult>>(objectId, lazy));
         }
 
-        private DownloadAndSaveObjectResult DoDownloadAndSaveObject(
+        private DownloadAttemptResult DoDownloadAndSaveObject(
             string objectId,
             CancellationToken cancellationToken,
             RequestSource requestSource,
@@ -314,21 +352,32 @@ namespace GVFS.Common.Git
                     return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new GitObjectsHttpRequestor.GitObjectTaskResult(true));
                 });
 
+            // Capture the HTTP status of the last download attempt when a response was received.
+            // On failure the requestor propagates the real status (e.g. 401/404/503); on an
+            // exhausted retry that ended in an exception output.Result is null and no status is
+            // known. A default (zero) status means the result carried no HTTP response, so it is
+            // treated as "no status".
+            HttpStatusCode? httpStatusCode = null;
+            if (output.Result != null && output.Result.HttpStatusCodeResult != 0)
+            {
+                httpStatusCode = output.Result.HttpStatusCodeResult;
+            }
+
             if (output.Result != null)
             {
                 if (output.Succeeded && output.Result.Success)
                 {
-                    return DownloadAndSaveObjectResult.Success;
+                    return new DownloadAttemptResult(DownloadAndSaveObjectResult.Success, httpStatusCode);
                 }
 
                 if (output.Result.HttpStatusCodeResult == HttpStatusCode.NotFound)
                 {
                     this.objectNegativeCache.AddOrUpdate(objectId, DateTime.Now, (unused1, unused2) => DateTime.Now);
-                    return DownloadAndSaveObjectResult.ObjectNotOnServer;
+                    return new DownloadAttemptResult(DownloadAndSaveObjectResult.ObjectNotOnServer, httpStatusCode);
                 }
             }
 
-            return DownloadAndSaveObjectResult.Error;
+            return new DownloadAttemptResult(DownloadAndSaveObjectResult.Error, httpStatusCode);
         }
     }
 }
