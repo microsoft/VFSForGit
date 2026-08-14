@@ -264,7 +264,7 @@ namespace GVFS.Common.Git
                 metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.TryDownloadAndSaveObject) + ": Refusing to download object with malformed SHA");
                 this.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.TryDownloadAndSaveObject) + "_MalformedBlobSha", metadata, Keywords.Telemetry);
 
-                return DownloadAndSaveObjectResult.Error;
+                return new DownloadAttemptResult(DownloadAndSaveObjectResult.Error, httpStatusCode: null);
             }
 
             if (objectId == GVFSConstants.AllZeroSha)
