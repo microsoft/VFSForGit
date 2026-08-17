@@ -113,6 +113,19 @@ namespace GVFS.Common.Git
         /// </summary>
         public virtual bool LooseObjectExists(string sha)
         {
+            // Guard against a malformed SHA (for example a corrupt placeholder's all-NUL
+            // content-id) so Path.Combine cannot throw ArgumentException below. Emit the same
+            // greppable Warning as the other malformed-SHA guards so a silent "does not exist"
+            // answer is still diagnosable in telemetry.
+            if (!SHA1Util.IsValidShaFormat(sha))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("sha", SHA1Util.ToLoggableShaString(sha));
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.LooseObjectExists) + ": Malformed SHA cannot exist as a loose object");
+                this.tracer.RelatedEvent(EventLevel.Warning, nameof(this.LooseObjectExists) + "_MalformedBlobSha", metadata, Keywords.Telemetry);
+                return false;
+            }
+
             if (GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem)
             {
                 sha = sha.ToLower();
@@ -343,6 +356,33 @@ namespace GVFS.Common.Git
 
         private LooseBlobState GetLooseBlobState(string blobSha, Action<Stream, long> writeAction, out long size)
         {
+            // A corrupt placeholder can carry a malformed content-id (for example 40 NUL
+            // bytes instead of a hex SHA). Reject it up front and report an invalid loose
+            // object, which the callers treat as a clean, non-retryable miss.
+            //
+            // The behavior of Path.Combine below is runtime-dependent, so validating here
+            // (rather than relying on an exception) is required on modern .NET:
+            //   - On .NET Framework, Path.Combine throws ArgumentException ("Illegal
+            //     characters in path") on the NUL bytes. ArgumentException is not handled by
+            //     RetryWrapper, so it bypasses both the retry logic and the download fallback
+            //     and fails the hydration permanently (a retry storm - the original symptom).
+            //   - On modern .NET (.NET Core/5+), Path.Combine no longer validates path
+            //     characters, so it does NOT throw; the bogus path simply misses on disk and
+            //     the request would fall through to a server download that the gateway rejects
+            //     with HTTP 400 (ICM 850075166). The download path is guarded separately in
+            //     GVFSGitObjects.TryDownloadAndSaveObject.
+            if (!SHA1Util.IsValidShaFormat(blobSha))
+            {
+                size = -1;
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("sha", SHA1Util.ToLoggableShaString(blobSha));
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetLooseBlobState) + ": Refusing to build loose object path from malformed blob SHA");
+                this.tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetLooseBlobState) + "_MalformedBlobSha", metadata, Keywords.Telemetry);
+
+                return LooseBlobState.Invalid;
+            }
+
             // Ensure SHA path is lowercase for case-sensitive filesystems
             if (GVFSPlatform.Instance.Constants.CaseSensitiveFileSystem)
             {

@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System.Linq;
 using System.Text;
 
 namespace GVFS.UnitTests.Common
@@ -29,6 +30,30 @@ namespace GVFS.UnitTests.Common
         public void IsValidFullSHAIsFalseForEmptyString()
         {
             SHA1Util.IsValidShaFormat(string.Empty).ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void IsValidShaFormatIsFalseForNull()
+        {
+            SHA1Util.IsValidShaFormat(null).ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void ToLoggableShaStringEscapesNonHexCharacters()
+        {
+            SHA1Util.ToLoggableShaString(null).ShouldEqual("(null)");
+            SHA1Util.ToLoggableShaString(new string('\0', 3)).ShouldEqual("\\u0000\\u0000\\u0000");
+            SHA1Util.ToLoggableShaString("abc\0").ShouldEqual("abc\\u0000");
+            SHA1Util.ToLoggableShaString("abcDEF123").ShouldEqual("abcDEF123");
+
+            // Control characters and non-ASCII / high code points must be escaped and padded to 4 hex digits.
+            SHA1Util.ToLoggableShaString("a\tb\n").ShouldEqual("a\\u0009b\\u000a");
+            SHA1Util.ToLoggableShaString("\u00e9\u1234").ShouldEqual("\\u00e9\\u1234");
+
+            // The realistic corrupt-content-id shape: a full 40-char value that is partly valid
+            // hex and partly NUL, rendered with the hex kept and the NULs escaped.
+            SHA1Util.ToLoggableShaString(new string('a', 20) + new string('\0', 20))
+                .ShouldEqual(new string('a', 20) + string.Concat(Enumerable.Repeat("\\u0000", 20)));
         }
 
         [TestCase]
