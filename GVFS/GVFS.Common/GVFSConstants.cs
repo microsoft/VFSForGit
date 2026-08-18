@@ -58,6 +58,13 @@ namespace GVFS.Common
 
             public const string MaxHttpConnectionsConfig = GVFSPrefix + "max-http-connections";
 
+            /// <summary>
+            /// Overrides how long a runtime credential fetch may block waiting on the
+            /// credential manager, in seconds. 0 or negative restores the pre-bound
+            /// behavior of waiting indefinitely. Read once into <see cref="RetryConfig"/>.
+            /// </summary>
+            public const string CredentialTimeoutSeconds = GVFSPrefix + "credential-timeout-seconds";
+
             public const string PrefetchUseIdx = GVFSPrefix + "prefetch-use-idx";
             public const bool PrefetchUseIdxDefault = false;
 
