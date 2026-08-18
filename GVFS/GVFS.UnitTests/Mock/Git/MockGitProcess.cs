@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace GVFS.UnitTests.Mock.Git
 {
@@ -18,12 +19,47 @@ namespace GVFS.UnitTests.Mock.Git
             : base(new MockGVFSEnlistment())
         {
             this.CommandsRun = new List<string>();
+            this.InvokedTimeoutMs = new List<int>();
+            this.LastInvokedTimeoutMs = null;
+            this.LastInvokedCancellationToken = CancellationToken.None;
             this.StoredCredentials = new Dictionary<string, Credential>(StringComparer.OrdinalIgnoreCase);
             this.CredentialApprovals = new Dictionary<string, List<Credential>>();
             this.CredentialRejections = new Dictionary<string, List<Credential>>();
         }
 
         public List<string> CommandsRun { get; }
+
+        /// <summary>
+        /// The timeout passed to every InvokeGitImpl call, in order. Lets tests assert that a
+        /// caller actually plumbed a finite timeout rather than defaulting to -1 (infinite).
+        /// </summary>
+        public List<int> InvokedTimeoutMs { get; }
+
+        /// <summary>
+        /// The timeout passed to the most recent InvokeGitImpl call, or null if none has run.
+        /// </summary>
+        public int? LastInvokedTimeoutMs { get; private set; }
+
+        /// <summary>
+        /// The cancellation token passed to the most recent InvokeGitImpl call. Lets tests assert
+        /// that a caller plumbed a real (cancelable) token down to the git invocation.
+        /// </summary>
+        public CancellationToken LastInvokedCancellationToken { get; private set; }
+
+        /// <summary>
+        /// When set, InvokeGitImpl blocks until this event is signaled or the caller's token is
+        /// canceled. Lets tests simulate a slow/hung git credential process and prove that
+        /// cancellation interrupts it and that shared resources are not held meanwhile.
+        /// </summary>
+        public ManualResetEventSlim BlockInvokeUntilSignaled { get; set; }
+
+        /// <summary>
+        /// Signaled by InvokeGitImpl right before it starts blocking on
+        /// <see cref="BlockInvokeUntilSignaled"/>. Lets a test wait until the git invocation is
+        /// actually in-flight before it inspects shared state or cancels.
+        /// </summary>
+        public ManualResetEventSlim InvokeReachedBlock { get; set; }
+
         public bool ShouldFail { get; set; }
         public Dictionary<string, Credential> StoredCredentials { get; }
         public Dictionary<string, List<Credential>> CredentialApprovals { get; }
@@ -35,7 +71,7 @@ namespace GVFS.UnitTests.Mock.Git
             this.expectedCommandInfos.Add(commandInfo);
         }
 
-        public override bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string error)
+        public override bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string error, int timeoutMs = -1, CancellationToken cancellationToken = default)
         {
             Credential credential = new Credential(username, password);
 
@@ -52,10 +88,10 @@ namespace GVFS.UnitTests.Mock.Git
             // Store the credential
             this.StoredCredentials[repoUrl] = credential;
 
-            return base.TryStoreCredential(tracer, repoUrl, username, password, out error);
+            return base.TryStoreCredential(tracer, repoUrl, username, password, out error, timeoutMs, cancellationToken);
         }
 
-        public override bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string error)
+        public override bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string error, int timeoutMs = -1, CancellationToken cancellationToken = default)
         {
             Credential credential = new Credential(username, password);
 
@@ -72,7 +108,7 @@ namespace GVFS.UnitTests.Mock.Git
             // Erase the credential
             this.StoredCredentials.Remove(repoUrl);
 
-            return base.TryDeleteCredential(tracer, repoUrl, username, password, out error);
+            return base.TryDeleteCredential(tracer, repoUrl, username, password, out error, timeoutMs, cancellationToken);
         }
 
         protected override Result InvokeGitImpl(
@@ -84,9 +120,32 @@ namespace GVFS.UnitTests.Mock.Git
             Action<string> parseStdOutLine,
             int timeoutMs,
             string gitObjectsDirectory = null,
-            bool usePrecommandHook = true)
+            bool usePrecommandHook = true,
+            CancellationToken cancellationToken = default)
         {
             this.CommandsRun.Add(command);
+            this.LastInvokedTimeoutMs = timeoutMs;
+            this.InvokedTimeoutMs.Add(timeoutMs);
+            this.LastInvokedCancellationToken = cancellationToken;
+
+            // Simulate a slow/hung git process that only completes when the test signals it or the
+            // caller cancels. This lets tests assert that cancellation actually interrupts an
+            // in-flight credential invocation instead of blocking for the full timeout.
+            ManualResetEventSlim blockUntilSignaled = this.BlockInvokeUntilSignaled;
+            if (blockUntilSignaled != null)
+            {
+                this.InvokeReachedBlock?.Set();
+                try
+                {
+                    blockUntilSignaled.Wait(cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Mirror the real GitProcess.InvokeGitImpl contract: a canceled invocation
+                    // surfaces cancellation rather than returning a timeout Result.
+                    throw new OperationCanceledException(cancellationToken);
+                }
+            }
 
             if (this.ShouldFail)
             {

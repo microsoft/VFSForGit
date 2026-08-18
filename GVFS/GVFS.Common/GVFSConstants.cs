@@ -58,6 +58,13 @@ namespace GVFS.Common
 
             public const string MaxHttpConnectionsConfig = GVFSPrefix + "max-http-connections";
 
+            /// <summary>
+            /// Overrides how long a runtime credential fetch may block waiting on the
+            /// credential manager, in seconds. 0 or negative restores the pre-bound
+            /// behavior of waiting indefinitely. Read once into <see cref="RetryConfig"/>.
+            /// </summary>
+            public const string CredentialTimeoutSeconds = GVFSPrefix + "credential-timeout-seconds";
+
             public const string PrefetchUseIdx = GVFSPrefix + "prefetch-use-idx";
             public const bool PrefetchUseIdxDefault = false;
 
@@ -70,6 +77,12 @@ namespace GVFS.Common
 
             public const string PrefetchOffload = GVFSPrefix + "prefetch-offload";
             public const bool PrefetchOffloadDefault = false;
+
+            /* Off-by-default flag (stabilization ship). When enabled, HttpRequestor releases
+             * its process-wide connection-pool slot before running the credential-reject leg on
+             * a 401, so a slow credential helper cannot starve healthy parallel requests. */
+            public const string ReleaseConnectionBeforeCredentialReject = GVFSPrefix + "release-connection-before-credential-reject";
+            public const bool ReleaseConnectionBeforeCredentialRejectDefault = false;
         }
 
         public static class LocalGVFSConfig
