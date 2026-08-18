@@ -232,7 +232,7 @@ namespace GVFS.Common.Http
                         shouldRetry = false;
                         errorMessage = "Anonymous request was rejected with a 401";
                     }
-                    else if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.BadRequest || response.StatusCode == HttpStatusCode.Redirect)
+                    else if (ShouldRejectCredentials(response.StatusCode, errorMessage))
                     {
                         this.authentication.RejectCredentials(this.Tracer, authString);
                         if (!this.authentication.IsBackingOff)
@@ -319,6 +319,58 @@ namespace GVFS.Common.Http
                 statusCode == HttpStatusCode.Unauthorized ||
                 statusInt == 429 ||
                 (statusInt >= 500 && statusInt < 600))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// The message the Azure DevOps GVFS cache server returns in a 400 (Bad Request)
+        /// body when the request carried no parseable Basic Authorization header - i.e.
+        /// the one 400 that genuinely means "authentication required".
+        /// </summary>
+        /// <remarks>
+        /// Mirrors the cache server's own message, emitted by
+        /// GvfsHttpHandler.PrepareContextAsync as
+        /// $"A valid {scheme} {header} header is required." with scheme="Basic" and
+        /// header="Authorization". Kept as a literal (not a format) so a substring match
+        /// stays robust if the server text is wrapped or prefixed.
+        /// </remarks>
+        internal const string CacheServerAuthRequiredBadRequestMessage = "A valid Basic Authorization header is required.";
+
+        /// <summary>
+        /// Determines whether an HTTP response indicates an authentication failure
+        /// that warrants rejecting (erasing) the stored credential.
+        /// </summary>
+        /// <remarks>
+        /// 401 (Unauthorized) and 302 (Redirect to the Azure DevOps sign-in page) are
+        /// always genuine authentication failures. A 400 (Bad Request) is usually NOT an
+        /// auth failure - a present-but-expired/invalid credential returns 401, and a
+        /// malformed request (e.g. a corrupt object SHA in the loose-object URL) returns a
+        /// 400 that has nothing to do with credentials. Rejecting credentials on every 400
+        /// erased valid credentials and caused a storm of credential-manager popups.
+        ///
+        /// The one exception: the GVFS cache server returns a 400 (instead of a 401) when
+        /// the request carried no parseable Basic Authorization header. That single 400 is
+        /// genuinely "authentication required", and microsoft/git's git-gvfs-helper maps it
+        /// to a 401 for the same reason (its normalize step notes the cache server "sends a
+        /// somewhat bogus 400 instead of the normal 401 when AUTH is required", and its TODO
+        /// asks to confirm the response body - which is exactly what we do here). We only
+        /// treat a 400 as an auth failure when the body matches that specific message.
+        /// </remarks>
+        internal static bool ShouldRejectCredentials(HttpStatusCode statusCode, string responseBody)
+        {
+            if (statusCode == HttpStatusCode.Unauthorized ||
+                statusCode == HttpStatusCode.Redirect)
+            {
+                return true;
+            }
+
+            if (statusCode == HttpStatusCode.BadRequest &&
+                responseBody != null &&
+                responseBody.IndexOf(CacheServerAuthRequiredBadRequestMessage, StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return true;
             }
