@@ -255,7 +255,12 @@ jobs:
         path: MicrosoftGit
 
   build:
-    runs-on: ${{ matrix.architecture == 'arm64' && 'windows-11-arm' || 'windows-2025' }}
+    # arm64 uses the preview 'windows-11-vs2026-arm' image because the native
+    # C++ projects target the v145 toolset (VS 2026). The default
+    # 'windows-11-arm' image still ships VS 2022 (v145 absent); it migrates to
+    # VS 2026 in early September 2026, after which this can revert to
+    # 'windows-11-arm'. x64 'windows-2025' already ships VS 2026.
+    runs-on: ${{ matrix.architecture == 'arm64' && 'windows-11-vs2026-arm' || 'windows-2025' }}
     name: Build and Unit Test
     needs: validate
 
