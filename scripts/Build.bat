@@ -101,28 +101,33 @@ ECHO INFO: Using vcpkg at '%VCPKG_EXEC%'
 ECHO ^**************************
 ECHO ^* Building C++ Projects  *
 ECHO ^**************************
-REM Locate VS MSBuild for native C++ projects
+REM Locate VS MSBuild for the native C++ projects. Prefer the newest Visual
+REM Studio via "vswhere -latest" so MSBuild resolves the v145 toolset the
+REM vcxproj files target (VS 2026). A build agent may also carry VS 2022
+REM (v170 / v143); a bare "where msbuild.exe" can return that older MSBuild,
+REM which then fails with MSB8020 (v145 build tools not found). "-latest"
+REM sorts installs by version and returns the newest (18.x before 17.x), so
+REM query vswhere first and only fall back to PATH when vswhere is unavailable.
 SET MSBUILD_EXEC=
-FOR /F "tokens=* USEBACKQ" %%F IN (`where msbuild.exe 2^>nul`) DO (
-    SET MSBUILD_EXEC=%%F
-    ECHO INFO: Found msbuild.exe at '%%F'
-    GOTO :FOUND_MSBUILD
-)
-
-:LOCATE_MSBUILD
 SET VSWHERE_EXEC="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 IF EXIST %VSWHERE_EXEC% (
-    FOR /F "tokens=* USEBACKQ" %%F IN (`%VSWHERE_EXEC% -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find MSBuild\**\Bin\amd64\MSBuild.exe`) DO (
-        SET MSBUILD_EXEC=%%F
-        ECHO INFO: Found msbuild.exe at '%%F'
+    FOR /F "tokens=* USEBACKQ" %%F IN (`%VSWHERE_EXEC% -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find MSBuild\**\Bin\MSBuild.exe`) DO (
+        SET "MSBUILD_EXEC=%%F"
+    )
+)
+IF NOT DEFINED MSBUILD_EXEC (
+    FOR /F "tokens=* USEBACKQ" %%F IN (`where msbuild.exe 2^>nul`) DO (
+        SET "MSBUILD_EXEC=%%F"
+        GOTO :FOUND_MSBUILD
     )
 )
 
 :FOUND_MSBUILD
 IF NOT DEFINED MSBUILD_EXEC (
-    ECHO ERROR: Could not find VS MSBuild. Install Visual Studio with the C++ workload to build native projects.
+    ECHO ERROR: Could not find Visual Studio 2026 MSBuild. Install Visual Studio 2026 with the C++ workload to build native projects.
     EXIT /B 1
 )
+ECHO INFO: Using msbuild.exe at '%MSBUILD_EXEC%'
 
 REM Initialize the VC++ developer environment for the target architecture so
 REM MSBuild can locate the matching cl.exe / link.exe and the right INCLUDE/LIB
@@ -136,7 +141,7 @@ IF EXIST %VSWHERE_VC% (
     )
 )
 IF NOT DEFINED VCVARS_BAT (
-    ECHO ERROR: Could not find vcvarsall.bat. Install Visual Studio with the C++ workload.
+    ECHO ERROR: Could not find Visual Studio 2026 vcvarsall.bat. Install Visual Studio 2026 with the C++ workload.
     EXIT /B 1
 )
 ECHO INFO: Initializing VC++ env for %ARCH% via "%VCVARS_BAT%"

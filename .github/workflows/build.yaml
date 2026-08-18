@@ -295,6 +295,11 @@ jobs:
     - name: Add MSBuild to PATH
       if: steps.skip.outputs.result != 'true'
       uses: microsoft/setup-msbuild@v3.0.0
+      with:
+        # Pin to Visual Studio 2026 (18.0+). Runner images that still carry
+        # VS 2022 alongside VS 2026 would otherwise put the 2022 MSBuild on
+        # PATH, and the native projects (v145 toolset) fail with MSB8020.
+        vs-version: '[18.0,)'
 
     - name: Build VFS for Git
       if: steps.skip.outputs.result != 'true'
