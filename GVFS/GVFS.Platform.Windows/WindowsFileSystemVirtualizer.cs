@@ -733,7 +733,7 @@ namespace GVFS.Platform.Windows
                 metadata.Add("streamGuid", streamGuid);
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                metadata.Add("sha", sha);
+                metadata.Add("sha", SHA1Util.ToLoggableShaString(sha));
                 metadata.Add("placeholderVersion", placeholderVersion);
                 metadata.Add("commandId", commandId);
 
