@@ -21,8 +21,13 @@ namespace GVFS.UnitTests.Mock.Git
 
         public bool CancelTryCopyBlobContentStream { get; set; }
         public bool ThrowOnTryCopyBlobContentStream { get; set; }
+        public bool ReturnFalseFromTryCopyBlobContentStream { get; set; }
         public bool ThrowIOExceptionDuringCopy { get; set; }
         public uint FileLength { get; set; } = DefaultFileLength;
+
+        // Records the sha most recently passed to TryCopyBlobContentStream so a test can assert that a
+        // repaired corrupt placeholder hydrated from the RECOVERED sha, not the malformed content-id.
+        public string LastShaPassedToTryCopyBlobContentStream { get; private set; }
 
         public override bool TryDownloadCommit(string objectSha)
         {
@@ -48,6 +53,7 @@ namespace GVFS.UnitTests.Mock.Git
             Action<Stream, long> writeAction,
             out GVFSGitObjects.BlobHydrationFailureCategory failureCategory)
         {
+            this.LastShaPassedToTryCopyBlobContentStream = sha;
             failureCategory = GVFSGitObjects.BlobHydrationFailureCategory.None;
 
             if (this.CancelTryCopyBlobContentStream)
@@ -60,6 +66,15 @@ namespace GVFS.UnitTests.Mock.Git
                 // A non-cancellation, non-GetFileStreamException exception exercises the generic
                 // catch in GetFileStreamHandlerAsyncHandler (BlobHydrationFailureCategory.Unexpected).
                 throw new InvalidOperationException("Simulated unexpected hydration failure");
+            }
+
+            if (this.ReturnFalseFromTryCopyBlobContentStream)
+            {
+                // A clean (no-exception) hydration miss: the blob is unavailable. Exercises the
+                // TryCopyBlobContentStream-returned-false path (used to test a repair that recovered a
+                // valid SHA but still could not hydrate it).
+                failureCategory = GVFSGitObjects.BlobHydrationFailureCategory.DownloadFailed;
+                return false;
             }
 
             if (this.ThrowIOExceptionDuringCopy)

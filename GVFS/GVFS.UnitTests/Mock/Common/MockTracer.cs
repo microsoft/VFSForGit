@@ -10,6 +10,10 @@ namespace GVFS.UnitTests.Mock.Common
     {
         private AutoResetEvent waitEvent;
 
+        // Guards the parallel RelatedEventNames / RelatedEventMetadata lists so their appends stay
+        // index-aligned even if two callbacks report events concurrently.
+        private readonly object relatedEventLock = new object();
+
         public MockTracer()
         {
             this.waitEvent = new AutoResetEvent(false);
@@ -17,6 +21,7 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedWarningEvents = new List<string>();
             this.RelatedErrorEvents = new List<string>();
             this.RelatedEventNames = new List<string>();
+            this.RelatedEventMetadata = new List<string>();
         }
 
         public MockTracer StartActivityTracer { get; private set; }
@@ -30,6 +35,10 @@ namespace GVFS.UnitTests.Mock.Common
         // do not otherwise get recorded). Lets tests assert a specific diagnostic event fired.
         public List<string> RelatedEventNames { get; }
 
+        // Serialized metadata for each RelatedEvent call, parallel to RelatedEventNames by index.
+        // Lets tests assert on a diagnostic event's payload (for example a RepairFailedReason value).
+        public List<string> RelatedEventMetadata { get; }
+
         public void WaitForRelatedEvent()
         {
             this.waitEvent.WaitOne();
@@ -37,7 +46,12 @@ namespace GVFS.UnitTests.Mock.Common
 
         public void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata)
         {
-            this.RelatedEventNames.Add(eventName);
+            lock (this.relatedEventLock)
+            {
+                this.RelatedEventNames.Add(eventName);
+                this.RelatedEventMetadata.Add(metadata != null ? GVFSJsonOptions.Serialize(metadata) : string.Empty);
+            }
+
             if (eventName == this.WaitRelatedEventName)
             {
                 this.waitEvent.Set();
@@ -46,7 +60,12 @@ namespace GVFS.UnitTests.Mock.Common
 
         public void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata, Keywords keyword)
         {
-            this.RelatedEventNames.Add(eventName);
+            lock (this.relatedEventLock)
+            {
+                this.RelatedEventNames.Add(eventName);
+                this.RelatedEventMetadata.Add(metadata != null ? GVFSJsonOptions.Serialize(metadata) : string.Empty);
+            }
+
             if (eventName == this.WaitRelatedEventName)
             {
                 this.waitEvent.Set();
