@@ -35,7 +35,7 @@ will notify you when new versions are available.
 ## Building VFS for Git
 
 If you'd like to build your own VFS for Git Windows installer:
-* Install Visual Studio 2022 Community Edition or higher (https://www.visualstudio.com/downloads/).
+* Install Visual Studio 2026 Community Edition or higher (https://www.visualstudio.com/downloads/).
   * Include the following workloads:
     * .NET desktop development
     * Desktop development with C++
@@ -50,7 +50,7 @@ If you'd like to build your own VFS for Git Windows installer:
 build will fail, and the second and subsequent builds will succeed. This is because the build requires a prebuild code generation step.
 For details, see the build script in the previous step.
 
-Visual Studio 2022 will [automatically prompt you to install these dependencies](https://devblogs.microsoft.com/setup/configure-visual-studio-across-your-organization-with-vsconfig/) when you open the solution. The .vsconfig file that is present in the root of the repository specifies all required components.
+Visual Studio 2026 will [automatically prompt you to install these dependencies](https://devblogs.microsoft.com/setup/configure-visual-studio-across-your-organization-with-vsconfig/) when you open the solution. The .vsconfig file that is present in the root of the repository specifies all required components.
 
 The installer can now be found at `C:\Repos\VFSForGit\out\GVFS.Installers\bin\[Debug|Release]\win-x64\SetupGVFS.<version>.exe`
 

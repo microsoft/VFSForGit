@@ -1,20 +1,20 @@
 #
-# Ensure a Visual Studio 2022 (or newer) install with the "Desktop
+# Ensure a Visual Studio 2026 (or newer) install with the "Desktop
 # development with C++" workload is present on the build agent.
 #
 # .NET NativeAOT publishing (used by every product-facing managed VFS for
 # Git project via PublishAot=true in Directory.Build.props) requires the
 # C++ build tools from this workload at publish time. The native VFS
-# projects also build against the v143 toolset, which ships with VS 2022.
+# projects also build against the v145 toolset, which ships with VS 2026.
 #
 # This script handles three situations:
-#   1. A VS 2022+ install with the C++ workload is already present
+#   1. A VS 2026+ install with the C++ workload is already present
 #      -> exit early.
-#   2. A VS 2022+ install (any product) is present but the C++ workload
+#   2. A VS 2026+ install (any product) is present but the C++ workload
 #      is missing -> modify that install to add it.
-#   3. No VS 2022+ install at all -> install VS Build Tools 2022 with
-#      the VC tools workload. (An older VS install, e.g. VS 2019, is
-#      ignored here -- we leave it alone and install VS 2022 alongside.)
+#   3. No VS 2026+ install at all -> install VS Build Tools 2026 with
+#      the VC tools workload. (An older VS install, e.g. VS 2022, is
+#      ignored here -- we leave it alone and install VS 2026 alongside.)
 #
 # vswhere.exe is bootstrapped from GitHub if not already on disk.
 #
@@ -39,12 +39,12 @@ $vswherePath    = Join-Path $vsInstallerDir 'vswhere.exe'
 $setupExePath   = Join-Path $vsInstallerDir 'setup.exe'
 
 $vswhereDownloadUrl    = 'https://github.com/microsoft/vswhere/releases/latest/download/vswhere.exe'
-$buildToolsDownloadUrl = 'https://aka.ms/vs/17/release/vs_BuildTools.exe'
+$buildToolsDownloadUrl = 'https://aka.ms/vs/18/release/vs_BuildTools.exe'
 
-# The native VFS projects build against the v143 toolset, which ships with
-# Visual Studio 2022 (product line 17.x). VS 2019 (16.x) carries v142 and
-# is not sufficient -- so all vswhere queries below are scoped to 17.0+.
-$minVsVersion = '[17.0,)'
+# The native VFS projects build against the v145 toolset, which ships with
+# Visual Studio 2026 (product line 18.x). VS 2022 (17.x) carries v143 and
+# is not sufficient -- so all vswhere queries below are scoped to 18.0+.
+$minVsVersion = '[18.0,)'
 
 # Either of these workloads provides the C++ build tools we need.
 # Microsoft.VisualStudio.Workload.NativeDesktop = "Desktop development with C++" (Community/Pro/Enterprise).
@@ -132,9 +132,9 @@ if ($existing) {
 # --- Find any VS install (regardless of workloads) ---
 $install = Find-VsInstall -VswhereExe $vswhereExe
 
-# --- If no VS 2022+ install at all, install VS Build Tools 2022 with the VC workload ---
+# --- If no VS 2026+ install at all, install VS Build Tools 2026 with the VC workload ---
 if (-not $install) {
-    Write-Host "No Visual Studio 2022 (or newer) installation found; installing VS Build Tools 2022 with the C++ workload..."
+    Write-Host "No Visual Studio 2026 (or newer) installation found; installing VS Build Tools 2026 with the C++ workload..."
     $bootstrapper = Join-Path $env:TEMP 'vs_BuildTools.exe'
     Write-Host "Downloading VS Build Tools bootstrapper from $buildToolsDownloadUrl..."
     Invoke-WebRequest -Uri $buildToolsDownloadUrl -OutFile $bootstrapper -UseBasicParsing

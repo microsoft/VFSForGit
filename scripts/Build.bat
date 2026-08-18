@@ -48,7 +48,7 @@ REM emits the literal vswhere "not recognized" stderr into the link command
 REM line and the publish step fails with a malformed link.rsp invocation.
 SET "PATH=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer;%PATH%"
 
-REM .NET 10 SDK ships MSBuild 18.x; VS 2022 ships MSBuild 17.x.
+REM .NET 10 SDK ships MSBuild 18.x; VS 2026 ships MSBuild 18.x.
 REM Managed (csproj) projects require MSBuild 18.x via "dotnet build".
 REM Native C++ (vcxproj) projects require VS MSBuild with VC++ targets.
 
