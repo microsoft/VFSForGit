@@ -144,8 +144,17 @@ IF NOT DEFINED VCVARS_BAT (
     ECHO ERROR: Could not find Visual Studio 2026 vcvarsall.bat. Install Visual Studio 2026 with the C++ workload.
     EXIT /B 1
 )
-ECHO INFO: Initializing VC++ env for %ARCH% via "%VCVARS_BAT%"
-CALL "%VCVARS_BAT%" %ARCH% || GOTO ERROR
+REM Select the vcvars host_target argument. For arm64 targets, use the
+REM x64-hosted arm64 cross toolset (amd64_arm64) rather than the native arm64
+REM toolset (plain "arm64"). The VS 2026 native arm64 compiler fails to build
+REM GVFS.NativeTests with C3859 / C1076 (PCH virtual-memory / internal heap
+REM limit) -- a known ARM64-native-compiler limitation. The x64-hosted cross
+REM compiler (which VS uses by default for arm64) has the address space to
+REM build the PCH and produces equivalent arm64 binaries.
+SET "VCVARS_ARG=%ARCH%"
+IF "%ARCH%"=="arm64" SET "VCVARS_ARG=amd64_arm64"
+ECHO INFO: Initializing VC++ env (%VCVARS_ARG%) for %ARCH% via "%VCVARS_BAT%"
+CALL "%VCVARS_BAT%" %VCVARS_ARG% || GOTO ERROR
 
 FOR %%P IN (
     "%VFS_SRCDIR%\GVFS\GitHooksLoader\GitHooksLoader.vcxproj"
