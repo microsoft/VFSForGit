@@ -1,0 +1,33 @@
+diff --git a/src/libgit2/repository.c b/src/libgit2/repository.c
+index 9fed12c..86df7fd 100644
+--- a/src/libgit2/repository.c
++++ b/src/libgit2/repository.c
+@@ -557,6 +557,18 @@ typedef struct {
+ 	bool *is_safe;
+ } validate_ownership_data;
+ 
++/*
++ * Windows paths are compared case-insensitively; Git canonicalizes
++ * both the repository path and the configured `safe.directory` entry
++ * to their on-disk form, so eg `c:/repo` matches `C:/Repo`. POSIX
++ * filesystems are case-sensitive, so compare exactly there.
++ */
++#ifdef GIT_WIN32
++# define OWNERSHIP_PATH_IGNORE_CASE 1
++#else
++# define OWNERSHIP_PATH_IGNORE_CASE 0
++#endif
++
+ static int validate_ownership_cb(const git_config_entry *entry, void *payload)
+ {
+ 	validate_ownership_data *data = payload;
+@@ -608,7 +620,8 @@ static int validate_ownership_cb(const git_config_entry *entry, void *payload)
+ 		if (strncmp(test_path, "%(prefix)//", strlen("%(prefix)//")) == 0)
+ 			test_path += strlen("%(prefix)/");
+ 
+-		if (strcmp(test_path, data->repo_path) == 0)
++		if (STRCMP_CASESELECT(OWNERSHIP_PATH_IGNORE_CASE,
++				test_path, data->repo_path) == 0)
+ 			*data->is_safe = true;
+ 	}
+ 
