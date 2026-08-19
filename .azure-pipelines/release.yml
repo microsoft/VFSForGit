@@ -334,6 +334,29 @@ extends:
                       ${{ dim.arch }}
                   displayName: 'Stage artifacts'
 
+                # Publish PDBs to the central symbol server that backs the
+                # shared debugger symbol path, so debuggers resolve release
+                # stack traces with no per-user configuration. Runs only for
+                # signed builds. The build runs in a different organization
+                # than the central symbol store, so the account is set
+                # explicitly and the build service Microsoft Entra identity
+                # authenticates the cross-account publish -- no stored secret.
+                # Symbols are indexed by their PDB signature.
+                - ${{ if eq(parameters.esrp, true) }}:
+                  - task: PublishSymbols@2
+                    displayName: 'Publish symbols'
+                    env:
+                      ARTIFACTSERVICES_SYMBOL_ACCOUNTNAME: microsoft
+                      ARTIFACTSERVICES_SYMBOL_USEAAD: true
+                    inputs:
+                      SymbolsFolder: $(Build.ArtifactStagingDirectory)\Symbols
+                      SearchPattern: '**/*.pdb'
+                      SymbolServerType: 'TeamServices'
+                      IndexSources: false
+                      SymbolExpirationInDays: '3650'
+                      TreatNotIndexedAsWarning: true
+                      DetailedLog: true
+
       - stage: release
         displayName: 'Release'
         dependsOn: [build]
