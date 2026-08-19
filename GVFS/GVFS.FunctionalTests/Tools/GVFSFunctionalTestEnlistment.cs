@@ -2,6 +2,8 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests;
 using GVFS.Tests.Should;
+using NUnit.Framework;
+using NUnit.Framework.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -179,8 +181,100 @@ namespace GVFS.FunctionalTests.Tools
 
         public void DeleteEnlistment()
         {
+            this.CaptureFailureLogs();
             TestResultsHelper.OutputGVFSLogs(this);
             RepositoryHelpers.DeleteTestDirectory(this.EnlistmentRoot);
+        }
+
+        /// <summary>
+        /// When the current test has failed, writes a full-memory minidump of each still-running
+        /// GVFS.Mount process for this enlistment, so a mount *hang* can be diagnosed after the fact.
+        /// Must be called before the mount is unmounted or killed - once the process is gone (whether
+        /// cleanly unmounted or force-killed) there is nothing left to dump. Written under
+        /// <see cref="TestResultsHelper.DiagnosticsRoot"/> so CI can upload it. Best-effort: never
+        /// throws, so it cannot break teardown.
+        /// </summary>
+        public void CaptureFailureDiagnostics()
+        {
+            try
+            {
+                if (!this.TryGetFailureDiagnosticsFolder(out string destinationFolder))
+                {
+                    return;
+                }
+
+                List<int> mountProcessIds = this.GetMountProcessIds();
+                if (mountProcessIds.Count == 0)
+                {
+                    Console.Error.WriteLine("[DIAGNOSTICS] No live GVFS.Mount process for this enlistment (already exited/crashed)");
+                    return;
+                }
+
+                Console.Error.WriteLine($"[DIAGNOSTICS] Test failed; capturing mount dump(s) to '{destinationFolder}'");
+                Directory.CreateDirectory(destinationFolder);
+                foreach (int pid in mountProcessIds)
+                {
+                    MiniDump.TryWrite(pid, Path.Combine(destinationFolder, $"GVFS.Mount_{pid}.dmp"));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DIAGNOSTICS] CaptureFailureDiagnostics failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// When the current test has failed, preserves the enlistment's .gvfs/logs folder (robust to
+        /// locked / partially-flushed files) under <see cref="TestResultsHelper.DiagnosticsRoot"/>
+        /// before the enlistment directory is deleted. Best-effort: never throws.
+        /// </summary>
+        private void CaptureFailureLogs()
+        {
+            try
+            {
+                if (!this.TryGetFailureDiagnosticsFolder(out string destinationFolder))
+                {
+                    return;
+                }
+
+                Console.Error.WriteLine($"[DIAGNOSTICS] Test failed; capturing logs to '{destinationFolder}'");
+                TestResultsHelper.CopyFilesWithFallback(this.GVFSLogsRoot, Path.Combine(destinationFolder, "logs"));
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DIAGNOSTICS] CaptureFailureLogs failed: {ex.Message}");
+            }
+        }
+
+        private bool TryGetFailureDiagnosticsFolder(out string destinationFolder)
+        {
+            destinationFolder = null;
+            if (TestContext.CurrentContext.Result.Outcome.Status != TestStatus.Failed)
+            {
+                return false;
+            }
+
+            destinationFolder = Path.Combine(
+                TestResultsHelper.DiagnosticsRoot,
+                SanitizeForPath(TestContext.CurrentContext.Test.Name) + "_" + Path.GetFileName(this.EnlistmentRoot));
+            return true;
+        }
+
+        private static string SanitizeForPath(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return "test";
+            }
+
+            foreach (char invalid in Path.GetInvalidFileNameChars())
+            {
+                name = name.Replace(invalid, '_');
+            }
+
+            // Flatten characters that are legal in file names but noisy in NUnit
+            // test names (parameterized cases, spaces).
+            return name.Replace('(', '_').Replace(')', '_').Replace(' ', '_').Replace(',', '_').Replace('"', '_');
         }
 
         public void CloneAndMount(bool skipPrefetch)
@@ -303,6 +397,10 @@ namespace GVFS.FunctionalTests.Tools
 
         public void UnmountAndDeleteAll()
         {
+            // Capture the mount dump before unmounting or killing anything - once the mount process is
+            // gone (whether it unmounts cleanly or is force-killed below) there is nothing left to dump.
+            this.CaptureFailureDiagnostics();
+
             try
             {
                 this.UnmountGVFS();
@@ -320,12 +418,39 @@ namespace GVFS.FunctionalTests.Tools
 
         public void KillMountProcess()
         {
+            foreach (int pid in this.GetMountProcessIds())
+            {
+                Console.Error.WriteLine($"[TEARDOWN] Killing GVFS.Mount (PID {pid}) for {this.EnlistmentRoot}");
+                try
+                {
+                    System.Diagnostics.Process.GetProcessById(pid)?.Kill();
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[TEARDOWN] Failed to kill PID {pid}: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns the process ids of the GVFS.Mount processes whose command line
+        /// references this enlistment root. Uses PowerShell's Get-CimInstance to
+        /// read command lines without requiring System.Management. Best-effort:
+        /// returns an empty list on any failure (e.g. non-Windows).
+        /// </summary>
+        private List<int> GetMountProcessIds()
+        {
+            List<int> processIds = new List<int>();
+
             try
             {
-                // Find GVFS.Mount processes whose command line contains this
-                // enlistment root. Uses PowerShell's Get-CimInstance to read
-                // command lines without requiring System.Management.
-                string filter = this.EnlistmentRoot.Replace("\\", "\\\\");
+                // Match on the enlistment's unique leaf folder id rather than the
+                // full path. PowerShell's -like treats '\' as a literal (not an
+                // escape), so doubling backslashes in the full path would produce a
+                // pattern that never matches a real (single-backslash) command line.
+                // The leaf id is unique and free of path separators and wildcard
+                // metacharacters, so it needs no escaping.
+                string filter = Path.GetFileName(this.EnlistmentRoot.TrimEnd('\\', '/'));
                 var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
                 {
                     Arguments = $"-NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\"Name='GVFS.Mount.exe'\\\" | Where-Object {{ $_.CommandLine -like '*{filter}*' }} | ForEach-Object {{ $_.ProcessId }}\"",
@@ -333,30 +458,56 @@ namespace GVFS.FunctionalTests.Tools
                     UseShellExecute = false,
                     CreateNoWindow = true,
                 };
-                var proc = System.Diagnostics.Process.Start(psi);
-                string output = proc.StandardOutput.ReadToEnd();
-                proc.WaitForExit(10000);
 
-                foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                var output = new System.Text.StringBuilder();
+
+                // Read output asynchronously via the event, rather than a blocking ReadToEnd() before
+                // WaitForExit(): ReadToEnd() blocks until the process closes its stdout handle, so if the
+                // helper itself hangs, the later WaitForExit(10000) timeout is never reached at all. With
+                // async reads, WaitForExit is the only blocking call, so it enforces a real timeout and we
+                // can kill the helper if it does not exit in time.
+                using (var proc = new System.Diagnostics.Process { StartInfo = psi })
+                {
+                    proc.OutputDataReceived += (sender, args) =>
+                    {
+                        if (args.Data != null)
+                        {
+                            output.AppendLine(args.Data);
+                        }
+                    };
+
+                    proc.Start();
+                    proc.BeginOutputReadLine();
+
+                    if (!proc.WaitForExit(10000))
+                    {
+                        Console.Error.WriteLine("[TEARDOWN] GetMountProcessIds helper timed out; killing it");
+                        try
+                        {
+                            proc.Kill();
+                            proc.WaitForExit(2000);
+                        }
+                        catch (Exception killEx)
+                        {
+                            Console.Error.WriteLine($"[TEARDOWN] Failed to kill GetMountProcessIds helper: {killEx.Message}");
+                        }
+                    }
+                }
+
+                foreach (string line in output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries))
                 {
                     if (int.TryParse(line.Trim(), out int pid))
                     {
-                        Console.Error.WriteLine($"[TEARDOWN] Killing GVFS.Mount (PID {pid}) for {this.EnlistmentRoot}");
-                        try
-                        {
-                            System.Diagnostics.Process.GetProcessById(pid)?.Kill();
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.Error.WriteLine($"[TEARDOWN] Failed to kill PID {pid}: {ex.Message}");
-                        }
+                        processIds.Add(pid);
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[TEARDOWN] KillMountProcess failed: {ex.Message}");
+                Console.Error.WriteLine($"[TEARDOWN] GetMountProcessIds failed: {ex.Message}");
             }
+
+            return processIds;
         }
 
         public string GetVirtualPathTo(string path)
