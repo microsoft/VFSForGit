@@ -287,6 +287,28 @@ namespace GVFS.CommandLine.Tests
         }
 
         [Test]
+        public void Dehydrate_DiscardBackup_ParsesCorrectly()
+        {
+            var parseResult = rootCommand.Parse(new[] { "dehydrate", "--confirm", "--full", "--discard-backup" });
+            Assert.That(parseResult.Errors, Is.Empty, "dehydrate --confirm --full --discard-backup should parse without errors");
+        }
+
+        [Test]
+        public void Dehydrate_PruneBackups_IsSubcommand()
+        {
+            var dehydrate = FindSubcommand("dehydrate");
+            var pruneBackups = dehydrate.Subcommands.FirstOrDefault(c => c.Name == "prune-backups");
+            Assert.That(pruneBackups, Is.Not.Null, "dehydrate should have a 'prune-backups' subcommand");
+        }
+
+        [Test]
+        public void Dehydrate_PruneBackups_ParsesCorrectly()
+        {
+            var parseResult = rootCommand.Parse(new[] { "dehydrate", "prune-backups" });
+            Assert.That(parseResult.Errors, Is.Empty, "dehydrate prune-backups should parse without errors");
+        }
+
+        [Test]
         public void Service_FullCommandLine_ParsesCorrectly()
         {
             var parseResult = rootCommand.Parse(new[] { "service", "--list-mounted" });
@@ -353,7 +375,7 @@ namespace GVFS.CommandLine.Tests
         [Test]
         public void Dehydrate_HasAllExpectedOptions()
         {
-            var expected = new[] { "--confirm", "--no-status", "--folders" };
+            var expected = new[] { "--confirm", "--no-status", "--folders", "--full", "--discard-backup" };
             foreach (var optName in expected)
             {
                 Assert.That(FindOptionOnCommand("dehydrate", optName), Is.Not.Null,
