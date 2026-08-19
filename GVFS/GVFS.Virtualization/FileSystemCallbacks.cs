@@ -435,54 +435,118 @@ namespace GVFS.Virtualization
                 }
             }
 
-            // Query all staged files in one call using --name-status -z.
-            // Output format: "A\0path1\0M\0path2\0D\0path3\0"
-            GitProcess.Result result = gitProcess.DiffCachedNameStatus(pathspecs, pathspecFromFile, pathspecFileNul);
+            // Query all staged files in one call using --name-status -z. Records arrive in pairs: a
+            // status token ("A", "M", "D", ...) followed by a path token. By default we stream the
+            // records so we never buffer the entire (potentially huge) staged file list in memory; the
+            // gvfs.stream-git-status-output=false kill switch restores the bounded-capture path with its
+            // truncation fail-safe.
+            List<string> addedFilePaths = new List<string>();
+            int added = 0;
 
-            if (result.OutputTruncated)
+            // Record a single (status, path) pair into ModifiedPaths / the hydration list. Shared by the
+            // streaming and buffered paths so both behave identically per record.
+            Action<string, string> handleRecord = (status, gitPath) =>
             {
-                // The staged-file list exceeded the capture buffer. Acting on a partial list would leave
-                // some staged files out of ModifiedPaths (skip-worktree not cleared, stale placeholders),
-                // which is worse than failing. Fail safe and let the caller retry.
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("ExitCode", result.ExitCode);
-                this.context.Tracer.RelatedError(
-                    metadata,
-                    nameof(this.AddStagedFilesToModifiedPaths) + ": git diff --cached output was truncated; refusing to update ModifiedPaths from a partial staged-file list");
-                return false;
-            }
-
-            if (result.ExitCodeIsSuccess && !string.IsNullOrEmpty(result.Output))
-            {
-                string[] parts = result.Output.Split(new[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
-                List<string> addedFilePaths = new List<string>();
-
-                // Parts alternate: status, path, status, path, ...
-                for (int i = 0; i + 1 < parts.Length; i += 2)
+                if (string.IsNullOrEmpty(gitPath))
                 {
-                    string status = parts[i];
-                    string gitPath = parts[i + 1];
+                    return;
+                }
 
-                    if (string.IsNullOrEmpty(gitPath))
-                    {
-                        continue;
-                    }
+                string platformPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+                if (this.modifiedPaths.TryAdd(platformPath, isFolder: false, isRetryable: out _))
+                {
+                    added++;
+                }
 
-                    string platformPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
-                    if (this.modifiedPaths.TryAdd(platformPath, isFolder: false, isRetryable: out _))
-                    {
-                        addedCount++;
-                    }
+                // Added files (in index but not in HEAD) are ProjFS placeholders that
+                // would vanish when the projection reverts to HEAD. Collect them for
+                // hydration below.
+                if (status.StartsWith("A"))
+                {
+                    addedFilePaths.Add(gitPath);
+                }
+            };
 
-                    // Added files (in index but not in HEAD) are ProjFS placeholders that
-                    // would vanish when the projection reverts to HEAD. Collect them for
-                    // hydration below.
-                    if (status.StartsWith("A"))
+            bool streamOutput = gitProcess.GetConfigBoolOrDefault(
+                GVFSConstants.GitConfig.StreamGitStatusOutput,
+                GVFSConstants.GitConfig.StreamGitStatusOutputDefault);
+
+            GitProcess.Result result;
+            if (streamOutput)
+            {
+                int seconds = gitProcess.GetConfigIntOrDefault(
+                    GVFSConstants.GitConfig.GitStatusStreamTimeoutSeconds,
+                    GVFSConstants.GitConfig.GitStatusStreamTimeoutSecondsDefault);
+                int timeoutMs = (seconds > 0 && seconds <= int.MaxValue / 1000) ? seconds * 1000 : -1;
+
+                string pendingStatus = null;
+                result = gitProcess.DiffCachedNameStatus(
+                    token =>
                     {
-                        addedFilePaths.Add(gitPath);
+                        if (pendingStatus == null)
+                        {
+                            pendingStatus = token;
+                            return;
+                        }
+
+                        string status = pendingStatus;
+                        pendingStatus = null;
+                        handleRecord(status, token);
+                    },
+                    pathspecs,
+                    pathspecFromFile,
+                    pathspecFileNul,
+                    timeoutMs);
+
+                addedCount = added;
+
+                if (result.ExitCodeIsSuccess && pendingStatus != null)
+                {
+                    // The -z stream ended on a status token with no matching path, so the staged-file
+                    // list is incomplete (e.g. git was killed mid-write). Acting on a partial list would
+                    // leave staged files out of ModifiedPaths, so fail and let the caller retry rather
+                    // than silently dropping the last entry.
+                    EventMetadata incompleteMetadata = new EventMetadata();
+                    incompleteMetadata.Add("ExitCode", result.ExitCode);
+                    this.context.Tracer.RelatedError(
+                        incompleteMetadata,
+                        nameof(this.AddStagedFilesToModifiedPaths) + ": git diff --cached output ended on an unpaired status token; refusing to act on an incomplete staged-file list");
+                    return false;
+                }
+            }
+            else
+            {
+                result = gitProcess.DiffCachedNameStatus(pathspecs, pathspecFromFile, pathspecFileNul);
+
+                if (result.OutputTruncated)
+                {
+                    // The staged-file list exceeded the capture buffer. Acting on a partial list would
+                    // leave some staged files out of ModifiedPaths (skip-worktree not cleared, stale
+                    // placeholders), which is worse than failing. Fail safe and let the caller retry.
+                    EventMetadata truncatedMetadata = new EventMetadata();
+                    truncatedMetadata.Add("ExitCode", result.ExitCode);
+                    this.context.Tracer.RelatedError(
+                        truncatedMetadata,
+                        nameof(this.AddStagedFilesToModifiedPaths) + ": git diff --cached output was truncated; refusing to update ModifiedPaths from a partial staged-file list");
+                    return false;
+                }
+
+                if (result.ExitCodeIsSuccess && !string.IsNullOrEmpty(result.Output))
+                {
+                    string[] parts = result.Output.Split(new[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    // Parts alternate: status, path, status, path, ...
+                    for (int i = 0; i + 1 < parts.Length; i += 2)
+                    {
+                        handleRecord(parts[i], parts[i + 1]);
                     }
                 }
 
+                addedCount = added;
+            }
+
+            if (result.ExitCodeIsSuccess)
+            {
                 // Write added files from the git object store to disk as full files
                 // so they persist across projection changes. Batched into as few git
                 // process invocations as possible.
@@ -494,7 +558,7 @@ namespace GVFS.Virtualization
                     }
                 }
             }
-            else if (!result.ExitCodeIsSuccess)
+            else
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("ExitCode", result.ExitCode);
