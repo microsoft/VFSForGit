@@ -112,6 +112,13 @@ namespace GVFS.Service.Handlers
                     this.TrySendResponse(tracer, response.ToMessage().ToString(), connection);
                     break;
 
+                case NamedPipeMessages.RunInstallerRequest.Header:
+                    this.requestDescription = "run installer";
+                    NamedPipeMessages.RunInstallerRequest installerRequest = NamedPipeMessages.RunInstallerRequest.FromMessage(message);
+                    RunInstallerHandler installerHandler = new RunInstallerHandler(tracer, connection, installerRequest);
+                    installerHandler.Run();
+                    break;
+
                 default:
                     this.requestDescription = UnknownRequestDescription;
                     EventMetadata metadata = new EventMetadata();

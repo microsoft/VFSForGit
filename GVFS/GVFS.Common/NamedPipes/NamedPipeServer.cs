@@ -203,6 +203,27 @@ namespace GVFS.Common.NamedPipes
                 get { return !this.isStopping() && this.serverStream.IsConnected; }
             }
 
+            /// <summary>
+            /// Impersonates the connected client for the duration of
+            /// <paramref name="action"/>. Inside the action,
+            /// <see cref="System.Security.Principal.WindowsIdentity.GetCurrent()"/>
+            /// returns the client's identity rather than the service's.
+            /// Returns false if impersonation is not supported on this
+            /// platform (only Windows named pipes carry caller identity).
+            /// </summary>
+            public bool TryRunAsClient(Action action)
+            {
+                ArgumentNullException.ThrowIfNull(action);
+
+                if (!OperatingSystem.IsWindows())
+                {
+                    return false;
+                }
+
+                this.serverStream.RunAsClient(() => action());
+                return true;
+            }
+
             public NamedPipeMessages.Message ReadMessage()
             {
                 return NamedPipeMessages.Message.FromString(this.ReadRequest());
