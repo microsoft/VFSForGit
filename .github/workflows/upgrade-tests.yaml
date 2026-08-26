@@ -118,8 +118,18 @@ jobs:
       run: |
         $ErrorActionPreference = 'Stop'
 
-        $lkgInstaller = (Get-ChildItem gvfs-lkg\SetupGVFS*.exe).FullName
-        $newInstaller = (Get-ChildItem gvfs-new\SetupGVFS*.exe).FullName
+        # Releases now publish both x64 and arm64 installers. These tests run
+        # on an x64 runner and download the x64 "new" installer, so select the
+        # x64 LKG installer. The x64 installer has no architecture suffix; the
+        # arm64 one is named "SetupGVFS.<version>-arm64.exe".
+        $lkgInstaller = (Get-ChildItem gvfs-lkg\SetupGVFS*.exe |
+          Where-Object { $_.Name -notmatch '-arm64\.exe$' } |
+          Select-Object -First 1).FullName
+        if (-not $lkgInstaller) { throw "No x64 LKG installer found in gvfs-lkg" }
+        $newInstaller = (Get-ChildItem gvfs-new\SetupGVFS*.exe |
+          Where-Object { $_.Name -notmatch '-arm64\.exe$' } |
+          Select-Object -First 1).FullName
+        if (-not $newInstaller) { throw "No x64 installer found in gvfs-new" }
         $installDir = "C:\Program Files\VFS for Git"
         $testRepo = "https://dev.azure.com/gvfs/ci/_git/ForTests"
         $enlistment = "C:\gvfs-upgrade-test"
