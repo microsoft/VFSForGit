@@ -118,8 +118,25 @@ jobs:
       run: |
         $ErrorActionPreference = 'Stop'
 
-        $lkgInstaller = (Get-ChildItem gvfs-lkg\SetupGVFS*.exe).FullName
-        $newInstaller = (Get-ChildItem gvfs-new\SetupGVFS*.exe).FullName
+        # Releases publish both x64 and arm64 installers. The x64 installer
+        # keeps the historical suffix-less name "SetupGVFS.<version>.exe"; other
+        # architectures add a suffix (e.g. "SetupGVFS.<version>-arm64.exe").
+        # These tests run on an x64 runner, so select the x64 installer by its
+        # suffix-less name and require exactly one match, rather than picking an
+        # arbitrary file when the directory holds more than one installer.
+        # NOTE: arm64 upgrade is not exercised here because the runner is x64;
+        # arm64 upgrade coverage is a known gap for when arm64 runners exist.
+        function Select-X64Installer($directory) {
+          $installers = @(Get-ChildItem "$directory\SetupGVFS*.exe" |
+            Where-Object { $_.Name -match '^SetupGVFS\.[\d.]+\.exe$' })
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one x64 installer in '$directory', found $($installers.Count): $($installers.Name -join ', ')"
+          }
+          return $installers[0].FullName
+        }
+
+        $lkgInstaller = Select-X64Installer "gvfs-lkg"
+        $newInstaller = Select-X64Installer "gvfs-new"
         $installDir = "C:\Program Files\VFS for Git"
         $testRepo = "https://dev.azure.com/gvfs/ci/_git/ForTests"
         $enlistment = "C:\gvfs-upgrade-test"
