@@ -192,9 +192,14 @@ namespace GVFS.FunctionalTests.Tools
                     RepositoryHelpers.DeleteTestDirectory(tempCache);
                 }
 
+                // Use --mirror (not --bare) so the cache carries the complete ref set. A --bare
+                // clone copies only refs/heads/* and tags; some tests fetch commits (by SHA) that
+                // live outside refs/heads, so a --bare cache would be missing those objects and the
+                // fetch would fail with "not our ref". --mirror maps refs/*:refs/*, matching the
+                // refresh path's "fetch origin +refs/*:refs/*".
                 clone = GitProcess.InvokeProcess(
                     Environment.SystemDirectory,
-                    "clone " + GVFSTestConfig.RepoToClone + " " + tempCache + " --bare");
+                    "clone " + GVFSTestConfig.RepoToClone + " " + tempCache + " --mirror");
 
                 if (clone.ExitCode == 0 && CacheHasBranch(tempCache, baseBranch))
                 {
