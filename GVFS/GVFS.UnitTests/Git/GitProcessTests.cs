@@ -103,6 +103,27 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void GitDirPathMatchesDotGitRootForRegularEnlistment()
+        {
+            // Regular enlistments do not have a separate worktree .git file,
+            // so GitProcess and Enlistment use the same .git directory path.
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            GitProcess process = new GitProcess(enlistment);
+
+            process.GitDirPath.ShouldEqual(enlistment.DotGitRoot);
+        }
+
+        [TestCase]
+        public void GitDirPathIsNullWhenWorkingDirectoryRootIsNull()
+        {
+            // Some callers only need global Git operations. Those instances have no enlistment
+            // root and cannot pass a --git-dir path.
+            GitProcess process = new GitProcess("git.exe", workingDirectoryRoot: null);
+
+            process.GitDirPath.ShouldBeNull();
+        }
+
+        [TestCase]
         public void ResultHasNoErrors()
         {
             GitProcess.Result result = new GitProcess.Result(

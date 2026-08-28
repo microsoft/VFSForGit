@@ -1,4 +1,5 @@
 using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.IO;
@@ -89,6 +90,17 @@ namespace GVFS.UnitTests.Common
         {
             GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
             enlistment.DotGitRoot.ShouldEqual(this.sharedGitDir);
+        }
+
+        [TestCase]
+        public void GitProcessUsesWorktreeGitFileNotSharedGitDir()
+        {
+            // GitProcess passes the worktree's .git file as --git-dir. It does not pre-resolve
+            // the gitdir target named inside that file. This pins the string contract.
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GitProcess gitProcess = new GitProcess(enlistment);
+
+            gitProcess.GitDirPath.ShouldEqual(Path.Combine(this.worktreePath, ".git"));
         }
 
         [TestCase]
