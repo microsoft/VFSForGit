@@ -210,10 +210,9 @@ namespace GVFS.Common.Git
 
             string stdinConfig = sb.ToString();
 
-            Result result = this.InvokeGitAgainstDotGitFolder(
+            Result result = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
                 GenerateCredentialVerbCommand("reject"),
                 stdin => stdin.Write(stdinConfig),
-                null,
                 usePreCommandHook: false);
 
             if (result.ExitCodeIsFailure)
@@ -238,10 +237,9 @@ namespace GVFS.Common.Git
 
             string stdinConfig = sb.ToString();
 
-            Result result = this.InvokeGitAgainstDotGitFolder(
+            Result result = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
                 GenerateCredentialVerbCommand("approve"),
                 stdin => stdin.Write(stdinConfig),
-                null,
                 usePreCommandHook: false);
 
             if (result.ExitCodeIsFailure)
@@ -275,10 +273,9 @@ namespace GVFS.Common.Git
             {
                 // See GetFromConfig for why pre-command hook is disabled
                 // for bootstrap-time git operations.
-                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
+                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
                     "credential fill",
                     stdin => stdin.Write("protocol=cert\npath=" + certificatePath + "\nusername=\n\n"),
-                    parseStdOutLine: null,
                     usePreCommandHook: false);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
@@ -328,18 +325,20 @@ namespace GVFS.Common.Git
 
             using (ITracer activity = tracer.StartActivity(nameof(this.TryGetCredential), EventLevel.Informational))
             {
-                // See GetFromConfig for why pre-command hook is disabled
-                // for bootstrap-time git operations.
-                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
+                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
                     GenerateCredentialVerbCommand("fill"),
                     stdin => stdin.Write($"url={repoUrl}\n\n"),
-                    parseStdOutLine: null,
+                    out bool usedDotGitFolder,
                     usePreCommandHook: false,
                     timeoutMs: timeoutMs);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
                     EventMetadata errorData = new EventMetadata();
+
+                    // Records whether repo-local configuration (and therefore a
+                    // repo-local credential.helper) was visible to git.
+                    errorData.Add(nameof(usedDotGitFolder), usedDotGitFolder);
 
                     if (gitCredentialOutput.Errors.StartsWith("Operation timed out"))
                     {
@@ -442,7 +441,13 @@ namespace GVFS.Common.Git
         public bool TryGetConfigUrlMatch(string section, string repositoryUrl, out Dictionary<string, GitConfigSetting> configSettings)
         {
             // See GetFromConfig for why pre-command hook is disabled.
-            Result result = this.InvokeGitAgainstDotGitFolder($"config --get-urlmatch {section} {repositoryUrl}", usePreCommandHook: false);
+            // This runs from the GitAuthentication constructor, which happens before
+            // clone creates the enlistment, so it must tolerate a missing .git folder.
+            Result result = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
+                $"config --get-urlmatch {section} {repositoryUrl}",
+                writeStdIn: null,
+                usePreCommandHook: false);
+
             if (result.ExitCodeIsFailure)
             {
                 configSettings = null;
@@ -1109,7 +1114,8 @@ namespace GVFS.Common.Git
             string command,
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine,
-            int timeout = -1)
+            int timeout = -1,
+            bool usePreCommandHook = true)
         {
             return this.InvokeGitImpl(
                 command,
@@ -1118,7 +1124,91 @@ namespace GVFS.Common.Git
                 useReadObjectHook: false,
                 writeStdIn: writeStdIn,
                 parseStdOutLine: parseStdOutLine,
-                timeoutMs: timeout);
+                timeoutMs: timeout,
+                usePreCommandHook: usePreCommandHook);
+        }
+
+        /// <summary>
+        /// Invokes git.exe against an enlistment's .git folder when that folder exists,
+        /// and outside the enlistment when it does not.
+        /// </summary>
+        /// <remarks>
+        /// For commands that prefer an enlistment's configuration but do not require a
+        /// repository to run. Naming a --git-dir that is absent is not merely redundant:
+        /// git resolves that path before it evaluates an 'includeIf "gitdir:..."'
+        /// condition, so a user who has such a section in their config gets
+        /// "fatal: Invalid path ...: No such file or directory" and the command never
+        /// runs. The condition does not have to match for this to happen.
+        ///
+        /// The credential verbs need this because 'gvfs clone' authenticates before it
+        /// creates the enlistment. This method should be used only with commands that
+        /// still behave correctly with no repository, because there is no repo-local
+        /// configuration to read on the fallback path.
+        /// </remarks>
+        private Result InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
+            string command,
+            Action<StreamWriter> writeStdIn,
+            Action<string> parseStdOutLine = null,
+            bool usePreCommandHook = true,
+            int timeoutMs = -1)
+        {
+            return this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
+                command,
+                writeStdIn,
+                out bool _,
+                parseStdOutLine,
+                usePreCommandHook,
+                timeoutMs);
+        }
+
+        /// <summary>
+        /// Overload that reports which route was taken, so callers can record it.
+        /// </summary>
+        /// <param name="usedDotGitFolder">
+        /// True when --git-dir was passed and repo-local configuration was therefore
+        /// visible to git; false when the command ran with no repository.
+        /// </param>
+        private Result InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
+            string command,
+            Action<StreamWriter> writeStdIn,
+            out bool usedDotGitFolder,
+            Action<string> parseStdOutLine = null,
+            bool usePreCommandHook = true,
+            int timeoutMs = -1)
+        {
+            // Evaluate once so the reported route always matches the route taken.
+            usedDotGitFolder = this.DotGitRootExists();
+
+            if (usedDotGitFolder)
+            {
+                return this.InvokeGitAgainstDotGitFolder(
+                    command,
+                    writeStdIn,
+                    parseStdOutLine,
+                    usePreCommandHook: usePreCommandHook,
+                    timeoutMs: timeoutMs);
+            }
+
+            return this.InvokeGitOutsideEnlistment(
+                command,
+                writeStdIn,
+                parseStdOutLine,
+                timeout: timeoutMs,
+                usePreCommandHook: usePreCommandHook);
+        }
+
+        /// <summary>
+        /// Determines whether the enlistment's .git exists. In a linked worktree .git is a
+        /// file that points at the real git directory rather than a folder, so check for both.
+        /// </summary>
+        private bool DotGitRootExists()
+        {
+            if (string.IsNullOrEmpty(this.dotGitRoot))
+            {
+                return false;
+            }
+
+            return Directory.Exists(this.dotGitRoot) || File.Exists(this.dotGitRoot);
         }
 
         /// <summary>

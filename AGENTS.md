@@ -64,8 +64,8 @@ Skips `dotnet publish`, AOT, native C++ projects, payload assembly, installer.
 For changes that need the GVFS payload (`gvfs.exe`, hooks, service) but not
 an installer. `PublishAot=false` skips ilc (~3–4 min saved);
 `SkipCreateInstaller=true` skips Inno Setup (~95 s saved).
-`GVFS.Payload` cascades to its dependencies (GVFS, GVFS.Mount, GVFS.Hooks,
-GVFS.Service) via `ProjectReference`.
+`GVFS.Payload` only assembles the payload directory — it does **not** build or
+publish the projects it copies from (see the warning below).
 
 > **Prerequisite: the native C++ projects must already be built.** They are
 > `.vcxproj` (see [Native C++ projects](#native-c-projects-need-msbuild-not-dotnet-build)
@@ -78,10 +78,13 @@ GVFS.Service) via `ProjectReference`.
 ```powershell
 dotnet publish src\GVFS\GVFS.FunctionalTests\GVFS.FunctionalTests.csproj `
     -c Debug /p:PublishAot=false
+dotnet publish src\GVFS\GVFS\GVFS.csproj `
+    -c Debug /p:PublishAot=false
 dotnet publish src\GVFS\GVFS.Payload\GVFS.Payload.csproj `
     -c Debug /p:PublishAot=false /p:SkipCreateInstaller=true
 
-src\scripts\RunFunctionalTests-Dev.ps1 Debug --test=GVFS.FunctionalTests.Tests.<Namespace>.<Class>.<Method>
+src\scripts\RunFunctionalTests-Dev.ps1 -Configuration Debug -Arch x64 `
+    --test=GVFS.FunctionalTests.Tests.<Namespace>.<Class>.<Method>
 ```
 
 `layout.bat` (invoked by GVFS.Payload) `xcopy`s from each project's `publish\`
@@ -89,10 +92,38 @@ or native-output directory — the C# projects do not require AOT, so
 `PublishAot=false` produces a fully functional test payload. The native
 hook binaries are copied straight from the vcxproj output.
 
+> **⚠️ Publish each changed project explicitly — `GVFS.Payload` does not do it
+> for you.** `GVFS.Payload.csproj` is a `Microsoft.Build.NoTargets` project with
+> **no `ProjectReference` items at all**; its `CreatePayload` target just runs
+> `layout.bat`, which `xcopy`s from each project's existing output/publish
+> directory. Nothing in that chain rebuilds or republishes those projects, so a
+> project you did not publish contributes whatever was left there by the last
+> `Build.bat` — an AOT binary that predates your edit. The build succeeds and the
+> test then runs stale code, which looks exactly like "my fix did not work".
+>
+> Verify the payload actually changed before you trust a functional-test result:
+>
+> ```powershell
+> Get-Item out\GVFS.Payload\bin\Debug\win-x64\GVFS.exe |
+>     Format-List LastWriteTime, Length
+> ```
+>
+> A ~27 MB `GVFS.exe` is the AOT build from `Build.bat`; a ~160 KB one is the
+> `PublishAot=false` build from the command above. If the timestamp predates
+> your edit, publish the project that owns the changed code and re-run the
+> payload publish. The same applies to `GVFS.Mount`, `GVFS.Hooks`, and
+> `GVFS.Service` when you change those.
+
 `RunFunctionalTests-Dev.ps1` runs functional tests against the build output
 without requiring admin or a system-wide install. It launches the test
 service as a console process. Each invocation gets a unique service name
 and data dir, so concurrent runs from different worktrees don't collide.
+
+> **Pass `-Configuration` and `-Arch` by name.** The script's first two
+> positional parameters are `Configuration` and `Arch`, so a bare
+> `RunFunctionalTests-Dev.ps1 Debug --test=...` binds `--test=...` to `-Arch`
+> and fails its `ValidateSet`. Name both parameters, then let `--test=` fall
+> through to `ExtraArgs`.
 
 ### Path C — Installer build (~5 min — only when you need an installer)
 
@@ -136,11 +167,11 @@ participate in the C# inner-loop paths above.
 ```powershell
 # ✅ Correct
 & "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe"  --test "GVFS.UnitTests.Common.WorktreeInfoTests"
-src\scripts\RunFunctionalTests-Dev.ps1 Debug       --test=GVFS.FunctionalTests.Tests.GVFSVerbTests.UnknownVerb
+src\scripts\RunFunctionalTests-Dev.ps1 -Configuration Debug -Arch x64 --test=GVFS.FunctionalTests.Tests.GVFSVerbTests.UnknownVerb
 
 # ❌ Wrong — silently runs the entire suite
 & "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe"  --where "class =~ Worktree"
-src\scripts\RunFunctionalTests-Dev.ps1 Debug       --where "cat == Smoke"
+src\scripts\RunFunctionalTests-Dev.ps1 -Configuration Debug -Arch x64 --where "cat == Smoke"
 ```
 
 For unit tests, `--where` is merely annoying (the whole suite runs in
