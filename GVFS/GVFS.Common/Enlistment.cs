@@ -62,6 +62,10 @@ namespace GVFS.Common
         public string WorkingDirectoryRoot { get; }
         public string WorkingDirectoryBackingRoot { get; }
 
+        /// <summary>
+        /// Path to the shared repository metadata directory that GVFS reads or writes directly.
+        /// In a linked worktree this is the common git directory, not the worktree's .git file.
+        /// </summary>
         public string DotGitRoot { get; protected set; }
         public abstract string GitObjectsRoot { get; protected set; }
         public abstract string LocalObjectsRoot { get; protected set; }
