@@ -17,6 +17,7 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedWarningEvents = new List<string>();
             this.RelatedErrorEvents = new List<string>();
             this.RelatedEventNames = new List<string>();
+            this.StoppedActivityMetadata = new List<EventMetadata>();
         }
 
         public MockTracer StartActivityTracer { get; private set; }
@@ -29,6 +30,10 @@ namespace GVFS.UnitTests.Mock.Common
         // Names of events reported via RelatedEvent (which, unlike RelatedInfo/Warning/Error,
         // do not otherwise get recorded). Lets tests assert a specific diagnostic event fired.
         public List<string> RelatedEventNames { get; }
+
+        // Metadata passed to Stop when an activity ends. Lets tests assert on
+        // what an activity reports, including that a secret is not present.
+        public List<EventMetadata> StoppedActivityMetadata { get; }
 
         public void WaitForRelatedEvent()
         {
@@ -136,6 +141,11 @@ namespace GVFS.UnitTests.Mock.Common
 
         public TimeSpan Stop(EventMetadata metadata)
         {
+            if (metadata != null)
+            {
+                this.StoppedActivityMetadata.Add(metadata);
+            }
+
             return TimeSpan.Zero;
         }
 

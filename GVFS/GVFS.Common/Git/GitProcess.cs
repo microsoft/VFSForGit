@@ -306,7 +306,8 @@ namespace GVFS.Common.Git
 
                 if (!success)
                 {
-                    metadata.Add("Output", gitCredentialOutput.Output);
+                    // Never trace the raw output: it can contain the secret itself.
+                    metadata.Add("OutputKeys", GetCredentialOutputKeys(gitCredentialOutput.Output));
                 }
 
                 activity.Stop(metadata);
@@ -370,7 +371,8 @@ namespace GVFS.Common.Git
                 metadata.Add("Success", success);
                 if (!success)
                 {
-                    metadata.Add("Output", gitCredentialOutput.Output);
+                    // Never trace the raw output: it can contain the secret itself.
+                    metadata.Add("OutputKeys", GetCredentialOutputKeys(gitCredentialOutput.Output));
                 }
 
                 activity.Stop(metadata);
@@ -1073,6 +1075,32 @@ namespace GVFS.Common.Git
         private static string GenerateCredentialVerbCommand(string verb)
         {
             return $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential {verb}";
+        }
+
+        /// <summary>
+        /// Summarizes the output of "git credential fill" for diagnostics.
+        /// The output is a list of "key=value" lines that can include the
+        /// plaintext secret, so only the key names are returned. The values
+        /// must never reach telemetry or the log.
+        /// </summary>
+        private static string GetCredentialOutputKeys(string credentialOutput)
+        {
+            if (string.IsNullOrEmpty(credentialOutput))
+            {
+                return string.Empty;
+            }
+
+            IEnumerable<string> keys = credentialOutput
+                .Split('\n')
+                .Select(line => line.Trim('\r'))
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .Select(line =>
+                {
+                    int separatorIndex = line.IndexOf('=');
+                    return separatorIndex > 0 ? line.Substring(0, separatorIndex) : "<malformed>";
+                });
+
+            return string.Join(",", keys);
         }
 
         private static string ParseValue(string contents, string prefix)
