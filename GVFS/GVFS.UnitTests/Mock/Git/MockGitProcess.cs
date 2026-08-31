@@ -17,17 +17,26 @@ namespace GVFS.UnitTests.Mock.Git
         public MockGitProcess()
             : base(new MockGVFSEnlistment())
         {
-            this.CommandsRun = new List<string>();
-            this.StoredCredentials = new Dictionary<string, Credential>(StringComparer.OrdinalIgnoreCase);
-            this.CredentialApprovals = new Dictionary<string, List<Credential>>();
-            this.CredentialRejections = new Dictionary<string, List<Credential>>();
+            this.Initialize();
         }
 
-        public List<string> CommandsRun { get; }
+        public MockGitProcess(string gitBinPath, string workingDirectoryRoot)
+            : base(gitBinPath, workingDirectoryRoot)
+        {
+            this.Initialize();
+        }
+
+        public List<string> CommandsRun { get; private set; }
         public bool ShouldFail { get; set; }
-        public Dictionary<string, Credential> StoredCredentials { get; }
-        public Dictionary<string, List<Credential>> CredentialApprovals { get; }
-        public Dictionary<string, List<Credential>> CredentialRejections { get; }
+        public Dictionary<string, Credential> StoredCredentials { get; private set; }
+        public Dictionary<string, List<Credential>> CredentialApprovals { get; private set; }
+        public Dictionary<string, List<Credential>> CredentialRejections { get; private set; }
+
+        /// <summary>
+        /// The value passed as --git-dir for each invocation, in the order the
+        /// invocations happened. An entry is null when no --git-dir was passed.
+        /// </summary>
+        public List<string> DotGitDirectoriesUsed { get; private set; }
 
         public void SetExpectedCommandResult(string command, Func<Result> result, bool matchPrefix = false)
         {
@@ -87,6 +96,7 @@ namespace GVFS.UnitTests.Mock.Git
             bool usePrecommandHook = true)
         {
             this.CommandsRun.Add(command);
+            this.DotGitDirectoriesUsed.Add(dotGitDirectory);
 
             if (this.ShouldFail)
             {
@@ -123,6 +133,15 @@ namespace GVFS.UnitTests.Mock.Git
                 /* Future: result.Output should be set to null in this case */
             }
             return result;
+        }
+
+        private void Initialize()
+        {
+            this.CommandsRun = new List<string>();
+            this.DotGitDirectoriesUsed = new List<string>();
+            this.StoredCredentials = new Dictionary<string, Credential>(StringComparer.OrdinalIgnoreCase);
+            this.CredentialApprovals = new Dictionary<string, List<Credential>>();
+            this.CredentialRejections = new Dictionary<string, List<Credential>>();
         }
 
         public class Credential
