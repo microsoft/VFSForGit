@@ -63,6 +63,12 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
         public bool ThrowOperationCanceledExceptionOnProjectionRequest { get; set; }
 
+        public bool ThrowExceptionOnProjectionRequest { get; set; }
+
+        // The SHA that GetProjectedFileInfo returns for a projected file. Exposed so a test can assert
+        // that the corrupt-placeholder repair hydrates from THIS recovered SHA (and not the corrupt one).
+        public Sha1Id ProjectedFileSha { get; set; } = new Sha1Id(1, 1, 1);
+
         public bool ProjectionParseComplete { get; set; }
 
         public PathSparseState GetFolderPathSparseStateValue { get; set; } = PathSparseState.Included;
@@ -243,6 +249,11 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
                 throw new OperationCanceledException();
             }
 
+            if (this.ThrowExceptionOnProjectionRequest)
+            {
+                throw new InvalidOperationException("Simulated projection failure");
+            }
+
             this.unblockGetProjectedFileInfo.WaitOne();
 
             if (this.projectedFiles.Contains(virtualPath))
@@ -251,7 +262,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
                 string parentKey;
                 this.GetChildNameAndParentKey(virtualPath, out childName, out parentKey);
                 parentFolderPath = parentKey;
-                return new ProjectedFileInfo(childName, size: 0, isFolder: false, sha: new Sha1Id(1, 1, 1));
+                return new ProjectedFileInfo(childName, size: 0, isFolder: false, sha: this.ProjectedFileSha);
             }
 
             parentFolderPath = null;

@@ -15,6 +15,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 using GVFS.Common.Tracing;
+using GVFS.Common;
+using GVFS.Common.Git;
 
 namespace GVFS.UnitTests.Windows.Virtualization
 {
@@ -720,6 +722,220 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
                 mockTracker.RelatedErrorEvents.ShouldBeEmpty();
             }
+        }
+
+        [TestCase]
+        public void OnGetFileStreamRepairsMalformedPlaceholderShaFromProjection()
+        {
+            // A corrupt placeholder presents an all-NUL content-id (decodes to a malformed SHA), but the
+            // path is still projected, so the read-time self-heal recovers the authoritative SHA from the
+            // projection and hydrates from that. The hydration writes the whole file, so the read succeeds
+            // and a distinct *_MalformedBlobShaRepaired event lets telemetry watch the corrupt population drain.
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.MockVirtualization.WriteFileReturnResult = HResult.Ok;
+
+                // Give the projection a distinctive recovered SHA so we can prove hydration used IT and
+                // not the corrupt content-id.
+                Sha1Id recoveredShaId = new Sha1Id(0x1122334455667788, 0x99AABBCCDDEEFF00, 0x12345678);
+                tester.GitIndexProjection.ProjectedFileSha = recoveredShaId;
+
+                // "test.txt" is the default projected file, so the projection returns the recovered SHA.
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending, contentId: CorruptContentId(), relativePath: "test.txt");
+
+                tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
+
+                // The crux of the feature: hydration must use the RECOVERED sha, not the malformed one.
+                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
+                mockGVFSGitObjects.LastShaPassedToTryCopyBlobContentStream.ShouldEqual(recoveredShaId.ToString());
+                mockGVFSGitObjects.LastShaPassedToTryCopyBlobContentStream.ShouldNotEqual(new string('\0', GVFSConstants.ShaStringLength));
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.RelatedEventNames.ShouldContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepaired");
+                mockTracker.RelatedErrorEvents.ShouldBeEmpty();
+            }
+        }
+
+        [TestCase]
+        public void OnGetFileStreamFailsRepairWhenPathNotProjected()
+        {
+            // The placeholder is corrupt AND the path is no longer projected (for example it was deleted or
+            // renamed), so there is no authoritative SHA to repair it with. The read must fail cleanly (as
+            // #2074 does) and emit a distinct *_MalformedBlobShaRepairFailed event rather than crashing.
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.InvokeGetFileDataCallback(
+                    expectedResult: HResult.Pending,
+                    contentId: CorruptContentId(),
+                    relativePath: "not-projected.txt");
+
+                tester.MockVirtualization.WaitForCompletionStatus()
+                    .ShouldEqual((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                AssertRepairFailedWithReason(mockTracker, "ProjectionMiss");
+                mockTracker.RelatedEventNames.ShouldNotContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepaired");
+            }
+        }
+
+        [TestCase]
+        public void OnGetFileStreamFailsRepairWhenProjectionThrows()
+        {
+            // The projection lookup itself throws (non-cancellation) while recovering the SHA. The repair
+            // helper must catch it, fail the read cleanly, and funnel it as a distinct repair failure with
+            // reason ProjectionException rather than propagating and exiting the mount.
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.GitIndexProjection.ThrowExceptionOnProjectionRequest = true;
+
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending, contentId: CorruptContentId(), relativePath: "test.txt");
+
+                tester.MockVirtualization.WaitForCompletionStatus()
+                    .ShouldEqual((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                AssertRepairFailedWithReason(mockTracker, "ProjectionException");
+                mockTracker.RelatedEventNames.ShouldNotContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepaired");
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void OnGetFileStreamRepairCancelledDuringProjectionLookup()
+        {
+            // Cancellation while the repair is looking up the projection must be treated exactly like a
+            // normal-read cancellation: the helper rethrows OperationCanceledException, the outer handler
+            // logs _OperationCancelled, and NO repair success/failure event is emitted (the attempt was
+            // aborted, not decided).
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.WaitRelatedEventName = "GetFileStreamHandlerAsyncHandler_OperationCancelled";
+                tester.GitIndexProjection.ThrowOperationCanceledExceptionOnProjectionRequest = true;
+
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending, contentId: CorruptContentId(), relativePath: "test.txt");
+
+                mockTracker.WaitForRelatedEvent();
+
+                mockTracker.RelatedEventNames.ShouldNotContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepaired");
+                mockTracker.RelatedEventNames.ShouldNotContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepairFailed");
+            }
+        }
+
+        [TestCase]
+        public void OnGetFileStreamFailsRepairWhenRecoveredShaCannotHydrate()
+        {
+            // The path is projected so a valid SHA is recovered, but the blob for that SHA cannot be
+            // hydrated (for example the object is unavailable). TryCopyBlobContentStream returns false
+            // (no exception), so the read fails cleanly and emits the *_MalformedBlobShaRepairFailed
+            // event so telemetry can separate "could not recover the SHA" from "recovered the SHA but
+            // the blob itself is unavailable".
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
+                mockGVFSGitObjects.ReturnFalseFromTryCopyBlobContentStream = true;
+
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending, contentId: CorruptContentId(), relativePath: "test.txt");
+
+                tester.MockVirtualization.WaitForCompletionStatus()
+                    .ShouldEqual((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                AssertRepairFailedWithReason(mockTracker, "HydrateFailed");
+                mockTracker.RelatedEventNames.ShouldNotContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepaired");
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void OnGetFileStreamFailsRepairWhenRecoveredShaHydrationThrows()
+        {
+            // A valid SHA is recovered, but hydration THROWS mid-write (here a size mismatch). This failure
+            // reaches the outer catch handlers, which must still funnel it as a repair failure (reason
+            // HydrateException) so that repaired + repair-failed accounts for every repair attempt.
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
+                mockGVFSGitObjects.FileLength = MockGVFSGitObjects.DefaultFileLength - 1;
+
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending, contentId: CorruptContentId(), relativePath: "test.txt");
+
+                tester.MockVirtualization.WaitForCompletionStatus();
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                AssertRepairFailedWithReason(mockTracker, "HydrateException");
+                mockTracker.RelatedEventNames.ShouldNotContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepaired");
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void OnGetFileStreamFailsRepairWhenRecoveredShaHydrationThrowsGenericException()
+        {
+            // A valid SHA is recovered, but hydration throws a non-GetFileStreamException (here an
+            // InvalidOperationException). This reaches the generic catch (Exception) handler, which - like
+            // the GetFileStreamException handler - must still funnel it as a repair failure (reason
+            // HydrateException) so that repaired + repair-failed accounts for every non-aborted attempt.
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
+                mockGVFSGitObjects.ThrowOnTryCopyBlobContentStream = true;
+
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending, contentId: CorruptContentId(), relativePath: "test.txt");
+
+                tester.MockVirtualization.WaitForCompletionStatus()
+                    .ShouldEqual((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                AssertRepairFailedWithReason(mockTracker, "HydrateException");
+                mockTracker.RelatedEventNames.ShouldNotContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepaired");
+            }
+        }
+
+        [TestCase]
+        public void OnGetFileStreamDoesNotRepairValidPlaceholderSha()
+        {
+            // Regression: a placeholder with a valid content-id hydrates normally and must NOT take the
+            // repair path or emit any repair telemetry.
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.MockVirtualization.WriteFileReturnResult = HResult.Ok;
+
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
+
+                tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+                mockTracker.RelatedEventNames.ShouldNotContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepaired");
+                mockTracker.RelatedEventNames.ShouldNotContain(
+                    name => name == "GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepairFailed");
+                mockTracker.RelatedErrorEvents.ShouldBeEmpty();
+            }
+        }
+
+        // A corrupt placeholder's content-id: 80 zero bytes, which GetShaFromContentId decodes to a
+        // 40-character all-NUL string (a malformed SHA), mirroring the field corruption.
+        private static byte[] CorruptContentId()
+        {
+            return new byte[GVFSConstants.ShaStringLength * sizeof(char)];
+        }
+
+        // Asserts the repair-failed event fired AND carried the expected RepairFailedReason in its metadata.
+        private static void AssertRepairFailedWithReason(MockTracer mockTracker, string expectedReason)
+        {
+            int index = mockTracker.RelatedEventNames.IndexOf("GetFileStreamHandlerAsyncHandler_MalformedBlobShaRepairFailed");
+            index.ShouldNotEqual(-1, "Expected a _MalformedBlobShaRepairFailed event to be emitted");
+            mockTracker.RelatedEventMetadata[index].Contains(expectedReason).ShouldBeTrue(
+                $"Expected RepairFailedReason '{expectedReason}' in the repair-failed event metadata, was: {mockTracker.RelatedEventMetadata[index]}");
         }
 
         [TestCase]
