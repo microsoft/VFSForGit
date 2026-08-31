@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace GVFS.Common.Http
 {
-    public class ConfigHttpRequestor : HttpRequestor
+    public class ConfigHttpRequestor : HttpRequestor, IGVFSConfigRequestor
     {
         private readonly string repoUrl;
 

@@ -56,7 +56,19 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool IsAnonymous { get; private set; } = true;
+        /// <summary>
+        /// True only when the server is known to allow anonymous access.
+        /// </summary>
+        /// <remarks>
+        /// This defaults to false, because anonymous access is an affirmative
+        /// determination that requires a successful unauthenticated probe of
+        /// /gvfs/config. While this is true,
+        /// <see cref="Http.HttpRequestor.SendRequest"/> omits the Authorization
+        /// header and never calls <see cref="TryGetCredentials"/>, so a default of
+        /// true makes every request unauthenticated when the probe does not run or
+        /// does not complete.
+        /// </remarks>
+        public bool IsAnonymous { get; private set; }
 
         /// <summary>
         /// How long a caller of <see cref="TryGetCredentials"/> will wait for
@@ -65,6 +77,14 @@ namespace GVFS.Common.Git
         /// background credential fetch). Overridable for tests.
         /// </summary>
         internal int InitializationWaitTimeoutMs { get; set; } = BackgroundCredentialTimeoutMs;
+
+        /// <summary>
+        /// Test seam for the /gvfs/config probe. When null, production code uses
+        /// <see cref="ConfigHttpRequestor"/>. Unit tests substitute a fake so the
+        /// probe outcome - anonymous success, 401, or an indeterminate network
+        /// failure - can be driven deterministically.
+        /// </summary>
+        internal Func<ITracer, Enlistment, RetryConfig, IGVFSConfigRequestor> ConfigRequestorFactory { get; set; }
 
         private GitSsl GitSsl { get; }
 
@@ -260,7 +280,9 @@ namespace GVFS.Common.Git
             errorMessage = null;
             isAuthFailure = false;
 
-            using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
+            using (IGVFSConfigRequestor configRequestor = this.ConfigRequestorFactory != null
+                ? this.ConfigRequestorFactory(tracer, enlistment, retryConfig)
+                : new ConfigHttpRequestor(tracer, enlistment, retryConfig))
             {
                 HttpStatusCode? httpStatus;
 
@@ -276,9 +298,25 @@ namespace GVFS.Common.Git
 
                 if (httpStatus != HttpStatusCode.Unauthorized)
                 {
+                    // The probe did not determine whether the server allows anonymous
+                    // access. It failed for a reason unrelated to authentication - a
+                    // timeout, a 5xx, or a socket error. Assume authentication is
+                    // required. If the server does allow anonymous access it ignores
+                    // the Authorization header we then send.
+                    //
+                    // Treating this as anonymous is unrecoverable for the life of the
+                    // process: SendRequest would omit the Authorization header on every
+                    // later request and never call TryGetCredentials, the Azure DevOps
+                    // cache server answers 400 ("A valid Basic Authorization header is
+                    // required."), a 400 is not retryable, RejectCredentials is a no-op
+                    // because no credential was ever cached, and initialization is
+                    // already latched - so re-initialization throws. Mount proceeds
+                    // when a cache server is configured, so the repo stays mounted but
+                    // cannot hydrate or enumerate until it is remounted.
+                    this.IsAnonymous = false;
                     this.MarkInitialized();
                     errorMessage = "Unable to query /gvfs/config";
-                    tracer.RelatedWarning("{0}: Config query failed with status {1}", nameof(this.TryInitializeAndQueryGVFSConfig), httpStatus?.ToString() ?? "None");
+                    tracer.RelatedWarning("{0}: Config query failed with status {1}; assuming authentication is required", nameof(this.TryInitializeAndQueryGVFSConfig), httpStatus?.ToString() ?? "None");
                     return false;
                 }
 
