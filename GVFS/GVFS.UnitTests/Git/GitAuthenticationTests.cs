@@ -1,12 +1,15 @@
 using System;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Tests;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
+using GVFS.UnitTests.Mock.Http;
 using NUnit.Framework;
 
 namespace GVFS.UnitTests.Git
@@ -340,6 +343,109 @@ namespace GVFS.UnitTests.Git
 
             result.ShouldBeTrue("TryGetCredentials should succeed after initialization: " + error);
             authString.ShouldNotBeNull("A credential string should be returned");
+        }
+
+        [TestCase]
+        public void AuthIsNotAnonymousBeforeInitialization()
+        {
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+
+            dut.IsAnonymous.ShouldEqual(false, "Auth must not report anonymous before a probe has proven the server allows it");
+        }
+
+        [TestCase]
+        public void AnonymousConfigProbeSuccessLeavesAuthAnonymous()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            MockGVFSConfigRequestor requestor = MockGVFSConfigRequestor.AnonymousSucceeds();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.ConfigRequestorFactory = (t, e, r) => requestor;
+
+            dut.TryInitializeAndQueryGVFSConfig(tracer, null, new RetryConfig(), out _, out _, out bool isAuthFailure)
+                .ShouldEqual(true, "An anonymous server should initialize successfully");
+
+            dut.IsAnonymous.ShouldEqual(true, "A successful unauthenticated probe means the server allows anonymous access");
+            isAuthFailure.ShouldEqual(false, "An anonymous success is not an auth failure");
+            requestor.QueryCount.ShouldEqual(1, "An anonymous server needs only the single unauthenticated query");
+        }
+
+        [TestCase]
+        public void UnauthorizedConfigProbeRequiresAuthentication()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.ConfigRequestorFactory = (t, e, r) => MockGVFSConfigRequestor.RequiresAuthentication();
+
+            dut.TryInitializeAndQueryGVFSConfig(tracer, null, new RetryConfig(), out _, out _, out _);
+
+            dut.IsAnonymous.ShouldEqual(false, "A 401 from the unauthenticated probe means credentials are required");
+            dut.TryGetCredentials(tracer, out string authString, out _).ShouldEqual(true, "Credentials should be available after a 401 probe");
+            authString.ShouldNotBeNull("A credential should have been fetched");
+        }
+
+        /// <summary>
+        /// A config query that fails for a reason unrelated to authentication - a
+        /// timeout, a 5xx, or a socket error - says nothing about whether the server
+        /// allows anonymous access. Treating it as anonymous is unrecoverable:
+        /// HttpRequestor.SendRequest omits the Authorization header and never calls
+        /// TryGetCredentials while IsAnonymous is true, the Azure DevOps cache server
+        /// answers 400, a 400 is not retryable, and initialization is already latched
+        /// so the probe never runs again. Mount proceeds when a cache server is
+        /// configured, so the repo stays mounted but cannot hydrate or enumerate.
+        /// </summary>
+        [TestCase]
+        public void IndeterminateConfigProbeDoesNotLeaveAuthAnonymous()
+        {
+            foreach (HttpStatusCode? status in new HttpStatusCode?[]
+            {
+                HttpStatusCode.RequestTimeout,
+                HttpStatusCode.InternalServerError,
+                HttpStatusCode.ServiceUnavailable,
+                HttpStatusCode.BadRequest,
+                null,
+            })
+            {
+                MockTracer tracer = new MockTracer();
+                MockGitProcess gitProcess = this.GetGitProcess();
+
+                GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+                dut.ConfigRequestorFactory = (t, e, r) => MockGVFSConfigRequestor.Indeterminate(status);
+
+                dut.TryInitializeAndQueryGVFSConfig(tracer, null, new RetryConfig(), out _, out _, out bool isAuthFailure)
+                    .ShouldEqual(false, $"A config query that failed with {status?.ToString() ?? "no response"} should report failure");
+
+                dut.IsAnonymous.ShouldEqual(
+                    false,
+                    $"An indeterminate config probe ({status?.ToString() ?? "no response"}) must not leave auth in anonymous mode");
+
+                isAuthFailure.ShouldEqual(false, "An indeterminate failure is not an authentication failure");
+            }
+        }
+
+        [TestCase]
+        public void IndeterminateConfigProbeStillAuthenticatesLaterRequests()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.ConfigRequestorFactory = (t, e, r) => MockGVFSConfigRequestor.Indeterminate(HttpStatusCode.RequestTimeout);
+
+            dut.TryInitializeAndQueryGVFSConfig(tracer, null, new RetryConfig(), out _, out _, out _);
+
+            // Mount proceeds past this failure when a cache server is configured, so
+            // object downloads and directory enumeration must still be able to
+            // authenticate rather than silently issuing unauthenticated requests.
+            dut.IsAnonymous.ShouldEqual(false, "Later requests must send an Authorization header");
+            dut.TryGetCredentials(tracer, out string authString, out string error)
+                .ShouldEqual(true, "Credentials should still be obtainable after an indeterminate probe: " + error);
+            authString.ShouldNotBeNull("A credential should have been fetched");
         }
 
         private MockGitProcess GetGitProcess()
