@@ -1,4 +1,5 @@
 using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.IO;
@@ -89,6 +90,31 @@ namespace GVFS.UnitTests.Common
         {
             GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
             enlistment.DotGitRoot.ShouldEqual(this.sharedGitDir);
+        }
+
+        [TestCase]
+        public void GitProcessUsesWorktreeGitFileNotSharedGitDir()
+        {
+            // GitProcess passes its own git dir as --git-dir. For a worktree that must be the
+            // worktree's ".git" file, which git resolves to both the per-worktree state
+            // (HEAD, index, refs) and, through commondir, the shared state (config, objects).
+            // Using DotGitRoot (the shared .git directory) would bind every command to the
+            // MAIN worktree's HEAD and index instead.
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GitProcess gitProcess = new GitProcess(enlistment);
+
+            gitProcess.GitDirectoryPath.ShouldEqual(Path.Combine(this.worktreePath, ".git"));
+            gitProcess.GitDirectoryPath.ShouldNotEqual(enlistment.DotGitRoot);
+        }
+
+        [TestCase]
+        public void WorkingDirectoryBackingRootIsWorktreePath()
+        {
+            // GitProcess derives its --git-dir from WorkingDirectoryBackingRoot. If the worktree
+            // constructor ever redirected this to the primary enlistment, GitProcess would silently
+            // start operating on the main worktree.
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            enlistment.WorkingDirectoryBackingRoot.ShouldEqual(this.worktreePath);
         }
 
         [TestCase]

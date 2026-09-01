@@ -64,6 +64,13 @@ namespace GVFS.Common
             // Override DotGitRoot to point to the shared .git directory.
             // The base constructor sets it to WorkingDirectoryBackingRoot/.git
             // which is a file (not directory) in worktrees.
+            //
+            // NOTE: DotGitRoot is the SHARED git directory, and is used for shared state that GVFS
+            // reads or writes directly on disk (objects, objects/info/alternates, hooks). It is
+            // deliberately NOT what GitProcess passes as --git-dir; GitProcess uses the worktree's own
+            // ".git" file so git resolves per-worktree HEAD/index/refs as well as the shared state.
+            // See GitProcess's constructor. Per-worktree paths that GVFS touches directly must come
+            // from Worktree.WorktreeGitDir (see GitIndexPath), never from DotGitRoot.
             this.DotGitRoot = worktreeInfo.SharedGitDir;
 
             this.DotGVFSRoot = Path.Combine(worktreeInfo.WorktreeGitDir, GVFSPlatform.Instance.Constants.DotGVFSRoot);
