@@ -77,6 +77,47 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         /// <summary>
+        /// Reproduces a bug where "git reset --mixed" fails to report hydrated files
+        /// as modified when skip-worktree hides the working-tree vs index mismatch.
+        ///
+        /// After a mixed reset, the index is updated to the target commit's tree, but
+        /// the working tree is left untouched. For non-hydrated placeholders this is
+        /// invisible (ProjFS serves the new content transparently). But for hydrated
+        /// files — files that have been read and materialized on disk — the on-disk
+        /// content still matches the OLD HEAD. Because the file was never modified
+        /// (just read), it is not in ModifiedPaths, so skip-worktree remains set.
+        /// This causes "git status" to skip the file entirely, hiding the mismatch
+        /// between the stale on-disk content and the new index entry.
+        ///
+        /// On the FunctionalTests/20201014 branch, Readme.md is the only file that
+        /// differs between HEAD and HEAD~1, making it a clean single-file repro.
+        ///
+        /// Expected: reset output includes "M Readme.md", status shows it as modified.
+        /// Actual (bug): reset output is empty, status reports clean.
+        /// </summary>
+        [TestCase]
+        public void ReproResetMixedSkipWorktree()
+        {
+            // Hydrate Readme.md by reading it via blame. In GVFS, this triggers a
+            // ProjFS callback that materializes the file from the object store. The
+            // file is now a full file on disk, but NOT in ModifiedPaths (read-only
+            // access doesn't modify it), so skip-worktree stays set.
+            this.ValidateGitCommand("blame Readme.md");
+
+            this.ValidateGitCommand("checkout -b tests/functional/ReproResetMixedSkipWorktree");
+
+            // Mixed reset to HEAD~1. Readme.md's blob differs between HEAD and HEAD~1
+            // on this branch, so the index entry is updated. But the on-disk content
+            // still has HEAD's version (mixed reset doesn't touch the working tree).
+            //
+            // Control repo: reports "M Readme.md" in reset output and status.
+            // GVFS (bug): skip-worktree is set and file isn't in ModifiedPaths, so
+            // git skips the working-tree check. Reset output omits Readme.md, and
+            // status incorrectly reports clean.
+            this.ValidateGitCommand("reset HEAD~1");
+        }
+
+        /// <summary>
         /// Reproduction of a reported issue:
         /// Restoring a file after its parent directory was deleted fails with
         /// "fatal: could not unlink 'path\to\': Directory not empty"
