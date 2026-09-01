@@ -836,6 +836,14 @@ namespace GVFS.Platform.Windows
             {
                 this.Context.Tracer.RelatedError($"{nameof(this.virtualizationInstance.StartVirtualizing)} failed: " + result.ToString("X") + "(" + result.ToString("G") + ")");
                 error = "Failed to start virtualization instance (" + result.ToString() + ")";
+
+                if ((int)result == HResultExtensions.FileSystemVirtualizationNotAvailable)
+                {
+                    error += ". The ProjFS filter (PrjFlt) cannot attach to this volume. "
+                        + "If the enlistment is on a Dev Drive, allow the filter on that volume from an elevated command prompt: "
+                        + "fsutil devdrv setfiltersallowed PrjFlt";
+                }
+
                 return false;
             }
 
