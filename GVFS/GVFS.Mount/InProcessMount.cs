@@ -51,8 +51,11 @@ namespace GVFS.Mount
         // narrow window between the pipe opening and MountVerb's first poll.
         private const int MountFailureNoClientTimeoutMs = 500;
 
-        // Lets the response drain to the client before the pipe goes away.
-        private const int MountFailureDrainMs = 50;
+        // Lets the response drain, and covers the case where a different client (a
+        // concurrent "gvfs status") consumed the report signal. It must exceed the
+        // client's 100ms GetStatus poll interval so the mounting client still gets its
+        // answer on the next poll.
+        private const int MountFailureDrainMs = 150;
 
         private readonly bool showDebugWindow;
 
@@ -87,8 +90,9 @@ namespace GVFS.Mount
         // Signaled after a GetStatus response carrying MountFailed is written to a client.
         private ManualResetEvent mountFailureReported;
 
-        // Ensures only the first thread to fail the mount tears down and exits.
-        private int mountFailureLatch;
+        // Identifies the thread that owns the mount-failure path, so a re-entrant call on
+        // that same thread exits instead of waiting on itself. 0 means no owner yet.
+        private int mountFailureOwnerThreadId;
 
         // When false (default), the mount process does not surface progress phase
         // strings over the named pipe, so the CLI falls back to its static spinner.
@@ -692,18 +696,39 @@ namespace GVFS.Mount
 
         private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
         {
-            if (Interlocked.CompareExchange(ref this.mountFailureLatch, 1, 0) != 0)
+            // Format before taking the latch. RelatedError would otherwise format a second
+            // time without protection, and a throw there would re-enter this method from an
+            // outer catch block.
+            string failureMessage = FormatMountFailure(error, args);
+
+            int currentThreadId = Environment.CurrentManagedThreadId;
+            int owningThreadId = Interlocked.CompareExchange(ref this.mountFailureOwnerThreadId, currentThreadId, 0);
+
+            if (owningThreadId == currentThreadId)
             {
-                // Another thread already owns the failure path and will exit the process.
-                // Block rather than return: every caller of FailMountAndExit assumes it
-                // never returns and would otherwise run on with a half-initialized mount.
-                Thread.Sleep(Timeout.Infinite);
+                // Re-entered on the reporting thread, because something below threw and an
+                // outer catch called back in. The failure was already reported, so exit
+                // rather than wait again -- waiting here would block forever on a signal
+                // this thread is itself responsible for observing.
+                this.tracer.RelatedWarning(
+                    null,
+                    $"{nameof(this.FailMountAndExit)}: Re-entered while reporting a mount failure: {failureMessage}",
+                    Keywords.Telemetry);
+                Environment.Exit((int)returnCode);
             }
 
-            this.mountFailureMessage = FormatMountFailure(error, args);
+            if (owningThreadId != 0)
+            {
+                // Another thread owns the failure path and will exit the process. Block
+                // rather than return: every caller of FailMountAndExit assumes it never
+                // returns and would otherwise run on with a half-initialized mount.
+                BlockUntilProcessExits();
+            }
+
+            this.mountFailureMessage = failureMessage;
             this.currentState = MountState.MountFailed;
 
-            this.tracer.RelatedError(error, args);
+            this.tracer.RelatedError(failureMessage);
             if (this.showDebugWindow)
             {
                 Console.WriteLine("\nPress Enter to Exit");
@@ -726,10 +751,24 @@ namespace GVFS.Mount
             }
             catch (Exception e)
             {
-                this.tracer.RelatedWarning($"{nameof(this.FailMountAndExit)}: Exception while disposing file system callbacks: {e}");
+                // Traced with Telemetry because this used to be a process-fatal crash. Without
+                // the keyword the failure it replaced would become invisible in the field.
+                this.tracer.RelatedWarning(
+                    null,
+                    $"{nameof(this.FailMountAndExit)}: Exception while disposing file system callbacks: {e}",
+                    Keywords.Telemetry);
             }
 
             Environment.Exit((int)returnCode);
+        }
+
+        /// <summary>
+        /// Parks the calling thread until another thread exits the process. Used where a
+        /// method must not return but is not the thread that owns the exit.
+        /// </summary>
+        private static void BlockUntilProcessExits()
+        {
+            Thread.Sleep(Timeout.Infinite);
         }
 
         /// <summary>
@@ -753,12 +792,18 @@ namespace GVFS.Mount
 
             if (this.mountFailureReported.WaitOne(timeoutMs))
             {
+                // Any client can satisfy the wait, and the one that read the failure is not
+                // necessarily the one that is mounting -- a concurrent "gvfs status" polls
+                // the same pipe. Staying alive for longer than the client's poll interval
+                // means the mounting client still gets its answer on its next poll.
                 Thread.Sleep(MountFailureDrainMs);
             }
             else
             {
                 this.tracer.RelatedWarning(
-                    $"{nameof(this.WaitForMountFailureToBeReported)}: No client read the mount failure within {timeoutMs}ms. Exiting anyway.");
+                    null,
+                    $"{nameof(this.WaitForMountFailureToBeReported)}: No client read the mount failure within {timeoutMs}ms. Exiting anyway.",
+                    Keywords.Telemetry);
             }
         }
 
@@ -1522,8 +1567,6 @@ namespace GVFS.Mount
 
         private void HandleGetStatusRequest(NamedPipeServer.Connection connection)
         {
-            this.clientPolledStatus = true;
-
             MountState state = this.currentState;
 
             NamedPipeMessages.GetStatus.Response response = new NamedPipeMessages.GetStatus.Response();
@@ -1566,10 +1609,18 @@ namespace GVFS.Mount
 
             bool sent = connection.TrySendResponse(response.ToJson());
 
-            if (sent && state == MountState.MountFailed)
+            if (sent)
             {
-                // The client now has the reason, so FailMountAndExit can stop waiting.
-                this.mountFailureReported.Set();
+                // Only count a client that actually received a status. Setting this on
+                // entry would let a client that connected and then disconnected extend the
+                // post-failure wait.
+                this.clientPolledStatus = true;
+
+                if (state == MountState.MountFailed)
+                {
+                    // The client now has the reason, so FailMountAndExit can stop waiting.
+                    this.mountFailureReported.Set();
+                }
             }
         }
 

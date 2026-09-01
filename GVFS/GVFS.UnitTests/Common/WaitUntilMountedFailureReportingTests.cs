@@ -90,7 +90,7 @@ namespace GVFS.UnitTests.Common
                 }
                 finally
                 {
-                    serverTask.Wait(TimeSpan.FromSeconds(30));
+                    serverTask.Wait(TimeSpan.FromSeconds(5));
                 }
             }
         }

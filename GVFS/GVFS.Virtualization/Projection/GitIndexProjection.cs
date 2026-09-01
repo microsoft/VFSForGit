@@ -739,17 +739,13 @@ namespace GVFS.Virtualization.Projection
 
                 if (this.indexParsingThread != null)
                 {
-                    // Task.Dispose throws InvalidOperationException unless the task has
-                    // reached a completion state. A failed mount disposes the projection
-                    // without calling Shutdown first, so the parsing thread is still
-                    // running here. Skip the Dispose in that case: a Task owns no
-                    // unmanaged resources, and throwing would kill the mount process
-                    // before it can report why the mount failed.
-                    if (this.indexParsingThread.IsCompleted)
-                    {
-                        this.indexParsingThread.Dispose();
-                    }
-
+                    // Deliberately not calling Task.Dispose. A Task holds no unmanaged
+                    // resources, Task.Dispose is legacy IAsyncResult wait-handle cleanup,
+                    // and it throws InvalidOperationException unless the task has reached
+                    // a completion state. A failed mount disposes the projection without
+                    // calling Shutdown first, so the parsing thread is still running here
+                    // and that throw would kill the mount process before it can report
+                    // why the mount failed.
                     this.indexParsingThread = null;
                 }
             }
