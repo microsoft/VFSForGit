@@ -24,6 +24,14 @@ namespace GVFS.CommandLine
 
         public string CacheServerUrl { get; set; }
 
+        public string PrefetchCacheServerUrl { get; set; }
+
+        public string GetCacheServerUrl { get; set; }
+
+        public string PostCacheServerUrl { get; set; }
+
+        public string SizesCacheServerUrl { get; set; }
+
         public string Branch { get; set; }
 
         public bool SingleBranch { get; set; }
@@ -56,6 +64,18 @@ namespace GVFS.CommandLine
             System.CommandLine.Option<string> cacheServerOption = new System.CommandLine.Option<string>("--cache-server-url") { Description = "The url or friendly name of the cache server" };
             cmd.Add(cacheServerOption);
 
+            System.CommandLine.Option<string> prefetchCacheServerOption = new System.CommandLine.Option<string>("--prefetch-cache-server-url") { Description = "The cache server URL for the prefetch endpoint" };
+            cmd.Add(prefetchCacheServerOption);
+
+            System.CommandLine.Option<string> getCacheServerOption = new System.CommandLine.Option<string>("--get-cache-server-url") { Description = "The cache server URL for the objects GET endpoint" };
+            cmd.Add(getCacheServerOption);
+
+            System.CommandLine.Option<string> postCacheServerOption = new System.CommandLine.Option<string>("--post-cache-server-url") { Description = "The cache server URL for the objects POST endpoint" };
+            cmd.Add(postCacheServerOption);
+
+            System.CommandLine.Option<string> sizesCacheServerOption = new System.CommandLine.Option<string>("--sizes-cache-server-url") { Description = "The cache server URL for the sizes endpoint" };
+            cmd.Add(sizesCacheServerOption);
+
             System.CommandLine.Option<string> branchOption = new System.CommandLine.Option<string>("--branch", new[] { "-b" }) { Description = "Branch to checkout after clone" };
             cmd.Add(branchOption);
 
@@ -86,6 +106,10 @@ namespace GVFS.CommandLine
                 }
 
                 verb.CacheServerUrl = result.GetValue(cacheServerOption);
+                verb.PrefetchCacheServerUrl = result.GetValue(prefetchCacheServerOption);
+                verb.GetCacheServerUrl = result.GetValue(getCacheServerOption);
+                verb.PostCacheServerUrl = result.GetValue(postCacheServerOption);
+                verb.SizesCacheServerUrl = result.GetValue(sizesCacheServerOption);
                 verb.Branch = result.GetValue(branchOption);
                 verb.SingleBranch = result.GetValue(singleBranchOption);
                 verb.NoMount = result.GetValue(noMountOption);
@@ -144,6 +168,10 @@ namespace GVFS.CommandLine
             this.CheckKernelDriverSupported(normalizedEnlistmentRootPath);
             this.CheckNotInsideExistingRepo(normalizedEnlistmentRootPath);
             this.BlockEmptyCacheServerUrl(this.CacheServerUrl);
+            this.BlockEmptyCacheServerUrl(this.PrefetchCacheServerUrl);
+            this.BlockEmptyCacheServerUrl(this.GetCacheServerUrl);
+            this.BlockEmptyCacheServerUrl(this.PostCacheServerUrl);
+            this.BlockEmptyCacheServerUrl(this.SizesCacheServerUrl);
 
             try
             {
@@ -231,6 +259,11 @@ namespace GVFS.CommandLine
                         }
 
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
+                        cacheServer = cacheServer.WithEndpointOverrides(
+                            this.PrefetchCacheServerUrl,
+                            this.GetCacheServerUrl,
+                            this.PostCacheServerUrl,
+                            this.SizesCacheServerUrl);
 
                         this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
 
@@ -641,6 +674,11 @@ namespace GVFS.CommandLine
             if (!cacheServerResolver.TrySaveUrlToLocalConfig(objectRequestor.CacheServer, out errorMessage))
             {
                 return new Result("Unable to configure cache server: " + errorMessage);
+            }
+
+            if (!cacheServerResolver.TrySaveEndpointUrlsToLocalConfig(objectRequestor.CacheServer, out errorMessage))
+            {
+                return new Result("Unable to configure endpoint-specific cache servers: " + errorMessage);
             }
 
             GitProcess git = new GitProcess(enlistment);

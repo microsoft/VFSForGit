@@ -149,7 +149,7 @@ namespace GVFS.Common.Http
                 onSuccess,
                 eArgs => this.HandleDownloadAndSaveObjectError(retryOnFailure, requestId, eArgs),
                 HttpMethod.Get,
-                new Uri(this.CacheServer.ObjectsEndpointUrl + "/" + objectId),
+                new Uri(this.CacheServer.ObjectsGetEndpointUrl + "/" + objectId),
                 cancellationToken,
                 requestBody: null,
                 acceptType: null,
@@ -170,7 +170,7 @@ namespace GVFS.Common.Http
                 onSuccess,
                 onFailure,
                 HttpMethod.Post,
-                new Uri(this.CacheServer.ObjectsEndpointUrl),
+                new Uri(this.CacheServer.ObjectsPostEndpointUrl),
                 CancellationToken.None,
                 () => this.ObjectIdsJsonGenerator(requestId, objectIdGenerator),
                 preferBatchedLooseObjects ? CustomLooseObjectsHeader : null);
@@ -204,7 +204,7 @@ namespace GVFS.Common.Http
                 onSuccess,
                 onFailure,
                 HttpMethod.Post,
-                new Uri(this.CacheServer.ObjectsEndpointUrl),
+                new Uri(this.CacheServer.ObjectsPostEndpointUrl),
                 CancellationToken.None,
                 objectIdsJson,
                 preferBatchedLooseObjects ? CustomLooseObjectsHeader : null);

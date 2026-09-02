@@ -20,10 +20,16 @@ namespace GVFS.Common.Http
 
         public static CacheServerInfo GetCacheServerFromConfig(Enlistment enlistment)
         {
+            GitProcess git = enlistment.CreateGitProcess();
             string url = GetUrlFromConfig(enlistment);
             return new CacheServerInfo(
                 url,
-                url == enlistment.RepoUrl ? CacheServerInfo.ReservedNames.None : null);
+                url == enlistment.RepoUrl ? CacheServerInfo.ReservedNames.None : null,
+                globalDefault: false,
+                GetValueFromConfig(git, GVFSConstants.GitConfig.PrefetchCacheServer, localOnly: true),
+                GetValueFromConfig(git, GVFSConstants.GitConfig.GetCacheServer, localOnly: true),
+                GetValueFromConfig(git, GVFSConstants.GitConfig.PostCacheServer, localOnly: true),
+                GetValueFromConfig(git, GVFSConstants.GitConfig.SizesCacheServer, localOnly: true));
         }
 
         public static string GetUrlFromConfig(Enlistment enlistment)
@@ -129,6 +135,22 @@ namespace GVFS.Common.Http
             return result.ExitCodeIsSuccess;
         }
 
+        public bool TrySaveEndpointUrlsToLocalConfig(CacheServerInfo cache, out string error)
+        {
+            GitProcess git = this.enlistment.CreateGitProcess();
+
+            if (!TrySaveEndpointUrl(git, GVFSConstants.GitConfig.PrefetchCacheServer, cache.PrefetchCacheServerUrl, out error) ||
+                !TrySaveEndpointUrl(git, GVFSConstants.GitConfig.GetCacheServer, cache.GetCacheServerUrl, out error) ||
+                !TrySaveEndpointUrl(git, GVFSConstants.GitConfig.PostCacheServer, cache.PostCacheServerUrl, out error) ||
+                !TrySaveEndpointUrl(git, GVFSConstants.GitConfig.SizesCacheServer, cache.SizesCacheServerUrl, out error))
+            {
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
         private static string GetValueFromConfig(GitProcess git, string configName, bool localOnly)
         {
             GitProcess.ConfigResult result =
@@ -142,6 +164,19 @@ namespace GVFS.Common.Http
             }
 
             return value;
+        }
+
+        private static bool TrySaveEndpointUrl(GitProcess git, string configName, string url, out string error)
+        {
+            error = null;
+            if (url == null)
+            {
+                return true;
+            }
+
+            GitProcess.Result result = git.SetInLocalConfig(configName, url, replaceAll: true);
+            error = result.Errors;
+            return result.ExitCodeIsSuccess;
         }
 
         private static string GetDeprecatedCacheConfigSettingName(Enlistment enlistment)

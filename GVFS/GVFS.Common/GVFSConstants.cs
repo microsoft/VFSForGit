@@ -33,6 +33,10 @@ namespace GVFS.Common
             public const string MountId = GVFSPrefix + "mount-id";
             public const string EnlistmentId = GVFSPrefix + "enlistment-id";
             public const string CacheServer = GVFSPrefix + "cache-server";
+            public const string PrefetchCacheServer = GVFSPrefix + "prefetch.cache-server";
+            public const string GetCacheServer = GVFSPrefix + "get.cache-server";
+            public const string PostCacheServer = GVFSPrefix + "post.cache-server";
+            public const string SizesCacheServer = GVFSPrefix + "sizes.cache-server";
             public const string DeprecatedCacheEndpointSuffix = ".cache-server-url";
             public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
             public const string GVFSTelemetryId = GitConfig.GVFSPrefix + "telemetry-id";

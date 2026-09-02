@@ -13,6 +13,10 @@ namespace GVFS.UnitTests.Common
     {
         private const string CacheServerUrl = "https://cache/server";
         private const string CacheServerName = "TestCacheServer";
+        private const string PrefetchCacheServerUrl = "https://prefetch-cache/server";
+        private const string GetCacheServerUrl = "https://get-cache/server";
+        private const string PostCacheServerUrl = "https://post-cache/server";
+        private const string SizesCacheServerUrl = "https://sizes-cache/server";
 
         [TestCase]
         public void CanGetCacheServerFromNewConfig()
@@ -41,6 +45,76 @@ namespace GVFS.UnitTests.Common
 
             this.ValidateIsNone(enlistment, CacheServerResolver.GetCacheServerFromConfig(enlistment));
             CacheServerResolver.GetUrlFromConfig(enlistment).ShouldEqual(enlistment.RepoUrl);
+        }
+
+        [TestCase]
+        public void EndpointSpecificCacheServersOverrideGlobalCacheServer()
+        {
+            MockGVFSEnlistment enlistment = this.CreateEnlistment(
+                CacheServerUrl,
+                prefetchCacheServerUrl: PrefetchCacheServerUrl,
+                getCacheServerUrl: GetCacheServerUrl,
+                postCacheServerUrl: PostCacheServerUrl,
+                sizesCacheServerUrl: SizesCacheServerUrl);
+
+            CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
+
+            cacheServer.PrefetchEndpointUrl.ShouldEqual(PrefetchCacheServerUrl + "/gvfs/prefetch");
+            cacheServer.ObjectsGetEndpointUrl.ShouldEqual(GetCacheServerUrl + "/gvfs/objects");
+            cacheServer.ObjectsPostEndpointUrl.ShouldEqual(PostCacheServerUrl + "/gvfs/objects");
+            cacheServer.SizesEndpointUrl.ShouldEqual(SizesCacheServerUrl + "/gvfs/sizes");
+        }
+
+        [TestCase]
+        public void EndpointSpecificCacheServersFallBackToGlobalCacheServer()
+        {
+            CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(this.CreateEnlistment(CacheServerUrl));
+
+            cacheServer.PrefetchEndpointUrl.ShouldEqual(CacheServerUrl + "/gvfs/prefetch");
+            cacheServer.ObjectsGetEndpointUrl.ShouldEqual(CacheServerUrl + "/gvfs/objects");
+            cacheServer.ObjectsPostEndpointUrl.ShouldEqual(CacheServerUrl + "/gvfs/objects");
+            cacheServer.SizesEndpointUrl.ShouldEqual(CacheServerUrl + "/gvfs/sizes");
+        }
+
+        [TestCase]
+        public void EndpointSpecificCacheServersArePreservedWhenGlobalCacheServerIsResolved()
+        {
+            CacheServerInfo configuredCacheServer = new CacheServerInfo(CacheServerUrl, CacheServerName)
+                .WithEndpointOverrides(PrefetchCacheServerUrl, GetCacheServerUrl, PostCacheServerUrl, SizesCacheServerUrl);
+            CacheServerInfo resolvedCacheServer = new CacheServerInfo("https://resolved-cache/server", "ResolvedCache")
+                .WithEndpointOverridesFrom(configuredCacheServer);
+
+            resolvedCacheServer.PrefetchCacheServerUrl.ShouldEqual(PrefetchCacheServerUrl);
+            resolvedCacheServer.GetCacheServerUrl.ShouldEqual(GetCacheServerUrl);
+            resolvedCacheServer.PostCacheServerUrl.ShouldEqual(PostCacheServerUrl);
+            resolvedCacheServer.SizesCacheServerUrl.ShouldEqual(SizesCacheServerUrl);
+            resolvedCacheServer.HasValidUrl().ShouldEqual(true);
+        }
+
+        [TestCase]
+        public void CanSaveEndpointSpecificCacheServers()
+        {
+            MockGVFSEnlistment enlistment = this.CreateEnlistment();
+            MockGitProcess git = (MockGitProcess)enlistment.CreateGitProcess();
+            git.SetExpectedCommandResult(
+                "config --local --replace-all  \"gvfs.prefetch.cache-server\" \"https://prefetch-cache/server\"",
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+            git.SetExpectedCommandResult(
+                "config --local --replace-all  \"gvfs.get.cache-server\" \"https://get-cache/server\"",
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+            git.SetExpectedCommandResult(
+                "config --local --replace-all  \"gvfs.post.cache-server\" \"https://post-cache/server\"",
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+            git.SetExpectedCommandResult(
+                "config --local --replace-all  \"gvfs.sizes.cache-server\" \"https://sizes-cache/server\"",
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
+            CacheServerInfo cacheServer = new CacheServerInfo(CacheServerUrl, CacheServerName)
+                .WithEndpointOverrides(PrefetchCacheServerUrl, GetCacheServerUrl, PostCacheServerUrl, SizesCacheServerUrl);
+
+            new CacheServerResolver(new MockTracer(), enlistment)
+                .TrySaveEndpointUrlsToLocalConfig(cacheServer, out string error)
+                .ShouldEqual(true, error);
         }
 
         [TestCase]
@@ -190,7 +264,13 @@ namespace GVFS.UnitTests.Common
             cacheServer.Name.ShouldEqual(CacheServerInfo.ReservedNames.None);
         }
 
-        private MockGVFSEnlistment CreateEnlistment(string newConfigValue = null, string oldConfigValue = null)
+        private MockGVFSEnlistment CreateEnlistment(
+            string newConfigValue = null,
+            string oldConfigValue = null,
+            string prefetchCacheServerUrl = null,
+            string getCacheServerUrl = null,
+            string postCacheServerUrl = null,
+            string sizesCacheServerUrl = null)
         {
             MockGitProcess gitProcess = new MockGitProcess();
             gitProcess.SetExpectedCommandResult(
@@ -199,6 +279,18 @@ namespace GVFS.UnitTests.Common
             gitProcess.SetExpectedCommandResult(
                 "config gvfs.mock:..repourl.cache-server-url",
                 () => new GitProcess.Result(oldConfigValue ?? string.Empty, string.Empty, oldConfigValue != null ? GitProcess.Result.SuccessCode : GitProcess.Result.GenericFailureCode));
+            gitProcess.SetExpectedCommandResult(
+                "config --local gvfs.prefetch.cache-server",
+                () => new GitProcess.Result(prefetchCacheServerUrl ?? string.Empty, string.Empty, prefetchCacheServerUrl != null ? GitProcess.Result.SuccessCode : GitProcess.Result.GenericFailureCode));
+            gitProcess.SetExpectedCommandResult(
+                "config --local gvfs.get.cache-server",
+                () => new GitProcess.Result(getCacheServerUrl ?? string.Empty, string.Empty, getCacheServerUrl != null ? GitProcess.Result.SuccessCode : GitProcess.Result.GenericFailureCode));
+            gitProcess.SetExpectedCommandResult(
+                "config --local gvfs.post.cache-server",
+                () => new GitProcess.Result(postCacheServerUrl ?? string.Empty, string.Empty, postCacheServerUrl != null ? GitProcess.Result.SuccessCode : GitProcess.Result.GenericFailureCode));
+            gitProcess.SetExpectedCommandResult(
+                "config --local gvfs.sizes.cache-server",
+                () => new GitProcess.Result(sizesCacheServerUrl ?? string.Empty, string.Empty, sizesCacheServerUrl != null ? GitProcess.Result.SuccessCode : GitProcess.Result.GenericFailureCode));
 
             return new MockGVFSEnlistment(gitProcess);
         }

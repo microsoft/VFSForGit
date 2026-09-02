@@ -215,6 +215,10 @@ namespace GVFS.CommandLine.Tests
             {
                 "clone", "https://example.com/repo", @"C:\Users\test\repo",
                 "--cache-server-url", "https://cache.test",
+                "--prefetch-cache-server-url", "https://prefetch-cache.test",
+                "--get-cache-server-url", "https://get-cache.test",
+                "--post-cache-server-url", "https://post-cache.test",
+                "--sizes-cache-server-url", "https://sizes-cache.test",
                 "-b", "develop",
                 "--single-branch",
                 "--no-mount",
@@ -342,7 +346,19 @@ namespace GVFS.CommandLine.Tests
         [Test]
         public void Clone_HasAllExpectedOptions()
         {
-            var expected = new[] { "--cache-server-url", "--branch", "--single-branch", "--no-mount", "--no-prefetch", "--local-cache-path" };
+            var expected = new[]
+            {
+                "--cache-server-url",
+                "--prefetch-cache-server-url",
+                "--get-cache-server-url",
+                "--post-cache-server-url",
+                "--sizes-cache-server-url",
+                "--branch",
+                "--single-branch",
+                "--no-mount",
+                "--no-prefetch",
+                "--local-cache-path",
+            };
             foreach (var optName in expected)
             {
                 Assert.That(FindOptionOnCommand("clone", optName), Is.Not.Null,

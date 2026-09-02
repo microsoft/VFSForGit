@@ -340,7 +340,9 @@ namespace GVFS.CommandLine
 
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
 
-                resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerFromConfig.Url, serverGVFSConfig);
+                resolvedCacheServer = cacheServerResolver
+                    .ResolveNameFromRemote(cacheServerFromConfig.Url, serverGVFSConfig)
+                    .WithEndpointOverridesFrom(cacheServerFromConfig);
 
                 if (!this.SkipVersionCheck)
                 {
