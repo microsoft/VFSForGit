@@ -10,7 +10,7 @@ namespace GVFS.Common.Http
     /// driven with a deterministic probe outcome in unit tests. Production code
     /// always uses <see cref="ConfigHttpRequestor"/>.
     /// </summary>
-    public interface IGVFSConfigRequestor : IDisposable
+    internal interface IGVFSConfigRequestor : IDisposable
     {
         /// <summary>
         /// Queries /gvfs/config.
@@ -22,7 +22,12 @@ namespace GVFS.Common.Http
         /// never produced an HTTP response (for example a DNS or socket failure).
         /// </param>
         /// <param name="errorMessage">The failure description when this returns false.</param>
+        /// <param name="forceAnonymous">
+        /// Sends the request without credentials regardless of the authentication
+        /// state. The probe that determines whether the server allows anonymous
+        /// access must set this.
+        /// </param>
         /// <returns>True when the config was retrieved.</returns>
-        bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus, out string errorMessage);
+        bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus, out string errorMessage, bool forceAnonymous = false);
     }
 }
