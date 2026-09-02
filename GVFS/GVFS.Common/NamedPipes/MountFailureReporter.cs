@@ -52,13 +52,13 @@ namespace GVFS.Common.NamedPipes
         /// <summary>
         /// Cap on how long to wait once a client is known to be polling.
         /// </summary>
-        public const int DefaultReportTimeoutMs = 2000;
+        internal const int DefaultReportTimeoutMs = 2000;
 
         /// <summary>
         /// Cap used when no client has received a status yet. It only has to cover the
         /// gap between the pipe opening and the client's first poll.
         /// </summary>
-        public const int DefaultNoClientTimeoutMs = 500;
+        internal const int DefaultNoClientTimeoutMs = 500;
 
         /// <summary>
         /// Grace period after a client reads the failure. Any client can satisfy the
@@ -66,7 +66,7 @@ namespace GVFS.Common.NamedPipes
         /// "gvfs status" polls the same pipe. Keeping this above the client's 100ms poll
         /// interval means the mounting client still gets its answer on its next poll.
         /// </summary>
-        public const int DefaultDrainMs = 150;
+        internal const int DefaultDrainMs = 150;
 
         private readonly ITracer tracer;
         private readonly int reportTimeoutMs;
@@ -216,6 +216,10 @@ namespace GVFS.Common.NamedPipes
 
         public void Dispose()
         {
+            // InProcessMount deliberately does not call this: it holds the reporter for
+            // the life of the process and leaves through Environment.Exit, which reclaims
+            // the handle. Do not dispose while a thread is inside
+            // WaitForClientToReadFailure -- WaitOne on a disposed handle throws.
             this.failureReported.Dispose();
         }
     }

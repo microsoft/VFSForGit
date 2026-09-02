@@ -90,7 +90,11 @@ namespace GVFS.UnitTests.Common
                 }
                 finally
                 {
-                    serverTask.Wait(TimeSpan.FromSeconds(5));
+                    // Surfaces a hung server task instead of silently disposing the stream
+                    // out from under it, which would fault an unobserved task and hide the
+                    // real cause of a failure.
+                    serverTask.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue(
+                        "The stand-in mount server should have answered and completed.");
                 }
             }
         }
