@@ -37,6 +37,8 @@ namespace GVFS.Common.Http
                 this.ObjectsEndpointUrl = this.Url + ObjectsEndpointSuffix;
             }
 
+            this.GlobalPrefetchEndpointUrl = GetEndpointUrl(this.Url, PrefetchEndpointSuffix);
+            this.GlobalSizesEndpointUrl = GetEndpointUrl(this.Url, SizesEndpointSuffix);
             this.PrefetchEndpointUrl = GetEndpointUrl(prefetchCacheServerUrl ?? this.Url, PrefetchEndpointSuffix);
             this.ObjectsGetEndpointUrl = GetEndpointUrl(getCacheServerUrl ?? this.Url, ObjectsEndpointSuffix);
             this.ObjectsPostEndpointUrl = GetEndpointUrl(postCacheServerUrl ?? this.Url, ObjectsEndpointSuffix);
@@ -69,6 +71,12 @@ namespace GVFS.Common.Http
         [JsonIgnore]
         public string ObjectsPostEndpointUrl { get; }
 
+        [JsonIgnore]
+        public string GlobalPrefetchEndpointUrl { get; }
+
+        [JsonIgnore]
+        public string GlobalSizesEndpointUrl { get; }
+
         public CacheServerInfo WithEndpointOverrides(
             string prefetchCacheServerUrl,
             string getCacheServerUrl,
@@ -96,7 +104,12 @@ namespace GVFS.Common.Http
 
         public bool HasValidUrl()
         {
-            return Uri.IsWellFormedUriString(this.Url, UriKind.Absolute);
+            return IsValidUrl(this.Url);
+        }
+
+        public static bool IsValidUrl(string url)
+        {
+            return Uri.IsWellFormedUriString(url, UriKind.Absolute);
         }
 
         public bool IsNone(string repoUrl)

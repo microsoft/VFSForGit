@@ -17,6 +17,8 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedWarningEvents = new List<string>();
             this.RelatedErrorEvents = new List<string>();
             this.RelatedEventNames = new List<string>();
+            this.RelatedEventKeywords = new List<Keywords>();
+            this.RelatedEventMetadata = new List<EventMetadata>();
         }
 
         public MockTracer StartActivityTracer { get; private set; }
@@ -29,6 +31,8 @@ namespace GVFS.UnitTests.Mock.Common
         // Names of events reported via RelatedEvent (which, unlike RelatedInfo/Warning/Error,
         // do not otherwise get recorded). Lets tests assert a specific diagnostic event fired.
         public List<string> RelatedEventNames { get; }
+        public List<Keywords> RelatedEventKeywords { get; }
+        public List<EventMetadata> RelatedEventMetadata { get; }
 
         public void WaitForRelatedEvent()
         {
@@ -38,6 +42,8 @@ namespace GVFS.UnitTests.Mock.Common
         public void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata)
         {
             this.RelatedEventNames.Add(eventName);
+            this.RelatedEventKeywords.Add(Keywords.None);
+            this.RelatedEventMetadata.Add(metadata);
             if (eventName == this.WaitRelatedEventName)
             {
                 this.waitEvent.Set();
@@ -47,6 +53,8 @@ namespace GVFS.UnitTests.Mock.Common
         public void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata, Keywords keyword)
         {
             this.RelatedEventNames.Add(eventName);
+            this.RelatedEventKeywords.Add(keyword);
+            this.RelatedEventMetadata.Add(metadata);
             if (eventName == this.WaitRelatedEventName)
             {
                 this.waitEvent.Set();

@@ -65,15 +65,19 @@ namespace GVFS.CommandLine
             cmd.Add(cacheServerOption);
 
             System.CommandLine.Option<string> prefetchCacheServerOption = new System.CommandLine.Option<string>("--prefetch-cache-server-url") { Description = "The cache server URL for the prefetch endpoint" };
+            AddEndpointCacheServerUrlValidator(prefetchCacheServerOption);
             cmd.Add(prefetchCacheServerOption);
 
             System.CommandLine.Option<string> getCacheServerOption = new System.CommandLine.Option<string>("--get-cache-server-url") { Description = "The cache server URL for the objects GET endpoint" };
+            AddEndpointCacheServerUrlValidator(getCacheServerOption);
             cmd.Add(getCacheServerOption);
 
             System.CommandLine.Option<string> postCacheServerOption = new System.CommandLine.Option<string>("--post-cache-server-url") { Description = "The cache server URL for the objects POST endpoint" };
+            AddEndpointCacheServerUrlValidator(postCacheServerOption);
             cmd.Add(postCacheServerOption);
 
             System.CommandLine.Option<string> sizesCacheServerOption = new System.CommandLine.Option<string>("--sizes-cache-server-url") { Description = "The cache server URL for the sizes endpoint" };
+            AddEndpointCacheServerUrlValidator(sizesCacheServerOption);
             cmd.Add(sizesCacheServerOption);
 
             System.CommandLine.Option<string> branchOption = new System.CommandLine.Option<string>("--branch", new[] { "-b" }) { Description = "Branch to checkout after clone" };
@@ -131,6 +135,19 @@ namespace GVFS.CommandLine
             return cmd;
         }
 
+        private static void AddEndpointCacheServerUrlValidator(System.CommandLine.Option<string> option)
+        {
+            option.Validators.Add(
+                result =>
+                {
+                    string url = result.GetValueOrDefault<string>();
+                    if (url != null && !CacheServerInfo.IsValidUrl(url))
+                    {
+                        result.AddError($"Option '{option.Name}' requires an absolute URL.");
+                    }
+                });
+        }
+
         protected override string VerbName
         {
             get { return CloneVerbName; }
@@ -172,6 +189,10 @@ namespace GVFS.CommandLine
             this.BlockEmptyCacheServerUrl(this.GetCacheServerUrl);
             this.BlockEmptyCacheServerUrl(this.PostCacheServerUrl);
             this.BlockEmptyCacheServerUrl(this.SizesCacheServerUrl);
+            this.BlockInvalidEndpointCacheServerUrl("--prefetch-cache-server-url", this.PrefetchCacheServerUrl);
+            this.BlockInvalidEndpointCacheServerUrl("--get-cache-server-url", this.GetCacheServerUrl);
+            this.BlockInvalidEndpointCacheServerUrl("--post-cache-server-url", this.PostCacheServerUrl);
+            this.BlockInvalidEndpointCacheServerUrl("--sizes-cache-server-url", this.SizesCacheServerUrl);
 
             try
             {
@@ -627,6 +648,14 @@ namespace GVFS.CommandLine
             enlistment.InitializeCachePathsFromKey(localCacheRoot, localCacheKey);
 
             return true;
+        }
+
+        private void BlockInvalidEndpointCacheServerUrl(string optionName, string url)
+        {
+            if (url != null && !CacheServerInfo.IsValidUrl(url))
+            {
+                this.ReportErrorAndExit($"Option '{optionName}' requires an absolute URL.");
+            }
         }
 
         private Result CreateClone(

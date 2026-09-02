@@ -22,14 +22,18 @@ namespace GVFS.Common.Http
         {
             GitProcess git = enlistment.CreateGitProcess();
             string url = GetUrlFromConfig(enlistment);
+            string prefetchCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.PrefetchCacheServer);
+            string getCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.GetCacheServer);
+            string postCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.PostCacheServer);
+            string sizesCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.SizesCacheServer);
             return new CacheServerInfo(
                 url,
                 url == enlistment.RepoUrl ? CacheServerInfo.ReservedNames.None : null,
                 globalDefault: false,
-                GetValueFromConfig(git, GVFSConstants.GitConfig.PrefetchCacheServer, localOnly: true),
-                GetValueFromConfig(git, GVFSConstants.GitConfig.GetCacheServer, localOnly: true),
-                GetValueFromConfig(git, GVFSConstants.GitConfig.PostCacheServer, localOnly: true),
-                GetValueFromConfig(git, GVFSConstants.GitConfig.SizesCacheServer, localOnly: true));
+                prefetchCacheServerUrl,
+                getCacheServerUrl,
+                postCacheServerUrl,
+                sizesCacheServerUrl);
         }
 
         public static string GetUrlFromConfig(Enlistment enlistment)
@@ -164,6 +168,17 @@ namespace GVFS.Common.Http
             }
 
             return value;
+        }
+
+        private static string GetEndpointUrlFromConfig(GitProcess git, string configName)
+        {
+            string url = GetValueFromConfig(git, configName, localOnly: true);
+            if (url != null && !CacheServerInfo.IsValidUrl(url))
+            {
+                throw new InvalidRepoException($"Invalid value for {configName}: '{url}' is not an absolute URL.");
+            }
+
+            return url;
         }
 
         private static bool TrySaveEndpointUrl(GitProcess git, string configName, string url, out string error)

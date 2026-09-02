@@ -378,6 +378,11 @@ namespace GVFS.Common.Http
             return false;
         }
 
+        internal static string GetAuthorityForTelemetry(Uri uri)
+        {
+            return uri.Authority;
+        }
+
         private static string GetSingleHeaderOrEmpty(HttpHeaders headers, string headerName)
         {
             IEnumerable<string> values;

@@ -92,6 +92,20 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void InvalidEndpointSpecificCacheServerIsRejected()
+        {
+            MockGVFSEnlistment enlistment = this.CreateEnlistment(
+                CacheServerUrl,
+                prefetchCacheServerUrl: "not-a-url");
+
+            InvalidRepoException exception = Assert.Throws<InvalidRepoException>(
+                () => CacheServerResolver.GetCacheServerFromConfig(enlistment));
+
+            exception.Message.ShouldContain(GVFSConstants.GitConfig.PrefetchCacheServer);
+            exception.Message.ShouldContain("not an absolute URL");
+        }
+
+        [TestCase]
         public void CanSaveEndpointSpecificCacheServers()
         {
             MockGVFSEnlistment enlistment = this.CreateEnlistment();

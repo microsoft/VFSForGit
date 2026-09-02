@@ -225,6 +225,26 @@ namespace GVFS.CommandLine.Tests
                 "--no-prefetch"
             });
             Assert.That(parseResult.Errors, Is.Empty, "Full clone command should parse without errors");
+            Assert.Multiple(() =>
+            {
+                Assert.That(parseResult.GetValue((Option<string>)FindOptionOnCommand("clone", "--cache-server-url")), Is.EqualTo("https://cache.test"));
+                Assert.That(parseResult.GetValue((Option<string>)FindOptionOnCommand("clone", "--prefetch-cache-server-url")), Is.EqualTo("https://prefetch-cache.test"));
+                Assert.That(parseResult.GetValue((Option<string>)FindOptionOnCommand("clone", "--get-cache-server-url")), Is.EqualTo("https://get-cache.test"));
+                Assert.That(parseResult.GetValue((Option<string>)FindOptionOnCommand("clone", "--post-cache-server-url")), Is.EqualTo("https://post-cache.test"));
+                Assert.That(parseResult.GetValue((Option<string>)FindOptionOnCommand("clone", "--sizes-cache-server-url")), Is.EqualTo("https://sizes-cache.test"));
+            });
+        }
+
+        [TestCase("--prefetch-cache-server-url")]
+        [TestCase("--get-cache-server-url")]
+        [TestCase("--post-cache-server-url")]
+        [TestCase("--sizes-cache-server-url")]
+        public void Clone_EndpointCacheServerUrl_RejectsInvalidUrl(string optionName)
+        {
+            var parseResult = rootCommand.Parse(new[] { "clone", "https://example.com/repo", optionName, "not-a-url" });
+
+            Assert.That(parseResult.Errors, Has.Count.EqualTo(1));
+            Assert.That(parseResult.Errors[0].Message, Does.Contain("requires an absolute URL"));
         }
 
         [Test]
