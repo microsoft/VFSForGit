@@ -38,6 +38,20 @@ These options allow a user to customize their initial enlistment.
   cache servers via the `<url>/gvfs/config` endpoint, then the `clone` command
   will select a nearby cache server from that list.
 
+* `--prefetch-cache-server-url=<url>`,
+  `--get-cache-server-url=<url>`, `--post-cache-server-url=<url>`, and
+  `--sizes-cache-server-url=<url>`: Prefer the specified absolute cache server
+  URL for `/gvfs/prefetch`, loose-object GET requests, batched-object POST
+  requests, or `/gvfs/sizes`, respectively. If a dedicated server fails, VFS
+  for Git retries the request against the server selected by
+  `--cache-server-url`. Sizes requests retain their additional fallback to the
+  origin server when the global cache does not support `/gvfs/sizes`.
+
+  These values are saved in the local Git configuration as
+  `gvfs.prefetch.cache-server`, `gvfs.get.cache-server`,
+  `gvfs.post.cache-server`, and `gvfs.sizes.cache-server`. They continue to
+  apply to later mount, hydration, and prefetch operations.
+
 * `--branch=<ref>`: Specify the branch to checkout after clone.
 
 * `--local-cache-path=<path>`: Use this option to override the path for the
