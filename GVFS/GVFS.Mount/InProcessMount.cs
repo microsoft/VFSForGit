@@ -59,6 +59,10 @@ namespace GVFS.Mount
         private volatile MountState currentState;
         private volatile string mountProgressMessage;
 
+        // Keeps the pipe answering GetStatus after a failure so the client can read the
+        // reason, instead of racing this process to exit and seeing a broken pipe.
+        private readonly MountFailureReporter mountFailureReporter;
+
         // When false (default), the mount process does not surface progress phase
         // strings over the named pipe, so the CLI falls back to its static spinner.
         // This gates only the display layer; the early-pipe reliability infrastructure
@@ -82,6 +86,7 @@ namespace GVFS.Mount
             this.enlistment = enlistment;
             this.showDebugWindow = showDebugWindow;
             this.unmountEvent = new ManualResetEvent(false);
+            this.mountFailureReporter = new MountFailureReporter(tracer);
             this.missingTreeTracker = new MissingTreeTracker(tracer, TrackedTreeCapacity);
         }
 
@@ -258,6 +263,8 @@ namespace GVFS.Mount
             this.mountProgressMessage = "Authenticating and validating";
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
+                this.mountFailureReporter.OnNamedPipeReady();
+
                 this.tracer.RelatedEvent(
                     EventLevel.Informational,
                     $"{nameof(this.Mount)}_StartedNamedPipe",
@@ -640,22 +647,74 @@ namespace GVFS.Mount
 
         private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
         {
+            // Format before taking ownership. RelatedError would otherwise format a second
+            // time without protection, and a throw there would re-enter this method from an
+            // outer catch block.
+            string failureMessage = MountFailureReporter.FormatFailure(error, args);
+
+            switch (this.mountFailureReporter.TryTakeOwnership(failureMessage))
+            {
+                case MountFailureOwnership.Reentrant:
+                    // Something below threw and an outer catch called back in. The failure
+                    // was already reported, so exit rather than wait on ourselves.
+                    this.tracer.RelatedWarning(
+                        null,
+                        $"{nameof(this.FailMountAndExit)}: Re-entered while reporting a mount failure: {failureMessage}",
+                        Keywords.Telemetry);
+                    Environment.Exit((int)returnCode);
+                    break;
+
+                case MountFailureOwnership.NotOwner:
+                    // Another thread owns the failure path and will exit the process. Block
+                    // rather than return: every caller of FailMountAndExit assumes it never
+                    // returns and would otherwise run on with a half-initialized mount.
+                    BlockUntilProcessExits();
+                    break;
+            }
+
             this.currentState = MountState.MountFailed;
 
-            this.tracer.RelatedError(error, args);
+            this.tracer.RelatedError(failureMessage);
             if (this.showDebugWindow)
             {
                 Console.WriteLine("\nPress Enter to Exit");
                 Console.ReadLine();
             }
 
-            if (this.fileSystemCallbacks != null)
+            // Report the failure before tearing anything down. Disposal can be slow, and a
+            // secondary exception thrown from it would kill the process before the client
+            // ever reads the reason -- which is what made mount failures surface as
+            // BrokenPipeException instead of the real cause.
+            this.mountFailureReporter.WaitForClientToReadFailure();
+
+            try
             {
-                this.fileSystemCallbacks.Dispose();
-                this.fileSystemCallbacks = null;
+                if (this.fileSystemCallbacks != null)
+                {
+                    this.fileSystemCallbacks.Dispose();
+                    this.fileSystemCallbacks = null;
+                }
+            }
+            catch (Exception e)
+            {
+                // Traced with Telemetry because this used to be a process-fatal crash. Without
+                // the keyword the failure it replaced would become invisible in the field.
+                this.tracer.RelatedWarning(
+                    null,
+                    $"{nameof(this.FailMountAndExit)}: Exception while disposing file system callbacks: {e}",
+                    Keywords.Telemetry);
             }
 
             Environment.Exit((int)returnCode);
+        }
+
+        /// <summary>
+        /// Parks the calling thread until another thread exits the process. Used where a
+        /// method must not return but is not the thread that owns the exit.
+        /// </summary>
+        private static void BlockUntilProcessExits()
+        {
+            Thread.Sleep(Timeout.Infinite);
         }
 
         private T CreateOrReportAndExit<T>(Func<T> factory, string reportMessage)
@@ -1418,6 +1477,8 @@ namespace GVFS.Mount
 
         private void HandleGetStatusRequest(NamedPipeServer.Connection connection)
         {
+            MountState state = this.currentState;
+
             NamedPipeMessages.GetStatus.Response response = new NamedPipeMessages.GetStatus.Response();
             response.EnlistmentRoot = this.enlistment.WorkingDirectoryRoot;
             response.LocalCacheRoot = !string.IsNullOrWhiteSpace(this.enlistment.LocalCacheRoot) ? this.enlistment.LocalCacheRoot : this.enlistment.GitObjectsRoot;
@@ -1426,7 +1487,7 @@ namespace GVFS.Mount
             response.LockStatus = this.context?.Repository?.GVFSLock != null ? this.context.Repository.GVFSLock.GetStatus() : "Unavailable";
             response.DiskLayoutVersion = $"{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion}.{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion}";
 
-            switch (this.currentState)
+            switch (state)
             {
                 case MountState.Mounting:
                     response.MountStatus = NamedPipeMessages.GetStatus.Mounting;
@@ -1448,6 +1509,7 @@ namespace GVFS.Mount
 
                 case MountState.MountFailed:
                     response.MountStatus = NamedPipeMessages.GetStatus.MountFailed;
+                    response.MountError = this.mountFailureReporter.FailureMessage;
                     break;
 
                 default:
@@ -1455,7 +1517,12 @@ namespace GVFS.Mount
                     break;
             }
 
-            connection.TrySendResponse(response.ToJson());
+            bool sent = connection.TrySendResponse(response.ToJson());
+
+            if (sent)
+            {
+                this.mountFailureReporter.OnStatusDelivered(carriedMountFailure: state == MountState.MountFailed);
+            }
         }
 
         private void HandleUnmountRequest(NamedPipeServer.Connection connection)
