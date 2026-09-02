@@ -17,7 +17,7 @@ namespace GVFS.Common.Http
             this.repoUrl = enlistment.RepoUrl;
         }
 
-        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus, out string errorMessage)
+        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus, out string errorMessage, bool forceAnonymous = false)
         {
             serverGVFSConfig = null;
             httpStatus = null;
@@ -56,7 +56,8 @@ namespace GVFS.Common.Http
                         gvfsConfigEndpoint,
                         HttpMethod.Get,
                         requestContent: null,
-                        cancellationToken: CancellationToken.None))
+                        cancellationToken: CancellationToken.None,
+                        forceAnonymous: forceAnonymous))
                     {
                         if (response.HasErrors)
                         {

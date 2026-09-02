@@ -1,5 +1,6 @@
 using GVFS.Common;
 using GVFS.Common.Http;
+using System;
 using System.Net;
 
 namespace GVFS.UnitTests.Mock.Http
@@ -9,7 +10,7 @@ namespace GVFS.UnitTests.Mock.Http
     /// with a fixed /gvfs/config probe outcome so the anonymous / authenticated /
     /// indeterminate branches can be tested without a server.
     /// </summary>
-    public class MockGVFSConfigRequestor : IGVFSConfigRequestor
+    internal class MockGVFSConfigRequestor : IGVFSConfigRequestor
     {
         private readonly bool succeedAnonymously;
         private readonly HttpStatusCode? statusCode;
@@ -20,7 +21,22 @@ namespace GVFS.UnitTests.Mock.Http
             this.statusCode = statusCode;
         }
 
+        /// <summary>
+        /// Number of times the probe was issued.
+        /// </summary>
         public int QueryCount { get; private set; }
+
+        /// <summary>
+        /// The value of <paramref name="forceAnonymous"/> on the most recent probe.
+        /// </summary>
+        public bool LastQueryForcedAnonymous { get; private set; }
+
+        /// <summary>
+        /// Runs while the probe is "in flight", so a test can observe the
+        /// authentication state that a real requestor would see at that moment.
+        /// The argument is the probe's <c>forceAnonymous</c> value.
+        /// </summary>
+        public Action<bool> OnQuery { get; set; }
 
         /// <summary>
         /// The server allows anonymous access: the unauthenticated probe returns the config.
@@ -48,9 +64,11 @@ namespace GVFS.UnitTests.Mock.Http
             return new MockGVFSConfigRequestor(succeedAnonymously: false, statusCode: statusCode);
         }
 
-        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus, out string errorMessage)
+        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus, out string errorMessage, bool forceAnonymous = false)
         {
             this.QueryCount++;
+            this.LastQueryForcedAnonymous = forceAnonymous;
+            this.OnQuery?.Invoke(forceAnonymous);
 
             httpStatus = this.statusCode;
 

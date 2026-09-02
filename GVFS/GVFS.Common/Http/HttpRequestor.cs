@@ -98,17 +98,31 @@ namespace GVFS.Common.Http
             }
         }
 
+        /// <param name="forceAnonymous">
+        /// Sends the request without credentials regardless of the authentication
+        /// state. Required by the /gvfs/config probe that DETERMINES whether the
+        /// server allows anonymous access: that probe runs before initialization
+        /// completes, so it must not call <see cref="GitAuthentication.TryGetCredentials"/>,
+        /// which would wait for the initialization this very request is part of.
+        /// </param>
         protected GitEndPointResponseData SendRequest(
             long requestId,
             Uri requestUri,
             HttpMethod httpMethod,
             string requestContent,
             CancellationToken cancellationToken,
-            MediaTypeWithQualityHeaderValue acceptType = null)
+            MediaTypeWithQualityHeaderValue acceptType = null,
+            bool forceAnonymous = false)
         {
+            // Resolve the anonymous decision once. Another thread can change
+            // IsAnonymous while this request is in flight, and the credential
+            // gate, the Authorization header, and the response handling below
+            // must all agree on a single value.
+            bool sendAnonymous = forceAnonymous || this.authentication.IsAnonymous;
+
             string authString = null;
             string errorMessage;
-            if (!this.authentication.IsAnonymous &&
+            if (!sendAnonymous &&
                 !this.authentication.TryGetCredentials(this.Tracer, out authString, out errorMessage))
             {
                 return new GitEndPointResponseData(
@@ -127,7 +141,7 @@ namespace GVFS.Common.Http
 
             request.Headers.UserAgent.Add(this.userAgentHeader);
 
-            if (!this.authentication.IsAnonymous)
+            if (!sendAnonymous)
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Basic", authString);
             }
@@ -205,7 +219,7 @@ namespace GVFS.Common.Http
                     string contentType = GetSingleHeaderOrEmpty(response.Content.Headers, "Content-Type");
                     responseMetadata.Add("ContentType", contentType);
 
-                    if (!this.authentication.IsAnonymous)
+                    if (!sendAnonymous)
                     {
                         this.authentication.ApproveCredentials(this.Tracer, authString);
                     }
@@ -227,8 +241,11 @@ namespace GVFS.Common.Http
                     bool shouldRetry = ShouldRetry(response.StatusCode);
 
                     if (response.StatusCode == HttpStatusCode.Unauthorized &&
-                        this.authentication.IsAnonymous)
+                        sendAnonymous)
                     {
+                        // The request carried no credentials, so there is nothing to
+                        // reject. For the initial probe this is the definitive answer
+                        // that the server requires authentication.
                         shouldRetry = false;
                         errorMessage = "Anonymous request was rejected with a 401";
                     }

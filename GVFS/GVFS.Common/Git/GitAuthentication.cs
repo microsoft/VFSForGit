@@ -84,7 +84,7 @@ namespace GVFS.Common.Git
         /// probe outcome - anonymous success, 401, or an indeterminate network
         /// failure - can be driven deterministically.
         /// </summary>
-        internal Func<ITracer, Enlistment, RetryConfig, IGVFSConfigRequestor> ConfigRequestorFactory { get; set; }
+        internal IGVFSConfigRequestor ConfigRequestorOverride { get; set; }
 
         private GitSsl GitSsl { get; }
 
@@ -280,15 +280,21 @@ namespace GVFS.Common.Git
             errorMessage = null;
             isAuthFailure = false;
 
-            using (IGVFSConfigRequestor configRequestor = this.ConfigRequestorFactory != null
-                ? this.ConfigRequestorFactory(tracer, enlistment, retryConfig)
-                : new ConfigHttpRequestor(tracer, enlistment, retryConfig))
+            IGVFSConfigRequestor configRequestor = this.ConfigRequestorOverride ?? new ConfigHttpRequestor(tracer, enlistment, retryConfig);
+            using (configRequestor)
             {
                 HttpStatusCode? httpStatus;
 
                 // First attempt without credentials. If anonymous access works,
                 // we get the config in a single request.
-                if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out _))
+                //
+                // forceAnonymous is required, not incidental: this probe is what
+                // DETERMINES whether the server allows anonymous access, so it must
+                // not consult the answer it is computing. Without it, SendRequest
+                // sees IsAnonymous == false and calls TryGetCredentials, which waits
+                // for the initialization this very call stack is performing - a
+                // self-deadlock that stalls every mount until the wait times out.
+                if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out _, forceAnonymous: true))
                 {
                     this.IsAnonymous = true;
                     this.MarkInitialized();
@@ -313,10 +319,27 @@ namespace GVFS.Common.Git
                     // already latched - so re-initialization throws. Mount proceeds
                     // when a cache server is configured, so the repo stays mounted but
                     // cannot hydrate or enumerate until it is remounted.
+                    // Assigning IsAnonymous here is defensive: the field already
+                    // defaults to false and no earlier path in this method can set it
+                    // true without returning, so this states the outcome explicitly
+                    // rather than relying on the default staying false.
                     this.IsAnonymous = false;
                     this.MarkInitialized();
                     errorMessage = "Unable to query /gvfs/config";
-                    tracer.RelatedWarning("{0}: Config query failed with status {1}; assuming authentication is required", nameof(this.TryInitializeAndQueryGVFSConfig), httpStatus?.ToString() ?? "None");
+
+                    // Emit this with Keywords.Telemetry so the population hitting an
+                    // indeterminate probe is measurable in the field. The plain
+                    // RelatedWarning(string, params object[]) overload traces with
+                    // Keywords.None, which TelemetryDaemonEventListener filters out.
+                    EventMetadata indeterminateMetadata = new EventMetadata(new Dictionary<string, object>
+                    {
+                        ["Area"] = nameof(GitAuthentication),
+                        ["HttpStatus"] = httpStatus?.ToString() ?? "None",
+                    });
+                    tracer.RelatedWarning(
+                        indeterminateMetadata,
+                        $"{nameof(this.TryInitializeAndQueryGVFSConfig)}: Config query failed with status {httpStatus?.ToString() ?? "None"}; assuming authentication is required",
+                        Keywords.Telemetry);
                     return false;
                 }
 
