@@ -20,10 +20,20 @@ namespace GVFS.Common.Http
 
         public static CacheServerInfo GetCacheServerFromConfig(Enlistment enlistment)
         {
+            GitProcess git = enlistment.CreateGitProcess();
             string url = GetUrlFromConfig(enlistment);
+            string prefetchCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.PrefetchCacheServer);
+            string getCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.GetCacheServer);
+            string postCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.PostCacheServer);
+            string sizesCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.SizesCacheServer);
             return new CacheServerInfo(
                 url,
-                url == enlistment.RepoUrl ? CacheServerInfo.ReservedNames.None : null);
+                url == enlistment.RepoUrl ? CacheServerInfo.ReservedNames.None : null,
+                globalDefault: false,
+                prefetchCacheServerUrl,
+                getCacheServerUrl,
+                postCacheServerUrl,
+                sizesCacheServerUrl);
         }
 
         public static string GetUrlFromConfig(Enlistment enlistment)
@@ -129,6 +139,22 @@ namespace GVFS.Common.Http
             return result.ExitCodeIsSuccess;
         }
 
+        public bool TrySaveEndpointUrlsToLocalConfig(CacheServerInfo cache, out string error)
+        {
+            GitProcess git = this.enlistment.CreateGitProcess();
+
+            if (!TrySaveEndpointUrl(git, GVFSConstants.GitConfig.PrefetchCacheServer, cache.PrefetchCacheServerUrl, out error) ||
+                !TrySaveEndpointUrl(git, GVFSConstants.GitConfig.GetCacheServer, cache.GetCacheServerUrl, out error) ||
+                !TrySaveEndpointUrl(git, GVFSConstants.GitConfig.PostCacheServer, cache.PostCacheServerUrl, out error) ||
+                !TrySaveEndpointUrl(git, GVFSConstants.GitConfig.SizesCacheServer, cache.SizesCacheServerUrl, out error))
+            {
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
         private static string GetValueFromConfig(GitProcess git, string configName, bool localOnly)
         {
             GitProcess.ConfigResult result =
@@ -142,6 +168,30 @@ namespace GVFS.Common.Http
             }
 
             return value;
+        }
+
+        private static string GetEndpointUrlFromConfig(GitProcess git, string configName)
+        {
+            string url = GetValueFromConfig(git, configName, localOnly: true);
+            if (url != null && !CacheServerInfo.IsValidUrl(url))
+            {
+                throw new InvalidRepoException($"Invalid value for {configName}: '{url}' is not an absolute URL.");
+            }
+
+            return url;
+        }
+
+        private static bool TrySaveEndpointUrl(GitProcess git, string configName, string url, out string error)
+        {
+            error = null;
+            if (url == null)
+            {
+                return true;
+            }
+
+            GitProcess.Result result = git.SetInLocalConfig(configName, url, replaceAll: true);
+            error = result.Errors;
+            return result.ExitCodeIsSuccess;
         }
 
         private static string GetDeprecatedCacheConfigSettingName(Enlistment enlistment)

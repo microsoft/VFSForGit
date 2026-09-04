@@ -1,13 +1,19 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Security;
+using System.Threading;
 
 namespace GVFS.UnitTests.Git
 {
@@ -124,6 +130,61 @@ namespace GVFS.UnitTests.Git
             moved.ShouldBeTrue("File was not moved");
         }
 
+        [TestCase]
+        public void PrefetchFailureTelemetryReportsOnlyRequestAuthority()
+        {
+            const string RequestUrl = "https://user:secret@cache.example:8443/gvfs/prefetch?token=sensitive";
+            MockTracer tracer = new MockTracer();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            TestPrefetchRequestor requestor = new TestPrefetchRequestor(
+                tracer,
+                enlistment,
+                HttpStatusCode.ServiceUnavailable,
+                new Uri(RequestUrl));
+            GitObjects gitObjects = new GVFSGitObjects(
+                new GVFSContext(tracer, new MockFileSystemWithCallbacks(), null, enlistment),
+                requestor);
+
+            gitObjects.TryDownloadPrefetchPacks(
+                gitProcess: null,
+                latestTimestamp: 0,
+                trustPackIndexes: false,
+                out List<string> _)
+                .ShouldEqual(false);
+
+            tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            tracer.StartActivityTracer.RelatedWarningEvents[0].ShouldContain("\"PrefetchEndpointUrl\":\"cache.example:8443\"");
+            tracer.StartActivityTracer.RelatedWarningEvents[0].IndexOf("user", StringComparison.Ordinal).ShouldEqual(-1);
+            tracer.StartActivityTracer.RelatedWarningEvents[0].IndexOf("secret", StringComparison.Ordinal).ShouldEqual(-1);
+            tracer.StartActivityTracer.RelatedWarningEvents[0].IndexOf("sensitive", StringComparison.Ordinal).ShouldEqual(-1);
+        }
+
+        [TestCase]
+        public void UnsupportedPrefetchTelemetryReportsOnlyRequestAuthority()
+        {
+            const string RequestUrl = "https://user:secret@cache.example:8443/gvfs/prefetch?token=sensitive";
+            MockTracer tracer = new MockTracer();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            TestPrefetchRequestor requestor = new TestPrefetchRequestor(
+                tracer,
+                enlistment,
+                HttpStatusCode.NotFound,
+                new Uri(RequestUrl));
+            GitObjects gitObjects = new GVFSGitObjects(
+                new GVFSContext(tracer, new MockFileSystemWithCallbacks(), null, enlistment),
+                requestor);
+
+            gitObjects.TryDownloadPrefetchPacks(
+                gitProcess: null,
+                latestTimestamp: 0,
+                trustPackIndexes: false,
+                out List<string> _)
+                .ShouldEqual(false);
+
+            EventMetadata metadata = tracer.StartActivityTracer.RelatedEventMetadata[0];
+            metadata["PrefetchEndpointUrl"].ShouldEqual("cache.example:8443");
+        }
+
         private Stream OnOpenFileStream(string path, FileMode mode, FileAccess access)
         {
             this.openedPaths.Add(path);
@@ -143,6 +204,41 @@ namespace GVFS.UnitTests.Git
         private bool OnFileExists(string path)
         {
             return this.pathsToData.TryGetValue(path, out _);
+        }
+
+        private class TestPrefetchRequestor : GitObjectsHttpRequestor
+        {
+            private readonly HttpStatusCode statusCode;
+            private readonly Uri requestUri;
+
+            public TestPrefetchRequestor(
+                ITracer tracer,
+                Enlistment enlistment,
+                HttpStatusCode statusCode,
+                Uri requestUri)
+                : base(tracer, enlistment, new CacheServerInfo("https://cache.example/server", "cache"), new RetryConfig(0))
+            {
+                this.statusCode = statusCode;
+                this.requestUri = requestUri;
+            }
+
+            public override RetryWrapper<GitObjectTaskResult>.InvocationResult TrySendProtocolRequest(
+                long requestId,
+                Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
+                Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
+                HttpMethod method,
+                Func<Uri> endPointGenerator,
+                Func<string> requestBodyGenerator,
+                CancellationToken cancellationToken,
+                MediaTypeWithQualityHeaderValue acceptType = null,
+                bool retryOnFailure = true,
+                Func<Uri> fallbackEndPointGenerator = null)
+            {
+                return new RetryWrapper<GitObjectTaskResult>.InvocationResult(
+                    tryCount: 1,
+                    new GitObjectsHttpException(this.statusCode, "Test failure"),
+                    new GitObjectTaskResult(this.statusCode, this.requestUri));
+            }
         }
     }
 }

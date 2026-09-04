@@ -237,7 +237,9 @@ namespace FastFetch
                 string fastfetchLogFile = Enlistment.GetNewLogFileName(enlistment.FastFetchLogRoot, "fastfetch");
                 tracer.AddLogFileEventListener(fastfetchLogFile, EventLevel.Informational, Keywords.Any);
 
-                CacheServerInfo cacheServer = new CacheServerInfo(this.GetRemoteUrl(enlistment), null);
+                CacheServerInfo cacheServer = string.IsNullOrWhiteSpace(this.CacheServerUrl)
+                    ? CacheServerResolver.GetCacheServerFromConfig(enlistment)
+                    : new CacheServerInfo(this.GetRemoteUrl(enlistment), null);
 
                 tracer.WriteStartEvent(
                     enlistment.PrimaryEnlistmentRoot,

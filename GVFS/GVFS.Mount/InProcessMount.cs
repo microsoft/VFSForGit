@@ -353,7 +353,10 @@ namespace GVFS.Mount
 
                 this.mountProgressMessage = "Resolving cache server";
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
-                this.cacheServer = cacheServerResolver.ResolveNameFromRemote(this.cacheServer.Url, serverGVFSConfig);
+                CacheServerInfo cacheServerFromConfig = this.cacheServer;
+                this.cacheServer = cacheServerResolver
+                    .ResolveNameFromRemote(cacheServerFromConfig.Url, serverGVFSConfig)
+                    .WithEndpointOverridesFrom(cacheServerFromConfig);
 
                 this.tracer.RelatedEvent(
                     EventLevel.Informational,

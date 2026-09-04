@@ -88,7 +88,7 @@ namespace GVFS.Common
                     CallbackResult result = toInvoke(tryCount);
                     if (result.HasErrors)
                     {
-                        if (result.ShouldRetry)
+                        if (result.ShouldRecordFailure)
                         {
                             RetryCircuitBreaker.RecordFailure();
                         }
@@ -224,6 +224,7 @@ namespace GVFS.Common
                 this.HasErrors = true;
                 this.Error = error;
                 this.ShouldRetry = shouldRetry;
+                this.ShouldRecordFailure = shouldRetry;
             }
 
             public CallbackResult(Exception error, bool shouldRetry, T result)
@@ -232,9 +233,16 @@ namespace GVFS.Common
                 this.Result = result;
             }
 
+            public CallbackResult(Exception error, bool shouldRetry, T result, bool shouldRecordFailure)
+                : this(error, shouldRetry, result)
+            {
+                this.ShouldRecordFailure = shouldRecordFailure;
+            }
+
             public bool HasErrors { get; }
             public Exception Error { get; }
             public bool ShouldRetry { get; }
+            public bool ShouldRecordFailure { get; }
             public T Result { get; }
         }
     }

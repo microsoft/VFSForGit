@@ -180,6 +180,11 @@ namespace GVFS.Common.Git
                             "{0}?lastPackTimestamp={1}",
                             this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl,
                             latestTimestamp)),
+                    fallbackEndPointGenerator: () => new Uri(
+                        string.Format(
+                            "{0}?lastPackTimestamp={1}",
+                            this.GitObjectRequestor.CacheServer.GlobalPrefetchEndpointUrl,
+                            latestTimestamp)),
                     requestBodyGenerator: () => null,
                     cancellationToken: CancellationToken.None,
                     acceptType: new MediaTypeWithQualityHeaderValue(GVFSConstants.MediaTypes.PrefetchPackFilesAndIndexesMediaType));
@@ -188,18 +193,21 @@ namespace GVFS.Common.Git
 
                 if (!result.Succeeded)
                 {
+                    Uri requestUri = result.Result?.RequestUri
+                        ?? new Uri(this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl);
+                    string requestAuthority = HttpRequestor.GetAuthorityForTelemetry(requestUri);
                     if (result.Result != null && result.Result.HttpStatusCodeResult == HttpStatusCode.NotFound)
                     {
                         EventMetadata warning = CreateEventMetadata();
                         warning.Add(TracingConstants.MessageKey.WarningMessage, "The server does not support " + GVFSConstants.Endpoints.GVFSPrefetch);
-                        warning.Add(nameof(this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl), this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl);
+                        warning.Add("PrefetchEndpointUrl", requestAuthority);
                         activity.RelatedEvent(EventLevel.Warning, "CommandNotSupported", warning);
                     }
                     else
                     {
                         EventMetadata error = CreateEventMetadata(result.Error);
                         error.Add("latestTimestamp", latestTimestamp);
-                        error.Add(nameof(this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl), this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl);
+                        error.Add("PrefetchEndpointUrl", requestAuthority);
                         activity.RelatedWarning(error, "DownloadPrefetchPacks failed.", Keywords.Telemetry);
                     }
                 }
