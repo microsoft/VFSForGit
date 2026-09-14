@@ -77,6 +77,7 @@ namespace GVFS.FunctionalTests.Tools
             GitProcess.Invoke(this.RootPath, "config core.abbrev 40");
             GitProcess.Invoke(this.RootPath, "config checkout.workers 0");
             GitProcess.Invoke(this.RootPath, "config core.useBuiltinFSMonitor false");
+            GitProcess.Invoke(this.RootPath, "config core.fsmonitor false");
             GitProcess.Invoke(this.RootPath, "config pack.useSparse true");
             GitProcess.Invoke(this.RootPath, "config reset.quiet true");
             GitProcess.Invoke(this.RootPath, "config status.aheadbehind false");
