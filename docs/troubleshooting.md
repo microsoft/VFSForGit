@@ -237,6 +237,26 @@ Run `gvfs cache-server --list` to see the available cache server URLs.
 
 Run `gvfs cache-server --set=<url>` to set your cache server to `<url>`.
 
+Individual GVFS protocol endpoints can prefer dedicated cache servers through
+these local Git configuration values:
+
+| Configuration | Requests |
+| --- | --- |
+| `gvfs.prefetch.cache-server` | `/gvfs/prefetch` |
+| `gvfs.get.cache-server` | Loose-object GET requests under `/gvfs/objects` |
+| `gvfs.post.cache-server` | Batched-object POST requests to `/gvfs/objects` |
+| `gvfs.sizes.cache-server` | `/gvfs/sizes` |
+
+Each value must be an absolute URL. A dedicated endpoint server is attempted
+before `gvfs.cache-server`; if that request fails, VFS for Git falls back to
+the global cache server. Sizes requests also fall back from the global cache
+to the origin server when `/gvfs/sizes` is not supported.
+
+`gvfs cache-server --get` and `--set` operate on the global
+`gvfs.cache-server` value. Setting the global server does not clear the four
+endpoint-specific values. Inspect or change those values with `git config
+--local <name> [<url>]`.
+
 ### System-wide Config
 
 The `gvfs config` command allows customizing some behavior.

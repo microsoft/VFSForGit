@@ -37,7 +37,7 @@ jobs:
     - name: Look for prior successful runs
       id: check
       if: github.event.inputs.git_version == ''
-      uses: actions/github-script@v9
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
         result-encoding: string
@@ -199,7 +199,7 @@ jobs:
 
     - name: Checkout source
       if: steps.check.outputs.result == ''
-      uses: actions/checkout@v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Validate Microsoft Git version
       if: steps.check.outputs.result == ''
@@ -249,7 +249,7 @@ jobs:
 
     - name: Upload microsoft/git installers
       if: steps.check.outputs.result == ''
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: MicrosoftGit
         path: MicrosoftGit
@@ -269,7 +269,7 @@ jobs:
     - name: Skip this job if there is a previous successful run
       if: needs.validate.outputs.skip != ''
       id: skip
-      uses: actions/github-script@v9
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       with:
         script: |
           core.info(`Skipping: There already is a successful run: ${{ needs.validate.outputs.skip }}`)
@@ -277,19 +277,19 @@ jobs:
 
     - name: Checkout source
       if: steps.skip.outputs.result != 'true'
-      uses: actions/checkout@v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         path: src
 
     - name: Install .NET SDK
       if: steps.skip.outputs.result != 'true'
-      uses: actions/setup-dotnet@v6
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
         global-json-file: src/global.json
 
     - name: Add MSBuild to PATH
       if: steps.skip.outputs.result != 'true'
-      uses: microsoft/setup-msbuild@v3.0.0
+      uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3.0.0
 
     - name: Build VFS for Git
       if: steps.skip.outputs.result != 'true'
@@ -308,21 +308,21 @@ jobs:
 
     - name: Upload functional tests drop
       if: steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: FunctionalTests_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: artifacts\GVFS.FunctionalTests
 
     - name: Upload FastFetch drop
       if: steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: FastFetch_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: artifacts\FastFetch
 
     - name: Upload GVFS installer
       if: steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: GVFS_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: artifacts\GVFS.Installers

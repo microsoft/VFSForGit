@@ -328,7 +328,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         }
 
         [TestCase]
-        public void GetDirectoryEnumerationTagsEvictedVersusUnknownId()
+        public void GetDirectoryEnumerationTagsMissReasonAndDeduplicates()
         {
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test" }))
             {
@@ -355,11 +355,121 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 mockTracker.RelatedErrorEvents.Any(
                     e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"Evicted\"")).ShouldBeTrue();
 
-                // A Get for an ID GVFS never held is attributed to a ProjFS unknown-ID delivery.
+                // A Get for an ID GVFS never held is attributed to a never-seen delivery.
                 Guid neverSeenId = Guid.NewGuid();
                 tester.MockVirtualization.RequiredCallbacks.GetDirectoryEnumerationCallback(4, neverSeenId, string.Empty, false, null).ShouldEqual(HResult.InternalError);
                 mockTracker.RelatedErrorEvents.Any(
-                    e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"Unknown\"")).ShouldBeTrue();
+                    e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"NeverSeen\"")).ShouldBeTrue();
+
+                // A Get that races/follows the End for the same enumeration is attributed to a benign
+                // close/query race, not a never-seen delivery.
+                Guid endedId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(5, endedId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(endedId).ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.RequiredCallbacks.GetDirectoryEnumerationCallback(6, endedId, string.Empty, false, null).ShouldEqual(HResult.InternalError);
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"EndedRecently\"")).ShouldBeTrue();
+
+                // Repeated Gets for the same missing ID are de-duplicated: the error is emitted once,
+                // so a caller's retry loop cannot produce a telemetry storm.
+                int errorsForNeverSeenId = mockTracker.RelatedErrorEvents.Count(e => e.Contains("\"EnumerationFailureReason\":\"NeverSeen\""));
+                tester.MockVirtualization.RequiredCallbacks.GetDirectoryEnumerationCallback(7, neverSeenId, string.Empty, false, null).ShouldEqual(HResult.InternalError);
+                tester.MockVirtualization.RequiredCallbacks.GetDirectoryEnumerationCallback(8, neverSeenId, string.Empty, false, null).ShouldEqual(HResult.InternalError);
+                mockTracker.RelatedErrorEvents.Count(e => e.Contains("\"EnumerationFailureReason\":\"NeverSeen\"")).ShouldEqual(errorsForNeverSeenId);
+            }
+        }
+
+        [TestCase]
+        public void EndDirectoryEnumerationRecordsEndedBeforeRemovingFromActive()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test" }))
+            {
+                tester.GitIndexProjection.EnumerationInMemory = true;
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+
+                Guid endedId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, endedId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+
+                // Capture the state at the exact interleaving point a concurrent Get would observe:
+                // after End records the ended ID but before it removes it from activeEnumerations. This
+                // is the ordering the fix guarantees; a remove-before-record regression would fail it.
+                bool activeAtHook = false;
+                bool recentlyEndedAtHook = false;
+                tester.WindowsVirtualizer.EnumerationEndBeforeRemoveHookForTest = () =>
+                {
+                    activeAtHook = tester.WindowsVirtualizer.ActiveEnumerationsContainsForTest(endedId);
+                    recentlyEndedAtHook = tester.WindowsVirtualizer.EnumerationFailureTrackerForTest.ClassifyMiss(endedId) == EnumerationFailureReason.EndedRecently;
+                };
+
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(endedId).ShouldEqual(HResult.Ok);
+
+                // The end was recorded before the removal, and the entry was still live at that point,
+                // so there is no window where the ID is absent from BOTH maps - a racing Get can never
+                // be misclassified NeverSeen.
+                recentlyEndedAtHook.ShouldBeTrue();
+                activeAtHook.ShouldBeTrue();
+
+                // After End completes the ID is out of the active set but still tracked as recently ended.
+                tester.WindowsVirtualizer.ActiveEnumerationsContainsForTest(endedId).ShouldBeFalse();
+                tester.WindowsVirtualizer.EnumerationFailureTrackerForTest.ClassifyMiss(endedId).ShouldEqual(EnumerationFailureReason.EndedRecently);
+                mockTracker.RelatedErrorEvents.Any(e => e.Contains("Failed to find active enumeration ID")).ShouldBeFalse();
+            }
+        }
+
+        [TestCase]
+        public void GetDirectoryEnumerationPrefersEvictedWhenIdIsBothEvictedAndEnded()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test" }))
+            {
+                tester.GitIndexProjection.EnumerationInMemory = true;
+                tester.WindowsVirtualizer.MaxActiveEnumerationsForTest = 1;
+                tester.WindowsVirtualizer.ActiveEnumerationStaleTimeoutForTest = TimeSpan.FromMilliseconds(20);
+
+                Guid staleId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, staleId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+
+                Thread.Sleep(200);
+
+                Guid freshId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(2, freshId, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+
+                // Evict staleId: it lands in the recently-evicted map and leaves the active set.
+                tester.WindowsVirtualizer.ForceEnumerationEvictionSweepForTest();
+
+                // A late End for the same ID also records it in the recently-ended map (the removal
+                // itself fails because eviction already removed it), so the ID is now in BOTH maps.
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(staleId).ShouldEqual(HResult.InternalError);
+
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+
+                // The classifier checks eviction first, so the more actionable self-inflicted cause wins.
+                tester.MockVirtualization.RequiredCallbacks.GetDirectoryEnumerationCallback(3, staleId, string.Empty, false, null).ShouldEqual(HResult.InternalError);
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"Evicted\"")).ShouldBeTrue();
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"EndedRecently\"")).ShouldBeFalse();
+            }
+        }
+
+        [TestCase]
+        public void EndForNeverHeldIdDoesNotSkewLaterGetToEndedRecently()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test" }))
+            {
+                tester.GitIndexProjection.EnumerationInMemory = true;
+                MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+
+                // End arrives for an ID GVFS never held (no prior Start), so the removal finds nothing
+                // and it was not evicted. The ended marker recorded before the removal must be undone.
+                Guid neverHeldId = Guid.NewGuid();
+                tester.MockVirtualization.RequiredCallbacks.EndDirectoryEnumerationCallback(neverHeldId).ShouldEqual(HResult.InternalError);
+
+                // A later Get for that ID is therefore classified NeverSeen, not skewed to EndedRecently.
+                tester.MockVirtualization.RequiredCallbacks.GetDirectoryEnumerationCallback(1, neverHeldId, string.Empty, false, null).ShouldEqual(HResult.InternalError);
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"NeverSeen\"")).ShouldBeTrue();
+                mockTracker.RelatedErrorEvents.Any(
+                    e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"EndedRecently\"")).ShouldBeFalse();
             }
         }
 

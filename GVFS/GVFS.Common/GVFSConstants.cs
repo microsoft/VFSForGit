@@ -33,6 +33,10 @@ namespace GVFS.Common
             public const string MountId = GVFSPrefix + "mount-id";
             public const string EnlistmentId = GVFSPrefix + "enlistment-id";
             public const string CacheServer = GVFSPrefix + "cache-server";
+            public const string PrefetchCacheServer = GVFSPrefix + "prefetch.cache-server";
+            public const string GetCacheServer = GVFSPrefix + "get.cache-server";
+            public const string PostCacheServer = GVFSPrefix + "post.cache-server";
+            public const string SizesCacheServer = GVFSPrefix + "sizes.cache-server";
             public const string DeprecatedCacheEndpointSuffix = ".cache-server-url";
             public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
             public const string GVFSTelemetryId = GitConfig.GVFSPrefix + "telemetry-id";
@@ -44,6 +48,13 @@ namespace GVFS.Common
              * before it is enabled by default. */
             public const string TrustPackIndexes = GVFSPrefix + "trust-pack-indexes";
             public const bool TrustPackIndexesDefault = true;
+
+            /* Kill switch for the destructive part of packfile-maintenance corruption recovery: when
+             * false, GVFS still detects and reports corrupt packs but does not delete them (or later
+             * prefetch packs) and does not request a restoring prefetch. Detection/telemetry is
+             * unaffected; the non-destructive multi-pack-index rewrite still runs. */
+            public const string EnablePackfileRecovery = GVFSPrefix + "enable-packfile-recovery";
+            public const bool EnablePackfileRecoveryDefault = true;
 
             public const string ShowHydrationStatus = GVFSPrefix + "show-hydration-status";
             public const bool ShowHydrationStatusDefault = false;
