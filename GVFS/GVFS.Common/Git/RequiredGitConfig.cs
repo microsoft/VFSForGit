@@ -183,6 +183,9 @@ namespace GVFS.Common.Git
 
                 // Disable the builtin FS Monitor in case it was enabled globally.
                 { "core.useBuiltinFSMonitor", "false" },
+
+                // Disable the FS Monitor in case it was enabled globally.
+                { "core.fsmonitor", "false" },
             };
         }
     }
