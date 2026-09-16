@@ -475,6 +475,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, serverGVFSConfig);
             }
 
+            resolvedCacheServer = resolvedCacheServer.WithEndpointOverridesFrom(cacheServer);
             this.Output.WriteLine("Using cache server: " + resolvedCacheServer);
             return resolvedCacheServer;
         }
@@ -526,7 +527,7 @@ You can specify a URL, a name of a configured cache server, or the special names
 
             if (!gitObjects.TryDownloadCommit(commitId))
             {
-                error = "Could not download commit " + commitId + " from: " + Uri.EscapeDataString(objectRequestor.CacheServer.ObjectsEndpointUrl);
+                error = "Could not download commit " + commitId + " from: " + Uri.EscapeDataString(objectRequestor.CacheServer.ObjectsPostEndpointUrl);
                 return false;
             }
 

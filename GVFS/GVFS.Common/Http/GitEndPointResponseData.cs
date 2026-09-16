@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.Common.Http
 {
@@ -30,7 +32,7 @@ namespace GVFS.Common.Http
         public GitEndPointResponseData(HttpStatusCode statusCode, string contentType, Stream responseStream, HttpResponseMessage message, Action onResponseDisposed)
             : this(statusCode, null, false, message, onResponseDisposed)
         {
-            this.Stream = responseStream;
+            this.Stream = responseStream == null ? null : new ReadErrorTrackingStream(responseStream);
             this.ContentType = MapContentType(contentType);
         }
 
@@ -41,6 +43,11 @@ namespace GVFS.Common.Http
         public HttpStatusCode StatusCode { get; }
 
         public Stream Stream { get; private set; }
+
+        public bool StreamReadFailed
+        {
+            get { return this.Stream is ReadErrorTrackingStream trackingStream && trackingStream.ReadFailed; }
+        }
 
         public bool HasErrors
         {
@@ -70,7 +77,7 @@ namespace GVFS.Common.Http
                 {
                     return contentStreamReader.ReadToEnd();
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
                     // All exceptions potentially from network should be retried
                     throw new RetryableException("Exception while reading stream. See inner exception for details.", ex);
@@ -99,7 +106,7 @@ namespace GVFS.Common.Http
 
                         line = contentStreamReader.ReadLine();
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (!(ex is OperationCanceledException))
                     {
                         // All exceptions potentially from network should be retried
                         throw new RetryableException("Exception while reading stream. See inner exception for details.", ex);
@@ -157,6 +164,84 @@ namespace GVFS.Common.Http
                     return GitObjectContentType.PackFile;
                 default:
                     return GitObjectContentType.None;
+            }
+        }
+
+        private sealed class ReadErrorTrackingStream : Stream
+        {
+            private readonly Stream innerStream;
+
+            public ReadErrorTrackingStream(Stream innerStream)
+            {
+                this.innerStream = innerStream;
+            }
+
+            public bool ReadFailed { get; private set; }
+
+            public override bool CanRead => this.innerStream.CanRead;
+
+            public override bool CanSeek => this.innerStream.CanSeek;
+
+            public override bool CanWrite => this.innerStream.CanWrite;
+
+            public override long Length => this.innerStream.Length;
+
+            public override long Position
+            {
+                get { return this.innerStream.Position; }
+                set { this.innerStream.Position = value; }
+            }
+
+            public override void Flush() => this.innerStream.Flush();
+
+            public override int Read(byte[] buffer, int offset, int count) =>
+                this.TrackRead(() => this.innerStream.Read(buffer, offset, count));
+
+            public override int ReadByte() => this.TrackRead(this.innerStream.ReadByte);
+
+            public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+                this.TrackReadAsync(() => this.innerStream.ReadAsync(buffer, offset, count, cancellationToken));
+
+            public override long Seek(long offset, SeekOrigin origin) => this.innerStream.Seek(offset, origin);
+
+            public override void SetLength(long value) => this.innerStream.SetLength(value);
+
+            public override void Write(byte[] buffer, int offset, int count) => this.innerStream.Write(buffer, offset, count);
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    this.innerStream.Dispose();
+                }
+
+                base.Dispose(disposing);
+            }
+
+            private T TrackRead<T>(Func<T> read)
+            {
+                try
+                {
+                    return read();
+                }
+                catch (Exception ex) when (!(ex is OperationCanceledException))
+                {
+                    this.ReadFailed = true;
+                    throw;
+                }
+            }
+
+            private async Task<T> TrackReadAsync<T>(Func<Task<T>> read)
+            {
+                try
+                {
+                    return await read().ConfigureAwait(false);
+                }
+                catch (Exception ex) when (!(ex is OperationCanceledException))
+                {
+                    this.ReadFailed = true;
+                    throw;
+                }
             }
         }
     }

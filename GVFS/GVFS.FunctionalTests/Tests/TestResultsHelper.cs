@@ -69,5 +69,88 @@ namespace GVFS.FunctionalTests.Tests
 
             return directory.GetFiles().Select(file => file.FullName);
         }
+
+        /// <summary>
+        /// Root directory under which per-failure diagnostics (preserved logs and
+        /// mount process dumps) are written so CI can upload them as an artifact.
+        /// Honors the GVFS_TEST_DIAGNOSTICS_DIR environment variable; otherwise
+        /// falls back to a folder under the temp path.
+        /// </summary>
+        public static string DiagnosticsRoot
+        {
+            get
+            {
+                string configured = Environment.GetEnvironmentVariable("GVFS_TEST_DIAGNOSTICS_DIR");
+                return string.IsNullOrWhiteSpace(configured)
+                    ? Path.Combine(Path.GetTempPath(), "gvfs_ft_diagnostics")
+                    : configured;
+            }
+        }
+
+        /// <summary>
+        /// Copies every file in <paramref name="sourceFolder"/> into
+        /// <paramref name="destinationFolder"/>. A mount that hung or exited
+        /// abnormally may still hold its log file open, so a plain copy can fail
+        /// with a sharing violation. In that case we fall back to opening the file
+        /// with a read-only shared handle (FileShare.ReadWrite | Delete) and copy
+        /// out whatever has been flushed so far — partial content is still useful.
+        /// Best-effort: never throws.
+        /// </summary>
+        public static void CopyFilesWithFallback(string sourceFolder, string destinationFolder)
+        {
+            try
+            {
+                Directory.CreateDirectory(destinationFolder);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DIAGNOSTICS] Unable to create '{destinationFolder}': {ex.Message}");
+                return;
+            }
+
+            foreach (string sourceFile in GetAllFilesInDirectory(sourceFolder))
+            {
+                string destinationFile = Path.Combine(destinationFolder, Path.GetFileName(sourceFile));
+
+                try
+                {
+                    File.Copy(sourceFile, destinationFile, overwrite: true);
+                }
+                catch (Exception copyException) when (copyException is IOException || copyException is UnauthorizedAccessException)
+                {
+                    // The file is likely locked by a still-running (possibly hung)
+                    // mount process. Fall back to a shared read-only handle and copy
+                    // what we can.
+                    if (!TryCopyWithSharedReadHandle(sourceFile, destinationFile))
+                    {
+                        Console.Error.WriteLine($"[DIAGNOSTICS] Failed to copy '{sourceFile}' (locked): {copyException.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[DIAGNOSTICS] Failed to copy '{sourceFile}': {ex.Message}");
+                }
+            }
+        }
+
+        private static bool TryCopyWithSharedReadHandle(string sourceFile, string destinationFile)
+        {
+            try
+            {
+                using (FileStream source = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (FileStream destination = new FileStream(destinationFile, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    source.CopyTo(destination);
+                }
+
+                Console.Error.WriteLine($"[DIAGNOSTICS] Copied '{sourceFile}' via shared read handle (may be partial)");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DIAGNOSTICS] Shared-handle copy of '{sourceFile}' failed: {ex.Message}");
+                return false;
+            }
+        }
     }
 }
