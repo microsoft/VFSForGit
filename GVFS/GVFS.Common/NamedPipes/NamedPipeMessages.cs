@@ -213,10 +213,11 @@ namespace GVFS.Common.NamedPipes
                 {
                 }
 
-                public Request(string backupFolderPath, string folders)
+                public Request(string backupFolderPath, string folders, bool discardBackup = false)
                 {
                     this.Folders = folders;
                     this.BackupFolderPath = backupFolderPath;
+                    this.DiscardBackup = discardBackup;
                 }
 
                 public static Request FromMessage(Message message)
@@ -227,6 +228,12 @@ namespace GVFS.Common.NamedPipes
                 public string Folders { get; set; }
 
                 public string BackupFolderPath { get; set; }
+
+                /// <summary>
+                /// When true, the mount deletes the backup folder during its unmounted window
+                /// (the moved ProjFS placeholders can only be deleted while the repo is unmounted).
+                /// </summary>
+                public bool DiscardBackup { get; set; }
 
                 public Message CreateMessage()
                 {
@@ -252,6 +259,12 @@ namespace GVFS.Common.NamedPipes
                 public string Result { get; set; }
                 public List<string> SuccessfulFolders { get; set; }
                 public List<string> FailedFolders { get; set; }
+
+                /// <summary>
+                /// True if the backup folder was requested to be discarded and was successfully
+                /// deleted during the unmounted window.
+                /// </summary>
+                public bool BackupDiscarded { get; set; }
 
                 public static Response FromMessage(Message message)
                 {
