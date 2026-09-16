@@ -1,7 +1,8 @@
-using System.Net;
 using GVFS.Common.Http;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
+using System.Net;
 
 namespace GVFS.UnitTests.Http
 {
@@ -74,6 +75,14 @@ namespace GVFS.UnitTests.Http
                 .ShouldEqual(false, "A 500 must NOT reject credentials");
             HttpRequestor.ShouldRejectCredentials(HttpStatusCode.RequestTimeout, responseBody: null)
                 .ShouldEqual(false, "A 408 must NOT reject credentials");
+        }
+
+        [TestCase]
+        public void AuthorityForTelemetryExcludesCredentialsAndRequestPath()
+        {
+            Uri uri = new Uri("https://alice:secret@cache.example.com:8443/private/path?token=sensitive#fragment");
+
+            HttpRequestor.GetAuthorityForTelemetry(uri).ShouldEqual("cache.example.com:8443");
         }
     }
 }

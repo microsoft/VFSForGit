@@ -21,7 +21,9 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedWarningEvents = new List<string>();
             this.RelatedErrorEvents = new List<string>();
             this.RelatedEventNames = new List<string>();
-            this.RelatedEventMetadata = new List<string>();
+            this.RelatedEventKeywords = new List<Keywords>();
+            this.RelatedEventMetadata = new List<EventMetadata>();
+            this.RelatedEventMetadataSerialized = new List<string>();
         }
 
         public MockTracer StartActivityTracer { get; private set; }
@@ -34,10 +36,12 @@ namespace GVFS.UnitTests.Mock.Common
         // Names of events reported via RelatedEvent (which, unlike RelatedInfo/Warning/Error,
         // do not otherwise get recorded). Lets tests assert a specific diagnostic event fired.
         public List<string> RelatedEventNames { get; }
+        public List<Keywords> RelatedEventKeywords { get; }
+        public List<EventMetadata> RelatedEventMetadata { get; }
 
         // Serialized metadata for each RelatedEvent call, parallel to RelatedEventNames by index.
-        // Lets tests assert on a diagnostic event's payload (for example a RepairFailedReason value).
-        public List<string> RelatedEventMetadata { get; }
+        // The typed metadata list stays canonical, while this list preserves vnext-era assertions.
+        public List<string> RelatedEventMetadataSerialized { get; }
 
         public void WaitForRelatedEvent()
         {
@@ -49,7 +53,9 @@ namespace GVFS.UnitTests.Mock.Common
             lock (this.relatedEventLock)
             {
                 this.RelatedEventNames.Add(eventName);
-                this.RelatedEventMetadata.Add(metadata != null ? GVFSJsonOptions.Serialize(metadata) : string.Empty);
+                this.RelatedEventKeywords.Add(Keywords.None);
+                this.RelatedEventMetadata.Add(metadata);
+                this.RelatedEventMetadataSerialized.Add(metadata != null ? GVFSJsonOptions.Serialize(metadata) : string.Empty);
             }
 
             if (eventName == this.WaitRelatedEventName)
@@ -63,7 +69,9 @@ namespace GVFS.UnitTests.Mock.Common
             lock (this.relatedEventLock)
             {
                 this.RelatedEventNames.Add(eventName);
-                this.RelatedEventMetadata.Add(metadata != null ? GVFSJsonOptions.Serialize(metadata) : string.Empty);
+                this.RelatedEventKeywords.Add(keyword);
+                this.RelatedEventMetadata.Add(metadata);
+                this.RelatedEventMetadataSerialized.Add(metadata != null ? GVFSJsonOptions.Serialize(metadata) : string.Empty);
             }
 
             if (eventName == this.WaitRelatedEventName)
