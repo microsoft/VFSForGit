@@ -101,8 +101,34 @@ namespace GVFS.Common.Git
 
             if (this.workingDirectoryRoot != null)
             {
+                // This is deliberately NOT Enlistment.DotGitRoot. In a linked worktree those two
+                // values differ, and each is correct for its own purpose:
+                //
+                //   Enlistment.DotGitRoot -> the SHARED .git directory of the main repo. GVFS uses it
+                //                            for shared state it manages directly on disk (objects,
+                //                            objects/info/alternates, hooks).
+                //   this.dotGitRoot       -> "<workingDirectoryRoot>\.git", which in a linked worktree
+                //                            is a FILE containing "gitdir: <shared>/.git/worktrees/<name>".
+                //
+                // We pass this.dotGitRoot as --git-dir. Git follows the gitdir: pointer, so it resolves
+                // BOTH the per-worktree state (HEAD, index, per-worktree refs, reflog) and, via the
+                // commondir file, the shared state (config, objects, packed-refs). Passing
+                // Enlistment.DotGitRoot instead would silently bind every command to the MAIN worktree's
+                // HEAD and index -- e.g. "rev-parse HEAD" and "name-rev --name-only HEAD" would report the
+                // main worktree's branch and commit while running inside a linked worktree.
                 this.dotGitRoot = Path.Combine(this.workingDirectoryRoot, GVFSConstants.DotGit.Root);
             }
+        }
+
+        /// <summary>
+        /// The path passed as --git-dir to every InvokeGitAgainstDotGitFolder call.
+        /// In a linked worktree this is the worktree's own .git file, NOT
+        /// <see cref="Enlistment.DotGitRoot"/> (the shared .git directory). See the constructor
+        /// for why the two intentionally differ.
+        /// </summary>
+        public string GitDirectoryPath
+        {
+            get { return this.dotGitRoot; }
         }
 
         public static string ExpireTimeDateString
