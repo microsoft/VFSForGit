@@ -199,6 +199,37 @@ Default new gates to `false` and gate the **runtime entry point** into a
 feature, not its build, so the code still compiles and ships (and keeps
 getting exercised) while its behavior stays off by default.
 
+## libgit2 P/Invoke string marshalling (UTF-8, not ANSI)
+
+The libgit2 bindings live in `GVFS.Common/Git/LibGit2Repo.cs` under the
+`Native` class. **libgit2 treats every string it receives and returns as
+UTF-8** — paths, revspecs, config keys and values, and error messages.
+
+The .NET default for a bare `[DllImport]` string parameter is
+`CharSet.Ansi`, which encodes through the Windows ANSI code page and
+**silently corrupts non-ASCII input** (a repo path under a non-English user
+name, a non-ASCII branch name, etc.) — an unmappable character becomes `?`,
+so `git_repository_open` and friends resolve the wrong path or fail. There is
+no `[module: DefaultCharSet]` override in `GVFS.Common`, so the ANSI default
+applies unless each declaration opts out.
+
+When you add a libgit2 P/Invoke:
+
+- Annotate **every** `string` parameter, `out string` parameter, string return
+  value, and string struct field with
+  `[MarshalAs(UnmanagedType.LPUTF8Str)]`.
+- Do **not** use `CharSet.Unicode` — that marshals UTF-16, which libgit2 does
+  not accept (it is the same bug in the other direction).
+- For a function that returns a **borrowed** pointer owned by libgit2 (e.g.
+  `git_config_get_string`), marshal it as `IntPtr` and copy with
+  `Marshal.PtrToStringUTF8(...)`; do not marshal it as `out string`, or the
+  interop marshaller frees libgit2's heap memory with the wrong allocator.
+
+Because the mismatch only manifests through the native call, cover new
+string-carrying paths with a real-libgit2 test that uses a non-ASCII input
+(see `GVFS.FunctionalTests/Tests/LibGit2NonAsciiPathTests.cs`), not a
+mock-based unit test.
+
 ## Coding standards
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for StyleCop rules, error-handling
