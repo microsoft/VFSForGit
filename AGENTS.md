@@ -64,8 +64,8 @@ Skips `dotnet publish`, AOT, native C++ projects, payload assembly, installer.
 For changes that need the GVFS payload (`gvfs.exe`, hooks, service) but not
 an installer. `PublishAot=false` skips ilc (~3–4 min saved);
 `SkipCreateInstaller=true` skips Inno Setup (~95 s saved).
-`GVFS.Payload` cascades to its dependencies (GVFS, GVFS.Mount, GVFS.Hooks,
-GVFS.Service) via `ProjectReference`.
+`GVFS.Payload` only assembles the payload directory. It does not build or
+publish the projects that it copies from.
 
 > **Prerequisite: the native C++ projects must already be built.** They are
 > `.vcxproj` (see [Native C++ projects](#native-c-projects-need-msbuild-not-dotnet-build)
@@ -78,10 +78,13 @@ GVFS.Service) via `ProjectReference`.
 ```powershell
 dotnet publish src\GVFS\GVFS.FunctionalTests\GVFS.FunctionalTests.csproj `
     -c Debug /p:PublishAot=false
+dotnet publish src\GVFS\GVFS\GVFS.csproj `
+    -c Debug /p:PublishAot=false
 dotnet publish src\GVFS\GVFS.Payload\GVFS.Payload.csproj `
     -c Debug /p:PublishAot=false /p:SkipCreateInstaller=true
 
-src\scripts\RunFunctionalTests-Dev.ps1 Debug --test=GVFS.FunctionalTests.Tests.<Namespace>.<Class>.<Method>
+src\scripts\RunFunctionalTests-Dev.ps1 -Configuration Debug -Arch x64 `
+    --test=GVFS.FunctionalTests.Tests.<Namespace>.<Class>.<Method>
 ```
 
 `layout.bat` (invoked by GVFS.Payload) `xcopy`s from each project's `publish\`
@@ -89,10 +92,27 @@ or native-output directory — the C# projects do not require AOT, so
 `PublishAot=false` produces a fully functional test payload. The native
 hook binaries are copied straight from the vcxproj output.
 
+> **Publish each changed project explicitly.** `GVFS.Payload.csproj` has no
+> `ProjectReference` items. Its `CreatePayload` target runs `layout.bat`, which
+> copies existing project output. A project that you do not publish can
+> contribute stale output from an earlier build. Publish `GVFS.Mount`,
+> `GVFS.Hooks`, or `GVFS.Service` explicitly when you change those projects.
+
 `RunFunctionalTests-Dev.ps1` runs functional tests against the build output
 without requiring admin or a system-wide install. It launches the test
-service as a console process. Each invocation gets a unique service name
-and data dir, so concurrent runs from different worktrees don't collide.
+service as a console process. Each invocation gets a unique service name and
+service-data directory. Some fixtures still use shared machine paths or drive
+mappings, so do not assume that separate test processes can run concurrently.
+
+The script sets dev-mode variables. `Settings.Default.Initialize` then resolves
+`gvfs.exe` and `GVFS.Service.exe` from `out\GVFS.Payload\...`, not
+`C:\Program Files\VFS for Git\`. This path does not require a GVFS
+installation.
+
+> **Pass `-Configuration` and `-Arch` by name.** The script's first two
+> positional parameters are `Configuration` and `Arch`. A bare
+> `RunFunctionalTests-Dev.ps1 Debug --test=...` binds `--test=...` to `-Arch`
+> and fails its `ValidateSet`.
 
 ### Path C — Installer build (~5 min — only when you need an installer)
 
@@ -135,12 +155,14 @@ participate in the C# inner-loop paths above.
 
 ```powershell
 # ✅ Correct
-& "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe"  --test "GVFS.UnitTests.Common.WorktreeInfoTests"
-src\scripts\RunFunctionalTests-Dev.ps1 Debug       --test=GVFS.FunctionalTests.Tests.GVFSVerbTests.UnknownVerb
+& "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe" --test "GVFS.UnitTests.Common.WorktreeInfoTests"
+src\scripts\RunFunctionalTests-Dev.ps1 -Configuration Debug -Arch x64 `
+    --test=GVFS.FunctionalTests.Tests.GVFSVerbTests.UnknownVerb
 
 # ❌ Wrong — silently runs the entire suite
-& "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe"  --where "class =~ Worktree"
-src\scripts\RunFunctionalTests-Dev.ps1 Debug       --where "cat == Smoke"
+& "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe" --where "class =~ Worktree"
+src\scripts\RunFunctionalTests-Dev.ps1 -Configuration Debug -Arch x64 `
+    --where "cat == Smoke"
 ```
 
 For unit tests, `--where` is merely annoying (the whole suite runs in
@@ -229,6 +251,12 @@ Because the mismatch only manifests through the native call, cover new
 string-carrying paths with a real-libgit2 test that uses a non-ASCII input
 (see `GVFS.FunctionalTests/Tests/LibGit2NonAsciiPathTests.cs`), not a
 mock-based unit test.
+
+## Public repository hygiene
+
+Do not include Microsoft-internal work item IDs, ADO URLs, incident IDs, or
+internal service names in repository content or pull requests. Describe the
+public problem and fix without requiring internal access.
 
 ## Coding standards
 
