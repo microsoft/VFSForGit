@@ -7,6 +7,24 @@ using System.Threading;
 
 namespace GVFS.Common.Git
 {
+    /// <summary>
+    /// In-process wrapper over libgit2 (git2.dll) for local Git object, tree, blob, and
+    /// config lookups without spawning git.exe.
+    /// </summary>
+    /// <remarks>
+    /// libgit2 marshalling contract: libgit2 treats EVERY string it receives and returns as
+    /// UTF-8 (paths, revspecs, config keys and values, error messages). The default marshalling
+    /// for a bare <c>[DllImport]</c> string parameter is <see cref="CharSet.Ansi"/>, which encodes
+    /// through the Windows ANSI code page and silently corrupts (or drops, as '?') any non-ASCII
+    /// byte — for example a repository path under a non-English Windows user name. When adding a
+    /// new libgit2 P/Invoke to <see cref="Native"/>, annotate every <c>string</c> parameter,
+    /// <c>out string</c> parameter, string return value, and string struct field with
+    /// <c>[MarshalAs(UnmanagedType.LPUTF8Str)]</c>. Do NOT use <see cref="CharSet.Unicode"/> — that
+    /// marshals UTF-16, which libgit2 does not accept. For a libgit2 function that returns a borrowed
+    /// pointer owned by libgit2 (for example <c>git_config_get_string</c>), marshal it as
+    /// <see cref="IntPtr"/> and copy with <see cref="Marshal.PtrToStringUTF8(IntPtr)"/> so the
+    /// interop marshaller does not free libgit2's heap memory.
+    /// </remarks>
     public class LibGit2Repo : IDisposable
     {
         private bool disposedValue = false;
@@ -572,6 +590,12 @@ namespace GVFS.Common.Git
             return configuredMatchingDirectory != null && TryOpenRepo(configuredMatchingDirectory, out repoHandle) == Native.ResultCode.Success;
         }
 
+        /// <summary>
+        /// Raw libgit2 P/Invoke declarations. See the marshalling contract on
+        /// <see cref="LibGit2Repo"/>: every string parameter/return/field passed to or from
+        /// libgit2 MUST be <c>[MarshalAs(UnmanagedType.LPUTF8Str)]</c> (never the ANSI default,
+        /// never <see cref="CharSet.Unicode"/>).
+        /// </summary>
         public static class Native
         {
             public enum ResultCode : int
@@ -602,7 +626,7 @@ namespace GVFS.Common.Git
             public static extern int Shutdown();
 
             [DllImport(Git2NativeLibName, EntryPoint = "git_revparse_single")]
-            public static extern ResultCode RevParseSingle(out IntPtr objectHandle, IntPtr repoHandle, string oid);
+            public static extern ResultCode RevParseSingle(out IntPtr objectHandle, IntPtr repoHandle, [MarshalAs(UnmanagedType.LPUTF8Str)] string oid);
 
             public static string GetLastError()
             {
@@ -612,7 +636,11 @@ namespace GVFS.Common.Git
                     return "Operation was successful";
                 }
 
-                return Marshal.PtrToStructure<GitError>(ptr).Message;
+                // git_error.message is a borrowed UTF-8 char* owned by libgit2. Keep it as an
+                // IntPtr and copy it with Marshal.PtrToStringUTF8 so the interop marshaller never
+                // frees libgit2's heap memory (same pattern as GitConfigEntry).
+                GitError error = Marshal.PtrToStructure<GitError>(ptr);
+                return error.Message == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(error.Message);
             }
 
             [DllImport(Git2NativeLibName, EntryPoint = "git_error_last")]
@@ -621,8 +649,7 @@ namespace GVFS.Common.Git
             [StructLayout(LayoutKind.Sequential)]
             private struct GitError
             {
-                [MarshalAs(UnmanagedType.LPStr)]
-                public string Message;
+                public IntPtr Message;
 
                 public int Klass;
             }
@@ -630,7 +657,7 @@ namespace GVFS.Common.Git
             public static class Repo
             {
                 [DllImport(Git2NativeLibName, EntryPoint = "git_repository_open")]
-                public static extern ResultCode Open(out IntPtr repoHandle, string path);
+                public static extern ResultCode Open(out IntPtr repoHandle, [MarshalAs(UnmanagedType.LPUTF8Str)] string path);
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_repository_free")]
                 public static extern void Free(IntPtr repoHandle);
@@ -649,7 +676,7 @@ namespace GVFS.Common.Git
                 public static extern void Free(IntPtr odbHandle);
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_oid_fromstr")]
-                public static extern ResultCode OidFromStr(out GitOid oid, string str);
+                public static extern ResultCode OidFromStr(out GitOid oid, [MarshalAs(UnmanagedType.LPUTF8Str)] string str);
             }
 
             public static class Config
@@ -664,13 +691,13 @@ namespace GVFS.Common.Git
                 public static extern ResultCode Snapshot(out IntPtr snapshotConfigHandle, IntPtr configHandle);
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_string")]
-                public static extern ResultCode GetString(out IntPtr value, IntPtr configHandle, string name);
+                public static extern ResultCode GetString(out IntPtr value, IntPtr configHandle, [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_multivar_foreach")]
                 public static extern ResultCode GetMultivarForeach(
                     IntPtr configHandle,
-                    string name,
-                    string regex,
+                    [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+                    [MarshalAs(UnmanagedType.LPUTF8Str)] string regex,
                     GitConfigMultivarCallback callback,
                     IntPtr payload);
 
@@ -719,7 +746,7 @@ namespace GVFS.Common.Git
                 }
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_get_bool")]
-                public static extern ResultCode GetBool(out bool value, IntPtr configHandle, string name);
+                public static extern ResultCode GetBool(out bool value, IntPtr configHandle, [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_config_free")]
                 public static extern void Free(IntPtr configHandle);
