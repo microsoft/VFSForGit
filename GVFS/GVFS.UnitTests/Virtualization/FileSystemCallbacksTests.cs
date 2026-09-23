@@ -1,10 +1,13 @@
 using GVFS.Common;
 using GVFS.Common.Database;
+using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.FileSystem;
+using GVFS.UnitTests.Mock.Git;
 using GVFS.UnitTests.Mock.Virtualization.Background;
 using GVFS.UnitTests.Mock.Virtualization.BlobSize;
 using GVFS.UnitTests.Mock.Virtualization.FileSystem;
@@ -17,6 +20,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.UnitTests.Virtualization
 {
@@ -282,6 +286,138 @@ namespace GVFS.UnitTests.Virtualization
 
             mockPlaceholderDb.VerifyAll();
             mockSparseDb.VerifyAll();
+        }
+
+        [TestCase]
+        public void LogsHeadChangeRefreshesLogsHeadProperties()
+        {
+            string logsHeadPath = Path.Combine(this.Repo.GitParentPath, GVFSConstants.DotGit.Logs.Head);
+            DateTime initialWriteTime = new DateTime(2026, 1, 1, 1, 2, 3, DateTimeKind.Utc);
+            DateTime updatedWriteTime = initialWriteTime.AddMinutes(1);
+            this.Repo.FileSystem.RootDirectory.FindFile(logsHeadPath).FileProperties =
+                new FileProperties(FileAttributes.Normal, initialWriteTime, initialWriteTime, initialWriteTime, length: 0);
+
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+
+            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
+                this.Repo.Context,
+                this.Repo.GitObjects,
+                RepoMetadata.Instance,
+                new MockBlobSizes(),
+                gitIndexProjection: gitIndexProjection,
+                backgroundFileSystemTaskRunner: backgroundTaskRunner,
+                fileSystemVirtualizer: null,
+                placeholderDatabase: mockPlaceholderDb.Object,
+                sparseCollection: mockSparseDb.Object))
+            {
+                fileSystemCallbacks.GetLogsHeadFileProperties().LastWriteTimeUTC.ShouldEqual(initialWriteTime);
+
+                this.Repo.FileSystem.RootDirectory.FindFile(logsHeadPath).FileProperties =
+                    new FileProperties(FileAttributes.Normal, updatedWriteTime, updatedWriteTime, updatedWriteTime, length: 0);
+                fileSystemCallbacks.GetLogsHeadFileProperties().LastWriteTimeUTC.ShouldEqual(initialWriteTime);
+
+                fileSystemCallbacks.OnLogsHeadChange();
+                fileSystemCallbacks.GetLogsHeadFileProperties().LastWriteTimeUTC.ShouldEqual(updatedWriteTime);
+            }
+
+            mockPlaceholderDb.VerifyAll();
+            mockSparseDb.VerifyAll();
+        }
+
+        [TestCase]
+        public void WorktreeLogsHeadWatcherRefreshesWorktreeProperties()
+        {
+            string testRoot = Path.Combine(Path.GetTempPath(), "GVFSLogsHeadTests_" + Path.GetRandomFileName());
+            string primaryRoot = Path.Combine(testRoot, "enlistment");
+            string sharedGitDir = Path.Combine(primaryRoot, "src", ".git");
+            string worktreePath = Path.Combine(testRoot, "worktree");
+            string worktreeGitDir = Path.Combine(sharedGitDir, "worktrees", "worktree");
+            string sharedLogsHeadPath = Path.Combine(sharedGitDir, GVFSConstants.DotGit.Logs.HeadRelativePath);
+            string worktreeLogsHeadPath = Path.Combine(worktreeGitDir, GVFSConstants.DotGit.Logs.HeadRelativePath);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(worktreeLogsHeadPath));
+            File.WriteAllText(worktreeLogsHeadPath, "initial");
+
+            try
+            {
+                GVFSEnlistment.WorktreeInfo worktreeInfo = new GVFSEnlistment.WorktreeInfo
+                {
+                    Name = "worktree",
+                    WorktreePath = worktreePath,
+                    WorktreeGitDir = worktreeGitDir,
+                    SharedGitDir = sharedGitDir,
+                    PipeSuffix = "_WT_WORKTREE",
+                };
+                GVFSEnlistment enlistment = GVFSEnlistment.CreateForWorktree(
+                    primaryRoot,
+                    "fake://gitBinPath",
+                    authentication: null,
+                    worktreeInfo,
+                    repoUrl: "fake://repoUrl");
+                enlistment.InitializeCachePathsFromKey("mock:\\cache", "key");
+
+                MockDirectory rootDirectory = new MockDirectory(testRoot, folders: null, files: null);
+                MockFile sharedLogsHead = rootDirectory.CreateFile(sharedLogsHeadPath, "shared", createDirectories: true);
+                MockFile worktreeLogsHead = rootDirectory.CreateFile(worktreeLogsHeadPath, "worktree", createDirectories: true);
+                MockFileSystem fileSystem = new MockFileSystem(rootDirectory);
+
+                DateTime sharedWriteTime = new DateTime(2026, 1, 1, 1, 2, 3, DateTimeKind.Utc);
+                DateTime worktreeWriteTime = sharedWriteTime.AddMinutes(1);
+                DateTime updatedWriteTime = worktreeWriteTime.AddMinutes(1);
+                sharedLogsHead.FileProperties =
+                    new FileProperties(FileAttributes.Normal, sharedWriteTime, sharedWriteTime, sharedWriteTime, length: 0);
+                worktreeLogsHead.FileProperties =
+                    new FileProperties(FileAttributes.Normal, worktreeWriteTime, worktreeWriteTime, worktreeWriteTime, length: 0);
+
+                MockTracer tracer = new MockTracer();
+                MockGitRepo repository = new MockGitRepo(tracer, enlistment, fileSystem);
+                using (GVFSContext context = new GVFSContext(tracer, fileSystem, repository, enlistment))
+                using (MockHttpGitObjects httpObjects = new MockHttpGitObjects(tracer, enlistment))
+                using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
+                using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+                {
+                    MockGVFSGitObjects gitObjects = new MockGVFSGitObjects(context, httpObjects);
+                    Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+                    mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
+                    Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+
+                    using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
+                        context,
+                        gitObjects,
+                        RepoMetadata.Instance,
+                        new MockBlobSizes(),
+                        gitIndexProjection,
+                        backgroundTaskRunner,
+                        fileSystemVirtualizer: null,
+                        placeholderDatabase: mockPlaceholderDb.Object,
+                        sparseCollection: mockSparseDb.Object))
+                    {
+                        fileSystemCallbacks.GetLogsHeadFileProperties().LastWriteTimeUTC.ShouldEqual(worktreeWriteTime);
+
+                        worktreeLogsHead.FileProperties =
+                            new FileProperties(FileAttributes.Normal, updatedWriteTime, updatedWriteTime, updatedWriteTime, length: 0);
+                        File.AppendAllText(worktreeLogsHeadPath, "updated");
+
+                        SpinWait.SpinUntil(
+                            () => fileSystemCallbacks.GetLogsHeadFileProperties().LastWriteTimeUTC == updatedWriteTime,
+                            TimeSpan.FromSeconds(5)).ShouldBeTrue();
+                    }
+
+                    mockPlaceholderDb.VerifyAll();
+                    mockSparseDb.VerifyAll();
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(testRoot))
+                {
+                    Directory.Delete(testRoot, recursive: true);
+                }
+            }
         }
 
         [TestCase]

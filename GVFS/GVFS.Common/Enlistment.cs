@@ -74,6 +74,15 @@ namespace GVFS.Common
         {
             get { return Path.Combine(this.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Index); }
         }
+
+        /// <summary>
+        /// Path to the git HEAD reflog. Override for worktree-specific paths.
+        /// </summary>
+        public virtual string GitHeadLogPath
+        {
+            get { return Path.Combine(this.DotGitRoot, GVFSConstants.DotGit.Logs.HeadRelativePath); }
+        }
+
         public string RepoUrl { get; }
         public bool FlushFileBuffersForPacks { get; }
 

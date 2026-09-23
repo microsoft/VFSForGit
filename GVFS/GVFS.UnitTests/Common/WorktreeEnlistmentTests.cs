@@ -124,6 +124,14 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void GitHeadLogPathUsesWorktreeGitDir()
+        {
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            enlistment.GitHeadLogPath.ShouldEqual(
+                Path.Combine(this.worktreeGitDir, GVFSConstants.DotGit.Logs.HeadRelativePath));
+        }
+
+        [TestCase]
         public void NamedPipeNameIncludesWorktreeSuffix()
         {
             GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
