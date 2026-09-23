@@ -30,6 +30,7 @@ namespace GVFS.Virtualization
             GitCommandLineParser.Verbs.UpdateIndex;
 
         private readonly string logsHeadPath;
+        private readonly object logsHeadFilePropertiesLock = new object();
 
         private GVFSContext context;
         private IPlaceholderCollection placeholderDatabase;
@@ -41,6 +42,7 @@ namespace GVFS.Virtualization
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
+        private FileSystemWatcher logsHeadWatcher;
 
         private GitStatusCache gitStatusCache;
         private bool enableGitStatusCache;
@@ -119,6 +121,10 @@ namespace GVFS.Virtualization
                 () => this.GitIndexProjection.GetProjectedFolderCount());
 
             this.logsHeadPath = this.context.Enlistment.GitHeadLogPath;
+            if (this.context.Enlistment.IsWorktree)
+            {
+                this.logsHeadWatcher = this.CreateWorktreeLogsHeadWatcher();
+            }
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("placeholders.Count", this.placeholderDatabase.GetCount());
@@ -181,6 +187,11 @@ namespace GVFS.Virtualization
 
         public void Stop()
         {
+            if (this.logsHeadWatcher != null)
+            {
+                this.logsHeadWatcher.EnableRaisingEvents = false;
+            }
+
             // Shutdown the GitStatusCache before other
             // components that it depends on.
             this.gitStatusCache.Shutdown();
@@ -194,6 +205,13 @@ namespace GVFS.Virtualization
 
         public void Dispose()
         {
+            if (this.logsHeadWatcher != null)
+            {
+                this.logsHeadWatcher.EnableRaisingEvents = false;
+                this.logsHeadWatcher.Dispose();
+                this.logsHeadWatcher = null;
+            }
+
             if (this.BlobSizes != null)
             {
                 this.BlobSizes.Dispose();
@@ -361,15 +379,9 @@ namespace GVFS.Virtualization
 
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
         {
-            NamedPipeMessages.ReleaseLock.Response response = this.GitIndexProjection.TryReleaseExternalLock(pid);
-            if (response.Result == NamedPipeMessages.ReleaseLock.SuccessResult)
-            {
-                // Linked worktree git directories are outside the virtualization root.
-                // Refresh cached reflog properties after each completed Git command.
-                this.OnLogsHeadChange();
-            }
-
-            return response;
+            // Clear cached properties before the lock becomes available to another Git process.
+            this.OnLogsHeadChange();
+            return this.GitIndexProjection.TryReleaseExternalLock(pid);
         }
 
         public IEnumerable<string> GetAllModifiedPaths()
@@ -599,7 +611,10 @@ namespace GVFS.Virtualization
         public virtual void OnLogsHeadChange()
         {
             // Don't open the .git\logs\HEAD file here to check its attributes as we're in a callback for the .git folder
-            this.logsHeadFileProperties = null;
+            lock (this.logsHeadFilePropertiesLock)
+            {
+                this.logsHeadFileProperties = null;
+            }
         }
 
         public void OnHeadOrRefChanged()
@@ -759,29 +774,69 @@ namespace GVFS.Virtualization
 
         public FileProperties GetLogsHeadFileProperties()
         {
-            // Use a temporary FileProperties in case another thread sets this.logsHeadFileProperties before this
-            // method returns
-            FileProperties properties = this.logsHeadFileProperties;
-            if (properties == null)
+            lock (this.logsHeadFilePropertiesLock)
             {
-                try
+                if (this.logsHeadFileProperties == null)
                 {
-                    properties = this.context.FileSystem.GetFileProperties(this.logsHeadPath);
-                    this.logsHeadFileProperties = properties;
-                }
-                catch (Exception e)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(relativePath: null, exception: e);
-                    this.context.Tracer.RelatedWarning(metadata, "GetLogsHeadFileProperties: Exception thrown from GetFileProperties", Keywords.Telemetry);
+                    try
+                    {
+                        this.logsHeadFileProperties = this.context.FileSystem.GetFileProperties(this.logsHeadPath);
+                    }
+                    catch (Exception e)
+                    {
+                        EventMetadata metadata = this.CreateEventMetadata(relativePath: null, exception: e);
+                        this.context.Tracer.RelatedWarning(metadata, "GetLogsHeadFileProperties: Exception thrown from GetFileProperties", Keywords.Telemetry);
 
-                    properties = FileProperties.DefaultFile;
-
-                    // Leave logsHeadFileProperties null to indicate that it is still needs to be refreshed
-                    this.logsHeadFileProperties = null;
+                        return FileProperties.DefaultFile;
+                    }
                 }
+
+                return this.logsHeadFileProperties;
             }
+        }
 
-            return properties;
+        private FileSystemWatcher CreateWorktreeLogsHeadWatcher()
+        {
+            FileSystemWatcher watcher = new FileSystemWatcher(
+                this.context.Enlistment.Worktree.WorktreeGitDir,
+                GVFSConstants.DotGit.Logs.HeadName);
+            watcher.IncludeSubdirectories = true;
+            watcher.NotifyFilter =
+                NotifyFilters.CreationTime |
+                NotifyFilters.FileName |
+                NotifyFilters.LastWrite |
+                NotifyFilters.Size;
+            watcher.Changed += this.OnWorktreeGitFileChanged;
+            watcher.Created += this.OnWorktreeGitFileChanged;
+            watcher.Deleted += this.OnWorktreeGitFileChanged;
+            watcher.Renamed += this.OnWorktreeGitFileRenamed;
+            watcher.Error += this.OnWorktreeGitWatcherError;
+            watcher.EnableRaisingEvents = true;
+            return watcher;
+        }
+
+        private void OnWorktreeGitFileChanged(object sender, FileSystemEventArgs args)
+        {
+            if (args.FullPath.Equals(this.logsHeadPath, GVFSPlatform.Instance.Constants.PathComparison))
+            {
+                this.OnLogsHeadChange();
+            }
+        }
+
+        private void OnWorktreeGitFileRenamed(object sender, RenamedEventArgs args)
+        {
+            if (args.FullPath.Equals(this.logsHeadPath, GVFSPlatform.Instance.Constants.PathComparison) ||
+                args.OldFullPath.Equals(this.logsHeadPath, GVFSPlatform.Instance.Constants.PathComparison))
+            {
+                this.OnLogsHeadChange();
+            }
+        }
+
+        private void OnWorktreeGitWatcherError(object sender, ErrorEventArgs args)
+        {
+            EventMetadata metadata = this.CreateEventMetadata(relativePath: null, exception: args.GetException());
+            this.context.Tracer.RelatedWarning(metadata, "Worktree HEAD reflog watcher reported an error", Keywords.Telemetry);
+            this.OnLogsHeadChange();
         }
 
         private static bool CheckConditionWithRetry(Func<bool> predicate, int retries, int millisecondsToSleep)

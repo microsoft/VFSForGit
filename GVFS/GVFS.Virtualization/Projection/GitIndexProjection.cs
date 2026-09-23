@@ -241,7 +241,7 @@ namespace GVFS.Virtualization.Projection
             this.projectionParseComplete.Wait();
         }
 
-        public virtual NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
+        public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
         {
             NamedPipeMessages.LockData externalHolder = this.context.Repository.GVFSLock.GetExternalHolder();
             if (externalHolder != null &&

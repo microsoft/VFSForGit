@@ -1,6 +1,5 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
-using GVFS.Common.NamedPipes;
 using GVFS.Virtualization.Background;
 using GVFS.Virtualization.BlobSize;
 using GVFS.Virtualization.Projection;
@@ -71,9 +70,6 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         public Sha1Id ProjectedFileSha { get; set; } = new Sha1Id(1, 1, 1);
 
         public bool ProjectionParseComplete { get; set; }
-
-        public NamedPipeMessages.ReleaseLock.Response ReleaseExternalLockResponse { get; set; } =
-            new NamedPipeMessages.ReleaseLock.Response(NamedPipeMessages.ReleaseLock.SuccessResult);
 
         public PathSparseState GetFolderPathSparseStateValue { get; set; } = PathSparseState.Included;
         public bool TryAddSparseFolderReturnValue { get; set; } = true;
@@ -178,11 +174,6 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
         public override void InvalidateProjection()
         {
-        }
-
-        public override NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
-        {
-            return this.ReleaseExternalLockResponse;
         }
 
         public override bool TryGetProjectedItemsFromMemory(string folderPath, out List<ProjectedFileInfo> projectedItems)
