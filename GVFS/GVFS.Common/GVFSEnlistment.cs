@@ -101,6 +101,19 @@ namespace GVFS.Common
             }
         }
 
+        public override string GitHeadLogPath
+        {
+            get
+            {
+                if (this.IsWorktree)
+                {
+                    return Path.Combine(this.Worktree.WorktreeGitDir, GVFSConstants.DotGit.Logs.HeadRelativePath);
+                }
+
+                return base.GitHeadLogPath;
+            }
+        }
+
         public string LocalCacheRoot { get; private set; }
 
         public string BlobSizesRoot { get; private set; }

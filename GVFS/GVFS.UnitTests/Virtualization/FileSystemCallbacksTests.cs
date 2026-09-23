@@ -1,5 +1,6 @@
 using GVFS.Common;
 using GVFS.Common.Database;
+using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
@@ -278,6 +279,47 @@ namespace GVFS.UnitTests.Virtualization
                 denyMessage.ShouldEqual("Waiting for GVFS to release the lock");
 
                 fileSystemCallbacks.Stop();
+            }
+
+            mockPlaceholderDb.VerifyAll();
+            mockSparseDb.VerifyAll();
+        }
+
+        [TestCase]
+        public void ReleasingExternalLockRefreshesLogsHeadProperties()
+        {
+            string logsHeadPath = Path.Combine(this.Repo.GitParentPath, GVFSConstants.DotGit.Logs.Head);
+            DateTime initialWriteTime = new DateTime(2026, 1, 1, 1, 2, 3, DateTimeKind.Utc);
+            DateTime updatedWriteTime = initialWriteTime.AddMinutes(1);
+            this.Repo.FileSystem.RootDirectory.FindFile(logsHeadPath).FileProperties =
+                new FileProperties(FileAttributes.Normal, initialWriteTime, initialWriteTime, initialWriteTime, length: 0);
+
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+
+            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
+                this.Repo.Context,
+                this.Repo.GitObjects,
+                RepoMetadata.Instance,
+                new MockBlobSizes(),
+                gitIndexProjection: gitIndexProjection,
+                backgroundFileSystemTaskRunner: backgroundTaskRunner,
+                fileSystemVirtualizer: null,
+                placeholderDatabase: mockPlaceholderDb.Object,
+                sparseCollection: mockSparseDb.Object))
+            {
+                fileSystemCallbacks.GetLogsHeadFileProperties().LastWriteTimeUTC.ShouldEqual(initialWriteTime);
+
+                this.Repo.FileSystem.RootDirectory.FindFile(logsHeadPath).FileProperties =
+                    new FileProperties(FileAttributes.Normal, updatedWriteTime, updatedWriteTime, updatedWriteTime, length: 0);
+                fileSystemCallbacks.GetLogsHeadFileProperties().LastWriteTimeUTC.ShouldEqual(initialWriteTime);
+
+                NamedPipeMessages.ReleaseLock.Response response = fileSystemCallbacks.TryReleaseExternalLock(pid: 1234);
+                response.Result.ShouldEqual(NamedPipeMessages.ReleaseLock.SuccessResult);
+                fileSystemCallbacks.GetLogsHeadFileProperties().LastWriteTimeUTC.ShouldEqual(updatedWriteTime);
             }
 
             mockPlaceholderDb.VerifyAll();

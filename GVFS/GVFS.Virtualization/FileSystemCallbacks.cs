@@ -118,7 +118,7 @@ namespace GVFS.Virtualization
             this.gitStatusCache.SetProjectedFolderCountProvider(
                 () => this.GitIndexProjection.GetProjectedFolderCount());
 
-            this.logsHeadPath = Path.Combine(this.context.Enlistment.DotGitRoot, GVFSConstants.DotGit.Logs.HeadRelativePath);
+            this.logsHeadPath = this.context.Enlistment.GitHeadLogPath;
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("placeholders.Count", this.placeholderDatabase.GetCount());
@@ -361,7 +361,15 @@ namespace GVFS.Virtualization
 
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
         {
-            return this.GitIndexProjection.TryReleaseExternalLock(pid);
+            NamedPipeMessages.ReleaseLock.Response response = this.GitIndexProjection.TryReleaseExternalLock(pid);
+            if (response.Result == NamedPipeMessages.ReleaseLock.SuccessResult)
+            {
+                // Linked worktree git directories are outside the virtualization root.
+                // Refresh cached reflog properties after each completed Git command.
+                this.OnLogsHeadChange();
+            }
+
+            return response;
         }
 
         public IEnumerable<string> GetAllModifiedPaths()
