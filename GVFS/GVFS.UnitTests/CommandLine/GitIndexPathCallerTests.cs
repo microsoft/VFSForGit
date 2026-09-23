@@ -75,7 +75,6 @@ namespace GVFS.UnitTests.CommandLine
         [TestCase(false, false)]
         [TestCase(false, true)]
         [TestCase(true, false)]
-        [TestCase(true, true)]
         public void DehydrateBacksUpEnlistmentIndexPath(bool isWorktree, bool move)
         {
             GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree);
@@ -112,7 +111,6 @@ namespace GVFS.UnitTests.CommandLine
         [TestCase(false, false)]
         [TestCase(false, true)]
         [TestCase(true, false)]
-        [TestCase(true, true)]
         public void DehydrateBacksUpOnlyCurrentWorkingTreeLocks(bool isWorktree, bool move)
         {
             GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree);
@@ -135,9 +133,10 @@ namespace GVFS.UnitTests.CommandLine
                 new MockTracer(),
                 enlistment,
                 backupGit,
-                move);
+                move,
+                out string errorMessage);
 
-            result.ShouldBeTrue();
+            result.ShouldEqual(true, errorMessage);
             File.ReadAllText(Path.Combine(backupGit, GVFSConstants.DotGit.IndexName + ".lock")).ShouldEqual("working tree lock");
             File.Exists(indexLockPath).ShouldEqual(!move);
             if (isWorktree)
@@ -145,6 +144,121 @@ namespace GVFS.UnitTests.CommandLine
                 File.ReadAllText(sharedLockPath).ShouldEqual("shared lock");
                 File.Exists(Path.Combine(backupGit, "shared.lock")).ShouldBeFalse();
             }
+        }
+
+        [TestCase]
+        public void FullDehydrateRejectsWorktree()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: true);
+            StringWriter output = new StringWriter();
+            DehydrateVerb verb = new DehydrateVerb
+            {
+                Full = true,
+                Output = output,
+            };
+
+            Assert.Throws<GVFSVerb.VerbAbortedException>(
+                () => verb.ValidateFullDehydrate(new MockTracer(), enlistment));
+
+            output.ToString().ShouldContain("Dehydrate --full is not supported for git worktrees.");
+        }
+
+        [TestCase]
+        public void FullDehydrateRejectsPrimaryWithLinkedWorktree()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            string worktreeGitDir = Path.Combine(enlistment.DotGitRoot, "worktrees", "linked-worktree");
+            Directory.CreateDirectory(worktreeGitDir);
+            File.WriteAllText(
+                Path.Combine(worktreeGitDir, "gitdir"),
+                Path.Combine(this.testRoot, "linked-worktree", GVFSConstants.DotGit.Root));
+
+            StringWriter output = new StringWriter();
+            DehydrateVerb verb = new DehydrateVerb
+            {
+                Full = true,
+                Output = output,
+            };
+
+            Assert.Throws<GVFSVerb.VerbAbortedException>(
+                () => verb.ValidateFullDehydrate(new MockTracer(), enlistment));
+
+            output.ToString().ShouldContain("Dehydrate --full is not supported while linked worktrees exist.");
+        }
+
+        [TestCase]
+        public void FullDehydrateAllowsPrimaryWithoutLinkedWorktrees()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            DehydrateVerb verb = new DehydrateVerb
+            {
+                Full = true,
+                Output = TextWriter.Null,
+            };
+
+            Assert.DoesNotThrow(
+                () => verb.ValidateFullDehydrate(new MockTracer(), enlistment));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void BackupRootIsUniqueAndWorktreeLocal(bool isWorktree)
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree);
+            DateTime timestamp = new DateTime(2026, 9, 23, 13, 0, 0, 123);
+
+            string backupRoot = DehydrateVerb.GetBackupRoot(enlistment, timestamp);
+
+            string expectedParent = isWorktree
+                ? Path.GetDirectoryName(enlistment.WorkingDirectoryBackingRoot)
+                : enlistment.PrimaryEnlistmentRoot;
+            string expectedSubfolder = isWorktree
+                ? Path.Combine("dehydrate_backup", enlistment.Worktree.Name)
+                : "dehydrate_backup";
+            backupRoot.ShouldEqual(
+                Path.Combine(
+                    expectedParent,
+                    expectedSubfolder,
+                    timestamp.ToString("yyyyMMdd_HHmmss_fffffff")));
+        }
+
+        [TestCase]
+        public void MissingIndexReturnsBackupError()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: true);
+            string backupGit = Path.Combine(this.testRoot, "missing-index-backup");
+            Directory.CreateDirectory(backupGit);
+
+            DehydrateVerb verb = new DehydrateVerb();
+            bool result = verb.TryBackupGitIndex(
+                new MockTracer(),
+                enlistment,
+                backupGit,
+                move: false,
+                out string errorMessage);
+
+            result.ShouldBeFalse();
+            errorMessage.ShouldNotBeNull();
+        }
+
+        [TestCase]
+        public void MissingLockDirectoryReturnsBackupError()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: true);
+            Directory.Delete(Path.GetDirectoryName(enlistment.GitIndexPath));
+            string backupGit = Path.Combine(this.testRoot, "missing-lock-backup");
+            Directory.CreateDirectory(backupGit);
+
+            DehydrateVerb verb = new DehydrateVerb();
+            bool result = verb.TryBackupGitLocks(
+                new MockTracer(),
+                enlistment,
+                backupGit,
+                move: false,
+                out string errorMessage);
+
+            result.ShouldBeFalse();
+            errorMessage.ShouldNotBeNull();
         }
 
         private GVFSEnlistment CreateEnlistment(bool isWorktree)
