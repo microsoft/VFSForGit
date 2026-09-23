@@ -144,6 +144,11 @@ namespace GVFS.CommandLine
                     this.ReportErrorAndExit("Cannot combine --full with --folders.");
                 }
 
+                if (fullDehydrate && enlistment.IsWorktree)
+                {
+                    this.ReportErrorAndExit("Dehydrate --full is not supported for git worktrees.");
+                }
+
                 if (!this.Confirmed && fullDehydrate)
                 {
                     this.Output.WriteLine(
@@ -634,13 +639,7 @@ from a parent of the folders list.
                     }
 
                     // ... backup everything related to the .git\index...
-                    if (!this.TryIO(
-                            tracer,
-                            () => File.Copy(
-                                Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName),
-                                Path.Combine(backupGit, GVFSConstants.DotGit.IndexName)),
-                            "Backup the git index",
-                            out errorMessage) ||
+                    if (!this.TryBackupGitIndex(tracer, enlistment, backupGit, move: false, out errorMessage) ||
                         !this.TryIO(
                             tracer,
                             () => File.Copy(
@@ -652,8 +651,8 @@ from a parent of the folders list.
                         return false;
                     }
 
-                    // ... backup all .git\*.lock files
-                    if (!this.TryCopyFilesInFolder(tracer, enlistment.DotGitRoot, backupGit, searchPattern: "*.lock"))
+                    // ... backup all lock files for this working tree
+                    if (!this.TryBackupGitLocks(tracer, enlistment, backupGit, move: false))
                     {
                         errorMessage = "Failed to backup .git lock files.";
                         return false;
@@ -721,13 +720,7 @@ from a parent of the folders list.
                     }
 
                     // ... backup everything related to the .git\index...
-                    if (!this.TryIO(
-                            tracer,
-                            () => File.Move(
-                                Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName),
-                                Path.Combine(backupGit, GVFSConstants.DotGit.IndexName)),
-                            "Backup the git index",
-                            out errorMessage) ||
+                    if (!this.TryBackupGitIndex(tracer, enlistment, backupGit, move: true, out errorMessage) ||
                         !this.TryIO(
                             tracer,
                             () => File.Move(
@@ -739,8 +732,8 @@ from a parent of the folders list.
                         return false;
                     }
 
-                    // ... backup all .git\*.lock files
-                    if (!this.TryBackupFilesInFolder(tracer, enlistment.DotGitRoot, backupGit, searchPattern: "*.lock"))
+                    // ... backup all lock files for this working tree
+                    if (!this.TryBackupGitLocks(tracer, enlistment, backupGit, move: true))
                     {
                         return false;
                     }
@@ -756,6 +749,33 @@ from a parent of the folders list.
             }
 
             return true;
+        }
+
+        internal bool TryBackupGitIndex(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            string backupGit,
+            bool move,
+            out string errorMessage)
+        {
+            string backupIndexPath = Path.Combine(backupGit, GVFSConstants.DotGit.IndexName);
+            Action backupIndex = move
+                ? () => File.Move(enlistment.GitIndexPath, backupIndexPath)
+                : () => File.Copy(enlistment.GitIndexPath, backupIndexPath);
+
+            return this.TryIO(tracer, backupIndex, "Backup the git index", out errorMessage);
+        }
+
+        internal bool TryBackupGitLocks(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            string backupGit,
+            bool move)
+        {
+            string gitIndexDirectory = Path.GetDirectoryName(enlistment.GitIndexPath);
+            return move
+                ? this.TryBackupFilesInFolder(tracer, gitIndexDirectory, backupGit, searchPattern: "*.lock")
+                : this.TryCopyFilesInFolder(tracer, gitIndexDirectory, backupGit, searchPattern: "*.lock");
         }
 
         private bool TryBackupFilesInFolder(ITracer tracer, string folderPath, string backupPath, string searchPattern, params string[] filenamesToSkip)
