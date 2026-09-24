@@ -1,4 +1,4 @@
-using GVFS.Common;
+﻿using GVFS.Common;
 using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.Tests.Should;
@@ -48,6 +48,11 @@ namespace GVFS.FunctionalTests.Tools
         {
             SavePersistedValue(dotGVFSRoot, DiskLayoutMajorVersionKey, majorVersion);
             SavePersistedValue(dotGVFSRoot, DiskLayoutMinorVersionKey, minorVersion);
+        }
+
+        public static void DeletePersistedDiskLayoutMajorVersion(string dotGVFSRoot)
+        {
+            DeletePersistedValue(dotGVFSRoot, DiskLayoutMajorVersionKey);
         }
 
         public static void GetPersistedDiskLayoutVersion(string dotGVFSRoot, out string majorVersion, out string minorVersion)
@@ -355,6 +360,38 @@ namespace GVFS.FunctionalTests.Tools
             }
 
             repoMetadata[key] = value;
+
+            string newRepoMetadataContents = string.Empty;
+
+            foreach (KeyValuePair<string, string> kvp in repoMetadata)
+            {
+                newRepoMetadataContents += "A " + GVFSJsonOptions.Serialize(kvp).Trim() + "\r\n";
+            }
+
+            File.WriteAllText(metadataPath, newRepoMetadataContents);
+        }
+
+        private static void DeletePersistedValue(string dotGVFSRoot, string key)
+        {
+            string metadataPath = Path.Combine(dotGVFSRoot, RepoMetadataName);
+
+            Dictionary<string, string> repoMetadata = new Dictionary<string, string>();
+            string json;
+            using (FileStream fs = new FileStream(metadataPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (StreamReader reader = new StreamReader(fs))
+            {
+                while (!reader.EndOfStream)
+                {
+                    json = reader.ReadLine();
+                    json.Substring(0, 2).ShouldEqual("A ");
+
+                    KeyValuePair<string, string> kvp = GVFSJsonOptions.Deserialize<KeyValuePair<string, string>>(json.Substring(2));
+                    if (kvp.Key != key)
+                    {
+                        repoMetadata[kvp.Key] = kvp.Value;
+                    }
+                }
+            }
 
             string newRepoMetadataContents = string.Empty;
 

@@ -1,4 +1,4 @@
-using GVFS.Common.FileSystem;
+﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
@@ -8,6 +8,8 @@ namespace GVFS.Common
 {
     public class RepoMetadata
     {
+        public const string MissingDiskLayoutVersionMessage = "Enlistment disk layout version not found. The .gvfs metadata is incomplete. Recloning this enlistment is the recommended fix.";
+
         private FileBasedDictionary<string, string> repoMetadata;
         private ITracer tracer;
 
@@ -91,15 +93,23 @@ namespace GVFS.Common
 
         public bool TryGetOnDiskLayoutVersion(out int majorVersion, out int minorVersion, out string error)
         {
+            ReturnCode returnCode;
+            return this.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error, out returnCode);
+        }
+
+        public bool TryGetOnDiskLayoutVersion(out int majorVersion, out int minorVersion, out string error, out ReturnCode returnCode)
+        {
             majorVersion = 0;
             minorVersion = 0;
+            returnCode = ReturnCode.GenericError;
 
             try
             {
                 string value;
                 if (!this.repoMetadata.TryGetValue(Keys.DiskLayoutMajorVersion, out value))
                 {
-                    error = "Enlistment disk layout version not found, check if a breaking change has been made to GVFS since cloning this enlistment.";
+                    error = MissingDiskLayoutVersionMessage;
+                    returnCode = ReturnCode.MissingDiskLayoutVersion;
                     return false;
                 }
 
@@ -125,6 +135,7 @@ namespace GVFS.Common
             }
 
             error = null;
+            returnCode = ReturnCode.Success;
             return true;
         }
 

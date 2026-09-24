@@ -18,8 +18,17 @@ namespace GVFS.DiskLayoutUpgrades
 
         public static bool TryRunAllUpgrades(string enlistmentRoot)
         {
+            string error;
+            ReturnCode returnCode;
+            return TryRunAllUpgrades(enlistmentRoot, out error, out returnCode);
+        }
+
+        public static bool TryRunAllUpgrades(string enlistmentRoot, out string error, out ReturnCode returnCode)
+        {
             majorVersionUpgrades = new Dictionary<int, MajorUpgrade>();
             minorVersionUpgrades = new Dictionary<int, Dictionary<int, MinorUpgrade>>();
+            error = null;
+            returnCode = ReturnCode.Success;
 
             foreach (DiskLayoutUpgrade upgrade in GVFSPlatform.Instance.DiskLayoutUpgrade.Upgrades)
             {
@@ -31,7 +40,7 @@ namespace GVFS.DiskLayoutUpgrades
                 try
                 {
                     DiskLayoutUpgrade upgrade = null;
-                    while (TryFindUpgrade(tracer, enlistmentRoot, out upgrade))
+                    while (TryFindUpgrade(tracer, enlistmentRoot, out upgrade, out error, out returnCode))
                     {
                         if (upgrade == null)
                         {
@@ -40,11 +49,13 @@ namespace GVFS.DiskLayoutUpgrades
 
                         if (!upgrade.TryUpgrade(tracer, enlistmentRoot))
                         {
+                            returnCode = ReturnCode.GenericError;
                             return false;
                         }
 
                         if (!CheckLayoutVersionWasIncremented(tracer, enlistmentRoot, upgrade))
                         {
+                            returnCode = ReturnCode.GenericError;
                             return false;
                         }
                     }
@@ -55,6 +66,8 @@ namespace GVFS.DiskLayoutUpgrades
                 {
                     StartLogFile(enlistmentRoot, tracer);
                     tracer.RelatedError(e.ToString());
+                    error = e.ToString();
+                    returnCode = ReturnCode.GenericError;
                     return false;
                 }
                 finally
@@ -66,7 +79,14 @@ namespace GVFS.DiskLayoutUpgrades
 
         public static bool TryCheckDiskLayoutVersion(ITracer tracer, string enlistmentRoot, out string error)
         {
+            ReturnCode returnCode;
+            return TryCheckDiskLayoutVersion(tracer, enlistmentRoot, out error, out returnCode);
+        }
+
+        public static bool TryCheckDiskLayoutVersion(ITracer tracer, string enlistmentRoot, out string error, out ReturnCode returnCode)
+        {
             error = string.Empty;
+            returnCode = ReturnCode.Success;
             int majorVersion;
             int minorVersion;
             try
@@ -75,6 +95,7 @@ namespace GVFS.DiskLayoutUpgrades
                 {
                     if (majorVersion < GVFSPlatform.Instance.DiskLayoutUpgrade.Version.MinimumSupportedMajorVersion)
                     {
+                        returnCode = ReturnCode.GenericError;
                         error = string.Format(
                             "Breaking change to GVFS disk layout has been made since cloning. \r\nEnlistment disk layout version: {0} \r\nGVFS disk layout version: {1} \r\nMinimum supported version: {2}",
                             majorVersion,
@@ -85,6 +106,7 @@ namespace GVFS.DiskLayoutUpgrades
                     }
                     else if (majorVersion > GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
                     {
+                        returnCode = ReturnCode.GenericError;
                         error = string.Format(
                             "Changes to GVFS disk layout do not allow mounting after downgrade. Try mounting again using a more recent version of GVFS. \r\nEnlistment disk layout version: {0} \r\nGVFS disk layout version: {1}",
                             majorVersion,
@@ -94,6 +116,7 @@ namespace GVFS.DiskLayoutUpgrades
                     }
                     else if (majorVersion != GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
                     {
+                        returnCode = ReturnCode.GenericError;
                         error = string.Format(
                             "GVFS disk layout version doesn't match current version. Try running 'gvfs mount' to upgrade. \r\nEnlistment disk layout version: {0}.{1} \r\nGVFS disk layout version: {2}.{3}",
                             majorVersion,
@@ -112,7 +135,16 @@ namespace GVFS.DiskLayoutUpgrades
                 RepoMetadata.Shutdown();
             }
 
-            error = "Failed to read disk layout version. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot);
+            if (error == RepoMetadata.MissingDiskLayoutVersionMessage)
+            {
+                returnCode = ReturnCode.MissingDiskLayoutVersion;
+            }
+            else
+            {
+                returnCode = ReturnCode.GenericError;
+                error = "Failed to read disk layout version. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot);
+            }
+
             return false;
         }
 
@@ -258,11 +290,17 @@ namespace GVFS.DiskLayoutUpgrades
 
         private static bool TryFindUpgrade(JsonTracer tracer, string enlistmentRoot, out DiskLayoutUpgrade upgrade)
         {
+            string error;
+            ReturnCode returnCode;
+            return TryFindUpgrade(tracer, enlistmentRoot, out upgrade, out error, out returnCode);
+        }
+
+        private static bool TryFindUpgrade(JsonTracer tracer, string enlistmentRoot, out DiskLayoutUpgrade upgrade, out string error, out ReturnCode returnCode)
+        {
             int majorVersion;
             int minorVersion;
 
-            string error;
-            if (!TryGetDiskLayoutVersion(tracer, enlistmentRoot, out majorVersion, out minorVersion, out error))
+            if (!TryGetDiskLayoutVersion(tracer, enlistmentRoot, out majorVersion, out minorVersion, out error, out returnCode))
             {
                 StartLogFile(enlistmentRoot, tracer);
                 tracer.RelatedError(error);
@@ -300,6 +338,8 @@ namespace GVFS.DiskLayoutUpgrades
 
             // return true to indicate that we succeeded, and no upgrader was found
             upgrade = null;
+            error = null;
+            returnCode = ReturnCode.Success;
             return true;
         }
 
@@ -310,8 +350,21 @@ namespace GVFS.DiskLayoutUpgrades
             out int minorVersion,
             out string error)
         {
+            ReturnCode returnCode;
+            return TryGetDiskLayoutVersion(tracer, enlistmentRoot, out majorVersion, out minorVersion, out error, out returnCode);
+        }
+
+        private static bool TryGetDiskLayoutVersion(
+            ITracer tracer,
+            string enlistmentRoot,
+            out int majorVersion,
+            out int minorVersion,
+            out string error,
+            out ReturnCode returnCode)
+        {
             majorVersion = 0;
             minorVersion = 0;
+            returnCode = ReturnCode.GenericError;
 
             string dotGVFSPath = Path.Combine(enlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
 
@@ -323,13 +376,14 @@ namespace GVFS.DiskLayoutUpgrades
                     return false;
                 }
 
-                if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error))
+                if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error, out returnCode))
                 {
                     return false;
                 }
             }
 
             error = null;
+            returnCode = ReturnCode.Success;
             return true;
         }
 
