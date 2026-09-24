@@ -132,7 +132,11 @@ namespace GVFS.Common.Git
 
         public static Result Init(Enlistment enlistment)
         {
-            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryBackingRoot + "\"");
+            // --object-format=sha1 is pinned explicitly so that GVFS does not silently pick up
+            // a future git default of sha256. AzDO (the only GVFS-protocol server implementer)
+            // has no plans to support sha256, and GVFS's own code assumes 20-byte/40-hex-char
+            // sha1 object IDs throughout, so a sha256 repo would corrupt data or crash.
+            return enlistment.CreateGitProcess().InvokeGitOutsideEnlistment("init --object-format=sha1 \"" + enlistment.WorkingDirectoryBackingRoot + "\"");
         }
 
         public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)

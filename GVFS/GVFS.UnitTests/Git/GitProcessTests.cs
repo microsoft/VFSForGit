@@ -140,6 +140,24 @@ namespace GVFS.UnitTests.Git
 
             return tokens;
         }
+      
+        [TestCase]
+        public void Init_PinsObjectFormatToSha1()
+        {
+            MockGitProcess gitProcess = new MockGitProcess();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(gitProcess);
+
+            string expectedCommand = "init --object-format=sha1 \"" + enlistment.WorkingDirectoryBackingRoot + "\"";
+            gitProcess.SetExpectedCommandResult(
+                expectedCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
+            GitProcess.Result result = GitProcess.Init(enlistment);
+
+            result.ExitCodeIsFailure.ShouldBeFalse();
+            gitProcess.CommandsRun.Count.ShouldEqual(1);
+            gitProcess.CommandsRun[0].ShouldEqual(expectedCommand);
+        }
 
         [TestCase]
         public void BoundedGitOutputBuffer_KeepsShortOutput()
