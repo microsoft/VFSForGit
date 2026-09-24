@@ -56,7 +56,19 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool IsAnonymous { get; private set; } = true;
+        /// <summary>
+        /// True only when the server is known to allow anonymous access.
+        /// </summary>
+        /// <remarks>
+        /// This defaults to false, because anonymous access is an affirmative
+        /// determination that requires a successful unauthenticated probe of
+        /// /gvfs/config. While this is true,
+        /// <see cref="Http.HttpRequestor.SendRequest"/> omits the Authorization
+        /// header and never calls <see cref="TryGetCredentials"/>, so a default of
+        /// true makes every request unauthenticated when the probe does not run or
+        /// does not complete.
+        /// </remarks>
+        public bool IsAnonymous { get; private set; }
 
         /// <summary>
         /// How long a caller of <see cref="TryGetCredentials"/> will wait for
@@ -65,6 +77,14 @@ namespace GVFS.Common.Git
         /// background credential fetch). Overridable for tests.
         /// </summary>
         internal int InitializationWaitTimeoutMs { get; set; } = BackgroundCredentialTimeoutMs;
+
+        /// <summary>
+        /// Test seam for the /gvfs/config probe. When null, production code uses
+        /// <see cref="ConfigHttpRequestor"/>. Unit tests substitute a fake so the
+        /// probe outcome - anonymous success, 401, or an indeterminate network
+        /// failure - can be driven deterministically.
+        /// </summary>
+        internal IGVFSConfigRequestor ConfigRequestorOverride { get; set; }
 
         private GitSsl GitSsl { get; }
 
@@ -260,13 +280,21 @@ namespace GVFS.Common.Git
             errorMessage = null;
             isAuthFailure = false;
 
-            using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
+            IGVFSConfigRequestor configRequestor = this.ConfigRequestorOverride ?? new ConfigHttpRequestor(tracer, enlistment, retryConfig);
+            using (configRequestor)
             {
                 HttpStatusCode? httpStatus;
 
                 // First attempt without credentials. If anonymous access works,
                 // we get the config in a single request.
-                if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out _))
+                //
+                // forceAnonymous is required, not incidental: this probe is what
+                // DETERMINES whether the server allows anonymous access, so it must
+                // not consult the answer it is computing. Without it, SendRequest
+                // sees IsAnonymous == false and calls TryGetCredentials, which waits
+                // for the initialization this very call stack is performing - a
+                // self-deadlock that stalls every mount until the wait times out.
+                if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out _, forceAnonymous: true))
                 {
                     this.IsAnonymous = true;
                     this.MarkInitialized();
@@ -276,9 +304,42 @@ namespace GVFS.Common.Git
 
                 if (httpStatus != HttpStatusCode.Unauthorized)
                 {
+                    // The probe did not determine whether the server allows anonymous
+                    // access. It failed for a reason unrelated to authentication - a
+                    // timeout, a 5xx, or a socket error. Assume authentication is
+                    // required. If the server does allow anonymous access it ignores
+                    // the Authorization header we then send.
+                    //
+                    // Treating this as anonymous is unrecoverable for the life of the
+                    // process: SendRequest would omit the Authorization header on every
+                    // later request and never call TryGetCredentials, the Azure DevOps
+                    // cache server answers 400 ("A valid Basic Authorization header is
+                    // required."), a 400 is not retryable, RejectCredentials is a no-op
+                    // because no credential was ever cached, and initialization is
+                    // already latched - so re-initialization throws. Mount proceeds
+                    // when a cache server is configured, so the repo stays mounted but
+                    // cannot hydrate or enumerate until it is remounted.
+                    // Assigning IsAnonymous here is defensive: the field already
+                    // defaults to false and no earlier path in this method can set it
+                    // true without returning, so this states the outcome explicitly
+                    // rather than relying on the default staying false.
+                    this.IsAnonymous = false;
                     this.MarkInitialized();
                     errorMessage = "Unable to query /gvfs/config";
-                    tracer.RelatedWarning("{0}: Config query failed with status {1}", nameof(this.TryInitializeAndQueryGVFSConfig), httpStatus?.ToString() ?? "None");
+
+                    // Emit this with Keywords.Telemetry so the population hitting an
+                    // indeterminate probe is measurable in the field. The plain
+                    // RelatedWarning(string, params object[]) overload traces with
+                    // Keywords.None, which TelemetryDaemonEventListener filters out.
+                    EventMetadata indeterminateMetadata = new EventMetadata(new Dictionary<string, object>
+                    {
+                        ["Area"] = nameof(GitAuthentication),
+                        ["HttpStatus"] = httpStatus?.ToString() ?? "None",
+                    });
+                    tracer.RelatedWarning(
+                        indeterminateMetadata,
+                        $"{nameof(this.TryInitializeAndQueryGVFSConfig)}: Config query failed with status {httpStatus?.ToString() ?? "None"}; assuming authentication is required",
+                        Keywords.Telemetry);
                     return false;
                 }
 
