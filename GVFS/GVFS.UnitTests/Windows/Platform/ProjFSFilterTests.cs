@@ -7,6 +7,7 @@ using Moq;
 using NUnit.Framework;
 using System;
 using System.IO;
+using System.ServiceProcess;
 
 namespace GVFS.UnitTests.Windows.Platform
 {
@@ -58,6 +59,46 @@ namespace GVFS.UnitTests.Windows.Platform
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.system32NativeLibPath)).Returns(false);
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.appLocalNativeLibPath)).Returns(true);
             ProjFSFilter.IsNativeLibInstalled(this.mockTracer, this.mockFileSystem.Object).ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void TryGetDisabledStartTypeError_ReturnsActionableMessageForDisabledService()
+        {
+            // A disabled driver service must produce the actionable enable-and-retry message,
+            // not a generic start failure.
+            bool isDisabled = ProjFSFilter.TryGetDisabledStartTypeError(ServiceStartMode.Disabled, out string error);
+            isDisabled.ShouldBeTrue();
+            error.ShouldContain("sc.exe config prjflt start= auto");
+        }
+
+        [TestCase(ServiceStartMode.Automatic)]
+        [TestCase(ServiceStartMode.Manual)]
+        [TestCase(ServiceStartMode.Boot)]
+        [TestCase(ServiceStartMode.System)]
+        public void TryGetDisabledStartTypeError_ReturnsFalseForEnabledStartTypes(ServiceStartMode startType)
+        {
+            bool isDisabled = ProjFSFilter.TryGetDisabledStartTypeError(startType, out string error);
+            isDisabled.ShouldBeFalse();
+            error.ShouldBeNull();
+        }
+
+        [TestCase]
+        public void GetStartServiceFailureError_ReturnsActionableMessageForDisabledService()
+        {
+            // A disabled driver service must produce the actionable enable-and-retry message,
+            // not a generic start failure.
+            string error = ProjFSFilter.GetStartServiceFailureError(1058);
+            error.ShouldContain("sc.exe config prjflt start= auto");
+        }
+
+        [TestCase(0)]
+        [TestCase(5)]     // ERROR_ACCESS_DENIED
+        [TestCase(1056)]  // ERROR_SERVICE_ALREADY_RUNNING
+        public void GetStartServiceFailureError_ReturnsGenericMessageForOtherErrors(int nativeErrorCode)
+        {
+            string error = ProjFSFilter.GetStartServiceFailureError(nativeErrorCode);
+            error.ShouldContain("Failed to start");
+            error.ShouldNotContain(false, "sc.exe config");
         }
     }
 }
