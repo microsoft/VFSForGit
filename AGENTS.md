@@ -67,18 +67,26 @@ an installer. `PublishAot=false` skips ilc (~3–4 min saved);
 `GVFS.Payload` only assembles the payload directory. It does not build or
 publish the projects that it copies from.
 
-> **Prerequisite: the native C++ projects must already be built.** They are
-> `.vcxproj` (see [Native C++ projects](#native-c-projects-need-msbuild-not-dotnet-build)
+> **Prerequisite: the native C++ projects and all managed payload projects must
+> already have built outputs.** The native projects are `.vcxproj` (see
+> [Native C++ projects](#native-c-projects-need-msbuild-not-dotnet-build)
 > below) and `dotnet publish` will not build them for you. If you have not
 > already done a `Build.bat` once in this enlistment, build the native
-> projects via VS MSBuild first (or run `Build.bat` once to populate `out\`,
-> then iterate with the commands below). After that they are incremental and
-> only rebuild when their own sources change.
+> projects via VS MSBuild and publish the managed payload projects below
+> (or run `Build.bat` once to populate `out\`, then iterate with the commands
+> below). After that they are incremental and only rebuild when their own
+> sources change.
 
 ```powershell
 dotnet publish src\GVFS\GVFS.FunctionalTests\GVFS.FunctionalTests.csproj `
     -c Debug /p:PublishAot=false
 dotnet publish src\GVFS\GVFS\GVFS.csproj `
+    -c Debug /p:PublishAot=false
+dotnet publish src\GVFS\GVFS.Hooks\GVFS.Hooks.csproj `
+    -c Debug /p:PublishAot=false
+dotnet publish src\GVFS\GVFS.Mount\GVFS.Mount.csproj `
+    -c Debug /p:PublishAot=false
+dotnet publish src\GVFS\GVFS.Service\GVFS.Service.csproj `
     -c Debug /p:PublishAot=false
 dotnet publish src\GVFS\GVFS.Payload\GVFS.Payload.csproj `
     -c Debug /p:PublishAot=false /p:SkipCreateInstaller=true
@@ -95,8 +103,9 @@ hook binaries are copied straight from the vcxproj output.
 > **Publish each changed project explicitly.** `GVFS.Payload.csproj` has no
 > `ProjectReference` items. Its `CreatePayload` target runs `layout.bat`, which
 > copies existing project output. A project that you do not publish can
-> contribute stale output from an earlier build. Publish `GVFS.Mount`,
-> `GVFS.Hooks`, or `GVFS.Service` explicitly when you change those projects.
+> contribute stale output from an earlier build. Publish all four managed
+> payload projects at least once in a new enlistment, and publish a project
+> again when you change it.
 
 `RunFunctionalTests-Dev.ps1` runs functional tests against the build output
 without requiring admin or a system-wide install. It launches the test
