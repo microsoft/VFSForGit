@@ -74,6 +74,21 @@ namespace GVFS.RepairJobs
 
         public override FixResult TryFixIssues(List<string> messages)
         {
+            // Check before touching the config file at all: TryFixIssues rebuilds the
+            // entire config from scratch (wiping it to empty, then writing only the
+            // required/optional settings this codebase knows about), which would
+            // silently erase extensions.objectformat and leave a SHA256 repo's config
+            // looking like a fresh SHA1 repo while its actual objects/index remain
+            // SHA256-hashed - a worse, silent form of the same corruption hazard this
+            // PR fixes elsewhere. There is no way for 'gvfs repair' to fix a SHA256
+            // repo, so fail clearly instead of attempting the rebuild.
+            if (ObjectFormat.TryIsSha256Repo(new GitProcess(this.Enlistment), out bool isSha256Repo, out string objectFormatReadError) &&
+                isSha256Repo)
+            {
+                messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
+                return FixResult.Failure;
+            }
+
             string configPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Config);
             string configBackupPath;
             if (!this.TryRenameToBackupFile(configPath, out configBackupPath, messages))
