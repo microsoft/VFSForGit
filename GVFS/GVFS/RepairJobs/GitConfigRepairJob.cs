@@ -121,6 +121,19 @@ namespace GVFS.RepairJobs
                 this.Tracer.RelatedWarning("Could not determine the repository's ref storage format; proceeding with repair: " + refStorageReadError);
             }
 
+            // Unlike ref storage format, SHA256 has no physical on-disk marker independent
+            // of git config - extensions.objectformat is the only signal - so there is no
+            // directory-based fallback here the way ReftableBackendDirectoryExists() gives
+            // the check above. A SHA256 repo whose config is also corrupt cannot be
+            // distinguished from an ordinary corrupt SHA1 repo, and would be silently
+            // rebuilt as SHA1; this is an inherent limitation of this axis.
+            if (ObjectFormat.TryIsSha256Repo(new GitProcess(this.Enlistment), out bool isSha256Repo, out string objectFormatReadError) &&
+                isSha256Repo)
+            {
+                messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
+                return FixResult.Failure;
+            }
+
             string configPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Config);
             string configBackupPath;
             if (!this.TryRenameToBackupFile(configPath, out configBackupPath, messages))
