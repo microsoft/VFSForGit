@@ -59,5 +59,23 @@ namespace GVFS.UnitTests.Windows.Platform
             this.mockFileSystem.Setup(fileSystem => fileSystem.FileExists(this.appLocalNativeLibPath)).Returns(true);
             ProjFSFilter.IsNativeLibInstalled(this.mockTracer, this.mockFileSystem.Object).ShouldBeFalse();
         }
+
+        [TestCase]
+        public void GetStartServiceFailureError_ReturnsActionableMessageForDisabledService()
+        {
+            // ERROR_SERVICE_DISABLED (1058) is the case that today surfaces a dead-end "failed to start" error.
+            string error = ProjFSFilter.GetStartServiceFailureError(1058);
+            error.ShouldContain("sc.exe config prjflt start= auto");
+        }
+
+        [TestCase(0)]
+        [TestCase(5)]     // ERROR_ACCESS_DENIED
+        [TestCase(1056)]  // ERROR_SERVICE_ALREADY_RUNNING
+        public void GetStartServiceFailureError_ReturnsGenericMessageForOtherErrors(int nativeErrorCode)
+        {
+            string error = ProjFSFilter.GetStartServiceFailureError(nativeErrorCode);
+            error.ShouldContain("Failed to start");
+            error.ShouldNotContain(false, "sc.exe config");
+        }
     }
 }
