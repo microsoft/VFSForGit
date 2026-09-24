@@ -223,7 +223,11 @@ namespace FastFetch
                 return ExitFailure;
             }
 
-            if (ObjectFormat.IsSha256Repo(enlistment.CreateGitProcess()))
+            if (!ObjectFormat.TryIsSha256Repo(enlistment.CreateGitProcess(), out bool isSha256Repo, out string objectFormatReadError))
+            {
+                Console.WriteLine("Warning: could not determine the repository's object format: " + objectFormatReadError);
+            }
+            else if (isSha256Repo)
             {
                 Console.WriteLine(ObjectFormat.UnsupportedSha256ErrorMessage);
                 return ExitFailure;

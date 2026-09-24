@@ -81,5 +81,48 @@ namespace GVFS.UnitTests.Git
 
             ObjectFormat.IsSha256Repo(git).ShouldEqual(false);
         }
+
+        [TestCase]
+        public void TryIsSha256RepoSucceedsWithNoErrorWhenConfigIsSha256()
+        {
+            MockGitProcess git = new MockGitProcess();
+            git.SetExpectedCommandResult(
+                ConfigCommand,
+                () => new GitProcess.Result("sha256\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            ObjectFormat.TryIsSha256Repo(git, out bool isSha256, out string error).ShouldEqual(true);
+            isSha256.ShouldEqual(true);
+            error.ShouldEqual(string.Empty);
+        }
+
+        [TestCase]
+        public void TryIsSha256RepoSucceedsWithNoErrorWhenConfigIsMissing()
+        {
+            MockGitProcess git = new MockGitProcess();
+            git.SetExpectedCommandResult(
+                ConfigCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
+
+            ObjectFormat.TryIsSha256Repo(git, out bool isSha256, out string error).ShouldEqual(true);
+            isSha256.ShouldEqual(false);
+            error.ShouldEqual(string.Empty);
+        }
+
+        [TestCase]
+        public void TryIsSha256RepoFailsAndReportsErrorWhenConfigReadFails()
+        {
+            MockGitProcess git = new MockGitProcess();
+
+            // A genuine 'git config' failure (non-zero exit with real stderr content, as
+            // opposed to a missing key) should be surfaced distinctly rather than silently
+            // treated the same as "not SHA256".
+            git.SetExpectedCommandResult(
+                ConfigCommand,
+                () => new GitProcess.Result(string.Empty, "fatal: not a git repository", GitProcess.Result.GenericFailureCode));
+
+            ObjectFormat.TryIsSha256Repo(git, out bool isSha256, out string error).ShouldEqual(false);
+            isSha256.ShouldEqual(false);
+            error.ShouldNotBeNull();
+        }
     }
 }

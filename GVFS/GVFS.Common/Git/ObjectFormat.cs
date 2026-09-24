@@ -37,11 +37,36 @@ namespace GVFS.Common.Git
         /// <summary>
         /// Reads extensions.objectformat from the local config of the repo backing the given
         /// GitProcess, and returns true if it identifies a SHA256 repository.
+        ///
+        /// A config read failure (e.g. a broken git invocation, as opposed to the key simply
+        /// being absent) is treated the same as "not SHA256" here, matching the established
+        /// behavior of GitProcess.TryGetFromConfig elsewhere in this codebase for optional
+        /// config reads. Use <see cref="TryIsSha256Repo"/> if the caller wants to distinguish
+        /// and surface that failure instead of silently treating it as SHA1.
         /// </summary>
         public static bool IsSha256Repo(GitProcess git)
         {
+            TryIsSha256Repo(git, out bool isSha256, out string _);
+            return isSha256;
+        }
+
+        /// <summary>
+        /// Reads extensions.objectformat from the local config of the repo backing the given
+        /// GitProcess. Returns false and populates <paramref name="error"/> if the config
+        /// could not be read at all (a missing key is not an error - it simply means the
+        /// repository defaults to SHA1, and isSha256 is set to false).
+        /// </summary>
+        public static bool TryIsSha256Repo(GitProcess git, out bool isSha256, out string error)
+        {
             GitProcess.ConfigResult result = git.GetFromLocalConfig(ObjectFormatConfigName);
-            return result.TryParseAsString(out string value, out string _) && IsSha256(value);
+            if (!result.TryParseAsString(out string value, out error))
+            {
+                isSha256 = false;
+                return false;
+            }
+
+            isSha256 = IsSha256(value);
+            return true;
         }
     }
 }
