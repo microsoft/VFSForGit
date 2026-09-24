@@ -282,6 +282,8 @@ namespace GVFS.Mount
 
                     // Check this before TrySetRequiredGitConfigSettings, which unconditionally
                     // forces core.repositoryformatversion back to 0 (matching what 'git init'
+                    // Check this before TrySetRequiredGitConfigSettings, which unconditionally
+                    // forces core.repositoryformatversion back to 0 (matching what 'git init'
                     // writes for a files-format repo) without knowing about extensions.refstorage.
                     // Applying that write to a reftable repo would leave behind an inconsistent
                     // config (repositoryformatversion=0 with a v1-only extension still present)
@@ -304,6 +306,18 @@ namespace GVFS.Mount
                     else if (isReftableRepo)
                     {
                         this.FailMountAndExit(RefStorage.UnsupportedReftableErrorMessage);
+                    }
+
+                    // Same rationale as above, for SHA256: applying the required-config
+                    // force-write to a SHA256 repo (extensions.objectformat) would brick it
+                    // identically, so this check must also run before that write.
+                    if (!ObjectFormat.TryIsSha256Repo(git, out bool isSha256Repo, out string objectFormatReadError))
+                    {
+                        this.tracer.RelatedWarning("Could not determine the repository's object format: " + objectFormatReadError);
+                    }
+                    else if (isSha256Repo)
+                    {
+                        this.FailMountAndExit(ObjectFormat.UnsupportedSha256ErrorMessage);
                     }
 
                     if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
