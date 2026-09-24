@@ -280,6 +280,22 @@ namespace GVFS.Mount
                         this.FailMountAndExit("The .git folder is missing or has invalid contents");
                     }
 
+                    // Check this before TrySetRequiredGitConfigSettings, which unconditionally
+                    // forces core.repositoryformatversion back to 0 (matching what 'git init'
+                    // writes for a SHA1 repo) without knowing about extensions.objectformat.
+                    // Applying that write to an already-SHA256 repo would leave behind an
+                    // inconsistent config (repositoryformatversion=0 with a v1-only extension
+                    // still present) that git itself then refuses to parse at all - so this
+                    // check must run first, before any other git config mutation.
+                    if (!ObjectFormat.TryIsSha256Repo(git, out bool isSha256Repo, out string objectFormatReadError))
+                    {
+                        this.tracer.RelatedWarning("Could not determine the repository's object format: " + objectFormatReadError);
+                    }
+                    else if (isSha256Repo)
+                    {
+                        this.FailMountAndExit(ObjectFormat.UnsupportedSha256ErrorMessage);
+                    }
+
                     if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
                     {
                         this.FailMountAndExit("FileSystem unsupported: " + fsError);
