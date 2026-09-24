@@ -142,7 +142,46 @@ namespace GVFS.UnitTests.Git
         }
       
         [TestCase]
-        public void Init_PinsObjectFormatToSha1()
+        public void Init_PinsObjectFormatToSha1_AndOmitsRefFormatWhenVersionUnknown()
+        {
+            MockGitProcess gitProcess = new MockGitProcess();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(gitProcess);
+
+            // object-format=sha1 is always pinned. A null (undetermined) git version also
+            // omits the version-gated --ref-format pin - CloneVerb.TryInitRepo's reftable
+            // detection is the safety net in that case.
+            string expectedCommand = "init --object-format=sha1 \"" + enlistment.WorkingDirectoryBackingRoot + "\"";
+            gitProcess.SetExpectedCommandResult(
+                expectedCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
+            GitProcess.Result result = GitProcess.Init(enlistment, installedGitVersion: null);
+
+            result.ExitCodeIsFailure.ShouldBeFalse();
+            gitProcess.CommandsRun.Count.ShouldEqual(1);
+            gitProcess.CommandsRun[0].ShouldEqual(expectedCommand);
+        }
+
+        [TestCase]
+        public void Init_PinsRefFormatToFiles_WhenGitSupportsRefFormat()
+        {
+            MockGitProcess gitProcess = new MockGitProcess();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(gitProcess);
+
+            string expectedCommand = "init --object-format=sha1 --ref-format=files \"" + enlistment.WorkingDirectoryBackingRoot + "\"";
+            gitProcess.SetExpectedCommandResult(
+                expectedCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
+            GitProcess.Result result = GitProcess.Init(enlistment, new GitVersion(2, 45, 0, (string)null));
+
+            result.ExitCodeIsFailure.ShouldBeFalse();
+            gitProcess.CommandsRun.Count.ShouldEqual(1);
+            gitProcess.CommandsRun[0].ShouldEqual(expectedCommand);
+        }
+
+        [TestCase]
+        public void Init_DoesNotPinRefFormat_WhenGitPredatesRefFormat()
         {
             MockGitProcess gitProcess = new MockGitProcess();
             MockGVFSEnlistment enlistment = new MockGVFSEnlistment(gitProcess);
@@ -152,11 +191,46 @@ namespace GVFS.UnitTests.Git
                 expectedCommand,
                 () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
 
-            GitProcess.Result result = GitProcess.Init(enlistment);
+            GitProcess.Result result = GitProcess.Init(enlistment, new GitVersion(2, 44, 0, (string)null));
 
             result.ExitCodeIsFailure.ShouldBeFalse();
             gitProcess.CommandsRun.Count.ShouldEqual(1);
             gitProcess.CommandsRun[0].ShouldEqual(expectedCommand);
+        }
+
+        [TestCase(2, 45, 0, true)]   // first version with --ref-format
+        [TestCase(2, 55, 0, true)]   // newer
+        [TestCase(2, 44, 0, false)]  // one minor before
+        [TestCase(2, 31, 0, false)]  // MinimumGitVersion
+        [TestCase(1, 99, 0, false)]  // older major
+        public void SupportsRefFormatOption_GatesOnGit245(int major, int minor, int build, bool expected)
+        {
+            GitProcess.SupportsRefFormatOption(new GitVersion(major, minor, build, (string)null)).ShouldEqual(expected);
+        }
+
+        [TestCase]
+        public void SupportsRefFormatOption_IsTrueForMicrosoftGitBuildOf245()
+        {
+            // Microsoft/Git versions carry a platform + revision suffix (e.g. 2.45.0.vfs.0.1);
+            // the comparison must treat such a build of 2.45 as supporting --ref-format.
+            GitProcess.SupportsRefFormatOption(new GitVersion(2, 45, 0, "vfs", 0, 1)).ShouldEqual(true);
+        }
+
+        [TestCase]
+        public void SupportsRefFormatOption_IsFalseForReleaseCandidateOf245()
+        {
+            // A release candidate of 2.45 sorts before the final 2.45 (GitVersion treats a
+            // version with a release candidate as less than the same version without one), so
+            // the gate conservatively omits the pin for an rc build. That is a missed
+            // optimization, not a correctness problem: the clone falls back to un-pinned init
+            // exactly as on pre-2.45 git, and the reftable detection still catches the repo.
+            GitProcess.SupportsRefFormatOption(new GitVersion(2, 45, 0, releaseCandidate: 0)).ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void SupportsRefFormatOption_IsFalseForNullVersion()
+        {
+            GitProcess.SupportsRefFormatOption(null).ShouldEqual(false);
         }
 
         [TestCase]
