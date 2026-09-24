@@ -473,7 +473,103 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 }
             }
 
+            GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(worktreePath);
+            if (wtInfo == null)
+            {
+                sb.AppendLine("  WorktreeInfo: null");
+            }
+            else
+            {
+                sb.AppendLine($"  WorktreeInfo.Name: {wtInfo.Name}");
+                sb.AppendLine($"  WorktreeInfo.WorktreePath: {wtInfo.WorktreePath}");
+                sb.AppendLine($"  WorktreeInfo.WorktreeGitDir: {wtInfo.WorktreeGitDir}");
+                sb.AppendLine($"  WorktreeInfo.SharedGitDir: {wtInfo.SharedGitDir}");
+                sb.AppendLine($"  WorktreeInfo.PipeSuffix: {wtInfo.PipeSuffix}");
+
+                this.AppendDirectoryListing(sb, "worktree git dir", wtInfo.WorktreeGitDir);
+                this.AppendDirectoryListing(
+                    sb,
+                    "worktree hooks dir",
+                    Path.Combine(wtInfo.WorktreeGitDir, GVFSConstants.DotGit.Hooks.RootName));
+                this.AppendDirectoryListing(
+                    sb,
+                    "worktree .gvfs dir",
+                    Path.Combine(wtInfo.WorktreeGitDir, GVFSPlatform.Instance.Constants.DotGVFSRoot));
+                this.AppendWorktreeMountLogs(sb, wtInfo);
+            }
+
             return sb.ToString();
+        }
+
+        private void AppendDirectoryListing(StringBuilder sb, string label, string path)
+        {
+            sb.AppendLine($"  {label}: {path}");
+            sb.AppendLine($"    exists: {Directory.Exists(path)}");
+            if (!Directory.Exists(path))
+            {
+                return;
+            }
+
+            try
+            {
+                string[] entries = Directory.GetFileSystemEntries(path);
+                sb.AppendLine($"    entries ({entries.Length}):");
+                foreach (string entry in entries)
+                {
+                    FileSystemInfo info = Directory.Exists(entry)
+                        ? (FileSystemInfo)new DirectoryInfo(entry)
+                        : new FileInfo(entry);
+                    sb.AppendLine($"      {Path.GetFileName(entry)} ({info.Attributes})");
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"    listing failed: {ex}");
+            }
+        }
+
+        private void AppendWorktreeMountLogs(StringBuilder sb, GVFSEnlistment.WorktreeInfo wtInfo)
+        {
+            string logsRoot = Path.Combine(
+                wtInfo.WorktreeGitDir,
+                GVFSPlatform.Instance.Constants.DotGVFSRoot,
+                GVFSConstants.DotGVFS.LogName);
+            sb.AppendLine($"  worktree logs dir: {logsRoot}");
+            sb.AppendLine($"    exists: {Directory.Exists(logsRoot)}");
+            if (!Directory.Exists(logsRoot))
+            {
+                return;
+            }
+
+            try
+            {
+                FileInfo[] logFiles = new DirectoryInfo(logsRoot)
+                    .GetFiles("*.log")
+                    .OrderByDescending(file => file.LastWriteTimeUtc)
+                    .Take(5)
+                    .ToArray();
+
+                foreach (FileInfo logFile in logFiles)
+                {
+                    sb.AppendLine($"    ----- {logFile.FullName} ({logFile.Length} bytes) -----");
+                    sb.AppendLine(this.ReadTail(logFile.FullName, maxChars: 12000));
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"    log capture failed: {ex}");
+            }
+        }
+
+        private string ReadTail(string path, int maxChars)
+        {
+            string contents = File.ReadAllText(path);
+            if (contents.Length <= maxChars)
+            {
+                return contents;
+            }
+
+            return contents.Substring(contents.Length - maxChars);
         }
 
         private void CleanupAllWorktrees(string[] paths, string[] branches, int count)
