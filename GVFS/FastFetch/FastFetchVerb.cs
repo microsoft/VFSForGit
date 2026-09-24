@@ -204,6 +204,15 @@ namespace FastFetch
                 return ExitFailure;
             }
 
+            // Check this before any code that assumes SHA1-shaped object ids runs (e.g.
+            // index parsing/generation), since FastFetch can be pointed at an arbitrary
+            // pre-existing git repository rather than only ones 'gvfs clone' created.
+            if (ObjectFormat.IsSha256Repo(enlistment.CreateGitProcess()))
+            {
+                Console.WriteLine(ObjectFormat.UnsupportedSha256ErrorMessage);
+                return ExitFailure;
+            }
+
             string commitish = this.Commit ?? this.Branch;
             if (string.IsNullOrWhiteSpace(commitish))
             {

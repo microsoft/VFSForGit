@@ -857,6 +857,15 @@ git %*
                 return new Result(error);
             }
 
+            // Defense-in-depth: 'git init' should always be pinned to SHA1 for GVFS
+            // enlistments, but detect a SHA256 repo here too in case that pin is ever
+            // bypassed by some other code path.
+            if (ObjectFormat.IsSha256Repo(enlistmentToInit.CreateGitProcess()))
+            {
+                tracer.RelatedError(ObjectFormat.UnsupportedSha256ErrorMessage);
+                return new Result(ObjectFormat.UnsupportedSha256ErrorMessage);
+            }
+
             try
             {
                 GVFSPlatform.Instance.FileSystem.EnsureDirectoryIsOwnedByCurrentUser(enlistmentToInit.DotGitRoot);
