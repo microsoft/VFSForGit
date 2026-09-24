@@ -142,6 +142,13 @@ IF NOT DEFINED VCVARS_BAT (
 ECHO INFO: Initializing VC++ env for %ARCH% via "%VCVARS_BAT%"
 CALL "%VCVARS_BAT%" %ARCH% || GOTO ERROR
 
+REM cl.exe can transiently fail with C3859 "Failed to create virtual memory
+REM for PCH" under memory pressure (observed on the arm64 runners, where PCH
+REM creation can collide with other concurrent processes for address space).
+REM It is not caused by anything in this repo's code and reliably succeeds on
+REM a retry, so retry each native project build a few times before failing.
+SET NATIVE_BUILD_RETRIES=3
+
 FOR %%P IN (
     "%VFS_SRCDIR%\GVFS\GitHooksLoader\GitHooksLoader.vcxproj"
     "%VFS_SRCDIR%\GVFS\GVFS.NativeTests\GVFS.NativeTests.vcxproj"
@@ -149,14 +156,7 @@ FOR %%P IN (
     "%VFS_SRCDIR%\GVFS\GVFS.ReadObjectHook\GVFS.ReadObjectHook.vcxproj"
     "%VFS_SRCDIR%\GVFS\GVFS.VirtualFileSystemHook\GVFS.VirtualFileSystemHook.vcxproj"
 ) DO (
-    ECHO Building %%~nP...
-    "%MSBUILD_EXEC%" %%P ^
-            /t:Build ^
-            /v:%VERBOSITY% ^
-            /p:Configuration=%CONFIGURATION% ^
-            /p:Platform=%NATIVE_PLATFORM% ^
-            /p:VfsArch=%ARCH% ^
-            /p:SolutionDir="%VFS_SRCDIR%\\" || GOTO ERROR
+    CALL :BuildNativeProject %%P || GOTO ERROR
 )
 
 REM vcvarsall.bat sets Platform=<arch> in the environment. MSBuild picks that
@@ -200,6 +200,31 @@ FOR %%P IN (
 )
 
 GOTO :EOF
+
+REM Builds a single native vcxproj, retrying on failure up to
+REM %NATIVE_BUILD_RETRIES% times. cl.exe's PCH creation (C3859) can fail
+REM transiently under memory pressure; a retry is usually enough to recover.
+:BuildNativeProject
+SET "NATIVE_PROJ=%~1"
+SET NATIVE_ATTEMPT=1
+:BuildNativeProject_Retry
+ECHO Building %~n1 (attempt %NATIVE_ATTEMPT% of %NATIVE_BUILD_RETRIES%)...
+"%MSBUILD_EXEC%" "%NATIVE_PROJ%" ^
+        /t:Build ^
+        /v:%VERBOSITY% ^
+        /p:Configuration=%CONFIGURATION% ^
+        /p:Platform=%NATIVE_PLATFORM% ^
+        /p:VfsArch=%ARCH% ^
+        /p:SolutionDir="%VFS_SRCDIR%\\"
+IF NOT ERRORLEVEL 1 EXIT /B 0
+IF %NATIVE_ATTEMPT% GEQ %NATIVE_BUILD_RETRIES% (
+    ECHO ERROR: Build of %~n1 failed after %NATIVE_BUILD_RETRIES% attempts.
+    EXIT /B 1
+)
+ECHO WARNING: Build of %~n1 failed on attempt %NATIVE_ATTEMPT%; this can be a transient PCH virtual-memory error ^(C3859^). Retrying in 10 seconds...
+TIMEOUT /T 10 /NOBREAK >NUL
+SET /A NATIVE_ATTEMPT+=1
+GOTO BuildNativeProject_Retry
 
 :USAGE
 ECHO usage: %~n0%~x0 [^<configuration^>] [^<version^>] [^<verbosity^>] [^<arch^>]
