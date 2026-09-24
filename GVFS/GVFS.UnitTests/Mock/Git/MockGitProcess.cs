@@ -93,7 +93,8 @@ namespace GVFS.UnitTests.Mock.Git
             Action<string> parseStdOutLine,
             int timeoutMs,
             string gitObjectsDirectory = null,
-            bool usePrecommandHook = true)
+            bool usePrecommandHook = true,
+            Action<string> parseStdOutToken = null)
         {
             this.CommandsRun.Add(command);
             this.DotGitDirectoriesUsed.Add(dotGitDirectory);
@@ -132,6 +133,22 @@ namespace GVFS.UnitTests.Mock.Git
                 }
                 /* Future: result.Output should be set to null in this case */
             }
+
+            if (parseStdOutToken != null && !string.IsNullOrEmpty(result.Output))
+            {
+                // Feed the mock output through the real production tokenizer so the test double cannot
+                // drift from ReadStdOutTokens' actual semantics (empty records, trailing-fragment flush).
+                using (MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(result.Output)))
+                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    GitProcess.ReadStdOutTokens(reader, parseStdOutToken);
+                }
+
+                // In streaming mode production never subscribes OutputDataReceived, so Result.Output is
+                // empty; mirror that here so callers cannot rely on Output being populated after streaming.
+                result = new Result(string.Empty, result.Errors, result.ExitCode, result.OutputTruncated, result.ErrorsTruncated);
+            }
+
             return result;
         }
 
