@@ -74,13 +74,15 @@ namespace GVFS.Service.Handlers
 
                     if (isPrjfltServiceInstalled)
                     {
-                        if (ProjFSFilter.TryStartService(tracer))
+                        string startServiceError;
+                        if (ProjFSFilter.TryStartService(tracer, out startServiceError))
                         {
                             isPrjfltServiceRunning = true;
                         }
                         else
                         {
-                            error = "Failed to start prjflt service";
+                            error = string.IsNullOrEmpty(startServiceError) ? "Failed to start prjflt service" : startServiceError;
+                            prjFltHealthMetadata.Add("StartServiceError", error);
                             tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: {error}");
                         }
                     }
