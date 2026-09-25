@@ -64,6 +64,9 @@ namespace GVFS.Common
             // Override DotGitRoot to point to the shared .git directory.
             // The base constructor sets it to WorkingDirectoryBackingRoot/.git
             // which is a file (not directory) in worktrees.
+            //
+            // DotGitRoot is shared git state. Per-worktree paths must come from
+            // Worktree.WorktreeGitDir.
             this.DotGitRoot = worktreeInfo.SharedGitDir;
 
             this.DotGVFSRoot = Path.Combine(worktreeInfo.WorktreeGitDir, GVFSPlatform.Instance.Constants.DotGVFSRoot);
