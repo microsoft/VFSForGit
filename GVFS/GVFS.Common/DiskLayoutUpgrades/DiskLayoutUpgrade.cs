@@ -16,13 +16,6 @@ namespace GVFS.DiskLayoutUpgrades
         protected abstract int SourceMinorVersion { get; }
         protected abstract bool IsMajorUpgrade { get; }
 
-        public static bool TryRunAllUpgrades(string enlistmentRoot)
-        {
-            string error;
-            ReturnCode returnCode;
-            return TryRunAllUpgrades(enlistmentRoot, out error, out returnCode);
-        }
-
         public static bool TryRunAllUpgrades(string enlistmentRoot, out string error, out ReturnCode returnCode)
         {
             majorVersionUpgrades = new Dictionary<int, MajorUpgrade>();
@@ -91,7 +84,7 @@ namespace GVFS.DiskLayoutUpgrades
             int minorVersion;
             try
             {
-                if (TryGetDiskLayoutVersion(tracer, enlistmentRoot, out majorVersion, out minorVersion, out error))
+                if (TryGetDiskLayoutVersion(tracer, enlistmentRoot, out majorVersion, out minorVersion, out error, out returnCode))
                 {
                     if (majorVersion < GVFSPlatform.Instance.DiskLayoutUpgrade.Version.MinimumSupportedMajorVersion)
                     {
@@ -135,11 +128,7 @@ namespace GVFS.DiskLayoutUpgrades
                 RepoMetadata.Shutdown();
             }
 
-            if (error == RepoMetadata.MissingDiskLayoutVersionMessage)
-            {
-                returnCode = ReturnCode.MissingDiskLayoutVersion;
-            }
-            else
+            if (returnCode != ReturnCode.MissingDiskLayoutVersion)
             {
                 returnCode = ReturnCode.GenericError;
                 error = "Failed to read disk layout version. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot);

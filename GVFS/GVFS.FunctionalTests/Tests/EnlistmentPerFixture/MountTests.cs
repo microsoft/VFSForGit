@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
@@ -11,14 +11,16 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using RepoMetadata = GVFS.Common.RepoMetadata;
+using ReturnCode = GVFS.Common.ReturnCode;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
-        private const int GVFSGenericError = 3;
-        private const int GVFSMissingDiskLayoutVersion = 12;
+        private const int GVFSGenericError = (int)ReturnCode.GenericError;
+        private const int GVFSMissingDiskLayoutVersion = (int)ReturnCode.MissingDiskLayoutVersion;
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
         private readonly int fileDeletedBackgroundOperationCode;
@@ -117,7 +119,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 this.MountShouldFail(
                     GVFSMissingDiskLayoutVersion,
-                    "The .gvfs metadata is incomplete. Recloning this enlistment is the recommended fix.");
+                    RepoMetadata.MissingDiskLayoutVersionMessage);
             }
             finally
             {
@@ -156,7 +158,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 this.MountShouldFail(
                     GVFSMissingDiskLayoutVersion,
-                    "The .gvfs metadata is incomplete. Recloning this enlistment is the recommended fix.");
+                    RepoMetadata.MissingDiskLayoutVersionMessage);
             }
             finally
             {
