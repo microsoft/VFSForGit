@@ -836,6 +836,12 @@ namespace GVFS.Platform.Windows
             {
                 this.Context.Tracer.RelatedError($"{nameof(this.virtualizationInstance.StartVirtualizing)} failed: " + result.ToString("X") + "(" + result.ToString("G") + ")");
                 error = "Failed to start virtualization instance (" + result.ToString() + ")";
+
+                if ((int)result == HResultExtensions.FileSystemVirtualizationNotAvailable)
+                {
+                    error += ". " + BuildProjFsAttachRemedy(this.Context.Enlistment.WorkingDirectoryRoot);
+                }
+
                 return false;
             }
 
@@ -845,6 +851,48 @@ namespace GVFS.Platform.Windows
         protected override void OnPossibleTombstoneFolderCreated(string relativePath)
         {
             this.FileSystemCallbacks.OnPossibleTombstoneFolderCreated(relativePath);
+        }
+
+        /// <summary>
+        /// Builds the user-facing remedy for
+        /// ERROR_FILE_SYSTEM_VIRTUALIZATION_NOT_AVAILABLE, which a Dev Drive returns when
+        /// PrjFlt is not on its allowed-filter list.
+        /// </summary>
+        /// <remarks>
+        /// "fsutil devdrv setFiltersAllowed" REPLACES the allowed list, and without
+        /// /volume it replaces the list for every developer volume on the machine. So the
+        /// message must tell the user to read the current list first and include it, or
+        /// following this advice would drop filters the machine already requires (an
+        /// anti-malware filter, for example).
+        /// </remarks>
+        private static string BuildProjFsAttachRemedy(string enlistmentRoot)
+        {
+            string volume;
+            try
+            {
+                volume = Path.GetPathRoot(enlistmentRoot)?.TrimEnd(Path.DirectorySeparatorChar);
+            }
+            catch (ArgumentException)
+            {
+                volume = null;
+            }
+
+            if (string.IsNullOrEmpty(volume))
+            {
+                volume = "<volume>";
+            }
+
+            return "The ProjFS filter (PrjFlt) cannot attach to this volume. "
+                + $"If {volume} is a Dev Drive, PrjFlt must be on its allowed-filter list. "
+                + "From an elevated command prompt, list the filters that are already allowed:"
+                + Environment.NewLine
+                + $"    fsutil devdrv query {volume}"
+                + Environment.NewLine
+                + "then set the list again with PrjFlt added to it:"
+                + Environment.NewLine
+                + $"    fsutil devdrv setFiltersAllowed /f /volume {volume} \"<filters listed above>,PrjFlt\""
+                + Environment.NewLine
+                + "setFiltersAllowed replaces the list, so keep the existing entries";
         }
 
         private static void StreamCopyBlockTo(Stream input, Stream destination, long numBytes, byte[] buffer)

@@ -122,13 +122,27 @@ namespace GVFS.Virtualization.Background
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// Test seam. Puts the runner into the "background thread is still running" state
+        /// that a failed mount produces, without needing a real repo.
+        /// </summary>
+        internal void SetBackgroundThreadForTests(Task backgroundTask)
+        {
+            this.backgroundThread = backgroundTask;
+        }
+
         protected void Dispose(bool disposing)
         {
             if (disposing)
             {
                 if (this.backgroundThread != null)
                 {
-                    this.backgroundThread.Dispose();
+                    // Deliberately not calling Task.Dispose. A Task holds no unmanaged
+                    // resources, and Task.Dispose throws InvalidOperationException unless
+                    // the task has reached a completion state. A failed mount disposes the
+                    // callbacks without calling Shutdown first, so this thread is still
+                    // running and that throw would prevent the mount process from
+                    // reporting why the mount failed.
                     this.backgroundThread = null;
                 }
                 if (this.backgroundTasks != null)
