@@ -123,8 +123,8 @@ namespace GVFS.UnitTests.Common
                 errorMessage.ShouldNotBeNull();
                 errorMessage.ShouldContain("Could not connect to GVFS.Mount");
 
-                // The console-facing message must stay short - no embedded stack trace,
-                // which is what e.ToString() (instead of e.Message) used to produce.
+                // The console-facing message must stay short - no embedded stack trace
+                // (a stack trace is what BrokenPipeException.ToString() would produce).
                 errorMessage.ShouldNotContain(false, "   at ", Environment.NewLine);
 
                 // The full exception detail must still be captured for diagnostics.

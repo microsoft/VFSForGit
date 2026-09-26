@@ -857,14 +857,14 @@ git %*
                 return new Result(error);
             }
 
-            // 'git init' above is not currently pinned to SHA1 anywhere in this codebase -
-            // that pin is expected to land in a separate change. Until it does, this check
-            // is the only thing preventing 'gvfs clone' from silently producing an
-            // unusable SHA256 enlistment once a Git 3.0+ client defaults 'init' to SHA256;
-            // it becomes true defense-in-depth once the pin is in place. A genuine
-            // config-read failure is fatal here: this is our own just-initialized repo, so
-            // a read error (as opposed to the key being absent, which reports SHA1) means
-            // its config is unreadable and the clone cannot safely continue.
+            // 'git init' above pins --object-format=sha1, so a user's
+            // init.defaultObjectFormat=sha256 no longer produces a SHA256 repo on a
+            // supported git. This check remains as defense-in-depth: it covers any
+            // pre-existing repo that reached v1 by another route (e.g. an older GVFS
+            // build, or hand-edited config). A genuine config-read failure is fatal
+            // here: this is our own just-initialized repo, so a read error (as opposed
+            // to the key being absent, which reports SHA1) means its config is
+            // unreadable and the clone cannot safely continue.
             if (!ObjectFormat.TryIsSha256Repo(enlistmentToInit.CreateGitProcess(), out bool isSha256Repo, out string objectFormatReadError))
             {
                 string readError = "Could not determine the new repository's object format: " + objectFormatReadError;
