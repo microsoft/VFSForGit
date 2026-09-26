@@ -857,6 +857,26 @@ git %*
                 return new Result(error);
             }
 
+            // 'git init' above pins --object-format=sha1, so a user's
+            // init.defaultObjectFormat=sha256 no longer produces a SHA256 repo on a
+            // supported git. This check remains as defense-in-depth: it covers any
+            // pre-existing repo that reached v1 by another route (e.g. an older GVFS
+            // build, or hand-edited config). A genuine config-read failure is fatal
+            // here: this is our own just-initialized repo, so a read error (as opposed
+            // to the key being absent, which reports SHA1) means its config is
+            // unreadable and the clone cannot safely continue.
+            if (!ObjectFormat.TryIsSha256Repo(enlistmentToInit.CreateGitProcess(), out bool isSha256Repo, out string objectFormatReadError))
+            {
+                string readError = "Could not determine the new repository's object format: " + objectFormatReadError;
+                tracer.RelatedError(readError);
+                return new Result(readError);
+            }
+            else if (isSha256Repo)
+            {
+                tracer.RelatedError(ObjectFormat.UnsupportedSha256ErrorMessage);
+                return new Result(ObjectFormat.UnsupportedSha256ErrorMessage);
+            }
+
             try
             {
                 GVFSPlatform.Instance.FileSystem.EnsureDirectoryIsOwnedByCurrentUser(enlistmentToInit.DotGitRoot);

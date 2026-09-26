@@ -280,6 +280,31 @@ namespace GVFS.Mount
                         this.FailMountAndExit("The .git folder is missing or has invalid contents");
                     }
 
+                    // Check this before TrySetRequiredGitConfigSettings, which unconditionally
+                    // forces core.repositoryformatversion back to 0 (matching what 'git init'
+                    // writes for a SHA1 repo) without knowing about extensions.objectformat.
+                    // Applying that write to an already-SHA256 repo would leave behind an
+                    // inconsistent config (repositoryformatversion=0 with a v1-only extension
+                    // still present) that git itself then refuses to parse at all - so this
+                    // check must run first, before any other git config mutation. A genuine
+                    // config-read failure is fatal here rather than a warning: a missing key
+                    // reports the repo as SHA1 and does not reach this branch, so a read error
+                    // means the config is anomalous and proceeding into the force-write could
+                    // brick an unsupported repo.
+                    if (!ObjectFormat.TryIsSha256Repo(git, out bool isSha256Repo, out string objectFormatReadError))
+                    {
+                        // Pass the git error as a format argument, not concatenated into the
+                        // format string: FailMountAndExit routes through ITracer.RelatedError(
+                        // string, params object[]), which runs string.Format, so a '{' in the
+                        // git stderr (possible with a crafted/corrupt .git/config) would throw
+                        // a FormatException instead of failing the mount cleanly.
+                        this.FailMountAndExit("Could not determine the repository's object format: {0}", objectFormatReadError);
+                    }
+                    else if (isSha256Repo)
+                    {
+                        this.FailMountAndExit(ObjectFormat.UnsupportedSha256ErrorMessage);
+                    }
+
                     if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
                     {
                         this.FailMountAndExit("FileSystem unsupported: " + fsError);
