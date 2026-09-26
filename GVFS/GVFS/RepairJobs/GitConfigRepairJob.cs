@@ -38,6 +38,19 @@ namespace GVFS.RepairJobs
                 return IssueType.CantFix;
             }
 
+            // A SHA256 repository is not something 'gvfs repair' can make usable (see
+            // TryFixIssues), so report it as an unfixable issue rather than letting
+            // 'gvfs diagnose'/'gvfs repair' declare the enlistment healthy. Unlike ref
+            // storage format, SHA256 has no physical on-disk marker independent of git
+            // config - extensions.objectformat is the only signal - so a config-read
+            // failure here is not itself flagged; it falls through to the normal config
+            // checks below, which is exactly what repair is meant to diagnose.
+            if (ObjectFormat.IsSha256Repo(git))
+            {
+                messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
+                return IssueType.CantFix;
+            }
+
             GitProcess.ConfigResult originResult = git.GetOriginUrl();
             string error;
             string originUrl;
@@ -121,14 +134,27 @@ namespace GVFS.RepairJobs
                 this.Tracer.RelatedWarning("Could not determine the repository's ref storage format; proceeding with repair: " + refStorageReadError);
             }
 
-            // Unlike ref storage format, SHA256 has no physical on-disk marker independent
-            // of git config - extensions.objectformat is the only signal - so there is no
-            // directory-based fallback here the way ReftableBackendDirectoryExists() gives
-            // the check above. A SHA256 repo whose config is also corrupt cannot be
-            // distinguished from an ordinary corrupt SHA1 repo, and would be silently
-            // rebuilt as SHA1; this is an inherent limitation of this axis.
-            if (ObjectFormat.TryIsSha256Repo(new GitProcess(this.Enlistment), out bool isSha256Repo, out string objectFormatReadError) &&
-                isSha256Repo)
+            // Same rationale as above, for SHA256: TrySetRequiredGitConfigSettings also
+            // force-writes core.repositoryformatversion=0 and drops extensions.objectformat.
+            // Rebuilding a SHA256 repo's config that way would strip the objectformat
+            // extension while its objects/index remain SHA256-hashed, producing a
+            // differently-broken repo. There is no way for 'gvfs repair' to make a
+            // SHA256 repo usable by VFS for Git, so fail clearly instead of attempting
+            // the rebuild.
+            //
+            // Unlike ref storage format, SHA256 has no physical on-disk marker
+            // independent of git config - extensions.objectformat is the only signal -
+            // so a config-read failure here is NOT blocked, unlike at mount/clone/
+            // FastFetch: repair's whole purpose is to rebuild a corrupt config, so a
+            // repo whose config is merely unreadable is exactly what repair must be
+            // allowed to fix. This is an inherent limitation: a SHA256 repo whose
+            // config is ALSO corrupt cannot be distinguished from an ordinary corrupt
+            // SHA1 repo here, and would be silently rebuilt as SHA1.
+            if (!ObjectFormat.TryIsSha256Repo(new GitProcess(this.Enlistment), out bool isSha256Repo, out string objectFormatReadError))
+            {
+                this.Tracer.RelatedWarning("Could not determine the repository's object format; proceeding with repair: " + objectFormatReadError);
+            }
+            else if (isSha256Repo)
             {
                 messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
                 return FixResult.Failure;

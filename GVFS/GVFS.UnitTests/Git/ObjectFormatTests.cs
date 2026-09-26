@@ -83,6 +83,22 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void IsSha256RepoSwallowsGenuineReadFailureAndReturnsFalse()
+        {
+            MockGitProcess git = new MockGitProcess();
+
+            // The non-Try overload deliberately swallows a genuine config-read failure
+            // (non-zero exit with real stderr content) and reports "not SHA256", matching
+            // GitProcess.TryGetFromConfig's "failure == not set" convention. Callers that
+            // need to distinguish a read failure use TryIsSha256Repo instead.
+            git.SetExpectedCommandResult(
+                ConfigCommand,
+                () => new GitProcess.Result(string.Empty, "fatal: not a git repository", GitProcess.Result.GenericFailureCode));
+
+            ObjectFormat.IsSha256Repo(git).ShouldEqual(false);
+        }
+
+        [TestCase]
         public void TryIsSha256RepoSucceedsWithNoErrorWhenConfigIsSha256()
         {
             MockGitProcess git = new MockGitProcess();
