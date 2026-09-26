@@ -861,13 +861,15 @@ git %*
             // that pin is expected to land in a separate change. Until it does, this check
             // is the only thing preventing 'gvfs clone' from silently producing an
             // unusable SHA256 enlistment once a Git 3.0+ client defaults 'init' to SHA256;
-            // it becomes true defense-in-depth once the pin is in place. A config-read
-            // failure here (as opposed to the key simply being absent) is logged but does
-            // not block the clone, matching how other optional config reads in this
-            // codebase (e.g. GitProcess.TryGetFromConfig) treat read failures.
+            // it becomes true defense-in-depth once the pin is in place. A genuine
+            // config-read failure is fatal here: this is our own just-initialized repo, so
+            // a read error (as opposed to the key being absent, which reports SHA1) means
+            // its config is unreadable and the clone cannot safely continue.
             if (!ObjectFormat.TryIsSha256Repo(enlistmentToInit.CreateGitProcess(), out bool isSha256Repo, out string objectFormatReadError))
             {
-                tracer.RelatedWarning("Could not determine the new repository's object format: " + objectFormatReadError);
+                string readError = "Could not determine the new repository's object format: " + objectFormatReadError;
+                tracer.RelatedError(readError);
+                return new Result(readError);
             }
             else if (isSha256Repo)
             {

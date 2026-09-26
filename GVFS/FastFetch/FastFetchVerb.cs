@@ -207,9 +207,14 @@ namespace FastFetch
             // Check this before any code that assumes SHA1-shaped object ids runs (e.g.
             // index parsing/generation), since FastFetch can be pointed at an arbitrary
             // pre-existing git repository rather than only ones 'gvfs clone' created.
+            // A genuine config-read failure (as opposed to the key simply being absent,
+            // which reports the repository as SHA1) is treated as fatal here: a missing
+            // key does not reach this branch, so a read error means the repo's config is
+            // anomalous and continuing risks operating on an unsupported repo.
             if (!ObjectFormat.TryIsSha256Repo(enlistment.CreateGitProcess(), out bool isSha256Repo, out string objectFormatReadError))
             {
-                Console.WriteLine("Warning: could not determine the repository's object format: " + objectFormatReadError);
+                Console.WriteLine("Could not determine the repository's object format: " + objectFormatReadError);
+                return ExitFailure;
             }
             else if (isSha256Repo)
             {
