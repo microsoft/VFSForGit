@@ -165,7 +165,8 @@ namespace GVFS.UnitTests.Common.Git
                 RepoUrl,
                 out string username,
                 out string password,
-                out string error)
+                out string error,
+                out bool _)
                 .ShouldBeTrue(error);
 
             gitProcess.CommandsRun.ShouldContain(x => x.StartsWith(CredentialFillCommandPrefix, StringComparison.Ordinal));
