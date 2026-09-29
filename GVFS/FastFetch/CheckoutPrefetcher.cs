@@ -134,9 +134,9 @@ namespace FastFetch
                             bool allowIndexMetadataUpdateFromWorkingTree = this.allowIndexMetadataUpdateFromWorkingTree || checkout.UpdatedWholeTree;
                             newIndex.UpdateFileSizesAndTimes(checkout.AddedOrEditedLocalFiles, allowIndexMetadataUpdateFromWorkingTree, shouldSignIndex, sourceIndex);
 
-                            // All the slow stuff is over, so we will now move the final index into .git\index, shortly followed by
+                            // All the slow stuff is over, so we will now move the final index into place, shortly followed by
                             // updating the ref files and releasing index.lock.
-                            string indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
+                            string indexPath = this.Enlistment.GitIndexPath;
                             this.Tracer.RelatedEvent(EventLevel.Informational, "MoveUpdatedIndexToFinalLocation", new EventMetadata() { { "UpdatedIndex", indexGen.TemporaryIndexFilePath }, { "Index", indexPath } });
                             File.Delete(indexPath);
                             File.Move(indexGen.TemporaryIndexFilePath, indexPath);
@@ -196,7 +196,7 @@ namespace FastFetch
 
         private Index GetSourceIndex()
         {
-            string indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
+            string indexPath = this.Enlistment.GitIndexPath;
 
             if (File.Exists(indexPath))
             {
