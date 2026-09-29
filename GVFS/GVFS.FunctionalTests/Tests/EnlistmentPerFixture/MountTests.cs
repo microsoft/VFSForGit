@@ -11,13 +11,16 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using RepoMetadata = GVFS.Common.RepoMetadata;
+using ReturnCode = GVFS.Common.ReturnCode;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
-        private const int GVFSGenericError = 3;
+        private const int GVFSGenericError = (int)ReturnCode.GenericError;
+        private const int GVFSMissingDiskLayoutVersion = (int)ReturnCode.MissingDiskLayoutVersion;
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
         private readonly int fileDeletedBackgroundOperationCode;
@@ -100,6 +103,33 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        public void MountFailsWithUniqueExitCodeWhenDiskLayoutVersionIsMissing()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+            majorVersion.ShouldNotBeNull();
+            minorVersion.ShouldNotBeNull();
+
+            try
+            {
+                GVFSHelpers.DeletePersistedDiskLayoutMajorVersion(this.Enlistment.DotGVFSRoot);
+
+                this.MountShouldFail(
+                    GVFSMissingDiskLayoutVersion,
+                    RepoMetadata.MissingDiskLayoutVersionMessage);
+            }
+            finally
+            {
+                GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
+            }
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
         public void MountFailsWhenNoOnDiskVersion()
         {
             this.Enlistment.UnmountGVFS();
@@ -126,7 +156,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.fileSystem.MoveFile(versionDatabasePath, tempDatabasePath);
                 versionDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
 
-                this.MountShouldFail("Failed to upgrade repo disk layout");
+                this.MountShouldFail(
+                    GVFSMissingDiskLayoutVersion,
+                    RepoMetadata.MissingDiskLayoutVersionMessage);
             }
             finally
             {
