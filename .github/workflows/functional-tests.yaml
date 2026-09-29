@@ -63,7 +63,7 @@ jobs:
       matrix:
         configuration: [ Release ]
         architecture: [ x64, arm64 ]
-        nr: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] # 12 parallel jobs to speed up the tests
+        nr: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] # Repro PR: repeat WorktreeTests in parallel
       fail-fast: false # most failures are flaky tests, no need to stop the other jobs from succeeding
 
     steps:
@@ -205,7 +205,7 @@ jobs:
         SET PATH=C:\Program Files\VFS for Git;%PATH%
         SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
         SET GVFS_TEST_DIAGNOSTICS_DIR=C:\temp\gvfs-ft-diagnostics
-        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --slice=${{ matrix.nr }},12
+        ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --test=GVFS.FunctionalTests.Tests.EnlistmentPerFixture.WorktreeTests
 
     - name: Upload failure diagnostics (mount dumps + logs)
       if: always() && steps.skip.outputs.result != 'true'
