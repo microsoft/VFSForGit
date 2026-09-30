@@ -281,7 +281,9 @@ namespace GVFS.Common
                         }
                         else if (getStatusResponse.MountStatus == NamedPipeMessages.GetStatus.MountFailed)
                         {
-                            errorMessage = string.Format("Failed to mount at {0}", enlistmentRoot);
+                            errorMessage = !string.IsNullOrWhiteSpace(getStatusResponse.MountError)
+                                ? getStatusResponse.MountError
+                                : string.Format("Failed to mount at {0}", enlistmentRoot);
                             tracer.RelatedError($"{nameof(WaitUntilMounted)}: Mount failed: {errorMessage}");
                             return false;
                         }
