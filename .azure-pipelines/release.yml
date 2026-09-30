@@ -51,6 +51,9 @@ parameters:
         arch: arm64
 
 variables:
+  # This value is intentionally divergent between vnext and master.
+  # On a merge conflict here, do not take the other branch's value -
+  # confirm which line this branch ships.
   - name: 'GVFSMajorAndMinorVersion'
     value: '2.1'
   - name: 'GVFSRevision'

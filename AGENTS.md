@@ -215,6 +215,32 @@ release only carries the installer and symbols**: `SetupGVFS.<version>.exe`
   the compiled `MinimumGitVersion` constant in `Version.props`, which is
   changed separately and rarely.
 
+## Release lines and version numbers
+
+Two branches carry active work:
+
+- **`master`** — the shippable line. Public releases are cut from it.
+- **`vnext`** — integration for the next minor release.
+
+Each line carries its own `major.minor`, set by `GVFSMajorAndMinorVersion` in
+`.azure-pipelines/release.yml`. The release pipeline appends the build number
+to form the full version and the release tag, so `GVFSMajorAndMinorVersion`
+of `2.0` with build number `26229.1` produces version `2.0.26229.1` and tag
+`v2.0.26229.1`. Today `master` carries `2.0` and `vnext` carries `2.1`.
+
+That variable is the only line in `release.yml` that differs between the two
+branches, and the difference is deliberate. **Do not resolve a merge conflict
+on it by taking the other branch's value.** Confirm which line the branch
+ships first. Taking the wrong side stamps builds from one line with the other
+line's version, and nothing downstream catches it — `release.yml` is
+`trigger: none` / `pr: none`, and no GitHub workflow parses it.
+
+`master` is merged into `vnext` regularly so the lines do not drift. Finished
+`vnext` work is promoted by merging `vnext` into `master`, which carries the
+version value along with the feature work. Both directions use a real merge
+commit — **never squash or rebase a cross-line merge**, because that destroys
+the merge base and the same commits resurface as conflicts on the next sync.
+
 ## Feature flags
 
 Product feature flags are **git config** keys under the `gvfs.` prefix (not a
