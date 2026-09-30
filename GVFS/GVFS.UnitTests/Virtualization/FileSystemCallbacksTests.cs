@@ -119,6 +119,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 0);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
+                metadata.ShouldContain("IsSendingAnonymousRequests", true);
             }
 
             mockPlaceholderDb.VerifyAll();
@@ -159,7 +160,7 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
-                metadata.Count.ShouldEqual(8);
+                metadata.Count.ShouldEqual(9);
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
                 metadata.TryGetValue("FilePlaceholderCreation", out object fileNestedMetadata);
                 GVFSJsonOptions.Serialize(fileNestedMetadata).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe\"");
@@ -169,6 +170,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("FolderPlaceholderCount", 0);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
+                metadata.ShouldContain("IsSendingAnonymousRequests", true);
 
                 // Create more placeholders
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "2222233333444445555566666777778888899999", "GVFS.UnitTests.exe2");
@@ -182,7 +184,7 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel = writeToLogFile2 ? EventLevel.Informational : EventLevel.Verbose;
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
-                metadata.Count.ShouldEqual(8);
+                metadata.Count.ShouldEqual(9);
 
                 // Only processes that have created placeholders since the last heartbeat should be named
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
@@ -202,6 +204,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("FolderPlaceholderCount", 1);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
+                metadata.ShouldContain("IsSendingAnonymousRequests", true);
             }
 
             mockPlaceholderDb.VerifyAll();
