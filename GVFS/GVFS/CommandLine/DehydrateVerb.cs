@@ -21,6 +21,8 @@ namespace GVFS.CommandLine
         private const string DehydrateVerbName = "dehydrate";
         private const string FolderListSeparator = ";";
 
+        internal const string BackupFolderName = "dehydrate_backup";
+
         private PhysicalFileSystem fileSystem = new PhysicalFileSystem();
 
         public bool Confirmed { get; set; }
@@ -30,6 +32,8 @@ namespace GVFS.CommandLine
         public string Folders { get; set; }
 
         public bool Full { get; set; }
+
+        public bool DiscardBackup { get; set; }
 
         public string RunningVerbName { get; set; } = DehydrateVerbName;
         public string ActionName { get; set; } = DehydrateVerbName;
@@ -57,6 +61,9 @@ namespace GVFS.CommandLine
             System.CommandLine.Option<bool> fullOption = new System.CommandLine.Option<bool>("--full") { Description = "Perform a full dehydration that unmounts, backs up the entire src folder, and re-creates the virtualization root from scratch." };
             cmd.Add(fullOption);
 
+            System.CommandLine.Option<bool> discardBackupOption = new System.CommandLine.Option<bool>("--discard-backup") { Description = "Delete the backup folder after a successful dehydrate instead of keeping it. The backup is still created during the operation for safety and is only removed once the dehydrate succeeds." };
+            cmd.Add(discardBackupOption);
+
             System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
             cmd.Add(internalOption);
 
@@ -67,7 +74,12 @@ namespace GVFS.CommandLine
                     verb.NoStatus = result.GetValue(noStatusOption);
                     verb.Folders = result.GetValue(foldersOption) ?? "";
                     verb.Full = result.GetValue(fullOption);
+                    verb.DiscardBackup = result.GetValue(discardBackupOption);
                 });
+
+            // 'prune-backups' is a sub-verb of 'dehydrate' so it clearly only deletes backups
+            // left by previous dehydrate runs and never performs a dehydrate itself.
+            cmd.Add(DehydratePruneBackupsVerb.CreateCommand());
 
             return cmd;
         }
@@ -99,6 +111,7 @@ namespace GVFS.CommandLine
                         { "Confirmed", this.Confirmed },
                         { "NoStatus", this.NoStatus },
                         { "Full", this.Full },
+                        { "DiscardBackup", this.DiscardBackup },
                         { "NamedPipeName", enlistment.NamedPipeName },
                         { "Folders", this.Folders },
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
@@ -202,7 +215,7 @@ from a parent of the folders list.
 
                 bool cleanStatus = this.StatusChecked || this.CheckGitStatus(tracer, enlistment, fullDehydrate);
 
-                string backupRoot = Path.GetFullPath(Path.Combine(enlistment.PrimaryEnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
+                string backupRoot = Path.GetFullPath(Path.Combine(enlistment.PrimaryEnlistmentRoot, BackupFolderName, DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 this.Output.WriteLine();
 
                 if (fullDehydrate)
@@ -333,10 +346,11 @@ from a parent of the folders list.
                 this.ReportErrorAndExit(tracer, $"{this.ActionName} for folders failed.");
             }
 
+            NamedPipeMessages.DehydrateFolders.Response response = null;
             if (foldersToDehydrate.Count > 0)
             {
                 string backupSrc = GetBackupSrcPath(backupRoot);
-                this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate, backupSrc);
+                response = this.SendDehydrateMessage(tracer, enlistment, folderErrors, foldersToDehydrate, backupSrc);
             }
 
             if (folderErrors.Count > 0)
@@ -347,6 +361,26 @@ from a parent of the folders list.
                 }
 
                 this.ReportErrorAndExit(tracer, ReturnCode.DehydrateFolderFailures, $"Failed to dehydrate {folderErrors.Count} folder(s).");
+            }
+
+            if (foldersToDehydrate.Count > 0)
+            {
+                // For a folder dehydrate the mount deletes the backup during its unmounted window
+                // (see BackupFoldersWhileUnmounted). Report the outcome here.
+                if (this.DiscardBackup)
+                {
+                    bool discarded = response != null && response.BackupDiscarded;
+                    if (discarded)
+                    {
+                        this.RemoveEmptyBackupParent(tracer, backupRoot);
+                    }
+
+                    this.ReportDiscardResult(tracer, backupRoot, discarded);
+                }
+                else
+                {
+                    this.ReportRetainedBackup(tracer, backupRoot);
+                }
             }
         }
 
@@ -401,7 +435,7 @@ from a parent of the folders list.
             return true;
         }
 
-        private void SendDehydrateMessage(
+        private NamedPipeMessages.DehydrateFolders.Response SendDehydrateMessage(
             ITracer tracer,
             GVFSEnlistment enlistment,
             List<string> folderErrors,
@@ -426,7 +460,8 @@ from a parent of the folders list.
 
                     NamedPipeMessages.DehydrateFolders.Request request = new NamedPipeMessages.DehydrateFolders.Request(
                         folders: string.Join(";", folders),
-                        backupFolderPath: backupFolder);
+                        backupFolderPath: backupFolder,
+                        discardBackup: this.DiscardBackup);
                     pipeClient.SendRequest(request.CreateMessage());
                     response = NamedPipeMessages.DehydrateFolders.Response.FromMessage(NamedPipeMessages.Message.FromString(pipeClient.ReadRawResponse()));
                 }
@@ -449,6 +484,8 @@ from a parent of the folders list.
                     folderErrors.Add(folder);
                 }
             }
+
+            return response;
         }
 
         private void RunFullDehydrate(JsonTracer tracer, GVFSEnlistment enlistment, string backupRoot, RetryConfig retryConfig)
@@ -461,6 +498,15 @@ from a parent of the folders list.
                     // Converting the src folder to partial must be the final step before mount
                     this.PrepareSrcFolder(tracer, enlistment);
 
+                    // The backup holds the old src folder's ProjFS placeholders, which can only be
+                    // deleted while the repo is unmounted. We are still unmounted here (Mount is
+                    // called below), so discard the backup now if requested.
+                    bool backupDiscarded = false;
+                    if (this.DiscardBackup)
+                    {
+                        backupDiscarded = this.TryDeleteBackup(tracer, backupRoot);
+                    }
+
                     // We can skip the version check if git status was run because git status requires
                     // that the repo already be mounted (meaning we don't need to perform another version check again)
                     this.Mount(
@@ -469,6 +515,20 @@ from a parent of the folders list.
 
                     this.Output.WriteLine();
                     this.WriteMessage(tracer, "The repo was successfully dehydrated and remounted");
+
+                    if (this.DiscardBackup)
+                    {
+                        if (backupDiscarded)
+                        {
+                            this.RemoveEmptyBackupParent(tracer, backupRoot);
+                        }
+
+                        this.ReportDiscardResult(tracer, backupRoot, backupDiscarded);
+                    }
+                    else
+                    {
+                        this.ReportRetainedBackup(tracer, backupRoot);
+                    }
                 }
             }
             else
@@ -869,6 +929,60 @@ from a parent of the folders list.
             }
 
             return true;
+        }
+
+        private void ReportRetainedBackup(ITracer tracer, string backupRoot)
+        {
+            // Backup management is only exposed by the 'dehydrate' verb. When this code runs
+            // on behalf of 'gvfs sparse --prune' (RunningVerbName != dehydrate), stay silent so we
+            // never reference options that verb does not have.
+            if (this.RunningVerbName != DehydrateVerbName)
+            {
+                return;
+            }
+
+            this.WriteMessage(tracer, $"A backup was saved to {backupRoot}.");
+            this.WriteMessage(tracer, "To reclaim this space, delete it manually, or re-run 'gvfs dehydrate' with --discard-backup to delete the backup automatically after a successful dehydrate.");
+            this.WriteMessage(tracer, "To remove backups left by earlier dehydrate runs, run 'gvfs dehydrate prune-backups'.");
+        }
+
+        private void ReportDiscardResult(ITracer tracer, string backupRoot, bool deleted)
+        {
+            if (this.RunningVerbName != DehydrateVerbName)
+            {
+                return;
+            }
+
+            if (deleted)
+            {
+                this.WriteMessage(tracer, $"Deleted backup folder {backupRoot} (--discard-backup).");
+            }
+            else
+            {
+                this.WriteMessage(tracer, $"WARNING: Failed to delete backup folder {backupRoot}. Run 'gvfs dehydrate prune-backups' after unmounting the repo to remove it.");
+            }
+        }
+
+        private bool TryDeleteBackup(ITracer tracer, string backupRoot)
+        {
+            return this.TryIO(tracer, () => this.fileSystem.DeleteDirectory(backupRoot), $"Discard backup folder {backupRoot}", out _);
+        }
+
+        private void RemoveEmptyBackupParent(ITracer tracer, string backupRoot)
+        {
+            string backupParent = Path.GetDirectoryName(backupRoot);
+            this.TryIO(
+                tracer,
+                () =>
+                {
+                    if (this.fileSystem.DirectoryExists(backupParent) &&
+                        !Directory.EnumerateFileSystemEntries(backupParent).Any())
+                    {
+                        this.fileSystem.DeleteDirectory(backupParent);
+                    }
+                },
+                $"Remove empty backup folder {backupParent}",
+                out _);
         }
 
         private void WriteMessage(ITracer tracer, string message)
