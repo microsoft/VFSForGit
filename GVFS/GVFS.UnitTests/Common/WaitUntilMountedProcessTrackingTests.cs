@@ -1,9 +1,12 @@
 using GVFS.Common;
+using GVFS.Common.NamedPipes;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
+using System.IO.Pipes;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Common
 {
@@ -83,6 +86,51 @@ namespace GVFS.UnitTests.Common
             // Per-attempt connect timeout is 500ms; we expect to discover the
             // exit on the second poll, well within a few seconds.
             Assert.That(elapsed.TotalSeconds, Is.LessThan(10), "WaitUntilMounted should detect late process exit within a few connect retries");
+        }
+
+        [TestCase]
+        public void BrokenPipeMidPollProducesShortMessageAndLogsFullExceptionDetail()
+        {
+            string pipeName = "GVFS_UnitTest_BrokenPipe_" + Guid.NewGuid().ToString("N");
+
+            using (NamedPipeServerStream serverStream = new NamedPipeServerStream(
+                pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous))
+            {
+                Task serverTask = Task.Run(() =>
+                {
+                    serverStream.WaitForConnection();
+
+                    // Read the client's first GetStatus request using the same framing
+                    // NamedPipeStreamWriter/Reader use, then disappear without responding -
+                    // simulating the mount process exiting mid-poll (e.g. FailMountAndExit
+                    // calling Environment.Exit while the client already sent a request).
+                    new NamedPipeStreamReader(serverStream).ReadMessage();
+                    serverStream.Dispose();
+                });
+
+                MockTracer tracer = new MockTracer();
+                string errorMessage;
+                bool result = GVFSEnlistment.WaitUntilMounted(
+                    tracer,
+                    pipeName,
+                    "C:\\fake\\root",
+                    false,
+                    out errorMessage);
+
+                serverTask.Wait(TimeSpan.FromSeconds(10));
+
+                result.ShouldBeFalse();
+                errorMessage.ShouldNotBeNull();
+                errorMessage.ShouldContain("Could not connect to GVFS.Mount");
+
+                // The console-facing message must stay short - no embedded stack trace
+                // (a stack trace is what BrokenPipeException.ToString() would produce).
+                errorMessage.ShouldNotContain(false, "   at ", Environment.NewLine);
+
+                // The full exception detail must still be captured for diagnostics.
+                tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+                tracer.RelatedErrorEvents[0].ShouldContain("Exception");
+            }
         }
     }
 }
