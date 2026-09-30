@@ -280,6 +280,32 @@ namespace GVFS.Mount
                         this.FailMountAndExit("The .git folder is missing or has invalid contents");
                     }
 
+                    // Check this before TrySetRequiredGitConfigSettings, which unconditionally
+                    // forces core.repositoryformatversion back to 0 (matching what 'git init'
+                    // writes for a files-format repo) without knowing about extensions.refstorage.
+                    // Applying that write to a reftable repo would leave behind an inconsistent
+                    // config (repositoryformatversion=0 with a v1-only extension still present)
+                    // that git itself then refuses to parse at all - so this check must run first,
+                    // before any other git config mutation. VFS for Git also writes refs directly
+                    // rather than through git's ref backend, so a reftable repo cannot be used
+                    // regardless. A genuine config-read failure is fatal here rather than a
+                    // warning: a missing key reports the repo as files-format and does not reach
+                    // this branch, so a read error means the config is anomalous and proceeding
+                    // into the force-write could brick an unsupported repo.
+                    if (!RefStorage.TryIsReftableRepo(git, out bool isReftableRepo, out string refStorageReadError))
+                    {
+                        // Pass the git error as a format argument, not concatenated into the
+                        // format string: FailMountAndExit routes through ITracer.RelatedError(
+                        // string, params object[]), which runs string.Format, so a '{' in the
+                        // git stderr (possible with a crafted/corrupt .git/config) would throw
+                        // a FormatException instead of failing the mount cleanly.
+                        this.FailMountAndExit("Could not determine the repository's ref storage format: {0}", refStorageReadError);
+                    }
+                    else if (isReftableRepo)
+                    {
+                        this.FailMountAndExit(RefStorage.UnsupportedReftableErrorMessage);
+                    }
+
                     if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
                     {
                         this.FailMountAndExit("FileSystem unsupported: " + fsError);

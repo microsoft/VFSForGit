@@ -52,6 +52,13 @@ namespace GVFS.Common.Git
         private static string expireTimeDateString;
 
         /// <summary>
+        /// First git version that supports 'git init --ref-format' and the reftable ref
+        /// backend (git 2.45). Earlier git can neither create a reftable repository nor
+        /// understand the option, so the '--ref-format=files' pin is only added from here on.
+        /// </summary>
+        private static readonly GitVersion FirstGitVersionSupportingRefFormat = new GitVersion(2, 45, 0, (string)null);
+
+        /// <summary>
         /// Lock taken for duration of running executingProcess.
         /// </summary>
         private Lock executionLock = new Lock();
@@ -130,13 +137,42 @@ namespace GVFS.Common.Git
 
         public bool LowerPriority { get; set; }
 
-        public static Result Init(Enlistment enlistment)
+        /// <summary>
+        /// Runs 'git init' for a new enlistment. The caller passes the already-resolved
+        /// installed git version (the clone flow validates it earlier via
+        /// GVFSVerb.CheckGitVersion) so this does not shell out for 'git --version' again;
+        /// pass null when the version is unknown, which conservatively omits the
+        /// version-gated '--ref-format=files' pin.
+        /// </summary>
+        public static Result Init(Enlistment enlistment, GitVersion installedGitVersion)
         {
             // --object-format=sha1 is pinned explicitly so that GVFS does not silently pick up
             // a future git default of sha256. AzDO (the only GVFS-protocol server implementer)
             // has no plans to support sha256, and GVFS's own code assumes 20-byte/40-hex-char
             // sha1 object IDs throughout, so a sha256 repo would corrupt data or crash.
-            return enlistment.CreateGitProcess().InvokeGitOutsideEnlistment("init --object-format=sha1 \"" + enlistment.WorkingDirectoryBackingRoot + "\"");
+            string arguments = "init --object-format=sha1";
+
+            // --ref-format=files is pinned for the same reason on the ref storage axis: GVFS
+            // writes refs directly (e.g. CloneVerb writes .git/packed-refs) rather than through
+            // git's ref backend, and the reftable backend ignores those writes. Pinning here
+            // overrides a user's global init.defaultRefFormat=reftable so 'gvfs clone' produces
+            // a usable files-format enlistment instead of a broken one. The option only exists
+            // in git 2.45+, which is also the first git that can create a reftable repo at all,
+            // so older git needs no pin and would reject the unknown option. A null version
+            // (undetermined) omits the pin; CloneVerb.TryInitRepo still fails fast if the repo
+            // turns out to be reftable.
+            if (SupportsRefFormatOption(installedGitVersion))
+            {
+                arguments += " --ref-format=files";
+            }
+
+            arguments += " \"" + enlistment.WorkingDirectoryBackingRoot + "\"";
+            return enlistment.CreateGitProcess().InvokeGitOutsideEnlistment(arguments);
+        }
+
+        internal static bool SupportsRefFormatOption(GitVersion installedGitVersion)
+        {
+            return installedGitVersion != null && !installedGitVersion.IsLessThan(FirstGitVersionSupportingRefFormat);
         }
 
         public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)
