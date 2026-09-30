@@ -292,6 +292,12 @@ namespace GVFS.Virtualization
                     this.context.Enlistment.WorkingDirectoryBackingRoot,
                     sizeStatsOnly: true));
 
+            // True/false means "HttpRequestor is/isn't attaching an Authorization
+            // header to outgoing requests" (see HttpRequestor.cs), so a mount stuck
+            // reporting true for long stretches against a server that requires auth
+            // is the signature of the anonymous-auth-latch bug this field detects.
+            metadata.Add("IsSendingAnonymousRequests", this.context.Enlistment.Authentication.IsAnonymous);
+
             return metadata;
         }
 
