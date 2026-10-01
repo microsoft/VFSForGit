@@ -65,6 +65,20 @@ namespace GVFS.Common
         /// </exception>
         public abstract void PrepareProcessToRunInBackground();
 
+        /// <summary>
+        /// Returns true if the current process owns a visible console window that a child process
+        /// (e.g. git launching the credential manager) can use as the owner for an interactive prompt.
+        /// </summary>
+        /// <remarks>
+        /// This inspects the current process's console window and its root owner, not arbitrary GUI
+        /// windows. Background processes such as GVFS.Mount run with a hidden console, so this returns
+        /// false for them; foreground processes launched from a visible console return true. Credential
+        /// helpers launched by a process with no visible console window should be started detached from
+        /// the console, so the credential manager parents its prompt to a topmost stub window instead
+        /// of the hidden console.
+        /// </remarks>
+        public abstract bool CurrentProcessHasVisibleConsoleWindow();
+
         public abstract bool IsProcessActive(int processId);
 
         /// <summary>

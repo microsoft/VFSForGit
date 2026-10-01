@@ -18,12 +18,19 @@ namespace GVFS.UnitTests.Mock.Git
             : base(new MockGVFSEnlistment())
         {
             this.CommandsRun = new List<string>();
+            this.MayRequireAuthByCommand = new Dictionary<string, bool>(StringComparer.Ordinal);
             this.StoredCredentials = new Dictionary<string, Credential>(StringComparer.OrdinalIgnoreCase);
             this.CredentialApprovals = new Dictionary<string, List<Credential>>();
             this.CredentialRejections = new Dictionary<string, List<Credential>>();
         }
 
         public List<string> CommandsRun { get; }
+
+        /// <summary>
+        /// Records the mayRequireAuth value passed to <see cref="InvokeGitImpl"/> for each command, so
+        /// tests can assert that only credential-fill commands are flagged as possibly requiring auth.
+        /// </summary>
+        public Dictionary<string, bool> MayRequireAuthByCommand { get; }
         public bool ShouldFail { get; set; }
         public Dictionary<string, Credential> StoredCredentials { get; }
         public Dictionary<string, List<Credential>> CredentialApprovals { get; }
@@ -84,9 +91,11 @@ namespace GVFS.UnitTests.Mock.Git
             Action<string> parseStdOutLine,
             int timeoutMs,
             string gitObjectsDirectory = null,
-            bool usePrecommandHook = true)
+            bool usePrecommandHook = true,
+            bool mayRequireAuth = false)
         {
             this.CommandsRun.Add(command);
+            this.MayRequireAuthByCommand[command] = mayRequireAuth;
 
             if (this.ShouldFail)
             {
