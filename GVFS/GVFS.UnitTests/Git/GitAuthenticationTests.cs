@@ -1,7 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Tests;
 using GVFS.Tests.Should;
@@ -340,6 +342,114 @@ namespace GVFS.UnitTests.Git
 
             result.ShouldBeTrue("TryGetCredentials should succeed after initialization: " + error);
             authString.ShouldNotBeNull("A credential string should be returned");
+        }
+
+        [TestCase]
+        public void CredentialFillIsFlaggedAsMayRequireAuth()
+        {
+            // Only credential fill can trigger an interactive sign-in from the credential manager, so
+            // only it is flagged mayRequireAuth=true. GetGitProcess uses that flag to detach git from a
+            // hidden console so the prompt is not left behind other windows.
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            dut.TryGetCredentials(tracer, out _, out string error).ShouldEqual(true, "Failed to get credential: " + error);
+
+            gitProcess.MayRequireAuthByCommand[$"{AzureDevOpsUseHttpPathString} credential fill"]
+                .ShouldEqual(true, "Credential fill should be flagged as possibly requiring auth");
+
+            // Non-credential git commands never prompt, so they must not be flagged.
+            gitProcess.MayRequireAuthByCommand["config --get-urlmatch http mock://repoUrl"]
+                .ShouldEqual(false, "Non-credential git commands should not be flagged as requiring auth");
+        }
+
+        [TestCase]
+        public void CredentialApproveIsNotFlaggedAsMayRequireAuth()
+        {
+            // Credential approve stores an already-obtained credential and never prompts.
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            dut.TryGetCredentials(tracer, out string authString, out string error).ShouldEqual(true, "Failed to get credential: " + error);
+            dut.ApproveCredentials(tracer, authString);
+
+            gitProcess.MayRequireAuthByCommand[$"{AzureDevOpsUseHttpPathString} credential approve"]
+                .ShouldEqual(false, "Credential approve should not be flagged as requiring auth");
+        }
+
+        [TestCase]
+        public void CredentialRejectIsNotFlaggedAsMayRequireAuth()
+        {
+            // Credential reject erases a stored credential and never prompts.
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            dut.TryGetCredentials(tracer, out string authString, out string error).ShouldEqual(true, "Failed to get credential: " + error);
+            dut.RejectCredentials(tracer, authString);
+
+            gitProcess.MayRequireAuthByCommand[$"{AzureDevOpsUseHttpPathString} credential reject"]
+                .ShouldEqual(false, "Credential reject should not be flagged as requiring auth");
+        }
+
+        [TestCase]
+        public void CertificateCredentialFillIsFlaggedAsMayRequireAuth()
+        {
+            // The certificate credential fill can also trigger an interactive sign-in, so it is flagged
+            // mayRequireAuth=true like the URL fill. It is covered directly here because the standard
+            // credential flow does not exercise the certificate path.
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                "credential fill",
+                () => new GitProcess.Result("password=certpassword\r\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            gitProcess.TryGetCertificatePassword(tracer, CertificatePath, out string password, out string error)
+                .ShouldEqual(true, "Failed to get certificate password: " + error);
+
+            gitProcess.MayRequireAuthByCommand["credential fill"]
+                .ShouldEqual(true, "Certificate credential fill should be flagged as possibly requiring auth");
+        }
+
+        [TestCase]
+        public void GetGitProcessDetachesFromConsoleOnlyWhenAuthMayBeRequiredAndNoVisibleWindow()
+        {
+            MockPlatform platform = (MockPlatform)GVFSPlatform.Instance;
+            bool originalHasVisibleWindow = platform.HasVisibleWindow;
+            try
+            {
+                GitProcess gitProcess = new GitProcess("git.exe", workingDirectoryRoot: null);
+
+                // No visible console + command may require auth => detach so the prompt is topmost.
+                platform.HasVisibleWindow = false;
+                using (Process process = gitProcess.GetGitProcess("credential fill", Environment.SystemDirectory, dotGitDirectory: null, useReadObjectHook: false, gitObjectsDirectory: null, usePreCommandHook: false, mayRequireAuth: true))
+                {
+                    process.StartInfo.CreateNoWindow.ShouldEqual(true, "Should detach when auth may be required and there is no visible console window");
+                }
+
+                // Visible console + command may require auth => keep the console so the prompt parents to it.
+                platform.HasVisibleWindow = true;
+                using (Process process = gitProcess.GetGitProcess("credential fill", Environment.SystemDirectory, dotGitDirectory: null, useReadObjectHook: false, gitObjectsDirectory: null, usePreCommandHook: false, mayRequireAuth: true))
+                {
+                    process.StartInfo.CreateNoWindow.ShouldEqual(false, "Should keep the console when it is visible");
+                }
+
+                // Command cannot require auth => never detach, regardless of console visibility.
+                platform.HasVisibleWindow = false;
+                using (Process process = gitProcess.GetGitProcess("rev-parse HEAD", Environment.SystemDirectory, dotGitDirectory: null, useReadObjectHook: false, gitObjectsDirectory: null, usePreCommandHook: true, mayRequireAuth: false))
+                {
+                    process.StartInfo.CreateNoWindow.ShouldEqual(false, "Should never detach when auth cannot be required");
+                }
+            }
+            finally
+            {
+                platform.HasVisibleWindow = originalHasVisibleWindow;
+            }
         }
 
         private MockGitProcess GetGitProcess()
