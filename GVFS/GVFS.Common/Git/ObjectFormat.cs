@@ -55,6 +55,13 @@ namespace GVFS.Common.Git
         /// GitProcess. Returns false and populates <paramref name="error"/> if the config
         /// could not be read at all (a missing key is not an error - it simply means the
         /// repository defaults to SHA1, and isSha256 is set to false).
+        ///
+        /// Note the limits of this distinction: 'git config' reports a missing key and a
+        /// missing/unreadable .git/config file identically - exit code 1 with no stderr
+        /// content - so a repository whose entire config is gone is treated as "not SHA256"
+        /// here, not as a read failure. This matches the codebase-wide convention for
+        /// optional config reads (GitProcess.TryGetFromConfig has the same ambiguity) rather
+        /// than a gap specific to this check.
         /// </summary>
         public static bool TryIsSha256Repo(GitProcess git, out bool isSha256, out string error)
         {
