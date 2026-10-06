@@ -1938,6 +1938,13 @@ namespace GVFS.Mount
         private void LogEnlistmentInfoAndSetConfigValues()
         {
             string mountId = Guid.NewGuid().ToString("N");
+
+            if (this.enlistment.IsWorktree)
+            {
+                this.LogWorktreeEnlistmentInfoAndSetIds(mountId);
+                return;
+            }
+
             EventMetadata metadata = new EventMetadata();
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
             metadata.Add(nameof(mountId), mountId);
@@ -1958,6 +1965,30 @@ namespace GVFS.Mount
             {
                 string error = "Could not update config with mount id, error: " + configResult.Errors;
                 this.tracer.RelatedWarning(error);
+            }
+        }
+
+        /// <summary>
+        /// Logs enlistment info and persists the ids for a worktree mount.
+        /// A worktree keeps its enlistment and mount ids in its own .gvfs
+        /// directory. It must not write them to git config, because git
+        /// resolves --local config for a linked worktree to the shared config
+        /// and that would overwrite the primary enlistment's ids.
+        /// </summary>
+        private void LogWorktreeEnlistmentInfoAndSetIds(string mountId)
+        {
+            string enlistmentId = this.enlistment.GetOrCreateWorktreeEnlistmentId();
+
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), enlistmentId);
+            metadata.Add(nameof(mountId), mountId);
+            metadata.Add("Enlistment", this.enlistment);
+            metadata.Add("PhysicalDiskInfo", GVFSPlatform.Instance.GetPhysicalDiskInfo(this.enlistment.WorkingDirectoryRoot, sizeStatsOnly: false));
+            this.tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
+
+            if (!this.enlistment.TrySetWorktreeMountId(mountId, out string error))
+            {
+                this.tracer.RelatedWarning("Could not persist worktree mount id, error: " + error);
             }
         }
 

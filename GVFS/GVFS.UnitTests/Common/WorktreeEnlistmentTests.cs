@@ -154,5 +154,56 @@ namespace GVFS.UnitTests.Common
             GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
             enlistment.RepoUrl.ShouldEqual("https://mock/repo");
         }
+
+        [TestCase]
+        public void WorktreeMountIdRoundTripsThroughWorktreeMetadata()
+        {
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+
+            string error;
+            enlistment.TrySetWorktreeMountId("worktreemountid", out error).ShouldBeTrue(error);
+
+            enlistment.GetMountId().ShouldEqual("worktreemountid");
+            File.Exists(Path.Combine(enlistment.DotGVFSRoot, "mount-id")).ShouldBeTrue();
+        }
+
+        [TestCase]
+        public void WorktreeEnlistmentIdIsStableAcrossCalls()
+        {
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+
+            string first = enlistment.GetOrCreateWorktreeEnlistmentId();
+            first.ShouldNotBeNull();
+            Assert.IsNotEmpty(first);
+
+            enlistment.GetOrCreateWorktreeEnlistmentId().ShouldEqual(first);
+            enlistment.GetEnlistmentId().ShouldEqual(first);
+        }
+
+        [TestCase]
+        public void WorktreeIdsAreEmptyBeforePersisted()
+        {
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+
+            enlistment.GetMountId().ShouldEqual(string.Empty);
+            enlistment.GetEnlistmentId().ShouldEqual(string.Empty);
+        }
+
+        [TestCase]
+        public void WorktreeIdsDoNotWriteToSharedConfig()
+        {
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+
+            string sharedConfigPath = Path.Combine(this.sharedGitDir, "config");
+            string before = File.ReadAllText(sharedConfigPath);
+
+            string error;
+            enlistment.TrySetWorktreeMountId("worktreemountid", out error).ShouldBeTrue(error);
+            enlistment.GetOrCreateWorktreeEnlistmentId();
+
+            string after = File.ReadAllText(sharedConfigPath);
+            after.ShouldEqual(before);
+            Assert.IsFalse(after.Contains("gvfs"), "Worktree ids must not be written to the shared git config");
+        }
     }
 }
