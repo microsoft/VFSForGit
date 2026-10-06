@@ -3,6 +3,7 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.UnitTests.Common
@@ -69,6 +70,25 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void GetConfigBoolRetriesTransientLibGit2Failure()
+        {
+            MockTracer tracer = new MockTracer();
+            int delayCount = 0;
+            Queue<object> results = new Queue<object>();
+            results.Enqueue(new LibGit2Exception("Failed to get config handle: Permission denied"));
+            results.Enqueue(true);
+
+            using (MockConfigRepo repo = new MockConfigRepo(tracer, results, delay => ++delayCount))
+            {
+                repo.GetConfigBool("gvfs.test").ShouldEqual(true);
+            }
+
+            delayCount.ShouldEqual(1);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            tracer.RelatedWarningEvents[0].ShouldContain("Transient failure while reading git config");
+        }
+
+        [TestCase]
         public void GetConfigBoolOrDefaultOnPathReturnsDefaultForMissingRepoAndLogsExactlyOnce()
         {
             MockTracer tracer = new MockTracer();
@@ -100,6 +120,7 @@ namespace GVFS.UnitTests.Common
         {
             private readonly bool? value;
             private readonly Exception exceptionToThrow;
+            private readonly Queue<object> results;
 
             public MockConfigRepo(MockTracer tracer, bool? value)
                 : base(tracer)
@@ -113,8 +134,25 @@ namespace GVFS.UnitTests.Common
                 this.exceptionToThrow = exceptionToThrow;
             }
 
-            public override bool? GetConfigBool(string name)
+            public MockConfigRepo(MockTracer tracer, Queue<object> results, Action<TimeSpan> configReadDelay)
+                : base(tracer, configReadDelay)
             {
+                this.results = results;
+            }
+
+            protected override bool? GetConfigBoolOnce(string name)
+            {
+                if (this.results != null)
+                {
+                    object result = this.results.Dequeue();
+                    if (result is Exception exception)
+                    {
+                        throw exception;
+                    }
+
+                    return (bool?)result;
+                }
+
                 if (this.exceptionToThrow != null)
                 {
                     throw this.exceptionToThrow;

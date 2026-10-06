@@ -23,6 +23,9 @@
     <Compile Include="..\GVFS.Common\Git\LibGit2Exception.cs">
       <Link>Common\Git\LibGit2Exception.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\Git\GitConfigReadRetry.cs">
+      <Link>Common\Git\GitConfigReadRetry.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\Git\LibGit2Repo.cs">
       <Link>Common\Git\LibGit2Repo.cs</Link>
     </Compile>

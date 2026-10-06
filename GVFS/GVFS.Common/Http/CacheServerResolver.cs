@@ -18,10 +18,10 @@ namespace GVFS.Common.Http
             this.enlistment = enlistment;
         }
 
-        public static CacheServerInfo GetCacheServerFromConfig(Enlistment enlistment)
+        public static CacheServerInfo GetCacheServerFromConfig(Enlistment enlistment, ITracer tracer = null)
         {
-            GitProcess git = enlistment.CreateGitProcess();
-            string url = GetUrlFromConfig(enlistment);
+            GitProcess git = CreateGitProcess(enlistment, tracer);
+            string url = GetUrlFromConfig(enlistment, tracer);
             string prefetchCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.PrefetchCacheServer);
             string getCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.GetCacheServer);
             string postCacheServerUrl = GetEndpointUrlFromConfig(git, GVFSConstants.GitConfig.PostCacheServer);
@@ -36,9 +36,9 @@ namespace GVFS.Common.Http
                 sizesCacheServerUrl);
         }
 
-        public static string GetUrlFromConfig(Enlistment enlistment)
+        public static string GetUrlFromConfig(Enlistment enlistment, ITracer tracer = null)
         {
-            GitProcess git = enlistment.CreateGitProcess();
+            GitProcess git = CreateGitProcess(enlistment, tracer);
 
             // TODO 1057500: Remove support for encoded-repo-url cache config setting
             return
@@ -168,6 +168,13 @@ namespace GVFS.Common.Http
             }
 
             return value;
+        }
+
+        private static GitProcess CreateGitProcess(Enlistment enlistment, ITracer tracer)
+        {
+            return tracer == null
+                ? enlistment.CreateGitProcess()
+                : new GitProcess(enlistment, tracer);
         }
 
         private static string GetEndpointUrlFromConfig(GitProcess git, string configName)

@@ -15,7 +15,12 @@ namespace GVFS.UnitTests.Mock.Git
         private List<CommandInfo> expectedCommandInfos = new List<CommandInfo>();
 
         public MockGitProcess()
-            : base(new MockGVFSEnlistment())
+            : this(NullTracer.Instance, GitConfigReadRetry.Delay)
+        {
+        }
+
+        internal MockGitProcess(ITracer tracer, Action<TimeSpan> configReadDelay)
+            : base(new MockGVFSEnlistment(), tracer, configReadDelay)
         {
             this.CommandsRun = new List<string>();
             this.StoredCredentials = new Dictionary<string, Credential>(StringComparer.OrdinalIgnoreCase);
