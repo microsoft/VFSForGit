@@ -20,6 +20,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private const int MinWorktreeCount = 4;
 
         [TestCase]
+        [Repeat(10)]
         public void ConcurrentWorktreeAddCommitRemove()
         {
             int count = Math.Max(Environment.ProcessorCount, MinWorktreeCount);

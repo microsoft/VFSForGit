@@ -146,6 +146,16 @@ namespace GVFS.Tests
                 priorityQueue.Add(bucket);
             }
 
+            // Repro PR only: run the worktree tests in every slice so they execute
+            // under the load of each slice's other tests.
+            foreach (string worktreeTest in list.Select(x => x.Trim()).Where(x => x.Contains(".EnlistmentPerFixture.WorktreeTests.")))
+            {
+                if (!buckets[testSlice.Item1].Contains(worktreeTest))
+                {
+                    buckets[testSlice.Item1].Add(worktreeTest);
+                }
+            }
+
             // Write the respective bucket's contents to a file
             string listFile = $"GVFS_test_slice_{testSlice.Item1}_of_{testSlice.Item2}.txt";
             File.WriteAllLines(listFile, buckets[testSlice.Item1]);
