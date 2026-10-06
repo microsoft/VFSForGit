@@ -85,6 +85,8 @@ namespace GVFS.Common.Git
         private string gitBinPath;
         private string workingDirectoryRoot;
         private string gitDirPath;
+        private readonly ITracer tracer;
+        private readonly Action<TimeSpan> configReadDelay;
         private Process executingProcess;
         private bool stopping;
 
@@ -114,11 +116,26 @@ namespace GVFS.Common.Git
         }
 
         public GitProcess(Enlistment enlistment)
-            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, NullTracer.Instance, GitConfigReadRetry.Delay)
+        {
+        }
+
+        public GitProcess(Enlistment enlistment, ITracer tracer)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, tracer, GitConfigReadRetry.Delay)
+        {
+        }
+
+        internal GitProcess(Enlistment enlistment, ITracer tracer, Action<TimeSpan> configReadDelay)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, tracer, configReadDelay)
         {
         }
 
         public GitProcess(string gitBinPath, string workingDirectoryRoot)
+            : this(gitBinPath, workingDirectoryRoot, NullTracer.Instance, GitConfigReadRetry.Delay)
+        {
+        }
+
+        internal GitProcess(string gitBinPath, string workingDirectoryRoot, ITracer tracer, Action<TimeSpan> configReadDelay)
         {
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
@@ -127,6 +144,8 @@ namespace GVFS.Common.Git
 
             this.gitBinPath = gitBinPath;
             this.workingDirectoryRoot = workingDirectoryRoot;
+            this.tracer = tracer ?? NullTracer.Instance;
+            this.configReadDelay = configReadDelay ?? GitConfigReadRetry.Delay;
 
             if (this.workingDirectoryRoot != null)
             {
@@ -167,22 +186,28 @@ namespace GVFS.Common.Git
 
         public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)
         {
-            return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName),
+            GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
+            return new ConfigResult(git.InvokeConfigRead(
+                settingName,
+                () => git.InvokeGitOutsideEnlistment("config --global " + settingName)),
                 settingName);
         }
 
         public static ConfigResult GetFromSystemConfig(string gitBinPath, string settingName)
         {
-            return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName),
+            GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
+            return new ConfigResult(git.InvokeConfigRead(
+                settingName,
+                () => git.InvokeGitOutsideEnlistment("config --system " + settingName)),
                 settingName);
         }
 
         public static ConfigResult GetFromFileConfig(string gitBinPath, string configFile, string settingName)
         {
-            return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName),
+            GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
+            return new ConfigResult(git.InvokeConfigRead(
+                settingName,
+                () => git.InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName)),
                 settingName);
         }
 
@@ -510,7 +535,9 @@ namespace GVFS.Common.Git
         public bool TryGetConfigUrlMatch(string section, string repositoryUrl, out Dictionary<string, GitConfigSetting> configSettings)
         {
             // See GetFromConfig for why pre-command hook is disabled.
-            Result result = this.InvokeGitAgainstDotGitFolder($"config --get-urlmatch {section} {repositoryUrl}", usePreCommandHook: false);
+            Result result = this.InvokeConfigRead(
+                section,
+                () => this.InvokeGitAgainstDotGitFolder($"config --get-urlmatch {section} {repositoryUrl}", usePreCommandHook: false));
             if (result.ExitCodeIsFailure)
             {
                 configSettings = null;
@@ -526,7 +553,11 @@ namespace GVFS.Common.Git
             configSettings = null;
             string localParameter = localOnly ? "--local" : string.Empty;
             // See GetFromConfig for why pre-command hook is disabled.
-            ConfigResult result = new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --list " + localParameter, usePreCommandHook: false), "--list");
+            ConfigResult result = new ConfigResult(
+                this.InvokeConfigRead(
+                    "--list",
+                    () => this.InvokeGitAgainstDotGitFolder("config --list " + localParameter, usePreCommandHook: false)),
+                "--list");
 
             if (result.TryParseAsString(out string output, out string _, string.Empty))
             {
@@ -556,16 +587,22 @@ namespace GVFS.Common.Git
             // mutation happens), and skipping the hook makes us robust to a broken
             // hook config in the enlistment - which is exactly what we'd be trying
             // to repair via TryUpdateHooks at mount time.
-            return
+            Result result =
                 fileSystem.DirectoryExists(this.workingDirectoryRoot) && !forceOutsideEnlistment
-                    ? new ConfigResult(this.InvokeGitAgainstDotGitFolder(command, usePreCommandHook: false), settingName)
-                    : new ConfigResult(this.InvokeGitOutsideEnlistment(command), settingName);
+                    ? this.InvokeConfigRead(settingName, () => this.InvokeGitAgainstDotGitFolder(command, usePreCommandHook: false))
+                    : this.InvokeConfigRead(settingName, () => this.InvokeGitOutsideEnlistment(command));
+
+            return new ConfigResult(result, settingName);
         }
 
         public ConfigResult GetFromLocalConfig(string settingName)
         {
             // See GetFromConfig above for why pre-command hook is disabled here.
-            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local " + settingName, usePreCommandHook: false), settingName);
+            return new ConfigResult(
+                this.InvokeConfigRead(
+                    settingName,
+                    () => this.InvokeGitAgainstDotGitFolder("config --local " + settingName, usePreCommandHook: false)),
+                settingName);
         }
 
         /// <summary>
@@ -597,7 +634,12 @@ namespace GVFS.Common.Git
         {
             /* Disable precommand hook because this config call is used during mounting process
              * which needs to be able to fix a bad precommand hook configuration. */
-            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local remote.origin.url", usePreCommandHook: false), "remote.origin.url");
+            const string ConfigName = "remote.origin.url";
+            return new ConfigResult(
+                this.InvokeConfigRead(
+                    ConfigName,
+                    () => this.InvokeGitAgainstDotGitFolder("config --local " + ConfigName, usePreCommandHook: false)),
+                ConfigName);
         }
 
         public Result DiffTree(string sourceTreeish, string targetTreeish, Action<string> onResult)
@@ -1282,6 +1324,23 @@ namespace GVFS.Common.Git
             }
 
             return configReadFailed && transientAccessFailure;
+        }
+
+        private Result InvokeConfigRead(string configName, Func<Result> readConfig)
+        {
+            return GitConfigReadRetry.InvokeResult(
+                configName,
+                readConfig,
+                IsTransientConfigReadFailure,
+                this.tracer,
+                this.configReadDelay);
+        }
+
+        private static bool IsTransientConfigReadFailure(Result result)
+        {
+            return
+                result.ExitCodeIsFailure &&
+                GitConfigReadRetry.IsTransientFileAccessError(result.Errors, lineMustContain: "unable to access");
         }
 
         private static void AddCredentialFillResult(EventMetadata data, Result result)

@@ -1,10 +1,15 @@
 using GVFS.Common;
+using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using System.Linq;
 
 namespace GVFS.Hooks
 {
     public partial class Program
     {
+        // Hooks run on the git command path, so config reads retry at most once.
+        private const int ConfigReadMaxAttempts = 2;
+
         // The lock serializes changes to the enlistment's index and tracked working tree with GVFS projection updates.
         // Before adding an exemption, check all supported options, subcommands, and child-command paths.
         // Ref and object writes alone do not require this lock. Index refreshes do.
@@ -111,7 +116,16 @@ namespace GVFS.Hooks
 
         private static bool IsAlias(string command)
         {
-            ProcessResult result = ProcessHelper.Run("git", "config --get alias." + command);
+            string aliasKey = "alias." + command;
+            ProcessResult result = GitConfigReadRetry.InvokeResult(
+                aliasKey,
+                () => ProcessHelper.Run("git", "config --get " + aliasKey),
+                (ProcessResult processResult) =>
+                    processResult.ExitCode != 0 &&
+                    GitConfigReadRetry.IsTransientFileAccessError(processResult.Errors, lineMustContain: "unable to access"),
+                NullTracer.Instance,
+                GitConfigReadRetry.Delay,
+                ConfigReadMaxAttempts);
 
             return !string.IsNullOrEmpty(result.Output);
         }

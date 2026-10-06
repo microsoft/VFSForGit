@@ -45,7 +45,7 @@ namespace GVFS.Common
         public static RetryConfig LoadFromGitConfig(ITracer tracer, Enlistment enlistment)
         {
             ArgumentNullException.ThrowIfNull(enlistment);
-            return LoadFromGitConfig(tracer, enlistment.CreateGitProcess());
+            return LoadFromGitConfig(tracer, enlistment.CreateGitProcess(tracer));
         }
 
         /// <summary>

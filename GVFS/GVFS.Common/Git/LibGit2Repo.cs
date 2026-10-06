@@ -29,19 +29,42 @@ namespace GVFS.Common.Git
     {
         private bool disposedValue = false;
         private IntPtr odbHandle = IntPtr.Zero;
+        private readonly Action<TimeSpan> configReadDelay;
+        private readonly int configReadMaxAttempts;
 
         public delegate void MultiVarConfigCallback(string value);
 
         public LibGit2Repo(ITracer tracer, string repoPath)
+            : this(tracer, repoPath, GitConfigReadRetry.Delay, GitConfigReadRetry.MaxAttempts)
+        {
+        }
+
+        internal LibGit2Repo(ITracer tracer, string repoPath, Action<TimeSpan> configReadDelay, int configReadMaxAttempts)
         {
             this.Tracer = tracer;
+            this.configReadDelay = configReadDelay ?? GitConfigReadRetry.Delay;
+            this.configReadMaxAttempts = configReadMaxAttempts;
 
             InitNative();
 
-            IntPtr repoHandle;
-            if (TryOpenRepo(repoPath, out repoHandle) != Native.ResultCode.Success)
+            // Opening the repo parses .git\config, so it is subject to the same transient failures as a config read.
+            IntPtr repoHandle = IntPtr.Zero;
+            string reason = null;
+            Native.ResultCode openResult = GitConfigReadRetry.InvokeResult(
+                "repository open",
+                () =>
+                {
+                    Native.ResultCode result = TryOpenRepo(repoPath, out repoHandle);
+                    reason = result == Native.ResultCode.Success ? null : GetLastNativeError();
+                    return result;
+                },
+                (Native.ResultCode result) => result != Native.ResultCode.Success && GitConfigReadRetry.IsTransientFileAccessError(reason),
+                tracer,
+                this.configReadDelay,
+                this.configReadMaxAttempts);
+
+            if (openResult != Native.ResultCode.Success)
             {
-                string reason = GetLastNativeError();
                 string message = "Couldn't open repo at " + repoPath + ": " + reason;
                 tracer.RelatedWarning(message);
 
@@ -62,8 +85,15 @@ namespace GVFS.Common.Git
         }
 
         protected LibGit2Repo(ITracer tracer)
+            : this(tracer, GitConfigReadRetry.Delay)
+        {
+        }
+
+        protected LibGit2Repo(ITracer tracer, Action<TimeSpan> configReadDelay)
         {
             this.Tracer = tracer;
+            this.configReadDelay = configReadDelay ?? GitConfigReadRetry.Delay;
+            this.configReadMaxAttempts = GitConfigReadRetry.MaxAttempts;
         }
 
         ~LibGit2Repo()
@@ -275,6 +305,17 @@ namespace GVFS.Common.Git
         /// <returns>The config value, or null if not found.</returns>
         public virtual string GetConfigString(string name)
         {
+            return GitConfigReadRetry.InvokeCatching(
+                name,
+                () => this.GetConfigStringOnce(name),
+                GitConfigReadRetry.IsTransientLibGit2Error,
+                this.Tracer,
+                this.configReadDelay,
+                this.configReadMaxAttempts);
+        }
+
+        protected virtual string GetConfigStringOnce(string name)
+        {
             IntPtr configHandle;
             if (Native.Config.GetConfig(out configHandle, this.RepoHandle) != Native.ResultCode.Success)
             {
@@ -323,6 +364,17 @@ namespace GVFS.Common.Git
         }
 
         public virtual bool? GetConfigBool(string name)
+        {
+            return GitConfigReadRetry.InvokeCatching(
+                name,
+                () => this.GetConfigBoolOnce(name),
+                GitConfigReadRetry.IsTransientLibGit2Error,
+                this.Tracer,
+                this.configReadDelay,
+                this.configReadMaxAttempts);
+        }
+
+        protected virtual bool? GetConfigBoolOnce(string name)
         {
             IntPtr configHandle;
             if (Native.Config.GetConfig(out configHandle, this.RepoHandle) != Native.ResultCode.Success)
@@ -375,13 +427,14 @@ namespace GVFS.Common.Git
         /// LibGit2RepoInvoker.InitializeSharedRepo forces the object store to load, which is
         /// wasted work when all that's needed is a single config value. Falls back to
         /// <paramref name="defaultValue"/> if the repo can't be opened or the read fails for any
-        /// reason.
+        /// reason. <paramref name="configReadMaxAttempts"/> bounds the transient-failure retries
+        /// for latency-sensitive callers.
         /// </summary>
-        public static bool GetConfigBoolOrDefault(ITracer tracer, string repoPath, string key, bool defaultValue)
+        public static bool GetConfigBoolOrDefault(ITracer tracer, string repoPath, string key, bool defaultValue, int configReadMaxAttempts = GitConfigReadRetry.MaxAttempts)
         {
             try
             {
-                using (LibGit2Repo repo = new LibGit2Repo(tracer, repoPath))
+                using (LibGit2Repo repo = new LibGit2Repo(tracer, repoPath, GitConfigReadRetry.Delay, configReadMaxAttempts))
                 {
                     return repo.GetConfigBoolOrDefault(key, defaultValue);
                 }
@@ -401,29 +454,45 @@ namespace GVFS.Common.Git
 
         public void ForEachMultiVarConfig(string key, MultiVarConfigCallback callback)
         {
-            if (Native.Config.GetConfig(out IntPtr configHandle, this.RepoHandle) != Native.ResultCode.Success)
+            List<string> values = GitConfigReadRetry.InvokeCatching(
+                key,
+                () => this.GetMultiVarConfigValues(key),
+                GitConfigReadRetry.IsTransientLibGit2Error,
+                this.Tracer,
+                this.configReadDelay,
+                this.configReadMaxAttempts);
+
+            foreach (string value in values)
             {
-                throw new LibGit2Exception($"Failed to get config handle: {Native.GetLastError()}");
-            }
-            try
-            {
-                ForEachMultiVarConfig(configHandle, key, callback);
-            }
-            finally
-            {
-                Native.Config.Free(configHandle);
+                callback(value);
             }
         }
 
         public static void ForEachMultiVarConfigInGlobalAndSystemConfig(string key, MultiVarConfigCallback callback)
         {
-            if (Native.Config.GetGlobalAndSystemConfig(out IntPtr configHandle) != Native.ResultCode.Success)
+            List<string> values = GitConfigReadRetry.InvokeCatching(
+                key,
+                () => GetGlobalAndSystemMultiVarConfigValues(key),
+                GitConfigReadRetry.IsTransientLibGit2Error,
+                NullTracer.Instance,
+                GitConfigReadRetry.Delay);
+
+            foreach (string value in values)
             {
-                throw new LibGit2Exception($"Failed to get global and system config handle: {Native.GetLastError()}");
+                callback(value);
             }
+        }
+
+        protected virtual List<string> GetMultiVarConfigValues(string key)
+        {
+            if (Native.Config.GetConfig(out IntPtr configHandle, this.RepoHandle) != Native.ResultCode.Success)
+            {
+                throw new LibGit2Exception($"Failed to get config handle: {Native.GetLastError()}");
+            }
+
             try
             {
-                ForEachMultiVarConfig(configHandle, key, callback);
+                return GetMultiVarConfigValues(configHandle, key);
             }
             finally
             {
@@ -431,14 +500,32 @@ namespace GVFS.Common.Git
             }
         }
 
-        private static void ForEachMultiVarConfig(IntPtr configHandle, string key, MultiVarConfigCallback callback)
+        private static List<string> GetGlobalAndSystemMultiVarConfigValues(string key)
         {
+            if (Native.Config.GetGlobalAndSystemConfig(out IntPtr configHandle) != Native.ResultCode.Success)
+            {
+                throw new LibGit2Exception($"Failed to get global and system config handle: {Native.GetLastError()}");
+            }
+
+            try
+            {
+                return GetMultiVarConfigValues(configHandle, key);
+            }
+            finally
+            {
+                Native.Config.Free(configHandle);
+            }
+        }
+
+        private static List<string> GetMultiVarConfigValues(IntPtr configHandle, string key)
+        {
+            List<string> values = new List<string>();
             Native.Config.GitConfigMultivarCallback nativeCallback = (entryPtr, payload) =>
             {
                 try
                 {
-                    var entry = Marshal.PtrToStructure<Native.Config.GitConfigEntry>(entryPtr);
-                    callback(entry.GetValue());
+                    Native.Config.GitConfigEntry entry = Marshal.PtrToStructure<Native.Config.GitConfigEntry>(entryPtr);
+                    values.Add(entry.GetValue());
                 }
                 catch (Exception)
                 {
@@ -455,6 +542,8 @@ namespace GVFS.Common.Git
             {
                 throw new LibGit2Exception($"Failed to get multivar config for '{key}': {Native.GetLastError()}");
             }
+
+            return values;
         }
 
         /// <summary>
