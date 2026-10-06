@@ -499,12 +499,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.AppendWorktreeMountLogs(sb, wtInfo);
             }
 
-            this.AppendMountBootstrapTraces(sb);
+            this.AppendMountBootstrapTraces(sb, wtInfo == null ? null : wtInfo.Name);
 
             return sb.ToString();
         }
 
-        private void AppendMountBootstrapTraces(StringBuilder sb)
+        private void AppendMountBootstrapTraces(StringBuilder sb, string worktreeName)
         {
             string dir = Path.Combine(
                 Environment.GetEnvironmentVariable("GVFS_TEST_DIAGNOSTICS_DIR") ?? @"C:\temp\gvfs-ft-diagnostics",
@@ -523,8 +523,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     .Where(f => f.LastWriteTimeUtc > DateTime.UtcNow.AddMinutes(-3))
                     .OrderBy(f => f.LastWriteTimeUtc))
                 {
+                    string contents = File.ReadAllText(file.FullName);
+                    if (worktreeName != null && !contents.Contains(worktreeName))
+                    {
+                        continue;
+                    }
+
                     sb.AppendLine($"    ----- {file.Name} -----");
-                    sb.AppendLine(this.ReadTail(file.FullName, maxChars: 3000));
+                    sb.AppendLine(contents.Length <= 6000 ? contents : contents.Substring(contents.Length - 6000));
                 }
             }
             catch (Exception ex)

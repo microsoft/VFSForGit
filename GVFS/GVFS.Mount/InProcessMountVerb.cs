@@ -96,6 +96,19 @@ namespace GVFS.Mount
 
         public void Execute()
         {
+            try
+            {
+                this.ExecuteCore();
+            }
+            catch (Exception ex)
+            {
+                BootstrapTrace.Write("Execute: threw " + ex);
+                throw;
+            }
+        }
+
+        private void ExecuteCore()
+        {
             if (this.StartedByVerb)
             {
                 // If this process was started by a verb it means that StartBackgroundVFS4GProcess was used
@@ -111,10 +124,13 @@ namespace GVFS.Mount
             EventLevel verbosity;
             Keywords keywords;
             this.ParseEnumArgs(out verbosity, out keywords);
+            BootstrapTrace.Write("Execute: enum args parsed");
 
             JsonTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
+            BootstrapTrace.Write("Execute: tracer created");
 
             CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
+            BootstrapTrace.Write("Execute: cache server resolved");
 
             tracer.WriteStartEvent(
                 enlistment.WorkingDirectoryRoot,
@@ -231,6 +247,8 @@ namespace GVFS.Mount
 
         private void ReportErrorAndExit(ITracer tracer, string error, params object[] args)
         {
+            BootstrapTrace.Write("ReportErrorAndExit: " + (error == null ? "<null>" : string.Format(error, args)));
+
             if (tracer != null)
             {
                 tracer.RelatedError(error, args);
