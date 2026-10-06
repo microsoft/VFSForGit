@@ -499,7 +499,38 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.AppendWorktreeMountLogs(sb, wtInfo);
             }
 
+            this.AppendMountBootstrapTraces(sb);
+
             return sb.ToString();
+        }
+
+        private void AppendMountBootstrapTraces(StringBuilder sb)
+        {
+            string dir = Path.Combine(
+                Environment.GetEnvironmentVariable("GVFS_TEST_DIAGNOSTICS_DIR") ?? @"C:\temp\gvfs-ft-diagnostics",
+                "mount-bootstrap");
+            sb.AppendLine($"  mount bootstrap traces: {dir}");
+            if (!Directory.Exists(dir))
+            {
+                sb.AppendLine("    exists: False");
+                return;
+            }
+
+            try
+            {
+                foreach (FileInfo file in new DirectoryInfo(dir)
+                    .GetFiles("mount_*.log")
+                    .Where(f => f.LastWriteTimeUtc > DateTime.UtcNow.AddMinutes(-3))
+                    .OrderBy(f => f.LastWriteTimeUtc))
+                {
+                    sb.AppendLine($"    ----- {file.Name} -----");
+                    sb.AppendLine(this.ReadTail(file.FullName, maxChars: 3000));
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"    bootstrap trace capture failed: {ex}");
+            }
         }
 
         private void AppendDirectoryListing(StringBuilder sb, string label, string path)

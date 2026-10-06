@@ -112,7 +112,9 @@ namespace GVFS.Mount
                 this.tracer,
                 mountLockPath))
             {
-                if (!mountLock.TryAcquireLock(out Exception lockException))
+                bool acquired = mountLock.TryAcquireLock(out Exception lockException);
+                BootstrapTrace.Write("Mount: mount lock acquired=" + acquired + " path=" + mountLockPath + " exception=" + lockException);
+                if (!acquired)
                 {
                     if (lockException is IOException)
                     {

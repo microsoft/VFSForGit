@@ -104,7 +104,9 @@ namespace GVFS.Mount
                 GVFSPlatform.Instance.PrepareProcessToRunInBackground();
             }
 
+            BootstrapTrace.Write("Execute: creating enlistment for " + this.EnlistmentRootPathParameter);
             GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
+            BootstrapTrace.Write("Execute: enlistment created. IsWorktree=" + enlistment.IsWorktree);
 
             EventLevel verbosity;
             Keywords keywords;
@@ -149,10 +151,13 @@ namespace GVFS.Mount
 
             try
             {
+                BootstrapTrace.Write("Execute: calling Mount");
                 mountHelper.Mount(verbosity, keywords);
+                BootstrapTrace.Write("Execute: Mount returned normally");
             }
             catch (Exception ex)
             {
+                BootstrapTrace.Write("Execute: Mount threw " + ex);
                 this.ReportErrorAndExit(tracer, "Failed to mount: {0}", ex.Message);
             }
         }
