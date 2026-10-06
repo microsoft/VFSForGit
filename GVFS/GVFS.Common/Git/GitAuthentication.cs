@@ -36,6 +36,8 @@ namespace GVFS.Common.Git
         private bool isCachedCredentialStringApproved = false;
 
         private bool isInitialized;
+        private int isAnonymous;
+        private int initializationStarted;
 
         public GitAuthentication(GitProcess git, string repoUrl)
         {
@@ -56,7 +58,30 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool IsAnonymous { get; private set; } = true;
+        /// <summary>
+        /// True only when the server is known to allow anonymous access.
+        /// </summary>
+        /// <remarks>
+        /// This defaults to false, because anonymous access is an affirmative
+        /// determination that requires a successful unauthenticated probe of
+        /// /gvfs/config. While true, <see cref="Http.HttpRequestor.SendRequest"/>
+        /// omits the Authorization header and never calls <see cref="TryGetCredentials"/>.
+        /// </remarks>
+        public bool IsAnonymous
+        {
+            get => Volatile.Read(ref this.isAnonymous) != 0;
+            private set => Volatile.Write(ref this.isAnonymous, value ? 1 : 0);
+        }
+
+        /// <summary>
+        /// Indicates whether authentication initialization has started.
+        /// </summary>
+        internal bool IsInitializationStarted => Volatile.Read(ref this.initializationStarted) != 0;
+
+        public void MarkInitializationStarted()
+        {
+            Interlocked.Exchange(ref this.initializationStarted, 1);
+        }
 
         /// <summary>
         /// How long a caller of <see cref="TryGetCredentials"/> will wait for
@@ -65,6 +90,14 @@ namespace GVFS.Common.Git
         /// background credential fetch). Overridable for tests.
         /// </summary>
         internal int InitializationWaitTimeoutMs { get; set; } = BackgroundCredentialTimeoutMs;
+
+        /// <summary>
+        /// Test seam for the /gvfs/config probe. When null, production code uses
+        /// <see cref="ConfigHttpRequestor"/>. Unit tests substitute a fake so the
+        /// probe outcome - anonymous success, 401, or an indeterminate network
+        /// failure - can be driven deterministically.
+        /// </summary>
+        internal IGVFSConfigRequestor ConfigRequestorOverride { get; set; }
 
         private GitSsl GitSsl { get; }
 
@@ -186,6 +219,13 @@ namespace GVFS.Common.Git
                 }
             }
 
+            if (this.IsAnonymous)
+            {
+                credentialString = null;
+                errorMessage = null;
+                return true;
+            }
+
             credentialString = this.cachedCredentialString;
             if (credentialString == null)
             {
@@ -256,17 +296,49 @@ namespace GVFS.Common.Git
                 throw new InvalidOperationException("Already initialized");
             }
 
+            this.MarkInitializationStarted();
+
+            try
+            {
+                return this.TryInitializeAndQueryGVFSConfigCore(
+                    tracer,
+                    enlistment,
+                    retryConfig,
+                    out serverGVFSConfig,
+                    out errorMessage,
+                    out isAuthFailure,
+                    credentialTimeoutMs);
+            }
+            finally
+            {
+                if (!this.isInitialized)
+                {
+                    this.IsAnonymous = false;
+                    this.MarkInitialized();
+                }
+            }
+        }
+
+        private bool TryInitializeAndQueryGVFSConfigCore(
+            ITracer tracer,
+            Enlistment enlistment,
+            RetryConfig retryConfig,
+            out ServerGVFSConfig serverGVFSConfig,
+            out string errorMessage,
+            out bool isAuthFailure,
+            int credentialTimeoutMs)
+        {
             serverGVFSConfig = null;
             errorMessage = null;
             isAuthFailure = false;
 
-            using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
+            IGVFSConfigRequestor configRequestor = this.ConfigRequestorOverride ?? new ConfigHttpRequestor(tracer, enlistment, retryConfig);
+            using (configRequestor)
             {
                 HttpStatusCode? httpStatus;
 
-                // First attempt without credentials. If anonymous access works,
-                // we get the config in a single request.
-                if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out _))
+                // The probe must not consult the authentication state it determines.
+                if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out _, forceAnonymous: true))
                 {
                     this.IsAnonymous = true;
                     this.MarkInitialized();
@@ -276,9 +348,22 @@ namespace GVFS.Common.Git
 
                 if (httpStatus != HttpStatusCode.Unauthorized)
                 {
+                    // The probe did not determine whether the server allows anonymous
+                    // access. Assume authentication is required; anonymous servers
+                    // ignore the Authorization header.
                     this.MarkInitialized();
                     errorMessage = "Unable to query /gvfs/config";
-                    tracer.RelatedWarning("{0}: Config query failed with status {1}", nameof(this.TryInitializeAndQueryGVFSConfig), httpStatus?.ToString() ?? "None");
+
+                    // Keep this failure measurable in field telemetry.
+                    EventMetadata indeterminateMetadata = new EventMetadata(new Dictionary<string, object>
+                    {
+                        ["Area"] = nameof(GitAuthentication),
+                        ["HttpStatus"] = httpStatus?.ToString() ?? "None",
+                    });
+                    tracer.RelatedWarning(
+                        indeterminateMetadata,
+                        $"{nameof(this.TryInitializeAndQueryGVFSConfig)}: Config query failed with status {httpStatus?.ToString() ?? "None"}; assuming authentication is required",
+                        Keywords.Telemetry);
                     return false;
                 }
 
@@ -327,13 +412,26 @@ namespace GVFS.Common.Git
                 throw new InvalidOperationException("Already initialized");
             }
 
-            if (this.TryCallGitCredential(tracer, out errorMessage))
-            {
-                this.MarkInitialized();
-                return true;
-            }
+            this.MarkInitializationStarted();
 
-            return false;
+            try
+            {
+                if (this.TryCallGitCredential(tracer, out errorMessage))
+                {
+                    this.MarkInitialized();
+                    return true;
+                }
+
+                return false;
+            }
+            finally
+            {
+                if (!this.isInitialized)
+                {
+                    this.IsAnonymous = false;
+                    this.MarkInitialized();
+                }
+            }
         }
 
         public void ConfigureHttpClientHandlerSslIfNeeded(ITracer tracer, HttpClientHandler httpClientHandler, GitProcess gitProcess)

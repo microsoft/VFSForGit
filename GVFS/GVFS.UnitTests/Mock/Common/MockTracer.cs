@@ -19,6 +19,7 @@ namespace GVFS.UnitTests.Mock.Common
             this.waitEvent = new AutoResetEvent(false);
             this.RelatedInfoEvents = new List<string>();
             this.RelatedWarningEvents = new List<string>();
+            this.RelatedWarningKeywords = new List<Keywords>();
             this.RelatedErrorEvents = new List<string>();
             this.RelatedEventNames = new List<string>();
             this.RelatedEventKeywords = new List<Keywords>();
@@ -31,6 +32,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public List<string> RelatedInfoEvents { get; }
         public List<string> RelatedWarningEvents { get; }
+        public List<Keywords> RelatedWarningKeywords { get; }
         public List<string> RelatedErrorEvents { get; }
 
         // Names of events reported via RelatedEvent (which, unlike RelatedInfo/Warning/Error,
@@ -98,29 +100,38 @@ namespace GVFS.UnitTests.Mock.Common
 
         public void RelatedWarning(EventMetadata metadata, string message)
         {
-            if (metadata != null)
-            {
-                metadata[TracingConstants.MessageKey.WarningMessage] = message;
-                this.RelatedWarningEvents.Add(GVFSJsonOptions.Serialize(metadata));
-            }
-            else if (message != null)
-            {
-                this.RelatedWarning(message);
-            }
+            this.AddRelatedWarning(metadata, message, Keywords.None);
         }
 
         public void RelatedWarning(EventMetadata metadata, string message, Keywords keyword)
         {
-            this.RelatedWarning(metadata, message);
+            this.AddRelatedWarning(metadata, message, keyword);
+        }
+
+        private void AddRelatedWarning(EventMetadata metadata, string message, Keywords keyword)
+        {
+            if (metadata != null)
+            {
+                metadata[TracingConstants.MessageKey.WarningMessage] = message;
+                this.RelatedWarningEvents.Add(GVFSJsonOptions.Serialize(metadata));
+                this.RelatedWarningKeywords.Add(keyword);
+            }
+            else if (message != null)
+            {
+                this.RelatedWarningEvents.Add(message);
+                this.RelatedWarningKeywords.Add(keyword);
+            }
         }
 
         public void RelatedWarning(string message)
         {
+            this.RelatedWarningKeywords.Add(Keywords.None);
             this.RelatedWarningEvents.Add(message);
         }
 
         public void RelatedWarning(string format, params object[] args)
         {
+            this.RelatedWarningKeywords.Add(Keywords.None);
             this.RelatedWarningEvents.Add(string.Format(format, args));
         }
 
