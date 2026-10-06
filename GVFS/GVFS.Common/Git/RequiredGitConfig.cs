@@ -1,6 +1,8 @@
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.Common.Git
 {
@@ -10,6 +12,252 @@ namespace GVFS.Common.Git
     /// </summary>
     public static class RequiredGitConfig
     {
+        internal const string WorktreeConfigExtension = "extensions.worktreeConfig";
+        internal const string StatusDeserializePath = "status.deserializePath";
+
+        internal const int SharedWriteAttempts = 5;
+        private const int SharedWriteRetryDelayMs = 100;
+
+        /// <summary>
+        /// Writes the required settings that are missing or different.
+        /// </summary>
+        /// <remarks>
+        /// Git resolves --local config for a linked worktree to the config that all
+        /// worktrees share. So a linked worktree writes <see cref="StatusDeserializePath"/>,
+        /// the only required setting whose value is specific to an enlistment, to its own
+        /// config.worktree, and enables extensions.worktreeConfig so that git reads that file.
+        /// The shared config keeps the value of the primary enlistment. A config.worktree
+        /// value overrides the shared value, so every other required setting is removed from
+        /// the config.worktree file of the enlistment.
+        /// </remarks>
+        public static bool TrySetRequiredSettings(GVFSEnlistment enlistment, out string error)
+        {
+            return TrySetRequiredSettings(enlistment, NullTracer.Instance, out error);
+        }
+
+        /// <summary>
+        /// Writes the required settings like the overload without a tracer, and sends
+        /// config read retries to <paramref name="tracer"/>.
+        /// </summary>
+        public static bool TrySetRequiredSettings(GVFSEnlistment enlistment, ITracer tracer, out string error)
+        {
+            return TrySetRequiredSettings(enlistment, tracer, GetRequiredSettings(enlistment), out error);
+        }
+
+        /// <summary>
+        /// Applies <paramref name="requiredSettings"/> like the public overload. Tests use this overload.
+        /// </summary>
+        internal static bool TrySetRequiredSettings(GVFSEnlistment enlistment, Dictionary<string, string> requiredSettings, out string error)
+        {
+            return TrySetRequiredSettings(enlistment, NullTracer.Instance, requiredSettings, out error);
+        }
+
+        private static bool TrySetRequiredSettings(GVFSEnlistment enlistment, ITracer tracer, Dictionary<string, string> requiredSettings, out string error)
+        {
+            List<KeyValuePair<string, string>> sharedSettings = new List<KeyValuePair<string, string>>();
+            Dictionary<string, string> worktreeConfigSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            string primaryStatusCachePath = enlistment.IsWorktree ? GetStatusCachePath(enlistment.PrimaryDotGVFSRoot) : null;
+
+            foreach (KeyValuePair<string, string> setting in requiredSettings)
+            {
+                if (enlistment.IsWorktree && string.Equals(setting.Key, StatusDeserializePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    // An empty value disables the status cache for this worktree. Without
+                    // a value, the worktree uses the status cache of the primary.
+                    worktreeConfigSettings.Add(setting.Key, setting.Value ?? string.Empty);
+                    if (setting.Value != null && primaryStatusCachePath != null)
+                    {
+                        sharedSettings.Add(new KeyValuePair<string, string>(setting.Key, primaryStatusCachePath));
+                    }
+                }
+                else
+                {
+                    sharedSettings.Add(setting);
+                }
+            }
+
+            GitProcess git = enlistment.CreateGitProcess(tracer);
+
+            Dictionary<string, List<string>> existingSharedEntries;
+            if (!git.TryGetLocalConfigEntries(out existingSharedEntries))
+            {
+                error = "Could not read the local git config";
+                return false;
+            }
+
+            if (enlistment.IsWorktree || HasLinkedWorktreeConfig(enlistment))
+            {
+                sharedSettings.Insert(0, new KeyValuePair<string, string>(WorktreeConfigExtension, "true"));
+            }
+
+            if (!TryApplySharedSettings(git, sharedSettings, existingSharedEntries, out error))
+            {
+                return false;
+            }
+
+            return TryApplyWorktreeConfigSettings(git, enlistment.WorktreeConfigPath, requiredSettings.Keys, worktreeConfigSettings, out error);
+        }
+
+        private static bool TryApplySharedSettings(
+            GitProcess git,
+            List<KeyValuePair<string, string>> settings,
+            Dictionary<string, List<string>> existingEntries,
+            out string error)
+        {
+            foreach (KeyValuePair<string, string> setting in settings)
+            {
+                if (setting.Value != null)
+                {
+                    if (!HasOnlyValue(existingEntries, setting.Key, setting.Value) &&
+                        !TrySetSharedSetting(git, setting.Key, setting.Value, out error))
+                    {
+                        return false;
+                    }
+                }
+                else if (TryGetEntry(existingEntries, setting.Key, out _))
+                {
+                    git.DeleteFromLocalConfig(setting.Key);
+                }
+            }
+
+            error = null;
+            return true;
+        }
+
+        private static bool TrySetSharedSetting(GitProcess git, string settingName, string value, out string error)
+        {
+            for (int attempt = 1; ; attempt++)
+            {
+                // Git uses the last value of a key, so replace every value.
+                GitProcess.Result result = git.SetInLocalConfig(settingName, value, replaceAll: true);
+
+                // Concurrent mounts of linked worktrees can write the same value. A write
+                // fails while another process holds the config lock, so check whether
+                // the value is now present before the next attempt.
+                if (result.ExitCodeIsSuccess || HasLocalConfigValue(git, settingName, value))
+                {
+                    error = null;
+                    return true;
+                }
+
+                if (attempt == SharedWriteAttempts)
+                {
+                    error = $"Could not set '{settingName}': {result.Errors}";
+                    return false;
+                }
+
+                Thread.Sleep(SharedWriteRetryDelayMs);
+            }
+        }
+
+        private static bool HasLocalConfigValue(GitProcess git, string settingName, string expectedValue)
+        {
+            return git.TryGetLocalConfigEntries(out Dictionary<string, List<string>> entries) &&
+                HasOnlyValue(entries, settingName, expectedValue);
+        }
+
+        private static bool TryApplyWorktreeConfigSettings(
+            GitProcess git,
+            string worktreeConfigPath,
+            IEnumerable<string> requiredSettingNames,
+            Dictionary<string, string> worktreeConfigSettings,
+            out string error)
+        {
+            Dictionary<string, List<string>> existingEntries = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            if (File.Exists(worktreeConfigPath) && !git.TryGetFileConfigEntries(worktreeConfigPath, out existingEntries))
+            {
+                error = "Could not read " + worktreeConfigPath;
+                return false;
+            }
+
+            foreach (string settingName in requiredSettingNames)
+            {
+                if (!worktreeConfigSettings.ContainsKey(settingName) && TryGetEntry(existingEntries, settingName, out _))
+                {
+                    GitProcess.Result result = git.DeleteFromFileConfig(worktreeConfigPath, settingName);
+                    if (result.ExitCodeIsFailure)
+                    {
+                        error = $"Could not remove '{settingName}' from {worktreeConfigPath}: {result.Errors}";
+                        return false;
+                    }
+                }
+            }
+
+            foreach (KeyValuePair<string, string> setting in worktreeConfigSettings)
+            {
+                if (HasOnlyValue(existingEntries, setting.Key, setting.Value))
+                {
+                    continue;
+                }
+
+                GitProcess.Result result = git.SetInFileConfig(worktreeConfigPath, setting.Key, setting.Value, replaceAll: true);
+                if (result.ExitCodeIsFailure)
+                {
+                    error = $"Could not set '{setting.Key}' in {worktreeConfigPath}: {result.Errors}";
+                    return false;
+                }
+            }
+
+            error = null;
+            return true;
+        }
+
+        /// <summary>
+        /// True when the key has exactly one entry and that entry has the value. Git
+        /// uses the last entry of a key, and a key without a value means true.
+        /// </summary>
+        private static bool HasOnlyValue(Dictionary<string, List<string>> entries, string settingName, string value)
+        {
+            return TryGetEntry(entries, settingName, out List<string> values) &&
+                values.Count == 1 &&
+                string.Equals(values[0], value, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Finds a key in parsed `git config --list` output. That output shows a
+        /// subsection without quotes, for example credential.https://dev.azure.com.usehttppath.
+        /// </summary>
+        private static bool TryGetEntry(Dictionary<string, List<string>> entries, string settingName, out List<string> values)
+        {
+            return entries.TryGetValue(settingName.Replace("\"", string.Empty), out values);
+        }
+
+        private static bool HasLinkedWorktreeConfig(GVFSEnlistment enlistment)
+        {
+            string worktreesRoot = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.WorktreesName);
+            if (!Directory.Exists(worktreesRoot))
+            {
+                return false;
+            }
+
+            try
+            {
+                foreach (string worktreeGitDir in Directory.EnumerateDirectories(worktreesRoot))
+                {
+                    if (File.Exists(Path.Combine(worktreeGitDir, GVFSConstants.DotGit.WorktreeConfigName)))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // `git worktree prune` can remove the directory during the enumeration.
+            }
+
+            return false;
+        }
+
+        private static string GetStatusCachePath(string dotGVFSRoot)
+        {
+            if (GVFSEnlistment.IsUnattended(tracer: null) || !GVFSPlatform.Instance.IsGitStatusCacheSupported())
+            {
+                return null;
+            }
+
+            return Paths.ConvertPathToGitFormat(Path.Combine(dotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.CachePath));
+        }
+
         /// <summary>
         /// Returns the dictionary of required git config settings for a GVFS enlistment.
         /// These settings override any existing local configuration values.
@@ -33,15 +281,7 @@ namespace GVFS.Common.Git
                 Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.Hooks.RootName, GVFSConstants.DotGit.Hooks.VirtualFileSystemName) +
                 GVFSPlatform.Instance.Constants.ExecutableExtension) + "'";
 
-            string gitStatusCachePath = null;
-            if (!GVFSEnlistment.IsUnattended(tracer: null) && GVFSPlatform.Instance.IsGitStatusCacheSupported())
-            {
-                gitStatusCachePath = Path.Combine(
-                    enlistment.DotGVFSRoot,
-                    GVFSConstants.DotGVFS.GitStatusCache.CachePath);
-
-                gitStatusCachePath = Paths.ConvertPathToGitFormat(gitStatusCachePath);
-            }
+            string gitStatusCachePath = GetStatusCachePath(enlistment.DotGVFSRoot);
 
             string coreGVFSFlags = Convert.ToInt32(
                 GitCoreGVFSFlags.SkipShaOnIndex |
@@ -171,7 +411,7 @@ namespace GVFS.Common.Git
 
                 // Configure git to use our serialize status file - make git use the serialized status file rather than compute the status by
                 // parsing the index file and going through the files to determine changes.
-                { "status.deserializePath", gitStatusCachePath },
+                { StatusDeserializePath, gitStatusCachePath },
 
                 // The GVFS Protocol forbids submodules, so prevent a user's
                 // global config of "status.submoduleSummary=true" from causing

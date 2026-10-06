@@ -178,6 +178,8 @@ namespace GVFS.Common
             public const string HeadName = "HEAD";
             public const string GitDirPrefix = "gitdir: ";
             public const string CommonDirName = "commondir";
+            public const string WorktreeConfigName = "config.worktree";
+            public const string WorktreesName = "worktrees";
             public const string SkipCleanCheckName = "skip-clean-check";
             public const string IndexName = "index";
             public const string PackedRefsName = "packed-refs";

@@ -96,16 +96,9 @@ namespace GVFS.CommandLine
 
         protected abstract string VerbName { get; }
 
-        public static bool TrySetRequiredGitConfigSettings(GVFSEnlistment enlistment)
+        public static bool TrySetRequiredGitConfigSettings(GVFSEnlistment enlistment, out string error)
         {
-            Dictionary<string, string> requiredSettings = RequiredGitConfig.GetRequiredSettings(enlistment);
-
-            if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
-            {
-                return false;
-            }
-
-            return true;
+            return RequiredGitConfig.TrySetRequiredSettings(enlistment, out error);
         }
 
         public static bool TrySetOptionalGitConfigSettings(Enlistment enlistment)
@@ -118,7 +111,7 @@ namespace GVFS.CommandLine
                 { "status.aheadbehind", "false" },
             };
 
-            if (!TrySetConfig(enlistment, optionalSettings, isRequired: false))
+            if (!TrySetMissingConfig(enlistment, optionalSettings))
             {
                 return false;
             }
@@ -658,39 +651,24 @@ You can specify a URL, a name of a configured cache server, or the special names
             return Guid.NewGuid().ToString("N");
         }
 
-        private static bool TrySetConfig(Enlistment enlistment, Dictionary<string, string> configSettings, bool isRequired)
+        private static bool TrySetMissingConfig(Enlistment enlistment, Dictionary<string, string> configSettings)
         {
             GitProcess git = new GitProcess(enlistment);
 
             Dictionary<string, GitConfigSetting> existingConfigSettings;
-
-            // If the settings are required, then only check local config settings, because we don't want to depend on
-            // global settings that can then change independent of this repo.
-            if (!git.TryGetAllConfig(localOnly: isRequired, configSettings: out existingConfigSettings))
+            if (!git.TryGetAllConfig(localOnly: false, configSettings: out existingConfigSettings))
             {
                 return false;
             }
 
             foreach (KeyValuePair<string, string> setting in configSettings)
             {
-                GitConfigSetting existingSetting;
-                if (setting.Value != null)
+                if (!existingConfigSettings.ContainsKey(setting.Key))
                 {
-                    if (!existingConfigSettings.TryGetValue(setting.Key, out existingSetting) ||
-                        (isRequired && !existingSetting.HasValue(setting.Value)))
+                    GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
+                    if (setConfigResult.ExitCodeIsFailure)
                     {
-                        GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
-                        if (setConfigResult.ExitCodeIsFailure)
-                        {
-                            return false;
-                        }
-                    }
-                }
-                else
-                {
-                    if (existingConfigSettings.TryGetValue(setting.Key, out existingSetting))
-                    {
-                        git.DeleteFromLocalConfig(setting.Key);
+                        return false;
                     }
                 }
             }

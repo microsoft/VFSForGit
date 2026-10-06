@@ -121,7 +121,30 @@ namespace GVFS.Mount
             Keywords keywords;
             this.ParseEnumArgs(out verbosity, out keywords);
 
-            JsonTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
+            // Create the IDs before the tracer, so every event of this mount carries them.
+            // A worktree mount reads the primary enlistment ID once and uses it everywhere.
+            string mountId = Guid.NewGuid().ToString("N");
+            string primaryEnlistmentId = null;
+            string primaryEnlistmentIdError = null;
+            string enlistmentId;
+            if (enlistment.IsWorktree)
+            {
+                enlistment.TryGetPrimaryEnlistmentId(out primaryEnlistmentId, out primaryEnlistmentIdError);
+                enlistmentId = enlistment.GetWorktreeEnlistmentId(primaryEnlistmentId);
+            }
+            else
+            {
+                enlistmentId = enlistment.GetEnlistmentId();
+            }
+
+            JsonTracer tracer = this.CreateTracer(enlistment, enlistmentId, mountId, verbosity, keywords);
+            if (primaryEnlistmentIdError != null)
+            {
+                tracer.RelatedWarning(
+                    new EventMetadata { { "Error", primaryEnlistmentIdError } },
+                    "Could not read the primary enlistment ID",
+                    Keywords.Telemetry);
+            }
 
             // Everything below this point has a live tracer (and therefore a log
             // file on disk), so wrap it in a catch-all: any exception that isn't
@@ -160,7 +183,7 @@ namespace GVFS.Mount
                     gitStatusCacheConfig = GitStatusCacheConfig.DefaultConfig;
                 }
 
-                InProcessMount mountHelper = new InProcessMount(tracer, enlistment, cacheServer, retryConfig, gitStatusCacheConfig, this.ShowDebugWindow);
+                InProcessMount mountHelper = new InProcessMount(tracer, enlistment, mountId, primaryEnlistmentId, cacheServer, retryConfig, gitStatusCacheConfig, this.ShowDebugWindow);
 
                 try
                 {
@@ -194,9 +217,9 @@ namespace GVFS.Mount
             tracer.RelatedError(metadata, "UnhandledGVFSExceptionHandler caught unhandled exception");
         }
 
-        private JsonTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
+        private JsonTracer CreateTracer(GVFSEnlistment enlistment, string enlistmentId, string mountId, EventLevel verbosity, Keywords keywords)
         {
-            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistment.GetEnlistmentId(), enlistment.GetMountId());
+            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistmentId, mountId);
             tracer.AddLogFileEventListener(
                 GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountProcess),
                 verbosity,

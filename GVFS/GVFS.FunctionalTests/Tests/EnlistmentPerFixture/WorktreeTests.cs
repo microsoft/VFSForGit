@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using ProcessHelper = GVFS.FunctionalTests.Tools.ProcessHelper;
 using ProcessResult = GVFS.FunctionalTests.Tools.ProcessResult;
@@ -19,6 +20,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class WorktreeTests : TestsWithEnlistmentPerFixture
     {
         private const int MinWorktreeCount = 4;
+        private const string StatusDeserializePath = "status.deserializePath";
+        private const string WorktreeMountIdArguments = "--worktree gvfs.mount-id";
 
         [TestCase]
         public void ConcurrentWorktreeAddCommitRemove()
@@ -579,6 +582,146 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase]
+        public void WorktreeMountUsesPerWorktreeConfigAndKeepsPrimaryValues()
+        {
+            string primaryEnlistmentId = this.GetPrimaryConfigValue("gvfs.enlistment-id");
+            string primaryMountId = this.GetPrimaryConfigValue("gvfs.mount-id");
+            string primaryStatusCachePath = this.GetPrimaryConfigValue(StatusDeserializePath);
+            Assert.IsNotEmpty(primaryEnlistmentId);
+            Assert.IsNotEmpty(primaryMountId);
+            AssertPathsEqual(primaryStatusCachePath, GetStatusCachePath(this.Enlistment.DotGVFSRoot), "Primary status cache path");
+
+            this.RunWithMountedWorktree("ids-test", (worktreePath, worktreeGitDir) =>
+            {
+                string worktreeDotGVFS = Path.Combine(worktreeGitDir, GVFSTestConfig.DotGVFSRoot);
+                string worktreeEnlistmentId = GVFSHelpers.GetPersistedEnlistmentId(worktreeDotGVFS);
+                AssertIsEnlistmentId(worktreeEnlistmentId);
+                worktreeEnlistmentId.ShouldNotEqual(primaryEnlistmentId);
+                string worktreeMountId = this.GetConfigValue(worktreePath, WorktreeMountIdArguments);
+                Assert.IsNotEmpty(worktreeMountId);
+                worktreeMountId.ShouldNotEqual(primaryMountId);
+                AssertPathsEqual(
+                    this.GetConfigValue(worktreePath, StatusDeserializePath),
+                    GetStatusCachePath(worktreeDotGVFS),
+                    "Worktree status cache path");
+                this.AssertPrimaryValuesUnchanged(primaryEnlistmentId, primaryMountId, primaryStatusCachePath, "Worktree mount");
+
+                string enlistmentInfo = GetLastEnlistmentInfoEvent(worktreeDotGVFS);
+                AssertEventField(enlistmentInfo, "mountId", worktreeMountId);
+                AssertEventField(enlistmentInfo, "EnlistmentId", worktreeEnlistmentId);
+                AssertEventField(enlistmentInfo, "PrimaryEnlistmentId", GVFSHelpers.GetPersistedEnlistmentId(this.Enlistment.DotGVFSRoot));
+
+                GVFSProcess worktreeGVFS = this.CreateWorktreeGVFSProcess(worktreePath);
+                worktreeGVFS.Unmount();
+                worktreeGVFS.Mount();
+
+                GVFSHelpers.GetPersistedEnlistmentId(worktreeDotGVFS).ShouldEqual(worktreeEnlistmentId, "Worktree enlistment id changed on remount");
+                string remountId = this.GetConfigValue(worktreePath, WorktreeMountIdArguments);
+                remountId.ShouldNotEqual(worktreeMountId, "Worktree mount id did not change on remount");
+                AssertEventField(GetLastEnlistmentInfoEvent(worktreeDotGVFS), "mountId", remountId);
+                this.AssertPrimaryValuesUnchanged(primaryEnlistmentId, primaryMountId, primaryStatusCachePath, "Worktree remount");
+            });
+        }
+
+        [TestCase]
+        public void WorktreeMountRepairsConfigLeftByPreviousVersion()
+        {
+            string primaryEnlistmentId = this.GetPrimaryConfigValue("gvfs.enlistment-id");
+            string primaryMountId = this.GetPrimaryConfigValue("gvfs.mount-id");
+            string primaryStatusCachePath = this.GetPrimaryConfigValue(StatusDeserializePath);
+
+            try
+            {
+                this.RunWithMountedWorktree("upgrade-test", (worktreePath, worktreeGitDir) =>
+                {
+                    string worktreeDotGVFS = Path.Combine(worktreeGitDir, GVFSTestConfig.DotGVFSRoot);
+                    string worktreeConfigPath = Path.Combine(worktreeGitDir, "config.worktree");
+                    string worktreeStatusCachePath = GetStatusCachePath(worktreeDotGVFS);
+                    string worktreeEnlistmentId = GVFSHelpers.GetPersistedEnlistmentId(worktreeDotGVFS);
+
+                    GVFSProcess worktreeGVFS = this.CreateWorktreeGVFSProcess(worktreePath);
+                    worktreeGVFS.Unmount();
+
+                    // The test recreates the state that an older version leaves: no per-worktree
+                    // config, no worktreeConfig extension, worktree values in the shared config,
+                    // and a random worktree enlistment id. The primary stays mounted, so the
+                    // worktree mount alone must repair the shared values.
+                    File.Exists(worktreeConfigPath).ShouldBeTrue("The worktree mount did not create config.worktree");
+                    File.Delete(worktreeConfigPath);
+                    this.SetPrimaryConfig("--unset extensions.worktreeConfig");
+                    this.SetPrimaryConfig($"{StatusDeserializePath} \"{worktreeStatusCachePath}\"");
+                    this.SetPrimaryConfig("gvfs.enlistment-id previousversionenlistmentid");
+                    GVFSHelpers.SaveEnlistmentId(worktreeDotGVFS, "previousversionworktreeid");
+
+                    worktreeGVFS.Mount();
+
+                    this.GetPrimaryConfigValue("extensions.worktreeConfig").ShouldEqual("true");
+                    this.AssertPrimaryValuesUnchanged(primaryEnlistmentId, primaryMountId, primaryStatusCachePath, "Worktree mount after upgrade");
+                    AssertPathsEqual(
+                        this.GetConfigValue(worktreePath, StatusDeserializePath),
+                        worktreeStatusCachePath,
+                        "Worktree status cache path");
+                    string worktreeMountId = this.GetConfigValue(worktreePath, WorktreeMountIdArguments);
+                    Assert.IsNotEmpty(worktreeMountId);
+                    worktreeMountId.ShouldNotEqual(primaryMountId);
+                    GVFSHelpers.GetPersistedEnlistmentId(worktreeDotGVFS).ShouldEqual(worktreeEnlistmentId, "Worktree enlistment id did not return to the derived id");
+                });
+            }
+            finally
+            {
+                // Restore the shared values without asserting, so that a cleanup failure
+                // does not hide the original failure.
+                GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local extensions.worktreeConfig true");
+                GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, $"config --local gvfs.enlistment-id {primaryEnlistmentId}");
+                GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, $"config --local {StatusDeserializePath} \"{primaryStatusCachePath}\"");
+            }
+        }
+
+        private static string GetStatusCachePath(string dotGVFSRoot)
+        {
+            return GitHelpers.ConvertPathToGitFormat(Path.Combine(dotGVFSRoot, "gitStatusCache", "GitStatusCache.dat"));
+        }
+
+        /// <summary>
+        /// Returns the last EnlistmentInfo line of the newest mount log in <paramref name="dotGVFSRoot"/>.
+        /// </summary>
+        private static string GetLastEnlistmentInfoEvent(string dotGVFSRoot)
+        {
+            string logPath = Directory.GetFiles(Path.Combine(dotGVFSRoot, "logs"), "gvfs_mount_process_*.log")
+                .OrderBy(path => File.GetCreationTimeUtc(path))
+                .Last();
+
+            using (FileStream stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (StreamReader reader = new StreamReader(stream))
+            {
+                string enlistmentInfo = reader.ReadToEnd()
+                    .Split('\n')
+                    .LastOrDefault(line => line.Contains("] EnlistmentInfo "));
+                Assert.IsNotNull(enlistmentInfo, $"No EnlistmentInfo event in {logPath}");
+                return enlistmentInfo;
+            }
+        }
+
+        private static void AssertEventField(string eventLine, string field, string expectedValue)
+        {
+            Assert.IsTrue(
+                Regex.IsMatch(eventLine, $"\"{field}\"\\s*:\\s*\"{Regex.Escape(expectedValue)}\""),
+                $"Expected \"{field}\":\"{expectedValue}\" in: {eventLine}");
+        }
+
+        private static void AssertPathsEqual(string actual, string expected, string label)
+        {
+            Assert.IsTrue(
+                string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase),
+                $"{label}: expected '{expected}' but was '{actual}'");
+        }
+
+        private static void AssertIsEnlistmentId(string value)
+        {
+            Assert.IsTrue(Regex.IsMatch(value ?? string.Empty, "^[0-9a-f]{32}$"), $"'{value}' is not an enlistment id");
+        }
+
         private string GetGitIndexPath(string workingDirectory)
         {
             ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
@@ -586,6 +729,81 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 "rev-parse --path-format=absolute --git-path index");
             result.ExitCode.ShouldEqual(0, result.Errors);
             return Path.GetFullPath(result.Output.Trim());
+        }
+
+        /// <summary>
+        /// Adds a worktree on a new branch in a temporary directory, waits for its mount,
+        /// runs <paramref name="test"/> with the worktree path and its git directory, and
+        /// then removes the worktree.
+        /// </summary>
+        private void RunWithMountedWorktree(string testName, Action<string, string> test)
+        {
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 8);
+            string tempDir = Path.Combine(Path.GetTempPath(), $"gvfs-{testName}-{suffix}");
+            string worktreePath = Path.Combine(tempDir, "wt");
+            string branchName = $"{testName}-branch-{suffix}";
+
+            try
+            {
+                Directory.CreateDirectory(tempDir);
+                ProcessResult addResult = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    $"worktree add -b {branchName} \"{worktreePath}\"");
+                addResult.ExitCode.ShouldEqual(0, $"worktree add failed: {addResult.Errors}");
+                this.AssertWorktreeMounted(worktreePath, branchName);
+
+                ProcessResult gitDirResult = GitHelpers.InvokeGitAgainstGVFSRepo(worktreePath, "rev-parse --absolute-git-dir");
+                gitDirResult.ExitCode.ShouldEqual(0, gitDirResult.Errors);
+                test(worktreePath, Path.GetFullPath(gitDirResult.Output.Trim()));
+            }
+            finally
+            {
+                this.ForceCleanupWorktree(worktreePath, branchName);
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, recursive: true); } catch { }
+                }
+            }
+        }
+
+        private GVFSProcess CreateWorktreeGVFSProcess(string worktreePath)
+        {
+            return new GVFSProcess(
+                GVFSTestConfig.PathToGVFS,
+                worktreePath,
+                Path.Combine(worktreePath, GVFSTestConfig.DotGVFSRoot),
+                this.Enlistment.ServiceName);
+        }
+
+        private void AssertPrimaryValuesUnchanged(string enlistmentId, string mountId, string statusCachePath, string label)
+        {
+            this.GetPrimaryConfigValue("gvfs.enlistment-id").ShouldEqual(enlistmentId, $"{label} changed the primary enlistment id");
+            this.GetPrimaryConfigValue("gvfs.mount-id").ShouldEqual(mountId, $"{label} changed the primary mount id");
+            this.GetPrimaryConfigValue(StatusDeserializePath).ShouldEqual(statusCachePath, $"{label} changed the primary status cache path");
+        }
+
+        private string GetPrimaryConfigValue(string key)
+        {
+            return this.GetConfigValue(this.Enlistment.RepoRoot, key);
+        }
+
+        /// <summary>
+        /// Runs `git config <configArguments>` in <paramref name="workingDirectory"/> and returns its output.
+        /// </summary>
+        private string GetConfigValue(string workingDirectory, string configArguments)
+        {
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(workingDirectory, $"config {configArguments}");
+            result.ExitCode.ShouldEqual(0, $"git config {configArguments} failed: {result.Errors}");
+            return result.Output.Trim();
+        }
+
+        /// <summary>
+        /// Runs `git config --local <configArguments>` in the primary enlistment.
+        /// </summary>
+        private void SetPrimaryConfig(string configArguments)
+        {
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, $"config --local {configArguments}");
+            result.ExitCode.ShouldEqual(0, $"git config --local {configArguments} failed: {result.Errors}");
         }
 
         private void InitWorktreeArrays(int count, out string[] paths, out string[] branches)
