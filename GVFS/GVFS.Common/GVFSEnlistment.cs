@@ -438,13 +438,29 @@ namespace GVFS.Common
             return true;
         }
 
+        // A linked worktree keeps its own enlistment id and mount id in its own
+        // repo metadata, not in git config. Git resolves --local config for a
+        // linked worktree to the config that all worktrees share, so a worktree
+        // that wrote the ids there would overwrite the ids of the primary enlistment.
         public string GetMountId()
         {
+            if (this.IsWorktree)
+            {
+                RepoMetadata.TryReadIds(this.DotGVFSRoot, out _, out string mountId, out _);
+                return mountId;
+            }
+
             return this.GetId(GVFSConstants.GitConfig.MountId);
         }
 
         public string GetEnlistmentId()
         {
+            if (this.IsWorktree)
+            {
+                RepoMetadata.TryReadIds(this.DotGVFSRoot, out string enlistmentId, out _, out _);
+                return enlistmentId;
+            }
+
             return this.GetId(GVFSConstants.GitConfig.EnlistmentId);
         }
 

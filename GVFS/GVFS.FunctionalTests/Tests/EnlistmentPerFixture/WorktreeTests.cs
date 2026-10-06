@@ -363,6 +363,72 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase]
+        public void WorktreeMountKeepsPrimaryIdsAndHasStableWorktreeEnlistmentId()
+        {
+            string primaryEnlistmentId = this.GetPrimaryConfigValue("gvfs.enlistment-id");
+            string primaryMountId = this.GetPrimaryConfigValue("gvfs.mount-id");
+            Assert.IsNotEmpty(primaryEnlistmentId);
+            Assert.IsNotEmpty(primaryMountId);
+
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 8);
+            string tempDir = Path.Combine(Path.GetTempPath(), $"gvfs-ids-test-{suffix}");
+            string worktreePath = Path.Combine(tempDir, "wt");
+            string branchName = $"ids-test-branch-{suffix}";
+
+            try
+            {
+                Directory.CreateDirectory(tempDir);
+
+                ProcessResult addResult = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    $"worktree add -b {branchName} \"{worktreePath}\"");
+                addResult.ExitCode.ShouldEqual(0, $"worktree add failed: {addResult.Errors}");
+                this.AssertWorktreeMounted(worktreePath, "ids-test worktree");
+
+                GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(worktreePath);
+                Assert.IsNotNull(wtInfo, "Should be able to resolve worktree info");
+                string worktreeDotGVFS = Path.Combine(wtInfo.WorktreeGitDir, ".gvfs");
+
+                string worktreeEnlistmentId = GVFSHelpers.GetPersistedEnlistmentId(worktreeDotGVFS);
+                string worktreeMountId = GVFSHelpers.GetPersistedMountId(worktreeDotGVFS);
+                Assert.IsNotEmpty(worktreeEnlistmentId);
+                Assert.IsNotEmpty(worktreeMountId);
+                worktreeEnlistmentId.ShouldNotEqual(primaryEnlistmentId);
+
+                this.GetPrimaryConfigValue("gvfs.enlistment-id").ShouldEqual(primaryEnlistmentId, "Worktree mount changed the primary enlistment id");
+                this.GetPrimaryConfigValue("gvfs.mount-id").ShouldEqual(primaryMountId, "Worktree mount changed the primary mount id");
+
+                GVFSProcess worktreeGVFS = new GVFSProcess(
+                    GVFSTestConfig.PathToGVFS,
+                    worktreePath,
+                    Path.Combine(worktreePath, GVFSTestConfig.DotGVFSRoot),
+                    this.Enlistment.ServiceName);
+                worktreeGVFS.Unmount();
+                worktreeGVFS.Mount();
+
+                GVFSHelpers.GetPersistedEnlistmentId(worktreeDotGVFS).ShouldEqual(worktreeEnlistmentId, "Worktree enlistment id changed on remount");
+                GVFSHelpers.GetPersistedMountId(worktreeDotGVFS).ShouldNotEqual(worktreeMountId, "Worktree mount id did not change on remount");
+                this.GetPrimaryConfigValue("gvfs.enlistment-id").ShouldEqual(primaryEnlistmentId, "Worktree remount changed the primary enlistment id");
+                this.GetPrimaryConfigValue("gvfs.mount-id").ShouldEqual(primaryMountId, "Worktree remount changed the primary mount id");
+            }
+            finally
+            {
+                this.ForceCleanupWorktree(worktreePath, branchName);
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, recursive: true); } catch { }
+                }
+            }
+        }
+
+        private string GetPrimaryConfigValue(string key)
+        {
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, $"config {key}");
+            result.ExitCode.ShouldEqual(0, $"git config {key} failed: {result.Errors}");
+            return result.Output.Trim();
+        }
+
         private void InitWorktreeArrays(int count, out string[] paths, out string[] branches)
         {
             paths = new string[count];

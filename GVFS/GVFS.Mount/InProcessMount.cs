@@ -585,8 +585,8 @@ namespace GVFS.Mount
             // can persist them into the worktree's metadata
             this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
 
-            // Initialize the worktree's own metadata with cache paths,
-            // disk layout version, and a new enlistment ID
+            // Initialize the worktree's own metadata with cache paths and the
+            // disk layout version. The worktree keeps its existing enlistment ID.
             if (!RepoMetadata.TryInitialize(this.tracer, dotGVFSRoot, out error))
             {
                 this.FailMountAndExit("Failed to initialize worktree metadata: " + error);
@@ -594,7 +594,7 @@ namespace GVFS.Mount
 
             try
             {
-                RepoMetadata.Instance.SaveCloneMetadata(this.tracer, this.enlistment);
+                RepoMetadata.Instance.SaveWorktreeMetadata(this.tracer, this.enlistment);
             }
             finally
             {
@@ -1944,6 +1944,21 @@ namespace GVFS.Mount
             metadata.Add("Enlistment", this.enlistment);
             metadata.Add("PhysicalDiskInfo", GVFSPlatform.Instance.GetPhysicalDiskInfo(this.enlistment.WorkingDirectoryRoot, sizeStatsOnly: false));
             this.tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
+
+            if (this.enlistment.IsWorktree)
+            {
+                // See GVFSEnlistment.GetMountId for why a worktree does not write its ids to git config.
+                try
+                {
+                    RepoMetadata.Instance.SetMountId(mountId);
+                }
+                catch (FileBasedCollectionException e)
+                {
+                    this.tracer.RelatedWarning("Could not update repo metadata with mount id, error: " + e.Message);
+                }
+
+                return;
+            }
 
             GitProcess git = new GitProcess(this.enlistment);
             GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
