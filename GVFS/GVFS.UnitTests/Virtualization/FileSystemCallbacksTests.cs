@@ -123,7 +123,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 0);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
-                metadata.ShouldContain("IsSendingAnonymousRequests", true);
+                metadata.ShouldContain("IsSendingAnonymousRequests", false);
             }
 
             mockPlaceholderDb.VerifyAll();
@@ -174,7 +174,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("FolderPlaceholderCount", 0);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
-                metadata.ShouldContain("IsSendingAnonymousRequests", true);
+                metadata.ShouldContain("IsSendingAnonymousRequests", false);
 
                 // Create more placeholders
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "2222233333444445555566666777778888899999", "GVFS.UnitTests.exe2");
@@ -208,7 +208,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("FolderPlaceholderCount", 1);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
-                metadata.ShouldContain("IsSendingAnonymousRequests", true);
+                metadata.ShouldContain("IsSendingAnonymousRequests", false);
             }
 
             mockPlaceholderDb.VerifyAll();
