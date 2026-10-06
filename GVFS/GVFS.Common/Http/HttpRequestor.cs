@@ -38,6 +38,20 @@ namespace GVFS.Common.Http
         }
 
         protected HttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment)
+            : this(tracer, retryConfig, enlistment, handlerOverride: null)
+        {
+        }
+
+        /// <summary>
+        /// Test-only constructor that injects the <see cref="HttpMessageHandler"/> so
+        /// <see cref="SendRequest"/> can run without network I/O. Production code uses
+        /// the overload that builds a configured <see cref="SocketsHttpHandler"/>.
+        /// </summary>
+        internal HttpRequestor(
+            ITracer tracer,
+            RetryConfig retryConfig,
+            Enlistment enlistment,
+            HttpMessageHandler handlerOverride)
         {
             this.RetryConfig = retryConfig;
 
@@ -52,23 +66,28 @@ namespace GVFS.Common.Http
                 TryApplyConnectionLimitFromConfig(tracer, enlistment);
             }
 
-            // WARNING: Do NOT set Credentials or ServerCredentials on this handler.
-            //
-            // Setting Credentials = CredentialCache.DefaultCredentials causes the handler
-            // to perform an NTLM/Negotiate challenge-response on every new connection.
-            // On SocketsHttpHandler this adds ~400ms per request vs ~14ms without.
-            //
-            // GVFS cache servers and Azure DevOps accept PAT/OAuth tokens via the
-            // "Authorization: Basic <base64>" header that SendRequest already attaches.
-            // Transport-level credentials are redundant and purely wasteful.
-            SocketsHttpHandler handler = new SocketsHttpHandler()
+            HttpMessageHandler handler = handlerOverride;
+            if (handler == null)
             {
-                MaxConnectionsPerServer = Environment.ProcessorCount,
-                PooledConnectionLifetime = Timeout.InfiniteTimeSpan,
-                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
-            };
+                // WARNING: Do NOT set Credentials or ServerCredentials on this handler.
+                //
+                // Setting Credentials = CredentialCache.DefaultCredentials causes the handler
+                // to perform an NTLM/Negotiate challenge-response on every new connection.
+                // On SocketsHttpHandler this adds ~400ms per request vs ~14ms without.
+                //
+                // GVFS cache servers and Azure DevOps accept PAT/OAuth tokens via the
+                // "Authorization: Basic <base64>" header that SendRequest already attaches.
+                // Transport-level credentials are redundant and purely wasteful.
+                SocketsHttpHandler socketsHandler = new SocketsHttpHandler()
+                {
+                    MaxConnectionsPerServer = Environment.ProcessorCount,
+                    PooledConnectionLifetime = Timeout.InfiniteTimeSpan,
+                    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+                };
 
-            this.authentication.ConfigureSocketsHandlerSslIfNeeded(this.Tracer, handler, enlistment.CreateGitProcess());
+                this.authentication.ConfigureSocketsHandlerSslIfNeeded(this.Tracer, socketsHandler, enlistment.CreateGitProcess());
+                handler = socketsHandler;
+            }
 
             this.client = new HttpClient(handler)
             {
@@ -98,25 +117,39 @@ namespace GVFS.Common.Http
             }
         }
 
+        /// <param name="forceAnonymous">Sends without credentials regardless of authentication state.</param>
         protected GitEndPointResponseData SendRequest(
             long requestId,
             Uri requestUri,
             HttpMethod httpMethod,
             string requestContent,
             CancellationToken cancellationToken,
-            MediaTypeWithQualityHeaderValue acceptType = null)
+            MediaTypeWithQualityHeaderValue acceptType = null,
+            bool forceAnonymous = false)
         {
+            // Before initialization starts, preserve anonymous requests. During
+            // initialization, callers wait for the auth decision to complete.
+            // Resolve the decision once so all request handling uses one value.
+            bool sendAnonymous = forceAnonymous ||
+                this.authentication.IsAnonymous ||
+                !this.authentication.IsInitializationStarted;
+
             string authString = null;
             string errorMessage;
-            if (!this.authentication.IsAnonymous &&
-                !this.authentication.TryGetCredentials(this.Tracer, out authString, out errorMessage))
+            if (!sendAnonymous)
             {
-                return new GitEndPointResponseData(
-                    HttpStatusCode.Unauthorized,
-                    new GitObjectsHttpException(HttpStatusCode.Unauthorized, errorMessage),
-                    shouldRetry: true,
-                    message: null,
-                    onResponseDisposed: null);
+                if (!this.authentication.TryGetCredentials(this.Tracer, out authString, out errorMessage))
+                {
+                    return new GitEndPointResponseData(
+                        HttpStatusCode.Unauthorized,
+                        new GitObjectsHttpException(HttpStatusCode.Unauthorized, errorMessage),
+                        shouldRetry: true,
+                        message: null,
+                        onResponseDisposed: null);
+                }
+
+                // Initialization may finish anonymously while this request waits.
+                sendAnonymous = authString == null;
             }
 
             HttpRequestMessage request = new HttpRequestMessage(httpMethod, requestUri);
@@ -127,7 +160,7 @@ namespace GVFS.Common.Http
 
             request.Headers.UserAgent.Add(this.userAgentHeader);
 
-            if (!this.authentication.IsAnonymous)
+            if (!sendAnonymous)
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Basic", authString);
             }
@@ -205,7 +238,7 @@ namespace GVFS.Common.Http
                     string contentType = GetSingleHeaderOrEmpty(response.Content.Headers, "Content-Type");
                     responseMetadata.Add("ContentType", contentType);
 
-                    if (!this.authentication.IsAnonymous)
+                    if (!sendAnonymous)
                     {
                         this.authentication.ApproveCredentials(this.Tracer, authString);
                     }
@@ -227,8 +260,11 @@ namespace GVFS.Common.Http
                     bool shouldRetry = ShouldRetry(response.StatusCode);
 
                     if (response.StatusCode == HttpStatusCode.Unauthorized &&
-                        this.authentication.IsAnonymous)
+                        sendAnonymous)
                     {
+                        // The request carried no credentials, so there is nothing to
+                        // reject. For the initial probe this is the definitive answer
+                        // that the server requires authentication.
                         shouldRetry = false;
                         errorMessage = "Anonymous request was rejected with a 401";
                     }

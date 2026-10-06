@@ -159,6 +159,7 @@ namespace GVFS.Mount
             // proceed without it. We still attempt it so GCM can pop up a renewal
             // prompt for stale tokens, but we don't block mount on the result. A
             // longer credential timeout is acceptable only because we don't block.
+            this.enlistment.Authentication.MarkInitializationStarted();
             var networkTask = Task.Run(() =>
             {
                 Stopwatch sw = Stopwatch.StartNew();
