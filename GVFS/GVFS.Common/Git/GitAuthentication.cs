@@ -12,6 +12,13 @@ namespace GVFS.Common.Git
 {
     public class GitAuthentication
     {
+        private enum AuthenticationState
+        {
+            Unknown = 0,
+            Anonymous,
+            Authenticated,
+        }
+
         private const double MaxBackoffSeconds = 30;
         public const int DefaultCredentialTimeoutMs = 30_000;
         public const int BackgroundCredentialTimeoutMs = 120_000;
@@ -36,6 +43,8 @@ namespace GVFS.Common.Git
         private bool isCachedCredentialStringApproved = false;
 
         private bool isInitialized;
+        private int authenticationState;
+        private int initializationStarted;
 
         public GitAuthentication(GitProcess git, string repoUrl)
         {
@@ -56,7 +65,36 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool IsAnonymous { get; private set; } = true;
+        /// <summary>
+        /// True only when the server is known to allow anonymous access.
+        /// </summary>
+        /// <remarks>
+        /// This is false while the state is unknown. While true,
+        /// <see cref="Http.HttpRequestor.SendRequest"/> omits the Authorization
+        /// header and never calls <see cref="TryGetCredentials"/>.
+        /// </remarks>
+        public bool IsAnonymous
+        {
+            get => this.GetAuthenticationState() == AuthenticationState.Anonymous;
+        }
+
+        internal bool ShouldSendAnonymous =>
+            !this.IsInitializationStarted ||
+            (this.initializationComplete.IsSet && this.GetAuthenticationState() != AuthenticationState.Authenticated);
+
+        /// <summary>
+        /// Indicates whether authentication initialization has started.
+        /// </summary>
+        internal bool IsInitializationStarted => Volatile.Read(ref this.initializationStarted) != 0;
+
+        /// <summary>
+        /// Marks authentication initialization as scheduled so that requests wait
+        /// for its result instead of being sent anonymously.
+        /// </summary>
+        internal void MarkInitializationStarted()
+        {
+            Interlocked.Exchange(ref this.initializationStarted, 1);
+        }
 
         /// <summary>
         /// How long a caller of <see cref="TryGetCredentials"/> will wait for
@@ -65,6 +103,14 @@ namespace GVFS.Common.Git
         /// background credential fetch). Overridable for tests.
         /// </summary>
         internal int InitializationWaitTimeoutMs { get; set; } = BackgroundCredentialTimeoutMs;
+
+        /// <summary>
+        /// Test seam for the /gvfs/config probe. When null, production code uses
+        /// <see cref="ConfigHttpRequestor"/>. Unit tests substitute a fake so the
+        /// probe outcome - anonymous success, 401, or an indeterminate network
+        /// failure - can be driven deterministically.
+        /// </summary>
+        internal IGVFSConfigRequestor ConfigRequestorOverride { get; set; }
 
         private GitSsl GitSsl { get; }
 
@@ -169,6 +215,19 @@ namespace GVFS.Common.Git
             }
         }
 
+        /// <summary>
+        /// Gets the credential to send with a request.
+        /// </summary>
+        /// <param name="credentialString">
+        /// The Basic credential, or null when this returns true because the server
+        /// allows anonymous access or its authentication requirement remains unknown.
+        /// Callers must check for null before using it.
+        /// </param>
+        /// <param name="errorMessage">The failure reason when this returns false.</param>
+        /// <returns>
+        /// True when the request can proceed: with the credential in
+        /// <paramref name="credentialString"/>, or anonymously when it is null.
+        /// </returns>
         public bool TryGetCredentials(ITracer tracer, out string credentialString, out string errorMessage)
         {
             if (!this.isInitialized)
@@ -184,6 +243,13 @@ namespace GVFS.Common.Git
                     errorMessage = "Timed out waiting for authentication to initialize";
                     return false;
                 }
+            }
+
+            if (this.GetAuthenticationState() != AuthenticationState.Authenticated)
+            {
+                credentialString = null;
+                errorMessage = null;
+                return true;
             }
 
             credentialString = this.cachedCredentialString;
@@ -256,19 +322,51 @@ namespace GVFS.Common.Git
                 throw new InvalidOperationException("Already initialized");
             }
 
+            this.MarkInitializationStarted();
+
+            try
+            {
+                return this.TryInitializeAndQueryGVFSConfigCore(
+                    tracer,
+                    enlistment,
+                    retryConfig,
+                    out serverGVFSConfig,
+                    out errorMessage,
+                    out isAuthFailure,
+                    credentialTimeoutMs);
+            }
+            finally
+            {
+                if (!this.isInitialized)
+                {
+                    this.MarkInitialized();
+                }
+            }
+        }
+
+        private bool TryInitializeAndQueryGVFSConfigCore(
+            ITracer tracer,
+            Enlistment enlistment,
+            RetryConfig retryConfig,
+            out ServerGVFSConfig serverGVFSConfig,
+            out string errorMessage,
+            out bool isAuthFailure,
+            int credentialTimeoutMs)
+        {
             serverGVFSConfig = null;
             errorMessage = null;
             isAuthFailure = false;
 
-            using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
+            IGVFSConfigRequestor configRequestor = this.ConfigRequestorOverride ?? new ConfigHttpRequestor(tracer, enlistment, retryConfig);
+            using (configRequestor)
             {
                 HttpStatusCode? httpStatus;
+                string probeError;
 
-                // First attempt without credentials. If anonymous access works,
-                // we get the config in a single request.
-                if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out _))
+                // The probe must not consult the authentication state it determines.
+                if (configRequestor.TryQueryGVFSConfig(false, out serverGVFSConfig, out httpStatus, out probeError, forceAnonymous: true))
                 {
-                    this.IsAnonymous = true;
+                    this.MarkAnonymousAccessSucceeded();
                     this.MarkInitialized();
                     tracer.RelatedInfo("{0}: Anonymous access succeeded, config obtained in one request", nameof(this.TryInitializeAndQueryGVFSConfig));
                     return true;
@@ -276,14 +374,31 @@ namespace GVFS.Common.Git
 
                 if (httpStatus != HttpStatusCode.Unauthorized)
                 {
+                    // The probe did not determine whether the server allows anonymous
+                    // access. Keep the state unknown so later requests can try
+                    // anonymously and promote to authenticated if the server rejects them.
                     this.MarkInitialized();
-                    errorMessage = "Unable to query /gvfs/config";
-                    tracer.RelatedWarning("{0}: Config query failed with status {1}", nameof(this.TryInitializeAndQueryGVFSConfig), httpStatus?.ToString() ?? "None");
+                    errorMessage = "Unable to query /gvfs/config" +
+                        (string.IsNullOrEmpty(probeError) ? string.Empty : ": " + probeError) +
+                        ". The authentication requirement remains unknown.";
+
+                    // The probe is unauthenticated, so the error text carries no credential.
+                    EventMetadata indeterminateMetadata = new EventMetadata(new Dictionary<string, object>
+                    {
+                        ["Area"] = nameof(GitAuthentication),
+                        ["HttpStatus"] = httpStatus?.ToString() ?? "None",
+                        ["ProbeError"] = probeError ?? string.Empty,
+                        ["AuthenticationState"] = AuthenticationState.Unknown.ToString(),
+                    });
+                    tracer.RelatedWarning(
+                        indeterminateMetadata,
+                        $"{nameof(this.TryInitializeAndQueryGVFSConfig)}: Config query failed with status {httpStatus?.ToString() ?? "None"}; authentication requirement remains unknown",
+                        Keywords.Telemetry);
                     return false;
                 }
 
                 // Server requires authentication — fetch credentials
-                this.IsAnonymous = false;
+                this.MarkAuthenticationRequired();
 
                 if (!this.TryCallGitCredential(tracer, out errorMessage, credentialTimeoutMs))
                 {
@@ -327,13 +442,44 @@ namespace GVFS.Common.Git
                 throw new InvalidOperationException("Already initialized");
             }
 
-            if (this.TryCallGitCredential(tracer, out errorMessage))
-            {
-                this.MarkInitialized();
-                return true;
-            }
+            this.MarkInitializationStarted();
+            this.MarkAuthenticationRequired();
 
-            return false;
+            try
+            {
+                if (this.TryCallGitCredential(tracer, out errorMessage))
+                {
+                    this.MarkInitialized();
+                    return true;
+                }
+
+                return false;
+            }
+            finally
+            {
+                if (!this.isInitialized)
+                {
+                    this.MarkInitialized();
+                }
+            }
+        }
+
+        internal void MarkAnonymousAccessSucceeded()
+        {
+            Interlocked.CompareExchange(
+                ref this.authenticationState,
+                (int)AuthenticationState.Anonymous,
+                (int)AuthenticationState.Unknown);
+        }
+
+        internal void MarkAuthenticationRequired()
+        {
+            Interlocked.Exchange(ref this.authenticationState, (int)AuthenticationState.Authenticated);
+        }
+
+        private AuthenticationState GetAuthenticationState()
+        {
+            return (AuthenticationState)Volatile.Read(ref this.authenticationState);
         }
 
         public void ConfigureHttpClientHandlerSslIfNeeded(ITracer tracer, HttpClientHandler httpClientHandler, GitProcess gitProcess)
