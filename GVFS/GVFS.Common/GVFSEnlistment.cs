@@ -124,7 +124,10 @@ namespace GVFS.Common
         public string GitStatusCacheFolder { get; private set; }
         public string GitStatusCachePath { get; private set; }
 
-        // These version properties are only used in logging during clone and mount to track version numbers
+        // GitVersion is load-bearing, not just logging: CloneVerb.CreateClone re-parses it
+        // to decide whether to pin 'git init' to --ref-format=files (GitProcess.Init). The
+        // other two (GVFSVersion, GVFSHooksVersion) remain logging-only, to track version
+        // numbers during clone and mount.
         public string GitVersion
         {
             get { return this.gitVersion; }
