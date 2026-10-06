@@ -112,7 +112,7 @@ namespace GVFS.Mount
 
             JsonTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
 
-            CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
+            CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment, tracer);
 
             tracer.WriteStartEvent(
                 enlistment.WorkingDirectoryRoot,

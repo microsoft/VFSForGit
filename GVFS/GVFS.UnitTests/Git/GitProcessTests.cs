@@ -1,7 +1,10 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace GVFS.UnitTests.Git
@@ -112,6 +115,87 @@ namespace GVFS.UnitTests.Git
 
             result.ExitCodeIsFailure.ShouldBeFalse();
             result.StderrContainsErrors().ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void GetFromLocalConfigRetriesTransientFailureAndReturnsValue()
+        {
+            MockTracer tracer = new MockTracer();
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(tracer, delay => ++delayCount);
+            Queue<GitProcess.Result> results = new Queue<GitProcess.Result>();
+            results.Enqueue(new GitProcess.Result(
+                string.Empty,
+                "warning: unable to access 'C:/repo/.git/config': Permission denied",
+                GitProcess.Result.GenericFailureCode));
+            results.Enqueue(new GitProcess.Result("configured-value\n", string.Empty, GitProcess.Result.SuccessCode));
+            process.SetExpectedCommandResult("config --local gvfs.test", () => results.Dequeue());
+
+            GitProcess.ConfigResult result = process.GetFromLocalConfig("gvfs.test");
+
+            result.TryParseAsString(out string value, out string error).ShouldBeTrue(error);
+            value.ShouldEqual("configured-value");
+            process.CommandsRun.Count.ShouldEqual(2);
+            delayCount.ShouldEqual(1);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            tracer.RelatedWarningEvents[0].ShouldContain("Transient failure while reading git config");
+        }
+
+        [TestCase]
+        public void GetFromLocalConfigDoesNotRetryMissingKey()
+        {
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => ++delayCount);
+            process.SetExpectedCommandResult(
+                "config --local gvfs.test",
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
+
+            GitProcess.ConfigResult result = process.GetFromLocalConfig("gvfs.test");
+
+            result.TryParseAsString(out string value, out string error).ShouldBeTrue(error);
+            value.ShouldBeNull();
+            process.CommandsRun.Count.ShouldEqual(1);
+            delayCount.ShouldEqual(0);
+        }
+
+        [TestCase]
+        public void GetFromLocalConfigStopsAfterRetryBudget()
+        {
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => ++delayCount);
+            process.SetExpectedCommandResult(
+                "config --local gvfs.test",
+                () => new GitProcess.Result(
+                    string.Empty,
+                    "error: unable to access 'C:/repo/.git/config': Permission denied",
+                    GitProcess.Result.GenericFailureCode));
+
+            GitProcess.ConfigResult result = process.GetFromLocalConfig("gvfs.test");
+
+            result.TryParseAsString(out string _, out string error).ShouldBeFalse();
+            error.ShouldContain("Permission denied");
+            process.CommandsRun.Count.ShouldEqual(GitConfigReadRetry.MaxAttempts);
+            delayCount.ShouldEqual(GitConfigReadRetry.MaxAttempts - 1);
+        }
+
+        [TestCase]
+        public void GetFromLocalConfigDoesNotRetryNonTransientFailure()
+        {
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => ++delayCount);
+            process.SetExpectedCommandResult(
+                "config --local gvfs.test",
+                () => new GitProcess.Result(
+                    string.Empty,
+                    "fatal: bad config line 4 in file .git/config",
+                    GitProcess.Result.GenericFailureCode));
+
+            GitProcess.ConfigResult result = process.GetFromLocalConfig("gvfs.test");
+
+            result.TryParseAsString(out string _, out string error).ShouldBeFalse();
+            error.ShouldContain("bad config line");
+            process.CommandsRun.Count.ShouldEqual(1);
+            delayCount.ShouldEqual(0);
         }
 
         [TestCase]
