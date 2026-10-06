@@ -204,6 +204,24 @@ namespace FastFetch
                 return ExitFailure;
             }
 
+            // Check this before any code that reads or writes refs assuming the "files"
+            // ref storage format runs, since FastFetch can be pointed at an arbitrary
+            // pre-existing git repository rather than only ones 'gvfs clone' created.
+            // A genuine config-read failure (as opposed to the key simply being absent,
+            // which reports the repository as files-format) is treated as fatal here: a
+            // missing key does not reach this branch, so a read error means the repo's
+            // config is anomalous and continuing risks operating on an unsupported repo.
+            if (!RefStorage.TryIsReftableRepo(enlistment.CreateGitProcess(), out bool isReftableRepo, out string refStorageReadError))
+            {
+                Console.WriteLine("Could not determine the repository's ref storage format: " + refStorageReadError);
+                return ExitFailure;
+            }
+            else if (isReftableRepo)
+            {
+                Console.WriteLine(RefStorage.UnsupportedReftableErrorMessage);
+                return ExitFailure;
+            }
+
             string commitish = this.Commit ?? this.Branch;
             if (string.IsNullOrWhiteSpace(commitish))
             {
