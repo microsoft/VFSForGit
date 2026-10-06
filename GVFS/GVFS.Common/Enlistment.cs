@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using System;
 using System.IO;
 
@@ -116,6 +117,11 @@ namespace GVFS.Common
         public virtual GitProcess CreateGitProcess()
         {
             return new GitProcess(this);
+        }
+
+        public virtual GitProcess CreateGitProcess(ITracer tracer)
+        {
+            return new GitProcess(this, tracer);
         }
     }
 }

@@ -38,7 +38,7 @@ namespace GVFS.Common
 
         public static bool TryLoadFromGitConfig(ITracer tracer, Enlistment enlistment, out RetryConfig retryConfig, out string error)
         {
-            return TryLoadFromGitConfig(tracer, new GitProcess(enlistment), out retryConfig, out error);
+            return TryLoadFromGitConfig(tracer, enlistment.CreateGitProcess(tracer), out retryConfig, out error);
         }
 
         public static bool TryLoadFromGitConfig(ITracer tracer, GitProcess git, out RetryConfig retryConfig, out string error)
