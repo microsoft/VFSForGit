@@ -19,6 +19,7 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedEventNames = new List<string>();
             this.RelatedEventKeywords = new List<Keywords>();
             this.RelatedEventMetadata = new List<EventMetadata>();
+            this.StoppedActivityMetadata = new List<EventMetadata>();
         }
 
         public MockTracer StartActivityTracer { get; private set; }
@@ -33,6 +34,10 @@ namespace GVFS.UnitTests.Mock.Common
         public List<string> RelatedEventNames { get; }
         public List<Keywords> RelatedEventKeywords { get; }
         public List<EventMetadata> RelatedEventMetadata { get; }
+
+        // Metadata passed to Stop when an activity ends. Lets tests assert on
+        // what an activity reports, including that a secret is not present.
+        public List<EventMetadata> StoppedActivityMetadata { get; }
 
         public void WaitForRelatedEvent()
         {
@@ -144,6 +149,11 @@ namespace GVFS.UnitTests.Mock.Common
 
         public TimeSpan Stop(EventMetadata metadata)
         {
+            if (metadata != null)
+            {
+                this.StoppedActivityMetadata.Add(metadata);
+            }
+
             return TimeSpan.Zero;
         }
 

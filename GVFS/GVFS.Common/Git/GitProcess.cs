@@ -38,6 +38,16 @@ namespace GVFS.Common.Git
         private const int MaxCapturedStdOutChars = 128 * 1024 * 1024; // ~256 MB of UTF-16
 
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
+        private static readonly HashSet<string> CredentialOutputKeyAllowlist = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "host",
+            "password",
+            "path",
+            "protocol",
+            "url",
+            "username"
+        };
+
         private static bool failedToSetEncoding = false;
         private static string expireTimeDateString;
 
@@ -306,7 +316,7 @@ namespace GVFS.Common.Git
 
                 if (!success)
                 {
-                    metadata.Add("Output", gitCredentialOutput.Output);
+                    metadata.Add("OutputKeys", GetCredentialOutputKeys(gitCredentialOutput.Output));
                 }
 
                 activity.Stop(metadata);
@@ -370,7 +380,7 @@ namespace GVFS.Common.Git
                 metadata.Add("Success", success);
                 if (!success)
                 {
-                    metadata.Add("Output", gitCredentialOutput.Output);
+                    metadata.Add("OutputKeys", GetCredentialOutputKeys(gitCredentialOutput.Output));
                 }
 
                 activity.Stop(metadata);
@@ -1084,6 +1094,38 @@ namespace GVFS.Common.Git
         private static string GenerateCredentialVerbCommand(string verb)
         {
             return $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential {verb}";
+        }
+
+        /// <summary>
+        /// Summarizes the output of "git credential fill" for diagnostics.
+        /// The output is a list of "key=value" lines that can include the
+        /// plaintext secret, so values never reach telemetry or the log.
+        /// Each line maps to a known key name, "&lt;other&gt;" for an unknown key,
+        /// or "&lt;malformed&gt;" for a line without a key.
+        /// </summary>
+        private static string GetCredentialOutputKeys(string credentialOutput)
+        {
+            if (string.IsNullOrEmpty(credentialOutput))
+            {
+                return string.Empty;
+            }
+
+            IEnumerable<string> keys = credentialOutput
+                .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .Select(line =>
+                {
+                    int separatorIndex = line.IndexOf('=');
+                    if (separatorIndex <= 0)
+                    {
+                        return "<malformed>";
+                    }
+
+                    string key = line.Substring(0, separatorIndex);
+                    return CredentialOutputKeyAllowlist.Contains(key) ? key : "<other>";
+                });
+
+            return string.Join(",", keys);
         }
 
         private static string ParseValue(string contents, string prefix)
