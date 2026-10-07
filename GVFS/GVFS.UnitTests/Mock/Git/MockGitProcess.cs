@@ -18,7 +18,7 @@ namespace GVFS.UnitTests.Mock.Git
             : base(new MockGVFSEnlistment())
         {
             this.CommandsRun = new List<string>();
-            this.MayRequireAuthByCommand = new Dictionary<string, bool>(StringComparer.Ordinal);
+            this.InvocationsRun = new List<GitInvocation>();
             this.StoredCredentials = new Dictionary<string, Credential>(StringComparer.OrdinalIgnoreCase);
             this.CredentialApprovals = new Dictionary<string, List<Credential>>();
             this.CredentialRejections = new Dictionary<string, List<Credential>>();
@@ -27,14 +27,33 @@ namespace GVFS.UnitTests.Mock.Git
         public List<string> CommandsRun { get; }
 
         /// <summary>
-        /// Records the mayRequireAuth value passed to <see cref="InvokeGitImpl"/> for each command, so
-        /// tests can assert that only credential-fill commands are flagged as possibly requiring auth.
+        /// Records every call into <see cref="InvokeGitImpl"/> in order, with the mayRequireAuth and
+        /// hasVisibleConsoleWindow values passed to it. Recording each invocation (rather than keeping only
+        /// the last value per command) keeps the wiring assertions honest if a command is ever run more than
+        /// once with different flags.
         /// </summary>
-        public Dictionary<string, bool> MayRequireAuthByCommand { get; }
+        public List<GitInvocation> InvocationsRun { get; }
         public bool ShouldFail { get; set; }
         public Dictionary<string, Credential> StoredCredentials { get; }
         public Dictionary<string, List<Credential>> CredentialApprovals { get; }
         public Dictionary<string, List<Credential>> CredentialRejections { get; }
+
+        /// <summary>
+        /// Returns the mayRequireAuth value the given command was invoked with, asserting the command ran and
+        /// that every invocation of it agreed on the value.
+        /// </summary>
+        public bool MayRequireAuthFor(string command)
+        {
+            List<GitInvocation> matches = this.InvocationsRun
+                .Where(invocation => string.Equals(invocation.Command, command, StringComparison.Ordinal))
+                .ToList();
+
+            matches.Count.ShouldBeAtLeast(1, "Command was never run: " + command);
+            matches.Select(invocation => invocation.MayRequireAuth).Distinct().Count()
+                .ShouldEqual(1, "Command ran with conflicting mayRequireAuth values: " + command);
+
+            return matches[0].MayRequireAuth;
+        }
 
         public void SetExpectedCommandResult(string command, Func<Result> result, bool matchPrefix = false)
         {
@@ -92,10 +111,11 @@ namespace GVFS.UnitTests.Mock.Git
             int timeoutMs,
             string gitObjectsDirectory = null,
             bool usePrecommandHook = true,
-            bool mayRequireAuth = false)
+            bool mayRequireAuth = false,
+            bool? hasVisibleConsoleWindow = null)
         {
             this.CommandsRun.Add(command);
-            this.MayRequireAuthByCommand[command] = mayRequireAuth;
+            this.InvocationsRun.Add(new GitInvocation(command, mayRequireAuth, hasVisibleConsoleWindow));
 
             if (this.ShouldFail)
             {
@@ -132,6 +152,20 @@ namespace GVFS.UnitTests.Mock.Git
                 /* Future: result.Output should be set to null in this case */
             }
             return result;
+        }
+
+        public class GitInvocation
+        {
+            public GitInvocation(string command, bool mayRequireAuth, bool? hasVisibleConsoleWindow)
+            {
+                this.Command = command;
+                this.MayRequireAuth = mayRequireAuth;
+                this.HasVisibleConsoleWindow = hasVisibleConsoleWindow;
+            }
+
+            public string Command { get; }
+            public bool MayRequireAuth { get; }
+            public bool? HasVisibleConsoleWindow { get; }
         }
 
         public class Credential

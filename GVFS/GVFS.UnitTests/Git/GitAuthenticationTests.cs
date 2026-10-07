@@ -357,11 +357,11 @@ namespace GVFS.UnitTests.Git
 
             dut.TryGetCredentials(tracer, out _, out string error).ShouldEqual(true, "Failed to get credential: " + error);
 
-            gitProcess.MayRequireAuthByCommand[$"{AzureDevOpsUseHttpPathString} credential fill"]
+            gitProcess.MayRequireAuthFor($"{AzureDevOpsUseHttpPathString} credential fill")
                 .ShouldEqual(true, "Credential fill should be flagged as possibly requiring auth");
 
             // Non-credential git commands never prompt, so they must not be flagged.
-            gitProcess.MayRequireAuthByCommand["config --get-urlmatch http mock://repoUrl"]
+            gitProcess.MayRequireAuthFor("config --get-urlmatch http mock://repoUrl")
                 .ShouldEqual(false, "Non-credential git commands should not be flagged as requiring auth");
         }
 
@@ -377,7 +377,7 @@ namespace GVFS.UnitTests.Git
             dut.TryGetCredentials(tracer, out string authString, out string error).ShouldEqual(true, "Failed to get credential: " + error);
             dut.ApproveCredentials(tracer, authString);
 
-            gitProcess.MayRequireAuthByCommand[$"{AzureDevOpsUseHttpPathString} credential approve"]
+            gitProcess.MayRequireAuthFor($"{AzureDevOpsUseHttpPathString} credential approve")
                 .ShouldEqual(false, "Credential approve should not be flagged as requiring auth");
         }
 
@@ -393,7 +393,7 @@ namespace GVFS.UnitTests.Git
             dut.TryGetCredentials(tracer, out string authString, out string error).ShouldEqual(true, "Failed to get credential: " + error);
             dut.RejectCredentials(tracer, authString);
 
-            gitProcess.MayRequireAuthByCommand[$"{AzureDevOpsUseHttpPathString} credential reject"]
+            gitProcess.MayRequireAuthFor($"{AzureDevOpsUseHttpPathString} credential reject")
                 .ShouldEqual(false, "Credential reject should not be flagged as requiring auth");
         }
 
@@ -412,7 +412,7 @@ namespace GVFS.UnitTests.Git
             gitProcess.TryGetCertificatePassword(tracer, CertificatePath, out string password, out string error)
                 .ShouldEqual(true, "Failed to get certificate password: " + error);
 
-            gitProcess.MayRequireAuthByCommand["credential fill"]
+            gitProcess.MayRequireAuthFor("credential fill")
                 .ShouldEqual(true, "Certificate credential fill should be flagged as possibly requiring auth");
         }
 
@@ -445,6 +445,93 @@ namespace GVFS.UnitTests.Git
                 {
                     process.StartInfo.CreateNoWindow.ShouldEqual(false, "Should never detach when auth cannot be required");
                 }
+
+                // Native console probe cannot run => safe fallback assumes a visible console, so do not detach.
+                platform.HasVisibleWindow = false;
+                platform.ThrowOnConsoleProbe = true;
+                using (Process process = gitProcess.GetGitProcess("credential fill", Environment.SystemDirectory, dotGitDirectory: null, useReadObjectHook: false, gitObjectsDirectory: null, usePreCommandHook: false, mayRequireAuth: true))
+                {
+                    process.StartInfo.CreateNoWindow.ShouldEqual(false, "Should not detach when the console probe cannot run");
+                }
+
+                // A caller-supplied console-visibility value is authoritative and bypasses the platform probe
+                // (the probe would throw if consulted here).
+                platform.ThrowOnConsoleProbe = true;
+                platform.HasVisibleWindow = true;
+                using (Process process = gitProcess.GetGitProcess("credential fill", Environment.SystemDirectory, dotGitDirectory: null, useReadObjectHook: false, gitObjectsDirectory: null, usePreCommandHook: false, mayRequireAuth: true, hasVisibleConsoleWindow: false))
+                {
+                    process.StartInfo.CreateNoWindow.ShouldEqual(true, "A caller-supplied false should force detach without probing the platform");
+                }
+            }
+            finally
+            {
+                platform.HasVisibleWindow = originalHasVisibleWindow;
+                platform.ThrowOnConsoleProbe = false;
+            }
+        }
+
+        [TestCase]
+        public void TryGetCredentialLogsConsoleVisibilityWhenCredentialFillFails()
+        {
+            // The console-visibility telemetry must be recorded on the failure path too, because the
+            // hidden-prompt timeout that this diagnostic exists to explain is itself a failure result.
+            MockPlatform platform = (MockPlatform)GVFSPlatform.Instance;
+            bool originalHasVisibleWindow = platform.HasVisibleWindow;
+            try
+            {
+                platform.HasVisibleWindow = false;
+
+                MockTracer tracer = new MockTracer();
+                MockGitProcess gitProcess = new MockGitProcess();
+                gitProcess.SetExpectedCommandResult(
+                    $"{AzureDevOpsUseHttpPathString} credential fill",
+                    () => new GitProcess.Result(string.Empty, "Operation timed out waiting for a response", GitProcess.Result.GenericFailureCode));
+
+                gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out string error, timeoutMs: 5000)
+                    .ShouldEqual(false, "Credential fill should report failure when git times out");
+
+                // Assert the logged value, not just the key: the diagnostic is only useful if it records
+                // the actual console-visibility state (false here) that explains the hidden-prompt timeout.
+                tracer.RelatedWarningEvents.ShouldContain(e => e.Contains("\"hasVisibleConsoleWindow\":false"));
+
+                // The probed value must thread all the way down to the git invocation that GetGitProcess uses.
+                gitProcess.InvocationsRun
+                    .Single(invocation => invocation.Command == $"{AzureDevOpsUseHttpPathString} credential fill")
+                    .HasVisibleConsoleWindow.ShouldEqual(false, "The probed console-visibility value must thread down to the git invocation");
+            }
+            finally
+            {
+                platform.HasVisibleWindow = originalHasVisibleWindow;
+            }
+        }
+
+        [TestCase]
+        public void TryGetCertificatePasswordLogsConsoleVisibilityWhenCredentialFillFails()
+        {
+            // The certificate credential fill stamps the same console-visibility telemetry as the URL fill.
+            // It is covered separately because the standard credential flow does not exercise the certificate
+            // path, and the value must be present on the failure path where a hidden prompt times out.
+            MockPlatform platform = (MockPlatform)GVFSPlatform.Instance;
+            bool originalHasVisibleWindow = platform.HasVisibleWindow;
+            try
+            {
+                platform.HasVisibleWindow = false;
+
+                MockTracer tracer = new MockTracer();
+                MockGitProcess gitProcess = new MockGitProcess();
+                gitProcess.SetExpectedCommandResult(
+                    "credential fill",
+                    () => new GitProcess.Result(string.Empty, "Operation timed out waiting for a response", GitProcess.Result.GenericFailureCode));
+
+                gitProcess.TryGetCertificatePassword(tracer, CertificatePath, out string password, out string error)
+                    .ShouldEqual(false, "Certificate password fill should report failure when git times out");
+
+                tracer.RelatedWarningEvents.ShouldContain(e => e.Contains("\"hasVisibleConsoleWindow\":false"));
+
+                // The probed value must thread all the way down to the git invocation that GetGitProcess uses.
+                gitProcess.InvocationsRun
+                    .Single(invocation => invocation.Command == "credential fill")
+                    .HasVisibleConsoleWindow.ShouldEqual(false, "The probed console-visibility value must thread down to the git invocation");
             }
             finally
             {
