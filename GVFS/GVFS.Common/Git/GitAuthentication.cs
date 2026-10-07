@@ -438,7 +438,7 @@ namespace GVFS.Common.Git
                     return false;
                 }
 
-                if (!string.IsNullOrEmpty(gitUsername) && !string.IsNullOrEmpty(gitPassword))
+                if (!string.IsNullOrEmpty(gitPassword))
                 {
                     this.cachedCredentialString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
                     this.isCachedCredentialStringApproved = false;

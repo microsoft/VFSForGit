@@ -98,6 +98,61 @@ namespace GVFS.UnitTests.Common.Git
             AssertNoSecret(metadata);
         }
 
+        [TestCase]
+        public void TryGetCredentialAcceptsMissingUsername()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result(
+                    "protocol=https\nhost=example.com\npassword=" + SecretValue + "\n",
+                    string.Empty,
+                    GitProcess.Result.SuccessCode));
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out _).ShouldBeTrue();
+
+            username.ShouldEqual(string.Empty);
+            password.ShouldEqual(SecretValue);
+            GetActivityMetadata(tracer).ContainsKey("OutputKeys").ShouldBeFalse("Output keys are only traced when the parse fails");
+        }
+
+        [TestCase]
+        public void TryGetCredentialFailsWhenPasswordKeyIsAbsent()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result(
+                    "protocol=https\nhost=example.com\nusername=someone\n",
+                    string.Empty,
+                    GitProcess.Result.SuccessCode));
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out string password, out _).ShouldBeFalse();
+
+            password.ShouldBeNull();
+            GetActivityMetadata(tracer)["OutputKeys"].ShouldEqual("protocol,host,username");
+        }
+
+        [TestCase]
+        public void TryGetCertificatePasswordFailsWhenPasswordKeyIsAbsent()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                "credential fill",
+                () => new GitProcess.Result(
+                    "protocol=cert\npath=mock://certificate\n",
+                    string.Empty,
+                    GitProcess.Result.SuccessCode));
+
+            gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out string password, out _).ShouldBeFalse();
+
+            password.ShouldBeNull();
+            GetActivityMetadata(tracer)["OutputKeys"].ShouldEqual("protocol,path");
+        }
+
         private static EventMetadata GetActivityMetadata(MockTracer tracer)
         {
             MockTracer activityTracer = tracer.StartActivityTracer;
