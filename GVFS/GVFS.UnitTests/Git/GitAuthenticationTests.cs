@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using GVFS.Common.Git;
@@ -73,6 +74,37 @@ namespace GVFS.UnitTests.Git
                 gitProcess.CredentialRejections["mock://repoUrl"].Count.ShouldEqual(i+1, $"Should have {i+1} credentials rejection");
                 gitProcess.CredentialApprovals["mock://repoUrl"].Count.ShouldEqual(i+1, $"Should have {i+1} credential approvals");
             }
+        }
+
+        [TestCase]
+        public void CredentialWithoutUsernameIsAcceptedAsEmptyUsername()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result("protocol=https\nhost=example.com\npassword=token\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            dut.TryGetCredentials(tracer, out string authString, out string error).ShouldEqual(true, "Failed to get credential: " + error);
+            Encoding.ASCII.GetString(Convert.FromBase64String(authString)).ShouldEqual(":token");
+        }
+
+        [TestCase]
+        public void CredentialWithoutPasswordIsRejected()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result("protocol=https\nhost=example.com\nusername=someone\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            dut.TryGetCredentials(tracer, out _, out _).ShouldEqual(false);
         }
 
         [TestCase]

@@ -371,10 +371,12 @@ namespace GVFS.Common.Git
                     return false;
                 }
 
-                username = ParseValue(gitCredentialOutput.Output, "username=");
+                // Some helpers return only a token. An absent username is valid;
+                // an absent password is not.
+                username = ParseValue(gitCredentialOutput.Output, "username=") ?? string.Empty;
                 password = ParseValue(gitCredentialOutput.Output, "password=");
 
-                bool success = username != null && password != null;
+                bool success = password != null;
 
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Success", success);
@@ -1130,8 +1132,14 @@ namespace GVFS.Common.Git
 
         private static string ParseValue(string contents, string prefix)
         {
-            int startIndex = contents.IndexOf(prefix) + prefix.Length;
-            if (startIndex >= 0 && startIndex < contents.Length)
+            int prefixIndex = contents.IndexOf(prefix);
+            if (prefixIndex < 0)
+            {
+                return null;
+            }
+
+            int startIndex = prefixIndex + prefix.Length;
+            if (startIndex < contents.Length)
             {
                 int endIndex = contents.IndexOf('\n', startIndex);
                 if (endIndex >= 0 && endIndex < contents.Length)
