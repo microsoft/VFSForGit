@@ -379,7 +379,7 @@ namespace GVFS.Common.Git
                 byte[] data = Convert.FromBase64String(credentialString);
                 string rawCredString = Encoding.ASCII.GetString(data);
 
-                string[] usernamePassword = rawCredString.Split(':');
+                string[] usernamePassword = rawCredString.Split(new[] { ':' }, 2);
                 if (usernamePassword.Length == 2)
                 {
                     username = usernamePassword[0];

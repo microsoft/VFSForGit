@@ -37,15 +37,33 @@ namespace GVFS.Common.Git
         /// </summary>
         private const int MaxCapturedStdOutChars = 128 * 1024 * 1024; // ~256 MB of UTF-16
 
+        private const string MissingPasswordErrorMessage = "Git credential fill returned no password";
+        private const int MaxCredentialOutputKeys = 32;
+        private const int MaxCredentialOutputKeyLength = 32;
+
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
+        private static readonly char[] LineSeparators = { '\n', '\r' };
+
+        // Key names defined by the git credential protocol. They are names, not values, so they are
+        // safe to trace. Any other key is reported as "<other>".
         private static readonly HashSet<string> CredentialOutputKeyAllowlist = new HashSet<string>(StringComparer.Ordinal)
         {
+            "authtype",
+            "capability[]",
+            "continue",
+            "credential",
+            "ephemeral",
             "host",
+            "oauth_refresh_token",
             "password",
+            "password_expiry_utc",
             "path",
             "protocol",
+            "quit",
+            "state[]",
             "url",
-            "username"
+            "username",
+            "wwwauth[]"
         };
 
         private static bool failedToSetEncoding = false;
@@ -304,10 +322,7 @@ namespace GVFS.Common.Git
                     EventMetadata errorData = new EventMetadata();
                     errorData.Add("CertificatePath", certificatePath);
                     errorData.Add("hasVisibleConsoleWindow", hasVisibleConsoleWindow);
-                    tracer.RelatedWarning(
-                        errorData,
-                        "Git could not get credentials: " + gitCredentialOutput.Errors,
-                        Keywords.Network | Keywords.Telemetry);
+                    TraceCredentialFillFailure(tracer, errorData, gitCredentialOutput.Errors);
                     errorMessage = gitCredentialOutput.Errors;
 
                     return false;
@@ -326,7 +341,8 @@ namespace GVFS.Common.Git
 
                 if (!success)
                 {
-                    metadata.Add("OutputKeys", GetCredentialOutputKeys(gitCredentialOutput.Output));
+                    errorMessage = MissingPasswordErrorMessage;
+                    metadata.Add("OutputKeys", GetCredentialOutputKeys(gitCredentialOutput.Output, gitCredentialOutput.OutputTruncated));
                 }
 
                 activity.Stop(metadata);
@@ -381,10 +397,7 @@ namespace GVFS.Common.Git
                     else
                     {
                         errorMessage = gitCredentialOutput.Errors;
-                        tracer.RelatedWarning(
-                            errorData,
-                            "Git could not get credentials: " + gitCredentialOutput.Errors,
-                            Keywords.Network | Keywords.Telemetry);
+                        TraceCredentialFillFailure(tracer, errorData, gitCredentialOutput.Errors);
                     }
 
                     return false;
@@ -409,7 +422,8 @@ namespace GVFS.Common.Git
                 metadata.Add("Success", success);
                 if (!success)
                 {
-                    metadata.Add("OutputKeys", GetCredentialOutputKeys(gitCredentialOutput.Output));
+                    errorMessage = MissingPasswordErrorMessage;
+                    metadata.Add("OutputKeys", GetCredentialOutputKeys(gitCredentialOutput.Output, gitCredentialOutput.OutputTruncated));
                 }
 
                 activity.Stop(metadata);
@@ -1150,57 +1164,112 @@ namespace GVFS.Common.Git
             }
         }
 
+        private static void TraceCredentialFillFailure(ITracer tracer, EventMetadata errorData, string errors)
+        {
+            // Git can echo unparseable helper output, including secrets, to stderr. The telemetry event
+            // carries no stderr; the text stays in the local log only.
+            tracer.RelatedWarning(errorData, "Git could not get credentials", Keywords.Network | Keywords.Telemetry);
+            tracer.RelatedWarning("Git credential fill error output: " + errors);
+        }
+
         /// <summary>
         /// Summarizes the output of "git credential fill" for diagnostics.
         /// The output is a list of "key=value" lines that can include the
-        /// plaintext secret, so values never reach telemetry or the log.
+        /// plaintext secret, so the summary never includes a value.
         /// Each line maps to a known key name, "&lt;other&gt;" for an unknown key,
-        /// or "&lt;malformed&gt;" for a line without a key.
+        /// or "&lt;malformed&gt;" for a line without a key. The summary lists at
+        /// most <see cref="MaxCredentialOutputKeys"/> lines.
         /// </summary>
-        private static string GetCredentialOutputKeys(string credentialOutput)
+        private static string GetCredentialOutputKeys(string credentialOutput, bool outputTruncated)
         {
             if (string.IsNullOrEmpty(credentialOutput))
             {
                 return string.Empty;
             }
 
-            IEnumerable<string> keys = credentialOutput
-                .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(line => !string.IsNullOrWhiteSpace(line))
-                .Select(line =>
-                {
-                    int separatorIndex = line.IndexOf('=');
-                    if (separatorIndex <= 0)
-                    {
-                        return "<malformed>";
-                    }
-
-                    string key = line.Substring(0, separatorIndex);
-                    return CredentialOutputKeyAllowlist.Contains(key) ? key : "<other>";
-                });
-
-            return string.Join(",", keys);
-        }
-
-        private static string ParseValue(string contents, string prefix)
-        {
-            int prefixIndex = contents.IndexOf(prefix);
-            if (prefixIndex < 0)
+            if (outputTruncated)
             {
-                return null;
+                return "<truncated>";
             }
 
-            int startIndex = prefixIndex + prefix.Length;
-            if (startIndex < contents.Length)
+            StringBuilder keys = new StringBuilder();
+            int keyCount = 0;
+            int position = 0;
+            while (position < credentialOutput.Length)
             {
-                int endIndex = contents.IndexOf('\n', startIndex);
-                if (endIndex >= 0 && endIndex < contents.Length)
+                int lineEnd = credentialOutput.IndexOfAny(LineSeparators, position);
+                if (lineEnd < 0)
                 {
-                    return
-                        contents
-                        .Substring(startIndex, endIndex - startIndex)
-                        .Trim('\r');
+                    lineEnd = credentialOutput.Length;
                 }
+
+                ReadOnlySpan<char> line = credentialOutput.AsSpan(position, lineEnd - position);
+                position = lineEnd + 1;
+                if (line.IsWhiteSpace())
+                {
+                    continue;
+                }
+
+                if (keyCount == MaxCredentialOutputKeys)
+                {
+                    keys.Append(",...");
+                    break;
+                }
+
+                if (keyCount > 0)
+                {
+                    keys.Append(',');
+                }
+
+                int separatorIndex = line.IndexOf('=');
+                if (separatorIndex <= 0)
+                {
+                    keys.Append("<malformed>");
+                }
+                else if (separatorIndex > MaxCredentialOutputKeyLength)
+                {
+                    keys.Append("<other>");
+                }
+                else
+                {
+                    string key = line.Slice(0, separatorIndex).ToString();
+                    keys.Append(CredentialOutputKeyAllowlist.Contains(key) ? key : "<other>");
+                }
+
+                keyCount++;
+            }
+
+            return keys.ToString();
+        }
+
+        /// <summary>
+        /// Returns the value of the "key=value" line that starts with <paramref name="prefix"/>,
+        /// or null if no line has that prefix or its value is not newline-terminated.
+        /// </summary>
+        private static string ParseValue(string contents, string prefix)
+        {
+            int searchStart = 0;
+            while (searchStart < contents.Length)
+            {
+                int prefixIndex = contents.IndexOf(prefix, searchStart, StringComparison.Ordinal);
+                if (prefixIndex < 0)
+                {
+                    return null;
+                }
+
+                if (prefixIndex == 0 || contents[prefixIndex - 1] == '\n')
+                {
+                    int startIndex = prefixIndex + prefix.Length;
+                    int endIndex = contents.IndexOf('\n', startIndex);
+                    if (endIndex < 0)
+                    {
+                        return null;
+                    }
+
+                    return contents.Substring(startIndex, endIndex - startIndex).Trim('\r');
+                }
+
+                searchStart = prefixIndex + 1;
             }
 
             return null;

@@ -79,7 +79,7 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
-        public void CredentialWithoutUsernameIsAcceptedAsEmptyUsername()
+        public void CredentialWithoutUsernameIsAcceptedAndApprovedWithEmptyUsername()
         {
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = this.GetGitProcess();
@@ -92,10 +92,37 @@ namespace GVFS.UnitTests.Git
 
             dut.TryGetCredentials(tracer, out string authString, out string error).ShouldEqual(true, "Failed to get credential: " + error);
             Encoding.ASCII.GetString(Convert.FromBase64String(authString)).ShouldEqual(":token");
+
+            dut.ApproveCredentials(tracer, authString);
+
+            gitProcess.CredentialApprovals["mock://repoUrl"].Count.ShouldEqual(1);
+            gitProcess.CredentialApprovals["mock://repoUrl"][0].Username.ShouldEqual(string.Empty);
+            gitProcess.CredentialApprovals["mock://repoUrl"][0].Password.ShouldEqual("token");
         }
 
         [TestCase]
-        public void CredentialWithoutPasswordIsRejected()
+        public void CredentialWithColonInPasswordCanBeApproved()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                $"{AzureDevOpsUseHttpPathString} credential fill",
+                () => new GitProcess.Result("username=someone\npassword=to:ken:value\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            dut.TryInitializeAndRequireAuth(tracer, out _);
+
+            dut.TryGetCredentials(tracer, out string authString, out string error).ShouldEqual(true, "Failed to get credential: " + error);
+            dut.ApproveCredentials(tracer, authString);
+
+            tracer.RelatedErrorEvents.ShouldBeEmpty();
+            gitProcess.CredentialApprovals["mock://repoUrl"].Count.ShouldEqual(1);
+            gitProcess.CredentialApprovals["mock://repoUrl"][0].Username.ShouldEqual("someone");
+            gitProcess.CredentialApprovals["mock://repoUrl"][0].Password.ShouldEqual("to:ken:value");
+        }
+
+        [TestCase]
+        public void CredentialWithoutPasswordFailsInitializationWithAReason()
         {
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = this.GetGitProcess();
@@ -104,9 +131,9 @@ namespace GVFS.UnitTests.Git
                 () => new GitProcess.Result("protocol=https\nhost=example.com\nusername=someone\n", string.Empty, GitProcess.Result.SuccessCode));
 
             GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
-            dut.TryInitializeAndRequireAuth(tracer, out _);
 
-            dut.TryGetCredentials(tracer, out _, out _).ShouldEqual(false);
+            dut.TryInitializeAndRequireAuth(tracer, out string error).ShouldEqual(false);
+            error.ShouldEqual("Git credential fill returned no password");
         }
 
         [TestCase]
