@@ -15,6 +15,14 @@ namespace GVFS.Common
 
         private const string GitObjectCacheName = "gitObjects";
 
+        // A linked worktree stores its enlistment and mount ids in its own
+        // .gvfs directory, not in git config. Git resolves --local config for a
+        // linked worktree to the shared config, so writing the ids there would
+        // overwrite the primary enlistment's ids and create concurrent writes
+        // to the shared config from parallel worktree mounts.
+        private const string WorktreeEnlistmentIdFileName = "enlistment-id";
+        private const string WorktreeMountIdFileName = "mount-id";
+
         private string gitVersion;
         private string gvfsVersion;
         private string gvfsHooksVersion;
@@ -440,12 +448,50 @@ namespace GVFS.Common
 
         public string GetMountId()
         {
+            if (this.IsWorktree)
+            {
+                return this.ReadWorktreeId(WorktreeMountIdFileName);
+            }
+
             return this.GetId(GVFSConstants.GitConfig.MountId);
         }
 
         public string GetEnlistmentId()
         {
+            if (this.IsWorktree)
+            {
+                return this.ReadWorktreeId(WorktreeEnlistmentIdFileName);
+            }
+
             return this.GetId(GVFSConstants.GitConfig.EnlistmentId);
+        }
+
+        /// <summary>
+        /// Returns this worktree's stable enlistment id, creating and
+        /// persisting one in the worktree's own .gvfs directory on first use.
+        /// The id lives per worktree, so it never touches the shared git
+        /// config. Call only for worktree enlistments.
+        /// </summary>
+        public string GetOrCreateWorktreeEnlistmentId()
+        {
+            string existing = this.ReadWorktreeId(WorktreeEnlistmentIdFileName);
+            if (!string.IsNullOrEmpty(existing))
+            {
+                return existing;
+            }
+
+            string enlistmentId = Guid.NewGuid().ToString("N");
+            this.TryWriteWorktreeId(WorktreeEnlistmentIdFileName, enlistmentId, out _);
+            return enlistmentId;
+        }
+
+        /// <summary>
+        /// Persists this mount's id in the worktree's own .gvfs directory.
+        /// Call only for worktree enlistments.
+        /// </summary>
+        public bool TrySetWorktreeMountId(string mountId, out string error)
+        {
+            return this.TryWriteWorktreeId(WorktreeMountIdFileName, mountId, out error);
         }
 
         private void SetOnce<T>(T value, ref T valueToSet)
@@ -476,6 +522,47 @@ namespace GVFS.Common
             string error;
             configResult.TryParseAsString(out value, out error, defaultValue: string.Empty);
             return value.Trim();
+        }
+
+        private string ReadWorktreeId(string fileName)
+        {
+            try
+            {
+                string path = Path.Combine(this.DotGVFSRoot, fileName);
+                if (File.Exists(path))
+                {
+                    return File.ReadAllText(path).Trim();
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+
+            return string.Empty;
+        }
+
+        private bool TryWriteWorktreeId(string fileName, string value, out string error)
+        {
+            error = null;
+            try
+            {
+                Directory.CreateDirectory(this.DotGVFSRoot);
+                File.WriteAllText(Path.Combine(this.DotGVFSRoot, fileName), value);
+                return true;
+            }
+            catch (IOException e)
+            {
+                error = e.Message;
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                error = e.Message;
+            }
+
+            return false;
         }
     }
 }
