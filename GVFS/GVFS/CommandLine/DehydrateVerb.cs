@@ -223,9 +223,10 @@ from a parent of the folders list.
                     this.Unmount(tracer);
 
                     string error;
-                    if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.PrimaryEnlistmentRoot, out error))
+                    ReturnCode returnCode;
+                    if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.PrimaryEnlistmentRoot, out error, out returnCode))
                     {
-                        this.ReportErrorAndExit(tracer, error);
+                        this.ReportErrorAndExit(tracer, returnCode, error);
                     }
 
                     RetryConfig retryConfig;
