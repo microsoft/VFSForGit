@@ -47,6 +47,36 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void ReportsFailureWhenMountProcessExitsWithCodeZero()
+        {
+            // A mount process that exits before its named pipe is ready has
+            // failed even if its exit code happens to be 0 (Success). This
+            // can occur when an exception escapes the mount process after it
+            // has already been marked as exited but before it reports a
+            // non-zero ReturnCode.
+            const int FakePid = 11111;
+            const int FakeExitCode = 0;
+            Func<GVFSEnlistment.MountProcessSnapshot> snapshot = () =>
+            {
+                return new GVFSEnlistment.MountProcessSnapshot(FakePid, hasExited: true, exitCode: FakeExitCode);
+            };
+
+            string errorMessage;
+            bool result = GVFSEnlistment.WaitUntilMounted(
+                new MockTracer(),
+                pipeName: "GVFS_no_such_pipe_for_test_" + Guid.NewGuid().ToString("N"),
+                enlistmentRoot: "C:\\fake\\root",
+                unattended: false,
+                mountProcessStatus: snapshot,
+                out errorMessage);
+
+            result.ShouldBeFalse();
+            errorMessage.ShouldNotBeNull();
+            errorMessage.ShouldContain(FakePid.ToString());
+            errorMessage.ShouldContain(FakeExitCode.ToString());
+        }
+
+        [TestCase]
         public void DetectsLateProcessExitWhilePipeNeverAppears()
         {
             const int FakePid = 24680;
