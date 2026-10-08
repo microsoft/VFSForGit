@@ -107,6 +107,12 @@ namespace GVFS.Platform.Windows
         /// <summary>
         /// Hydrates a file by reading its first byte, triggering ProjFS placeholder hydration.
         /// </summary>
+        /// <param name="fileName">Path of the file to hydrate.</param>
+        /// <param name="buffer">Scratch buffer used to read from the file. Must be at least 1 byte.</param>
+        /// <param name="failure">
+        /// The exception that caused hydration to fail, or null on success. Only ever assigned
+        /// when this method returns false.
+        /// </param>
         /// <remarks>
         /// This was originally implemented using direct P/Invoke to kernel32 CreateFile/ReadFile
         /// for minimal overhead. During the .NET 10 NativeAOT migration, the P/Invoke path caused
@@ -119,7 +125,7 @@ namespace GVFS.Platform.Windows
         /// (~36-40K files/s) in the multi-threaded scenario that matches actual HydrateFilesStage
         /// usage (ProcessorCount * 2 threads).
         /// </remarks>
-        public bool HydrateFile(string fileName, byte[] buffer)
+        public bool HydrateFile(string fileName, byte[] buffer, out Exception failure)
         {
             if (buffer.Length < 1)
             {
@@ -141,14 +147,17 @@ namespace GVFS.Platform.Windows
 #pragma warning restore CA2022
                 }
 
+                failure = null;
                 return true;
             }
-            catch (IOException)
+            catch (IOException e)
             {
+                failure = e;
                 return false;
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException e)
             {
+                failure = e;
                 return false;
             }
         }

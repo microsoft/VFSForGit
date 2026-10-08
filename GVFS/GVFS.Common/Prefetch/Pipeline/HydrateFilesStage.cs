@@ -1,5 +1,7 @@
-﻿using GVFS.Common.Prefetch.Git;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Prefetch.Git;
 using GVFS.Common.Tracing;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -33,10 +35,18 @@ namespace GVFS.Common.Prefetch.Pipeline
 
         protected override void DoWork()
         {
-            using (ITracer activity = this.tracer.StartActivity("ReadFiles", EventLevel.Informational))
+            // Keywords.Telemetry on the Stop event is required so the FailureSignatureCounts
+            // summary (added below) actually reaches the telemetry pipe — without it, the
+            // activity's Stop event is filtered out before it gets there.
+            using (ITracer activity = this.tracer.StartActivity("ReadFiles", EventLevel.Informational, Keywords.Telemetry, null))
             {
                 int readFilesCurrentThread = 0;
                 int failedFilesCurrentThread = 0;
+
+                // Keyed by HydrationFailureDiagnostics.GetFailureSignature(...) so a large failed
+                // prefetch reports distinct failure kinds once in the summary, rather than only via
+                // the (already per-file) "Failed to read" events below.
+                Dictionary<string, int> failureSignatureCounts = null;
 
                 byte[] buffer = new byte[1];
                 string blobId;
@@ -44,7 +54,7 @@ namespace GVFS.Common.Prefetch.Pipeline
                 {
                     foreach (PathWithMode modeAndPath in this.blobIdToPaths[blobId])
                     {
-                        bool succeeded = GVFSPlatform.Instance.FileSystem.HydrateFile(Path.Combine(this.workingDirectoryRoot, modeAndPath.Path), buffer);
+                        bool succeeded = GVFSPlatform.Instance.FileSystem.HydrateFile(Path.Combine(this.workingDirectoryRoot, modeAndPath.Path), buffer, out Exception failure);
                         if (succeeded)
                         {
                             Interlocked.Increment(ref this.readFileCount);
@@ -52,20 +62,32 @@ namespace GVFS.Common.Prefetch.Pipeline
                         }
                         else
                         {
-                            activity.RelatedError("Failed to read " + modeAndPath.Path);
+                            EventMetadata metadata = HydrationFailureDiagnostics.BuildMetadata(modeAndPath.Path, failure);
+                            activity.RelatedError(metadata, "Failed to read " + modeAndPath.Path);
 
                             failedFilesCurrentThread++;
                             this.HasFailures = true;
+
+                            failureSignatureCounts ??= new Dictionary<string, int>();
+                            string signature = HydrationFailureDiagnostics.GetFailureSignature(failure);
+                            failureSignatureCounts.TryGetValue(signature, out int signatureCount);
+                            failureSignatureCounts[signature] = signatureCount + 1;
                         }
                     }
                 }
 
-                activity.Stop(
-                    new EventMetadata
-                    {
-                        { "FilesRead", readFilesCurrentThread },
-                        { "Failures", failedFilesCurrentThread },
-                    });
+                EventMetadata stopMetadata = new EventMetadata
+                {
+                    { "FilesRead", readFilesCurrentThread },
+                    { "Failures", failedFilesCurrentThread },
+                };
+
+                if (failureSignatureCounts != null)
+                {
+                    stopMetadata.Add("FailureSignatureCounts", HydrationFailureDiagnostics.FormatSignatureCounts(failureSignatureCounts));
+                }
+
+                activity.Stop(stopMetadata);
             }
         }
     }
