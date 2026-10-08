@@ -2,7 +2,9 @@
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
+using System;
 using System.Diagnostics;
+using System.Threading;
 
 namespace GVFS.UnitTests.Git
 {
@@ -100,6 +102,97 @@ namespace GVFS.UnitTests.Git
             processName.ShouldBeNull();
             exitCode.ShouldEqual(-1);
             error.ShouldBeNull();
+        }
+
+        [TestCase]
+        [Description("Regression: a concurrent invocation on the same GitProcess must not clobber the " +
+            "executingProcess field that TryKillRunningProcess reads. The field is published and cleared " +
+            "only under processLock while the invocation holds executionLock.")]
+        public void ConcurrentInvocation_DoesNotClobberExecutingProcessField()
+        {
+            // Two InvokeGitImpl calls race on one instance. Invocation A starts its process and holds
+            // executionLock. Invocation B queues behind A on executionLock. Before the fix, B published its
+            // own (not-yet-started) process into the shared executingProcess field outside any lock, so a
+            // concurrent TryKillRunningProcess read B's process instead of the running one (A). The fix makes
+            // the field obey a single processLock protocol, so the field still holds A while B waits.
+            FieldProtocolGitProcess gitProcess = new FieldProtocolGitProcess();
+
+            Thread threadA = new Thread(() => gitProcess.Invoke()) { IsBackground = true };
+            Thread threadB = new Thread(() => gitProcess.Invoke()) { IsBackground = true };
+
+            try
+            {
+                // Start A and wait until its real process is running (its field value is published).
+                threadA.Start();
+                SpinWait.SpinUntil(
+                    () => IsStarted(gitProcess.FirstProcess),
+                    TimeSpan.FromSeconds(20)).ShouldBeTrue("Invocation A never started its process");
+
+                // Start B. It blocks inside GetGitProcess until released, confirming A is running first.
+                threadB.Start();
+                gitProcess.SecondCallReached.Wait(TimeSpan.FromSeconds(20))
+                    .ShouldBeTrue("Invocation B never reached GetGitProcess");
+                gitProcess.ReleaseSecondCall();
+
+                // Wait until B has queued on executionLock. By then the buggy lockless field write has run;
+                // the fixed code has left the field untouched because B does not hold executionLock.
+                SpinWait.SpinUntil(
+                    () => threadB.ThreadState.HasFlag(System.Threading.ThreadState.WaitSleepJoin),
+                    TimeSpan.FromSeconds(20)).ShouldBeTrue("Invocation B never queued on the execution lock");
+                Thread.Sleep(100);
+
+                // Only A's process is running. With the fix the field holds A, so TryKillRunningProcess
+                // reports A's process name. Without the fix the field holds B's not-yet-started process, and
+                // reading its ProcessName throws here.
+                bool killed = gitProcess.TryKillRunningProcess(out string processName, out int _, out string _);
+
+                killed.ShouldBeTrue();
+                processName.ShouldNotBeNull();
+                processName.ToUpperInvariant().Contains("PING")
+                    .ShouldBeTrue("Expected the running process (A), but the field held: " + processName);
+            }
+            finally
+            {
+                KillQuietly(gitProcess.FirstProcess);
+                threadA.Join(TimeSpan.FromSeconds(10));
+                threadB.Join(TimeSpan.FromSeconds(10));
+                KillQuietly(gitProcess.SecondProcess);
+            }
+        }
+
+        private static bool IsStarted(Process process)
+        {
+            if (process == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return process.Id != 0;
+            }
+            catch (InvalidOperationException)
+            {
+                // Thrown while the process has not been started yet.
+                return false;
+            }
+        }
+
+        private static void KillQuietly(Process process)
+        {
+            if (process == null)
+            {
+                return;
+            }
+
+            try
+            {
+                process.Kill();
+            }
+            catch (Exception)
+            {
+                // The process was never started, already exited, or is already disposed.
+            }
         }
 
         [TestCase]
@@ -400,6 +493,78 @@ this is an error",
                         testPath,
                         $"Path round-trip failed for: {testPath} (quoted as: {quoted})");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Test harness that drives the real <see cref="GitProcess.InvokeGitImpl"/> but replaces the git
+        /// child process with a controllable, long-running OS process so the executingProcess field protocol
+        /// can be exercised deterministically. The first invocation gets a running process; the second blocks
+        /// inside <see cref="GetGitProcess"/> until released so the test can order the two invocations.
+        /// </summary>
+        private sealed class FieldProtocolGitProcess : GitProcess
+        {
+            private readonly ManualResetEventSlim secondCallGate = new ManualResetEventSlim(false);
+            private int callCount;
+
+            public FieldProtocolGitProcess()
+                : base("git", "mock:\\root")
+            {
+            }
+
+            public Process FirstProcess { get; private set; }
+
+            public Process SecondProcess { get; private set; }
+
+            public ManualResetEventSlim SecondCallReached { get; } = new ManualResetEventSlim(false);
+
+            public void ReleaseSecondCall()
+            {
+                this.secondCallGate.Set();
+            }
+
+            public override Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, string gitObjectsDirectory, bool usePreCommandHook, bool mayRequireAuth = false, bool? hasVisibleConsoleWindow = null)
+            {
+                int call = Interlocked.Increment(ref this.callCount);
+                if (call == 1)
+                {
+                    this.FirstProcess = CreateSleeperProcess();
+                    return this.FirstProcess;
+                }
+
+                this.SecondProcess = CreateSleeperProcess();
+                this.SecondCallReached.Set();
+                this.secondCallGate.Wait();
+                return this.SecondProcess;
+            }
+
+            public Result Invoke()
+            {
+                return this.InvokeGitImpl(
+                    "status",
+                    "mock:\\root",
+                    dotGitDirectory: null,
+                    useReadObjectHook: false,
+                    writeStdIn: null,
+                    parseStdOutLine: null,
+                    timeoutMs: 60000);
+            }
+
+            private static Process CreateSleeperProcess()
+            {
+                // A benign, always-available Windows process that runs long enough for the test to observe
+                // it while it is alive. Its streams are redirected because InvokeGitImpl closes stdin and
+                // begins async reads on stdout/stderr.
+                ProcessStartInfo startInfo = new ProcessStartInfo("ping.exe", "-n 30 127.0.0.1")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+
+                return new Process { StartInfo = startInfo };
             }
         }
     }

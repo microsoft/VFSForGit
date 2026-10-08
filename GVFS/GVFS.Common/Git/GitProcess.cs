@@ -929,7 +929,7 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 -c repack.packKeptObjects=true multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize} --no-progress");
         }
 
-        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, string gitObjectsDirectory, bool usePreCommandHook, bool mayRequireAuth = false, bool? hasVisibleConsoleWindow = null)
+        public virtual Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, string gitObjectsDirectory, bool usePreCommandHook, bool mayRequireAuth = false, bool? hasVisibleConsoleWindow = null)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);
             processInfo.WorkingDirectory = workingDirectory;
@@ -1036,7 +1036,14 @@ namespace GVFS.Common.Git
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx
                 // To avoid deadlocks, use asynchronous read operations on at least one of the streams.
                 // Do not perform a synchronous read to the end of both redirected streams.
-                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, gitObjectsDirectory: gitObjectsDirectory, usePreCommandHook: usePreCommandHook, mayRequireAuth: mayRequireAuth, hasVisibleConsoleWindow: hasVisibleConsoleWindow))
+                //
+                // Keep the Process in a local so the using block disposes exactly the instance this
+                // invocation created. The shared this.executingProcess field (read by
+                // TryKillRunningProcess) is published and cleared only under processLock, and only while
+                // this invocation holds executionLock. That single lock protocol prevents a concurrent
+                // invocation on the same instance from clobbering the field and prevents TryKillRunningProcess
+                // from observing a stale, not-yet-started, or already-disposed process.
+                using (Process process = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, gitObjectsDirectory: gitObjectsDirectory, usePreCommandHook: usePreCommandHook, mayRequireAuth: mayRequireAuth, hasVisibleConsoleWindow: hasVisibleConsoleWindow))
                 {
                     // Bound how much stdout/stderr we buffer so a pathologically noisy git command
                     // cannot grow these buffers without limit until GVFS.Mount hits an
@@ -1046,14 +1053,14 @@ namespace GVFS.Common.Git
                     BoundedGitOutputBuffer output = new BoundedGitOutputBuffer(MaxCapturedStdOutChars);
                     BoundedGitOutputBuffer errors = new BoundedGitOutputBuffer(MaxCapturedStdErrChars);
 
-                    this.executingProcess.ErrorDataReceived += (sender, args) =>
+                    process.ErrorDataReceived += (sender, args) =>
                     {
                         if (args.Data != null)
                         {
                             errors.AppendLine(args.Data);
                         }
                     };
-                    this.executingProcess.OutputDataReceived += (sender, args) =>
+                    process.OutputDataReceived += (sender, args) =>
                     {
                         if (args.Data != null)
                         {
@@ -1070,52 +1077,59 @@ namespace GVFS.Common.Git
 
                     lock (this.executionLock)
                     {
-                        lock (this.processLock)
+                        try
                         {
-                            if (this.stopping)
+                            lock (this.processLock)
                             {
-                                return new Result(string.Empty, nameof(GitProcess) + " is stopping", Result.GenericFailureCode);
+                                if (this.stopping)
+                                {
+                                    return new Result(string.Empty, nameof(GitProcess) + " is stopping", Result.GenericFailureCode);
+                                }
+
+                                this.executingProcess = process;
+                                process.Start();
+
+                                if (this.LowerPriority)
+                                {
+                                    try
+                                    {
+                                        process.PriorityClass = ProcessPriorityClass.BelowNormal;
+                                    }
+                                    catch (InvalidOperationException)
+                                    {
+                                        // This is thrown if the process completes before we can set its priority.
+                                    }
+                                }
                             }
 
-                            this.executingProcess.Start();
+                            writeStdIn?.Invoke(process.StandardInput);
+                            process.StandardInput.Close();
 
-                            if (this.LowerPriority)
+                            process.BeginOutputReadLine();
+                            process.BeginErrorReadLine();
+
+                            if (!process.WaitForExit(timeoutMs))
                             {
-                                try
-                                {
-                                    this.executingProcess.PriorityClass = ProcessPriorityClass.BelowNormal;
-                                }
-                                catch (InvalidOperationException)
-                                {
-                                    // This is thrown if the process completes before we can set its priority.
-                                }
+                                process.Kill();
+
+                                return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
                             }
+
+                            return new Result(output.ToString(), errors.ToString(), process.ExitCode, output.Truncated, errors.Truncated);
                         }
-
-                        writeStdIn?.Invoke(this.executingProcess.StandardInput);
-                        this.executingProcess.StandardInput.Close();
-
-                        this.executingProcess.BeginOutputReadLine();
-                        this.executingProcess.BeginErrorReadLine();
-
-                        if (!this.executingProcess.WaitForExit(timeoutMs))
+                        finally
                         {
-                            this.executingProcess.Kill();
-
-                            return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
+                            lock (this.processLock)
+                            {
+                                this.executingProcess = null;
+                            }
                         }
                     }
-
-                    return new Result(output.ToString(), errors.ToString(), this.executingProcess.ExitCode, output.Truncated, errors.Truncated);
                 }
             }
             catch (Win32Exception e)
             {
                 return new Result(string.Empty, e.Message, Result.GenericFailureCode);
-            }
-            finally
-            {
-                this.executingProcess = null;
             }
         }
 
