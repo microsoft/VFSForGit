@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.ServiceProcess;
@@ -27,6 +28,9 @@ namespace GVFS.Platform.Windows
         private const string ProfileListRegistryKey = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProfileList";
         private const string ProfileImagePathRegistryValue = "ProfileImagePath";
         private const string AdminProtectionProfilePrefix = "ADMIN_";
+
+        // GetAncestor flag GA_ROOTOWNER (3): walk the owner chain to the root owned window.
+        private const uint GA_ROOTOWNER = 3;
 
         public WindowsPlatform() : base(underConstruction: new UnderConstructionFlags())
         {
@@ -222,6 +226,22 @@ namespace GVFS.Platform.Windows
         public override void PrepareProcessToRunInBackground()
         {
             // No additional work required
+        }
+
+        public override bool CurrentProcessHasVisibleConsoleWindow()
+        {
+            IntPtr consoleWindow = GetConsoleWindow();
+            if (consoleWindow == IntPtr.Zero)
+            {
+                // The process has no console at all (e.g. a GUI process), so there is no console
+                // window to own an interactive prompt.
+                return false;
+            }
+
+            // GVFS.Mount runs with a hidden console, so its console window exists but its root
+            // owner is not visible. Only treat the window as usable when its root owner is visible.
+            IntPtr rootOwner = GetAncestor(consoleWindow, GA_ROOTOWNER);
+            return rootOwner != IntPtr.Zero && IsWindowVisible(rootOwner);
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
@@ -457,6 +477,16 @@ namespace GVFS.Platform.Windows
             object value = localKeySub == null ? null : localKeySub.GetValue(valueName);
             return value;
         }
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetConsoleWindow();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
 
         public class WindowsPlatformConstants : GVFSPlatformConstants
         {

@@ -64,24 +64,35 @@ Skips `dotnet publish`, AOT, native C++ projects, payload assembly, installer.
 For changes that need the GVFS payload (`gvfs.exe`, hooks, service) but not
 an installer. `PublishAot=false` skips ilc (~3–4 min saved);
 `SkipCreateInstaller=true` skips Inno Setup (~95 s saved).
-`GVFS.Payload` cascades to its dependencies (GVFS, GVFS.Mount, GVFS.Hooks,
-GVFS.Service) via `ProjectReference`.
+`GVFS.Payload` only assembles the payload directory. It does not build or
+publish the projects that it copies from.
 
-> **Prerequisite: the native C++ projects must already be built.** They are
-> `.vcxproj` (see [Native C++ projects](#native-c-projects-need-msbuild-not-dotnet-build)
+> **Prerequisite: the native C++ projects and all managed payload projects must
+> already have built outputs.** The native projects are `.vcxproj` (see
+> [Native C++ projects](#native-c-projects-need-msbuild-not-dotnet-build)
 > below) and `dotnet publish` will not build them for you. If you have not
 > already done a `Build.bat` once in this enlistment, build the native
-> projects via VS MSBuild first (or run `Build.bat` once to populate `out\`,
-> then iterate with the commands below). After that they are incremental and
-> only rebuild when their own sources change.
+> projects via VS MSBuild and publish the managed payload projects below
+> (or run `Build.bat` once to populate `out\`, then iterate with the commands
+> below). After that they are incremental and only rebuild when their own
+> sources change.
 
 ```powershell
 dotnet publish src\GVFS\GVFS.FunctionalTests\GVFS.FunctionalTests.csproj `
     -c Debug /p:PublishAot=false
+dotnet publish src\GVFS\GVFS\GVFS.csproj `
+    -c Debug /p:PublishAot=false
+dotnet publish src\GVFS\GVFS.Hooks\GVFS.Hooks.csproj `
+    -c Debug /p:PublishAot=false
+dotnet publish src\GVFS\GVFS.Mount\GVFS.Mount.csproj `
+    -c Debug /p:PublishAot=false
+dotnet publish src\GVFS\GVFS.Service\GVFS.Service.csproj `
+    -c Debug /p:PublishAot=false
 dotnet publish src\GVFS\GVFS.Payload\GVFS.Payload.csproj `
     -c Debug /p:PublishAot=false /p:SkipCreateInstaller=true
 
-src\scripts\RunFunctionalTests-Dev.ps1 Debug --test=GVFS.FunctionalTests.Tests.<Namespace>.<Class>.<Method>
+src\scripts\RunFunctionalTests-Dev.ps1 -Configuration Debug -Arch x64 `
+    --test=GVFS.FunctionalTests.Tests.<Namespace>.<Class>.<Method>
 ```
 
 `layout.bat` (invoked by GVFS.Payload) `xcopy`s from each project's `publish\`
@@ -89,10 +100,28 @@ or native-output directory — the C# projects do not require AOT, so
 `PublishAot=false` produces a fully functional test payload. The native
 hook binaries are copied straight from the vcxproj output.
 
+> **Publish each changed project explicitly.** `GVFS.Payload.csproj` has no
+> `ProjectReference` items. Its `CreatePayload` target runs `layout.bat`, which
+> copies existing project output. A project that you do not publish can
+> contribute stale output from an earlier build. Publish all four managed
+> payload projects at least once in a new enlistment, and publish a project
+> again when you change it.
+
 `RunFunctionalTests-Dev.ps1` runs functional tests against the build output
 without requiring admin or a system-wide install. It launches the test
-service as a console process. Each invocation gets a unique service name
-and data dir, so concurrent runs from different worktrees don't collide.
+service as a console process. Each invocation gets a unique service name and
+service-data directory. Some fixtures still use shared machine paths or drive
+mappings, so do not assume that separate test processes can run concurrently.
+
+The script sets dev-mode variables. `Settings.Default.Initialize` then resolves
+`gvfs.exe` and `GVFS.Service.exe` from `out\GVFS.Payload\...`, not
+`C:\Program Files\VFS for Git\`. This path does not require a GVFS
+installation.
+
+> **Pass `-Configuration` and `-Arch` by name.** The script's first two
+> positional parameters are `Configuration` and `Arch`. A bare
+> `RunFunctionalTests-Dev.ps1 Debug --test=...` binds `--test=...` to `-Arch`
+> and fails its `ValidateSet`.
 
 ### Path C — Installer build (~5 min — only when you need an installer)
 
@@ -135,12 +164,14 @@ participate in the C# inner-loop paths above.
 
 ```powershell
 # ✅ Correct
-& "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe"  --test "GVFS.UnitTests.Common.WorktreeInfoTests"
-src\scripts\RunFunctionalTests-Dev.ps1 Debug       --test=GVFS.FunctionalTests.Tests.GVFSVerbTests.UnknownVerb
+& "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe" --test "GVFS.UnitTests.Common.WorktreeInfoTests"
+src\scripts\RunFunctionalTests-Dev.ps1 -Configuration Debug -Arch x64 `
+    --test=GVFS.FunctionalTests.Tests.GVFSVerbTests.UnknownVerb
 
 # ❌ Wrong — silently runs the entire suite
-& "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe"  --where "class =~ Worktree"
-src\scripts\RunFunctionalTests-Dev.ps1 Debug       --where "cat == Smoke"
+& "out\GVFS.UnitTests\bin\...\GVFS.UnitTests.exe" --where "class =~ Worktree"
+src\scripts\RunFunctionalTests-Dev.ps1 -Configuration Debug -Arch x64 `
+    --where "cat == Smoke"
 ```
 
 For unit tests, `--where` is merely annoying (the whole suite runs in
@@ -198,6 +229,43 @@ separate config system). To add one, mirror `gvfs.show-hydration-status`:
 Default new gates to `false` and gate the **runtime entry point** into a
 feature, not its build, so the code still compiles and ships (and keeps
 getting exercised) while its behavior stays off by default.
+
+## libgit2 P/Invoke string marshalling (UTF-8, not ANSI)
+
+The libgit2 bindings live in `GVFS.Common/Git/LibGit2Repo.cs` under the
+`Native` class. **libgit2 treats every string it receives and returns as
+UTF-8** — paths, revspecs, config keys and values, and error messages.
+
+The .NET default for a bare `[DllImport]` string parameter is
+`CharSet.Ansi`, which encodes through the Windows ANSI code page and
+**silently corrupts non-ASCII input** (a repo path under a non-English user
+name, a non-ASCII branch name, etc.) — an unmappable character becomes `?`,
+so `git_repository_open` and friends resolve the wrong path or fail. There is
+no `[module: DefaultCharSet]` override in `GVFS.Common`, so the ANSI default
+applies unless each declaration opts out.
+
+When you add a libgit2 P/Invoke:
+
+- Annotate **every** `string` parameter, `out string` parameter, string return
+  value, and string struct field with
+  `[MarshalAs(UnmanagedType.LPUTF8Str)]`.
+- Do **not** use `CharSet.Unicode` — that marshals UTF-16, which libgit2 does
+  not accept (it is the same bug in the other direction).
+- For a function that returns a **borrowed** pointer owned by libgit2 (e.g.
+  `git_config_get_string`), marshal it as `IntPtr` and copy with
+  `Marshal.PtrToStringUTF8(...)`; do not marshal it as `out string`, or the
+  interop marshaller frees libgit2's heap memory with the wrong allocator.
+
+Because the mismatch only manifests through the native call, cover new
+string-carrying paths with a real-libgit2 test that uses a non-ASCII input
+(see `GVFS.FunctionalTests/Tests/LibGit2NonAsciiPathTests.cs`), not a
+mock-based unit test.
+
+## Public repository hygiene
+
+Do not include Microsoft-internal work item IDs, ADO URLs, incident IDs, or
+internal service names in repository content or pull requests. Describe the
+public problem and fix without requiring internal access.
 
 ## Coding standards
 

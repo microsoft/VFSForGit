@@ -1,6 +1,9 @@
 ﻿using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Should;
+using GVFS.FunctionalTests.Tools;
+using GVFS.Tests.Should;
 using NUnit.Framework;
+using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -28,6 +31,52 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.Enlistment.Prefetch("--files * --hydrate");
             this.ValidateGitCommand("reset --mixed HEAD~1");
             this.FilesShouldMatchCheckoutOfTargetBranch();
+        }
+
+        /// <summary>
+        /// A mixed reset must clear skip-worktree on a hydrated placeholder whose
+        /// index entry the reset changes. A hydrated placeholder is on disk but is
+        /// not in ModifiedPaths, so it still has skip-worktree. The reset does not
+        /// update the working tree, so the file on disk no longer matches the index.
+        /// If skip-worktree stays set, git does not compare the file to the index,
+        /// and reset and status do not report it as modified.
+        ///
+        /// Placeholders that are not on disk do not have this problem, because git
+        /// writes them to disk and clears skip-worktree. For that reason, this test
+        /// asserts each precondition before the reset.
+        ///
+        /// The git side of this behavior requires microsoft/git v2.55.0.vfs.0.3 or later.
+        /// </summary>
+        [TestCase]
+        public void ResetMixedClearsSkipWorktreeOnHydratedPlaceholder()
+        {
+            string filePath = Path.Combine("Test_ConflictTests", "ModifiedFiles", "ChangeInTarget.txt");
+            string gitPath = filePath.Replace(Path.DirectorySeparatorChar, TestConstants.GitPathSeparator);
+
+            // Create local branches for both commits in both repos.
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+
+            // Precondition: the reset changes the index entry for the file.
+            GitProcess.InvokeProcess(
+                this.ControlGitRepo.RootPath,
+                $"diff --quiet {GitRepoTests.ConflictSourceBranch} {GitRepoTests.ConflictTargetBranch} -- {gitPath}")
+                .ExitCode.ShouldEqual(1, $"{gitPath} must differ between the reset source and target");
+
+            // Precondition: the file is a hydrated placeholder. A read hydrates it
+            // but does not add it to ModifiedPaths, so skip-worktree stays set.
+            this.Enlistment.GetVirtualPathTo(filePath).ShouldBeAFile(this.FileSystem).WithContents();
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, gitPath);
+            this.SkipWorktreeFlagShouldBe(gitPath, expectedFlag: 'S');
+
+            // The reset output and status must report the file as modified, as in the control repo.
+            this.ValidateGitCommand("reset --mixed " + GitRepoTests.ConflictSourceBranch);
+
+            // After the reset, skip-worktree is cleared, and GVFS adds the file to
+            // ModifiedPaths so that later git commands also compare it to the index.
+            this.SkipWorktreeFlagShouldBe(gitPath, expectedFlag: 'H');
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.FileSystem, gitPath);
+            this.FileContentsShouldMatch(filePath);
         }
 
         [TestCase]
@@ -107,6 +156,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             base.CreateEnlistment();
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+        }
+
+        private void SkipWorktreeFlagShouldBe(string gitPath, char expectedFlag)
+        {
+            // "ls-files -v" prefixes each entry with a tag: "S" means skip-worktree is set, "H" means it is not.
+            ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "ls-files -v -- " + gitPath);
+            result.ExitCode.ShouldEqual(0, result.Errors);
+            result.Output.Trim().ShouldEqual($"{expectedFlag} {gitPath}");
         }
     }
 }
