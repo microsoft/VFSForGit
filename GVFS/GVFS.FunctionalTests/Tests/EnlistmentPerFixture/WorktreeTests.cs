@@ -20,6 +20,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private const int MinWorktreeCount = 4;
 
         [TestCase]
+        [Repeat(10)]
         public void ConcurrentWorktreeAddCommitRemove()
         {
             int count = Math.Max(Environment.ProcessorCount, MinWorktreeCount);
@@ -473,7 +474,140 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 }
             }
 
+            GVFSEnlistment.WorktreeInfo wtInfo = GVFSEnlistment.TryGetWorktreeInfo(worktreePath);
+            if (wtInfo == null)
+            {
+                sb.AppendLine("  WorktreeInfo: null");
+            }
+            else
+            {
+                sb.AppendLine($"  WorktreeInfo.Name: {wtInfo.Name}");
+                sb.AppendLine($"  WorktreeInfo.WorktreePath: {wtInfo.WorktreePath}");
+                sb.AppendLine($"  WorktreeInfo.WorktreeGitDir: {wtInfo.WorktreeGitDir}");
+                sb.AppendLine($"  WorktreeInfo.SharedGitDir: {wtInfo.SharedGitDir}");
+                sb.AppendLine($"  WorktreeInfo.PipeSuffix: {wtInfo.PipeSuffix}");
+
+                this.AppendDirectoryListing(sb, "worktree git dir", wtInfo.WorktreeGitDir);
+                this.AppendDirectoryListing(
+                    sb,
+                    "worktree hooks dir",
+                    Path.Combine(wtInfo.WorktreeGitDir, GVFSConstants.DotGit.Hooks.RootName));
+                this.AppendDirectoryListing(
+                    sb,
+                    "worktree .gvfs dir",
+                    Path.Combine(wtInfo.WorktreeGitDir, GVFSPlatform.Instance.Constants.DotGVFSRoot));
+                this.AppendWorktreeMountLogs(sb, wtInfo);
+            }
+
+            this.AppendMountBootstrapTraces(sb, wtInfo == null ? null : wtInfo.Name);
+
             return sb.ToString();
+        }
+
+        private void AppendMountBootstrapTraces(StringBuilder sb, string worktreeName)
+        {
+            string dir = Path.Combine(
+                Environment.GetEnvironmentVariable("GVFS_TEST_DIAGNOSTICS_DIR") ?? @"C:\temp\gvfs-ft-diagnostics",
+                "mount-bootstrap");
+            sb.AppendLine($"  mount bootstrap traces: {dir}");
+            if (!Directory.Exists(dir))
+            {
+                sb.AppendLine("    exists: False");
+                return;
+            }
+
+            try
+            {
+                foreach (FileInfo file in new DirectoryInfo(dir)
+                    .GetFiles("mount_*.log")
+                    .Where(f => f.LastWriteTimeUtc > DateTime.UtcNow.AddMinutes(-3))
+                    .OrderBy(f => f.LastWriteTimeUtc))
+                {
+                    string contents = File.ReadAllText(file.FullName);
+                    if (worktreeName != null && !contents.Contains(worktreeName))
+                    {
+                        continue;
+                    }
+
+                    sb.AppendLine($"    ----- {file.Name} -----");
+                    sb.AppendLine(contents.Length <= 6000 ? contents : contents.Substring(contents.Length - 6000));
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"    bootstrap trace capture failed: {ex}");
+            }
+        }
+
+        private void AppendDirectoryListing(StringBuilder sb, string label, string path)
+        {
+            sb.AppendLine($"  {label}: {path}");
+            sb.AppendLine($"    exists: {Directory.Exists(path)}");
+            if (!Directory.Exists(path))
+            {
+                return;
+            }
+
+            try
+            {
+                string[] entries = Directory.GetFileSystemEntries(path);
+                sb.AppendLine($"    entries ({entries.Length}):");
+                foreach (string entry in entries)
+                {
+                    FileSystemInfo info = Directory.Exists(entry)
+                        ? (FileSystemInfo)new DirectoryInfo(entry)
+                        : new FileInfo(entry);
+                    sb.AppendLine($"      {Path.GetFileName(entry)} ({info.Attributes})");
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"    listing failed: {ex}");
+            }
+        }
+
+        private void AppendWorktreeMountLogs(StringBuilder sb, GVFSEnlistment.WorktreeInfo wtInfo)
+        {
+            string logsRoot = Path.Combine(
+                wtInfo.WorktreeGitDir,
+                GVFSPlatform.Instance.Constants.DotGVFSRoot,
+                GVFSConstants.DotGVFS.LogName);
+            sb.AppendLine($"  worktree logs dir: {logsRoot}");
+            sb.AppendLine($"    exists: {Directory.Exists(logsRoot)}");
+            if (!Directory.Exists(logsRoot))
+            {
+                return;
+            }
+
+            try
+            {
+                FileInfo[] logFiles = new DirectoryInfo(logsRoot)
+                    .GetFiles("*.log")
+                    .OrderByDescending(file => file.LastWriteTimeUtc)
+                    .Take(5)
+                    .ToArray();
+
+                foreach (FileInfo logFile in logFiles)
+                {
+                    sb.AppendLine($"    ----- {logFile.FullName} ({logFile.Length} bytes) -----");
+                    sb.AppendLine(this.ReadTail(logFile.FullName, maxChars: 12000));
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"    log capture failed: {ex}");
+            }
+        }
+
+        private string ReadTail(string path, int maxChars)
+        {
+            string contents = File.ReadAllText(path);
+            if (contents.Length <= maxChars)
+            {
+                return contents;
+            }
+
+            return contents.Substring(contents.Length - maxChars);
         }
 
         private void CleanupAllWorktrees(string[] paths, string[] branches, int count)

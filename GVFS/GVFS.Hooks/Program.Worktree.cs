@@ -104,6 +104,8 @@ namespace GVFS.Hooks
                 return true;
             }
 
+            WriteMountAttemptFailure(fullPath, attempt: 0, result);
+
             for (int retry = 0; retry < retryDelaysMs.Length; retry++)
             {
                 System.Threading.Thread.Sleep(retryDelaysMs[retry]);
@@ -112,9 +114,20 @@ namespace GVFS.Hooks
                 {
                     return true;
                 }
+
+                WriteMountAttemptFailure(fullPath, attempt: retry + 1, result);
             }
 
             return false;
+        }
+
+        private static void WriteMountAttemptFailure(string fullPath, int attempt, ProcessResult result)
+        {
+            Console.Error.WriteLine(
+                $"warning: gvfs mount attempt {attempt} failed for worktree '{fullPath}'.\n" +
+                $"exit: {result.ExitCode}\n" +
+                $"stdout:\n{result.Output}\n" +
+                $"stderr:\n{result.Errors}");
         }
 
         private static void UnmountWorktreeByArg(string[] args)
