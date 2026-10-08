@@ -321,17 +321,27 @@ namespace GVFS.Common.Git
 
             using (ITracer activity = tracer.StartActivity("TryGetCertificatePassword", EventLevel.Informational))
             {
+                // Record whether the current process has a visible console window, using the same value
+                // GetGitProcess uses to decide whether to detach git from a hidden console. Capturing it
+                // once here keeps the logged value authoritative and diagnosable on both the success and
+                // failure paths when a credential prompt fails to appear.
+                bool hasVisibleConsoleWindow = CurrentProcessHasVisibleConsoleWindowSafe();
+
                 // See GetFromConfig for why pre-command hook is disabled
                 // for bootstrap-time git operations.
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
                     "credential fill",
                     stdin => stdin.Write("protocol=cert\npath=" + certificatePath + "\nusername=\n\n"),
-                    usePreCommandHook: false);
+                    parseStdOutLine: null,
+                    usePreCommandHook: false,
+                    mayRequireAuth: true,
+                    hasVisibleConsoleWindow: hasVisibleConsoleWindow);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
                     EventMetadata errorData = new EventMetadata();
                     errorData.Add("CertificatePath", certificatePath);
+                    errorData.Add("hasVisibleConsoleWindow", hasVisibleConsoleWindow);
                     tracer.RelatedWarning(
                         errorData,
                         "Git could not get credentials: " + gitCredentialOutput.Errors,
@@ -348,7 +358,8 @@ namespace GVFS.Common.Git
                 EventMetadata metadata = new EventMetadata
                 {
                     { "Success", success },
-                    { "CertificatePath", certificatePath }
+                    { "CertificatePath", certificatePath },
+                    { "hasVisibleConsoleWindow", hasVisibleConsoleWindow }
                 };
 
                 if (!success)
@@ -375,16 +386,28 @@ namespace GVFS.Common.Git
 
             using (ITracer activity = tracer.StartActivity(nameof(this.TryGetCredential), EventLevel.Informational))
             {
+                // Record whether the current process has a visible console window, using the same value
+                // GetGitProcess uses to decide whether to detach git from a hidden console. Capturing it
+                // once here keeps the logged value authoritative and diagnosable on both the success and
+                // failure paths (including the timeout that a hidden, unanswered prompt produces).
+                bool hasVisibleConsoleWindow = CurrentProcessHasVisibleConsoleWindowSafe();
+
+                // See GetFromConfig for why pre-command hook is disabled
+                // for bootstrap-time git operations.
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
                     GenerateCredentialVerbCommand("fill"),
                     stdin => stdin.Write($"url={repoUrl}\n\n"),
                     out bool usedDotGitFolder,
+                    parseStdOutLine: null,
                     usePreCommandHook: false,
-                    timeoutMs: timeoutMs);
+                    timeoutMs: timeoutMs,
+                    mayRequireAuth: true,
+                    hasVisibleConsoleWindow: hasVisibleConsoleWindow);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
                     EventMetadata errorData = new EventMetadata();
+                    errorData.Add("hasVisibleConsoleWindow", hasVisibleConsoleWindow);
 
                     // Records whether repo-local configuration (and therefore a
                     // repo-local credential.helper) was visible to git.
@@ -409,6 +432,14 @@ namespace GVFS.Common.Git
 
                     return false;
                 }
+
+                // Record whether the current process had a visible console window. GetGitProcess uses
+                // this to decide whether to detach git from a hidden console so the credential prompt is
+                // not left behind other windows; logging it keeps that decision diagnosable from telemetry
+                // when a prompt fails to appear.
+                EventMetadata consoleMetadata = new EventMetadata();
+                consoleMetadata.Add("hasVisibleConsoleWindow", hasVisibleConsoleWindow);
+                activity.RelatedInfo(consoleMetadata, "Credential fill console window visibility");
 
                 username = ParseValue(gitCredentialOutput.Output, "username=");
                 password = ParseValue(gitCredentialOutput.Output, "password=");
@@ -1063,7 +1094,7 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder($"-c pack.threads=1 -c repack.packKeptObjects=true multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize} --no-progress");
         }
 
-        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, string gitObjectsDirectory, bool usePreCommandHook)
+        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, string gitObjectsDirectory, bool usePreCommandHook, bool mayRequireAuth = false, bool? hasVisibleConsoleWindow = null)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);
             processInfo.WorkingDirectory = workingDirectory;
@@ -1080,7 +1111,16 @@ namespace GVFS.Common.Git
             // instead), CreateNoWindow must be set to true for that case — otherwise
             // the non-redirected stream inherits the parent's console handle, which
             // may be absent when running as a service, causing lost output.
-            processInfo.CreateNoWindow = false;
+            //
+            // When a command may require authentication, git can launch the credential
+            // manager. Detaching from a hidden console (CreateNoWindow=true) makes that
+            // prompt appear on top instead of behind other windows. See
+            // GVFSPlatform.CurrentProcessHasVisibleConsoleWindow for the full rationale.
+            // A caller that already probed the console visibility passes the result in
+            // hasVisibleConsoleWindow so the logged and acted-on value stay identical;
+            // otherwise probe here. The && short-circuits the probe when auth cannot
+            // be required.
+            processInfo.CreateNoWindow = mayRequireAuth && !(hasVisibleConsoleWindow ?? CurrentProcessHasVisibleConsoleWindowSafe());
 
             processInfo.StandardOutputEncoding = UTF8NoBOM;
             processInfo.StandardErrorEncoding = UTF8NoBOM;
@@ -1148,7 +1188,9 @@ namespace GVFS.Common.Git
             int timeoutMs,
             string gitObjectsDirectory = null,
             bool usePreCommandHook = true,
-            Action<string> parseStdOutToken = null)
+            Action<string> parseStdOutToken = null,
+            bool mayRequireAuth = false,
+            bool? hasVisibleConsoleWindow = null)
         {
             if (failedToSetEncoding && writeStdIn != null)
             {
@@ -1168,7 +1210,7 @@ namespace GVFS.Common.Git
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx
                 // To avoid deadlocks, use asynchronous read operations on at least one of the streams.
                 // Do not perform a synchronous read to the end of both redirected streams.
-                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, gitObjectsDirectory: gitObjectsDirectory, usePreCommandHook: usePreCommandHook))
+                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, gitObjectsDirectory: gitObjectsDirectory, usePreCommandHook: usePreCommandHook, mayRequireAuth: mayRequireAuth, hasVisibleConsoleWindow: hasVisibleConsoleWindow))
                 {
                     // Bound how much stdout/stderr we buffer so a pathologically noisy git command
                     // cannot grow these buffers without limit until GVFS.Mount hits an
@@ -1456,6 +1498,20 @@ namespace GVFS.Common.Git
             }
         }
 
+        private static bool CurrentProcessHasVisibleConsoleWindowSafe()
+        {
+            try
+            {
+                return GVFSPlatform.Instance.CurrentProcessHasVisibleConsoleWindow();
+            }
+            catch (Exception ex) when (ex is DllNotFoundException || ex is EntryPointNotFoundException)
+            {
+                // If the native console probe cannot run, assume a visible console so callers keep
+                // the previous behavior (CreateNoWindow=false) rather than aborting the command.
+                return true;
+            }
+        }
+
         private static string ParseValue(string contents, string prefix)
         {
             int startIndex = contents.IndexOf(prefix) + prefix.Length;
@@ -1491,7 +1547,9 @@ namespace GVFS.Common.Git
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine,
             int timeout = -1,
-            bool usePreCommandHook = true)
+            bool usePreCommandHook = true,
+            bool mayRequireAuth = false,
+            bool? hasVisibleConsoleWindow = null)
         {
             return this.InvokeGitImpl(
                 command,
@@ -1501,7 +1559,9 @@ namespace GVFS.Common.Git
                 writeStdIn: writeStdIn,
                 parseStdOutLine: parseStdOutLine,
                 timeoutMs: timeout,
-                usePreCommandHook: usePreCommandHook);
+                usePreCommandHook: usePreCommandHook,
+                mayRequireAuth: mayRequireAuth,
+                hasVisibleConsoleWindow: hasVisibleConsoleWindow);
         }
 
         /// <summary>
@@ -1526,7 +1586,9 @@ namespace GVFS.Common.Git
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine = null,
             bool usePreCommandHook = true,
-            int timeoutMs = -1)
+            int timeoutMs = -1,
+            bool mayRequireAuth = false,
+            bool? hasVisibleConsoleWindow = null)
         {
             return this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
                 command,
@@ -1534,7 +1596,9 @@ namespace GVFS.Common.Git
                 out bool _,
                 parseStdOutLine,
                 usePreCommandHook,
-                timeoutMs);
+                timeoutMs,
+                mayRequireAuth,
+                hasVisibleConsoleWindow);
         }
 
         /// <summary>
@@ -1550,7 +1614,9 @@ namespace GVFS.Common.Git
             out bool usedDotGitFolder,
             Action<string> parseStdOutLine = null,
             bool usePreCommandHook = true,
-            int timeoutMs = -1)
+            int timeoutMs = -1,
+            bool mayRequireAuth = false,
+            bool? hasVisibleConsoleWindow = null)
         {
             // Evaluate once so the reported route always matches the route taken.
             usedDotGitFolder = this.DotGitRootExists();
@@ -1562,7 +1628,9 @@ namespace GVFS.Common.Git
                     writeStdIn,
                     parseStdOutLine,
                     usePreCommandHook: usePreCommandHook,
-                    timeoutMs: timeoutMs);
+                    timeoutMs: timeoutMs,
+                    mayRequireAuth: mayRequireAuth,
+                    hasVisibleConsoleWindow: hasVisibleConsoleWindow);
             }
 
             return this.InvokeGitOutsideEnlistment(
@@ -1570,7 +1638,9 @@ namespace GVFS.Common.Git
                 writeStdIn,
                 parseStdOutLine,
                 timeout: timeoutMs,
-                usePreCommandHook: usePreCommandHook);
+                usePreCommandHook: usePreCommandHook,
+                mayRequireAuth: mayRequireAuth,
+                hasVisibleConsoleWindow: hasVisibleConsoleWindow);
         }
 
         /// <summary>
@@ -1624,7 +1694,9 @@ namespace GVFS.Common.Git
             Action<string> parseStdOutLine,
             bool usePreCommandHook = true,
             string gitObjectsDirectory = null,
-            int timeoutMs = -1)
+            int timeoutMs = -1,
+            bool mayRequireAuth = false,
+            bool? hasVisibleConsoleWindow = null)
         {
             // This git command should not need/use the working directory of the repo.
             // Run git.exe in Environment.SystemDirectory to ensure the git.exe process
@@ -1638,7 +1710,9 @@ namespace GVFS.Common.Git
                 parseStdOutLine: parseStdOutLine,
                 timeoutMs: timeoutMs,
                 gitObjectsDirectory: gitObjectsDirectory,
-                usePreCommandHook: usePreCommandHook);
+                usePreCommandHook: usePreCommandHook,
+                mayRequireAuth: mayRequireAuth,
+                hasVisibleConsoleWindow: hasVisibleConsoleWindow);
         }
 
         public class Result

@@ -21,6 +21,18 @@ namespace GVFS.UnitTests.Mock.Common
 
         public string MockCurrentUser { get; set; }
 
+        /// <summary>
+        /// Controls the return value of <see cref="CurrentProcessHasVisibleConsoleWindow"/>. Defaults to true
+        /// so tests keep the foreground behavior unless they opt into the background-process case.
+        /// </summary>
+        public bool HasVisibleWindow { get; set; } = true;
+
+        /// <summary>
+        /// When true, <see cref="CurrentProcessHasVisibleConsoleWindow"/> throws to simulate a native
+        /// console probe that cannot run (missing entry point), so tests can cover the safe fallback.
+        /// </summary>
+        public bool ThrowOnConsoleProbe { get; set; }
+
         public override IKernelDriver KernelDriver => throw new NotSupportedException();
 
         public override IGitInstallation GitInstallation { get; } = new MockGitInstallation();
@@ -198,6 +210,16 @@ namespace GVFS.UnitTests.Mock.Common
         public override void PrepareProcessToRunInBackground()
         {
             throw new NotSupportedException();
+        }
+
+        public override bool CurrentProcessHasVisibleConsoleWindow()
+        {
+            if (this.ThrowOnConsoleProbe)
+            {
+                throw new EntryPointNotFoundException();
+            }
+
+            return this.HasVisibleWindow;
         }
 
         public override bool IsGitStatusCacheSupported()
