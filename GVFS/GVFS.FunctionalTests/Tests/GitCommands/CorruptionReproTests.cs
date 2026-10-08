@@ -12,7 +12,10 @@ using NUnit.Framework;
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     /// <summary>
-    /// This class is used to reproduce corruption scenarios in the GVFS virtual projection.
+    /// Reproduces reported scenarios that corrupted the GVFS virtual projection or
+    /// gave results that did not match a normal git repo. Each test is a black-box
+    /// regression test: it runs the command sequence that exposed the problem and
+    /// compares the results with the control repo.
     /// </summary>
     [Category(Categories.GitCommands)]
     [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
@@ -74,6 +77,32 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // HEAD's tree.
             this.ValidateGitCommand("restore -- .");
             this.FilesShouldMatchCheckoutOfSourceBranch();
+        }
+
+        /// <summary>
+        /// Regression test for a sequence of commands that a user ran and that
+        /// showed incorrect behavior: after "git blame" and "git reset --mixed",
+        /// GVFS did not report a changed file as modified. The control repo did.
+        ///
+        /// This is a black-box test. It does not assert why the behavior was wrong.
+        /// It only runs the same commands and compares the results with the
+        /// control repo. ResetMixedTests.ResetMixedClearsSkipWorktreeOnHydratedPlaceholder
+        /// asserts the conditions that cause the problem.
+        ///
+        /// The fix requires microsoft/git v2.55.0.vfs.0.3 or later.
+        ///
+        /// On the FunctionalTests/20201014 branch, Readme.md is the only file that
+        /// differs between HEAD and HEAD~1.
+        /// </summary>
+        [TestCase]
+        public void ReproResetMixedSkipWorktree()
+        {
+            this.ValidateGitCommand("blame Readme.md");
+            this.ValidateGitCommand("checkout -b tests/functional/ReproResetMixedSkipWorktree");
+
+            // Both repos must report Readme.md as modified.
+            this.ValidateGitCommand("reset HEAD~1");
+            this.ValidateGitCommand("ls-files -v Readme.md");
         }
 
         /// <summary>
