@@ -205,12 +205,13 @@ namespace FastFetch
             }
 
             // Check this before any code that reads or writes refs assuming the "files"
-            // ref storage format runs, since FastFetch can be pointed at an arbitrary
-            // pre-existing git repository rather than only ones 'gvfs clone' created.
-            // A genuine config-read failure (as opposed to the key simply being absent,
-            // which reports the repository as files-format) is treated as fatal here: a
-            // missing key does not reach this branch, so a read error means the repo's
-            // config is anomalous and continuing risks operating on an unsupported repo.
+            // ref storage format, or any code that assumes SHA1-shaped object ids, runs -
+            // since FastFetch can be pointed at an arbitrary pre-existing git repository
+            // rather than only ones 'gvfs clone' created. A genuine ref-storage config-read
+            // failure (as opposed to the key simply being absent, which reports the
+            // repository as files-format) is treated as fatal here: a missing key does not
+            // reach this branch, so a read error means the repo's config is anomalous and
+            // continuing risks operating on an unsupported repo.
             if (!RefStorage.TryIsReftableRepo(enlistment.CreateGitProcess(), out bool isReftableRepo, out string refStorageReadError))
             {
                 Console.WriteLine("Could not determine the repository's ref storage format: " + refStorageReadError);
@@ -219,6 +220,22 @@ namespace FastFetch
             else if (isReftableRepo)
             {
                 Console.WriteLine(RefStorage.UnsupportedReftableErrorMessage);
+                return ExitFailure;
+            }
+
+            // Same rationale as above, for SHA256: a genuine config-read failure (as
+            // opposed to the key simply being absent, which reports the repository as
+            // SHA1) is treated as fatal here: a missing key does not reach this branch,
+            // so a read error means the repo's config is anomalous and continuing risks
+            // operating on an unsupported repo.
+            if (!ObjectFormat.TryIsSha256Repo(enlistment.CreateGitProcess(), out bool isSha256Repo, out string objectFormatReadError))
+            {
+                Console.WriteLine("Could not determine the repository's object format: " + objectFormatReadError);
+                return ExitFailure;
+            }
+            else if (isSha256Repo)
+            {
+                Console.WriteLine(ObjectFormat.UnsupportedSha256ErrorMessage);
                 return ExitFailure;
             }
 

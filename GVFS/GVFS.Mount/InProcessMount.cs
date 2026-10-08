@@ -306,6 +306,27 @@ namespace GVFS.Mount
                         this.FailMountAndExit(RefStorage.UnsupportedReftableErrorMessage);
                     }
 
+                    // Same rationale as above, for SHA256: applying the required-config
+                    // force-write to a SHA256 repo (extensions.objectformat) would brick it
+                    // identically, so this check must also run before that write. A genuine
+                    // config-read failure is fatal here rather than a warning: a missing key
+                    // reports the repo as SHA1 and does not reach this branch, so a read error
+                    // means the config is anomalous and proceeding into the force-write could
+                    // brick an unsupported repo.
+                    if (!ObjectFormat.TryIsSha256Repo(git, out bool isSha256Repo, out string objectFormatReadError))
+                    {
+                        // Pass the git error as a format argument, not concatenated into the
+                        // format string: FailMountAndExit routes through ITracer.RelatedError(
+                        // string, params object[]), which runs string.Format, so a '{' in the
+                        // git stderr (possible with a crafted/corrupt .git/config) would throw
+                        // a FormatException instead of failing the mount cleanly.
+                        this.FailMountAndExit("Could not determine the repository's object format: {0}", objectFormatReadError);
+                    }
+                    else if (isSha256Repo)
+                    {
+                        this.FailMountAndExit(ObjectFormat.UnsupportedSha256ErrorMessage);
+                    }
+
                     if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
                     {
                         this.FailMountAndExit("FileSystem unsupported: " + fsError);
