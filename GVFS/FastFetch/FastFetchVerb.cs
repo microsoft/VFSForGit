@@ -212,7 +212,8 @@ namespace FastFetch
             // repository as files-format) is treated as fatal here: a missing key does not
             // reach this branch, so a read error means the repo's config is anomalous and
             // continuing risks operating on an unsupported repo.
-            if (!RefStorage.TryIsReftableRepo(enlistment.CreateGitProcess(), out bool isReftableRepo, out string refStorageReadError))
+            GitProcess git = enlistment.CreateGitProcess();
+            if (!RefStorage.TryIsReftableRepo(git, out bool isReftableRepo, out string refStorageReadError))
             {
                 Console.WriteLine("Could not determine the repository's ref storage format: " + refStorageReadError);
                 return ExitFailure;
@@ -228,7 +229,7 @@ namespace FastFetch
             // SHA1) is treated as fatal here: a missing key does not reach this branch,
             // so a read error means the repo's config is anomalous and continuing risks
             // operating on an unsupported repo.
-            if (!ObjectFormat.TryIsSha256Repo(enlistment.CreateGitProcess(), out bool isSha256Repo, out string objectFormatReadError))
+            if (!ObjectFormat.TryIsSha256Repo(git, out bool isSha256Repo, out string objectFormatReadError))
             {
                 Console.WriteLine("Could not determine the repository's object format: " + objectFormatReadError);
                 return ExitFailure;

@@ -159,6 +159,38 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.Enlistment.MountGVFS();
         }
 
+        [TestCase]
+        public void DoesNotRebuildSha256RepoConfig()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            // Make this otherwise-ordinary enlistment's config look like a SHA256 repo -
+            // core.repositoryformatversion=1 plus extensions.objectformat=sha256, the shape
+            // 'git init --object-format=sha256' produces - while leaving the rest of the
+            // config (including the origin remote) intact and parseable. The enlistment's
+            // actual objects/refs are still genuinely SHA1-hashed; this exercises the
+            // config-based detection path specifically, not the packed-refs physical
+            // fallback (which only fires when the config itself is unreadable).
+            string configPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "config");
+            string originalConfig = File.ReadAllText(configPath);
+            string sha256Config = originalConfig.Replace("repositoryformatversion = 0", "repositoryformatversion = 1")
+                + "[extensions]\n\tobjectformat = sha256\n";
+            File.WriteAllText(configPath, sha256Config);
+
+            this.Enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount a SHA256 repo");
+
+            this.RepairWithoutConfirmShouldNotFix();
+
+            // Unlike FixesCorruptGitConfig above, repair must refuse here rather than fix:
+            // rebuilding the config from scratch would silently erase extensions.objectformat
+            // and leave a SHA1-shaped config over objects/refs that are declared SHA256.
+            this.Enlistment.Repair(confirm: true);
+            this.Enlistment.TryMountGVFS().ShouldEqual(false, "Repair must not make a SHA256 repo mountable");
+
+            string configAfterRepair = File.ReadAllText(configPath);
+            configAfterRepair.ShouldContain("sha256");
+        }
+
         private void CreateCorruptIndexAndRename(string indexPath, Action<FileStream, FileStream> corruptionAction)
         {
             string tempIndexPath = indexPath + ".lock";

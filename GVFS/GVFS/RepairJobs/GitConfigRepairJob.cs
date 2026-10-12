@@ -40,14 +40,14 @@ namespace GVFS.RepairJobs
 
             // A SHA256 repository is not something 'gvfs repair' can make usable (see
             // TryFixIssues), so report it as an unfixable issue rather than letting
-            // 'gvfs diagnose'/'gvfs repair' declare the enlistment healthy. Unlike ref
-            // storage format, there is no cheap, reliable physical fallback here - a
-            // maintained GVFS enlistment (gc.auto=0, its own packing maintenance) has
-            // no loose objects left to probe for a longer SHA256 path, so
-            // extensions.objectformat remains the only practical signal - a config-read
-            // failure here is not itself flagged; it falls through to the normal config
-            // checks below, which is exactly what repair is meant to diagnose.
-            if (ObjectFormat.IsSha256Repo(git))
+            // 'gvfs diagnose'/'gvfs repair' declare the enlistment healthy. Detect it both
+            // from the config extension and from the physical .git/packed-refs object-id
+            // width: the latter still identifies a SHA256 repo when the config is too
+            // corrupt for 'git config' to read, which is exactly the state repair runs in.
+            // A config-read failure alone is otherwise swallowed as "not SHA256" so the
+            // normal config checks below still run - repair exists to diagnose exactly
+            // that kind of broken config.
+            if (ObjectFormat.IsSha256Repo(git) || this.PackedRefsLookSha256())
             {
                 messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
                 return IssueType.CantFix;
@@ -144,28 +144,29 @@ namespace GVFS.RepairJobs
             // SHA256 repo usable by VFS for Git, so fail clearly instead of attempting
             // the rebuild.
             //
-            // Unlike ref storage format, SHA256 objects/index are not cheap to probe for
-            // independently of git config: a freshly-initialized repo's loose objects do
-            // have a detectably longer path (64 hex chars vs. 40) and the index format
-            // differs, but a GVFS enlistment runs with gc.auto=0 and its own maintenance
-            // jobs that pack loose objects away (see PackfileMaintenanceStep) - so any
-            // real, maintained enlistment has no loose objects left to probe, making a
-            // reftable-style physical-directory fallback unreliable in the case that
-            // matters most. extensions.objectformat remains the only practical signal,
-            // so a config-read failure here is NOT blocked, unlike at mount/clone/
-            // FastFetch: repair's whole purpose is to rebuild a corrupt config, so a
-            // repo whose config is merely unreadable is exactly what repair must be
-            // allowed to fix. This is an accepted limitation: a SHA256 repo whose
-            // config is ALSO corrupt cannot be distinguished from an ordinary corrupt
-            // SHA1 repo here, and would be silently rebuilt as SHA1.
-            if (!ObjectFormat.TryIsSha256Repo(new GitProcess(this.Enlistment), out bool isSha256Repo, out string objectFormatReadError))
-            {
-                this.Tracer.RelatedWarning("Could not determine the repository's object format; proceeding with repair: " + objectFormatReadError);
-            }
-            else if (isSha256Repo)
+            // Detect SHA256 from the config AND from the physical .git/packed-refs
+            // object-id width (PackedRefsLookSha256 - see ObjectFormat.Sha256HexIdLength).
+            // Loose objects are not a usable physical signal here: a GVFS enlistment runs
+            // with gc.auto=0 and its own maintenance jobs that pack loose objects away (see
+            // PackfileMaintenanceStep), so a maintained enlistment has none left to probe.
+            // packed-refs is not touched by that maintenance and VFS for Git writes it
+            // directly on every clone, so it is reliably present - this is what makes the
+            // fallback safe when the config is unreadable, mirroring the reftable directory
+            // check above. A config-read failure with no SHA256-width packed-refs is NOT
+            // blocked, unlike at mount/clone/FastFetch: repair's whole purpose is to rebuild
+            // a corrupt config, so a repo whose config is merely unreadable is exactly what
+            // repair must be allowed to fix.
+            bool packedRefsLookSha256 = this.PackedRefsLookSha256();
+            bool objectFormatReadable = ObjectFormat.TryIsSha256Repo(new GitProcess(this.Enlistment), out bool isSha256ByConfig, out string objectFormatReadError);
+            if (packedRefsLookSha256 || (objectFormatReadable && isSha256ByConfig))
             {
                 messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
                 return FixResult.Failure;
+            }
+
+            if (!objectFormatReadable)
+            {
+                this.Tracer.RelatedWarning("Could not determine the repository's object format; proceeding with repair: " + objectFormatReadError);
             }
 
             string configPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Config);
@@ -225,6 +226,48 @@ namespace GVFS.RepairJobs
             string reftableDirectory = Path.Combine(this.Enlistment.DotGitRoot, RefStorage.ReftableDirectoryName);
 
             return Directory.Exists(reftableDirectory);
+        }
+
+        internal bool PackedRefsLookSha256()
+        {
+            // Same DotGitRoot assumption as ReftableBackendDirectoryExists() above - holds for
+            // the primary enlistment repair targets, not a linked worktree.
+            //
+            // VFS for Git writes .git/packed-refs directly during clone (GitRefs.ToPackedRefs,
+            // consumed by CloneVerb.TryInitRepo) rather than through git's ref backend, so it
+            // is reliably present. Object ids are written at full hex width - 64 characters for
+            // SHA256, 40 for SHA1 - and unlike loose objects, packed-refs is never touched by
+            // git's own packing maintenance, so this signal survives on a long-lived,
+            // maintained enlistment where a loose-object probe would not.
+            string packedRefsPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.PackedRefsName);
+
+            try
+            {
+                foreach (string line in File.ReadLines(packedRefsPath))
+                {
+                    if (line.Length == 0 || line[0] == '#' || line[0] == '^')
+                    {
+                        // '#' is the pack-refs header comment; '^' lines carry the peeled
+                        // object id of an annotated tag, not a ref's own object id.
+                        continue;
+                    }
+
+                    int spaceIndex = line.IndexOf(' ');
+                    if (spaceIndex <= 0)
+                    {
+                        continue;
+                    }
+
+                    return spaceIndex == ObjectFormat.Sha256HexIdLength;
+                }
+            }
+            catch (IOException)
+            {
+                // packed-refs missing or unreadable - not itself a SHA256 signal, and the
+                // config-based check this is paired with already handles a read failure.
+            }
+
+            return false;
         }
     }
 }

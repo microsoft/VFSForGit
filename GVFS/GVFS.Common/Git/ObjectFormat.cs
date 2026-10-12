@@ -19,6 +19,19 @@ namespace GVFS.Common.Git
         public const string ObjectFormatConfigName = "extensions.objectformat";
         public const string Sha256Value = "sha256";
 
+        /// <summary>
+        /// Length, in hex characters, of a SHA256 object id (32 bytes) - twice
+        /// GVFSConstants.ShaStringLength, the equivalent SHA1 length. Object ids are
+        /// written at full hex width wherever git records them as text - notably
+        /// .git/packed-refs ("&lt;objectid&gt; &lt;refname&gt;") and loose ref files - so this
+        /// is a physical, on-disk signal of a repository's object format that survives
+        /// even when git config is unreadable. Unlike loose objects, packed-refs is not
+        /// touched by git's own packing maintenance, and VFS for Git writes it directly
+        /// on every clone (see GitRefs.ToPackedRefs, CloneVerb.TryInitRepo), so it is
+        /// reliably present to probe.
+        /// </summary>
+        public const int Sha256HexIdLength = 64;
+
         public const string UnsupportedSha256ErrorMessage =
             "VFS for Git only supports SHA1 repositories, but this repository was initialized " +
             "with the SHA256 object format. There is no supported way to convert a SHA256 " +
