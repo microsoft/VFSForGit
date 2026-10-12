@@ -214,7 +214,17 @@ namespace GVFS.CommandLine
 
                             if (this.mountProcess.HasExited)
                             {
-                                mountExitCode = (ReturnCode)this.mountProcess.ExitCode;
+                                // TryMount already reported a failure, so a child exit
+                                // code of Success (0) is itself abnormal (e.g. the
+                                // mount process exited before its named pipe was
+                                // ready). Reporting Success here would make gvfs
+                                // mount's own exit code say the mount worked when it
+                                // did not, so keep the GenericError default instead.
+                                ReturnCode childExitCode = (ReturnCode)this.mountProcess.ExitCode;
+                                if (childExitCode != ReturnCode.Success)
+                                {
+                                    mountExitCode = childExitCode;
+                                }
                             }
                         }
                         catch (InvalidOperationException)
