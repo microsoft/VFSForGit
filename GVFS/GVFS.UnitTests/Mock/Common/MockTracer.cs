@@ -19,6 +19,7 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedEventNames = new List<string>();
             this.RelatedEventKeywords = new List<Keywords>();
             this.RelatedEventMetadata = new List<EventMetadata>();
+            this.StopMetadata = new List<EventMetadata>();
         }
 
         public MockTracer StartActivityTracer { get; private set; }
@@ -33,6 +34,10 @@ namespace GVFS.UnitTests.Mock.Common
         public List<string> RelatedEventNames { get; }
         public List<Keywords> RelatedEventKeywords { get; }
         public List<EventMetadata> RelatedEventMetadata { get; }
+
+        // Metadata passed to each Stop() call, in order — lets tests assert on activity-summary
+        // fields (e.g. HydrateFilesStage's FailureSignatureCounts) that Stop would otherwise discard.
+        public List<EventMetadata> StopMetadata { get; }
 
         public void WaitForRelatedEvent()
         {
@@ -144,6 +149,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public TimeSpan Stop(EventMetadata metadata)
         {
+            this.StopMetadata.Add(metadata);
             return TimeSpan.Zero;
         }
 

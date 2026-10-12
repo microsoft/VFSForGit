@@ -35,8 +35,21 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public bool HydrateFile(string fileName, byte[] buffer)
+        /// <summary>
+        /// Optional override for HydrateFile, letting tests script hydration results (success/failure
+        /// per call) without needing a real platform file system. Defaults to null, preserving the
+        /// original unconditional-throw behavior for tests that don't exercise hydration.
+        /// </summary>
+        public Func<string, byte[], (bool Succeeded, Exception Failure)> HydrateFileImplementation { get; set; }
+
+        public bool HydrateFile(string fileName, byte[] buffer, out Exception failure)
         {
+            if (this.HydrateFileImplementation != null)
+            {
+                (bool succeeded, failure) = this.HydrateFileImplementation(fileName, buffer);
+                return succeeded;
+            }
+
             throw new NotSupportedException();
         }
 
