@@ -30,6 +30,8 @@ namespace GVFS.FunctionalTests.Tools
         private const string GitObjectsRootKey = "GitObjectsRoot";
         private const string PlaceholdersNeedUpdate = "PlaceholdersNeedUpdate";
         private const string BlobSizesRootKey = "BlobSizesRoot";
+        private const string EnlistmentIdKey = "EnlistmentId";
+        private const string MountIdKey = "MountId";
 
         private const string PrjFSLibPath = "libPrjFSLib.dylib";
         private const int PrjFSResultSuccess = 1;
@@ -84,6 +86,16 @@ namespace GVFS.FunctionalTests.Tools
         public static string GetPersistedBlobSizesRoot(string dotGVFSRoot)
         {
             return GetPersistedValue(dotGVFSRoot, BlobSizesRootKey);
+        }
+
+        public static string GetPersistedEnlistmentId(string dotGVFSRoot)
+        {
+            return GetPersistedValue(dotGVFSRoot, EnlistmentIdKey);
+        }
+
+        public static string GetPersistedMountId(string dotGVFSRoot)
+        {
+            return GetPersistedValue(dotGVFSRoot, MountIdKey);
         }
 
         public static void SQLiteBlobSizesDatabaseHasEntry(string blobSizesDbPath, string blobSha, long blobSize)
