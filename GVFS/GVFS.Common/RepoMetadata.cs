@@ -8,7 +8,7 @@ namespace GVFS.Common
 {
     public class RepoMetadata
     {
-        public const string MissingDiskLayoutVersionMessage = "Enlistment disk layout version not found. The .gvfs metadata is incomplete. Recloning this enlistment is the recommended fix.";
+        public const string MissingDiskLayoutVersionMessage = "Enlistment disk layout version not found. The .gvfs metadata is incomplete. Make sure your work is pushed or backed up, then reclone this enlistment.";
 
         private FileBasedDictionary<string, string> repoMetadata;
         private ITracer tracer;

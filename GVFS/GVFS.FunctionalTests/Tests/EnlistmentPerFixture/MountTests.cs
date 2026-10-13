@@ -11,16 +11,16 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using RepoMetadata = GVFS.Common.RepoMetadata;
-using ReturnCode = GVFS.Common.ReturnCode;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
-        private const int GVFSGenericError = (int)ReturnCode.GenericError;
-        private const int GVFSMissingDiskLayoutVersion = (int)ReturnCode.MissingDiskLayoutVersion;
+        private const int GVFSGenericError = 3;
+        // These values are a shipped command-line contract. Do not bind them to product constants.
+        private const int GVFSMissingDiskLayoutVersion = 12;
+        private const string MissingDiskLayoutVersionMessage = "The .gvfs metadata is incomplete";
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
         private readonly int fileDeletedBackgroundOperationCode;
@@ -119,7 +119,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 this.MountShouldFail(
                     GVFSMissingDiskLayoutVersion,
-                    RepoMetadata.MissingDiskLayoutVersionMessage);
+                    MissingDiskLayoutVersionMessage);
             }
             finally
             {
@@ -158,7 +158,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 this.MountShouldFail(
                     GVFSMissingDiskLayoutVersion,
-                    RepoMetadata.MissingDiskLayoutVersionMessage);
+                    MissingDiskLayoutVersionMessage);
             }
             finally
             {

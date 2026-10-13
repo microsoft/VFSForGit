@@ -70,12 +70,6 @@ namespace GVFS.DiskLayoutUpgrades
             }
         }
 
-        public static bool TryCheckDiskLayoutVersion(ITracer tracer, string enlistmentRoot, out string error)
-        {
-            ReturnCode returnCode;
-            return TryCheckDiskLayoutVersion(tracer, enlistmentRoot, out error, out returnCode);
-        }
-
         public static bool TryCheckDiskLayoutVersion(ITracer tracer, string enlistmentRoot, out string error, out ReturnCode returnCode)
         {
             error = string.Empty;
@@ -277,13 +271,6 @@ namespace GVFS.DiskLayoutUpgrades
             return true;
         }
 
-        private static bool TryFindUpgrade(JsonTracer tracer, string enlistmentRoot, out DiskLayoutUpgrade upgrade)
-        {
-            string error;
-            ReturnCode returnCode;
-            return TryFindUpgrade(tracer, enlistmentRoot, out upgrade, out error, out returnCode);
-        }
-
         private static bool TryFindUpgrade(JsonTracer tracer, string enlistmentRoot, out DiskLayoutUpgrade upgrade, out string error, out ReturnCode returnCode)
         {
             int majorVersion;
@@ -367,6 +354,11 @@ namespace GVFS.DiskLayoutUpgrades
 
                 if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error, out returnCode))
                 {
+                    if (returnCode == ReturnCode.MissingDiskLayoutVersion)
+                    {
+                        error += " " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot);
+                    }
+
                     return false;
                 }
             }

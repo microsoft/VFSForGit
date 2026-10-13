@@ -138,8 +138,10 @@ namespace GVFS.CommandLine
                 {
                     this.ReportErrorAndExit(tracer: null, exitCode: diskLayoutReturnCode, error: "Error: " + diskLayoutError);
                 }
-
-                this.ReportErrorAndExit("Failed to upgrade repo disk layout. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot));
+                else
+                {
+                    this.ReportErrorAndExit("Failed to upgrade repo disk layout. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot));
+                }
             }
 
             string error;
