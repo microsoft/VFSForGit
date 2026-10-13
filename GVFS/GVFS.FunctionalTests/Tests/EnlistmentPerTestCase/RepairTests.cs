@@ -181,9 +181,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             this.RepairWithoutConfirmShouldNotFix();
 
-            // Unlike FixesCorruptGitConfig above, repair must refuse here rather than fix:
-            // rebuilding the config from scratch would silently erase extensions.objectformat
-            // and leave a SHA1-shaped config over objects/refs that are declared SHA256.
+            // This drives HasIssue's CantFix path (same detection as above), so repair
+            // reports the job as unfixable and never calls TryFixIssues for it at all -
+            // it does not exercise TryFixIssues's own, separate SHA256 guard, which
+            // RepairVerb never reaches this job for in practice. What this test does pin is
+            // the end-to-end, user-visible outcome: repair must leave this repo exactly as
+            // broken (still SHA256, still unmountable) as it found it, not silently rebuild
+            // it as a SHA1-shaped config over SHA256-hashed objects/refs.
             this.Enlistment.Repair(confirm: true);
             this.Enlistment.TryMountGVFS().ShouldEqual(false, "Repair must not make a SHA256 repo mountable");
 

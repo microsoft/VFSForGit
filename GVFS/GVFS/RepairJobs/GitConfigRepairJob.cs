@@ -2,6 +2,7 @@
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -145,17 +146,22 @@ namespace GVFS.RepairJobs
             // the rebuild.
             //
             // Detect SHA256 from the config AND from the physical .git/packed-refs
-            // object-id width (PackedRefsLookSha256 - see ObjectFormat.Sha256HexIdLength).
-            // Loose objects are not a usable physical signal here: a GVFS enlistment runs
-            // with gc.auto=0 and its own maintenance jobs that pack loose objects away (see
-            // PackfileMaintenanceStep), so a maintained enlistment has none left to probe.
-            // packed-refs is not touched by that maintenance and VFS for Git writes it
-            // directly on every clone, so it is reliably present - this is what makes the
-            // fallback safe when the config is unreadable, mirroring the reftable directory
-            // check above. A config-read failure with no SHA256-width packed-refs is NOT
+            // object-id width (PackedRefsLookSha256 - see ObjectFormat.Sha256HexIdLength for
+            // why that width is a reliable physical signal). This mirrors the reftable
+            // directory check above, and is what makes the fallback safe when the config is
+            // unreadable. A config-read failure with no SHA256-width packed-refs is NOT
             // blocked, unlike at mount/clone/FastFetch: repair's whole purpose is to rebuild
             // a corrupt config, so a repo whose config is merely unreadable is exactly what
             // repair must be allowed to fix.
+            //
+            // In practice this whole block is unreachable through 'gvfs repair': HasIssue
+            // above runs this identical detection first and returns CantFix for the same
+            // condition, so RepairVerb.Execute never adds this job to its "fixable" set and
+            // never calls TryFixIssues for it (RepairTests.DoesNotRebuildSha256RepoConfig
+            // exercises exactly that HasIssue/CantFix path). The check stays here anyway, as
+            // defense-in-depth should TryFixIssues ever be called directly or RepairVerb's
+            // sequencing change, so a future caller does not silently rebuild a SHA256
+            // repo's config as SHA1.
             bool packedRefsLookSha256 = this.PackedRefsLookSha256();
             bool objectFormatReadable = ObjectFormat.TryIsSha256Repo(new GitProcess(this.Enlistment), out bool isSha256ByConfig, out string objectFormatReadError);
             if (packedRefsLookSha256 || (objectFormatReadable && isSha256ByConfig))
@@ -235,10 +241,9 @@ namespace GVFS.RepairJobs
             //
             // VFS for Git writes .git/packed-refs directly during clone (GitRefs.ToPackedRefs,
             // consumed by CloneVerb.TryInitRepo) rather than through git's ref backend, so it
-            // is reliably present. Object ids are written at full hex width - 64 characters for
-            // SHA256, 40 for SHA1 - and unlike loose objects, packed-refs is never touched by
-            // git's own packing maintenance, so this signal survives on a long-lived,
-            // maintained enlistment where a loose-object probe would not.
+            // is reliably present. See ObjectFormat.Sha256HexIdLength for why its object-id
+            // width is a reliable physical signal of the repository's object format even if
+            // the file is later rewritten by git itself.
             string packedRefsPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.PackedRefsName);
 
             try
@@ -265,6 +270,12 @@ namespace GVFS.RepairJobs
             {
                 // packed-refs missing or unreadable - not itself a SHA256 signal, and the
                 // config-based check this is paired with already handles a read failure.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Same rationale as the IOException case above - File.ReadLines surfaces a
+                // permission/locking problem as UnauthorizedAccessException rather than
+                // IOException, and this probe must not propagate either kind of failure.
             }
 
             return false;

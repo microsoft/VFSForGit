@@ -21,14 +21,14 @@ namespace GVFS.Common.Git
 
         /// <summary>
         /// Length, in hex characters, of a SHA256 object id (32 bytes) - twice
-        /// GVFSConstants.ShaStringLength, the equivalent SHA1 length. Object ids are
-        /// written at full hex width wherever git records them as text - notably
-        /// .git/packed-refs ("&lt;objectid&gt; &lt;refname&gt;") and loose ref files - so this
-        /// is a physical, on-disk signal of a repository's object format that survives
-        /// even when git config is unreadable. Unlike loose objects, packed-refs is not
-        /// touched by git's own packing maintenance, and VFS for Git writes it directly
-        /// on every clone (see GitRefs.ToPackedRefs, CloneVerb.TryInitRepo), so it is
-        /// reliably present to probe.
+        /// GVFSConstants.ShaStringLength, the equivalent SHA1 length. Whatever writes
+        /// .git/packed-refs ("&lt;objectid&gt; &lt;refname&gt;") - VFS for Git's own clone
+        /// (GitRefs.ToPackedRefs, CloneVerb.TryInitRepo), or git itself via 'git pack-refs',
+        /// 'git gc', or a 'git maintenance' task - always serializes object ids at this full
+        /// hex width for the repository's actual object format. So a width check on
+        /// packed-refs is a reliable physical, on-disk signal of a repository's object
+        /// format that survives even when git config is unreadable, regardless of who most
+        /// recently wrote the file.
         /// </summary>
         public const int Sha256HexIdLength = 64;
 
