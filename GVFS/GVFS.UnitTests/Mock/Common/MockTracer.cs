@@ -20,7 +20,7 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedEventKeywords = new List<Keywords>();
             this.RelatedEventMetadata = new List<EventMetadata>();
             this.StopMetadata = new List<EventMetadata>();
-            this.TelemetryWarningEvents = new List<string>();
+            this.TelemetryWarnings = new List<EventMetadata>();
         }
 
         public MockTracer StartActivityTracer { get; private set; }
@@ -41,7 +41,7 @@ namespace GVFS.UnitTests.Mock.Common
         public List<EventMetadata> StopMetadata { get; }
 
         // Warnings reported with Keywords.Telemetry, which a telemetry listener would ship off the machine.
-        public List<string> TelemetryWarningEvents { get; }
+        public List<EventMetadata> TelemetryWarnings { get; }
 
         public void WaitForRelatedEvent()
         {
@@ -104,7 +104,7 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedWarning(metadata, message);
             if (metadata != null && (keyword & Keywords.Telemetry) != 0)
             {
-                this.TelemetryWarningEvents.Add(GVFSJsonOptions.Serialize(metadata));
+                this.TelemetryWarnings.Add(metadata);
             }
         }
 

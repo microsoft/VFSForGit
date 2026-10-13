@@ -13,276 +13,187 @@ namespace GVFS.UnitTests.Common.Git
     {
         private const string SecretValue = "S3cretSentinelValueThatMustNotBeTraced";
         private const string AzureDevOpsUseHttpPathString = "-c credential.\"https://dev.azure.com\".useHttpPath=true";
+        private const string CredentialFillCommand = AzureDevOpsUseHttpPathString + " credential fill";
+        private const string CertificateFillCommand = "credential fill";
+        private const string MissingPasswordMessage = "Git credential fill returned no password";
+        private const int GitFatalExitCode = 128;
 
         [TestCase]
-        public void TryGetCredentialDoesNotTraceSecretWhenParseFails()
+        public void TryGetCredentialDoesNotTraceSecretWhenThePasswordIsMissing()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
+            MockGitProcess gitProcess = CreateGitProcess(
+                CredentialFillCommand,
+                "protocol=https\nhost=example.com\nhelper output " + SecretValue + "=ignored\nusername=someone\ncredential=" + SecretValue + "\noauth_refresh_token=" + SecretValue + "\n");
 
-            // The secret is on the last line and has no terminating newline, so the parse fails.
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result(
-                    "protocol=https\nhost=example.com\nhelper output " + SecretValue + "=ignored\nusername=someone\npassword=" + SecretValue,
-                    string.Empty,
-                    GitProcess.Result.SuccessCode));
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out string password, out string errorMessage).ShouldBeFalse();
 
-            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _)
-                .ShouldBeFalse("Parse of the credential output must fail for this test");
-
-            EventMetadata metadata = GetActivityMetadata(tracer);
-            AssertNoSecret(metadata);
-            metadata["OutputKeys"].ShouldEqual("protocol,host,<other>,username,password");
+            password.ShouldBeNull();
+            errorMessage.ShouldEqual(MissingPasswordMessage);
+            GetTelemetryWarning(tracer)["OutputKeys"].ShouldEqual("protocol,host,<other>,username,credential,oauth_refresh_token");
             AssertNoSecret(tracer);
         }
 
         [TestCase]
-        public void TryGetCertificatePasswordDoesNotTraceSecretWhenParseFails()
+        public void TryGetCertificatePasswordDoesNotTraceSecretWhenThePasswordIsMissing()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
+            MockGitProcess gitProcess = CreateGitProcess(
+                CertificateFillCommand,
+                "protocol=cert\npath=mock://certificate\ncredential=" + SecretValue + "\n");
 
-            // The secret is on the last line and has no terminating newline, so the parse fails.
-            gitProcess.SetExpectedCommandResult(
-                "credential fill",
-                () => new GitProcess.Result(
-                    "protocol=cert\npath=mock://certificate\npassword=" + SecretValue,
-                    string.Empty,
-                    GitProcess.Result.SuccessCode));
+            gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out string password, out string errorMessage).ShouldBeFalse();
 
-            gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out _, out _)
-                .ShouldBeFalse("Parse of the credential output must fail for this test");
-
-            EventMetadata metadata = GetActivityMetadata(tracer);
-            AssertNoSecret(metadata);
-            metadata["OutputKeys"].ShouldEqual("protocol,path,password");
+            password.ShouldBeNull();
+            errorMessage.ShouldEqual(MissingPasswordMessage);
+            EventMetadata warning = GetTelemetryWarning(tracer);
+            warning["OutputKeys"].ShouldEqual("protocol,path,credential");
+            warning["CertificatePath"].ShouldEqual("mock://certificate");
             AssertNoSecret(tracer);
         }
 
         [TestCase("", "")]
-        [TestCase("protocol=https\r\nhost=example.com\r\nusername=someone\r\npassword=" + SecretValue, "protocol,host,username,password")]
-        [TestCase("protocol=https\rhost=example.com\nusername=someone\npassword=" + SecretValue, "protocol,host,username,password")]
-        [TestCase("no separator " + SecretValue + "\n=" + SecretValue + "\nusername=someone\npassword=" + SecretValue, "<malformed>,<malformed>,username,password")]
-        [TestCase("protocol=https\nhost=example.com\nurl=https://example.com\nwwwauth[]=Bearer realm=" + SecretValue + "\ncapability[]=authtype\noauth_refresh_token=" + SecretValue + "\nusername=someone\npassword=" + SecretValue, "protocol,host,url,wwwauth[],capability[],oauth_refresh_token,username,password")]
-        [TestCase("protocol=https\n password=" + SecretValue + "\nPassword=" + SecretValue + "\npassword =" + SecretValue + "\nusername=someone\npassword=" + SecretValue, "protocol,<other>,<other>,<other>,username,password")]
-        [TestCase("custom_" + SecretValue + "=ignored\nusername=someone\npassword=" + SecretValue, "<other>,username,password")]
-        public void TryGetCredentialTracesOnlyKnownKeyNamesWhenParseFails(string output, string expectedKeys)
+        [TestCase("protocol=https\r\nhost=example.com\r\nusername=someone\r\ncredential=" + SecretValue, "protocol,host,username,credential")]
+        [TestCase("protocol=https\rhost=example.com\nusername=someone\ncredential=" + SecretValue + "\n", "protocol,username,credential")]
+        [TestCase("no separator " + SecretValue + "\n=" + SecretValue + "\nusername=someone\ncredential=" + SecretValue + "\n", "<malformed>,<malformed>,username,credential")]
+        [TestCase("protocol=https\nhost=example.com\nurl=https://example.com\nwwwauth[]=Bearer realm=" + SecretValue + "\ncapability[]=authtype\noauth_refresh_token=" + SecretValue + "\nusername=someone\n", "protocol,host,url,wwwauth[],capability[],oauth_refresh_token,username")]
+        [TestCase("protocol=https\n password=" + SecretValue + "\nPassword=" + SecretValue + "\npassword =" + SecretValue + "\nusername=someone\n", "protocol,<other>,<other>,<other>,username")]
+        [TestCase("custom_" + SecretValue + "=ignored\nusername=someone\n", "<other>,username")]
+        public void TryGetCredentialTracesOnlyKnownKeyNamesWhenThePasswordIsMissing(string output, string expectedKeys)
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result(output, string.Empty, GitProcess.Result.SuccessCode));
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, output);
 
-            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _)
-                .ShouldBeFalse("Parse of the credential output must fail for this test");
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _).ShouldBeFalse();
 
-            EventMetadata metadata = GetActivityMetadata(tracer);
-            AssertNoSecret(metadata);
-            metadata["OutputKeys"].ShouldEqual(expectedKeys);
+            GetTelemetryWarning(tracer)["OutputKeys"].ShouldEqual(expectedKeys);
             AssertNoSecret(tracer);
-        }
-
-        [TestCase]
-        public void TryGetCredentialDoesNotTraceOutputKeysWhenParseSucceeds()
-        {
-            MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result(
-                    "protocol=https\nhost=example.com\nusername=someone\npassword=" + SecretValue + "\n",
-                    string.Empty,
-                    GitProcess.Result.SuccessCode));
-
-            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _).ShouldBeTrue();
-
-            EventMetadata metadata = GetActivityMetadata(tracer);
-            metadata.ContainsKey("OutputKeys").ShouldBeFalse("Output keys are only traced when the parse fails");
-            AssertNoSecret(metadata);
-        }
-
-        [TestCase]
-        public void TryGetCredentialAcceptsMissingUsername()
-        {
-            MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result(
-                    "protocol=https\nhost=example.com\npassword=" + SecretValue + "\n",
-                    string.Empty,
-                    GitProcess.Result.SuccessCode));
-
-            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out _).ShouldBeTrue();
-
-            username.ShouldEqual(string.Empty);
-            password.ShouldEqual(SecretValue);
-            GetActivityMetadata(tracer).ContainsKey("OutputKeys").ShouldBeFalse("Output keys are only traced when the parse fails");
-        }
-
-        [TestCase]
-        public void TryGetCredentialFailsWhenPasswordKeyIsAbsent()
-        {
-            MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result(
-                    "protocol=https\nhost=example.com\nusername=someone\n",
-                    string.Empty,
-                    GitProcess.Result.SuccessCode));
-
-            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out string password, out _).ShouldBeFalse();
-
-            password.ShouldBeNull();
-            GetActivityMetadata(tracer)["OutputKeys"].ShouldEqual("protocol,host,username");
-        }
-
-        [TestCase]
-        public void TryGetCertificatePasswordFailsWhenPasswordKeyIsAbsent()
-        {
-            MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                "credential fill",
-                () => new GitProcess.Result(
-                    "protocol=cert\npath=mock://certificate\n",
-                    string.Empty,
-                    GitProcess.Result.SuccessCode));
-
-            gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out string password, out _).ShouldBeFalse();
-
-            password.ShouldBeNull();
-            GetActivityMetadata(tracer)["OutputKeys"].ShouldEqual("protocol,path");
         }
 
         [TestCase]
         public void TryGetCredentialLimitsTheNumberOfTracedKeys()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result(
-                    string.Concat(Enumerable.Repeat("key=value\n", 100)) + "password=" + SecretValue,
-                    string.Empty,
-                    GitProcess.Result.SuccessCode));
+            MockGitProcess gitProcess = CreateGitProcess(
+                CredentialFillCommand,
+                string.Concat(Enumerable.Repeat("key=value\n", 100)));
 
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _).ShouldBeFalse();
 
             string expectedKeys = string.Join(",", Enumerable.Repeat("<other>", 32)) + ",...";
-            GetActivityMetadata(tracer)["OutputKeys"].ShouldEqual(expectedKeys);
+            GetTelemetryWarning(tracer)["OutputKeys"].ShouldEqual(expectedKeys);
         }
 
         [TestCase]
         public void TryGetCredentialDoesNotTraceKeysWhenOutputIsTruncated()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result("protocol=https\nhost=example.com\n", string.Empty, GitProcess.Result.SuccessCode, outputTruncated: true, errorsTruncated: false));
+            MockGitProcess gitProcess = CreateGitProcess(
+                CredentialFillCommand,
+                "protocol=https\nhost=example.com\n",
+                outputTruncated: true);
 
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _).ShouldBeFalse();
 
-            GetActivityMetadata(tracer)["OutputKeys"].ShouldEqual("<truncated>");
+            GetTelemetryWarning(tracer)["OutputKeys"].ShouldEqual("<truncated>");
         }
 
         [TestCase]
-        public void TryGetCredentialReportsWhyItFailedWhenThePasswordIsMissing()
+        public void TryGetCredentialReportsTheFailureInTelemetryWhenThePasswordIsMissing()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result("protocol=https\nusername=someone\n", string.Empty, GitProcess.Result.SuccessCode));
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, "protocol=https\nhost=example.com\nusername=someone\n");
 
-            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string errorMessage).ShouldBeFalse();
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _).ShouldBeFalse();
 
-            errorMessage.ShouldEqual("Git credential fill returned no password");
+            EventMetadata warning = GetTelemetryWarning(tracer);
+            warning["OutputKeys"].ShouldEqual("protocol,host,username");
+            ((int)warning["ExitCode"]).ShouldEqual(GitProcess.Result.SuccessCode);
+            warning.ContainsKey("hasVisibleConsoleWindow").ShouldBeTrue("The console visibility diagnostic stays with the failure");
+            warning[TracingConstants.MessageKey.WarningMessage].ShouldEqual(MissingPasswordMessage);
         }
 
         [TestCase]
-        public void TryGetCertificatePasswordReportsWhyItFailedWhenThePasswordIsMissing()
+        public void TryGetCredentialDoesNotReportAFailureWhenTheParseSucceeds()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                "credential fill",
-                () => new GitProcess.Result("protocol=cert\npath=mock://certificate\n", string.Empty, GitProcess.Result.SuccessCode));
+            MockGitProcess gitProcess = CreateGitProcess(
+                CredentialFillCommand,
+                "protocol=https\nhost=example.com\nusername=someone\npassword=" + SecretValue + "\n");
 
-            gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out _, out string errorMessage).ShouldBeFalse();
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out string password, out _).ShouldBeTrue();
 
-            errorMessage.ShouldEqual("Git credential fill returned no password");
+            password.ShouldEqual(SecretValue);
+            tracer.TelemetryWarnings.ShouldBeEmpty();
+            GetActivityMetadata(tracer).ContainsKey("OutputKeys").ShouldBeFalse("Output keys are only traced when the parse fails");
         }
 
         [TestCase]
-        public void TryGetCertificatePasswordDoesNotTraceOutputKeysWhenParseSucceeds()
+        public void TryGetCertificatePasswordDoesNotReportAFailureWhenTheParseSucceeds()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                "credential fill",
-                () => new GitProcess.Result(
-                    "protocol=cert\npath=mock://certificate\npassword=" + SecretValue + "\n",
-                    string.Empty,
-                    GitProcess.Result.SuccessCode));
+            MockGitProcess gitProcess = CreateGitProcess(
+                CertificateFillCommand,
+                "protocol=cert\npath=mock://certificate\npassword=" + SecretValue + "\n");
 
             gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out string password, out _).ShouldBeTrue();
 
             password.ShouldEqual(SecretValue);
-            EventMetadata metadata = GetActivityMetadata(tracer);
-            metadata.ContainsKey("OutputKeys").ShouldBeFalse("Output keys are only traced when the parse fails");
+            tracer.TelemetryWarnings.ShouldBeEmpty();
+            GetActivityMetadata(tracer).ContainsKey("OutputKeys").ShouldBeFalse("Output keys are only traced when the parse fails");
         }
 
         [TestCase]
-        public void TryGetCredentialDoesNotSendStderrToTelemetryWhenGitFails()
+        public void TryGetCredentialAcceptsMissingUsername()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result(
-                    string.Empty,
-                    "warning: invalid credential line: " + SecretValue,
-                    GitProcess.Result.GenericFailureCode));
+            MockGitProcess gitProcess = CreateGitProcess(
+                CredentialFillCommand,
+                "protocol=https\nhost=example.com\npassword=" + SecretValue + "\n");
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out _).ShouldBeTrue();
+
+            username.ShouldEqual(string.Empty);
+            password.ShouldEqual(SecretValue);
+        }
+
+        [TestCase]
+        public void TryGetCredentialDescribesAFailedFillWithoutSendingStderrToTelemetry()
+        {
+            MockTracer tracer = new MockTracer();
+            string stderr = "warning: invalid credential line: " + SecretValue;
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, string.Empty, stderr, GitFatalExitCode);
 
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string errorMessage).ShouldBeFalse();
 
-            AssertStderrIsOnlyLocal(tracer);
-            errorMessage.Contains(SecretValue).ShouldBeTrue("The caller still receives the error text");
+            AssertStderrIsOnlyLocal(tracer, stderr);
+            errorMessage.ShouldEqual(stderr);
         }
 
         [TestCase]
-        public void TryGetCertificatePasswordDoesNotSendStderrToTelemetryWhenGitFails()
+        public void TryGetCertificatePasswordDescribesAFailedFillWithoutSendingStderrToTelemetry()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                "credential fill",
-                () => new GitProcess.Result(
-                    string.Empty,
-                    "warning: invalid credential line: " + SecretValue,
-                    GitProcess.Result.GenericFailureCode));
+            string stderr = "warning: invalid credential line: " + SecretValue;
+            MockGitProcess gitProcess = CreateGitProcess(CertificateFillCommand, string.Empty, stderr, GitFatalExitCode);
 
-            gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out _, out _).ShouldBeFalse();
+            gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out _, out string errorMessage).ShouldBeFalse();
 
-            AssertStderrIsOnlyLocal(tracer);
+            AssertStderrIsOnlyLocal(tracer, stderr);
+            GetTelemetryWarning(tracer)["CertificatePath"].ShouldEqual("mock://certificate");
+            errorMessage.ShouldEqual(stderr);
         }
 
         [TestCase("protocol=https\nxpassword=WRONG\npath=contains-password=WRONG\nusername=someone\npassword=RIGHT\n", "someone", "RIGHT")]
         [TestCase("username=bob\nurl=https://example.com/?username=evil\npassword=RIGHT\n", "bob", "RIGHT")]
         [TestCase("username=\npassword=RIGHT\n", "", "RIGHT")]
         [TestCase("password=RIGHT\r\nusername=someone\r\n", "someone", "RIGHT")]
-        public void TryGetCredentialReadsOnlyLinesThatStartWithTheKey(string output, string expectedUsername, string expectedPassword)
+        [TestCase("username=first\nusername=second\npassword=WRONG\npassword=RIGHT\n", "second", "RIGHT")]
+        [TestCase("username=someone\npassword=RIGHT", "someone", "RIGHT")]
+        public void TryGetCredentialReadsLikeGit(string output, string expectedUsername, string expectedPassword)
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result(output, string.Empty, GitProcess.Result.SuccessCode));
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, output);
 
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out _).ShouldBeTrue();
 
@@ -292,25 +203,46 @@ namespace GVFS.UnitTests.Common.Git
 
         [TestCase("oauth_password=WRONG\nusername=someone\n")]
         [TestCase("path=contains-password=WRONG\nusername=someone\n")]
-        public void TryGetCredentialFailsWhenOnlyAnotherKeyContainsThePasswordKey(string output)
+        [TestCase("username=someone\rpassword=WRONG\n")]
+        public void TryGetCredentialFailsWhenNoLineStartsWithThePasswordKey(string output)
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
-            gitProcess.SetExpectedCommandResult(
-                $"{AzureDevOpsUseHttpPathString} credential fill",
-                () => new GitProcess.Result(output, string.Empty, GitProcess.Result.SuccessCode));
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, output);
 
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out string password, out _).ShouldBeFalse();
 
             password.ShouldBeNull();
         }
 
-        private static void AssertStderrIsOnlyLocal(MockTracer tracer)
+        private static MockGitProcess CreateGitProcess(
+            string command,
+            string output,
+            string errors = "",
+            int exitCode = GitProcess.Result.SuccessCode,
+            bool outputTruncated = false)
         {
-            tracer.TelemetryWarningEvents.Count.ShouldEqual(1);
-            tracer.TelemetryWarningEvents.Single().Contains(SecretValue).ShouldBeFalse("Telemetry events must not carry stderr");
-            tracer.TelemetryWarningEvents.Single().Contains("hasVisibleConsoleWindow").ShouldBeTrue("The console visibility diagnostic stays in telemetry");
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                command,
+                () => new GitProcess.Result(output, errors, exitCode, outputTruncated, errorsTruncated: false));
+            return gitProcess;
+        }
+
+        private static void AssertStderrIsOnlyLocal(MockTracer tracer, string stderr)
+        {
+            EventMetadata warning = GetTelemetryWarning(tracer);
+            ((int)warning["ExitCode"]).ShouldEqual(GitFatalExitCode);
+            ((int)warning["ErrorsLength"]).ShouldEqual(stderr.Length);
+            ((bool)warning["ErrorsTruncated"]).ShouldBeFalse();
+            warning.ContainsKey("hasVisibleConsoleWindow").ShouldBeTrue("The console visibility diagnostic stays in telemetry");
+            AssertNoSecret(warning);
             tracer.RelatedWarningEvents.Any(e => e.Contains(SecretValue)).ShouldBeTrue("The local log keeps stderr for diagnosis");
+        }
+
+        private static EventMetadata GetTelemetryWarning(MockTracer tracer)
+        {
+            tracer.TelemetryWarnings.Count.ShouldEqual(1);
+            return tracer.TelemetryWarnings.Single();
         }
 
         private static EventMetadata GetActivityMetadata(MockTracer tracer)
@@ -328,15 +260,17 @@ namespace GVFS.UnitTests.Common.Git
             {
                 foreach (string traced in source.RelatedInfoEvents
                     .Concat(source.RelatedWarningEvents)
-                    .Concat(source.RelatedErrorEvents)
-                    .Concat(source.TelemetryWarningEvents))
+                    .Concat(source.RelatedErrorEvents))
                 {
                     traced.Contains(SecretValue).ShouldBeFalse("Credential output must not be traced: " + traced);
                 }
 
-                foreach (EventMetadata related in source.RelatedEventMetadata.Where(m => m != null))
+                foreach (EventMetadata metadata in source.TelemetryWarnings
+                    .Concat(source.RelatedEventMetadata)
+                    .Concat(source.StopMetadata)
+                    .Where(m => m != null))
                 {
-                    AssertNoSecret(related);
+                    AssertNoSecret(metadata);
                 }
             }
         }
