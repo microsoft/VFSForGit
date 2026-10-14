@@ -101,23 +101,15 @@ namespace GVFS.Common.Git
 
             if (this.workingDirectoryRoot != null)
             {
-                // Deliberately not Enlistment.DotGitRoot. In a linked worktree, --git-dir must
-                // point at the worktree's .git file, not the gitdir target named inside it. Git
-                // follows the gitdir: pointer, resolves per-worktree HEAD/index/refs, and then
-                // follows commondir to shared state.
+                // Deliberately not Enlistment.DotGitRoot. In a linked worktree, --git-dir must be
+                // the path of the worktree's .git file, not the gitdir: target stored inside it.
+                // Given that file, git reads the gitdir: pointer itself. It resolves the
+                // per-worktree files (HEAD, index, ORIG_HEAD, logs/HEAD, refs/bisect, refs/worktree)
+                // there, and everything else (config, objects, packed-refs, refs/heads) through
+                // commondir in the shared git directory.
                 // Passing Enlistment.DotGitRoot would bind commands to the main worktree instead.
                 this.gitDirPath = Path.Combine(this.workingDirectoryRoot, GVFSConstants.DotGit.Root);
             }
-        }
-
-        /// <summary>
-        /// Path passed as --git-dir to InvokeGitAgainstDotGitFolder.
-        /// In a linked worktree this is the worktree's .git file, not the gitdir target
-        /// named inside it or <see cref="Enlistment.DotGitRoot"/>.
-        /// </summary>
-        internal string GitDirPath
-        {
-            get { return this.gitDirPath; }
         }
 
         public static string ExpireTimeDateString

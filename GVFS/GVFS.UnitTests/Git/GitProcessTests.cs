@@ -1,8 +1,10 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System.Diagnostics;
+using System.IO;
 
 namespace GVFS.UnitTests.Git
 {
@@ -103,24 +105,35 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
-        public void GitDirPathMatchesDotGitRootForRegularEnlistment()
+        public void GitDirectoryMatchesDotGitRootForRegularEnlistment()
         {
-            // Regular enlistments do not have a separate worktree .git file,
-            // so GitProcess and Enlistment use the same .git directory path.
+            // Regular enlistments have no separate worktree .git file,
+            // so the --git-dir that reaches git matches Enlistment.DotGitRoot.
             MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
-            GitProcess process = new GitProcess(enlistment);
+            MockGitProcess process = new MockGitProcess(enlistment);
+            process.SetExpectedCommandResult(
+                "rev-parse HEAD",
+                () => new GitProcess.Result("abc123", string.Empty, GitProcess.Result.SuccessCode));
 
-            process.GitDirPath.ShouldEqual(enlistment.DotGitRoot);
+            process.RevParse("HEAD");
+
+            process.InvocationsRun.Count.ShouldEqual(1);
+            process.InvocationsRun[0].DotGitDirectory.ShouldEqual(enlistment.DotGitRoot);
         }
 
         [TestCase]
-        public void GitDirPathIsNullWhenWorkingDirectoryRootIsNull()
+        public void NoGitDirectoryIsPassedWhenWorkingDirectoryRootIsNull()
         {
-            // Some callers only need global Git operations. Those instances have no enlistment
-            // root and cannot pass a --git-dir path.
-            GitProcess process = new GitProcess("git.exe", workingDirectoryRoot: null);
+            // Instances without an enlistment root cannot supply a --git-dir.
+            MockGitProcess process = new MockGitProcess(Path.Combine("mock:", "git"), workingDirectoryRoot: null);
+            process.SetExpectedCommandResult(
+                "rev-parse HEAD",
+                () => new GitProcess.Result("abc123", string.Empty, GitProcess.Result.SuccessCode));
 
-            process.GitDirPath.ShouldBeNull();
+            process.RevParse("HEAD");
+
+            process.InvocationsRun.Count.ShouldEqual(1);
+            process.InvocationsRun[0].DotGitDirectory.ShouldBeNull();
         }
 
         [TestCase]
