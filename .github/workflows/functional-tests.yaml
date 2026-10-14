@@ -189,7 +189,7 @@ jobs:
 
     - name: Upload installation logs
       if: always() && steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       continue-on-error: true
       with:
         name: ${{ env.ARTIFACT_PREFIX }}InstallationLogs_${{ env.FT_MATRIX_NAME }}
@@ -209,7 +209,7 @@ jobs:
 
     - name: Upload failure diagnostics (mount dumps + logs)
       if: always() && steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       continue-on-error: true
       with:
         name: ${{ env.ARTIFACT_PREFIX }}FailureDiagnostics_${{ env.FT_MATRIX_NAME }}
@@ -218,14 +218,14 @@ jobs:
 
     - name: Upload functional test results
       if: always() && steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ env.ARTIFACT_PREFIX }}FunctionalTests_Results_${{ env.FT_MATRIX_NAME }}
         path: TestResult.xml
 
     - name: Upload Git trace2 output
       if: always() && steps.skip.outputs.result != 'true'
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ env.ARTIFACT_PREFIX }}GitTrace2_${{ env.FT_MATRIX_NAME }}
         path: C:\temp\git-trace2.log
