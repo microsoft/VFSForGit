@@ -6,11 +6,10 @@ namespace GVFS.Platform.Windows
     {
         public const int GenericProjFSError = -2147024579; // returned by ProjFS::DeleteFile() on Win server 2016 while deleting a partial file
 
-        // HRESULT_FROM_WIN32(ERROR_FILE_SYSTEM_VIRTUALIZATION_NOT_AVAILABLE (478)):
-        // "The file system minifilter cannot attach to the developer volume." Returned by
-        // StartVirtualizing when PrjFlt is not on the volume's allowed-filter list, which
-        // is the default on a ReFS Dev Drive.
-        public const int FileSystemVirtualizationNotAvailable = unchecked((int)0x800701DE);
+        // HRESULT_FROM_WIN32(ERROR_CANT_ATTACH_TO_DEV_VOLUME (478)): "The file system
+        // minifilter cannot attach to the developer volume." StartVirtualizing returns it
+        // when PrjFlt is not on the allowed-filter list of a Dev Drive.
+        public const int CantAttachToDevVolume = unchecked((int)0x800701DE);
 
         private const int FacilityNtBit = 0x10000000; // FACILITY_NT_BIT
         private const int FacilityWin32 = 7;          // FACILITY_WIN32

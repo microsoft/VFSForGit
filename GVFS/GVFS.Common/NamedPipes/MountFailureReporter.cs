@@ -5,49 +5,17 @@ using System.Threading;
 namespace GVFS.Common.NamedPipes
 {
     /// <summary>
-    /// The result of a thread trying to take ownership of the mount-failure path.
-    /// </summary>
-    public enum MountFailureOwnership
-    {
-        /// <summary>
-        /// The calling thread now owns reporting and must drive it to process exit.
-        /// </summary>
-        Owner,
-
-        /// <summary>
-        /// The calling thread already owned reporting and has re-entered, because
-        /// something threw while it was reporting and an outer catch block called back
-        /// in. It must not wait again: it would block forever on a signal that it is
-        /// itself responsible for observing.
-        /// </summary>
-        Reentrant,
-
-        /// <summary>
-        /// Another thread owns reporting and will exit the process. The calling thread
-        /// must not continue with a half-initialized mount.
-        /// </summary>
-        NotOwner,
-    }
-
-    /// <summary>
-    /// Server half of the mount-failure handshake: keeps a failed mount process alive
-    /// just long enough for a client to read the reason over the named pipe.
+    /// Server half of the mount-failure handshake. A failing mount process stays alive
+    /// until a client has read the reason over the named pipe, or until a short timeout
+    /// elapses, so the failure response reaches the client before the process exits.
     /// </summary>
     /// <remarks>
-    /// Without this, the mount process sets <c>MountFailed</c> and exits immediately.
-    /// The client polls GetStatus every 100ms, so it usually loses the race, the pipe
-    /// breaks mid-request, and the user sees a transport error instead of the cause.
-    /// <para>
-    /// The wait is deliberately short. Until the process exits it still holds the mount
-    /// lock and the named pipe, so a longer wait delays the user's next mount attempt.
-    /// </para>
-    /// <para>
-    /// This type owns only the handshake state. Process-exit policy stays with the
-    /// caller. The client half of the same protocol is
+    /// Until the process exits it holds the mount lock and the named pipe, so the wait is
+    /// bounded and short. This type owns only the handshake state. The caller decides how
+    /// and when the process exits. The client half of the protocol is
     /// <see cref="GVFSEnlistment.WaitUntilMounted(ITracer, string, string, bool, out string, Action{string})"/>.
-    /// </para>
     /// </remarks>
-    public sealed class MountFailureReporter : IDisposable
+    public sealed class MountFailureReporter
     {
         /// <summary>
         /// Cap on how long to wait once a client is known to be polling.
@@ -61,18 +29,18 @@ namespace GVFS.Common.NamedPipes
         internal const int DefaultNoClientTimeoutMs = 500;
 
         /// <summary>
-        /// Grace period after a client reads the failure. Any client can satisfy the
-        /// wait, and it is not necessarily the one that is mounting -- a concurrent
-        /// "gvfs status" polls the same pipe. Keeping this above the client's 100ms poll
-        /// interval means the mounting client still gets its answer on its next poll.
+        /// Time to stay alive after a client reads the failure. Any client can satisfy the
+        /// wait, and it is not necessarily the mounting one: a concurrent "gvfs status"
+        /// polls the same pipe. The mounting client must get at least one more poll before
+        /// the process exits, so this is longer than the client's poll interval.
         /// </summary>
-        internal const int DefaultDrainMs = 150;
+        internal const int DefaultDrainMs = GVFSEnlistment.MountStatusPollIntervalMs * 3 / 2;
 
         private readonly ITracer tracer;
-        private readonly int reportTimeoutMs;
-        private readonly int noClientTimeoutMs;
-        private readonly int drainMs;
-        private readonly ManualResetEvent failureReported;
+        private readonly IMountFailureEnvironment environment;
+
+        // Held for the life of the process, which ends through Environment.Exit.
+        private readonly ManualResetEvent failureReported = new ManualResetEvent(false);
 
         private volatile string failureMessage;
         private volatile bool namedPipeReady;
@@ -82,21 +50,14 @@ namespace GVFS.Common.NamedPipes
         private int owningThreadId;
 
         public MountFailureReporter(ITracer tracer)
-            : this(tracer, DefaultReportTimeoutMs, DefaultNoClientTimeoutMs, DefaultDrainMs)
+            : this(tracer, new ProcessMountFailureEnvironment())
         {
         }
 
-        /// <summary>
-        /// Test constructor. Lets unit tests use short timeouts so they do not pay the
-        /// production waits.
-        /// </summary>
-        internal MountFailureReporter(ITracer tracer, int reportTimeoutMs, int noClientTimeoutMs, int drainMs)
+        internal MountFailureReporter(ITracer tracer, IMountFailureEnvironment environment)
         {
             this.tracer = tracer;
-            this.reportTimeoutMs = reportTimeoutMs;
-            this.noClientTimeoutMs = noClientTimeoutMs;
-            this.drainMs = drainMs;
-            this.failureReported = new ManualResetEvent(false);
+            this.environment = environment;
         }
 
         /// <summary>
@@ -134,8 +95,8 @@ namespace GVFS.Common.NamedPipes
         }
 
         /// <summary>
-        /// Records that the named pipe server is accepting requests. Failures before this
-        /// point cannot be reported over the pipe and must not wait for a reader.
+        /// Records that the named pipe server is accepting requests. A failure before this
+        /// point cannot be reported over the pipe, so it does not wait for a client.
         /// </summary>
         public void OnNamedPipeReady()
         {
@@ -143,84 +104,97 @@ namespace GVFS.Common.NamedPipes
         }
 
         /// <summary>
-        /// Attempts to take ownership of the mount-failure path, publishing
-        /// <paramref name="message"/> as the reason if this call wins.
+        /// Takes ownership of the mount-failure path.
         /// </summary>
-        public MountFailureOwnership TryTakeOwnership(string message)
+        /// <returns>
+        /// True if the calling thread now owns reporting and must drive it to process exit.
+        /// False if it does not. Both false outcomes end in process exit, so the caller
+        /// does not continue in production:
+        /// <list type="bullet">
+        /// <item>The calling thread already owns reporting, because something threw while it
+        /// reported and an outer catch block called back in. It exits now. Waiting again
+        /// would block on a signal that this same thread has to observe.</item>
+        /// <item>Another thread owns reporting. The calling thread blocks until that thread
+        /// ends the process, so it does not carry on with a half-initialized mount.</item>
+        /// </list>
+        /// </returns>
+        public bool TryBeginFailure(int exitCode, string message)
         {
             int currentThreadId = Environment.CurrentManagedThreadId;
             int previousOwner = Interlocked.CompareExchange(ref this.owningThreadId, currentThreadId, 0);
 
             if (previousOwner == currentThreadId)
             {
-                return MountFailureOwnership.Reentrant;
+                this.tracer.RelatedWarning(
+                    null,
+                    $"{nameof(this.TryBeginFailure)}: Re-entered while reporting a mount failure: {message}",
+                    Keywords.Telemetry);
+                this.environment.ExitProcess(exitCode);
+                return false;
             }
 
             if (previousOwner != 0)
             {
-                return MountFailureOwnership.NotOwner;
+                this.environment.BlockUntilProcessExits();
+                return false;
             }
 
             this.failureMessage = message;
-            return MountFailureOwnership.Owner;
+            return true;
         }
 
         /// <summary>
-        /// Records that a GetStatus response reached a client, and releases
-        /// <see cref="WaitForClientToReadFailure"/> when that response carried the
-        /// failure.
+        /// Sends a status response, and records the outcome only if the send succeeded.
         /// </summary>
-        /// <param name="carriedMountFailure">
-        /// True when the delivered response reported MountFailed.
-        /// </param>
-        public void OnStatusDelivered(bool carriedMountFailure)
+        /// <param name="trySend">Sends the response. Returns true if it reached the client.</param>
+        /// <param name="carriesMountFailure">True if the response reports MountFailed.</param>
+        /// <remarks>
+        /// The send must come first. Recording a client that never received the response
+        /// would release the wait and let the process exit before any client read the
+        /// failure.
+        /// </remarks>
+        public bool TrySendStatus(Func<bool> trySend, bool carriesMountFailure)
         {
-            // Only count a client that actually received a status. Recording this before
-            // the send succeeds would let a client that connected and then disconnected
-            // extend the post-failure wait.
+            if (!trySend())
+            {
+                return false;
+            }
+
             this.clientReceivedStatus = true;
 
-            if (carriedMountFailure)
+            if (carriesMountFailure)
             {
                 this.failureReported.Set();
             }
+
+            return true;
         }
 
         /// <summary>
         /// Blocks until a client has read the failure, or until a short timeout elapses.
-        /// Returns immediately when no client could possibly read it.
+        /// Returns immediately when no client could read it.
         /// </summary>
-        public void WaitForClientToReadFailure()
+        /// <returns>True if a client read the failure.</returns>
+        public bool WaitForClientToReadFailure()
         {
             if (!this.namedPipeReady)
             {
-                // No client can read the failure. The caller detects this case by
-                // watching the mount process exit code instead.
-                return;
+                return false;
             }
 
-            int timeoutMs = this.clientReceivedStatus ? this.reportTimeoutMs : this.noClientTimeoutMs;
+            int timeoutMs = this.clientReceivedStatus ? DefaultReportTimeoutMs : DefaultNoClientTimeoutMs;
 
-            if (this.failureReported.WaitOne(timeoutMs))
+            if (this.environment.WaitForSignal(this.failureReported, timeoutMs))
             {
-                Thread.Sleep(this.drainMs);
+                this.environment.Sleep(DefaultDrainMs);
+                return true;
             }
-            else
-            {
-                this.tracer.RelatedWarning(
-                    null,
-                    $"{nameof(this.WaitForClientToReadFailure)}: No client read the mount failure within {timeoutMs}ms. Exiting anyway.",
-                    Keywords.Telemetry);
-            }
-        }
 
-        public void Dispose()
-        {
-            // InProcessMount deliberately does not call this: it holds the reporter for
-            // the life of the process and leaves through Environment.Exit, which reclaims
-            // the handle. Do not dispose while a thread is inside
-            // WaitForClientToReadFailure -- WaitOne on a disposed handle throws.
-            this.failureReported.Dispose();
+            this.tracer.RelatedWarning(
+                null,
+                $"{nameof(this.WaitForClientToReadFailure)}: No client read the mount failure within {timeoutMs}ms. Exiting anyway.",
+                Keywords.Telemetry);
+            return false;
         }
     }
 }

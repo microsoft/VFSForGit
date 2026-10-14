@@ -137,12 +137,9 @@ namespace GVFS.Virtualization.Background
             {
                 if (this.backgroundThread != null)
                 {
-                    // Deliberately not calling Task.Dispose. A Task holds no unmanaged
-                    // resources, and Task.Dispose throws InvalidOperationException unless
-                    // the task has reached a completion state. A failed mount disposes the
-                    // callbacks without calling Shutdown first, so this thread is still
-                    // running and that throw would prevent the mount process from
-                    // reporting why the mount failed.
+                    // Dispose can run while this task is still running, and Task.Dispose
+                    // throws unless the task has completed. A Task holds no unmanaged
+                    // resources, so it is not disposed here.
                     this.backgroundThread = null;
                 }
                 if (this.backgroundTasks != null)

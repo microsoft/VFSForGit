@@ -1,216 +1,148 @@
+using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
-using System;
-using System.Diagnostics;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Common
 {
-    /// <summary>
-    /// Covers the server half of the mount-failure handshake. Before this state machine
-    /// was extracted from InProcessMount it lived in GVFS.Mount, which GVFS.UnitTests
-    /// cannot reference, so none of it was covered.
-    /// </summary>
     [TestFixture]
     public class MountFailureReporterTests
     {
-        // Deliberately much smaller than the production defaults: these only have to be
-        // far enough apart to tell the two timeout paths apart, and one test has to wait
-        // the long one out in real time.
-        private const int ReportTimeoutMs = 600;
-        private const int NoClientTimeoutMs = 200;
-        private const int DrainMs = 20;
-
         [TestCase]
-        public void FirstThreadTakesOwnershipAndPublishesTheMessage()
+        public void FirstCallerOwnsTheFailureAndPublishesTheMessage()
         {
-            using (MountFailureReporter reporter = CreateReporter())
-            {
-                reporter.FailureMessage.ShouldBeNull();
+            FakeEnvironment environment = new FakeEnvironment();
+            MountFailureReporter reporter = CreateReporter(environment);
 
-                reporter.TryTakeOwnership("the real reason").ShouldEqual(MountFailureOwnership.Owner);
-                reporter.FailureMessage.ShouldEqual("the real reason");
-            }
+            reporter.FailureMessage.ShouldBeNull();
+
+            reporter.TryBeginFailure(exitCode: 3, message: "the real reason").ShouldBeTrue();
+
+            reporter.FailureMessage.ShouldEqual("the real reason");
+            environment.ExitCodes.Count.ShouldEqual(0);
+            environment.BlockCount.ShouldEqual(0);
         }
 
         [TestCase]
-        public void SameThreadCallingTwiceIsReentrantRatherThanBlocked()
+        public void ReentrantCallOnTheOwningThreadExitsAndKeepsTheFirstMessage()
         {
-            using (MountFailureReporter reporter = CreateReporter())
-            {
-                reporter.TryTakeOwnership("first").ShouldEqual(MountFailureOwnership.Owner);
+            FakeEnvironment environment = new FakeEnvironment();
+            MountFailureReporter reporter = CreateReporter(environment);
+            reporter.TryBeginFailure(exitCode: 3, message: "first").ShouldBeTrue();
 
-                // A throw inside the reporting path can make an outer catch block call
-                // back in on the same thread. That must not be treated as a second thread,
-                // or the caller would park forever holding the mount lock and the pipe.
-                reporter.TryTakeOwnership("second").ShouldEqual(MountFailureOwnership.Reentrant);
+            reporter.TryBeginFailure(exitCode: 7, message: "second").ShouldBeFalse();
 
-                // The re-entrant call must not overwrite the reason already published.
-                reporter.FailureMessage.ShouldEqual("first");
-            }
+            environment.ExitCodes.ShouldMatchInOrder(7);
+            environment.BlockCount.ShouldEqual(0);
+            reporter.FailureMessage.ShouldEqual("first");
         }
 
         [TestCase]
-        public void SecondThreadIsNotTheOwner()
+        public void CallFromAnotherThreadBlocksUntilTheProcessExits()
         {
-            using (MountFailureReporter reporter = CreateReporter())
-            {
-                reporter.TryTakeOwnership("first").ShouldEqual(MountFailureOwnership.Owner);
+            FakeEnvironment environment = new FakeEnvironment();
+            MountFailureReporter reporter = CreateReporter(environment);
+            reporter.TryBeginFailure(exitCode: 3, message: "first").ShouldBeTrue();
 
-                MountFailureOwnership fromOtherThread = MountFailureOwnership.Owner;
-                Task other = Task.Run(() => fromOtherThread = reporter.TryTakeOwnership("second"));
-                other.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+            bool otherThreadResult = true;
+            Task other = Task.Run(() => otherThreadResult = reporter.TryBeginFailure(exitCode: 7, message: "second"));
+            other.Wait(Timeout.Infinite);
 
-                fromOtherThread.ShouldEqual(MountFailureOwnership.NotOwner);
-                reporter.FailureMessage.ShouldEqual("first");
-            }
+            otherThreadResult.ShouldBeFalse();
+            environment.BlockCount.ShouldEqual(1);
+            environment.ExitCodes.Count.ShouldEqual(0);
+            reporter.FailureMessage.ShouldEqual("first");
         }
 
         [TestCase]
-        public void WaitReturnsImmediatelyWhenThePipeNeverOpened()
+        public void WaitDoesNothingWhenThePipeNeverOpened()
         {
-            using (MountFailureReporter reporter = CreateReporter())
-            {
-                reporter.TryTakeOwnership("failed before the pipe opened");
+            FakeEnvironment environment = new FakeEnvironment();
+            MountFailureReporter reporter = CreateReporter(environment);
+            reporter.TryBeginFailure(exitCode: 3, message: "failed before the pipe opened");
 
-                // No client can read the failure, so the process must not linger holding
-                // the mount lock. The caller falls back to the process exit code.
-                Stopwatch elapsed = Stopwatch.StartNew();
-                reporter.WaitForClientToReadFailure();
-                elapsed.Stop();
+            reporter.WaitForClientToReadFailure().ShouldBeFalse();
 
-                Assert.That(elapsed.ElapsedMilliseconds, Is.LessThan(NoClientTimeoutMs));
-            }
+            environment.WaitTimeouts.Count.ShouldEqual(0);
+            environment.Sleeps.Count.ShouldEqual(0);
         }
 
         [TestCase]
         public void WaitUsesTheShortTimeoutWhenNoClientHasReceivedAStatus()
         {
-            using (MountFailureReporter reporter = CreateReporter())
-            {
-                reporter.OnNamedPipeReady();
-                reporter.TryTakeOwnership("nobody is listening");
+            FakeEnvironment environment = new FakeEnvironment();
+            MountFailureReporter reporter = CreateReporter(environment);
+            reporter.OnNamedPipeReady();
+            reporter.TryBeginFailure(exitCode: 3, message: "nobody is listening");
 
-                Stopwatch elapsed = Stopwatch.StartNew();
-                reporter.WaitForClientToReadFailure();
-                elapsed.Stop();
+            reporter.WaitForClientToReadFailure().ShouldBeFalse();
 
-                // Should give up after the no-client timeout, well short of the full one.
-                Assert.That(elapsed.ElapsedMilliseconds, Is.GreaterThan(NoClientTimeoutMs / 2));
-                Assert.That(elapsed.ElapsedMilliseconds, Is.LessThan(ReportTimeoutMs));
-            }
+            environment.WaitTimeouts.ShouldMatchInOrder(MountFailureReporter.DefaultNoClientTimeoutMs);
+            environment.Sleeps.Count.ShouldEqual(0);
         }
 
         [TestCase]
-        public void WaitReturnsOnceAClientReadsTheFailure()
+        public void WaitUsesTheLongTimeoutOnceAClientHasReceivedAStatus()
         {
-            using (MountFailureReporter reporter = CreateReporter())
-            {
-                reporter.OnNamedPipeReady();
-                reporter.TryTakeOwnership("the real reason");
-                reporter.OnStatusDelivered(carriedMountFailure: true);
+            FakeEnvironment environment = new FakeEnvironment();
+            MountFailureReporter reporter = CreateReporter(environment);
+            reporter.OnNamedPipeReady();
 
-                Stopwatch elapsed = Stopwatch.StartNew();
-                reporter.WaitForClientToReadFailure();
-                elapsed.Stop();
+            // A client polled while the mount was still in progress. Somebody is listening,
+            // but that response did not carry the failure.
+            reporter.TrySendStatus(() => true, carriesMountFailure: false).ShouldBeTrue();
+            reporter.TryBeginFailure(exitCode: 3, message: "the real reason");
 
-                // Returns as soon as the failure was delivered, plus the drain.
-                Assert.That(elapsed.ElapsedMilliseconds, Is.LessThan(NoClientTimeoutMs));
-            }
+            reporter.WaitForClientToReadFailure().ShouldBeFalse();
+
+            environment.WaitTimeouts.ShouldMatchInOrder(MountFailureReporter.DefaultReportTimeoutMs);
         }
 
         [TestCase]
-        public void DeliveringANonFailureStatusDoesNotReleaseTheWait()
+        public void WaitReturnsAndDrainsOnceAClientHasReadTheFailure()
         {
-            using (MountFailureReporter reporter = CreateReporter())
-            {
-                reporter.OnNamedPipeReady();
+            FakeEnvironment environment = new FakeEnvironment();
+            MountFailureReporter reporter = CreateReporter(environment);
+            reporter.OnNamedPipeReady();
+            reporter.TryBeginFailure(exitCode: 3, message: "the real reason");
+            reporter.TrySendStatus(() => true, carriesMountFailure: true).ShouldBeTrue();
 
-                // A client polled while the mount was still in progress. That proves
-                // somebody is listening, but it did not carry the failure.
-                reporter.OnStatusDelivered(carriedMountFailure: false);
-                reporter.TryTakeOwnership("the real reason");
+            reporter.WaitForClientToReadFailure().ShouldBeTrue();
 
-                Stopwatch elapsed = Stopwatch.StartNew();
-                reporter.WaitForClientToReadFailure();
-                elapsed.Stop();
-
-                // Must wait for the failure itself to be read, using the longer timeout
-                // because a client is known to be polling. Asserting above the SHORT
-                // timeout is what proves the long path was selected.
-                Assert.That(elapsed.ElapsedMilliseconds, Is.GreaterThan(NoClientTimeoutMs * 2));
-            }
+            environment.Sleeps.ShouldMatchInOrder(MountFailureReporter.DefaultDrainMs);
         }
 
         [TestCase]
-        public void WaitIsReleasedByAClientThatReadsTheFailureLater()
+        public void AFailedSendIsNotRecordedAndDoesNotReleaseTheWait()
         {
-            using (MountFailureReporter reporter = CreateReporter())
-            {
-                reporter.OnNamedPipeReady();
-                reporter.OnStatusDelivered(carriedMountFailure: false);
-                reporter.TryTakeOwnership("the real reason");
+            FakeEnvironment environment = new FakeEnvironment();
+            MountFailureReporter reporter = CreateReporter(environment);
+            reporter.OnNamedPipeReady();
+            reporter.TryBeginFailure(exitCode: 3, message: "the real reason");
 
-                Task client = Task.Run(() =>
-                {
-                    Thread.Sleep(50);
-                    reporter.OnStatusDelivered(carriedMountFailure: true);
-                });
+            // The client disconnected before it received the response. Counting it would
+            // release the wait and let the process exit before any client read the failure.
+            reporter.TrySendStatus(() => false, carriesMountFailure: true).ShouldBeFalse();
 
-                Stopwatch elapsed = Stopwatch.StartNew();
-                reporter.WaitForClientToReadFailure();
-                elapsed.Stop();
+            reporter.WaitForClientToReadFailure().ShouldBeFalse();
 
-                client.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
-
-                // Released by the delivery, not by the timeout.
-                Assert.That(elapsed.ElapsedMilliseconds, Is.LessThan(ReportTimeoutMs));
-            }
+            environment.WaitTimeouts.ShouldMatchInOrder(MountFailureReporter.DefaultNoClientTimeoutMs);
+            environment.Sleeps.Count.ShouldEqual(0);
         }
 
         [TestCase]
-        public void ProductionDefaultsSelectTheShorterTimeoutWhenNoClientIsListening()
+        public void DrainOutlastsTheClientPollIntervalAndTheNoClientWaitIsShorter()
         {
-            // Everything else builds the reporter through the internal test constructor,
-            // so this is the only cover for the public constructor and its forwarding of
-            // the Default* constants. Without it, swapping DefaultReportTimeoutMs and
-            // DefaultNoClientTimeoutMs would ship unnoticed.
-            using (MountFailureReporter reporter = new MountFailureReporter(new MockTracer()))
-            {
-                reporter.OnNamedPipeReady();
-                reporter.TryTakeOwnership("nobody is listening");
+            // The mounting client must get another poll before the process exits, even if a
+            // different client consumed the failure first.
+            MountFailureReporter.DefaultDrainMs.ShouldBeAtLeast(GVFSEnlistment.MountStatusPollIntervalMs + 1);
 
-                Stopwatch elapsed = Stopwatch.StartNew();
-                reporter.WaitForClientToReadFailure();
-                elapsed.Stop();
-
-                // The no-client timeout must be the one used, and it must be meaningfully
-                // shorter than the timeout used once a client is known to be polling.
-                Assert.That(elapsed.ElapsedMilliseconds, Is.GreaterThan(MountFailureReporter.DefaultNoClientTimeoutMs / 2));
-                Assert.That(elapsed.ElapsedMilliseconds, Is.LessThan(MountFailureReporter.DefaultReportTimeoutMs));
-            }
-        }
-
-        [TestCase]
-        public void ProductionDefaultsAreOrderedSensibly()
-        {
-            // A failed mount holds the mount lock and the named pipe until it exits, so
-            // these bound how long a user's next "gvfs mount" is delayed.
-            Assert.That(
-                MountFailureReporter.DefaultNoClientTimeoutMs,
-                Is.LessThan(MountFailureReporter.DefaultReportTimeoutMs),
-                "Waiting for a client that has never polled must not take longer than waiting for one that has.");
-
-            // The drain has to outlast the client's 100ms GetStatus poll interval, or a
-            // concurrent "gvfs status" can consume the report signal and the mounting
-            // client never gets its answer.
-            Assert.That(
-                MountFailureReporter.DefaultDrainMs,
-                Is.GreaterThan(100),
-                "The drain must exceed the client's GetStatus poll interval.");
+            MountFailureReporter.DefaultNoClientTimeoutMs.ShouldBeAtMost(MountFailureReporter.DefaultReportTimeoutMs - 1);
         }
 
         [TestCase]
@@ -223,8 +155,8 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void FormatFailureLeavesTheMessageAloneWhenThereAreNoArguments()
         {
-            // A pre-built message can legitimately contain braces, so it must not be run
-            // through string.Format when there is nothing to substitute.
+            // A pre-built message can contain braces, so it must not be run through
+            // string.Format when there is nothing to substitute.
             MountFailureReporter.FormatFailure("a message with {braces} in it", null)
                 .ShouldEqual("a message with {braces} in it");
 
@@ -233,19 +165,52 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void FormatFailureFallsBackWhenTheFormatStringIsMalformed()
         {
-            // Failure text is built from exception messages and server responses, which
-            // can contain unbalanced braces. Formatting must never throw and mask the
-            // failure being reported.
-            string result = MountFailureReporter.FormatFailure("unbalanced {0} and {", new object[] { "value" });
-
-            result.ShouldEqual("unbalanced {0} and {");
+            // Failure text built from exception messages and server responses can contain
+            // unbalanced braces. Formatting must not throw and mask the reported failure.
+            MountFailureReporter.FormatFailure("unbalanced {0} and {", new object[] { "value" })
+                .ShouldEqual("unbalanced {0} and {");
         }
 
-        private static MountFailureReporter CreateReporter()
+        private static MountFailureReporter CreateReporter(FakeEnvironment environment)
         {
-            return new MountFailureReporter(new MockTracer(), ReportTimeoutMs, NoClientTimeoutMs, DrainMs);
+            return new MountFailureReporter(new MockTracer(), environment);
+        }
+
+        private class FakeEnvironment : IMountFailureEnvironment
+        {
+            public List<int> WaitTimeouts { get; } = new List<int>();
+
+            public List<int> Sleeps { get; } = new List<int>();
+
+            public List<int> ExitCodes { get; } = new List<int>();
+
+            public int BlockCount { get; private set; }
+
+            public bool WaitForSignal(WaitHandle signal, int timeoutMs)
+            {
+                this.WaitTimeouts.Add(timeoutMs);
+
+                // Report the signal's current state instead of waiting on it.
+                return signal.WaitOne(0);
+            }
+
+            public void Sleep(int durationMs)
+            {
+                this.Sleeps.Add(durationMs);
+            }
+
+            public void ExitProcess(int exitCode)
+            {
+                this.ExitCodes.Add(exitCode);
+            }
+
+            public void BlockUntilProcessExits()
+            {
+                this.BlockCount++;
+            }
         }
     }
 }

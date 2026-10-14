@@ -12,7 +12,7 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class WaitUntilMountedFailureReportingTests
     {
-        private const string EnlistmentRoot = "C:\\fake\\root";
+        private const string EnlistmentRoot = "mock:\\fake\\root";
 
         [TestCase]
         public void ReportsTheMountErrorSentByTheMountProcess()

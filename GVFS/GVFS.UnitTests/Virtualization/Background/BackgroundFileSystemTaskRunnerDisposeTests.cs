@@ -22,11 +22,8 @@ namespace GVFS.UnitTests.Virtualization.Background
                     TestableBackgroundFileSystemTaskRunner runner = new TestableBackgroundFileSystemTaskRunner();
                     runner.SetBackgroundThreadForTests(backgroundThread);
 
-                    // FileSystemCallbacks.Dispose() disposes this runner on the failed-mount
-                    // path, without calling Shutdown first, so the background thread is still
-                    // running. Calling Task.Dispose on a task that has not completed throws
-                    // InvalidOperationException, which stopped GVFS.Mount from reporting why
-                    // the mount failed. This guards against reintroducing that call.
+                    // Dispose without Shutdown leaves the task running. Task.Dispose throws
+                    // InvalidOperationException for a task that has not completed.
                     Assert.DoesNotThrow(() => runner.Dispose());
                 }
                 finally

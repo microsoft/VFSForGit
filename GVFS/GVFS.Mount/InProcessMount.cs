@@ -647,29 +647,14 @@ namespace GVFS.Mount
 
         private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
         {
-            // Format before taking ownership. RelatedError would otherwise format a second
-            // time without protection, and a throw there would re-enter this method from an
-            // outer catch block.
+            // Format once, before taking ownership. RelatedError would otherwise format a
+            // second time without protection, and a throw there re-enters this method.
             string failureMessage = MountFailureReporter.FormatFailure(error, args);
 
-            switch (this.mountFailureReporter.TryTakeOwnership(failureMessage))
+            if (!this.mountFailureReporter.TryBeginFailure((int)returnCode, failureMessage))
             {
-                case MountFailureOwnership.Reentrant:
-                    // Something below threw and an outer catch called back in. The failure
-                    // was already reported, so exit rather than wait on ourselves.
-                    this.tracer.RelatedWarning(
-                        null,
-                        $"{nameof(this.FailMountAndExit)}: Re-entered while reporting a mount failure: {failureMessage}",
-                        Keywords.Telemetry);
-                    Environment.Exit((int)returnCode);
-                    break;
-
-                case MountFailureOwnership.NotOwner:
-                    // Another thread owns the failure path and will exit the process. Block
-                    // rather than return: every caller of FailMountAndExit assumes it never
-                    // returns and would otherwise run on with a half-initialized mount.
-                    BlockUntilProcessExits();
-                    break;
+                // Unreachable in production: every path that returns false ends the process.
+                return;
             }
 
             this.currentState = MountState.MountFailed;
@@ -681,10 +666,8 @@ namespace GVFS.Mount
                 Console.ReadLine();
             }
 
-            // Report the failure before tearing anything down. Disposal can be slow, and a
-            // secondary exception thrown from it would kill the process before the client
-            // ever reads the reason -- which is what made mount failures surface as
-            // BrokenPipeException instead of the real cause.
+            // The failure response must reach the client before the process exits, so
+            // report it before tearing anything down.
             this.mountFailureReporter.WaitForClientToReadFailure();
 
             try
@@ -697,8 +680,8 @@ namespace GVFS.Mount
             }
             catch (Exception e)
             {
-                // Traced with Telemetry because this used to be a process-fatal crash. Without
-                // the keyword the failure it replaced would become invisible in the field.
+                // Disposal must not stop the process from exiting with the reported failure.
+                // The telemetry keyword keeps a disposal failure visible.
                 this.tracer.RelatedWarning(
                     null,
                     $"{nameof(this.FailMountAndExit)}: Exception while disposing file system callbacks: {e}",
@@ -706,15 +689,6 @@ namespace GVFS.Mount
             }
 
             Environment.Exit((int)returnCode);
-        }
-
-        /// <summary>
-        /// Parks the calling thread until another thread exits the process. Used where a
-        /// method must not return but is not the thread that owns the exit.
-        /// </summary>
-        private static void BlockUntilProcessExits()
-        {
-            Thread.Sleep(Timeout.Infinite);
         }
 
         private T CreateOrReportAndExit<T>(Func<T> factory, string reportMessage)
@@ -730,16 +704,37 @@ namespace GVFS.Mount
             }
         }
 
+        /// <summary>
+        /// Whether the handler for <paramref name="header"/> can safely run in
+        /// <paramref name="state"/>. Requests that cannot are answered with
+        /// <see cref="NamedPipeMessages.MountNotReadyResult"/>.
+        /// </summary>
+        private static bool IsRequestHandledInState(MountState state, string header)
+        {
+            switch (state)
+            {
+                case MountState.Mounting:
+                    // Other handlers depend on the context, fileSystemCallbacks and similar
+                    // state that is not initialized yet.
+                    return header == NamedPipeMessages.GetStatus.Request;
+
+                case MountState.MountFailed:
+                    // A mount can fail at any step, so the same state is still missing here.
+                    // GetStatus carries the failure to the client. Unmount is answered
+                    // without tearing anything down.
+                    return header == NamedPipeMessages.GetStatus.Request
+                        || header == NamedPipeMessages.Unmount.Request;
+
+                default:
+                    return true;
+            }
+        }
+
         private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.Message message = NamedPipeMessages.Message.FromString(request);
 
-            // While mounting, only GetStatus requests are safe — other handlers depend
-            // on context, fileSystemCallbacks, etc. that aren't initialized yet.
-            // MountFailed is NOT guarded: HandleUnmountRequest needs to reach the
-            // "unmount even if mount failed" path so users aren't forced to kill the process.
-            if (message.Header != NamedPipeMessages.GetStatus.Request &&
-                this.currentState == MountState.Mounting)
+            if (!IsRequestHandledInState(this.currentState, message.Header))
             {
                 connection.TrySendResponse(NamedPipeMessages.MountNotReadyResult);
                 return;
@@ -1517,12 +1512,9 @@ namespace GVFS.Mount
                     break;
             }
 
-            bool sent = connection.TrySendResponse(response.ToJson());
-
-            if (sent)
-            {
-                this.mountFailureReporter.OnStatusDelivered(carriedMountFailure: state == MountState.MountFailed);
-            }
+            this.mountFailureReporter.TrySendStatus(
+                () => connection.TrySendResponse(response.ToJson()),
+                carriesMountFailure: state == MountState.MountFailed);
         }
 
         private void HandleUnmountRequest(NamedPipeServer.Connection connection)
@@ -1533,10 +1525,11 @@ namespace GVFS.Mount
                     connection.TrySendResponse(NamedPipeMessages.Unmount.NotMounted);
                     break;
 
-                // Even if the previous mount failed, attempt to unmount anyway.  Otherwise the user has no
-                // recourse but to kill the process.
+                // A failed mount is already ending the process. Tearing down here would race
+                // that, and exit with Success instead of the reported failure.
                 case MountState.MountFailed:
-                    goto case MountState.Ready;
+                    connection.TrySendResponse(NamedPipeMessages.Unmount.MountFailed);
+                    break;
 
                 case MountState.Ready:
                     this.currentState = MountState.Unmounting;

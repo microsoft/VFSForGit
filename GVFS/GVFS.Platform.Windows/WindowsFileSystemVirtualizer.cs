@@ -837,7 +837,7 @@ namespace GVFS.Platform.Windows
                 this.Context.Tracer.RelatedError($"{nameof(this.virtualizationInstance.StartVirtualizing)} failed: " + result.ToString("X") + "(" + result.ToString("G") + ")");
                 error = "Failed to start virtualization instance (" + result.ToString() + ")";
 
-                if ((int)result == HResultExtensions.FileSystemVirtualizationNotAvailable)
+                if ((int)result == HResultExtensions.CantAttachToDevVolume)
                 {
                     error += ". " + BuildProjFsAttachRemedy(this.Context.Enlistment.WorkingDirectoryRoot);
                 }
@@ -854,9 +854,8 @@ namespace GVFS.Platform.Windows
         }
 
         /// <summary>
-        /// Builds the user-facing remedy for
-        /// ERROR_FILE_SYSTEM_VIRTUALIZATION_NOT_AVAILABLE, which a Dev Drive returns when
-        /// PrjFlt is not on its allowed-filter list.
+        /// Builds the user-facing remedy for ERROR_CANT_ATTACH_TO_DEV_VOLUME, which a Dev
+        /// Drive returns when PrjFlt is not on its allowed-filter list.
         /// </summary>
         /// <remarks>
         /// "fsutil devdrv setFiltersAllowed" REPLACES the allowed list, and without
@@ -865,7 +864,7 @@ namespace GVFS.Platform.Windows
         /// following this advice would drop filters the machine already requires (an
         /// anti-malware filter, for example).
         /// </remarks>
-        private static string BuildProjFsAttachRemedy(string enlistmentRoot)
+        internal static string BuildProjFsAttachRemedy(string enlistmentRoot)
         {
             string volume;
             try

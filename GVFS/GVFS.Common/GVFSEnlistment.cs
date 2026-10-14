@@ -13,6 +13,12 @@ namespace GVFS.Common
     {
         public const string BlobSizesCacheName = "blobSizes";
 
+        /// <summary>
+        /// How often <see cref="WaitUntilMounted(ITracer, string, string, bool, Func{MountProcessSnapshot}, out string, Action{string})"/>
+        /// polls the mount process for its status.
+        /// </summary>
+        internal const int MountStatusPollIntervalMs = 100;
+
         private const string GitObjectCacheName = "gitObjects";
 
         private string gitVersion;
@@ -294,8 +300,8 @@ namespace GVFS.Common
                                 onProgress(getStatusResponse.MountProgress);
                             }
 
-                            tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Waiting 500ms for mount process to be ready");
-                            Thread.Sleep(100);
+                            tracer.RelatedInfo($"{nameof(WaitUntilMounted)}: Waiting {MountStatusPollIntervalMs}ms for mount process to be ready");
+                            Thread.Sleep(MountStatusPollIntervalMs);
                         }
                     }
                     catch (BrokenPipeException e)

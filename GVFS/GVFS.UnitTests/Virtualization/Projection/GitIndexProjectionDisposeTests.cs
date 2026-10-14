@@ -22,12 +22,8 @@ namespace GVFS.UnitTests.Virtualization.Projection
                     TestableGitIndexProjection projection = new TestableGitIndexProjection();
                     projection.SetIndexParsingThreadForTests(parsingThread);
 
-                    // A failed mount disposes the projection without calling Shutdown, so
-                    // the parsing thread is still running here. Calling Task.Dispose on a
-                    // task that has not completed throws InvalidOperationException, and
-                    // that secondary exception used to kill GVFS.Mount before it could
-                    // report why the mount failed -- leaving the client with a broken pipe.
-                    // This guards against reintroducing that call.
+                    // Dispose without Shutdown leaves the task running. Task.Dispose throws
+                    // InvalidOperationException for a task that has not completed.
                     Assert.DoesNotThrow(() => projection.Dispose());
                 }
                 finally
