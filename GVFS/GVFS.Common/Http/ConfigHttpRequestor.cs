@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace GVFS.Common.Http
 {
-    public class ConfigHttpRequestor : HttpRequestor
+    public class ConfigHttpRequestor : HttpRequestor, IGVFSConfigRequestor
     {
         private readonly string repoUrl;
 
@@ -17,7 +17,7 @@ namespace GVFS.Common.Http
             this.repoUrl = enlistment.RepoUrl;
         }
 
-        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus, out string errorMessage)
+        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus, out string errorMessage, bool forceAnonymous = false)
         {
             serverGVFSConfig = null;
             httpStatus = null;
@@ -56,7 +56,8 @@ namespace GVFS.Common.Http
                         gvfsConfigEndpoint,
                         HttpMethod.Get,
                         requestContent: null,
-                        cancellationToken: CancellationToken.None))
+                        cancellationToken: CancellationToken.None,
+                        forceAnonymous: forceAnonymous))
                     {
                         if (response.HasErrors)
                         {
@@ -88,6 +89,12 @@ namespace GVFS.Common.Http
             {
                 httpStatus = httpException.StatusCode;
                 errorMessage = httpException.Message;
+            }
+            else
+            {
+                // No HTTP response (TLS, DNS, proxy, or socket failure): there is no
+                // status to report, so keep the exception text as the only diagnostic.
+                errorMessage = output.Error.Message;
             }
 
             if (logErrors)

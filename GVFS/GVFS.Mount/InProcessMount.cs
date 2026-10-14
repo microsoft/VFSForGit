@@ -155,6 +155,10 @@ namespace GVFS.Mount
                 },
                 Keywords.Telemetry);
 
+            // Deliberately unconditional: callbacks must wait for the auth result in
+            // every mount, not only when background auth is enabled.
+            this.enlistment.Authentication.MarkInitializationStarted();
+
             // With background auth enabled, auth/config is best-effort: mount can
             // proceed without it. We still attempt it so GCM can pop up a renewal
             // prompt for stale tokens, but we don't block mount on the result. A
