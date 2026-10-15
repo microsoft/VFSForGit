@@ -140,7 +140,13 @@ namespace GVFS.CommandLine
                 }
                 else
                 {
-                    this.ReportErrorAndExit("Failed to upgrade repo disk layout. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot));
+                    string upgradeErrorMessage = "Failed to upgrade repo disk layout.";
+                    if (!string.IsNullOrWhiteSpace(diskLayoutError))
+                    {
+                        upgradeErrorMessage += " " + diskLayoutError;
+                    }
+
+                    this.ReportErrorAndExit(upgradeErrorMessage + " " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot));
                 }
             }
 

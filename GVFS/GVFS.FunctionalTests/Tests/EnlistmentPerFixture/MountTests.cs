@@ -21,6 +21,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         // These values are a shipped command-line contract. Do not bind them to product constants.
         private const int GVFSMissingDiskLayoutVersion = 12;
         private const string MissingDiskLayoutVersionMessage = "The .gvfs metadata is incomplete";
+        private const string GVFSLogMessage = "Run 'gvfs log";
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
         private readonly int fileDeletedBackgroundOperationCode;
@@ -119,7 +120,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 this.MountShouldFail(
                     GVFSMissingDiskLayoutVersion,
-                    MissingDiskLayoutVersionMessage);
+                    MissingDiskLayoutVersionMessage,
+                    additionalExpectedErrorMessage: GVFSLogMessage);
             }
             finally
             {
@@ -158,7 +160,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 this.MountShouldFail(
                     GVFSMissingDiskLayoutVersion,
-                    MissingDiskLayoutVersionMessage);
+                    MissingDiskLayoutVersionMessage,
+                    additionalExpectedErrorMessage: GVFSLogMessage);
             }
             finally
             {
@@ -391,7 +394,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.MountGVFS();
         }
 
-        private void MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null)
+        private void MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null, string additionalExpectedErrorMessage = null)
         {
             string enlistmentRoot = this.Enlistment.EnlistmentRoot;
 
@@ -411,6 +414,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 string combinedOutput = result.Output + "\n" + result.Errors;
                 combinedOutput.ShouldContain(expectedErrorMessage);
+
+                if (additionalExpectedErrorMessage != null)
+                {
+                    combinedOutput.ShouldContain(additionalExpectedErrorMessage);
+                }
             }
         }
 
