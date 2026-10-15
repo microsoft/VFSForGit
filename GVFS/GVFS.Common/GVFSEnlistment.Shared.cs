@@ -212,6 +212,64 @@ namespace GVFS.Common
             return paths.ToArray();
         }
 
+        public static bool TryGetKnownWorktreePaths(string gitDir, out string[] paths, out string error)
+        {
+            ArgumentNullException.ThrowIfNull(gitDir);
+            paths = null;
+            error = null;
+            string pathToRead = gitDir;
+            try
+            {
+                // Unlike Directory.Exists, this reports access failures instead of treating them as absence.
+                if ((File.GetAttributes(gitDir) & FileAttributes.Directory) == 0)
+                {
+                    error = $"Invalid Git directory at '{gitDir}': expected a directory.";
+                    return false;
+                }
+                string worktreesDir = Path.Combine(gitDir, "worktrees");
+                pathToRead = worktreesDir;
+                try
+                {
+                    File.GetAttributes(worktreesDir);
+                }
+                catch (FileNotFoundException)
+                {
+                    File.GetAttributes(gitDir);
+                    paths = Array.Empty<string>();
+                    return true;
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    File.GetAttributes(gitDir);
+                    paths = Array.Empty<string>();
+                    return true;
+                }
+
+                List<string> worktreePaths = new List<string>();
+                foreach (string entry in Directory.GetDirectories(worktreesDir))
+                {
+                    pathToRead = Path.Combine(entry, "gitdir");
+                    string gitdirContent = File.ReadAllText(pathToRead).Trim().Replace('/', Path.DirectorySeparatorChar);
+                    if (!Path.IsPathFullyQualified(gitdirContent) ||
+                        !string.Equals(Path.GetFileName(gitdirContent), GVFSConstants.DotGit.Root, StringComparison.Ordinal))
+                    {
+                        error = $"Invalid worktree registration at '{pathToRead}': expected an absolute path to a .git file.";
+                        return false;
+                    }
+
+                    worktreePaths.Add(Path.GetDirectoryName(Path.GetFullPath(gitdirContent)));
+                }
+
+                paths = worktreePaths.ToArray();
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException)
+            {
+                error = $"Failed to read worktree registrations at '{pathToRead}': {ex.Message}";
+                return false;
+            }
+        }
+
         public class WorktreeInfo
         {
             public const string EnlistmentRootFileName = "gvfs-enlistment-root";

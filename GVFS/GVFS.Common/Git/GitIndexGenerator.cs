@@ -84,7 +84,12 @@ namespace GVFS.Common.Git
         /// </remarks>
         public void CreateFromRef(string refName, uint indexVersion, bool isFinal)
         {
-            using (ITracer updateIndexActivity = this.tracer.StartActivity("CreateFromHeadTree", EventLevel.Informational))
+            EventMetadata metadata = new EventMetadata
+            {
+                { "IndexPath", this.indexPath },
+                { "IsWorktree", this.enlistment is GVFSEnlistment gvfsEnlistment && gvfsEnlistment.IsWorktree },
+            };
+            using (ITracer updateIndexActivity = this.tracer.StartActivity("CreateFromHeadTree", EventLevel.Informational, metadata))
             {
                 Thread entryWritingThread = new Thread(() => this.WriteAllEntries(indexVersion, isFinal));
                 entryWritingThread.Start();

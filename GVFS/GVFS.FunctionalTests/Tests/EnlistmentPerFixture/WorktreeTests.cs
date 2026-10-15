@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using ProcessHelper = GVFS.FunctionalTests.Tools.ProcessHelper;
 using ProcessResult = GVFS.FunctionalTests.Tools.ProcessResult;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
@@ -359,6 +360,62 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 if (Directory.Exists(tempDir))
                 {
                     try { Directory.Delete(tempDir, recursive: true); } catch { }
+                }
+            }
+        }
+
+        [TestCase]
+        public void WorktreeDehydratePreservesPrimaryIndex()
+        {
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 8);
+            string worktreeName = $"index-dehydrate-{suffix}";
+            string worktreePath = Path.Combine(this.Enlistment.EnlistmentRoot, worktreeName);
+            string branchName = $"index-dehydrate-branch-{suffix}";
+            string backupParent = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup", worktreeName);
+
+            try
+            {
+                ProcessResult addResult = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    $"worktree add -b {branchName} \"{worktreePath}\"");
+                addResult.ExitCode.ShouldEqual(0, addResult.Errors);
+                this.AssertWorktreeMounted(worktreePath, "index dehydrate worktree");
+
+                File.WriteAllText(Path.Combine(worktreePath, "worktree-index-only.txt"), "Linked worktree content");
+                GitHelpers.InvokeGitAgainstGVFSRepo(worktreePath, "add worktree-index-only.txt").ExitCode.ShouldEqual(0);
+                GitHelpers.InvokeGitAgainstGVFSRepo(worktreePath, "commit -m \"Add worktree-only index entry\"").ExitCode.ShouldEqual(0);
+
+                GVFSEnlistment.WorktreeInfo worktreeInfo = GVFSEnlistment.TryGetWorktreeInfo(worktreePath);
+                worktreeInfo.ShouldNotBeNull();
+                string worktreeIndex = Path.Combine(worktreeInfo.WorktreeGitDir, "index");
+                string primaryIndex = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "index");
+                byte[] primaryIndexBefore = File.ReadAllBytes(primaryIndex);
+                byte[] worktreeIndexBefore = File.ReadAllBytes(worktreeIndex);
+                primaryIndexBefore.SequenceEqual(worktreeIndexBefore).ShouldBeFalse("The indexes must differ so the backup assertion detects the wrong source.");
+
+                ProcessResult dehydrate = ProcessHelper.Run(
+                    GVFSTestConfig.PathToGVFS,
+                    $"dehydrate \"{worktreePath}\" --confirm --folders GVFS {TestConstants.InternalUseOnlyFlag} " +
+                    GVFSHelpers.GetInternalParameter(serviceName: this.Enlistment.ServiceName),
+                    workingDirectory: this.Enlistment.EnlistmentRoot,
+                    timeoutMs: 120000);
+                dehydrate.ExitCode.ShouldEqual(0, dehydrate.Output + dehydrate.Errors);
+                dehydrate.Output.ShouldContain("GVFS folder dehydrate successful.");
+                CollectionAssert.AreEqual(primaryIndexBefore, File.ReadAllBytes(primaryIndex), "The primary index must not change.");
+
+                string[] backups = Directory.GetDirectories(backupParent);
+                backups.Length.ShouldEqual(1);
+                CollectionAssert.AreEqual(
+                    worktreeIndexBefore,
+                    File.ReadAllBytes(Path.Combine(backups[0], ".git", "index")),
+                    "The backup must contain the linked worktree index.");
+            }
+            finally
+            {
+                this.ForceCleanupWorktree(worktreePath, branchName);
+                if (Directory.Exists(backupParent))
+                {
+                    Directory.Delete(backupParent, recursive: true);
                 }
             }
         }

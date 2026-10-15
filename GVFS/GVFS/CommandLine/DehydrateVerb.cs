@@ -631,7 +631,7 @@ from a parent of the folders list.
 
                     // ... backup the .gvfs hydration-related data structures...
                     string databasesFolder = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.Name);
-                    if (!this.TryCopyFilesInFolder(tracer, databasesFolder, backupDatabases, searchPattern: "*", filenamesToSkip: "RepoMetadata.dat"))
+                    if (!this.TryCopyFilesInFolder(tracer, databasesFolder, backupDatabases, "*", out errorMessage, "RepoMetadata.dat"))
                     {
                         return false;
                     }
@@ -711,7 +711,7 @@ from a parent of the folders list.
 
                     // ... backup the .gvfs hydration-related data structures...
                     string databasesFolder = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.Name);
-                    if (!this.TryBackupFilesInFolder(tracer, databasesFolder, backupDatabases, searchPattern: "*", filenamesToSkip: "RepoMetadata.dat"))
+                    if (!this.TryBackupFilesInFolder(tracer, databasesFolder, backupDatabases, "*", out errorMessage, "RepoMetadata.dat"))
                     {
                         return false;
                     }
@@ -775,11 +775,21 @@ from a parent of the folders list.
                 this.ReportErrorAndExit(tracer, "Dehydrate --full is not supported for git worktrees.");
             }
 
-            if (GVFSEnlistment.GetKnownWorktreePaths(enlistment.DotGitRoot).Length > 0)
+            if (!GVFSEnlistment.TryGetKnownWorktreePaths(enlistment.DotGitRoot, out string[] worktreePaths, out string error))
             {
                 this.ReportErrorAndExit(
                     tracer,
-                    "Dehydrate --full is not supported while linked worktrees exist. Remove all linked worktrees first.");
+                    "Cannot verify linked worktree registrations. Full dehydrate is blocked. " + error);
+            }
+
+            if (worktreePaths.Length > 0)
+            {
+                this.ReportErrorAndExit(
+                    tracer,
+                    "Dehydrate --full is not supported while linked worktrees exist." + Environment.NewLine +
+                    string.Join(Environment.NewLine, worktreePaths) + Environment.NewLine +
+                    "Use 'git worktree remove <path>' to remove a worktree. " +
+                    "If its directory no longer exists, use 'git worktree prune' to remove stale registrations.");
             }
         }
 
@@ -809,70 +819,52 @@ from a parent of the folders list.
             out string errorMessage)
         {
             string gitIndexDirectory = Path.GetDirectoryName(enlistment.GitIndexPath);
-            bool backupSucceeded = false;
-            if (!this.TryIO(
-                    tracer,
-                    () =>
-                    {
-                        backupSucceeded = move
-                            ? this.TryBackupFilesInFolder(tracer, gitIndexDirectory, backupGit, searchPattern: "*.lock")
-                            : this.TryCopyFilesInFolder(tracer, gitIndexDirectory, backupGit, searchPattern: "*.lock");
-                    },
-                    "Backup git lock files",
-                    out errorMessage))
+            return move
+                ? this.TryBackupFilesInFolder(tracer, gitIndexDirectory, backupGit, "*.lock", out errorMessage)
+                : this.TryCopyFilesInFolder(tracer, gitIndexDirectory, backupGit, "*.lock", out errorMessage);
+        }
+
+        private bool TryBackupFilesInFolder(ITracer tracer, string folderPath, string backupPath, string searchPattern, out string errorMessage, params string[] filenamesToSkip)
+        {
+            return this.TryTransferFilesInFolder(tracer, folderPath, backupPath, searchPattern, move: true, out errorMessage, filenamesToSkip);
+        }
+
+        private bool TryCopyFilesInFolder(ITracer tracer, string folderPath, string backupPath, string searchPattern, out string errorMessage, params string[] filenamesToSkip)
+        {
+            return this.TryTransferFilesInFolder(tracer, folderPath, backupPath, searchPattern, move: false, out errorMessage, filenamesToSkip);
+        }
+
+        private bool TryTransferFilesInFolder(ITracer tracer, string folderPath, string backupPath, string searchPattern, bool move, out string errorMessage, params string[] filenamesToSkip)
+        {
+            string[] files = null;
+            if (!this.TryIO(tracer, () => files = Directory.GetFiles(folderPath, searchPattern), $"Enumerate files in {folderPath}", out errorMessage))
             {
+                errorMessage = $"Failed to enumerate '{folderPath}': {errorMessage}";
                 return false;
             }
 
-            if (!backupSucceeded)
-            {
-                errorMessage = "Failed to backup .git lock files.";
-            }
-
-            return backupSucceeded;
-        }
-
-        private bool TryBackupFilesInFolder(ITracer tracer, string folderPath, string backupPath, string searchPattern, params string[] filenamesToSkip)
-        {
-            string errorMessage;
-            foreach (string file in Directory.GetFiles(folderPath, searchPattern))
+            foreach (string file in files)
             {
                 string fileName = Path.GetFileName(file);
                 if (!filenamesToSkip.Any(x => x.Equals(fileName, GVFSPlatform.Instance.Constants.PathComparison)))
                 {
+                    string destination = Path.Combine(backupPath, fileName);
+                    Action transfer = move
+                        ? () => File.Move(file, destination)
+                        : () => File.Copy(file, destination);
                     if (!this.TryIO(
                         tracer,
-                        () => File.Move(file, Path.Combine(backupPath, fileName)),
-                        $"Backing up {Path.GetFileName(file)}",
+                        transfer,
+                        $"Back up {file} to {destination}",
                         out errorMessage))
                     {
+                        errorMessage = $"Failed to back up '{file}' to '{destination}': {errorMessage}";
                         return false;
                     }
                 }
             }
 
-            return true;
-        }
-
-        private bool TryCopyFilesInFolder(ITracer tracer, string folderPath, string backupPath, string searchPattern, params string[] filenamesToSkip)
-        {
-            string errorMessage;
-            foreach (string file in Directory.GetFiles(folderPath, searchPattern))
-            {
-                string fileName = Path.GetFileName(file);
-                if (!filenamesToSkip.Any(x => x.Equals(fileName, GVFSPlatform.Instance.Constants.PathComparison)))
-                {
-                    if (!this.TryIO(
-                        tracer,
-                        () => File.Copy(file, Path.Combine(backupPath, fileName)),
-                        $"Backing up {Path.GetFileName(file)}",
-                        out errorMessage))
-                    {
-                        return false;
-                    }
-                }
-            }
-
+            errorMessage = null;
             return true;
         }
 
@@ -980,7 +972,8 @@ from a parent of the folders list.
                     new EventMetadata
                     {
                         { "Description", description },
-                        { "Error", error }
+                        { "Error", error },
+                        { "Exception", e.ToString() }
                     },
                     "TryIO: Caught exception performing action");
             }

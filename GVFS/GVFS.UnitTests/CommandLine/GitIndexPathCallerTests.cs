@@ -1,12 +1,14 @@
 using GVFS.CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using GVFS.RepairJobs;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
 using System.IO;
+using System.Text.Json;
 
 namespace GVFS.UnitTests.CommandLine
 {
@@ -184,6 +186,73 @@ namespace GVFS.UnitTests.CommandLine
                 () => verb.ValidateFullDehydrate(new MockTracer(), enlistment));
 
             output.ToString().ShouldContain("Dehydrate --full is not supported while linked worktrees exist.");
+            output.ToString().ShouldContain(Path.Combine(this.testRoot, "linked-worktree"));
+            output.ToString().ShouldContain("git worktree remove <path>");
+            output.ToString().ShouldContain("git worktree prune");
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("not-an-absolute-path")]
+        [TestCase(@"C:\worktrees\bad\HEAD")]
+        public void FullDehydrateRejectsMissingOrMalformedRegistration(string registration)
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            string worktreeGitDir = Path.Combine(enlistment.DotGitRoot, "worktrees", "bad");
+            Directory.CreateDirectory(worktreeGitDir);
+            if (registration != null)
+            {
+                File.WriteAllText(Path.Combine(worktreeGitDir, "gitdir"), registration);
+            }
+
+            using (StringWriter output = new StringWriter())
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb { Full = true, Output = output };
+                Assert.Throws<GVFSVerb.VerbAbortedException>(
+                    () => verb.ValidateFullDehydrate(tracer, enlistment));
+                output.ToString().ShouldContain("Full dehydrate is blocked.");
+                output.ToString().ShouldContain(Path.Combine(worktreeGitDir, "gitdir"));
+                tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+                Directory.Exists(enlistment.WorkingDirectoryBackingRoot).ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
+        public void FullDehydrateRejectsUnreadableRegistration()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            string worktreeGitDir = Path.Combine(enlistment.DotGitRoot, "worktrees", "locked");
+            Directory.CreateDirectory(worktreeGitDir);
+            string gitdirFile = Path.Combine(worktreeGitDir, "gitdir");
+            File.WriteAllText(gitdirFile, Path.Combine(this.testRoot, "linked-worktree", GVFSConstants.DotGit.Root));
+
+            using (FileStream locked = new FileStream(gitdirFile, FileMode.Open, FileAccess.Read, FileShare.None))
+            using (StringWriter output = new StringWriter())
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb { Full = true, Output = output };
+                Assert.Throws<GVFSVerb.VerbAbortedException>(
+                    () => verb.ValidateFullDehydrate(tracer, enlistment));
+                output.ToString().ShouldContain("Full dehydrate is blocked.");
+                output.ToString().ShouldContain(gitdirFile);
+                tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+            }
+        }
+
+        [TestCase]
+        public void FullDehydrateRejectsUnreadableRegistrationsDirectory()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            File.WriteAllText(Path.Combine(enlistment.DotGitRoot, "worktrees"), "not a directory");
+            using (StringWriter output = new StringWriter())
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb { Full = true, Output = output };
+                Assert.Throws<GVFSVerb.VerbAbortedException>(
+                    () => verb.ValidateFullDehydrate(tracer, enlistment));
+                output.ToString().ShouldContain("Full dehydrate is blocked.");
+            }
         }
 
         [TestCase]
@@ -198,6 +267,52 @@ namespace GVFS.UnitTests.CommandLine
 
             Assert.DoesNotThrow(
                 () => verb.ValidateFullDehydrate(new MockTracer(), enlistment));
+        }
+
+        [TestCase]
+        public void FullDehydrateAllowsEmptyRegistrationsDirectory()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            Directory.CreateDirectory(Path.Combine(enlistment.DotGitRoot, "worktrees"));
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb { Full = true, Output = TextWriter.Null };
+                Assert.DoesNotThrow(() => verb.ValidateFullDehydrate(tracer, enlistment));
+                tracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            }
+        }
+
+        [TestCase]
+        public void FullDehydrateRejectsMissingGitDirectory()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            Directory.Delete(enlistment.DotGitRoot);
+            using (StringWriter output = new StringWriter())
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb { Full = true, Output = output };
+                Assert.Throws<GVFSVerb.VerbAbortedException>(
+                    () => verb.ValidateFullDehydrate(tracer, enlistment));
+                output.ToString().ShouldContain("Full dehydrate is blocked.");
+                tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+            }
+        }
+
+        [TestCase]
+        public void FullDehydrateRejectsGitDirectoryReplacedByFile()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            Directory.Delete(enlistment.DotGitRoot);
+            File.WriteAllText(enlistment.DotGitRoot, "not a directory");
+            using (StringWriter output = new StringWriter())
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb { Full = true, Output = output };
+                Assert.Throws<GVFSVerb.VerbAbortedException>(
+                    () => verb.ValidateFullDehydrate(tracer, enlistment));
+                output.ToString().ShouldContain("Full dehydrate is blocked.");
+                tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+            }
         }
 
         [TestCase(false)]
@@ -220,6 +335,7 @@ namespace GVFS.UnitTests.CommandLine
                     expectedParent,
                     expectedSubfolder,
                     timestamp.ToString("yyyyMMdd_HHmmss_fffffff")));
+            DehydrateVerb.GetBackupRoot(enlistment, timestamp.AddTicks(1)).ShouldNotEqual(backupRoot);
         }
 
         [TestCase]
@@ -261,9 +377,62 @@ namespace GVFS.UnitTests.CommandLine
             errorMessage.ShouldNotBeNull();
         }
 
-        private GVFSEnlistment CreateEnlistment(bool isWorktree)
+        [TestCase(false)]
+        [TestCase(true)]
+        public void LockBackupReturnsPreciseFileError(bool move)
         {
-            string gitBinPath = Path.Combine(this.testRoot, "git.exe");
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            string lockPath = enlistment.GitIndexPath + ".lock";
+            File.WriteAllText(lockPath, "lock content");
+            string backupGit = Path.Combine(this.testRoot, "occupied-backup");
+            Directory.CreateDirectory(backupGit);
+            string backupLockPath = Path.Combine(backupGit, Path.GetFileName(lockPath));
+            File.WriteAllText(backupLockPath, "previous backup");
+
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb();
+                verb.TryBackupGitLocks(tracer, enlistment, backupGit, move, out string errorMessage).ShouldBeFalse();
+                errorMessage.ShouldContain(lockPath);
+                errorMessage.ShouldContain(backupLockPath);
+                using (JsonDocument errorEvent = JsonDocument.Parse(tracer.RelatedErrorEvents[0]))
+                {
+                    errorMessage.ShouldContain(errorEvent.RootElement.GetProperty("Error").GetString());
+                    errorEvent.RootElement.GetProperty("Exception").GetString().ShouldContain(nameof(IOException));
+                }
+
+                File.ReadAllText(lockPath).ShouldEqual("lock content");
+                File.ReadAllText(backupLockPath).ShouldEqual("previous backup");
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void IndexGenerationTracesResolvedDestination(bool isWorktree)
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree, gitBinPath: "git.exe");
+            Directory.CreateDirectory(Path.GetDirectoryName(enlistment.GitIndexPath));
+            using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "IndexGeneration", disableTelemetry: true))
+            using (IndexGenerationListener listener = new IndexGenerationListener())
+            {
+                tracer.AddEventListener(listener);
+                GitIndexGenerator generator = new GitIndexGenerator(tracer, enlistment, shouldHashIndex: false);
+                // No repository exists here. Git returns a failure without contacting a remote.
+                generator.CreateFromRef("HEAD", indexVersion: 4, isFinal: false);
+
+                generator.HasFailures.ShouldBeTrue();
+                listener.ActivityPayload.ShouldNotBeNull();
+                using (JsonDocument metadata = JsonDocument.Parse(listener.ActivityPayload))
+                {
+                    metadata.RootElement.GetProperty("IndexPath").GetString().ShouldEqual(enlistment.GitIndexPath);
+                    metadata.RootElement.GetProperty("IsWorktree").GetBoolean().ShouldEqual(isWorktree);
+                }
+            }
+        }
+
+        private GVFSEnlistment CreateEnlistment(bool isWorktree, string gitBinPath = null)
+        {
+            gitBinPath = gitBinPath ?? Path.Combine(this.testRoot, "git.exe");
             string primaryRoot = Path.Combine(this.testRoot, isWorktree ? "worktree-primary" : "standard");
             string primarySrc = Path.Combine(primaryRoot, GVFSConstants.WorkingDirectoryRootName);
             string sharedGitDir = Path.Combine(primarySrc, GVFSConstants.DotGit.Root);
@@ -271,7 +440,7 @@ namespace GVFS.UnitTests.CommandLine
 
             if (!isWorktree)
             {
-                return new GVFSEnlistment(primaryRoot, "https://mock/repo", gitBinPath, authentication: null);
+                return new GVFSEnlistment(primaryRoot, "mock://repo", gitBinPath, authentication: null);
             }
 
             string worktreePath = Path.Combine(this.testRoot, "linked-worktree");
@@ -293,7 +462,25 @@ namespace GVFS.UnitTests.CommandLine
                 gitBinPath,
                 authentication: null,
                 worktreeInfo,
-                repoUrl: "https://mock/repo");
+                repoUrl: "mock://repo");
+        }
+
+        private class IndexGenerationListener : EventListener
+        {
+            public IndexGenerationListener()
+                : base(EventLevel.Informational, Keywords.Any, null)
+            {
+            }
+
+            public string ActivityPayload { get; private set; }
+
+            protected override void RecordMessageInternal(TraceEventMessage message)
+            {
+                if (message.EventName == "CreateFromHeadTree" && message.Opcode == EventOpcode.Start)
+                {
+                    this.ActivityPayload = message.Payload;
+                }
+            }
         }
     }
 }
