@@ -2,6 +2,7 @@
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -35,6 +36,20 @@ namespace GVFS.RepairJobs
             if (RefStorage.IsReftableRepo(git) || this.ReftableBackendDirectoryExists())
             {
                 messages.Add(RefStorage.UnsupportedReftableErrorMessage);
+                return IssueType.CantFix;
+            }
+
+            // A SHA256 repository is not something 'gvfs repair' can make usable (see
+            // TryFixIssues), so report it as an unfixable issue rather than letting
+            // 'gvfs repair' declare the enlistment healthy. Detect it both from the config
+            // extension and from the physical .git/packed-refs object-id width: the latter
+            // still identifies a SHA256 repo when the config is too corrupt for 'git config'
+            // to read, which is exactly the state repair runs in. A config-read failure
+            // alone is otherwise swallowed as "not SHA256" so the normal config checks below
+            // still run - repair exists to diagnose exactly that kind of broken config.
+            if (ObjectFormat.IsSha256Repo(git) || this.PackedRefsLookSha256())
+            {
+                messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
                 return IssueType.CantFix;
             }
 
@@ -90,6 +105,8 @@ namespace GVFS.RepairJobs
 
         public override FixResult TryFixIssues(List<string> messages)
         {
+            GitProcess git = new GitProcess(this.Enlistment);
+
             // Check before touching the config file at all: TryFixIssues rebuilds the
             // entire config from scratch (wiping it to empty, then writing only the
             // required/optional settings this codebase knows about via
@@ -109,7 +126,7 @@ namespace GVFS.RepairJobs
             // files-format config, so a repo whose config is merely unreadable is exactly what
             // repair must be allowed to fix.
             bool reftableDirectoryExists = this.ReftableBackendDirectoryExists();
-            bool configReadable = RefStorage.TryIsReftableRepo(new GitProcess(this.Enlistment), out bool isReftableByConfig, out string refStorageReadError);
+            bool configReadable = RefStorage.TryIsReftableRepo(git, out bool isReftableByConfig, out string refStorageReadError);
             if (reftableDirectoryExists || (configReadable && isReftableByConfig))
             {
                 messages.Add(RefStorage.UnsupportedReftableErrorMessage);
@@ -119,6 +136,44 @@ namespace GVFS.RepairJobs
             if (!configReadable)
             {
                 this.Tracer.RelatedWarning("Could not determine the repository's ref storage format; proceeding with repair: " + refStorageReadError);
+            }
+
+            // Same rationale as above, for SHA256: TrySetRequiredGitConfigSettings also
+            // force-writes core.repositoryformatversion=0 and drops extensions.objectformat.
+            // Rebuilding a SHA256 repo's config that way would strip the objectformat
+            // extension while its objects/index remain SHA256-hashed, producing a
+            // differently-broken repo. There is no way for 'gvfs repair' to make a
+            // SHA256 repo usable by VFS for Git, so fail clearly instead of attempting
+            // the rebuild.
+            //
+            // Detect SHA256 from the config AND from the physical .git/packed-refs
+            // object-id width (PackedRefsLookSha256 - see ObjectFormat.Sha256HexIdLength for
+            // why that width is a reliable physical signal). This mirrors the reftable
+            // directory check above, and is what makes the fallback safe when the config is
+            // unreadable. A config-read failure with no SHA256-width packed-refs is NOT
+            // blocked, unlike at mount/clone/FastFetch: repair's whole purpose is to rebuild
+            // a corrupt config, so a repo whose config is merely unreadable is exactly what
+            // repair must be allowed to fix.
+            //
+            // In practice this whole block is unreachable through 'gvfs repair': HasIssue
+            // above runs this identical detection first and returns CantFix for the same
+            // condition, so RepairVerb.Execute never adds this job to its "fixable" set and
+            // never calls TryFixIssues for it (RepairTests.DoesNotRebuildSha256RepoConfig
+            // exercises exactly that HasIssue/CantFix path). The check stays here anyway, as
+            // defense-in-depth should TryFixIssues ever be called directly or RepairVerb's
+            // sequencing change, so a future caller does not silently rebuild a SHA256
+            // repo's config as SHA1.
+            bool packedRefsLookSha256 = this.PackedRefsLookSha256();
+            bool objectFormatReadable = ObjectFormat.TryIsSha256Repo(git, out bool isSha256ByConfig, out string objectFormatReadError);
+            if (packedRefsLookSha256 || (objectFormatReadable && isSha256ByConfig))
+            {
+                messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
+                return FixResult.Failure;
+            }
+
+            if (!objectFormatReadable)
+            {
+                this.Tracer.RelatedWarning("Could not determine the repository's object format; proceeding with repair: " + objectFormatReadError);
             }
 
             string configPath = Path.Combine(this.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Config);
@@ -178,6 +233,86 @@ namespace GVFS.RepairJobs
             string reftableDirectory = Path.Combine(this.Enlistment.DotGitRoot, RefStorage.ReftableDirectoryName);
 
             return Directory.Exists(reftableDirectory);
+        }
+
+        internal bool PackedRefsLookSha256()
+        {
+            // Same DotGitRoot assumption as ReftableBackendDirectoryExists() above - holds for
+            // the primary enlistment repair targets, not a linked worktree.
+            //
+            // VFS for Git writes .git/packed-refs directly during clone (GitRefs.ToPackedRefs,
+            // consumed by CloneVerb.TryInitRepo) rather than through git's ref backend, so it
+            // is reliably present. See ObjectFormat.Sha256HexIdLength for why its object-id
+            // width is a reliable physical signal of the repository's object format even if
+            // the file is later rewritten by git itself.
+            //
+            // This only ever runs against an enlistment 'gvfs repair' has already flagged as
+            // broken, so a malformed line is the expected case, not the exotic one: each
+            // candidate line's leading token must actually be hex and of a known object-id
+            // width before it is trusted, and a line that fails that check is skipped rather
+            // than treated as a definitive answer - a non-hex or wrong-width token picked up
+            // from the first space it happens to contain could otherwise mask a genuine
+            // SHA256-width line further down the file, or misclassify a healthy SHA1 repo.
+            string packedRefsPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.PackedRefsName);
+
+            try
+            {
+                foreach (string line in File.ReadLines(packedRefsPath))
+                {
+                    if (line.Length == 0 || line[0] == '#' || line[0] == '^')
+                    {
+                        // '#' is the pack-refs header comment; '^' lines carry the peeled
+                        // object id of an annotated tag, not a ref's own object id.
+                        continue;
+                    }
+
+                    int spaceIndex = line.IndexOf(' ');
+                    if (spaceIndex <= 0)
+                    {
+                        continue;
+                    }
+
+                    if (spaceIndex == ObjectFormat.Sha256HexIdLength && IsHex(line, 0, spaceIndex))
+                    {
+                        return true;
+                    }
+
+                    if (spaceIndex == GVFSConstants.ShaStringLength && IsHex(line, 0, spaceIndex))
+                    {
+                        return false;
+                    }
+
+                    // Neither a valid SHA256-width nor SHA1-width hex object id - this line
+                    // is not a reliable signal either way, so keep scanning rather than
+                    // committing to it.
+                }
+            }
+            catch (IOException)
+            {
+                // packed-refs missing or unreadable - not itself a SHA256 signal, and the
+                // config-based check this is paired with already handles a read failure.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Same rationale as the IOException case above - File.ReadLines surfaces a
+                // permission/locking problem as UnauthorizedAccessException rather than
+                // IOException, and this probe must not propagate either kind of failure.
+            }
+
+            return false;
+        }
+
+        private static bool IsHex(string value, int start, int length)
+        {
+            for (int i = start; i < start + length; i++)
+            {
+                if (!Uri.IsHexDigit(value[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }

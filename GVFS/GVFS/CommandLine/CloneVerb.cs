@@ -865,10 +865,10 @@ git %*
             }
 
             // 'git init' above pins --ref-format=files when the installed git supports it (git
-            // 2.45+), so a user's init.defaultRefFormat=reftable no longer produces a reftable
-            // repo on a supported git. This check remains as defense-in-depth: it covers the
-            // case where the git version could not be determined (the pin is then omitted) and
-            // any repo that reached v1 by another route. VFS for Git populates refs by writing
+            // 2.45+), so init.defaultRefFormat=reftable cannot produce a reftable repo on a
+            // supported git. This check remains as defense-in-depth: it covers the case where
+            // the git version could not be determined (the pin is then omitted) and any repo
+            // that reached v1 by another route. VFS for Git populates refs by writing
             // .git/packed-refs directly (below, and via GitRefs.ToPackedRefs) rather than
             // through git's ref backend, and a reftable repo ignores packed-refs - so such a
             // clone would silently produce an enlistment whose remote refs are invisible to
@@ -876,7 +876,8 @@ git %*
             // fatal here: this is our own just-initialized repo, so a read error (as opposed to
             // the key being absent, which reports files-format) means its config is unreadable
             // and the clone cannot safely continue.
-            if (!RefStorage.TryIsReftableRepo(enlistmentToInit.CreateGitProcess(), out bool isReftableRepo, out string refStorageReadError))
+            GitProcess gitForFormatChecks = enlistmentToInit.CreateGitProcess();
+            if (!RefStorage.TryIsReftableRepo(gitForFormatChecks, out bool isReftableRepo, out string refStorageReadError))
             {
                 string readError = "Could not determine the new repository's ref storage format: " + refStorageReadError;
                 tracer.RelatedError(readError);
@@ -886,6 +887,25 @@ git %*
             {
                 tracer.RelatedError(RefStorage.UnsupportedReftableErrorMessage);
                 return new Result(RefStorage.UnsupportedReftableErrorMessage);
+            }
+
+            // 'git init' above pins --object-format=sha1, so init.defaultObjectFormat=sha256
+            // cannot produce a SHA256 repo on a supported git. This check remains as
+            // defense-in-depth: it covers any pre-existing repo that reached v1 by another
+            // route (e.g. an older GVFS build, or hand-edited config). A genuine
+            // config-read failure is fatal here: this is our own just-initialized repo, so
+            // a read error (as opposed to the key being absent, which reports SHA1) means
+            // its config is unreadable and the clone cannot safely continue.
+            if (!ObjectFormat.TryIsSha256Repo(gitForFormatChecks, out bool isSha256Repo, out string objectFormatReadError))
+            {
+                string readError = "Could not determine the new repository's object format: " + objectFormatReadError;
+                tracer.RelatedError(readError);
+                return new Result(readError);
+            }
+            else if (isSha256Repo)
+            {
+                tracer.RelatedError(ObjectFormat.UnsupportedSha256ErrorMessage);
+                return new Result(ObjectFormat.UnsupportedSha256ErrorMessage);
             }
 
             try

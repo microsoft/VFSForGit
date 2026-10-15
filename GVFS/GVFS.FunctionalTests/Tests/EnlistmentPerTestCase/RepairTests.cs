@@ -159,6 +159,46 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.Enlistment.MountGVFS();
         }
 
+        [TestCase]
+        public void DoesNotRebuildSha256RepoConfig()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            // Make this otherwise-ordinary enlistment's config look like a SHA256 repo -
+            // core.repositoryformatversion=1 plus extensions.objectformat=sha256, the shape
+            // 'git init --object-format=sha256' produces - while leaving the rest of the
+            // config (including the origin remote) intact and parseable. The enlistment's
+            // actual objects/refs are still genuinely SHA1-hashed; this exercises the
+            // config-based detection path specifically, not the packed-refs physical
+            // fallback (which only fires when the config itself is unreadable).
+            string configPath = Path.Combine(this.Enlistment.RepoBackingRoot, ".git", "config");
+            string originalConfig = File.ReadAllText(configPath);
+            string sha256Config = originalConfig.Replace("repositoryformatversion = 0", "repositoryformatversion = 1")
+                + "[extensions]\n\tobjectformat = sha256\n";
+            File.WriteAllText(configPath, sha256Config);
+
+            this.Enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount a SHA256 repo");
+
+            this.RepairWithoutConfirmShouldNotFix();
+
+            // This drives HasIssue's CantFix path (same detection as above), so repair
+            // reports the job as unfixable and never calls TryFixIssues for it at all -
+            // it does not exercise TryFixIssues's own, separate SHA256 guard, which
+            // RepairVerb never reaches this job for in practice. What this test does pin is
+            // the end-to-end, user-visible outcome: repair must leave this repo exactly as
+            // broken (still SHA256, still unmountable) as it found it, not silently rebuild
+            // it as a SHA1-shaped config over SHA256-hashed objects/refs.
+            this.Enlistment.Repair(confirm: true);
+            this.Enlistment.TryMountGVFS().ShouldEqual(false, "Repair must not make a SHA256 repo mountable");
+
+            // Assert the config is byte-for-byte what was written, not merely that it still
+            // mentions "sha256" - a weaker check would pass even on a half-rebuilt config
+            // where repositoryformatversion was reset to 0 but extensions.objectformat
+            // survived, which is exactly the broken state this guard exists to prevent.
+            string configAfterRepair = File.ReadAllText(configPath);
+            configAfterRepair.ShouldEqual(sha256Config, "Repair must not modify a SHA256 repo's config at all");
+        }
+
         private void CreateCorruptIndexAndRename(string indexPath, Action<FileStream, FileStream> corruptionAction)
         {
             string tempIndexPath = indexPath + ".lock";
