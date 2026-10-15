@@ -41,13 +41,12 @@ namespace GVFS.RepairJobs
 
             // A SHA256 repository is not something 'gvfs repair' can make usable (see
             // TryFixIssues), so report it as an unfixable issue rather than letting
-            // 'gvfs diagnose'/'gvfs repair' declare the enlistment healthy. Detect it both
-            // from the config extension and from the physical .git/packed-refs object-id
-            // width: the latter still identifies a SHA256 repo when the config is too
-            // corrupt for 'git config' to read, which is exactly the state repair runs in.
-            // A config-read failure alone is otherwise swallowed as "not SHA256" so the
-            // normal config checks below still run - repair exists to diagnose exactly
-            // that kind of broken config.
+            // 'gvfs repair' declare the enlistment healthy. Detect it both from the config
+            // extension and from the physical .git/packed-refs object-id width: the latter
+            // still identifies a SHA256 repo when the config is too corrupt for 'git config'
+            // to read, which is exactly the state repair runs in. A config-read failure
+            // alone is otherwise swallowed as "not SHA256" so the normal config checks below
+            // still run - repair exists to diagnose exactly that kind of broken config.
             if (ObjectFormat.IsSha256Repo(git) || this.PackedRefsLookSha256())
             {
                 messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
@@ -106,6 +105,8 @@ namespace GVFS.RepairJobs
 
         public override FixResult TryFixIssues(List<string> messages)
         {
+            GitProcess git = new GitProcess(this.Enlistment);
+
             // Check before touching the config file at all: TryFixIssues rebuilds the
             // entire config from scratch (wiping it to empty, then writing only the
             // required/optional settings this codebase knows about via
@@ -125,7 +126,7 @@ namespace GVFS.RepairJobs
             // files-format config, so a repo whose config is merely unreadable is exactly what
             // repair must be allowed to fix.
             bool reftableDirectoryExists = this.ReftableBackendDirectoryExists();
-            bool configReadable = RefStorage.TryIsReftableRepo(new GitProcess(this.Enlistment), out bool isReftableByConfig, out string refStorageReadError);
+            bool configReadable = RefStorage.TryIsReftableRepo(git, out bool isReftableByConfig, out string refStorageReadError);
             if (reftableDirectoryExists || (configReadable && isReftableByConfig))
             {
                 messages.Add(RefStorage.UnsupportedReftableErrorMessage);
@@ -163,7 +164,7 @@ namespace GVFS.RepairJobs
             // sequencing change, so a future caller does not silently rebuild a SHA256
             // repo's config as SHA1.
             bool packedRefsLookSha256 = this.PackedRefsLookSha256();
-            bool objectFormatReadable = ObjectFormat.TryIsSha256Repo(new GitProcess(this.Enlistment), out bool isSha256ByConfig, out string objectFormatReadError);
+            bool objectFormatReadable = ObjectFormat.TryIsSha256Repo(git, out bool isSha256ByConfig, out string objectFormatReadError);
             if (packedRefsLookSha256 || (objectFormatReadable && isSha256ByConfig))
             {
                 messages.Add(ObjectFormat.UnsupportedSha256ErrorMessage);
@@ -244,6 +245,14 @@ namespace GVFS.RepairJobs
             // is reliably present. See ObjectFormat.Sha256HexIdLength for why its object-id
             // width is a reliable physical signal of the repository's object format even if
             // the file is later rewritten by git itself.
+            //
+            // This only ever runs against an enlistment 'gvfs repair' has already flagged as
+            // broken, so a malformed line is the expected case, not the exotic one: each
+            // candidate line's leading token must actually be hex and of a known object-id
+            // width before it is trusted, and a line that fails that check is skipped rather
+            // than treated as a definitive answer - a non-hex or wrong-width token picked up
+            // from the first space it happens to contain could otherwise mask a genuine
+            // SHA256-width line further down the file, or misclassify a healthy SHA1 repo.
             string packedRefsPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.PackedRefsName);
 
             try
@@ -263,7 +272,19 @@ namespace GVFS.RepairJobs
                         continue;
                     }
 
-                    return spaceIndex == ObjectFormat.Sha256HexIdLength;
+                    if (spaceIndex == ObjectFormat.Sha256HexIdLength && IsHex(line, 0, spaceIndex))
+                    {
+                        return true;
+                    }
+
+                    if (spaceIndex == GVFSConstants.ShaStringLength && IsHex(line, 0, spaceIndex))
+                    {
+                        return false;
+                    }
+
+                    // Neither a valid SHA256-width nor SHA1-width hex object id - this line
+                    // is not a reliable signal either way, so keep scanning rather than
+                    // committing to it.
                 }
             }
             catch (IOException)
@@ -279,6 +300,19 @@ namespace GVFS.RepairJobs
             }
 
             return false;
+        }
+
+        private static bool IsHex(string value, int start, int length)
+        {
+            for (int i = start; i < start + length; i++)
+            {
+                if (!Uri.IsHexDigit(value[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }

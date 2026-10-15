@@ -191,8 +191,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.Enlistment.Repair(confirm: true);
             this.Enlistment.TryMountGVFS().ShouldEqual(false, "Repair must not make a SHA256 repo mountable");
 
+            // Assert the config is byte-for-byte what was written, not merely that it still
+            // mentions "sha256" - a weaker check would pass even on a half-rebuilt config
+            // where repositoryformatversion was reset to 0 but extensions.objectformat
+            // survived, which is exactly the broken state this guard exists to prevent.
             string configAfterRepair = File.ReadAllText(configPath);
-            configAfterRepair.ShouldContain("sha256");
+            configAfterRepair.ShouldEqual(sha256Config, "Repair must not modify a SHA256 repo's config at all");
         }
 
         private void CreateCorruptIndexAndRename(string indexPath, Action<FileStream, FileStream> corruptionAction)

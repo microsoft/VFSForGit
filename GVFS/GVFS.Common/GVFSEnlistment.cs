@@ -328,8 +328,13 @@ namespace GVFS.Common
                     }
                     catch (JsonException e)
                     {
-                        errorMessage = string.Format("Failed to parse response from GVFS.Mount.\n {0}", e);
-                        tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
+                        // Same rationale as the BrokenPipeException case above: keep the
+                        // console-facing message short, and send the full exception detail
+                        // to the trace log instead of dumping a raw stack trace to the user.
+                        errorMessage = string.Format("Failed to parse response from GVFS.Mount: {0}", e.Message);
+                        tracer.RelatedError(
+                            new EventMetadata { { "Exception", e.ToString() } },
+                            $"{nameof(WaitUntilMounted)}: {errorMessage}");
                         return false;
                     }
                 }

@@ -132,5 +132,49 @@ namespace GVFS.UnitTests.Common
                 tracer.RelatedErrorEvents[0].ShouldContain("Exception");
             }
         }
+
+        [TestCase]
+        public void JsonExceptionMidPollProducesShortMessageAndLogsFullExceptionDetail()
+        {
+            string pipeName = "GVFS_UnitTest_JsonException_" + Guid.NewGuid().ToString("N");
+
+            using (NamedPipeServerStream serverStream = new NamedPipeServerStream(
+                pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous))
+            {
+                Task serverTask = Task.Run(() =>
+                {
+                    serverStream.WaitForConnection();
+
+                    // Read the client's GetStatus request, then respond with a payload that
+                    // is not valid JSON - simulating a truncated or malformed mount response -
+                    // so Response.FromJson throws a JsonException.
+                    new NamedPipeStreamReader(serverStream).ReadMessage();
+                    new NamedPipeStreamWriter(serverStream).WriteMessage("{ not valid json");
+                });
+
+                MockTracer tracer = new MockTracer();
+                string errorMessage;
+                bool result = GVFSEnlistment.WaitUntilMounted(
+                    tracer,
+                    pipeName,
+                    "C:\\fake\\root",
+                    false,
+                    out errorMessage);
+
+                serverTask.Wait(TimeSpan.FromSeconds(10));
+
+                result.ShouldBeFalse();
+                errorMessage.ShouldNotBeNull();
+                errorMessage.ShouldContain("Failed to parse response from GVFS.Mount");
+
+                // The console-facing message must stay short - no embedded stack trace
+                // (a stack trace is what JsonException.ToString() would produce).
+                errorMessage.ShouldNotContain(false, "   at ", Environment.NewLine);
+
+                // The full exception detail must still be captured for diagnostics.
+                tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+                tracer.RelatedErrorEvents[0].ShouldContain("Exception");
+            }
+        }
     }
 }

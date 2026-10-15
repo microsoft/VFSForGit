@@ -6,7 +6,7 @@ using NUnit.Framework;
 using System;
 using System.IO;
 
-namespace GVFS.UnitTests.CommandLine
+namespace GVFS.UnitTests.RepairJobs
 {
     [TestFixture]
     public class GitConfigRepairJobTests
@@ -71,6 +71,34 @@ namespace GVFS.UnitTests.CommandLine
         [TestCase]
         public void PackedRefsLookSha256IsFalseWhenFileIsMissing()
         {
+            this.CreateJob().PackedRefsLookSha256().ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void PackedRefsLookSha256SkipsNonHexGarbageAtSha1WidthAndFindsRealSignal()
+        {
+            // A 40-character garbled first token (not valid hex) must not be trusted as a
+            // definitive SHA1 answer - that would mask the genuine SHA256-width signal on
+            // the next line, which is the false-negative failure mode on exactly the
+            // corrupt enlistments this probe runs against.
+            this.WritePackedRefs(
+                "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz refs/heads/garbled",
+                "bb3fd16685b64a36d8d433fd0684d192277bb3b64f2b8441c5832d8d3ba8da91 refs/heads/master");
+
+            this.CreateJob().PackedRefsLookSha256().ShouldEqual(true);
+        }
+
+        [TestCase]
+        public void PackedRefsLookSha256SkipsNonHexGarbageAtSha256WidthOnHealthySha1Repo()
+        {
+            // A 64-character garbled token (not valid hex) must not pin this to "SHA256" -
+            // that would permanently misclassify a healthy SHA1 repo, the false-positive
+            // failure mode. The genuine SHA1-width signal on the next line is the real
+            // answer.
+            this.WritePackedRefs(
+                "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz refs/heads/garbled",
+                "a3541ccec5694b0334d91298e348dc7401c07ff7 refs/heads/master");
+
             this.CreateJob().PackedRefsLookSha256().ShouldEqual(false);
         }
 
