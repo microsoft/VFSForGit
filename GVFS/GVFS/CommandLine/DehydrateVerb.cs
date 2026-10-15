@@ -789,7 +789,20 @@ from a parent of the folders list.
                 "Use 'git worktree remove <path>' to remove a worktree. " +
                 "If its directory no longer exists, use 'git worktree prune' to remove stale registrations. " +
                 "If a stale registration is locked, use 'git worktree unlock <path>' before pruning.";
-            if (!GVFSEnlistment.TryGetKnownWorktreePaths(enlistment.DotGitRoot, out string[] worktreePaths, out string error, out Exception exception))
+            bool readSucceeded = GVFSEnlistment.TryGetKnownWorktreePaths(
+                enlistment.DotGitRoot,
+                out string[] worktreePaths,
+                out string error,
+                out Exception exception,
+                out List<string> skippedRegistrationErrors);
+            foreach (string skippedRegistrationError in skippedRegistrationErrors)
+            {
+                tracer.RelatedWarning(
+                    new EventMetadata { { "Error", skippedRegistrationError } },
+                    "Skipped unreadable worktree registration file.");
+            }
+
+            if (!readSucceeded)
             {
                 EventMetadata metadata = new EventMetadata
                 {

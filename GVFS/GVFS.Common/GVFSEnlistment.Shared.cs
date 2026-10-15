@@ -214,14 +214,21 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Reads registrations with a gitdir file and fails if a present file cannot be read or parsed.
+        /// Reads registrations, skipping missing, empty, or unreadable files as Git does.
+        /// Nonempty malformed files and directory enumeration failures are reported to the caller.
         /// </summary>
-        public static bool TryGetKnownWorktreePaths(string gitDir, out string[] paths, out string error, out Exception exception)
+        public static bool TryGetKnownWorktreePaths(
+            string gitDir,
+            out string[] paths,
+            out string error,
+            out Exception exception,
+            out List<string> skippedRegistrationErrors)
         {
             ArgumentNullException.ThrowIfNull(gitDir);
             paths = null;
             error = null;
             exception = null;
+            skippedRegistrationErrors = new List<string>();
             string pathToRead = gitDir;
             try
             {
@@ -257,10 +264,26 @@ namespace GVFS.Common
                     string gitdirContent;
                     try
                     {
-                        gitdirContent = File.ReadAllText(pathToRead).Trim().Replace('/', Path.DirectorySeparatorChar);
+                        using (FileStream stream = File.OpenRead(pathToRead))
+                        {
+                            if (stream.Length == 0)
+                            {
+                                continue;
+                            }
+
+                            using (StreamReader reader = new StreamReader(stream))
+                            {
+                                gitdirContent = reader.ReadToEnd().Trim().Replace('/', Path.DirectorySeparatorChar);
+                            }
+                        }
                     }
                     catch (FileNotFoundException)
                     {
+                        continue;
+                    }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                    {
+                        skippedRegistrationErrors.Add($"Failed to read '{pathToRead}': {ex}");
                         continue;
                     }
 
