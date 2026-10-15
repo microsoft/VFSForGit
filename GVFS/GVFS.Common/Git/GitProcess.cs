@@ -103,11 +103,15 @@ namespace GVFS.Common.Git
             {
                 // Deliberately not Enlistment.DotGitRoot. In a linked worktree, --git-dir must be
                 // the path of the worktree's .git file, not the gitdir: target stored inside it.
-                // Given that file, git reads the gitdir: pointer itself. It resolves the
-                // per-worktree files (HEAD, index, ORIG_HEAD, logs/HEAD, refs/bisect, refs/worktree)
-                // there, and everything else (config, objects, packed-refs, refs/heads) through
-                // commondir in the shared git directory.
+                // Given that file, git reads the gitdir: pointer itself. It resolves files in the
+                // per-worktree git directory by default (for example HEAD, index, ORIG_HEAD,
+                // logs/HEAD, MERGE_HEAD, CHERRY_PICK_HEAD, BISECT_START, FETCH_HEAD, rebase-merge/,
+                // refs/bisect, refs/worktree, refs/rewritten). Only an explicit shared set goes
+                // through commondir to the shared git directory (config, objects, packed-refs,
+                // refs/heads, hooks).
                 // Passing Enlistment.DotGitRoot would bind commands to the main worktree instead.
+                // Built from an Enlistment, workingDirectoryRoot is WorkingDirectoryBackingRoot,
+                // the same root that the base Enlistment uses to derive DotGitRoot.
                 this.gitDirPath = Path.Combine(this.workingDirectoryRoot, GVFSConstants.DotGit.Root);
             }
         }
