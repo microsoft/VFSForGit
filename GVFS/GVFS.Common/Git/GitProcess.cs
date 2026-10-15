@@ -323,14 +323,14 @@ namespace GVFS.Common.Git
                     errorData.Add("hasVisibleConsoleWindow", hasVisibleConsoleWindow);
                     AddCredentialFillResult(errorData, gitCredentialOutput);
                     TraceCredentialFillFailure(tracer, errorData, gitCredentialOutput.Errors);
-                    errorMessage = gitCredentialOutput.Errors;
+                    errorMessage = GetCredentialFillFailureMessage(gitCredentialOutput);
 
                     return false;
                 }
 
                 password = ParseValue(gitCredentialOutput.Output, "password=");
 
-                bool success = password != null;
+                bool success = !string.IsNullOrEmpty(password);
 
                 EventMetadata metadata = new EventMetadata
                 {
@@ -397,10 +397,11 @@ namespace GVFS.Common.Git
                             errorData,
                             "Git credential fill timed out after " + timeoutMs + "ms",
                             Keywords.Network | Keywords.Telemetry);
+                        TraceCredentialFillErrorOutput(tracer, gitCredentialOutput.Errors);
                     }
                     else
                     {
-                        errorMessage = gitCredentialOutput.Errors;
+                        errorMessage = GetCredentialFillFailureMessage(gitCredentialOutput);
                         TraceCredentialFillFailure(tracer, errorData, gitCredentialOutput.Errors);
                     }
 
@@ -420,8 +421,7 @@ namespace GVFS.Common.Git
                 username = ParseValue(gitCredentialOutput.Output, "username=") ?? string.Empty;
                 password = ParseValue(gitCredentialOutput.Output, "password=");
 
-                bool success = password != null;
-
+                bool success = !string.IsNullOrEmpty(password);
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Success", success);
                 if (!success)
@@ -1180,10 +1180,20 @@ namespace GVFS.Common.Git
 
         private static void TraceCredentialFillFailure(ITracer tracer, EventMetadata errorData, string errors)
         {
-            // Git can echo unparseable helper output, including secrets, to stderr. The telemetry event
-            // carries no stderr; the text stays in the local log only.
             tracer.RelatedWarning(errorData, "Git could not get credentials", Keywords.Network | Keywords.Telemetry);
+            TraceCredentialFillErrorOutput(tracer, errors);
+        }
+
+        private static void TraceCredentialFillErrorOutput(ITracer tracer, string errors)
+        {
+            // Git can echo unparseable helper output, including secrets, to stderr. Telemetry events and
+            // the error message that is returned to callers carry no stderr; the text stays in the local log.
             tracer.RelatedWarning("Git credential fill error output: " + errors);
+        }
+
+        private static string GetCredentialFillFailureMessage(Result result)
+        {
+            return "Git credential fill failed with exit code " + result.ExitCode + "; see the log for its error output";
         }
 
         private static void TraceCredentialFillMissingPassword(ITracer tracer, EventMetadata errorData, Result result)
@@ -1269,6 +1279,12 @@ namespace GVFS.Common.Git
         /// or null if no line has that prefix. Lines end at "\n", the last line need not end with one,
         /// and a repeated key takes its last value. This is how git reads credential output.
         /// </summary>
+        /// <remarks>
+        /// The scan reads all of the output, with no early exit, because the last value wins. The
+        /// output is bounded by <see cref="MaxCapturedStdOutChars"/> and a real helper writes a few lines.
+        /// Unlike git, which stops reading at the first empty line, this skips empty lines and keeps
+        /// reading. That accepts every output that git accepts.
+        /// </remarks>
         private static string ParseValue(string contents, string prefix)
         {
             string value = null;

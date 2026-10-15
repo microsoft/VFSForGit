@@ -1,4 +1,4 @@
-using GVFS.Common.Git;
+﻿using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
@@ -167,7 +167,7 @@ namespace GVFS.UnitTests.Common.Git
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string errorMessage).ShouldBeFalse();
 
             AssertStderrIsOnlyLocal(tracer, stderr);
-            errorMessage.ShouldEqual(stderr);
+            AssertErrorMessageHasNoStderr(errorMessage);
         }
 
         [TestCase]
@@ -181,7 +181,47 @@ namespace GVFS.UnitTests.Common.Git
 
             AssertStderrIsOnlyLocal(tracer, stderr);
             GetTelemetryWarning(tracer)["CertificatePath"].ShouldEqual("mock://certificate");
-            errorMessage.ShouldEqual(stderr);
+            AssertErrorMessageHasNoStderr(errorMessage);
+        }
+
+        [TestCase]
+        public void TryGetCredentialKeepsStderrOutOfTelemetryWhenTheCredentialManagerTimesOut()
+        {
+            MockTracer tracer = new MockTracer();
+            string stderr = "Operation timed out after 5000ms; " + SecretValue;
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, string.Empty, stderr, GitProcess.Result.GenericFailureCode);
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string errorMessage, timeoutMs: 5000).ShouldBeFalse();
+
+            errorMessage.ShouldEqual("Credential manager did not respond within 5 seconds");
+            EventMetadata warning = GetTelemetryWarning(tracer);
+            ((int)warning["ErrorsLength"]).ShouldEqual(stderr.Length);
+            AssertNoSecret(warning);
+            tracer.RelatedWarningEvents.Any(e => e.Contains(SecretValue)).ShouldBeTrue("The local log keeps the captured stderr of a timeout");
+        }
+
+        [TestCase]
+        public void TryGetCredentialFailsWhenThePasswordIsEmpty()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, "protocol=https\nusername=someone\npassword=\n");
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string errorMessage).ShouldBeFalse();
+
+            errorMessage.ShouldEqual(MissingPasswordMessage);
+            GetTelemetryWarning(tracer)["OutputKeys"].ShouldEqual("protocol,username,password");
+        }
+
+        [TestCase]
+        public void TryGetCertificatePasswordFailsWhenThePasswordIsEmpty()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = CreateGitProcess(CertificateFillCommand, "protocol=cert\npath=mock://certificate\npassword=\n");
+
+            gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out _, out string errorMessage).ShouldBeFalse();
+
+            errorMessage.ShouldEqual(MissingPasswordMessage);
+            GetTelemetryWarning(tracer)["OutputKeys"].ShouldEqual("protocol,path,password");
         }
 
         [TestCase("protocol=https\nxpassword=WRONG\npath=contains-password=WRONG\nusername=someone\npassword=RIGHT\n", "someone", "RIGHT")]
@@ -226,6 +266,14 @@ namespace GVFS.UnitTests.Common.Git
                 command,
                 () => new GitProcess.Result(output, errors, exitCode, outputTruncated, errorsTruncated: false));
             return gitProcess;
+        }
+
+        private static void AssertErrorMessageHasNoStderr(string errorMessage)
+        {
+            // The caller puts this message in an exception, and the retry handler reports exceptions
+            // with the telemetry keyword, so it must not carry stderr.
+            errorMessage.Contains(SecretValue).ShouldBeFalse("The returned error message must not carry stderr: " + errorMessage);
+            errorMessage.ShouldEqual("Git credential fill failed with exit code " + GitFatalExitCode + "; see the log for its error output");
         }
 
         private static void AssertStderrIsOnlyLocal(MockTracer tracer, string stderr)
