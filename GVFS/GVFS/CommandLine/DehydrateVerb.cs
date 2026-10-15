@@ -283,7 +283,7 @@ from a parent of the folders list.
         {
             if (!this.TryBackupNonSrcFiles(tracer, enlistment, backupRoot))
             {
-                return;
+                this.ReportErrorAndExit(tracer, "Folder dehydrate failed because the backup failed.");
             }
 
             List<string> foldersToDehydrate = new List<string>();
@@ -485,7 +485,7 @@ from a parent of the folders list.
                         tracer,
                         skipVersionCheck: !this.NoStatus);
 
-                this.WriteMessage(tracer, "Dehydrate failed, but remounting succeeded");
+                this.ReportErrorAndExit(tracer, "Dehydrate failed, but remounting succeeded");
             }
         }
 
@@ -760,7 +760,13 @@ from a parent of the folders list.
                 ? () => File.Move(enlistment.GitIndexPath, backupIndexPath)
                 : () => File.Copy(enlistment.GitIndexPath, backupIndexPath);
 
-            return this.TryIO(tracer, backupIndex, "Backup the git index", out errorMessage);
+            if (!this.TryIO(tracer, backupIndex, $"Back up {enlistment.GitIndexPath} to {backupIndexPath}", out errorMessage))
+            {
+                errorMessage = $"Failed to back up '{enlistment.GitIndexPath}' to '{backupIndexPath}': {errorMessage}";
+                return false;
+            }
+
+            return true;
         }
 
         internal void ValidateFullDehydrate(ITracer tracer, GVFSEnlistment enlistment)
@@ -772,14 +778,33 @@ from a parent of the folders list.
 
             if (enlistment.IsWorktree)
             {
-                this.ReportErrorAndExit(tracer, "Dehydrate --full is not supported for git worktrees.");
-            }
-
-            if (!GVFSEnlistment.TryGetKnownWorktreePaths(enlistment.DotGitRoot, out string[] worktreePaths, out string error))
-            {
                 this.ReportErrorAndExit(
                     tracer,
-                    "Cannot verify linked worktree registrations. Full dehydrate is blocked. " + error);
+                    "Dehydrate --full is not supported for git worktrees. " +
+                    "Use 'gvfs dehydrate --confirm --folders <folder>' for folder dehydrate.");
+            }
+
+            string cleanupAdvice =
+                "Before you remove worktrees, back up or push any work you need to keep. " +
+                "Use 'git worktree remove <path>' to remove a worktree. " +
+                "If its directory no longer exists, use 'git worktree prune' to remove stale registrations. " +
+                "If a stale registration is locked, use 'git worktree unlock <path>' before pruning.";
+            if (!GVFSEnlistment.TryGetKnownWorktreePaths(enlistment.DotGitRoot, out string[] worktreePaths, out string error, out Exception exception))
+            {
+                EventMetadata metadata = new EventMetadata
+                {
+                    { "Error", error },
+                    { "DotGitRoot", enlistment.DotGitRoot },
+                };
+                if (exception != null)
+                {
+                    metadata.Add("Exception", exception.ToString());
+                }
+
+                tracer.RelatedError(metadata, "Cannot verify linked worktree registrations.");
+                this.ReportErrorAndExit(
+                    "Cannot verify linked worktree registrations. Full dehydrate is blocked. " + error + Environment.NewLine +
+                    "Check access to the registration path. Use 'git worktree list' to inspect registrations. " + cleanupAdvice);
             }
 
             if (worktreePaths.Length > 0)
@@ -787,9 +812,7 @@ from a parent of the folders list.
                 this.ReportErrorAndExit(
                     tracer,
                     "Dehydrate --full is not supported while linked worktrees exist." + Environment.NewLine +
-                    string.Join(Environment.NewLine, worktreePaths) + Environment.NewLine +
-                    "Use 'git worktree remove <path>' to remove a worktree. " +
-                    "If its directory no longer exists, use 'git worktree prune' to remove stale registrations.");
+                    string.Join(Environment.NewLine, worktreePaths) + Environment.NewLine + cleanupAdvice);
             }
         }
 
@@ -799,7 +822,7 @@ from a parent of the folders list.
             string backupSubfolder = string.Empty;
             if (enlistment.IsWorktree)
             {
-                backupParent = Path.GetDirectoryName(enlistment.WorkingDirectoryBackingRoot);
+                backupParent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(enlistment.WorkingDirectoryBackingRoot));
                 backupSubfolder = enlistment.Worktree.Name;
             }
 

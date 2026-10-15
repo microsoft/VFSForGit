@@ -43,6 +43,11 @@ namespace GVFS.UnitTests.CommandLine
         public void GitIndexGeneratorUsesEnlistmentIndexPath(bool isWorktree)
         {
             GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree);
+            if (!isWorktree)
+            {
+                enlistment.GitIndexPath.ShouldEqual(Path.Combine(enlistment.DotGitRoot, "index"));
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(enlistment.GitIndexPath));
 
             File.WriteAllText(enlistment.GitIndexPath, "old index");
@@ -189,6 +194,30 @@ namespace GVFS.UnitTests.CommandLine
             output.ToString().ShouldContain(Path.Combine(this.testRoot, "linked-worktree"));
             output.ToString().ShouldContain("git worktree remove <path>");
             output.ToString().ShouldContain("git worktree prune");
+            output.ToString().ShouldContain("git worktree unlock <path>");
+            output.ToString().ShouldContain("back up or push");
+        }
+
+        [TestCase]
+        public void FullDehydrateResolvesRelativeRegistration()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            string worktreeGitDir = Path.Combine(enlistment.DotGitRoot, "worktrees", "relative");
+            Directory.CreateDirectory(worktreeGitDir);
+            string worktreePath = Path.Combine(this.testRoot, "relative-worktree");
+            File.WriteAllText(
+                Path.Combine(worktreeGitDir, "gitdir"),
+                Path.GetRelativePath(worktreeGitDir, Path.Combine(worktreePath, ".git")).Replace('\\', '/') + "\n");
+            using (StringWriter output = new StringWriter())
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb { Full = true, Output = output };
+                Assert.Throws<GVFSVerb.VerbAbortedException>(
+                    () => verb.ValidateFullDehydrate(tracer, enlistment));
+                output.ToString().ShouldContain("not supported while linked worktrees exist.");
+                output.ToString().ShouldContain(worktreePath);
+                output.ToString().Contains("Invalid worktree registration").ShouldBeFalse();
+            }
         }
 
         [TestCase(null)]
@@ -213,6 +242,8 @@ namespace GVFS.UnitTests.CommandLine
                     () => verb.ValidateFullDehydrate(tracer, enlistment));
                 output.ToString().ShouldContain("Full dehydrate is blocked.");
                 output.ToString().ShouldContain(Path.Combine(worktreeGitDir, "gitdir"));
+                output.ToString().ShouldContain("git worktree list");
+                output.ToString().ShouldContain("git worktree prune");
                 tracer.RelatedErrorEvents.Count.ShouldEqual(1);
                 Directory.Exists(enlistment.WorkingDirectoryBackingRoot).ShouldBeTrue();
             }
@@ -237,6 +268,13 @@ namespace GVFS.UnitTests.CommandLine
                 output.ToString().ShouldContain("Full dehydrate is blocked.");
                 output.ToString().ShouldContain(gitdirFile);
                 tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+                using (JsonDocument metadata = JsonDocument.Parse(tracer.RelatedErrorEvents[0]))
+                {
+                    metadata.RootElement.GetProperty("Exception").GetString().ShouldContain("System.IO.IOException");
+                    metadata.RootElement.GetProperty("Exception").GetString().ShouldContain("TryGetKnownWorktreePaths");
+                }
+
+                output.ToString().Contains("System.IO.IOException").ShouldBeFalse();
             }
         }
 
@@ -315,17 +353,19 @@ namespace GVFS.UnitTests.CommandLine
             }
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void BackupRootIsUniqueAndWorktreeLocal(bool isWorktree)
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void BackupRootIsUniqueAndWorktreeLocal(bool isWorktree, bool trailingSeparator)
         {
-            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree);
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree, trailingSeparator: trailingSeparator);
             DateTime timestamp = new DateTime(2026, 9, 23, 13, 0, 0, 123);
 
             string backupRoot = DehydrateVerb.GetBackupRoot(enlistment, timestamp);
 
             string expectedParent = isWorktree
-                ? Path.GetDirectoryName(enlistment.WorkingDirectoryBackingRoot)
+                ? this.testRoot
                 : enlistment.PrimaryEnlistmentRoot;
             string expectedSubfolder = isWorktree
                 ? Path.Combine("dehydrate_backup", enlistment.Worktree.Name)
@@ -334,7 +374,7 @@ namespace GVFS.UnitTests.CommandLine
                 Path.Combine(
                     expectedParent,
                     expectedSubfolder,
-                    timestamp.ToString("yyyyMMdd_HHmmss_fffffff")));
+                    "20260923_130000_1230000"));
             DehydrateVerb.GetBackupRoot(enlistment, timestamp.AddTicks(1)).ShouldNotEqual(backupRoot);
         }
 
@@ -354,7 +394,8 @@ namespace GVFS.UnitTests.CommandLine
                 out string errorMessage);
 
             result.ShouldBeFalse();
-            errorMessage.ShouldNotBeNull();
+            errorMessage.ShouldContain(enlistment.GitIndexPath);
+            errorMessage.ShouldContain(Path.Combine(backupGit, "index"));
         }
 
         [TestCase]
@@ -408,6 +449,33 @@ namespace GVFS.UnitTests.CommandLine
 
         [TestCase(false)]
         [TestCase(true)]
+        public void IndexBackupReturnsPreciseFileError(bool move)
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: true);
+            File.WriteAllText(enlistment.GitIndexPath, "worktree index");
+            string backupGit = Path.Combine(this.testRoot, "occupied-index-backup");
+            Directory.CreateDirectory(backupGit);
+            string backupIndex = Path.Combine(backupGit, "index");
+            File.WriteAllText(backupIndex, "previous backup");
+
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb();
+                verb.TryBackupGitIndex(tracer, enlistment, backupGit, move, out string errorMessage).ShouldBeFalse();
+                errorMessage.ShouldContain(enlistment.GitIndexPath);
+                errorMessage.ShouldContain(backupIndex);
+                using (JsonDocument metadata = JsonDocument.Parse(tracer.RelatedErrorEvents[0]))
+                {
+                    errorMessage.ShouldContain(metadata.RootElement.GetProperty("Error").GetString());
+                }
+
+                File.ReadAllText(enlistment.GitIndexPath).ShouldEqual("worktree index");
+                File.ReadAllText(backupIndex).ShouldEqual("previous backup");
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
         public void IndexGenerationTracesResolvedDestination(bool isWorktree)
         {
             GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree, gitBinPath: "git.exe");
@@ -430,7 +498,7 @@ namespace GVFS.UnitTests.CommandLine
             }
         }
 
-        private GVFSEnlistment CreateEnlistment(bool isWorktree, string gitBinPath = null)
+        private GVFSEnlistment CreateEnlistment(bool isWorktree, string gitBinPath = null, bool trailingSeparator = false)
         {
             gitBinPath = gitBinPath ?? Path.Combine(this.testRoot, "git.exe");
             string primaryRoot = Path.Combine(this.testRoot, isWorktree ? "worktree-primary" : "standard");
@@ -444,6 +512,11 @@ namespace GVFS.UnitTests.CommandLine
             }
 
             string worktreePath = Path.Combine(this.testRoot, "linked-worktree");
+            if (trailingSeparator)
+            {
+                worktreePath += Path.DirectorySeparatorChar;
+            }
+
             string worktreeGitDir = Path.Combine(sharedGitDir, "worktrees", "linked-worktree");
             Directory.CreateDirectory(worktreePath);
             Directory.CreateDirectory(worktreeGitDir);
