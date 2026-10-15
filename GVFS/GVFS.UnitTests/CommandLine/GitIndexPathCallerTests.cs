@@ -179,6 +179,7 @@ namespace GVFS.UnitTests.CommandLine
             File.WriteAllText(
                 Path.Combine(worktreeGitDir, "gitdir"),
                 Path.Combine(this.testRoot, "linked-worktree", GVFSConstants.DotGit.Root));
+            Directory.CreateDirectory(Path.Combine(enlistment.DotGitRoot, "worktrees", "not-a-registration"));
 
             StringWriter output = new StringWriter();
             DehydrateVerb verb = new DehydrateVerb
@@ -196,6 +197,7 @@ namespace GVFS.UnitTests.CommandLine
             output.ToString().ShouldContain("git worktree prune");
             output.ToString().ShouldContain("git worktree unlock <path>");
             output.ToString().ShouldContain("back up or push");
+            output.ToString().Contains("not-a-registration").ShouldBeFalse();
         }
 
         [TestCase]
@@ -220,19 +222,15 @@ namespace GVFS.UnitTests.CommandLine
             }
         }
 
-        [TestCase(null)]
         [TestCase("")]
         [TestCase("not-an-absolute-path")]
         [TestCase(@"C:\worktrees\bad\HEAD")]
-        public void FullDehydrateRejectsMissingOrMalformedRegistration(string registration)
+        public void FullDehydrateRejectsMalformedRegistration(string registration)
         {
             GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
             string worktreeGitDir = Path.Combine(enlistment.DotGitRoot, "worktrees", "bad");
             Directory.CreateDirectory(worktreeGitDir);
-            if (registration != null)
-            {
-                File.WriteAllText(Path.Combine(worktreeGitDir, "gitdir"), registration);
-            }
+            File.WriteAllText(Path.Combine(worktreeGitDir, "gitdir"), registration);
 
             using (StringWriter output = new StringWriter())
             using (MockTracer tracer = new MockTracer())
@@ -312,6 +310,19 @@ namespace GVFS.UnitTests.CommandLine
         {
             GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
             Directory.CreateDirectory(Path.Combine(enlistment.DotGitRoot, "worktrees"));
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb { Full = true, Output = TextWriter.Null };
+                Assert.DoesNotThrow(() => verb.ValidateFullDehydrate(tracer, enlistment));
+                tracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            }
+        }
+
+        [TestCase]
+        public void FullDehydrateIgnoresDirectoryWithoutGitdir()
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            Directory.CreateDirectory(Path.Combine(enlistment.DotGitRoot, "worktrees", "not-a-registration"));
             using (MockTracer tracer = new MockTracer())
             {
                 DehydrateVerb verb = new DehydrateVerb { Full = true, Output = TextWriter.Null };

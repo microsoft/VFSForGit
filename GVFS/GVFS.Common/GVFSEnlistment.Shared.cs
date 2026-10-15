@@ -214,7 +214,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Reads every registration and fails if any registration cannot be read or parsed.
+        /// Reads registrations with a gitdir file and fails if a present file cannot be read or parsed.
         /// </summary>
         public static bool TryGetKnownWorktreePaths(string gitDir, out string[] paths, out string error, out Exception exception)
         {
@@ -254,7 +254,16 @@ namespace GVFS.Common
                 foreach (string entry in Directory.GetDirectories(worktreesDir))
                 {
                     pathToRead = Path.Combine(entry, "gitdir");
-                    string gitdirContent = File.ReadAllText(pathToRead).Trim().Replace('/', Path.DirectorySeparatorChar);
+                    string gitdirContent;
+                    try
+                    {
+                        gitdirContent = File.ReadAllText(pathToRead).Trim().Replace('/', Path.DirectorySeparatorChar);
+                    }
+                    catch (FileNotFoundException)
+                    {
+                        continue;
+                    }
+
                     if (string.IsNullOrEmpty(gitdirContent) ||
                         !string.Equals(Path.GetFileName(gitdirContent), GVFSConstants.DotGit.Root, StringComparison.Ordinal))
                     {
