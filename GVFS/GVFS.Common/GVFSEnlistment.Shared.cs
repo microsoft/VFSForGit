@@ -176,6 +176,7 @@ namespace GVFS.Common
         /// Returns the working directory paths of all worktrees registered
         /// under <paramref name="gitDir"/>/worktrees by reading each entry's
         /// gitdir file. The primary worktree is not included.
+        /// Unreadable registrations are skipped. Do not use this method to guard destructive operations.
         /// </summary>
         public static string[] GetKnownWorktreePaths(string gitDir)
         {
@@ -210,6 +211,101 @@ namespace GVFS.Common
             }
 
             return paths.ToArray();
+        }
+
+        /// <summary>
+        /// Reads registrations, skipping missing, empty, or unreadable files as Git does.
+        /// Nonempty malformed files and directory enumeration failures are reported to the caller.
+        /// </summary>
+        public static bool TryGetKnownWorktreePaths(
+            string gitDir,
+            out string[] paths,
+            out string error,
+            out Exception exception,
+            out List<string> skippedRegistrationErrors)
+        {
+            ArgumentNullException.ThrowIfNull(gitDir);
+            paths = null;
+            error = null;
+            exception = null;
+            skippedRegistrationErrors = new List<string>();
+            string pathToRead = gitDir;
+            try
+            {
+                // Unlike Directory.Exists, this reports access failures instead of treating them as absence.
+                if ((File.GetAttributes(gitDir) & FileAttributes.Directory) == 0)
+                {
+                    error = $"Invalid Git directory at '{gitDir}': expected a directory.";
+                    return false;
+                }
+                string worktreesDir = Path.Combine(gitDir, "worktrees");
+                pathToRead = worktreesDir;
+                try
+                {
+                    File.GetAttributes(worktreesDir);
+                }
+                catch (FileNotFoundException)
+                {
+                    File.GetAttributes(gitDir);
+                    paths = Array.Empty<string>();
+                    return true;
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    File.GetAttributes(gitDir);
+                    paths = Array.Empty<string>();
+                    return true;
+                }
+
+                List<string> worktreePaths = new List<string>();
+                foreach (string entry in Directory.GetDirectories(worktreesDir))
+                {
+                    pathToRead = Path.Combine(entry, "gitdir");
+                    string gitdirContent;
+                    try
+                    {
+                        using (FileStream stream = File.OpenRead(pathToRead))
+                        {
+                            if (stream.Length == 0)
+                            {
+                                continue;
+                            }
+
+                            using (StreamReader reader = new StreamReader(stream))
+                            {
+                                gitdirContent = reader.ReadToEnd().Trim().Replace('/', Path.DirectorySeparatorChar);
+                            }
+                        }
+                    }
+                    catch (FileNotFoundException)
+                    {
+                        continue;
+                    }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                    {
+                        skippedRegistrationErrors.Add($"Failed to read '{pathToRead}': {ex}");
+                        continue;
+                    }
+
+                    if (string.IsNullOrEmpty(gitdirContent) ||
+                        !string.Equals(Path.GetFileName(gitdirContent), GVFSConstants.DotGit.Root, StringComparison.Ordinal))
+                    {
+                        error = $"Invalid worktree registration at '{pathToRead}': expected a path to a .git file.";
+                        return false;
+                    }
+
+                    worktreePaths.Add(Path.GetDirectoryName(Path.GetFullPath(gitdirContent, entry)));
+                }
+
+                paths = worktreePaths.ToArray();
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException)
+            {
+                error = $"Failed to read worktree registrations at '{pathToRead}': {ex.Message}";
+                exception = ex;
+                return false;
+            }
         }
 
         public class WorktreeInfo
