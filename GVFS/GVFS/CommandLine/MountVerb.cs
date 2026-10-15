@@ -130,15 +130,31 @@ namespace GVFS.CommandLine
                 }
             }
 
-            if (!DiskLayoutUpgrade.TryRunAllUpgrades(enlistmentRoot))
+            string diskLayoutError;
+            ReturnCode diskLayoutReturnCode;
+            if (!DiskLayoutUpgrade.TryRunAllUpgrades(enlistmentRoot, out diskLayoutError, out diskLayoutReturnCode))
             {
-                this.ReportErrorAndExit("Failed to upgrade repo disk layout. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot));
+                if (diskLayoutReturnCode == ReturnCode.MissingDiskLayoutVersion)
+                {
+                    this.ReportErrorAndExit(tracer: null, exitCode: diskLayoutReturnCode, error: "Error: " + diskLayoutError);
+                }
+                else
+                {
+                    string upgradeErrorMessage = "Failed to upgrade repo disk layout.";
+                    if (!string.IsNullOrWhiteSpace(diskLayoutError))
+                    {
+                        upgradeErrorMessage += " " + diskLayoutError;
+                    }
+
+                    this.ReportErrorAndExit(upgradeErrorMessage + " " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot));
+                }
             }
 
             string error;
-            if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer: null, enlistmentRoot: enlistmentRoot, error: out error))
+            ReturnCode returnCode;
+            if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer: null, enlistmentRoot: enlistmentRoot, error: out error, returnCode: out returnCode))
             {
-                this.ReportErrorAndExit("Error: " + error);
+                this.ReportErrorAndExit(tracer: null, exitCode: returnCode, error: "Error: " + error);
             }
         }
 
