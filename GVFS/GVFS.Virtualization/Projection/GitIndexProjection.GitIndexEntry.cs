@@ -21,6 +21,7 @@ namespace GVFS.Virtualization.Projection
             private const byte PathSeparatorCode = 0x2F;
 
             private int buildingProjectionPreviousFinalSeparatorIndex = int.MaxValue;
+            private int[] buildingProjectionPathPartEnds;
 
             // Only used when buildingNewProjection is false
             private string backgroundTaskRelativePath;
@@ -31,6 +32,7 @@ namespace GVFS.Virtualization.Projection
                 if (buildingNewProjection)
                 {
                     this.BuildingProjection_PathParts = new LazyUTF8String[MaxParts];
+                    this.buildingProjectionPathPartEnds = new int[MaxParts];
                 }
                 else
                 {
@@ -115,8 +117,23 @@ namespace GVFS.Virtualization.Projection
                     }
                     else
                     {
-                        this.BuildingProjection_NumParts = 0;
+                        int reusableParts = 0;
+                        // Only a separator strictly before ReplaceIndex guarantees a complete unchanged directory.
+                        // The previous file name is never reusable as a directory name.
+                        while (reusableParts < this.BuildingProjection_NumParts - 1 &&
+                            this.buildingProjectionPathPartEnds[reusableParts] < this.ReplaceIndex)
+                        {
+                            ++reusableParts;
+                        }
+
                         this.ClearLastParent();
+                        this.BuildingProjection_NumParts = reusableParts;
+                        if (reusableParts > 0)
+                        {
+                            this.buildingProjectionPreviousFinalSeparatorIndex = this.buildingProjectionPathPartEnds[reusableParts - 1];
+                            currentPartStartIndex = this.buildingProjectionPreviousFinalSeparatorIndex + 1;
+                            forLoopStartIndex = currentPartStartIndex;
+                        }
                     }
 
                     int partIndex = this.BuildingProjection_NumParts;
@@ -127,6 +144,7 @@ namespace GVFS.Virtualization.Projection
                         if (*forLoopPtr == PathSeparatorCode)
                         {
                             this.BuildingProjection_PathParts[partIndex] = LazyUTF8String.FromByteArray(pathPtr + currentPartStartIndex, i - currentPartStartIndex);
+                            this.buildingProjectionPathPartEnds[partIndex] = i;
 
                             partIndex++;
                             currentPartStartIndex = i + 1;
@@ -210,6 +228,7 @@ namespace GVFS.Virtualization.Projection
             public void ClearLastParent()
             {
                 this.buildingProjectionPreviousFinalSeparatorIndex = int.MaxValue;
+                this.BuildingProjection_NumParts = 0;
                 this.BuildingProjection_HasSameParentAsLastEntry = false;
                 this.BuildingProjection_LastParent = null;
             }

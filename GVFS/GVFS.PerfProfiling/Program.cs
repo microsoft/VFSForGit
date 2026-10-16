@@ -23,6 +23,17 @@ namespace GVFS.PerfProfiling
         private static void Main(string[] args)
         {
             GVFSPlatformLoader.Initialize();
+            if (args.Length > 0 && args[0] == "--index-snapshot")
+            {
+                if (args.Length != 3)
+                {
+                    throw new ArgumentException("Usage: --index-snapshot <copied-index> <query-paths-json>");
+                }
+
+                IndexSnapshotBenchmark.Run(args[1], args[2]);
+                return;
+            }
+
             string enlistmentRootPath = @"M:\OS";
             if (args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
             {
