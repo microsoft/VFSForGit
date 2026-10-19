@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
@@ -199,6 +200,462 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // There should not be any errors - in particular, there should not be
             // an error about "Waiting for GVFS.FunctionalTests.LockHolder"
             statusWait.Errors.ShouldEqual(string.Empty);
+        }
+
+        [TestCase("stash", "list")]
+        [TestCase("stash.exe", "list")]
+        [TestCase("for-each-repo", "--config=gvfs.tests.alias-repositories status --porcelain")]
+        [TestCase("checkout", "--detach HEAD")]
+        [Order(9)]
+        public void BuiltInWithSameNameAliasStillAcquiresLock(string command, string arguments)
+        {
+            string aliasName = command.EndsWith(".exe", StringComparison.Ordinal) ? Path.GetFileNameWithoutExtension(command) : command;
+            string repositoryConfig = command == "for-each-repo"
+                ? "-c \"gvfs.tests.alias-repositories=" + this.Enlistment.RepoRoot + "\" "
+                : string.Empty;
+            ProcessResult result = this.RunWithLockHolder(repositoryConfig + "-c alias." + aliasName + "=version " + command + " " + arguments);
+            result.ExitCode.ShouldEqual(0);
+            result.Errors.ShouldContain(ExpectedStatusWaitingText);
+        }
+
+        [TestCase("gvfs-lock-outer-alias", "status --porcelain")]
+        [TestCase("gvfs-lock-outer-alias", "!git status --porcelain")]
+        [TestCase("gvfs-lock-outer-alias", "gvfs-lock-inner-alias")]
+        [TestCase("MiXeD-lock-alias", "status --porcelain")]
+        [TestCase("git-prefixed-lock-alias", "status --porcelain")]
+        [Order(10)]
+        public void AliasInnerCommandStillAcquiresLock(string aliasName, string expansion)
+        {
+            string command = "-c alias.gvfs-lock-inner-alias=status " +
+                "-c \"alias." + aliasName + "=" + expansion + "\" " + aliasName;
+            ProcessResult result = this.RunWithLockHolder(command);
+            result.ExitCode.ShouldEqual(0);
+            result.Errors.ShouldContain(ExpectedStatusWaitingText);
+        }
+
+        [TestCase]
+        [Order(11)]
+        public void ReadOnlyAliasDoesNotAcquireAnOuterLock()
+        {
+            ProcessResult result = this.RunWithLockHolder(
+                "-c \"alias.gvfs-read-only-alias=!git rev-parse --show-toplevel\" gvfs-read-only-alias",
+                shouldWait: false);
+            result.ExitCode.ShouldEqual(0);
+            result.Output.ShouldContain(this.Enlistment.RepoRoot.Replace('\\', '/'));
+            result.Errors.Contains(ExpectedStatusWaitingText).ShouldBeFalse();
+        }
+
+        [TestCase]
+        [Order(12)]
+        public void UnknownExternalCommandStillAcquiresLock()
+        {
+            ProcessResult result = this.RunWithLockHolder("-c help.autocorrect=never gvfs-unknown-lock-command");
+            result.ExitCode.ShouldEqual(1);
+            result.Errors.ShouldContain(ExpectedStatusWaitingText);
+        }
+
+        [TestCase("git-", false, false)]
+        [TestCase("GIT-", true, false)]
+        [TestCase("git-", false, true)]
+        [Order(13)]
+        public void ExternalWithSameNameAliasStillAcquiresLock(string prefix, bool uppercaseCommand, bool useExecPath)
+        {
+            const string CommandName = "gvfs-lock-external";
+            string directory = Path.Combine(this.Enlistment.EnlistmentRoot, nameof(this.ExternalWithSameNameAliasStillAcquiresLock));
+            Directory.CreateDirectory(directory);
+            string scriptPath = Path.Combine(directory, prefix + CommandName);
+            File.WriteAllText(scriptPath, "#!/bin/sh\necho external-script\nexec git status --porcelain\n");
+            try
+            {
+                Dictionary<string, string> environment = new Dictionary<string, string>();
+                if (useExecPath)
+                {
+                    environment["GIT_EXEC_PATH"] = directory;
+                }
+                else
+                {
+                    environment["PATH"] = directory + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
+                }
+
+                string invocation = uppercaseCommand ? CommandName.ToUpperInvariant() : CommandName;
+                ProcessResult result = this.RunWithLockHolder("-c alias." + CommandName + "=version " + invocation, environment);
+                result.ExitCode.ShouldEqual(0);
+                result.Output.ShouldContain("external-script");
+                result.Errors.ShouldContain(ExpectedStatusWaitingText);
+            }
+            finally
+            {
+                File.Delete(scriptPath);
+                Directory.Delete(directory);
+            }
+        }
+
+        [TestCase]
+        [Order(14)]
+        public void ExternalExecutableWithSameNameAliasStillAcquiresLock()
+        {
+            const string CommandName = "gvfs-lock-executable";
+            string directory = Path.Combine(this.Enlistment.EnlistmentRoot, nameof(this.ExternalExecutableWithSameNameAliasStillAcquiresLock));
+            Directory.CreateDirectory(directory);
+            string executablePath = Path.Combine(directory, "GIT-" + CommandName + ".EXE");
+            File.Copy(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe"), executablePath);
+            try
+            {
+                Dictionary<string, string> environment = new Dictionary<string, string>();
+                environment["PATH"] = directory + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
+                ProcessResult result = this.RunWithLockHolder("-c alias." + CommandName + "=version " + CommandName + " /d /c echo external-command", environment);
+                result.ExitCode.ShouldEqual(0);
+                result.Output.ShouldContain("external-command");
+                result.Errors.ShouldContain(ExpectedStatusWaitingText);
+            }
+            finally
+            {
+                File.Delete(executablePath);
+                Directory.Delete(directory);
+            }
+        }
+
+        [TestCase]
+        [Order(15)]
+        public void DirectoryNamedAfterAnExternalDoesNotHideAnAlias()
+        {
+            const string CommandName = "gvfs-directory-alias";
+            string directory = Path.Combine(this.Enlistment.EnlistmentRoot, nameof(this.DirectoryNamedAfterAnExternalDoesNotHideAnAlias));
+            string commandDirectory = Path.Combine(directory, "git-" + CommandName);
+            Directory.CreateDirectory(commandDirectory);
+            try
+            {
+                Dictionary<string, string> environment = new Dictionary<string, string>();
+                environment["PATH"] = directory + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
+                ProcessResult result = this.RunWithLockHolder(
+                    "-c alias." + CommandName + "=version " + CommandName,
+                    environment,
+                    shouldWait: false);
+                result.ExitCode.ShouldEqual(0);
+                result.Output.ShouldContain("git version");
+            }
+            finally
+            {
+                Directory.Delete(commandDirectory);
+                Directory.Delete(directory);
+            }
+        }
+
+        [TestCase]
+        [Order(16)]
+        public void PostCommandReleasesOwnedLockAfterExternalDisappears()
+        {
+            const string CommandName = "gvfs-lock-race";
+            string directory = Path.Combine(this.Enlistment.EnlistmentRoot, nameof(this.PostCommandReleasesOwnedLockAfterExternalDisappears));
+            Directory.CreateDirectory(directory);
+            string executablePath = Path.Combine(directory, "git-" + CommandName);
+            File.WriteAllText(executablePath, "#!/bin/sh\nexit 99\n");
+            string hooksExecutable = Path.Combine(Path.GetDirectoryName(Properties.Settings.Default.PathToGVFS), "GVFS.Hooks.exe");
+            Dictionary<string, string> environment = new Dictionary<string, string>();
+            environment["PATH"] = directory + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
+            environment["GIT_CONFIG_COUNT"] = "1";
+            environment["GIT_CONFIG_KEY_0"] = "alias." + CommandName;
+            environment["GIT_CONFIG_VALUE_0"] = "checkout --detach HEAD";
+
+            // The test calls both hooks directly, so it does not depend on Git running post-command
+            // for git-<name>.
+            // Keep the Git PID alive so orphan cleanup cannot hide a skipped release.
+            using (Process git = new Process())
+            {
+                git.StartInfo = this.CreateGitStartInfo("hash-object --stdin", environment);
+                git.StartInfo.RedirectStandardInput = true;
+                bool started = false;
+                try
+                {
+                    started = git.Start();
+                    started.ShouldBeTrue();
+                    string commandArguments = " git-" + CommandName + " --git-pid=" + git.Id;
+                    ProcessStartInfo hook = this.CreateGitStartInfo("pre-command" + commandArguments, environment);
+                    hook.FileName = hooksExecutable;
+                    ProcessResult preCommand = ProcessHelper.Run(hook, timeoutMs: 30000);
+                    preCommand.ExitCode.ShouldEqual(0, preCommand.Output + preCommand.Errors);
+                    this.Enlistment.Status().ShouldContain("GVFS Lock: Held by git git-" + CommandName + " (PID:" + git.Id + ")");
+
+                    File.Delete(executablePath);
+                    hook.Arguments = "post-command" + commandArguments + " --exit_code=1";
+                    ProcessResult postCommand = ProcessHelper.Run(hook, timeoutMs: 30000);
+                    postCommand.ExitCode.ShouldEqual(0, postCommand.Output + postCommand.Errors);
+                    git.HasExited.ShouldBeFalse();
+                    this.Enlistment.Status().ShouldContain("GVFS Lock: Free");
+                }
+                finally
+                {
+                    if (started)
+                    {
+                        git.StandardInput.Close();
+                        if (!git.WaitForExit(10000))
+                        {
+                            git.Kill(entireProcessTree: true);
+                            git.WaitForExit();
+                            Assert.Fail("The parent Git process did not exit.");
+                        }
+                    }
+
+                    File.Delete(executablePath);
+                    Directory.Delete(directory);
+                }
+            }
+        }
+
+        [TestCase("\"C:\\invalid quoted path\"")]
+        [TestCase("C:\\invalid|path")]
+        [Order(17)]
+        public void InvalidPathEntryDoesNotPreventAGenuineAlias(string pathEntry)
+        {
+            Dictionary<string, string> environment = new Dictionary<string, string>();
+            environment["PATH"] = pathEntry + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
+            ProcessResult result = this.RunWithLockHolder(
+                "-c alias.gvfs-invalid-path-alias=version gvfs-invalid-path-alias",
+                environment,
+                shouldWait: false);
+            result.ExitCode.ShouldEqual(0);
+            result.Output.ShouldContain("git version");
+        }
+
+        [TestCase]
+        [Order(18)]
+        public void SubsectionAliasInnerCommandStillAcquiresLock()
+        {
+            ProcessResult result = this.RunWithLockHolder(
+                "-c \"alias.gvfs-subsection-alias.command=status --porcelain\" gvfs-subsection-alias");
+            result.ExitCode.ShouldEqual(0);
+            result.Errors.ShouldContain(ExpectedStatusWaitingText);
+        }
+
+        [TestCase]
+        [Order(19)]
+        public void ConfigFileAliasInnerCommandStillAcquiresLock()
+        {
+            const string AliasName = "gvfs-config-file-alias";
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local alias." + AliasName + " \"status --porcelain\"");
+            try
+            {
+                ProcessResult result = this.RunWithLockHolder(AliasName);
+                result.ExitCode.ShouldEqual(0);
+                result.Errors.ShouldContain(ExpectedStatusWaitingText);
+            }
+            finally
+            {
+                GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local --unset alias." + AliasName);
+            }
+        }
+
+        [TestCase]
+        [Order(20)]
+        public void SubsectionAliasWithCapitalLettersSkipsOnlyTheOuterLock()
+        {
+            ProcessResult result = this.RunWithLockHolder(
+                "-c \"alias.GVFS-Subsection-Alias.command=status --porcelain\" GVFS-Subsection-Alias");
+            result.ExitCode.ShouldEqual(0);
+            result.Errors.ShouldContain(ExpectedStatusWaitingText);
+        }
+
+        [TestCase]
+        [Order(21)]
+        public void UnreadableAliasConfigStopsTheCommandBeforeTheLock()
+        {
+            string hooksExecutable = Path.Combine(Path.GetDirectoryName(Properties.Settings.Default.PathToGVFS), "GVFS.Hooks.exe");
+            string configPath = Path.Combine(this.Enlistment.EnlistmentRoot, nameof(this.UnreadableAliasConfigStopsTheCommandBeforeTheLock) + ".gitconfig");
+            File.WriteAllText(configPath, "[alias]\n\tgvfs-unreadable = status\n");
+
+            // The hook reads aliases with the parent Git's executable, so keep a Git process alive.
+            using (Process git = new Process())
+            {
+                git.StartInfo = this.CreateGitStartInfo("hash-object --stdin");
+                git.StartInfo.RedirectStandardInput = true;
+                bool started = false;
+                try
+                {
+                    started = git.Start();
+                    started.ShouldBeTrue();
+                    Dictionary<string, string> environment = new Dictionary<string, string>();
+                    environment["GIT_CONFIG_GLOBAL"] = configPath;
+                    ProcessStartInfo hook = this.CreateGitStartInfo("pre-command git-gvfs-unreadable --git-pid=" + git.Id, environment);
+                    hook.FileName = hooksExecutable;
+
+                    ProcessResult preCommand;
+                    using (new FileStream(configPath, FileMode.Open, FileAccess.Read, FileShare.None))
+                    {
+                        preCommand = ProcessHelper.Run(hook, timeoutMs: 30000);
+                    }
+
+                    preCommand.ExitCode.ShouldEqual(1, preCommand.Output + preCommand.Errors);
+                    preCommand.Output.ShouldContain(
+                        "Unable to read Git aliases (exit code 128).",
+                        "GVFS cannot tell if 'git gvfs-unreadable' runs an alias or a program, so it stopped the command.");
+                    this.Enlistment.Status().ShouldContain("GVFS Lock: Free");
+                }
+                finally
+                {
+                    if (started)
+                    {
+                        git.StandardInput.Close();
+                        if (!git.WaitForExit(10000))
+                        {
+                            git.Kill(entireProcessTree: true);
+                            git.WaitForExit();
+                        }
+                    }
+
+                    File.Delete(configPath);
+                }
+            }
+        }
+
+        private ProcessStartInfo CreateGitStartInfo(string command, Dictionary<string, string> environment = null)
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo(Properties.Settings.Default.PathToGit, command);
+            startInfo.WorkingDirectory = this.Enlistment.RepoRoot;
+            startInfo.UseShellExecute = false;
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+            startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
+            if (environment != null)
+            {
+                foreach (KeyValuePair<string, string> entry in environment)
+                {
+                    startInfo.Environment[entry.Key] = entry.Value;
+                }
+            }
+
+            return startInfo;
+        }
+
+        private ProcessResult RunWithLockHolder(string command, Dictionary<string, string> environment = null, bool shouldWait = true)
+        {
+            using (Process holder = new Process())
+            using (Process git = new Process())
+            using (ManualResetEventSlim waiting = new ManualResetEventSlim(false))
+            {
+                holder.StartInfo = new ProcessStartInfo(GitHelpers.LockHolderCommandPath)
+                {
+                    WorkingDirectory = this.Enlistment.RepoRoot,
+                    UseShellExecute = false,
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                holder.Start().ShouldBeTrue();
+                bool gitStarted = false;
+                bool completed = false;
+                bool released = false;
+                StringBuilder output = new StringBuilder();
+                StringBuilder errors = new StringBuilder();
+                Thread errorReader = null;
+                try
+                {
+                    this.Enlistment.WaitForLock("GVFS.FunctionalTests.LockHolder (PID:" + holder.Id + ")")
+                        .ShouldBeTrue("The expected lock-holder process did not acquire the lock.");
+                    git.StartInfo = this.CreateGitStartInfo(command, environment);
+                    git.OutputDataReceived += (sender, args) =>
+                    {
+                        if (args.Data != null)
+                        {
+                            output.AppendLine(args.Data);
+                        }
+                    };
+                    errorReader = new Thread(() =>
+                    {
+                        int character;
+                        while ((character = git.StandardError.Read()) != -1)
+                        {
+                            errors.Append((char)character);
+                            if (!waiting.IsSet && errors.ToString().Contains(ExpectedStatusWaitingText))
+                            {
+                                waiting.Set();
+                            }
+                        }
+                    });
+                    gitStarted = git.Start();
+                    gitStarted.ShouldBeTrue();
+                    git.BeginOutputReadLine();
+                    errorReader.Start();
+
+                    if (shouldWait)
+                    {
+                        waiting.Wait(AcquireGVFSLockTimeout).ShouldBeTrue("Git did not wait for the lock holder.");
+                        this.ReleaseLockHolder(holder);
+                        released = true;
+                    }
+
+                    git.WaitForExit(30000).ShouldBeTrue("Git did not finish within the test timeout.");
+                    git.WaitForExit();
+                    errorReader.Join(10000).ShouldBeTrue("Git stderr did not close.");
+                    if (!shouldWait)
+                    {
+                        holder.HasExited.ShouldBeFalse();
+                        this.Enlistment.Status().ShouldContain("GVFS.FunctionalTests.LockHolder (PID:" + holder.Id + ")");
+                    }
+
+                    completed = true;
+                    return new ProcessResult(output.ToString(), errors.ToString(), git.ExitCode);
+                }
+                finally
+                {
+                    // Clean up Git and its reader even if the holder release fails. After a test
+                    // failure, report that failure, not a cleanup failure.
+                    try
+                    {
+                        if (!released)
+                        {
+                            this.ReleaseLockHolder(holder, verify: completed);
+                        }
+                    }
+                    finally
+                    {
+                        if (gitStarted && !git.WaitForExit(10000))
+                        {
+                            git.Kill(entireProcessTree: true);
+                            git.WaitForExit();
+                        }
+
+                        if (errorReader != null && (errorReader.ThreadState & System.Threading.ThreadState.Unstarted) == 0)
+                        {
+                            bool readerClosed = errorReader.Join(10000);
+                            if (completed)
+                            {
+                                readerClosed.ShouldBeTrue("Git stderr did not close during cleanup.");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ReleaseLockHolder(Process holder, bool verify = true)
+        {
+            if (!holder.HasExited)
+            {
+                try
+                {
+                    holder.StandardInput.WriteLine("done");
+                    holder.StandardInput.Close();
+                }
+                catch (IOException) when (!verify || holder.HasExited)
+                {
+                    // The holder already exited, or cleanup after a failed test is best effort.
+                }
+
+                if (!holder.WaitForExit(10000))
+                {
+                    holder.Kill(entireProcessTree: true);
+                    holder.WaitForExit();
+                    if (verify)
+                    {
+                        Assert.Fail("The lock-holder process did not exit.");
+                    }
+                }
+            }
+
+            if (verify)
+            {
+                holder.ExitCode.ShouldEqual(0, holder.StandardError.ReadToEnd());
+            }
         }
     }
 }
