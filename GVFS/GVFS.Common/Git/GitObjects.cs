@@ -157,6 +157,8 @@ namespace GVFS.Common.Git
         {
             EventMetadata metadata = CreateEventMetadata();
             metadata.Add("latestTimestamp", latestTimestamp);
+            long requestId = HttpRequestor.GetNewRequestId();
+            metadata.Add("RequestId", requestId);
 
             using (ITracer activity = this.Tracer.StartActivity("TryDownloadPrefetchPacks", EventLevel.Informational, Keywords.Telemetry, metadata))
             {
@@ -168,7 +170,6 @@ namespace GVFS.Common.Git
                  * cloning a large repository, so it must be explicitly enabled for now. */
                 metadata.Add("trustPackIndexes", trustPackIndexes);
 
-                long requestId = HttpRequestor.GetNewRequestId();
                 List<string> innerPackIndexes = null;
                 RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
                     requestId: requestId,
@@ -215,6 +216,7 @@ namespace GVFS.Common.Git
                 activity.Stop(new EventMetadata
                     {
                         { "Area", EtwArea },
+                        { "RequestId", requestId },
                         { "Success", result.Succeeded },
                         { "Attempts", result.Attempts },
                         { "BytesDownloaded", bytesDownloaded },
@@ -741,106 +743,114 @@ namespace GVFS.Common.Git
 
                 // Read each pack from the stream to a temp file, and start a task to index it.
                 Task previousPackTask = Task.CompletedTask;
-                foreach (PrefetchPacksDeserializer.PackAndIndex packHandle in deserializer.EnumeratePacks())
+                Exception exception = null;
+                try
                 {
-                    var pack = packHandle; // Capture packHandle in a new variable to avoid closure issues with async index task
-                    long packLength;
-
-                    // Write the temp and index to a temp folder to avoid putting corrupt files in the pack folder
-                    // As the files are validated and flushed they can be moved to the pack folder, along with a marker file.
-                    // When the previous pack has completed, the marker file for the current pack is deleted.
-                    // This allows users to access the most recent pack files as soon as they are ready even though
-                    // the oldest, largest pack file may still be in progress, and it allows us to know on a future
-                    // prefetch if the previous one was interrupted and needs to be started over.
-                    string packName = string.Format("{0}-{1}-{2}.pack", GVFSConstants.PrefetchPackPrefix, pack.Timestamp, pack.UniqueId);
-                    string packTempPath = Path.Combine(tempPackFolderPath, packName);
-                    
-                    EventMetadata data = CreateEventMetadata();
-                    data["timestamp"] = pack.Timestamp.ToString();
-                    data["uniqueId"] = pack.UniqueId;
-                    activity.RelatedEvent(EventLevel.Informational, "Receiving Pack/Index", data);
-
-                    // Write the pack
-                    // If it fails, TryWriteTempFile cleans up the file and we retry the prefetch
-                    Task packFlushTask;
-                    if (!this.TryWriteTempFile(activity, pack.PackStream, packTempPath, out packLength, out packFlushTask))
+                    foreach (PrefetchPacksDeserializer.PackAndIndex packHandle in deserializer.EnumeratePacks())
                     {
-                        bytesDownloaded += packLength;
-                        allSucceeded = false;
-                        break;
-                    }
-                    var currentOperation = new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask);
-                    tempPackOperations.Add(currentOperation);
-                    bytesDownloaded += packLength;
+                        var pack = packHandle; // Capture packHandle in a new variable to avoid closure issues with async index task
+                        long packLength;
 
-                    if (trustPackIndexes
-                        && pack.IndexStream != null)
-                    {
-                        if (this.TryWriteTempFile(activity, pack.IndexStream, currentOperation.IndexTempPath, out var indexLength, out var indexFlushTask))
+                        // Write the temp and index to a temp folder to avoid putting corrupt files in the pack folder
+                        // As the files are validated and flushed they can be moved to the pack folder, along with a marker file.
+                        // When the previous pack has completed, the marker file for the current pack is deleted.
+                        // This allows users to access the most recent pack files as soon as they are ready even though
+                        // the oldest, largest pack file may still be in progress, and it allows us to know on a future
+                        // prefetch if the previous one was interrupted and needs to be started over.
+                        string packName = string.Format("{0}-{1}-{2}.pack", GVFSConstants.PrefetchPackPrefix, pack.Timestamp, pack.UniqueId);
+                        string packTempPath = Path.Combine(tempPackFolderPath, packName);
+
+                        EventMetadata data = CreateEventMetadata();
+                        data["timestamp"] = pack.Timestamp.ToString();
+                        data["uniqueId"] = pack.UniqueId;
+                        data["ResponseId"] = response.ResponseId;
+                        data["PackBytes"] = pack.PackStream.Length;
+                        activity.RelatedEvent(EventLevel.Informational, "Receiving Pack/Index", data, Keywords.Telemetry);
+
+                        // Write the pack
+                        // If it fails, TryWriteTempFile cleans up the file and we retry the prefetch
+                        Task packFlushTask;
+                        if (!this.TryWriteTempFile(activity, pack.PackStream, packTempPath, out packLength, out packFlushTask))
                         {
-                            bytesDownloaded += indexLength;
-                            currentOperation.ReadyTask = Task.WhenAll(currentOperation.ReadyTask, indexFlushTask);
-                            previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask);
-
-                        }
-                        else
-                        {
-                            bytesDownloaded += indexLength;
-                            // we can try to build the index ourself, and if it's successful then on the retry we can pick up from that point.
-                            var indexTask = StartPackIndexAsync(activity, packTempPath);
-                            currentOperation.ReadyTask = Task.WhenAll(currentOperation.ReadyTask, indexTask);
-                            previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask);
-
-                            // but we need to stop trying to read from the download stream as that has failed.
+                            bytesDownloaded += packLength;
                             allSucceeded = false;
                             break;
                         }
-                    }
-                    else
-                    {
+                        var currentOperation = new TempPrefetchPackAndIdx(pack.Timestamp, packName, packTempPath, packFlushTask);
+                        tempPackOperations.Add(currentOperation);
+                        bytesDownloaded += packLength;
 
-                        // Either we can't trust the index file from the server, or the server didn't provide one, so we will build our own.
-                        // For performance, we run the index build in the background while we continue downloading the next pack.
-                        var indexTask = StartPackIndexAsync(activity, packTempPath);
-                        currentOperation.ReadyTask = Task.WhenAll(currentOperation.ReadyTask, indexTask);
-                        previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask);
-
-                        // If the server provided an index stream, we still need to consume and handle any exceptions it even
-                        // though we are otherwise ignoring it.
-                        if (pack.IndexStream != null)
+                        if (trustPackIndexes
+                            && pack.IndexStream != null)
                         {
-                            try
+                            if (this.TryWriteTempFile(activity, pack.IndexStream, currentOperation.IndexTempPath, out var indexLength, out var indexFlushTask))
                             {
-                                bytesDownloaded += pack.IndexStream.Length;
-                                if (pack.IndexStream.CanSeek)
-                                {
-                                    pack.IndexStream.Seek(0, SeekOrigin.End);
-                                }
-                                else
-                                {
-                                    pack.IndexStream.CopyTo(Stream.Null);
-                                }
+                                bytesDownloaded += indexLength;
+                                currentOperation.ReadyTask = Task.WhenAll(currentOperation.ReadyTask, indexFlushTask);
+                                previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask);
+
                             }
-                            catch (Exception e)
+                            else
                             {
-                                EventMetadata metadata = CreateEventMetadata(e);
-                                activity.RelatedWarning(metadata, "Failed to read to end of index stream");
+                                bytesDownloaded += indexLength;
+                                // we can try to build the index ourself, and if it's successful then on the retry we can pick up from that point.
+                                var indexTask = StartPackIndexAsync(activity, packTempPath);
+                                currentOperation.ReadyTask = Task.WhenAll(currentOperation.ReadyTask, indexTask);
+                                previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask);
+
+                                // but we need to stop trying to read from the download stream as that has failed.
                                 allSucceeded = false;
                                 break;
                             }
                         }
+                        else
+                        {
+
+                            // Either we can't trust the index file from the server, or the server didn't provide one, so we will build our own.
+                            // For performance, we run the index build in the background while we continue downloading the next pack.
+                            var indexTask = StartPackIndexAsync(activity, packTempPath);
+                            currentOperation.ReadyTask = Task.WhenAll(currentOperation.ReadyTask, indexTask);
+                            previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask);
+
+                            // If the server provided an index stream, we still need to consume and handle any exceptions it even
+                            // though we are otherwise ignoring it.
+                            if (pack.IndexStream != null)
+                            {
+                                try
+                                {
+                                    bytesDownloaded += pack.IndexStream.Length;
+                                    if (pack.IndexStream.CanSeek)
+                                    {
+                                        pack.IndexStream.Seek(0, SeekOrigin.End);
+                                    }
+                                    else
+                                    {
+                                        pack.IndexStream.CopyTo(Stream.Null);
+                                    }
+                                }
+                                catch (Exception e)
+                                {
+                                    EventMetadata metadata = CreateEventMetadata(e);
+                                    activity.RelatedWarning(metadata, "Failed to read to end of index stream");
+                                    allSucceeded = false;
+                                    break;
+                                }
+                            }
+                        }
                     }
-                }
 
-                Exception exception = null;
-                if (!this.WaitForPacks(tempPackOperations, ref latestTimestamp, out exception))
+                }
+                finally
                 {
-                    allSucceeded = false;
-                }
+                    if (!this.WaitForPacks(tempPackOperations, ref latestTimestamp, out exception))
+                    {
+                        allSucceeded = false;
+                    }
 
-                packIndexes.AddRange(tempPackOperations
-                    .Where(x => x.ReadyTask.Status == TaskStatus.RanToCompletion)
-                    .Select(x => x.IdxName));
+                    packIndexes.AddRange(tempPackOperations
+                        .Where(x => x.ReadyTask.Status == TaskStatus.RanToCompletion)
+                        .Select(x => x.IdxName));
+                }
 
                 if (allSucceeded)
                 {

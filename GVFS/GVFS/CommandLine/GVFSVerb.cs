@@ -237,7 +237,7 @@ namespace GVFS.CommandLine
         /// <summary>
         /// Combines authentication and GVFS config query into a single operation,
         /// eliminating a redundant HTTP round-trip. If <paramref name="retryConfig"/>
-        /// is null, a default RetryConfig is used.
+        /// is null, all retry settings are loaded from git config.
         /// If the config query fails but a valid <paramref name="fallbackCacheServer"/>
         /// URL is available, auth succeeds but <paramref name="serverGVFSConfig"/>
         /// will be null (caller should handle this gracefully).
@@ -252,12 +252,16 @@ namespace GVFS.CommandLine
         {
             ServerGVFSConfig config = null;
             string error = null;
+            if (retryConfig == null)
+            {
+                RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out _);
+            }
 
             bool result = this.ShowStatusWhileRunning(
                 () => enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
                     tracer,
                     enlistment,
-                    retryConfig ?? new RetryConfig(),
+                    retryConfig,
                     out config,
                     out error,
                     out _),
@@ -317,12 +321,7 @@ namespace GVFS.CommandLine
 
         protected RetryConfig GetRetryConfig(ITracer tracer, GVFSEnlistment enlistment, TimeSpan? timeoutOverride = null)
         {
-            RetryConfig retryConfig;
-            string error;
-            if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
-            {
-                this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
-            }
+            RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out RetryConfig retryConfig, out _);
 
             if (timeoutOverride.HasValue)
             {
@@ -1185,10 +1184,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     {
                         if (retryConfig == null)
                         {
-                            if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
-                            {
-                                this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
-                            }
+                            RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out _);
                         }
 
                         serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
