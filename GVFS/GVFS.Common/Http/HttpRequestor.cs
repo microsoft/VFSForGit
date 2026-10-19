@@ -199,6 +199,15 @@ namespace GVFS.Common.Http
 
                 responseMetadata.Add("CacheName", GetSingleHeaderOrEmpty(response.Headers, "X-Cache-Name"));
                 responseMetadata.Add("StatusCode", response.StatusCode);
+                EventMetadata bodyMetadata = new EventMetadata
+                {
+                    { "RequestId", requestId },
+                    { "StatusCode", response.StatusCode },
+                    { "CacheName", GetCacheNameForTelemetry((string)responseMetadata["CacheName"]) },
+                    { "RequestAuthority", GetAuthorityForTelemetry(requestUri) },
+                    { "HeaderWaitMs", responseWaitTime.TotalMilliseconds },
+                    { "ContentLength", response.Content.Headers.ContentLength ?? -1 },
+                };
 
                 if (response.StatusCode == HttpStatusCode.OK)
                 {
@@ -210,18 +219,45 @@ namespace GVFS.Common.Http
                         this.authentication.ApproveCredentials(this.Tracer, authString);
                     }
 
-                    Stream responseStream = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
+                    Stream responseStream = response.Content.ReadAsStreamAsync(cancellationToken).GetAwaiter().GetResult();
 
                     gitEndPointResponseData = new GitEndPointResponseData(
                         response.StatusCode,
                         contentType,
-                        responseStream,
+                        new HttpResponseStream(
+                            responseStream,
+                            this.RetryConfig.ReadTimeout,
+                            cancellationToken,
+                            this.Tracer,
+                            bodyMetadata),
                         message: response,
                         onResponseDisposed: () => availableConnections.Release());
                 }
                 else
                 {
-                    errorMessage = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    try
+                    {
+                        using (HttpResponseStream responseStream = new HttpResponseStream(
+                            response.Content.ReadAsStreamAsync(cancellationToken).GetAwaiter().GetResult(),
+                            this.RetryConfig.ReadTimeout,
+                            cancellationToken,
+                            this.Tracer,
+                            bodyMetadata))
+                        using (StreamContent content = new StreamContent(responseStream))
+                        {
+                            content.Headers.ContentType = response.Content.Headers.ContentType;
+                            errorMessage = content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
+                        }
+                    }
+                    catch (Exception e) when (e is IOException || e is HttpRequestException)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        this.Tracer.RelatedWarning(
+                            new EventMetadata(bodyMetadata) { { "Exception", e.ToString() } },
+                            "The server returned an error status, but the response body read failed.",
+                            Keywords.Network | Keywords.Telemetry);
+                        errorMessage = "The response body read failed: " + (e.InnerException?.Message ?? e.Message);
+                    }
                     int statusInt = (int)response.StatusCode;
 
                     bool shouldRetry = ShouldRetry(response.StatusCode);
@@ -230,7 +266,7 @@ namespace GVFS.Common.Http
                         this.authentication.IsAnonymous)
                     {
                         shouldRetry = false;
-                        errorMessage = "Anonymous request was rejected with a 401";
+                        errorMessage = "Anonymous request was rejected with a 401. " + errorMessage;
                     }
                     else if (ShouldRejectCredentials(response.StatusCode, errorMessage))
                     {
@@ -294,17 +330,23 @@ namespace GVFS.Common.Http
                 responseMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTimeElapsed.TotalMilliseconds:F4}");
                 responseMetadata.Add("responseWaitTimeMS", $"{responseWaitTime.TotalMilliseconds:F4}");
 
-                this.Tracer.RelatedEvent(EventLevel.Informational, "NetworkResponse", responseMetadata);
-
-                if (gitEndPointResponseData == null)
+                try
                 {
-                    // If gitEndPointResponseData is null there was an unhandled exception
-                    if (response != null)
+                    this.Tracer.RelatedEvent(EventLevel.Informational, "NetworkResponse", responseMetadata);
+                }
+                finally
+                {
+                    if (gitEndPointResponseData == null)
                     {
-                        response.Dispose();
+                        try
+                        {
+                            response?.Dispose();
+                        }
+                        finally
+                        {
+                            availableConnections.Release();
+                        }
                     }
-
-                    availableConnections.Release();
                 }
             }
 
@@ -381,6 +423,15 @@ namespace GVFS.Common.Http
         internal static string GetAuthorityForTelemetry(Uri uri)
         {
             return uri.Authority;
+        }
+
+        internal static string GetCacheNameForTelemetry(string cacheName)
+        {
+            const int MaxCacheNameLength = 128;
+            return new string(cacheName.Take(MaxCacheNameLength).Select(
+                character => char.IsLetterOrDigit(character) || character == '-' || character == '_' || character == '.'
+                    ? character
+                    : '_').ToArray());
         }
 
         private static string GetSingleHeaderOrEmpty(HttpHeaders headers, string headerName)

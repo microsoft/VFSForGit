@@ -132,11 +132,7 @@ namespace GVFS.Mount
             };
 
             string error;
-            RetryConfig retryConfig;
-            if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
-            {
-                this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
-            }
+            RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out RetryConfig retryConfig, out _);
 
             GitStatusCacheConfig gitStatusCacheConfig;
             if (!GitStatusCacheConfig.TryLoadFromGitConfig(tracer, enlistment, out gitStatusCacheConfig, out error))

@@ -17,9 +17,11 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedWarningEvents = new List<string>();
             this.RelatedErrorEvents = new List<string>();
             this.RelatedEventNames = new List<string>();
+            this.RelatedEventLevels = new List<EventLevel>();
             this.RelatedEventKeywords = new List<Keywords>();
             this.RelatedEventMetadata = new List<EventMetadata>();
             this.StopMetadata = new List<EventMetadata>();
+            this.StartMetadata = new List<EventMetadata>();
         }
 
         public MockTracer StartActivityTracer { get; private set; }
@@ -32,12 +34,14 @@ namespace GVFS.UnitTests.Mock.Common
         // Names of events reported via RelatedEvent (which, unlike RelatedInfo/Warning/Error,
         // do not otherwise get recorded). Lets tests assert a specific diagnostic event fired.
         public List<string> RelatedEventNames { get; }
+        public List<EventLevel> RelatedEventLevels { get; }
         public List<Keywords> RelatedEventKeywords { get; }
         public List<EventMetadata> RelatedEventMetadata { get; }
 
         // Metadata passed to each Stop() call, in order — lets tests assert on activity-summary
         // fields (e.g. HydrateFilesStage's FailureSignatureCounts) that Stop would otherwise discard.
         public List<EventMetadata> StopMetadata { get; }
+        public List<EventMetadata> StartMetadata { get; }
 
         public void WaitForRelatedEvent()
         {
@@ -47,6 +51,7 @@ namespace GVFS.UnitTests.Mock.Common
         public void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata)
         {
             this.RelatedEventNames.Add(eventName);
+            this.RelatedEventLevels.Add(error);
             this.RelatedEventKeywords.Add(Keywords.None);
             this.RelatedEventMetadata.Add(metadata);
             if (eventName == this.WaitRelatedEventName)
@@ -55,9 +60,10 @@ namespace GVFS.UnitTests.Mock.Common
             }
         }
 
-        public void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata, Keywords keyword)
+        public virtual void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata, Keywords keyword)
         {
             this.RelatedEventNames.Add(eventName);
+            this.RelatedEventLevels.Add(error);
             this.RelatedEventKeywords.Add(keyword);
             this.RelatedEventMetadata.Add(metadata);
             if (eventName == this.WaitRelatedEventName)
@@ -143,6 +149,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public ITracer StartActivity(string activityName, EventLevel level, Keywords startStopKeywords, EventMetadata metadata)
         {
+            this.StartMetadata.Add(metadata);
             this.StartActivityTracer = this.StartActivityTracer ?? new MockTracer();
             return this.StartActivityTracer;
         }
