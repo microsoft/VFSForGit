@@ -18,6 +18,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class MountTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
+        // These values are a shipped command-line contract. Do not bind them to product constants.
+        private const int GVFSMissingDiskLayoutVersion = 12;
+        private const string MissingDiskLayoutVersionMessage = "The .gvfs metadata is incomplete";
+        private const string GVFSLogMessage = "Run 'gvfs log";
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
         private readonly int fileDeletedBackgroundOperationCode;
@@ -100,6 +104,34 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        public void MountFailsWithUniqueExitCodeWhenDiskLayoutVersionIsMissing()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+            majorVersion.ShouldNotBeNull();
+            minorVersion.ShouldNotBeNull();
+
+            try
+            {
+                GVFSHelpers.DeletePersistedDiskLayoutMajorVersion(this.Enlistment.DotGVFSRoot);
+
+                this.MountShouldFail(
+                    GVFSMissingDiskLayoutVersion,
+                    MissingDiskLayoutVersionMessage,
+                    additionalExpectedErrorMessage: GVFSLogMessage);
+            }
+            finally
+            {
+                GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
+            }
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
         public void MountFailsWhenNoOnDiskVersion()
         {
             this.Enlistment.UnmountGVFS();
@@ -126,7 +158,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.fileSystem.MoveFile(versionDatabasePath, tempDatabasePath);
                 versionDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
 
-                this.MountShouldFail("Failed to upgrade repo disk layout");
+                this.MountShouldFail(
+                    GVFSMissingDiskLayoutVersion,
+                    MissingDiskLayoutVersionMessage,
+                    additionalExpectedErrorMessage: GVFSLogMessage);
             }
             finally
             {
@@ -359,7 +394,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.MountGVFS();
         }
 
-        private void MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null)
+        private void MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null, string additionalExpectedErrorMessage = null)
         {
             string enlistmentRoot = this.Enlistment.EnlistmentRoot;
 
@@ -379,6 +414,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 string combinedOutput = result.Output + "\n" + result.Errors;
                 combinedOutput.ShouldContain(expectedErrorMessage);
+
+                if (additionalExpectedErrorMessage != null)
+                {
+                    combinedOutput.ShouldContain(additionalExpectedErrorMessage);
+                }
             }
         }
 
