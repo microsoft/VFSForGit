@@ -59,6 +59,10 @@ namespace GVFS.Mount
         private volatile MountState currentState;
         private volatile string mountProgressMessage;
 
+        // Keeps the pipe answering GetStatus after a failure so the client can read the
+        // reason, instead of racing this process to exit and seeing a broken pipe.
+        private readonly MountFailureReporter mountFailureReporter;
+
         // When false (default), the mount process does not surface progress phase
         // strings over the named pipe, so the CLI falls back to its static spinner.
         // This gates only the display layer; the early-pipe reliability infrastructure
@@ -82,6 +86,7 @@ namespace GVFS.Mount
             this.enlistment = enlistment;
             this.showDebugWindow = showDebugWindow;
             this.unmountEvent = new ManualResetEvent(false);
+            this.mountFailureReporter = new MountFailureReporter(tracer);
             this.missingTreeTracker = new MissingTreeTracker(tracer, TrackedTreeCapacity);
         }
 
@@ -258,6 +263,8 @@ namespace GVFS.Mount
             this.mountProgressMessage = "Authenticating and validating";
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
+                this.mountFailureReporter.OnNamedPipeReady();
+
                 this.tracer.RelatedEvent(
                     EventLevel.Informational,
                     $"{nameof(this.Mount)}_StartedNamedPipe",
@@ -643,19 +650,45 @@ namespace GVFS.Mount
 
         private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
         {
+            // Format once, before taking ownership. RelatedError would otherwise format a
+            // second time without protection, and a throw there re-enters this method.
+            string failureMessage = MountFailureReporter.FormatFailure(error, args);
+
+            if (!this.mountFailureReporter.TryBeginFailure((int)returnCode, failureMessage))
+            {
+                // Unreachable in production: every path that returns false ends the process.
+                return;
+            }
+
             this.currentState = MountState.MountFailed;
 
-            this.tracer.RelatedError(error, args);
+            this.tracer.RelatedError(failureMessage);
             if (this.showDebugWindow)
             {
                 Console.WriteLine("\nPress Enter to Exit");
                 Console.ReadLine();
             }
 
-            if (this.fileSystemCallbacks != null)
+            // The failure response must reach the client before the process exits, so
+            // report it before tearing anything down.
+            this.mountFailureReporter.WaitForClientToReadFailure();
+
+            try
             {
-                this.fileSystemCallbacks.Dispose();
-                this.fileSystemCallbacks = null;
+                if (this.fileSystemCallbacks != null)
+                {
+                    this.fileSystemCallbacks.Dispose();
+                    this.fileSystemCallbacks = null;
+                }
+            }
+            catch (Exception e)
+            {
+                // Disposal must not stop the process from exiting with the reported failure.
+                // The telemetry keyword keeps a disposal failure visible.
+                this.tracer.RelatedWarning(
+                    null,
+                    $"{nameof(this.FailMountAndExit)}: Exception while disposing file system callbacks: {e}",
+                    Keywords.Telemetry);
             }
 
             Environment.Exit((int)returnCode);
@@ -674,16 +707,37 @@ namespace GVFS.Mount
             }
         }
 
+        /// <summary>
+        /// Whether the handler for <paramref name="header"/> can safely run in
+        /// <paramref name="state"/>. Requests that cannot are answered with
+        /// <see cref="NamedPipeMessages.MountNotReadyResult"/>.
+        /// </summary>
+        private static bool IsRequestHandledInState(MountState state, string header)
+        {
+            switch (state)
+            {
+                case MountState.Mounting:
+                    // Other handlers depend on the context, fileSystemCallbacks and similar
+                    // state that is not initialized yet.
+                    return header == NamedPipeMessages.GetStatus.Request;
+
+                case MountState.MountFailed:
+                    // A mount can fail at any step, so the same state is still missing here.
+                    // GetStatus carries the failure to the client. Unmount is answered
+                    // without tearing anything down.
+                    return header == NamedPipeMessages.GetStatus.Request
+                        || header == NamedPipeMessages.Unmount.Request;
+
+                default:
+                    return true;
+            }
+        }
+
         private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.Message message = NamedPipeMessages.Message.FromString(request);
 
-            // While mounting, only GetStatus requests are safe — other handlers depend
-            // on context, fileSystemCallbacks, etc. that aren't initialized yet.
-            // MountFailed is NOT guarded: HandleUnmountRequest needs to reach the
-            // "unmount even if mount failed" path so users aren't forced to kill the process.
-            if (message.Header != NamedPipeMessages.GetStatus.Request &&
-                this.currentState == MountState.Mounting)
+            if (!IsRequestHandledInState(this.currentState, message.Header))
             {
                 connection.TrySendResponse(NamedPipeMessages.MountNotReadyResult);
                 return;
@@ -1421,6 +1475,8 @@ namespace GVFS.Mount
 
         private void HandleGetStatusRequest(NamedPipeServer.Connection connection)
         {
+            MountState state = this.currentState;
+
             NamedPipeMessages.GetStatus.Response response = new NamedPipeMessages.GetStatus.Response();
             response.EnlistmentRoot = this.enlistment.WorkingDirectoryRoot;
             response.LocalCacheRoot = !string.IsNullOrWhiteSpace(this.enlistment.LocalCacheRoot) ? this.enlistment.LocalCacheRoot : this.enlistment.GitObjectsRoot;
@@ -1429,7 +1485,7 @@ namespace GVFS.Mount
             response.LockStatus = this.context?.Repository?.GVFSLock != null ? this.context.Repository.GVFSLock.GetStatus() : "Unavailable";
             response.DiskLayoutVersion = $"{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion}.{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion}";
 
-            switch (this.currentState)
+            switch (state)
             {
                 case MountState.Mounting:
                     response.MountStatus = NamedPipeMessages.GetStatus.Mounting;
@@ -1451,6 +1507,7 @@ namespace GVFS.Mount
 
                 case MountState.MountFailed:
                     response.MountStatus = NamedPipeMessages.GetStatus.MountFailed;
+                    response.MountError = this.mountFailureReporter.FailureMessage;
                     break;
 
                 default:
@@ -1458,7 +1515,9 @@ namespace GVFS.Mount
                     break;
             }
 
-            connection.TrySendResponse(response.ToJson());
+            this.mountFailureReporter.TrySendStatus(
+                () => connection.TrySendResponse(response.ToJson()),
+                carriesMountFailure: state == MountState.MountFailed);
         }
 
         private void HandleUnmountRequest(NamedPipeServer.Connection connection)
@@ -1469,10 +1528,11 @@ namespace GVFS.Mount
                     connection.TrySendResponse(NamedPipeMessages.Unmount.NotMounted);
                     break;
 
-                // Even if the previous mount failed, attempt to unmount anyway.  Otherwise the user has no
-                // recourse but to kill the process.
+                // A failed mount is already ending the process. Tearing down here would race
+                // that, and exit with Success instead of the reported failure.
                 case MountState.MountFailed:
-                    goto case MountState.Ready;
+                    connection.TrySendResponse(NamedPipeMessages.Unmount.MountFailed);
+                    break;
 
                 case MountState.Ready:
                     this.currentState = MountState.Unmounting;
