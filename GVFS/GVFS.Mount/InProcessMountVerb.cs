@@ -169,6 +169,14 @@ namespace GVFS.Mount
 
         private JsonTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
         {
+            if (enlistment.IsWorktree)
+            {
+                // Create the worktree's enlistment ID before the tracer reads it, so that
+                // the first mount of a new worktree has an enlistment ID in its telemetry.
+                // If this fails, the tracer uses an empty ID and the mount continues.
+                RepoMetadata.TryEnsureEnlistmentId(NullTracer.Instance, enlistment.DotGVFSRoot, out _);
+            }
+
             JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistment.GetEnlistmentId(), enlistment.GetMountId());
             tracer.AddLogFileEventListener(
                 GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountProcess),

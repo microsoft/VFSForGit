@@ -75,6 +75,94 @@ namespace GVFS.Common
             return true;
         }
 
+        /// <summary>
+        /// Reads the enlistment id and the mount id from the repo metadata in
+        /// <paramref name="dotGVFSPath"/> without initializing <see cref="Instance"/>.
+        /// A missing metadata file or a missing value produces an empty string.
+        /// </summary>
+        public static bool TryReadIds(string dotGVFSPath, out string enlistmentId, out string mountId, out string error)
+        {
+            enlistmentId = string.Empty;
+            mountId = string.Empty;
+
+            string dictionaryPath = Path.Combine(dotGVFSPath, GVFSConstants.DotGVFS.Databases.RepoMetadata);
+            if (!File.Exists(dictionaryPath))
+            {
+                error = null;
+                return true;
+            }
+
+            try
+            {
+                FileBasedDictionary<string, string> metadata;
+                if (!FileBasedDictionary<string, string>.TryCreate(NullTracer.Instance, dictionaryPath, new PhysicalFileSystem(), out metadata, out error))
+                {
+                    return false;
+                }
+
+                using (metadata)
+                {
+                    string value;
+                    if (metadata.TryGetValue(Keys.EnlistmentId, out value))
+                    {
+                        enlistmentId = value;
+                    }
+
+                    if (metadata.TryGetValue(Keys.MountId, out value))
+                    {
+                        mountId = value;
+                    }
+                }
+            }
+            catch (FileBasedCollectionException e)
+            {
+                error = e.Message;
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Creates and persists an enlistment id in the repo metadata in
+        /// <paramref name="dotGVFSPath"/> when it has none, without initializing
+        /// <see cref="Instance"/>.
+        /// </summary>
+        public static bool TryEnsureEnlistmentId(ITracer tracer, string dotGVFSPath, out string error)
+        {
+            return TryEnsureEnlistmentId(tracer, new PhysicalFileSystem(), dotGVFSPath, out error);
+        }
+
+        public static bool TryEnsureEnlistmentId(ITracer tracer, PhysicalFileSystem fileSystem, string dotGVFSPath, out string error)
+        {
+            string dictionaryPath = Path.Combine(dotGVFSPath, GVFSConstants.DotGVFS.Databases.RepoMetadata);
+            try
+            {
+                FileBasedDictionary<string, string> metadata;
+                if (!FileBasedDictionary<string, string>.TryCreate(tracer, dictionaryPath, fileSystem, out metadata, out error))
+                {
+                    return false;
+                }
+
+                using (metadata)
+                {
+                    string existing;
+                    if (!metadata.TryGetValue(Keys.EnlistmentId, out existing) || string.IsNullOrWhiteSpace(existing))
+                    {
+                        metadata.SetValueAndFlush(Keys.EnlistmentId, CreateNewEnlistmentId(tracer));
+                    }
+                }
+            }
+            catch (FileBasedCollectionException e)
+            {
+                error = e.Message;
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
         public static void Shutdown()
         {
             if (Instance != null)
@@ -130,16 +218,28 @@ namespace GVFS.Common
 
         public void SaveCloneMetadata(ITracer tracer, GVFSEnlistment enlistment)
         {
-            this.repoMetadata.SetValuesAndFlush(
-                new[]
-                {
-                    new KeyValuePair<string, string>(Keys.DiskLayoutMajorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion.ToString()),
-                    new KeyValuePair<string, string>(Keys.DiskLayoutMinorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion.ToString()),
-                    new KeyValuePair<string, string>(Keys.GitObjectsRoot, enlistment.GitObjectsRoot),
-                    new KeyValuePair<string, string>(Keys.LocalCacheRoot, enlistment.LocalCacheRoot),
-                    new KeyValuePair<string, string>(Keys.BlobSizesRoot, enlistment.BlobSizesRoot),
-                    new KeyValuePair<string, string>(Keys.EnlistmentId, CreateNewEnlistmentId(tracer)),
-                });
+            this.SaveMetadata(enlistment, CreateNewEnlistmentId(tracer));
+        }
+
+        /// <summary>
+        /// Saves the metadata that a worktree mount copies from the primary
+        /// enlistment. Unlike <see cref="SaveCloneMetadata"/>, it keeps an
+        /// existing enlistment id, so the worktree id is stable across mounts.
+        /// </summary>
+        public void SaveWorktreeMetadata(ITracer tracer, GVFSEnlistment enlistment)
+        {
+            string enlistmentId;
+            if (!this.repoMetadata.TryGetValue(Keys.EnlistmentId, out enlistmentId) || string.IsNullOrWhiteSpace(enlistmentId))
+            {
+                enlistmentId = CreateNewEnlistmentId(tracer);
+            }
+
+            this.SaveMetadata(enlistment, enlistmentId);
+        }
+
+        public void SetMountId(string mountId)
+        {
+            this.repoMetadata.SetValueAndFlush(Keys.MountId, mountId);
         }
 
         public void SetProjectionInvalid(bool invalid)
@@ -267,6 +367,20 @@ namespace GVFS.Common
             return enlistmentId;
         }
 
+        private void SaveMetadata(GVFSEnlistment enlistment, string enlistmentId)
+        {
+            this.repoMetadata.SetValuesAndFlush(
+                new[]
+                {
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMajorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMinorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.GitObjectsRoot, enlistment.GitObjectsRoot),
+                    new KeyValuePair<string, string>(Keys.LocalCacheRoot, enlistment.LocalCacheRoot),
+                    new KeyValuePair<string, string>(Keys.BlobSizesRoot, enlistment.BlobSizesRoot),
+                    new KeyValuePair<string, string>(Keys.EnlistmentId, enlistmentId),
+                });
+        }
+
         private void SetInvalid(string keyName, bool invalid)
         {
             if (invalid)
@@ -301,6 +415,7 @@ namespace GVFS.Common
             public const string LocalCacheRoot = "LocalCacheRoot";
             public const string BlobSizesRoot = "BlobSizesRoot";
             public const string EnlistmentId = "EnlistmentId";
+            public const string MountId = "MountId";
         }
     }
 }

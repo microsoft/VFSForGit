@@ -1,6 +1,9 @@
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
+using System;
 using System.IO;
 
 namespace GVFS.UnitTests.Common
@@ -153,6 +156,94 @@ namespace GVFS.UnitTests.Common
         {
             GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
             enlistment.RepoUrl.ShouldEqual("https://mock/repo");
+        }
+
+        [TestCase]
+        public void WorktreeIdsAreEmptyBeforePersisted()
+        {
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+
+            enlistment.GetMountId().ShouldEqual(string.Empty);
+            enlistment.GetEnlistmentId().ShouldEqual(string.Empty);
+            File.Exists(GetRepoMetadataPath(enlistment)).ShouldBeFalse("Reading the ids must not create repo metadata");
+        }
+
+        [TestCase]
+        public void WorktreeIdsAreReadFromWorktreeRepoMetadataNotSharedConfig()
+        {
+            File.AppendAllText(
+                Path.Combine(this.sharedGitDir, "config"),
+                "[gvfs]\n\tenlistment-id = primaryenlistmentid\n\tmount-id = primarymountid\n");
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+
+            string worktreeEnlistmentId = null;
+            WithRepoMetadata(enlistment, metadata =>
+            {
+                worktreeEnlistmentId = metadata.EnlistmentId;
+                metadata.SetMountId("firstmountid");
+                metadata.SetMountId("secondmountid");
+            });
+
+            worktreeEnlistmentId.ShouldNotBeNull();
+            enlistment.GetEnlistmentId().ShouldEqual(worktreeEnlistmentId);
+            enlistment.GetMountId().ShouldEqual("secondmountid");
+            RepoMetadata.Instance.ShouldBeNull("Reading the ids must not initialize RepoMetadata.Instance");
+        }
+
+        [TestCase]
+        public void WorktreeIdsAreEmptyWhenRepoMetadataIsLocked()
+        {
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            WithRepoMetadata(enlistment, metadata => metadata.SetMountId("worktreemountid"));
+
+            using (new FileStream(GetRepoMetadataPath(enlistment), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                enlistment.GetEnlistmentId().ShouldEqual(string.Empty);
+                enlistment.GetMountId().ShouldEqual(string.Empty);
+            }
+        }
+
+        [TestCase]
+        public void TryEnsureEnlistmentIdCreatesIdOnce()
+        {
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+
+            string error;
+            RepoMetadata.TryEnsureEnlistmentId(new MockTracer(), new OverwritingFileSystem(), enlistment.DotGVFSRoot, out error).ShouldBeTrue(error);
+            string first = enlistment.GetEnlistmentId();
+            Assert.IsNotEmpty(first);
+
+            RepoMetadata.TryEnsureEnlistmentId(new MockTracer(), new OverwritingFileSystem(), enlistment.DotGVFSRoot, out error).ShouldBeTrue(error);
+            enlistment.GetEnlistmentId().ShouldEqual(first);
+        }
+
+        private static string GetRepoMetadataPath(GVFSEnlistment enlistment)
+        {
+            return Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.RepoMetadata);
+        }
+
+        private static void WithRepoMetadata(GVFSEnlistment enlistment, Action<RepoMetadata> action)
+        {
+            string error;
+            RepoMetadata.TryInitialize(new MockTracer(), new OverwritingFileSystem(), enlistment.DotGVFSRoot, out error).ShouldBeTrue(error);
+            try
+            {
+                action(RepoMetadata.Instance);
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
+            }
+        }
+
+        // The unit test platform does not support MoveAndOverwriteFile, which
+        // FileBasedDictionary uses to replace its data file.
+        private class OverwritingFileSystem : PhysicalFileSystem
+        {
+            public override void MoveAndOverwriteFile(string sourceFileName, string destinationFilename)
+            {
+                File.Move(sourceFileName, destinationFilename, overwrite: true);
+            }
         }
     }
 }
