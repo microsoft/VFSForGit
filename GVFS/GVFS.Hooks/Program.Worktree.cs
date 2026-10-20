@@ -91,7 +91,9 @@ namespace GVFS.Hooks
 
         /// <summary>
         /// Attempts to mount GVFS for a worktree, retrying on transient failures.
-        /// The first attempt shows output to the console; retries are quiet.
+        /// The first attempt shows output to the console; retries capture output
+        /// quietly but still print it to stderr on failure, so the hook never hides
+        /// why gvfs mount failed.
         /// Returns true if mount succeeded.
         /// </summary>
         private static bool TryMountWithRetry(string fullPath)
@@ -111,6 +113,18 @@ namespace GVFS.Hooks
                 if (result.ExitCode == 0)
                 {
                     return true;
+                }
+
+                Console.Error.WriteLine(
+                    $"warning: gvfs mount retry {retry + 1} for '{fullPath}' failed with exit code {result.ExitCode}.");
+                if (!string.IsNullOrWhiteSpace(result.Output))
+                {
+                    Console.Error.WriteLine($"  stdout: {result.Output.Trim()}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.Errors))
+                {
+                    Console.Error.WriteLine($"  stderr: {result.Errors.Trim()}");
                 }
             }
 
