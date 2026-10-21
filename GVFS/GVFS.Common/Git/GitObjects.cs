@@ -173,7 +173,7 @@ namespace GVFS.Common.Git
                 List<string> innerPackIndexes = null;
                 RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
                     requestId: requestId,
-                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp, ref bytesDownloaded, ref innerPackIndexes, gitProcess, trustPackIndexes),
+                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, requestId, ref latestTimestamp, ref bytesDownloaded, ref innerPackIndexes, gitProcess, trustPackIndexes),
                     onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, requestId, "TryDownloadPrefetchPacks"),
                     method: HttpMethod.Get,
                     endPointGenerator: () => new Uri(
@@ -366,6 +366,11 @@ namespace GVFS.Common.Git
                 }
 
                 this.CleanupTempFile(this.Tracer, tempFilePath);
+
+                if (ex is OperationCanceledException)
+                {
+                    throw;
+                }
 
                 if (tracer != null)
                 {
@@ -717,6 +722,7 @@ namespace GVFS.Common.Git
         /// </summary>
         private RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult DeserializePrefetchPacks(
            GitEndPointResponseData response,
+           long requestId,
            ref long latestTimestamp,
            ref long bytesDownloaded,
            ref List<string> packIndexes,
@@ -744,6 +750,7 @@ namespace GVFS.Common.Git
                 // Read each pack from the stream to a temp file, and start a task to index it.
                 Task previousPackTask = Task.CompletedTask;
                 Exception exception = null;
+                bool responseLoopExitedNormally = false;
                 try
                 {
                     foreach (PrefetchPacksDeserializer.PackAndIndex packHandle in deserializer.EnumeratePacks())
@@ -764,6 +771,7 @@ namespace GVFS.Common.Git
                         data["timestamp"] = pack.Timestamp.ToString();
                         data["uniqueId"] = pack.UniqueId;
                         data["ResponseId"] = response.ResponseId;
+                        data["RequestId"] = requestId;
                         data["PackBytes"] = pack.PackStream.Length;
                         activity.RelatedEvent(EventLevel.Informational, "Receiving Pack/Index", data, Keywords.Telemetry);
 
@@ -828,7 +836,7 @@ namespace GVFS.Common.Git
                                         pack.IndexStream.CopyTo(Stream.Null);
                                     }
                                 }
-                                catch (Exception e)
+                                catch (Exception e) when (!(e is OperationCanceledException))
                                 {
                                     EventMetadata metadata = CreateEventMetadata(e);
                                     activity.RelatedWarning(metadata, "Failed to read to end of index stream");
@@ -839,12 +847,26 @@ namespace GVFS.Common.Git
                         }
                     }
 
+                    responseLoopExitedNormally = true;
                 }
                 finally
                 {
                     if (!this.WaitForPacks(tempPackOperations, ref latestTimestamp, out exception))
                     {
                         allSucceeded = false;
+                        if (!responseLoopExitedNormally)
+                        {
+                            activity.RelatedWarning(
+                                new EventMetadata
+                                {
+                                    { "Area", EtwArea },
+                                    { "RequestId", requestId },
+                                    { "ResponseId", response.ResponseId },
+                                    { "Exception", exception.ToString() },
+                                },
+                                "Pack finalization failed while the response was interrupted.",
+                                Keywords.Telemetry);
+                        }
                     }
 
                     packIndexes.AddRange(tempPackOperations

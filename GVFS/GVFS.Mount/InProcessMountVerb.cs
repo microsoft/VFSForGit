@@ -132,7 +132,7 @@ namespace GVFS.Mount
             };
 
             string error;
-            RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out RetryConfig retryConfig, out _);
+            RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
 
             GitStatusCacheConfig gitStatusCacheConfig;
             if (!GitStatusCacheConfig.TryLoadFromGitConfig(tracer, enlistment, out gitStatusCacheConfig, out error))

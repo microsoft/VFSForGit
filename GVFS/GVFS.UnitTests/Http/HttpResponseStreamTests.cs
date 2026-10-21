@@ -1,7 +1,9 @@
 using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
@@ -29,6 +31,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void SynchronousReadTimesOut()
         {
             using (HttpResponseStream stream = CreateStream(new BlockingReadStream()))
@@ -40,6 +43,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void ReadByteTimesOut()
         {
             using (HttpResponseStream stream = CreateStream(new BlockingReadStream()))
@@ -50,6 +54,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void SpanReadTimesOut()
         {
             using (HttpResponseStream stream = CreateStream(new BlockingReadStream()))
@@ -60,6 +65,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void ArrayReadAsyncTimesOut()
         {
             using (HttpResponseStream stream = CreateStream(new BlockingReadStream()))
@@ -71,6 +77,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void MemoryReadAsyncTimesOut()
         {
             using (HttpResponseStream stream = CreateStream(new BlockingReadStream()))
@@ -100,8 +107,8 @@ namespace GVFS.UnitTests.Http
 
                 total.ShouldEqual(12);
                 stream.ReadFailed.ShouldEqual(false);
-                tracer.RelatedEventNames.ShouldNotContain(name => name == "NetworkBodyReadTimeout");
-                EventMetadata summary = tracer.RelatedEventMetadata.Last();
+                tracer.SnapshotRelatedEvents().ShouldNotContain(record => record.Name == "NetworkBodyReadTimeout");
+                EventMetadata summary = LastBodyEvent(tracer, "Completed").Metadata;
                 summary["Outcome"].ShouldEqual("Completed");
                 summary["BytesRead"].ShouldEqual(12L);
                 ((double)summary["ElapsedMs"] > 300).ShouldEqual(true);
@@ -119,16 +126,17 @@ namespace GVFS.UnitTests.Http
                 stream.ReadByte().ShouldEqual(2);
                 stream.ReadByte().ShouldEqual(-1);
                 stream.ReadFailed.ShouldEqual(false);
-                tracer.RelatedEventNames.ShouldNotContain(name => name == "NetworkBodyReadTimeout");
-                tracer.RelatedEventMetadata.ShouldContain(
-                    metadata => (string)metadata["Outcome"] == "InProgress" &&
-                    (bool)metadata["ReadPending"] == false &&
-                    (long)metadata["BytesRead"] == 1);
+                tracer.SnapshotRelatedEvents().ShouldNotContain(record => record.Name == "NetworkBodyReadTimeout");
+                tracer.SnapshotRelatedEvents().ShouldContain(
+                    record => (string)record.Metadata["Outcome"] == "InProgress" &&
+                    (bool)record.Metadata["ReadPending"] == false &&
+                    (long)record.Metadata["BytesRead"] == 1);
             }
         }
 
         [TestCase(false)]
         [TestCase(true)]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task CallerCancellationIsNotAReadFailure(bool cancelRequest)
         {
             using MockTracer tracer = new MockTracer();
@@ -147,12 +155,12 @@ namespace GVFS.UnitTests.Http
                 cancellation.Cancel();
                 Assert.CatchAsync<OperationCanceledException>(async () => await read.WaitAsync(TimeSpan.FromSeconds(5)));
                 stream.ReadFailed.ShouldEqual(false);
-                tracer.RelatedEventMetadata.Last()["Outcome"].ShouldEqual("Canceled");
-                tracer.RelatedEventLevels.Last().ShouldEqual(EventLevel.Informational);
+                LastBodyEvent(tracer, "Canceled").Level.ShouldEqual(EventLevel.Informational);
             }
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task DisposingCancelsPendingReadWithoutCallingItATimeout()
         {
             using MockTracer tracer = new MockTracer();
@@ -164,12 +172,13 @@ namespace GVFS.UnitTests.Http
                 stream.Dispose();
                 Assert.CatchAsync<OperationCanceledException>(async () => await read.WaitAsync(TimeSpan.FromSeconds(5)));
                 stream.ReadFailed.ShouldEqual(false);
-                tracer.RelatedEventNames.ShouldNotContain(name => name == "NetworkBodyReadTimeout");
-                tracer.RelatedEventMetadata.Last()["Outcome"].ShouldEqual("Closed");
+                tracer.SnapshotRelatedEvents().ShouldNotContain(record => record.Name == "NetworkBodyReadTimeout");
+                LastBodyEvent(tracer, "Closed").Metadata["Outcome"].ShouldEqual("Closed");
             }
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void BlockedReadReportsProgressAndTimeoutWithMatchingResponseId()
         {
             using MockTracer tracer = new MockTracer();
@@ -177,11 +186,12 @@ namespace GVFS.UnitTests.Http
             {
                 Assert.ThrowsAsync<IOException>(
                     async () => await stream.ReadAsync(new byte[8].AsMemory()).AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
-                tracer.RelatedEventNames.ShouldContain(name => name == "NetworkBodyProgress");
-                tracer.RelatedEventNames.Last().ShouldEqual("NetworkBodyReadTimeout");
-                tracer.RelatedEventMetadata.ShouldContain(
-                    metadata => (bool)metadata["ReadPending"] && (double)metadata["CurrentReadWaitMs"] > 0);
-                foreach (EventMetadata metadata in tracer.RelatedEventMetadata)
+                MockTracer.RecordedEvent[] records = tracer.SnapshotRelatedEvents();
+                records.ShouldContain(record => record.Name == "NetworkBodyProgress");
+                LastBodyEvent(tracer, "TimedOut").Name.ShouldEqual("NetworkBodyReadTimeout");
+                records.ShouldContain(
+                    record => (bool)record.Metadata["ReadPending"] && (double)record.Metadata["CurrentReadWaitMs"] > 0);
+                foreach (EventMetadata metadata in records.Select(record => record.Metadata))
                 {
                     metadata["ResponseId"].ShouldEqual(stream.ResponseId);
                     ((long)metadata["SampleSequence"] > 0).ShouldEqual(true);
@@ -190,18 +200,19 @@ namespace GVFS.UnitTests.Http
                     metadata["RequestAuthority"].ShouldEqual("cache.example:443");
                 }
 
-                EventMetadata timeout = tracer.RelatedEventMetadata.Last();
+                EventMetadata timeout = LastBodyEvent(tracer, "TimedOut").Metadata;
                 timeout["Outcome"].ShouldEqual("TimedOut");
                 timeout["BytesRead"].ShouldEqual(0L);
-                tracer.RelatedEventLevels.Last().ShouldEqual(EventLevel.Warning);
+                LastBodyEvent(tracer, "TimedOut").Level.ShouldEqual(EventLevel.Warning);
                 ((double)timeout["MaxReadWaitMs"] >= 200).ShouldEqual(true);
                 ((double)timeout["ReadTimeMs"] >= 200).ShouldEqual(true);
-                tracer.RelatedEventKeywords.ShouldContain(
-                    keywords => (keywords & Keywords.Telemetry) == Keywords.Telemetry);
+                records.ShouldContain(
+                    record => (record.Keyword & Keywords.Telemetry) == Keywords.Telemetry);
             }
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void ReadTimeoutReportsBytesReceivedBeforeTheStall()
         {
             using (MockTracer tracer = new MockTracer())
@@ -210,7 +221,7 @@ namespace GVFS.UnitTests.Http
                 byte[] buffer = new byte[8];
                 stream.Read(buffer, 0, buffer.Length).ShouldEqual(3);
                 Assert.Throws<IOException>(() => stream.Read(buffer, 0, buffer.Length).ShouldEqual(0));
-                EventMetadata timeout = tracer.RelatedEventMetadata.Last();
+                EventMetadata timeout = LastBodyEvent(tracer, "TimedOut").Metadata;
                 timeout["Outcome"].ShouldEqual("TimedOut");
                 timeout["BytesRead"].ShouldEqual(3L);
                 ((double)timeout["MillisecondsSinceLastByte"] >= 200).ShouldEqual(true);
@@ -232,12 +243,14 @@ namespace GVFS.UnitTests.Http
             }
 
             stream.Dispose();
-            int eventCount = tracer.RelatedEventNames.Count;
+            long terminalSequence = (long)LastBodyEvent(tracer, readToEnd ? "Completed" : "Closed").Metadata["SampleSequence"];
             await Task.Delay(120);
-            tracer.RelatedEventNames.Count.ShouldEqual(eventCount);
+            tracer.SnapshotRelatedEvents().Max(record => (long)record.Metadata["SampleSequence"])
+                .ShouldEqual(terminalSequence);
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task ZeroLengthReadsDoNotStartAReadOrCompleteTheTransfer()
         {
             using (BlockingReadStream innerStream = new BlockingReadStream())
@@ -266,10 +279,11 @@ namespace GVFS.UnitTests.Http
                 stream.ReadByte().ShouldEqual(-1);
             }
 
-            tracer.RelatedEventNames.Count.ShouldEqual(0);
+            tracer.SnapshotRelatedEvents().Length.ShouldEqual(0);
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task RealHttpBodyReadTimesOutAfterHeadersAndPartialData()
         {
             using (MockTracer tracer = new MockTracer())
@@ -291,7 +305,7 @@ namespace GVFS.UnitTests.Http
                         Assert.ThrowsAsync<IOException>(
                             async () => await stream.ReadAsync(new byte[8].AsMemory()).AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
                         stream.ReadFailed.ShouldEqual(true);
-                        tracer.RelatedEventNames.Last().ShouldEqual("NetworkBodyReadTimeout");
+                        LastBodyEvent(tracer, "TimedOut").Name.ShouldEqual("NetworkBodyReadTimeout");
                     }
                 }
                 finally
@@ -313,6 +327,7 @@ namespace GVFS.UnitTests.Http
         [TestCase(HttpStatusCode.ServiceUnavailable)]
         [TestCase(HttpStatusCode.Unauthorized)]
         [TestCase(HttpStatusCode.NotFound)]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task RequestorAppliesConfiguredReadTimeoutToSuccessAndErrorBodies(HttpStatusCode status)
         {
             using (MockTracer tracer = new MockTracer())
@@ -333,8 +348,7 @@ namespace GVFS.UnitTests.Http
                             response.Stream.ReadByte().ShouldEqual((int)'x');
                             Assert.Throws<IOException>(() => response.Stream.ReadByte());
                             response.StreamReadFailed.ShouldEqual(true);
-                            response.ResponseId.ShouldEqual((string)tracer.RelatedEventMetadata
-                                .Last(metadata => metadata.ContainsKey("ResponseId"))["ResponseId"]);
+                            response.ResponseId.ShouldEqual((string)LastBodyEvent(tracer, "TimedOut").Metadata["ResponseId"]);
                         }
                     }
                     else
@@ -349,9 +363,7 @@ namespace GVFS.UnitTests.Http
                         }
                     }
 
-                    int timeoutIndex = tracer.RelatedEventNames.IndexOf("NetworkBodyReadTimeout");
-                    (timeoutIndex >= 0).ShouldEqual(true);
-                    EventMetadata timeout = tracer.RelatedEventMetadata[timeoutIndex];
+                    EventMetadata timeout = LastBodyEvent(tracer, "TimedOut").Metadata;
                     timeout["RequestId"].ShouldEqual(42L);
                     timeout["StatusCode"].ShouldEqual(status);
                     timeout["CacheName"].ShouldEqual("test-cache");
@@ -396,6 +408,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task StalledErrorBodyRetriesWithTheStatusAndReleasesItsConnectionPermit()
         {
             using MockTracer tracer = new MockTracer();
@@ -425,7 +438,7 @@ namespace GVFS.UnitTests.Http
                         cancellationToken: CancellationToken.None);
                 result.Succeeded.ShouldEqual(true);
                 result.Attempts.ShouldEqual(2);
-                EventMetadata[] responses = tracer.RelatedEventMetadata
+                EventMetadata[] responses = tracer.SnapshotRelatedEvents().Select(record => record.Metadata)
                     .Where(metadata => metadata.ContainsKey("availableConnections")).ToArray();
                 responses.Length.ShouldEqual(2);
                 responses[0]["StatusCode"].ShouldEqual(HttpStatusCode.ServiceUnavailable);
@@ -447,6 +460,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task ConfigProbeRetainsUnauthorizedStatusWhenItsBodyStalls()
         {
             using MockTracer tracer = new MockTracer();
@@ -480,6 +494,231 @@ namespace GVFS.UnitTests.Http
             }
         }
 
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public async Task FinalResponseDiagnosticFailureReleasesThePreparedResponse()
+        {
+            using CallbackTracer tracer = new CallbackTracer();
+            bool fail = true;
+            tracer.Callback = name =>
+            {
+                if (name == "NetworkResponse" && fail)
+                {
+                    fail = false;
+                    throw new InvalidOperationException("diagnostic failure");
+                }
+            };
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            Uri endpoint = new Uri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}");
+            Task server = ServeRetriedError(listener, cancellation.Token);
+            using LoopbackHttpRequestor requestor = new LoopbackHttpRequestor(tracer);
+            try
+            {
+                Assert.Throws<InvalidOperationException>(() => requestor.Get(endpoint));
+                using (GitEndPointResponseData response = requestor.Get(endpoint))
+                {
+                    response.StatusCode.ShouldEqual(HttpStatusCode.OK);
+                    response.Stream.ReadByte().ShouldEqual(-1);
+                }
+
+                MockTracer.RecordedEvent[] responses = tracer.SnapshotRelatedEvents()
+                    .Where(record => record.Name == "NetworkResponse").ToArray();
+                responses.Length.ShouldEqual(2);
+                responses[1].Metadata["availableConnections"].ShouldEqual(responses[0].Metadata["availableConnections"]);
+            }
+            finally
+            {
+                cancellation.Cancel();
+                listener.Stop();
+                await ObserveServerCancellation(server, cancellation.Token);
+            }
+        }
+
+        [TestCase]
+        public async Task AnonymousUnauthorizedBodyDoesNotReachTheErrorTelemetry()
+        {
+            using MockTracer tracer = new MockTracer();
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            Uri endpoint = new Uri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}");
+            Task server = ServeCompleteResponses(listener, cancellation.Token,
+                (HttpStatusCode.Unauthorized, "\u001b[31mRAW-BODY-MARKER", "text/plain; charset=utf-8"));
+            using GitObjectsHttpRequestor requestor = new GitObjectsHttpRequestor(
+                tracer, new MockGVFSEnlistment(), new CacheServerInfo(endpoint.AbsoluteUri, "test"), new RetryConfig(0));
+            try
+            {
+                RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result =
+                    requestor.TrySendProtocolRequest(
+                        123,
+                        (attempt, response) => throw new InvalidOperationException("Unexpected success"),
+                        RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(tracer, 123, "test"),
+                        HttpMethod.Get,
+                        () => endpoint,
+                        () => null,
+                        CancellationToken.None);
+                result.Succeeded.ShouldEqual(false);
+                result.Error.Message.ShouldEqual("Anonymous request was rejected with a 401");
+                tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+                tracer.RelatedErrorEvents[0].ShouldContain("Anonymous request was rejected with a 401");
+                tracer.RelatedErrorEvents[0].Contains("RAW-BODY-MARKER", StringComparison.Ordinal).ShouldEqual(false);
+            }
+            finally
+            {
+                cancellation.Cancel();
+                listener.Stop();
+                await ObserveServerCancellation(server, cancellation.Token);
+            }
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public async Task CompletedBadRequestBodyPreservesCharsetAndCredentialPolicy(bool authRequired)
+        {
+            using MockTracer tracer = new MockTracer();
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            string endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+            string body = authRequired ? HttpRequestor.CacheServerAuthRequiredBadRequestMessage : "denied: caf\u00e9";
+            Task server = ServeCompleteResponses(listener, cancellation.Token,
+                (HttpStatusCode.Unauthorized, "denied", "text/plain"),
+                (HttpStatusCode.OK, "{}", "application/json"),
+                (HttpStatusCode.BadRequest, body, "text/plain; charset=utf-8"));
+            MockGitProcess git = CreateCredentialGitProcess(endpoint);
+            GitAuthentication authentication = new GitAuthentication(git, endpoint);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(
+                "mock:\\repo", endpoint, "mock:\\git", git, authentication);
+            using LoopbackHttpRequestor requestor = new LoopbackHttpRequestor(tracer, enlistment);
+            try
+            {
+                authentication.TryInitializeAndQueryGVFSConfig(
+                    tracer, enlistment, new RetryConfig(0, TimeSpan.FromSeconds(5)),
+                    out _, out string error, out _).ShouldEqual(true, error);
+                authentication.IsAnonymous.ShouldEqual(false);
+                using (GitEndPointResponseData response = requestor.Get(new Uri(endpoint)))
+                {
+                    response.StatusCode.ShouldEqual(HttpStatusCode.BadRequest);
+                    response.ShouldRetry.ShouldEqual(false);
+                    response.Error.Message.ShouldContain(body);
+                }
+
+                bool rejected = git.CredentialRejections.TryGetValue(endpoint, out System.Collections.Generic.List<MockGitProcess.Credential> rejections);
+                rejected.ShouldEqual(authRequired);
+                if (authRequired)
+                {
+                    rejections.Count.ShouldEqual(1);
+                }
+            }
+            finally
+            {
+                cancellation.Cancel();
+                listener.Stop();
+                await ObserveServerCancellation(server, cancellation.Token);
+            }
+        }
+
+        [TestCase]
+        public async Task AuthenticationInitializationLoadsAllRetrySettings()
+        {
+            using MockTracer tracer = new MockTracer();
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            string endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+            Task server = ServeCompleteResponses(listener, cancellation.Token,
+                (HttpStatusCode.OK, "{}", "application/json"));
+            MockGitProcess git = CreateCredentialGitProcess(endpoint);
+            git.SetExpectedCommandResult("config gvfs.max-retries", () => new GitProcess.Result("0", string.Empty, 0));
+            git.SetExpectedCommandResult("config gvfs.timeout-seconds", () => new GitProcess.Result("2", string.Empty, 0));
+            git.SetExpectedCommandResult("config gvfs.read-timeout-seconds", () => new GitProcess.Result("1", string.Empty, 0));
+            GitAuthentication authentication = new GitAuthentication(git, endpoint);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(
+                "mock:\\repo", endpoint, "mock:\\git", git, authentication);
+            try
+            {
+                authentication.TryInitialize(tracer, enlistment, out string error).ShouldEqual(true, error);
+                foreach (string key in new[] { "gvfs.max-retries", "gvfs.timeout-seconds", "gvfs.read-timeout-seconds" })
+                {
+                    git.CommandsRun.Count(command => command == "config " + key).ShouldEqual(1);
+                }
+            }
+            finally
+            {
+                cancellation.Cancel();
+                listener.Stop();
+                await ObserveServerCancellation(server, cancellation.Token);
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void DisposedRootTracerDoesNotChangeTheReadFailureOrExitTheProcess()
+        {
+            using JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "body-test", disableTelemetry: true);
+            using HttpResponseStream stream = new HttpResponseStream(
+                new BlockingReadStream(), TimeSpan.FromMilliseconds(200), CancellationToken.None,
+                tracer, progressInterval: TimeSpan.FromMilliseconds(20));
+            tracer.Dispose();
+            IOException failure = Assert.ThrowsAsync<IOException>(
+                async () => await stream.ReadAsync(new byte[1].AsMemory()).AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
+            failure.Message.ShouldContain("No response body data arrived");
+            stream.ReadFailed.ShouldEqual(true);
+        }
+
+        private static MockGitProcess CreateCredentialGitProcess(string endpoint)
+        {
+            MockGitProcess git = new MockGitProcess();
+            git.SetExpectedCommandResult("config --get-urlmatch http " + endpoint,
+                () => new GitProcess.Result(string.Empty, string.Empty, 0));
+            git.SetExpectedCommandResult("config gvfs.max-http-connections",
+                () => new GitProcess.Result(string.Empty, string.Empty, 1));
+            const string Prefix = "-c credential.\"https://dev.azure.com\".useHttpPath=true credential ";
+            git.SetExpectedCommandResult(Prefix + "fill",
+                () => new GitProcess.Result("username=test-user\npassword=test-password\n", string.Empty, 0));
+            git.SetExpectedCommandResult(Prefix + "approve", () => new GitProcess.Result(string.Empty, string.Empty, 0));
+            git.SetExpectedCommandResult(Prefix + "reject", () => new GitProcess.Result(string.Empty, string.Empty, 0));
+            return git;
+        }
+
+        private static async Task ServeCompleteResponses(TcpListener listener, CancellationToken cancellationToken,
+            params (HttpStatusCode Status, string Body, string ContentType)[] responses)
+        {
+            foreach ((HttpStatusCode status, string body, string contentType) in responses)
+            {
+                using TcpClient client = await listener.AcceptTcpClientAsync(cancellationToken);
+                using NetworkStream stream = client.GetStream();
+                using (StreamReader reader = new StreamReader(stream, Encoding.ASCII, false, 1024, leaveOpen: true))
+                {
+                    string line;
+                    do
+                    {
+                        line = await reader.ReadLineAsync(cancellationToken);
+                    }
+                    while (!string.IsNullOrEmpty(line));
+                }
+
+                byte[] data = Encoding.UTF8.GetBytes(body);
+                byte[] headers = Encoding.ASCII.GetBytes(
+                    $"HTTP/1.1 {(int)status} Test\r\nConnection: close\r\nContent-Type: {contentType}\r\nContent-Length: {data.Length}\r\n\r\n");
+                await stream.WriteAsync(headers.AsMemory(), cancellationToken);
+                await stream.WriteAsync(data.AsMemory(), cancellationToken);
+            }
+        }
+
+        private static async Task ObserveServerCancellation(Task server, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await server.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+        }
+
         private static async Task ServeRetriedError(TcpListener listener, CancellationToken cancellationToken)
         {
             for (int attempt = 0; attempt < 2; ++attempt)
@@ -508,6 +747,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task DisabledReadTimeoutStillHonorsCallerCancellation()
         {
             using CancellationTokenSource cancellation = new CancellationTokenSource();
@@ -522,6 +762,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task OverlappingAndDisposedReadsFailWithoutOverwritingPendingRead()
         {
             using BlockingReadStream innerStream = new BlockingReadStream();
@@ -535,6 +776,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public async Task BlockedProgressListenerDoesNotOwnTheReadStateGate()
         {
             using ManualResetEventSlim reporting = new ManualResetEventSlim();
@@ -582,6 +824,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void RawResponseStreamTracksReadFailuresAndIdentity()
         {
             using GitEndPointResponseData response = new GitEndPointResponseData(
@@ -592,6 +835,7 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void ResponseDisposalReleasesPermitWhenFinalDiagnosticsThrow()
         {
             using CallbackTracer tracer = new CallbackTracer();
@@ -616,30 +860,62 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
-        public async Task ProgressReportsCountOnlyBytesSinceThePreviousReport()
+        public void ProgressReportsCountOnlyBytesSinceThePreviousReport()
         {
-            using MockTracer tracer = new MockTracer();
+            using CallbackTracer tracer = new CallbackTracer();
+            using ManualResetEventSlim first = new ManualResetEventSlim();
+            using ManualResetEventSlim second = new ManualResetEventSlim();
+            tracer.EventCallback = (name, metadata) =>
+            {
+                if (name == "NetworkBodyProgress")
+                {
+                    if ((long)metadata["BytesRead"] == 1)
+                    {
+                        first.Set();
+                    }
+                    else if ((long)metadata["BytesRead"] == 2)
+                    {
+                        second.Set();
+                    }
+                }
+            };
             using HttpResponseStream stream = CreateStream(new MemoryStream(new byte[] { 1, 2 }), tracer);
             stream.ReadByte().ShouldEqual(1);
-            await Task.Delay(150);
+            first.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true);
             stream.ReadByte().ShouldEqual(2);
-            await Task.Delay(150);
+            second.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true);
             stream.ReadByte().ShouldEqual(-1);
-            EventMetadata[] reports = tracer.RelatedEventMetadata.ToArray();
+            EventMetadata[] reports = tracer.SnapshotRelatedEvents().Select(record => record.Metadata).ToArray();
             reports.Select(report => (long)report["SampleSequence"]).Distinct().Count().ShouldEqual(reports.Length);
             reports.Sum(report => (long)report["BytesSinceLastProgress"]).ShouldEqual(2L);
             reports.Count(report => (long)report["BytesSinceLastProgress"] == 1).ShouldEqual(2);
             reports.OrderBy(report => (long)report["SampleSequence"]).Last()["Outcome"].ShouldEqual("Completed");
         }
 
+        private static MockTracer.RecordedEvent LastBodyEvent(MockTracer tracer, string outcome)
+        {
+            return tracer.SnapshotRelatedEvents()
+                .Where(record => record.Metadata != null &&
+                    record.Metadata.TryGetValue("Outcome", out object value) && (string)value == outcome)
+                .OrderBy(record => (long)record.Metadata["SampleSequence"])
+                .Last();
+        }
+
         private class CallbackTracer : MockTracer
         {
             public Action<string> Callback { get; set; }
+            public Action<string, EventMetadata> EventCallback { get; set; }
+
+            public override void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata)
+            {
+                this.RelatedEvent(level, eventName, metadata, Keywords.None);
+            }
 
             public override void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata, Keywords keyword)
             {
-                this.Callback?.Invoke(eventName);
                 base.RelatedEvent(level, eventName, metadata, keyword);
+                this.EventCallback?.Invoke(eventName, metadata);
+                this.Callback?.Invoke(eventName);
             }
         }
 
@@ -678,11 +954,11 @@ namespace GVFS.UnitTests.Http
 
         private class LoopbackHttpRequestor : HttpRequestor
         {
-            public LoopbackHttpRequestor(MockTracer tracer)
+            public LoopbackHttpRequestor(MockTracer tracer, Enlistment enlistment = null)
                 : base(
                     tracer,
-                    new RetryConfig { ReadTimeout = TimeSpan.FromMilliseconds(300) },
-                    new MockGVFSEnlistment())
+                    new RetryConfig(0, TimeSpan.FromSeconds(5)) { ReadTimeout = TimeSpan.FromMilliseconds(300) },
+                    enlistment ?? new MockGVFSEnlistment())
             {
             }
 

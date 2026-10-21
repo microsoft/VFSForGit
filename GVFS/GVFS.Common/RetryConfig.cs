@@ -14,7 +14,9 @@ namespace GVFS.Common
         public const int FetchAndCloneTimeoutMinutes = 10;
 
         private const string EtwArea = nameof(RetryConfig);
+        // HttpClient and the response stream accept signed millisecond deadlines.
         private const int MaxTimeoutSeconds = int.MaxValue / 1000;
+        // Leave room for the initial attempt and two endpoint-routing attempts.
         private const int MaxConfiguredRetries = int.MaxValue - 3;
 
         private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(DefaultTimeoutSeconds);
@@ -40,29 +42,30 @@ namespace GVFS.Common
 
         public TimeSpan ReadTimeout { get; set; } = TimeSpan.FromSeconds(DefaultReadTimeoutSeconds);
 
-        public static bool TryLoadFromGitConfig(ITracer tracer, Enlistment enlistment, out RetryConfig retryConfig, out string error)
+        public static RetryConfig LoadFromGitConfig(ITracer tracer, Enlistment enlistment)
         {
-            return TryLoadFromGitConfig(tracer, enlistment.CreateGitProcess(), out retryConfig, out error);
+            ArgumentNullException.ThrowIfNull(enlistment);
+            return LoadFromGitConfig(tracer, enlistment.CreateGitProcess());
         }
 
         /// <summary>
         /// Invalid or unreadable retry settings use defaults and emit warnings.
         /// </summary>
-        public static bool TryLoadFromGitConfig(ITracer tracer, GitProcess git, out RetryConfig retryConfig, out string error)
+        public static RetryConfig LoadFromGitConfig(ITracer tracer, GitProcess git)
         {
+            ArgumentNullException.ThrowIfNull(git);
             int maxRetries = LoadIntOrDefault(
                 tracer, git, GVFSConstants.GitConfig.MaxRetriesConfig, DefaultMaxRetries, 0, MaxConfiguredRetries);
             int timeoutSeconds = LoadIntOrDefault(
                 tracer, git, GVFSConstants.GitConfig.TimeoutSecondsConfig, DefaultTimeoutSeconds, 1, MaxTimeoutSeconds);
             int readTimeoutSeconds = LoadIntOrDefault(
                 tracer, git, GVFSConstants.GitConfig.ReadTimeoutSecondsConfig, DefaultReadTimeoutSeconds, 0, MaxTimeoutSeconds);
-            retryConfig = new RetryConfig(maxRetries, TimeSpan.FromSeconds(timeoutSeconds))
+            RetryConfig retryConfig = new RetryConfig(maxRetries, TimeSpan.FromSeconds(timeoutSeconds))
             {
                 ReadTimeout = readTimeoutSeconds == 0
                     ? System.Threading.Timeout.InfiniteTimeSpan
                     : TimeSpan.FromSeconds(readTimeoutSeconds),
             };
-            error = string.Empty;
 
             if (tracer != null)
             {
@@ -79,7 +82,7 @@ namespace GVFS.Common
                     });
             }
 
-            return true;
+            return retryConfig;
         }
 
         private static int LoadIntOrDefault(

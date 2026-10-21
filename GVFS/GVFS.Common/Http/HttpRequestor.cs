@@ -235,6 +235,7 @@ namespace GVFS.Common.Http
                 }
                 else
                 {
+                    string bodyReadFailure = null;
                     try
                     {
                         using (HttpResponseStream responseStream = new HttpResponseStream(
@@ -256,7 +257,8 @@ namespace GVFS.Common.Http
                             new EventMetadata(bodyMetadata) { { "Exception", e.ToString() } },
                             "The server returned an error status, but the response body read failed.",
                             Keywords.Network | Keywords.Telemetry);
-                        errorMessage = "The response body read failed: " + (e.InnerException?.Message ?? e.Message);
+                        bodyReadFailure = "The response body read failed: " + (e.InnerException?.Message ?? e.Message);
+                        errorMessage = bodyReadFailure;
                     }
                     int statusInt = (int)response.StatusCode;
 
@@ -266,7 +268,11 @@ namespace GVFS.Common.Http
                         this.authentication.IsAnonymous)
                     {
                         shouldRetry = false;
-                        errorMessage = "Anonymous request was rejected with a 401. " + errorMessage;
+                        errorMessage = "Anonymous request was rejected with a 401";
+                        if (bodyReadFailure != null)
+                        {
+                            errorMessage += ". " + bodyReadFailure;
+                        }
                     }
                     else if (ShouldRejectCredentials(response.StatusCode, errorMessage))
                     {
@@ -333,6 +339,11 @@ namespace GVFS.Common.Http
                 try
                 {
                     this.Tracer.RelatedEvent(EventLevel.Informational, "NetworkResponse", responseMetadata);
+                }
+                catch
+                {
+                    gitEndPointResponseData?.Dispose();
+                    throw;
                 }
                 finally
                 {

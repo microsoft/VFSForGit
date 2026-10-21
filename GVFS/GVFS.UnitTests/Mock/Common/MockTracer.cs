@@ -3,12 +3,14 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Linq;
 
 namespace GVFS.UnitTests.Mock.Common
 {
     public class MockTracer : ITracer
     {
         private AutoResetEvent waitEvent;
+        private readonly object relatedEventsLock = new object();
 
         public MockTracer()
         {
@@ -48,28 +50,57 @@ namespace GVFS.UnitTests.Mock.Common
             this.waitEvent.WaitOne();
         }
 
-        public void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata)
+        public virtual void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata)
         {
-            this.RelatedEventNames.Add(eventName);
-            this.RelatedEventLevels.Add(error);
-            this.RelatedEventKeywords.Add(Keywords.None);
-            this.RelatedEventMetadata.Add(metadata);
-            if (eventName == this.WaitRelatedEventName)
-            {
-                this.waitEvent.Set();
-            }
+            this.RecordEvent(error, eventName, metadata, Keywords.None);
         }
 
         public virtual void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata, Keywords keyword)
         {
-            this.RelatedEventNames.Add(eventName);
-            this.RelatedEventLevels.Add(error);
-            this.RelatedEventKeywords.Add(keyword);
-            this.RelatedEventMetadata.Add(metadata);
-            if (eventName == this.WaitRelatedEventName)
+            this.RecordEvent(error, eventName, metadata, keyword);
+        }
+
+        public RecordedEvent[] SnapshotRelatedEvents()
+        {
+            lock (this.relatedEventsLock)
             {
-                this.waitEvent.Set();
+                return this.RelatedEventNames.Select((name, index) => new RecordedEvent(
+                    name,
+                    this.RelatedEventLevels[index],
+                    this.RelatedEventMetadata[index] == null ? null : new EventMetadata(this.RelatedEventMetadata[index]),
+                    this.RelatedEventKeywords[index])).ToArray();
             }
+        }
+
+        private void RecordEvent(EventLevel level, string eventName, EventMetadata metadata, Keywords keyword)
+        {
+            lock (this.relatedEventsLock)
+            {
+                this.RelatedEventNames.Add(eventName);
+                this.RelatedEventLevels.Add(level);
+                this.RelatedEventKeywords.Add(keyword);
+                this.RelatedEventMetadata.Add(metadata);
+                if (eventName == this.WaitRelatedEventName)
+                {
+                    this.waitEvent.Set();
+                }
+            }
+        }
+
+        public sealed class RecordedEvent
+        {
+            public RecordedEvent(string name, EventLevel level, EventMetadata metadata, Keywords keyword)
+            {
+                this.Name = name;
+                this.Level = level;
+                this.Metadata = metadata;
+                this.Keyword = keyword;
+            }
+
+            public string Name { get; }
+            public EventLevel Level { get; }
+            public EventMetadata Metadata { get; }
+            public Keywords Keyword { get; }
         }
 
         public void RelatedInfo(string message)

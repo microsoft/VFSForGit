@@ -3,6 +3,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
@@ -203,6 +204,7 @@ namespace GVFS.UnitTests.Git
             (packIndex >= 0).ShouldEqual(true);
             EventMetadata pack = activity.RelatedEventMetadata[packIndex];
             pack["ResponseId"].ShouldEqual(requestor.ResponseId);
+            pack["RequestId"].ShouldEqual(requestor.RequestId);
             pack["PackBytes"].ShouldEqual(1L);
             ((activity.RelatedEventKeywords[packIndex] & Keywords.Telemetry) != 0).ShouldEqual(true);
             EventMetadata start = tracer.StartMetadata.Single(metadata => metadata != null && metadata.ContainsKey("RequestId"));
@@ -210,6 +212,8 @@ namespace GVFS.UnitTests.Git
             start["RequestId"].ShouldEqual(requestor.RequestId);
             stop["RequestId"].ShouldEqual(requestor.RequestId);
             stop["Success"].ShouldEqual(true);
+            tracer.SnapshotRelatedEvents().Any(record => record.Name.StartsWith("NetworkBody", StringComparison.Ordinal))
+                .ShouldEqual(false);
         }
 
         [TestCase]
@@ -244,6 +248,55 @@ namespace GVFS.UnitTests.Git
             requestor.Requests.Count.ShouldEqual(2);
             requestor.Requests[1].Query.ShouldEqual("?lastPackTimestamp=1");
             objects.Moves.ShouldEqual(2);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void InterruptedResponseAlsoReportsPackFinalizationFailure()
+        {
+            using MockTracer tracer = new MockTracer();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            using StreamingPrefetchRequestor requestor = new StreamingPrefetchRequestor(tracer, enlistment);
+            using MemoryStream initial = CreatePrefetchResponse(2);
+            requestor.Streams.Enqueue(new HeaderFailureStream(initial.ToArray()));
+            requestor.Streams.Enqueue(CreatePrefetchResponse(0));
+            TestPrefetchGitObjects objects = new TestPrefetchGitObjects(tracer, enlistment, requestor)
+            {
+                FirstFlush = Task.FromException(new IOException("pack finalization failed")),
+            };
+
+            objects.TryDownloadPrefetchPacks(null, 0, true, out List<string> _).ShouldEqual(true);
+            tracer.StartActivityTracer.RelatedWarningEvents.ShouldContain(
+                warning => warning.Contains("pack finalization failed", StringComparison.Ordinal) &&
+                    warning.Contains("response was interrupted", StringComparison.Ordinal));
+            requestor.Requests[1].Query.ShouldEqual("?lastPackTimestamp=0");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void TemporaryPackCancellationPropagatesWithoutAFailureWarning()
+        {
+            using MockTracer tracer = new MockTracer();
+            MockFileSystemWithCallbacks filesystem = new MockFileSystemWithCallbacks
+            {
+                OnOpenFileStream = (path, mode, access) => new MemoryStream(),
+                OnFileExists = path => false,
+            };
+            GitObjects objects = new GVFSGitObjects(
+                new GVFSContext(tracer, filesystem, null, new MockGVFSEnlistment()), null);
+            using Stream canceled = new CanceledReadStream();
+
+            Assert.Throws<OperationCanceledException>(() => objects.TryWriteTempFile(
+                tracer, canceled, "mock:\\canceled.pack", out long _, out Task _, throwOnError: false));
+            tracer.RelatedWarningEvents.Count.ShouldEqual(0);
+        }
+
+        private sealed class CanceledReadStream : MemoryStream
+        {
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                throw new OperationCanceledException();
+            }
         }
 
         private static MemoryStream CreatePrefetchResponse(ushort declaredPacks)
@@ -308,7 +361,9 @@ namespace GVFS.UnitTests.Git
                 this.Requests.Add(requestUri);
                 GitEndPointResponseData response = new GitEndPointResponseData(
                     HttpStatusCode.OK, GVFSConstants.MediaTypes.PrefetchPackFilesAndIndexesMediaType,
-                    this.Streams.Dequeue(), null, null);
+                    new HttpResponseStream(this.Streams.Dequeue(), this.RetryConfig.ReadTimeout,
+                        cancellationToken, this.Tracer, new EventMetadata { { "RequestId", requestId } }),
+                    null, null);
                 this.ResponseId = response.ResponseId;
                 return response;
             }

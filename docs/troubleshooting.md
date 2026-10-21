@@ -100,16 +100,30 @@ git config --global gvfs.read-timeout-seconds 120
 
 Do not use this setting to limit the total download time.
 If the enlistment is mounted, remount it after a configuration change.
-New clone, prefetch, cache-server, repair-authentication, and FastFetch operations
-read the setting when they initialize their requests.
+New clone, cache-server, repair-authentication, and FastFetch operations load the
+settings during initialization. Non-offloaded prefetch also loads them in its CLI process.
+If prefetch offload is enabled, prefetch uses the mount's startup configuration
+and mount log. Remount the enlistment to change that configuration.
 All request initialization paths load the complete retry configuration.
 If a retry setting is invalid or unreadable, VFS for Git logs a warning and
 uses the default for that setting. Other valid retry settings remain active.
 Running mounts retain the configuration that they loaded at startup.
 Later retry-setting errors do not stop an existing mount.
+Commands retain their explicit retry and header-timeout overrides.
 
-Local GVFS logs contain `NetworkBodyProgress` reports every 30 seconds while a
-response remains open. These reports also reach the configured telemetry pipe.
+| Setting | Default | Configured values |
+| --- | --- | --- |
+| `gvfs.max-retries` | 6 | 0 through 2147483644 |
+| `gvfs.timeout-seconds` | 30 seconds | 1 through 2147483 seconds |
+| `gvfs.read-timeout-seconds` | 60 seconds | 0 through 2147483 seconds |
+
+Only the body-read setting uses zero to disable its deadline.
+
+Local GVFS logs contain `NetworkBodyProgress` reports that start 30 seconds after
+the first body read. They stop at end-of-stream, timeout, cancellation, a read
+failure, or response closure. These reports also reach the configured telemetry pipe.
+Exact-length pack transfers do not always require an EOF read. Reports can
+continue during pack finalization, with `ReadPending=false`.
 Fast transfers emit no additional progress reports. A slow transfer or a read
 failure also emits a final outcome, with `NetworkBodyReadTimeout` for an idle timeout.
 
@@ -128,7 +142,7 @@ count, and the final success result.
 | `ElapsedMs` | Total time with the response open, including consumer work |
 | `ReadTimeMs`, `MaxReadWaitMs` | Total time in body reads and the longest read wait |
 | `ReadPending`, `CurrentReadWaitMs` | Whether a read is pending and its current wait |
-| `MillisecondsSinceLastByte` | Time since the last successful nonempty read, including consumer work |
+| `MillisecondsSinceLastByte` | Time since the last nonempty read, or response-stream creation before any bytes arrive |
 | `ReadTimeoutMs` | Configured read deadline in milliseconds, or -1 if disabled |
 | `HeaderWaitMs`, `ContentLength` | Header wait and expected body bytes, or -1 for an unknown length |
 | `ResponseId`, `RequestId` | Response identity and the request identity shared across retries |

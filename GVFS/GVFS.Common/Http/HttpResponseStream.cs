@@ -294,11 +294,6 @@ namespace GVFS.Common.Http
 
                 this.Trace(report, TransferOutcome.InProgress);
             }
-            catch (ObjectDisposedException) when (this._disposed)
-            {
-                // A captured progress sample can outlive response and tracer teardown.
-                return;
-            }
             catch (Exception e)
             {
                 try
@@ -347,15 +342,23 @@ namespace GVFS.Common.Http
                 return;
             }
 
-            this._tracer.RelatedEvent(
-                outcome == TransferOutcome.TimedOut || outcome == TransferOutcome.ReadError
-                    ? EventLevel.Warning
-                    : EventLevel.Informational,
-                outcome == TransferOutcome.InProgress
-                    ? ProgressEventName
-                    : outcome == TransferOutcome.TimedOut ? TimeoutEventName : TransferEventName,
-                report,
-                Keywords.Network | Keywords.Telemetry);
+            try
+            {
+                this._tracer.RelatedEvent(
+                    outcome == TransferOutcome.TimedOut || outcome == TransferOutcome.ReadError
+                        ? EventLevel.Warning
+                        : EventLevel.Informational,
+                    outcome == TransferOutcome.InProgress
+                        ? ProgressEventName
+                        : outcome == TransferOutcome.TimedOut ? TimeoutEventName : TransferEventName,
+                    report,
+                    Keywords.Network | Keywords.Telemetry);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Maintenance responses can outlive the root tracer during unmount.
+                return;
+            }
         }
 
         private EventMetadata CreateReport(Exception? readError = null)

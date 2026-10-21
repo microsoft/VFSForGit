@@ -252,14 +252,15 @@ namespace FastFetch
                     });
 
                 string error;
-                if (!enlistment.Authentication.TryInitialize(tracer, enlistment, out error))
+                RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
+                if (!enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
+                    tracer, enlistment, retryConfig, out _, out error, out _))
                 {
                     tracer.RelatedError(error);
                     Console.WriteLine(error);
                     return ExitFailure;
                 }
 
-                RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out RetryConfig retryConfig, out _);
                 retryConfig.MaxRetries = this.MaxAttempts;
                 retryConfig.Timeout = TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes);
 
