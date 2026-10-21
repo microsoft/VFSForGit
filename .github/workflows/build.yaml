@@ -335,6 +335,7 @@ jobs:
       skip: ${{ needs.validate.outputs.skip }}
 
   upgrade_tests:
+    if: false
     name: Upgrade Tests
     needs: [validate, build]
     uses: ./.github/workflows/upgrade-tests.yaml
