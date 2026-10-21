@@ -50,7 +50,11 @@ namespace GVFS.Common
         private CancellationTokenSource shutdownTokenSource;
         private Task activeHydrationTask;
 
-        private volatile EnlistmentHydrationSummary cachedHydrationSummary;
+        private volatile HydrationCacheSnapshot hydrationCache = new HydrationCacheSnapshot(null, NamedPipeMessages.HydrationStatus.CacheState.NotComputed, 0);
+        private int hydrationInvalidationVersion;
+        private long hydrationRequestCount;
+        private long hydrationUnavailableCount;
+        private readonly Lock hydrationStatisticsLock = new Lock();
 
         private Func<int> projectedFolderCountProvider;
 
@@ -119,6 +123,7 @@ namespace GVFS.Common
         /// </summary>
         public virtual void Invalidate()
         {
+            Interlocked.Increment(ref this.hydrationInvalidationVersion);
             this.lastInvalidationTime = DateTime.UtcNow;
             this.cacheState = CacheState.Dirty;
         }
@@ -142,9 +147,29 @@ namespace GVFS.Common
         /// Returns the cached hydration summary if one has been computed,
         /// or null if no valid summary is available yet.
         /// </summary>
-        public EnlistmentHydrationSummary GetCachedHydrationSummary()
+        public EnlistmentHydrationSummary GetCachedHydrationSummary(out NamedPipeMessages.HydrationStatus.CacheInfo info)
         {
-            return this.cachedHydrationSummary;
+            HydrationCacheSnapshot snapshot = this.hydrationCache;
+            EnlistmentHydrationSummary summary = snapshot.Summary;
+            bool available = summary != null && summary.IsValid;
+            lock (this.hydrationStatisticsLock)
+            {
+                this.hydrationRequestCount++;
+                if (!available)
+                {
+                    this.hydrationUnavailableCount++;
+                }
+            }
+
+            info = new NamedPipeMessages.HydrationStatus.CacheInfo
+            {
+                State = snapshot.State,
+                CalculationId = summary?.Diagnostics?.CalculationId,
+                AgeMs = summary == null ? -1 : Math.Max(0, (long)(DateTime.UtcNow - snapshot.CompletedUtc).TotalMilliseconds),
+                Invalidated = snapshot.InvalidationVersion != Volatile.Read(ref this.hydrationInvalidationVersion),
+                CountsComplete = summary?.Diagnostics?.CountsComplete ?? false,
+            };
+            return available ? summary : null;
         }
 
         /// <summary>
@@ -253,6 +278,22 @@ namespace GVFS.Common
             }
 
             StatusStatistics statusStatistics = Interlocked.Exchange(ref this.statistics, new StatusStatistics());
+            long hydrationRequests;
+            long hydrationUnavailable;
+            lock (this.hydrationStatisticsLock)
+            {
+                hydrationRequests = this.hydrationRequestCount;
+                hydrationUnavailable = this.hydrationUnavailableCount;
+                this.hydrationRequestCount = 0;
+                this.hydrationUnavailableCount = 0;
+            }
+            if (hydrationRequests > 0)
+            {
+                metadata["HydrationStatus.RequestCount"] = hydrationRequests;
+                metadata["HydrationStatus.UnavailableCount"] = hydrationUnavailable;
+                metadata["HydrationStatus.CacheState"] = this.hydrationCache.State;
+                wroteTelemetry = true;
+            }
 
             if (statusStatistics.BackgroundStatusScanCount > 0)
             {
@@ -413,44 +454,57 @@ namespace GVFS.Common
             }
         }
 
-        private void UpdateHydrationSummary()
+        internal void UpdateHydrationSummary()
         {
-            if (this.projectedFolderCountProvider == null)
-            {
-                return;
-            }
-
-            bool enabled = TEST_EnableHydrationSummaryOverride
-                ?? this.context.Repository.LibGit2RepoInvoker.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
-            if (!enabled)
-            {
-                return;
-            }
-
             HydrationStatusCircuitBreaker circuitBreaker = new HydrationStatusCircuitBreaker(
                 this.context.Enlistment.DotGVFSRoot,
                 this.context.Tracer);
-
-            if (circuitBreaker.IsDisabled())
-            {
-                return;
-            }
-
             try
             {
+                if (this.projectedFolderCountProvider == null)
+                {
+                    this.RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState.ProviderUnavailable);
+                    return;
+                }
+
+                bool enabled = TEST_EnableHydrationSummaryOverride
+                    ?? this.context.Repository.LibGit2RepoInvoker.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
+                if (!enabled)
+                {
+                    this.RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState.FeatureDisabled);
+                    return;
+                }
+
+                if (circuitBreaker.IsDisabled())
+                {
+                    this.RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState.CircuitBreakerDisabled);
+                    return;
+                }
+
                 /* While not strictly part of git status, enlistment hydration summary is used
                  * in "git status" pre-command hook, and can take several seconds to compute on very large repos.
                  * Accessing it here ensures that the value is cached for when a user invokes "git status",
                  * and this is also a convenient place to log telemetry for it.
                  */
+                int invalidationVersion = Volatile.Read(ref this.hydrationInvalidationVersion);
+                HydrationSummaryDiagnostics diagnostics = new HydrationSummaryDiagnostics
+                {
+                    Caller = HydrationSummaryCaller.BackgroundCache,
+                    FolderCountSource = HydrationFolderCountSource.Projection,
+                };
                 EnlistmentHydrationSummary hydrationSummary =
-                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer, this.projectedFolderCountProvider, this.shutdownTokenSource.Token);
+                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer, this.projectedFolderCountProvider, this.shutdownTokenSource.Token, diagnostics);
+                NamedPipeMessages.HydrationStatus.CacheState state = hydrationSummary.IsValid
+                    ? diagnostics.CountsComplete ? NamedPipeMessages.HydrationStatus.CacheState.Available : NamedPipeMessages.HydrationStatus.CacheState.IncompleteData
+                    : diagnostics.Outcome == HydrationSummaryOutcome.Cancelled ? NamedPipeMessages.HydrationStatus.CacheState.Cancelled
+                    : diagnostics.Outcome == HydrationSummaryOutcome.Failed ? NamedPipeMessages.HydrationStatus.CacheState.Failed
+                    : NamedPipeMessages.HydrationStatus.CacheState.InvalidCounts;
+                this.hydrationCache = new HydrationCacheSnapshot(hydrationSummary, state, invalidationVersion);
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", EtwArea);
                 if (hydrationSummary.IsValid)
                 {
-                    this.cachedHydrationSummary = hydrationSummary;
-
+                    metadata["CalculationId"] = diagnostics.CalculationId.ToString("N");
                     metadata[nameof(hydrationSummary.TotalFolderCount)] = hydrationSummary.TotalFolderCount;
                     metadata[nameof(hydrationSummary.TotalFileCount)] = hydrationSummary.TotalFileCount;
                     metadata[nameof(hydrationSummary.HydratedFolderCount)] = hydrationSummary.HydratedFolderCount;
@@ -464,34 +518,55 @@ namespace GVFS.Common
                 }
                 else if (hydrationSummary.Error != null)
                 {
-                    this.cachedHydrationSummary = null;
                     circuitBreaker.RecordFailure();
                     metadata["Exception"] = hydrationSummary.Error.ToString();
                     this.context.Tracer.RelatedWarning(
                         metadata,
                         $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary could not be calculated.",
-                        Keywords.Telemetry);
+                        Keywords.None);
                 }
                 else
                 {
-                    // Invalid summary with no error — likely cancelled during shutdown
-                    this.cachedHydrationSummary = null;
                     this.context.Tracer.RelatedInfo(
-                        $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary was cancelled.");
+                        $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: hydration summary outcome: {diagnostics.Outcome}.");
                 }
             }
             catch (Exception ex)
             {
-                this.cachedHydrationSummary = null;
+                this.hydrationCache = new HydrationCacheSnapshot(null, NamedPipeMessages.HydrationStatus.CacheState.Failed, Volatile.Read(ref this.hydrationInvalidationVersion));
                 circuitBreaker.RecordFailure();
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", EtwArea);
-                metadata.Add("Exception", ex.ToString());
-                this.context.Tracer.RelatedError(
+                metadata.Add("ExceptionType", ex.GetType().FullName);
+                metadata.Add("ExceptionHResult", ex.HResult);
+                this.context.Tracer.RelatedWarning(new EventMetadata { ["Exception"] = ex.ToString() }, "Hydration cache update failed.", Keywords.None);
+                this.context.Tracer.RelatedWarning(
                     metadata,
                     $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: Exception trying to update hydration summary cache.",
                     Keywords.Telemetry);
             }
+        }
+
+        private void RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState state)
+        {
+            HydrationCacheSnapshot previous = this.hydrationCache;
+            this.hydrationCache = new HydrationCacheSnapshot(previous.Summary, state, previous.InvalidationVersion, previous.CompletedUtc);
+        }
+
+        private sealed class HydrationCacheSnapshot
+        {
+            public HydrationCacheSnapshot(EnlistmentHydrationSummary summary, NamedPipeMessages.HydrationStatus.CacheState state, int invalidationVersion, DateTime? completedUtc = null)
+            {
+                this.Summary = summary;
+                this.State = state;
+                this.InvalidationVersion = invalidationVersion;
+                this.CompletedUtc = completedUtc ?? DateTime.UtcNow;
+            }
+
+            public EnlistmentHydrationSummary Summary { get; }
+            public NamedPipeMessages.HydrationStatus.CacheState State { get; }
+            public int InvalidationVersion { get; }
+            public DateTime CompletedUtc { get; }
         }
 
         /// <summary>

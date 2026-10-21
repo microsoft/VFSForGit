@@ -8,6 +8,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Linq;
+using System.Text.Json;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -135,6 +137,39 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 topHydratedDirectories: topHydratedDirectories,
                 directoryHydrationLevels: directoryHydrationLevels,
                 enlistmentHealthStatus: "Highly Hydrated");
+        }
+
+        [TestCase, Order(5)]
+        public void StatusRecordsTheDisplayedResultAndFallbackDiagnostics()
+        {
+            HashSet<string> previousLogs = new HashSet<string>(Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log"));
+            string output = this.Enlistment.Health(statusOnly: true);
+            string log = Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log").Single(path => !previousLogs.Contains(path));
+            string[] lines = File.ReadAllLines(log);
+            string completion = lines.Single(line => line.Contains("health (Stop)"));
+            using (JsonDocument document = JsonDocument.Parse(completion.Substring(completion.IndexOf('{'))))
+            {
+                JsonElement root = document.RootElement;
+                Assert.AreEqual("Status", root.GetProperty("Mode").GetString());
+                Guid.ParseExact(root.GetProperty("CommandId").GetString(), "N").ShouldNotEqual(Guid.Empty);
+                JsonElement cache = root.GetProperty("Cache");
+                cache.GetProperty("Outcome").GetString().ShouldNotBeNull();
+                string displayOutcome = root.GetProperty("DisplayOutcome").GetString();
+                output.ShouldContain(displayOutcome == "Percentage" ? "% of files and " : "Error calculating hydration summary.");
+                if (root.GetProperty("ResultSource").GetString() == "Fallback")
+                {
+                    string calculation = lines.Single(line => line.Contains("HydrationSummaryDuration "));
+                    using (JsonDocument calculationDocument = JsonDocument.Parse(calculation.Substring(calculation.IndexOf('{'))))
+                    {
+                        JsonElement summary = calculationDocument.RootElement;
+                        summary.GetProperty("CommandId").GetString().ShouldEqual(root.GetProperty("CommandId").GetString());
+                        summary.GetProperty("CalculationId").GetString().ShouldEqual(root.GetProperty("CalculationId").GetString());
+                        summary.GetProperty("FolderCountSource").GetString().ShouldEqual("IndexParser");
+                        Assert.AreEqual(JsonValueKind.Number, summary.GetProperty("TotalFileCount").ValueKind);
+                        Assert.AreEqual(JsonValueKind.Number, summary.GetProperty("PlaceholderFolderCount").ValueKind);
+                    }
+                }
+            }
         }
 
         private void HydratePlaceholder(string filePath)

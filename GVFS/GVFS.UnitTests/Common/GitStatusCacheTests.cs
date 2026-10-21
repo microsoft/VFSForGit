@@ -89,6 +89,32 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void MissingHydrationProviderExplainsTheCacheMiss()
+        {
+            using (GitStatusCache cache = new GitStatusCache(this.context, TimeSpan.Zero))
+            {
+                cache.UpdateHydrationSummary();
+                Assert.IsNull(cache.GetCachedHydrationSummary(out NamedPipeMessages.HydrationStatus.CacheInfo info));
+                Assert.AreEqual(NamedPipeMessages.HydrationStatus.CacheState.ProviderUnavailable, info.State);
+                Assert.IsNull(info.CalculationId);
+                Assert.AreEqual(-1, info.AgeMs);
+            }
+        }
+
+        [TestCase]
+        public void DisabledHydrationFeatureExplainsTheCacheMiss()
+        {
+            using (GitStatusCache cache = new GitStatusCache(this.context, TimeSpan.Zero))
+            {
+                cache.SetProjectedFolderCountProvider(() => throw new AssertionException("A disabled feature must not count folders."));
+                cache.UpdateHydrationSummary();
+                Assert.IsNull(cache.GetCachedHydrationSummary(out NamedPipeMessages.HydrationStatus.CacheInfo info));
+                Assert.AreEqual(NamedPipeMessages.HydrationStatus.CacheState.FeatureDisabled, info.State);
+                Assert.IsFalse(info.CountsComplete);
+            }
+        }
+
+        [TestCase]
         public void CanInvalidateCleanCache()
         {
             this.enlistmentDirectory.CreateFile(Path.Combine(this.gvfsMetadataPath, GVFSConstants.DotGVFS.GitStatusCache.CachePath), "Git status cache contents", createDirectories: true);

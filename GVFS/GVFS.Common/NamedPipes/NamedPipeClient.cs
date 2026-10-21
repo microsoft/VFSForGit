@@ -18,6 +18,12 @@ namespace GVFS.Common.NamedPipes
 
         public bool Connect(int timeoutMilliseconds = 3000)
         {
+            return this.Connect(timeoutMilliseconds, out _);
+        }
+
+        public bool Connect(int timeoutMilliseconds, out Exception error)
+        {
+            error = null;
             if (this.clientStream != null)
             {
                 throw new InvalidOperationException();
@@ -28,12 +34,14 @@ namespace GVFS.Common.NamedPipes
                 this.clientStream = new NamedPipeClientStream(this.pipeName);
                 this.clientStream.Connect(timeoutMilliseconds);
             }
-            catch (TimeoutException)
+            catch (TimeoutException ex)
             {
+                error = ex;
                 return false;
             }
-            catch (IOException)
+            catch (IOException ex)
             {
+                error = ex;
                 return false;
             }
 

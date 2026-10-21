@@ -49,7 +49,7 @@ namespace GVFS.Common
         /// Goes to the SQLite database for the placeholder lists
         /// </summary>
         /// <param name="enlistment">The current GVFS enlistment being operated on</param>
-        public void LoadPlaceholdersFromDatabase(GVFSEnlistment enlistment)
+        public virtual void LoadPlaceholdersFromDatabase(GVFSEnlistment enlistment, HydrationSummaryDiagnostics diagnostics = null)
         {
             List<IPlaceholderData> filePlaceholders = new List<IPlaceholderData>();
             List<IPlaceholderData> folderPlaceholders = new List<IPlaceholderData>();
@@ -61,7 +61,32 @@ namespace GVFS.Common
             }
 
             this.PlaceholderFilePaths.AddRange(filePlaceholders.Select(placeholderData => placeholderData.Path));
-            this.PlaceholderFolderPaths.AddRange(folderPlaceholders.Select(placeholderData => placeholderData.Path));
+            if (diagnostics != null)
+            {
+                diagnostics.PartialFolderCount = 0;
+                diagnostics.ExpandedFolderCount = 0;
+                diagnostics.PossibleTombstoneFolderCount = 0;
+            }
+
+            foreach (IPlaceholderData placeholder in folderPlaceholders)
+            {
+                this.PlaceholderFolderPaths.Add(placeholder.Path);
+                if (diagnostics != null)
+                {
+                    if (placeholder.IsExpandedFolder)
+                    {
+                        diagnostics.ExpandedFolderCount++;
+                    }
+                    else if (placeholder.IsPossibleTombstoneFolder)
+                    {
+                        diagnostics.PossibleTombstoneFolderCount++;
+                    }
+                    else
+                    {
+                        diagnostics.PartialFolderCount++;
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -95,10 +120,15 @@ namespace GVFS.Common
             this.GitTrackingPaths.AddRange(skipWorktreeFiles);
         }
 
-        public void LoadModifiedPaths(GVFSEnlistment enlistment, ITracer tracer)
+        public virtual void LoadModifiedPaths(GVFSEnlistment enlistment, ITracer tracer, HydrationSummaryDiagnostics diagnostics = null)
         {
-            if (TryLoadModifiedPathsFromPipe(enlistment, tracer))
+            if (TryLoadModifiedPathsFromPipe(enlistment, tracer, diagnostics))
             {
+                if (diagnostics != null)
+                {
+                    diagnostics.ModifiedPathsState = HydrationDataState.Complete;
+                }
+
                 return;
             }
 
@@ -109,16 +139,30 @@ namespace GVFS.Common
                 using (FileStream file = File.Open(filePath, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read))
                 using (StreamReader reader = new StreamReader(file))
                 {
-                    AddModifiedPaths(ReadModifiedPathDatabaseLines(reader));
+                    AddModifiedPaths(ReadModifiedPathDatabaseLines(reader, diagnostics));
+                    if (diagnostics != null)
+                    {
+                        diagnostics.ModifiedPathsDiskOutcome = HydrationPathSourceOutcome.Success;
+                        diagnostics.ModifiedPathsState = HydrationDataState.Complete;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                tracer.RelatedWarning($"Failed to read modified paths file at {filePath}: {ex.Message}");
+                if (diagnostics != null)
+                {
+                    diagnostics.ModifiedPathsDiskOutcome = HydrationPathSourceOutcome.Failed;
+                    diagnostics.ModifiedPathsState = this.ModifiedFilePaths.Count > 0 || this.ModifiedFolderPaths.Count > 0
+                        ? HydrationDataState.Partial : HydrationDataState.Failed;
+                    diagnostics.ModifiedPathsExceptionType = ex.GetType().FullName;
+                    diagnostics.ModifiedPathsExceptionHResult = ex.HResult;
+                }
+
+                tracer.RelatedWarning($"Failed to read modified paths file at {filePath}: {ex}");
             }
         }
 
-        private IEnumerable<string> ReadModifiedPathDatabaseLines(StreamReader r)
+        internal IEnumerable<string> ReadModifiedPathDatabaseLines(StreamReader r, HydrationSummaryDiagnostics diagnostics = null)
         {
             while (!r.EndOfStream)
             {
@@ -131,8 +175,25 @@ namespace GVFS.Common
                 const string LinePrefix = "A ";
                 if (line.StartsWith(LinePrefix))
                 {
+                    if (diagnostics != null)
+                    {
+                        diagnostics.ModifiedPathsAddRecords++;
+                    }
+
                     line = line.Substring(LinePrefix.Length);
                 }
+                else if (diagnostics != null)
+                {
+                    if (line.StartsWith("D "))
+                    {
+                        diagnostics.ModifiedPathsDeleteRecords++;
+                    }
+                    else
+                    {
+                        diagnostics.ModifiedPathsOtherRecords++;
+                    }
+                }
+
                 yield return line;
             }
         }
@@ -143,14 +204,22 @@ namespace GVFS.Common
         /// <remarks>If/when modified paths are moved to SQLite go there instead</remarks>
         /// <param name="enlistment">The enlistment being operated on</param>
         /// <returns>An array containing all of the modified paths in string format</returns>
-        private bool TryLoadModifiedPathsFromPipe(GVFSEnlistment enlistment, ITracer tracer)
+        private bool TryLoadModifiedPathsFromPipe(GVFSEnlistment enlistment, ITracer tracer, HydrationSummaryDiagnostics diagnostics)
         {
             using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
             {
                 string[] modifiedPathsList = Array.Empty<string>();
 
-                if (!pipeClient.Connect())
+                if (!pipeClient.Connect(timeoutMilliseconds: 3000, out Exception connectError))
                 {
+                    if (diagnostics != null)
+                    {
+                        diagnostics.ModifiedPathsPipeOutcome = connectError is TimeoutException
+                            ? HydrationPathSourceOutcome.ConnectTimeout : HydrationPathSourceOutcome.ConnectFailed;
+                        diagnostics.ModifiedPathsPipeExceptionType = connectError?.GetType().FullName;
+                        diagnostics.ModifiedPathsPipeExceptionHResult = connectError?.HResult;
+                    }
+
                     return false;
                 }
 
@@ -162,6 +231,14 @@ namespace GVFS.Common
                     NamedPipeMessages.Message modifiedPathsResponse = pipeClient.ReadResponse();
                     if (!modifiedPathsResponse.Header.Equals(NamedPipeMessages.ModifiedPaths.SuccessResult))
                     {
+                        if (diagnostics != null)
+                        {
+                            diagnostics.ModifiedPathsPipeOutcome = modifiedPathsResponse.Header == NamedPipeMessages.MountNotReadyResult
+                                ? HydrationPathSourceOutcome.MountNotReady
+                                : modifiedPathsResponse.Header == NamedPipeMessages.ModifiedPaths.InvalidVersion
+                                    ? HydrationPathSourceOutcome.InvalidVersion : HydrationPathSourceOutcome.UnexpectedResponse;
+                        }
+
                         return false;
                     }
 
@@ -169,11 +246,23 @@ namespace GVFS.Common
                 }
                 catch (Exception ex)
                 {
-                    tracer.RelatedWarning($"Failed to load modified paths via named pipe: {ex.Message}");
+                    if (diagnostics != null)
+                    {
+                        diagnostics.ModifiedPathsPipeOutcome = HydrationPathSourceOutcome.Failed;
+                        diagnostics.ModifiedPathsPipeExceptionType = ex.GetType().FullName;
+                        diagnostics.ModifiedPathsPipeExceptionHResult = ex.HResult;
+                    }
+
+                    tracer.RelatedWarning($"Failed to load modified paths via named pipe: {ex}");
                     return false;
                 }
 
                 AddModifiedPaths(modifiedPathsList);
+                if (diagnostics != null)
+                {
+                    diagnostics.ModifiedPathsPipeOutcome = HydrationPathSourceOutcome.Success;
+                }
+
                 return true;
             }
         }

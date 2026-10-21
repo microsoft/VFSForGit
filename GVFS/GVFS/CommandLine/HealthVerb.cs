@@ -4,8 +4,10 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GVFS.CommandLine
@@ -68,106 +70,257 @@ namespace GVFS.CommandLine
                     EventLevel.Informational,
                     Keywords.Any);
 
-                if (this.StatusOnly)
+                Guid commandId = Guid.NewGuid();
+                EventMetadata metadata = new EventMetadata
                 {
-                    this.OutputHydrationPercent(enlistment, tracer);
-                    return;
-                }
-
-                // Now default to the current working directory when running the verb without a specified path
-                if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
+                    ["SchemaVersion"] = 1,
+                    ["CommandId"] = commandId.ToString("N"),
+                    ["Mode"] = this.StatusOnly ? "Status" : "Detailed",
+                    ["Outcome"] = "Failed",
+                };
+                try
                 {
-                    if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, GVFSPlatform.Instance.Constants.PathComparison))
-                    {
-                        this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
-                    }
-                    else
-                    {
-                        // If the path is not under the source root, set the directory to empty
-                        this.Directory = string.Empty;
-                    }
+                    this.ExecuteWithTracer(enlistment, tracer, metadata, commandId);
                 }
-
-                this.Output.WriteLine("\nGathering repository data...");
-
-                this.Directory = this.Directory.Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
-
-                EnlistmentPathData pathData = new EnlistmentPathData();
-
-                pathData.LoadPlaceholdersFromDatabase(enlistment);
-                pathData.LoadModifiedPaths(enlistment, tracer);
-                pathData.LoadPathsFromGitIndex(enlistment);
-
-                pathData.NormalizeAllPaths();
-
-                EnlistmentHealthCalculator enlistmentHealthCalculator = new EnlistmentHealthCalculator(pathData);
-                EnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
-
-                this.PrintOutput(enlistmentHealthData);
+                finally
+                {
+                    tracer.Stop(metadata);
+                }
             }
         }
 
-        private void OutputHydrationPercent(GVFSEnlistment enlistment, ITracer tracer)
+        private void ExecuteWithTracer(GVFSEnlistment enlistment, ITracer tracer, EventMetadata metadata, Guid commandId)
         {
-            // Try cached summary from mount process first (fast path)
-            string cachedMessage = this.TryGetCachedHydrationMessage(enlistment);
-            if (cachedMessage != null)
+            if (this.StatusOnly)
             {
-                this.Output.WriteLine(cachedMessage);
+                this.OutputHydrationPercent(enlistment, tracer, metadata, commandId);
                 return;
             }
 
-            // Fall back to in-proc computation with index-based folder count
-            Func<int> folderCountProvider = () =>
-                GVFS.Virtualization.Projection.GitIndexProjection.CountIndexFolders(tracer, enlistment.GitIndexPath);
-            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
-                enlistment, this.FileSystem, tracer, folderCountProvider);
+            // Now default to the current working directory when running the verb without a specified path
+            if (string.IsNullOrEmpty(this.Directory) || this.Directory.Equals("."))
+            {
+                if (Environment.CurrentDirectory.StartsWith(enlistment.WorkingDirectoryRoot, GVFSPlatform.Instance.Constants.PathComparison))
+                {
+                    this.Directory = Environment.CurrentDirectory.Substring(enlistment.WorkingDirectoryRoot.Length);
+                }
+                else
+                {
+                    // If the path is not under the source root, set the directory to empty
+                    this.Directory = string.Empty;
+                }
+            }
+
+            this.Output.WriteLine("\nGathering repository data...");
+
+            this.Directory = this.Directory.Replace(GVFSPlatform.GVFSPlatformConstants.PathSeparator, GVFSConstants.GitPathSeparator);
+
+            EnlistmentPathData pathData = new EnlistmentPathData();
+
+            pathData.LoadPlaceholdersFromDatabase(enlistment);
+            pathData.LoadModifiedPaths(enlistment, tracer);
+            pathData.LoadPathsFromGitIndex(enlistment);
+
+            pathData.NormalizeAllPaths();
+
+            EnlistmentHealthCalculator enlistmentHealthCalculator = new EnlistmentHealthCalculator(pathData);
+            EnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
+
+            this.PrintOutput(enlistmentHealthData);
+            metadata["Outcome"] = "Success";
+        }
+
+        internal void OutputHydrationPercent(GVFSEnlistment enlistment, ITracer tracer, EventMetadata metadata, Guid commandId)
+        {
+            CacheLookupResult cache = this.TryGetCachedHydrationStatus(enlistment);
+            metadata["Cache"] = cache.GetMetadata();
+            if (cache.Exception != null)
+            {
+                tracer.RelatedWarning(new EventMetadata { ["Exception"] = cache.Exception.ToString() }, "Hydration cache lookup failed.", Keywords.None);
+            }
+
+            if (cache.Response != null && cache.Outcome == CacheLookupOutcome.Success)
+            {
+                metadata["ResultSource"] = "Cache";
+                metadata["DisplayOutcome"] = "Percentage";
+                metadata["Outcome"] = cache.Info == null ? "LegacyCache"
+                    : cache.Info.CountsComplete ? "Success" : "IncompleteData";
+                metadata["CalculationId"] = cache.Info?.CalculationId?.ToString("N");
+                this.Output.WriteLine(cache.Response.ToDisplayMessage());
+                return;
+            }
+
+            metadata["ResultSource"] = "Fallback";
+            HydrationSummaryDiagnostics diagnostics = new HydrationSummaryDiagnostics
+            {
+                CommandId = commandId,
+                Caller = HydrationSummaryCaller.HealthFallback,
+                FolderCountSource = HydrationFolderCountSource.IndexParser,
+            };
+            EnlistmentHydrationSummary summary = this.CreateHydrationSummary(enlistment, tracer, diagnostics);
+            metadata["Summary"] = diagnostics.GetMetadata();
+            metadata["CalculationId"] = diagnostics.CalculationId.ToString("N");
+            metadata["Outcome"] = diagnostics.Outcome;
+            metadata["DisplayOutcome"] = summary.IsValid ? "Percentage" : "Error";
             this.Output.WriteLine(summary.ToMessage());
         }
 
-        /// <summary>
-        /// Try to get the cached hydration summary from the mount process via named pipe.
-        /// Returns null if unavailable (GVFS not mounted, no cached value, parse error, timeout).
-        /// </summary>
-        private string TryGetCachedHydrationMessage(GVFSEnlistment enlistment)
+        internal virtual EnlistmentHydrationSummary CreateHydrationSummary(GVFSEnlistment enlistment, ITracer tracer, HydrationSummaryDiagnostics diagnostics)
+        {
+            return EnlistmentHydrationSummary.CreateSummary(enlistment, this.FileSystem, tracer,
+                () => GVFS.Virtualization.Projection.GitIndexProjection.CountIndexFolders(tracer, enlistment.GitIndexPath),
+                diagnostics: diagnostics);
+        }
+
+        internal virtual CacheLookupResult TryGetCachedHydrationStatus(GVFSEnlistment enlistment)
         {
             const int ConnectTimeoutMs = 500;
             const int TotalTimeoutMs = 1000;
-
-            try
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            int phase = (int)CacheLookupPhase.Connect;
+            Task<CacheLookupResult> task = Task.Run(() =>
             {
-                Task<string> task = Task.Run(() =>
+                try
                 {
                     using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
                     {
-                        if (!pipeClient.Connect(timeoutMilliseconds: ConnectTimeoutMs))
+                        if (!pipeClient.Connect(ConnectTimeoutMs, out Exception error))
                         {
-                            return null;
+                            return new CacheLookupResult
+                            {
+                                Outcome = error is TimeoutException ? CacheLookupOutcome.ConnectTimeout : CacheLookupOutcome.ConnectFailed,
+                                Phase = CacheLookupPhase.Connect,
+                                Exception = error,
+                            };
                         }
 
+                        Volatile.Write(ref phase, (int)CacheLookupPhase.Send);
                         pipeClient.SendRequest(new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.Request, null));
+                        Volatile.Write(ref phase, (int)CacheLookupPhase.Read);
                         NamedPipeMessages.Message response = pipeClient.ReadResponse();
-
-                        if (response.Header != NamedPipeMessages.HydrationStatus.SuccessResult
-                            || !NamedPipeMessages.HydrationStatus.Response.TryParse(response.Body, out NamedPipeMessages.HydrationStatus.Response status))
-                        {
-                            return null;
-                        }
-
-                        return status.ToDisplayMessage();
+                        Volatile.Write(ref phase, (int)CacheLookupPhase.Parse);
+                        return ParseCachedResponse(response);
                     }
-                });
-
-                if (task.Wait(TotalTimeoutMs) && task.Status == TaskStatus.RanToCompletion)
-                {
-                    return task.Result;
                 }
+                catch (Exception ex)
+                {
+                    return new CacheLookupResult { Outcome = CacheLookupOutcome.Failed, Phase = (CacheLookupPhase)Volatile.Read(ref phase), Exception = ex };
+                }
+            });
 
-                return null;
-            }
-            catch (Exception)
+            CacheLookupResult result;
+            if (task.Wait(TotalTimeoutMs))
             {
-                return null;
+                result = task.Result;
+            }
+            else
+            {
+                // The worker owns the pipe and never writes to the caller's tracer or metadata after a timeout.
+                result = new CacheLookupResult { Outcome = CacheLookupOutcome.Timeout, Phase = (CacheLookupPhase)Volatile.Read(ref phase) };
+            }
+
+            result.DurationMs = stopwatch.ElapsedMilliseconds;
+            return result;
+        }
+
+        internal static CacheLookupResult ParseCachedResponse(NamedPipeMessages.Message message)
+        {
+            CacheLookupResult result = new CacheLookupResult { Phase = CacheLookupPhase.Parse };
+            if (message.Header == NamedPipeMessages.HydrationStatus.NotAvailableResult)
+            {
+                result.Outcome = CacheLookupOutcome.NotAvailable;
+                NamedPipeMessages.HydrationStatus.CacheInfo.TryParse(message.Body, out NamedPipeMessages.HydrationStatus.CacheInfo info);
+                result.Info = info;
+                result.DiagnosticsStatus = info != null ? CacheDiagnosticsStatus.Parsed
+                    : string.IsNullOrEmpty(message.Body) ? CacheDiagnosticsStatus.Absent : CacheDiagnosticsStatus.Unrecognized;
+                return result;
+            }
+
+            if (message.Header != NamedPipeMessages.HydrationStatus.SuccessResult)
+            {
+                result.Outcome = CacheLookupOutcome.UnexpectedResponse;
+                return result;
+            }
+
+            result.Counts = new EventMetadata();
+            string[] parts = message.Body?.Split(',') ?? Array.Empty<string>();
+            string[] names = { "PlaceholderFileCount", "PlaceholderFolderCount", "ModifiedFileCount", "ModifiedFolderCount", "TotalFileCount", "TotalFolderCount" };
+            for (int i = 0; i < names.Length; i++)
+            {
+                result.Counts[names[i]] = i < parts.Length && int.TryParse(parts[i], out int count) ? count : null;
+            }
+
+            bool valid = NamedPipeMessages.HydrationStatus.Response.TryParse(message.Body, out NamedPipeMessages.HydrationStatus.Response response, out NamedPipeMessages.HydrationStatus.ParseOutcome outcome);
+            result.Response = response;
+            result.ParseOutcome = outcome;
+            result.Outcome = valid ? CacheLookupOutcome.Success
+                : outcome == NamedPipeMessages.HydrationStatus.ParseOutcome.InvalidCounts ? CacheLookupOutcome.InvalidCounts : CacheLookupOutcome.MalformedResponse;
+            NamedPipeMessages.HydrationStatus.CacheInfo.TryParse(message.Body, out NamedPipeMessages.HydrationStatus.CacheInfo cacheInfo, hasCounts: true);
+            result.Info = cacheInfo;
+            result.DiagnosticsStatus = cacheInfo != null ? CacheDiagnosticsStatus.Parsed
+                : parts.Length <= 6 ? CacheDiagnosticsStatus.Absent : CacheDiagnosticsStatus.Unrecognized;
+            return result;
+        }
+
+        internal enum CacheDiagnosticsStatus
+        {
+            Absent,
+            Parsed,
+            Unrecognized,
+        }
+
+        internal enum CacheLookupOutcome
+        {
+            Success,
+            NotAvailable,
+            ConnectTimeout,
+            ConnectFailed,
+            Timeout,
+            UnexpectedResponse,
+            MalformedResponse,
+            InvalidCounts,
+            Failed,
+        }
+
+        internal enum CacheLookupPhase
+        {
+            Connect,
+            Send,
+            Read,
+            Parse,
+        }
+
+        internal sealed class CacheLookupResult
+        {
+            public CacheLookupOutcome Outcome { get; set; }
+            public CacheLookupPhase Phase { get; set; }
+            public long DurationMs { get; set; }
+            public Exception Exception { get; set; }
+            public NamedPipeMessages.HydrationStatus.Response Response { get; set; }
+            public NamedPipeMessages.HydrationStatus.ParseOutcome? ParseOutcome { get; set; }
+            public NamedPipeMessages.HydrationStatus.CacheInfo Info { get; set; }
+            public EventMetadata Counts { get; set; }
+            public CacheDiagnosticsStatus DiagnosticsStatus { get; set; }
+
+            public EventMetadata GetMetadata()
+            {
+                return new EventMetadata
+                {
+                    [nameof(this.Outcome)] = this.Outcome,
+                    [nameof(this.Phase)] = this.Phase,
+                    [nameof(this.DurationMs)] = this.DurationMs,
+                    ["ExceptionType"] = this.Exception?.GetType().FullName,
+                    ["ExceptionHResult"] = this.Exception?.HResult,
+                    [nameof(this.ParseOutcome)] = this.ParseOutcome,
+                    [nameof(this.Counts)] = this.Counts,
+                    ["DiagnosticsAvailable"] = this.Info != null,
+                    [nameof(this.DiagnosticsStatus)] = this.DiagnosticsStatus,
+                    ["State"] = this.Info?.State,
+                    ["CalculationId"] = this.Info?.CalculationId?.ToString("N"),
+                    ["AgeMs"] = this.Info?.AgeMs,
+                    ["Invalidated"] = this.Info?.Invalidated,
+                    ["CountsComplete"] = this.Info?.CountsComplete,
+                };
             }
         }
 
