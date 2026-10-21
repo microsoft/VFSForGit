@@ -206,34 +206,38 @@ jobs:
         $env:GIT_TRACE2_PERF = "C:\temp\git-trace2.log"
         $env:GVFS_TEST_DIAGNOSTICS_DIR = "C:\temp\gvfs-ft-diagnostics"
         @(
+          'GVFS.FunctionalTests.Tests.GitCommands.CreatePlaceholderTests(None).BlocksPlaceholderCreationWhileGitCommandIsRunning("reset --stdin")'
           'GVFS.FunctionalTests.Tests.GitCommands.CreatePlaceholderTests(Full).BlocksPlaceholderCreationWhileGitCommandIsRunning("reset --stdin")'
+          'GVFS.FunctionalTests.Tests.GitCommands.CreatePlaceholderTests(SparseMode).BlocksPlaceholderCreationWhileGitCommandIsRunning("reset --stdin")'
         ) | Set-Content repro-testlist.txt
         New-Item -ItemType Directory -Force results | Out-Null
-        & ft\GVFS.FunctionalTests.exe --explore=SelectedTests.xml --ci --prefilter=GVFS.FunctionalTests --testlist=repro-testlist.txt
+        & ft\GVFS.FunctionalTests.exe --explore=SelectedTests.xml --full-suite --workers=4 --prefilter=GVFS.FunctionalTests --testlist=repro-testlist.txt
         if ($LASTEXITCODE -ne 0) {
           throw "Test discovery failed."
         }
         [xml]$selection = Get-Content SelectedTests.xml -Raw
-        if ($selection.SelectNodes('//test-case').Count -ne 1) {
-          throw "Test discovery did not select exactly one case."
+        if ($selection.SelectNodes('//test-case').Count -ne 3) {
+          throw "Test discovery did not select exactly three reset cases."
         }
         $failures = 0
         for ($attempt = 1; $attempt -le 10; $attempt++) {
           $resultPath = "results\TestResult-$attempt.xml"
-          & ft\GVFS.FunctionalTests.exe "/result:$resultPath" --ci --prefilter=GVFS.FunctionalTests --testlist=repro-testlist.txt
+          & ft\GVFS.FunctionalTests.exe "/result:$resultPath" --full-suite --workers=4 --prefilter=GVFS.FunctionalTests --testlist=repro-testlist.txt
           $exitCode = $LASTEXITCODE
           if (!(Test-Path $resultPath)) {
             throw "Attempt $attempt produced no test result."
           }
           [xml]$result = Get-Content $resultPath -Raw
           $cases = @($result.SelectNodes('//test-case'))
-          if ($cases.Count -ne 1) {
-            throw "Attempt $attempt selected $($cases.Count) target cases instead of one."
+          if ($cases.Count -ne 3) {
+            throw "Attempt $attempt selected $($cases.Count) target cases instead of three."
           }
-          if ($exitCode -ne 0 -or $cases[0].result -ne 'Passed') {
+          if ($exitCode -ne 0 -or @($cases | Where-Object result -ne 'Passed').Count -ne 0) {
             $failures++
           }
-          "Attempt $attempt`: exit=$exitCode result=$($cases[0].result)" | Tee-Object -FilePath results\attempts.txt -Append
+          foreach ($case in $cases) {
+            "Attempt $attempt`: exit=$exitCode result=$($case.result) test=$($case.fullname)" | Tee-Object -FilePath results\attempts.txt -Append
+          }
         }
         "Failures: $failures / 10" | Tee-Object -FilePath results\attempts.txt -Append
         Get-Content results\attempts.txt >> $env:GITHUB_STEP_SUMMARY
