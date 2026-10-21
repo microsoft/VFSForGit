@@ -207,19 +207,26 @@ jobs:
         $env:GVFS_TEST_DIAGNOSTICS_DIR = "C:\temp\gvfs-ft-diagnostics"
         @(
           'GVFS.FunctionalTests.Tests.GitCommands.CreatePlaceholderTests(Full).BlocksPlaceholderCreationWhileGitCommandIsRunning("reset --stdin")'
-          'GVFS.FunctionalTests.GlobalSetup'
         ) | Set-Content repro-testlist.txt
         New-Item -ItemType Directory -Force results | Out-Null
+        & ft\GVFS.FunctionalTests.exe --explore=SelectedTests.xml --ci --prefilter=GVFS.FunctionalTests --testlist=repro-testlist.txt
+        if ($LASTEXITCODE -ne 0) {
+          throw "Test discovery failed."
+        }
+        [xml]$selection = Get-Content SelectedTests.xml -Raw
+        if ($selection.SelectNodes('//test-case').Count -ne 1) {
+          throw "Test discovery did not select exactly one case."
+        }
         $failures = 0
         for ($attempt = 1; $attempt -le 10; $attempt++) {
           $resultPath = "results\TestResult-$attempt.xml"
-          & ft\GVFS.FunctionalTests.exe "/result:$resultPath" --ci --testlist=repro-testlist.txt
+          & ft\GVFS.FunctionalTests.exe "/result:$resultPath" --ci --prefilter=GVFS.FunctionalTests --testlist=repro-testlist.txt
           $exitCode = $LASTEXITCODE
           if (!(Test-Path $resultPath)) {
             throw "Attempt $attempt produced no test result."
           }
           [xml]$result = Get-Content $resultPath -Raw
-          $cases = @($result.SelectNodes('//test-case[contains(@fullname, "BlocksPlaceholderCreationWhileGitCommandIsRunning")]'))
+          $cases = @($result.SelectNodes('//test-case'))
           if ($cases.Count -ne 1) {
             throw "Attempt $attempt selected $($cases.Count) target cases instead of one."
           }

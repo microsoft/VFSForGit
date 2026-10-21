@@ -255,6 +255,7 @@ jobs:
         path: MicrosoftGit
 
   build:
+    if: false
     runs-on: ${{ matrix.architecture == 'arm64' && 'windows-11-arm' || 'windows-2025' }}
     name: Build and Unit Test
     needs: validate
@@ -329,10 +330,12 @@ jobs:
 
   functional_tests:
     name: Functional Tests
-    needs: [validate, build]
+    needs: [validate]
     uses: ./.github/workflows/functional-tests.yaml
     with:
       skip: ${{ needs.validate.outputs.skip }}
+      vfs_run_id: '39636821560'
+      git_run_id: '39636821560'
 
   upgrade_tests:
     if: false
