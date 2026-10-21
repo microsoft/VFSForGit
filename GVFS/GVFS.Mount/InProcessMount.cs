@@ -1900,7 +1900,7 @@ namespace GVFS.Mount
         {
             Dictionary<string, string> requiredSettings = RequiredGitConfig.GetRequiredSettings(this.enlistment);
 
-            GitProcess git = new GitProcess(this.enlistment);
+            GitProcess git = this.enlistment.CreateGitProcess(this.tracer);
 
             Dictionary<string, GitConfigSetting> existingConfigSettings;
             if (!git.TryGetAllConfig(localOnly: true, configSettings: out existingConfigSettings))

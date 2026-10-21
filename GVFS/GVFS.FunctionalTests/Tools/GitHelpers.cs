@@ -23,7 +23,7 @@ namespace GVFS.FunctionalTests.Tools
         private const string WindowsPathSeparator = "\\";
         private const string GitPathSeparator = "/";
 
-        private static string LockHolderCommandPath
+        public static string LockHolderCommandPath
         {
             get
             {

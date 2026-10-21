@@ -25,6 +25,20 @@ you can help optimize Git command performance for developers in the repository
 by limiting the number of files Git needs to consider for many common
 operations.
 
+### Do Git aliases change command locks?
+
+When Git selects a built-in command or an external executable, a
+same-name alias does not remove the GVFS lock requirement. For example, `alias.stash`
+does not change the lock requirement for `git stash`.
+
+VFS for Git skips the outer lock for a genuine alias. Each command in
+the alias follows its normal lock policy. For example, an alias that
+runs `checkout` still requires the lock for `checkout`.
+
+If an alias-config query or executable probe fails, VFS for Git reports
+the error and keeps the command lock. The post-command hook releases a
+lock only when its Git process owns that lock.
+
 ### Why the name change?
 
 This project was formerly known as GVFS (Git Virtual File System). It is

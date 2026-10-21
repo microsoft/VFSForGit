@@ -22,6 +22,9 @@ namespace GVFS.Hooks
 
         private const int PostCommandSpinnerDelayMs = 500;
 
+        // Hooks run on the git command path, so config reads retry at most once.
+        private const int ConfigReadMaxAttempts = 2;
+
         private static string enlistmentRoot;
         private static string enlistmentPipename;
         private static string normalizedCurrentDirectory;
@@ -171,11 +174,13 @@ namespace GVFS.Hooks
 
         private static bool ConfigurationAllowsHydrationStatus()
         {
+            // See ConfigReadMaxAttempts for why the retry budget is small here.
             return LibGit2Repo.GetConfigBoolOrDefault(
                 NullTracer.Instance,
                 normalizedCurrentDirectory,
                 GVFSConstants.GitConfig.ShowHydrationStatus,
-                GVFSConstants.GitConfig.ShowHydrationStatusDefault);
+                GVFSConstants.GitConfig.ShowHydrationStatusDefault,
+                ConfigReadMaxAttempts);
         }
 
         /// <summary>
@@ -251,7 +256,9 @@ namespace GVFS.Hooks
         {
             try
             {
-                if (ShouldLock(args))
+                bool checkOwnership = GetHookType(args) == PostCommandHook &&
+                    args[1].StartsWith("git-", StringComparison.Ordinal);
+                if (checkOwnership || ShouldLock(args))
                 {
                     using (NamedPipeClient pipeClient = new NamedPipeClient(enlistmentPipename))
                     {
@@ -265,6 +272,30 @@ namespace GVFS.Hooks
                             !GVFSHooksPlatform.IsProcessActive(pid))
                         {
                             ExitWithError("GVFS.Hooks: Unable to find parent git.exe process " + "(PID: " + pid + ").");
+                        }
+
+                        if (checkOwnership)
+                        {
+                            // Executable and alias config can change after acquisition.
+                            if (!GitCommandLock.TryCheckOwnership(
+                                pid,
+                                GVFSHooksPlatform.IsElevated(),
+                                GenerateFullCommand(args),
+                                request =>
+                                {
+                                    pipeClient.SendRequest(request);
+                                    return pipeClient.ReadResponse();
+                                },
+                                out bool ownsLock,
+                                out string error))
+                            {
+                                ExitWithError(error);
+                            }
+
+                            if (!ownsLock)
+                            {
+                                return;
+                            }
                         }
 
                         requestToRun(unattended, args, pid, pipeClient);
@@ -490,13 +521,12 @@ namespace GVFS.Hooks
                 return false;
             }
 
-            if (!KnownGitCommands.Contains(gitCommand) &&
-                IsAlias(gitCommand))
-            {
-                return false;
-            }
-
-            return true;
+            return GitCommandResolver.ShouldLock(
+                args[1],
+                aliasKey => ReadGitAlias(args, aliasKey),
+                Environment.GetEnvironmentVariable("PATH"),
+                GitCommandResolver.FileExists,
+                Console.Error.WriteLine);
         }
 
         private static string GetHookType(string[] args)
@@ -515,11 +545,18 @@ namespace GVFS.Hooks
             return command;
         }
 
-        private static bool IsAlias(string command)
+        private static ProcessResult ReadGitAlias(string[] args, string aliasKey)
         {
-            ProcessResult result = ProcessHelper.Run("git", "config --get alias." + command);
-
-            return !string.IsNullOrEmpty(result.Output);
+            string gitPath = GitCommandResolver.GetProcessPath(GetParentPid(args));
+            return GitConfigReadRetry.InvokeResult(
+                aliasKey,
+                () => ProcessHelper.Run(GitCommandResolver.CreateAliasQuery(gitPath, aliasKey)),
+                (ProcessResult result) =>
+                    result.ExitCode != 0 &&
+                    GitConfigReadRetry.IsTransientFileAccessError(result.Errors, lineMustContain: "unable to access"),
+                NullTracer.Instance,
+                GitConfigReadRetry.Delay,
+                ConfigReadMaxAttempts);
         }
 
         /// <summary>
