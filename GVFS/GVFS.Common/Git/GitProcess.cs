@@ -1451,32 +1451,13 @@ namespace GVFS.Common.Git
             public bool TryParseAsInt(int defaultValue, int minValue, out int value, out string error)
             {
                 value = defaultValue;
-                error = string.Empty;
 
                 if (!this.TryParseAsString(out string valueString, out error))
                 {
                     return false;
                 }
 
-                if (string.IsNullOrWhiteSpace(valueString))
-                {
-                    // Use default value
-                    return true;
-                }
-
-                if (!int.TryParse(valueString, out value))
-                {
-                    error = string.Format("Misconfigured config setting {0}, could not parse value `{1}` as an int", this.configName, valueString);
-                    return false;
-                }
-
-                if (value < minValue)
-                {
-                    error = string.Format("Invalid value {0} for setting {1}, value must be greater than or equal to {2}", value, this.configName, minValue);
-                    return false;
-                }
-
-                return true;
+                return GitConfigHelper.TryParseIntSetting(this.configName, valueString, defaultValue, minValue, out value, out error);
             }
         }
     }

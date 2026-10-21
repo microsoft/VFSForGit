@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.Tracing;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -27,6 +28,27 @@ namespace GVFS.Common.Git
     /// </remarks>
     public class LibGit2Repo : IDisposable
     {
+        // git.exe reads config from these variables, or uses them to select config files.
+        // libgit2 does not. GIT_DIR selects the repository when no repository path is given.
+        private static readonly string[] ConfigEnvironmentVariablesLibGit2Ignores =
+        {
+            "GIT_CONFIG",
+            "GIT_CONFIG_COUNT",
+            "GIT_CONFIG_GLOBAL",
+            "GIT_CONFIG_NOSYSTEM",
+            "GIT_CONFIG_PARAMETERS",
+            "GIT_CONFIG_SYSTEM",
+            "GIT_DIR",
+        };
+
+        // git.exe also evaluates hasconfig:remote.*.url conditions.
+        private static readonly string[] IncludeConditionsLibGit2Evaluates =
+        {
+            "gitdir:",
+            "gitdir/i:",
+            "onbranch:",
+        };
+
         private bool disposedValue = false;
         private IntPtr odbHandle = IntPtr.Zero;
         private readonly Action<TimeSpan> configReadDelay;
@@ -72,6 +94,10 @@ namespace GVFS.Common.Git
                     || !CheckSafeDirectoryConfigForCaseSensitivityIssue(tracer, repoPath, out repoHandle))
                 {
                     ShutdownNative();
+
+                    // The native reference is released, so the finalizer must not release it again.
+                    this.disposedValue = true;
+                    GC.SuppressFinalize(this);
                     throw new InvalidDataException(message);
                 }
             }
@@ -316,6 +342,11 @@ namespace GVFS.Common.Git
 
         protected virtual string GetConfigStringOnce(string name)
         {
+            return this.ReadRepoConfigString(name, rejectIncludesLibGit2Ignores: false);
+        }
+
+        private string ReadRepoConfigString(string name, bool rejectIncludesLibGit2Ignores)
+        {
             IntPtr configHandle;
             if (Native.Config.GetConfig(out configHandle, this.RepoHandle) != Native.ResultCode.Success)
             {
@@ -323,44 +354,102 @@ namespace GVFS.Common.Git
             }
             try
             {
-                // git_config_get_string returns a borrowed pointer whose lifetime is tied to the
-                // config, so libgit2 only allows it on a snapshot (read-only) config. Calling it on
-                // the live config returned by git_repository_config fails with "get_string called on
-                // a live config object". Snapshot the config first, then read the string from it.
-                IntPtr snapshotHandle;
-                if (Native.Config.Snapshot(out snapshotHandle, configHandle) != Native.ResultCode.Success)
-                {
-                    throw new LibGit2Exception($"Failed to snapshot config for '{name}': {Native.GetLastError()}");
-                }
-
-                try
-                {
-                    // git_config_get_string yields a borrowed pointer owned by the (snapshot)
-                    // config, so it is retrieved as an IntPtr and copied manually. Marshalling it
-                    // directly as an out string would make the interop marshaller free the pointer
-                    // with CoTaskMemFree, corrupting libgit2's heap (mismatched allocator).
-                    IntPtr valuePtr;
-                    Native.ResultCode resultCode = Native.Config.GetString(out valuePtr, snapshotHandle, name);
-                    if (resultCode == Native.ResultCode.NotFound)
-                    {
-                        return null;
-                    }
-                    else if (resultCode != Native.ResultCode.Success)
-                    {
-                        throw new LibGit2Exception($"Failed to get config value for '{name}': {Native.GetLastError()}");
-                    }
-
-                    return valuePtr == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(valuePtr);
-                }
-                finally
-                {
-                    Native.Config.Free(snapshotHandle);
-                }
+                return GetStringFromSnapshot(configHandle, name, rejectIncludesLibGit2Ignores);
             }
             finally
             {
                 Native.Config.Free(configHandle);
             }
+        }
+
+        private static string GetStringFromSnapshot(IntPtr configHandle, string name, bool rejectIncludesLibGit2Ignores)
+        {
+            // git_config_get_string returns a borrowed pointer whose lifetime is tied to the
+            // config, so libgit2 only allows it on a snapshot (read-only) config. Calling it on
+            // the live config returned by git_repository_config fails with "get_string called on
+            // a live config object". Snapshot the config first, then read the string from it.
+            IntPtr snapshotHandle;
+            if (Native.Config.Snapshot(out snapshotHandle, configHandle) != Native.ResultCode.Success)
+            {
+                throw new LibGit2Exception($"Failed to snapshot config for '{name}': {Native.GetLastError()}");
+            }
+
+            try
+            {
+                if (rejectIncludesLibGit2Ignores)
+                {
+                    string condition = FindIncludeConditionLibGit2Ignores(snapshotHandle);
+                    if (condition != null)
+                    {
+                        throw new LibGit2Exception($"Config has an includeIf condition that libgit2 does not evaluate: {condition}");
+                    }
+                }
+
+                // git_config_get_string yields a borrowed pointer owned by the (snapshot)
+                // config, so it is retrieved as an IntPtr and copied manually. Marshalling it
+                // directly as an out string would make the interop marshaller free the pointer
+                // with CoTaskMemFree, corrupting libgit2's heap (mismatched allocator).
+                IntPtr valuePtr;
+                Native.ResultCode resultCode = Native.Config.GetString(out valuePtr, snapshotHandle, name);
+                if (resultCode == Native.ResultCode.NotFound)
+                {
+                    return null;
+                }
+                else if (resultCode != Native.ResultCode.Success)
+                {
+                    throw new LibGit2Exception($"Failed to get config value for '{name}': {Native.GetLastError()}");
+                }
+
+                return valuePtr == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(valuePtr);
+            }
+            finally
+            {
+                Native.Config.Free(snapshotHandle);
+            }
+        }
+
+        /// <summary>
+        /// Returns the first includeIf condition that libgit2 skips but git.exe can apply, or null.
+        /// </summary>
+        private static string FindIncludeConditionLibGit2Ignores(IntPtr configHandle)
+        {
+            const string Prefix = "includeif.";
+            const string Suffix = ".path";
+
+            string ignoredCondition = null;
+            Native.Config.GitConfigMultivarCallback callback = (entryPtr, payload) =>
+            {
+                try
+                {
+                    string entryName = Marshal.PtrToStructure<Native.Config.GitConfigEntry>(entryPtr).GetName();
+                    string condition = entryName.Substring(Prefix.Length, entryName.Length - Prefix.Length - Suffix.Length);
+                    foreach (string evaluated in IncludeConditionsLibGit2Evaluates)
+                    {
+                        if (condition.StartsWith(evaluated, StringComparison.Ordinal))
+                        {
+                            return Native.ResultCode.Success;
+                        }
+                    }
+
+                    ignoredCondition = condition;
+                }
+                catch (Exception e)
+                {
+                    // An exception must not cross the native callback boundary.
+                    ignoredCondition = "<unreadable entry: " + e.Message + ">";
+                }
+
+                return Native.ResultCode.Failure;
+            };
+
+            Native.ResultCode resultCode = Native.Config.ForeachMatch(configHandle, @"^includeif\..*\.path$", callback, IntPtr.Zero);
+            GC.KeepAlive(callback);
+            if (ignoredCondition == null && resultCode != Native.ResultCode.Success)
+            {
+                throw new LibGit2Exception($"Failed to enumerate includeIf config: {Native.GetLastError()}");
+            }
+
+            return ignoredCondition;
         }
 
         public virtual bool? GetConfigBool(string name)
@@ -449,6 +538,106 @@ namespace GVFS.Common.Git
             {
                 tracer.RelatedWarning($"Failed to read {key} config, using default: {e.Message}");
                 return defaultValue;
+            }
+        }
+
+        /// <summary>
+        /// Reads a string config value as git.exe would, without loading the object store. Reads
+        /// the repo at <paramref name="repoPath"/>, or the global, XDG, system, and ProgramData
+        /// config when <paramref name="repoPath"/> is null. <paramref name="value"/> is null when
+        /// the key is unset. Fails when the config has an includeIf condition that libgit2 does not
+        /// evaluate. Callers must also check <see cref="EnvironmentChangesGitConfig()"/>.
+        /// </summary>
+        internal static bool TryGetConfigString(ITracer tracer, string repoPath, string name, out string value, out string error)
+        {
+            tracer = tracer ?? NullTracer.Instance;
+            value = null;
+            error = null;
+
+            try
+            {
+                if (repoPath == null)
+                {
+                    value = GetGlobalAndSystemConfigString(tracer, name);
+                }
+                else
+                {
+                    using (LibGit2Repo repo = new LibGit2Repo(tracer, repoPath))
+                    {
+                        value = GitConfigReadRetry.InvokeCatching(
+                            name,
+                            () => repo.ReadRepoConfigString(name, rejectIncludesLibGit2Ignores: true),
+                            GitConfigReadRetry.IsTransientLibGit2Error,
+                            tracer,
+                            repo.configReadDelay,
+                            repo.configReadMaxAttempts);
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception e) when (e is InvalidDataException || e is LibGit2Exception)
+            {
+                error = "Error while reading '" + name + "' from config: " + e.Message;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// True when the process environment selects or supplies Git config that libgit2 does not read.
+        /// </summary>
+        internal static bool EnvironmentChangesGitConfig()
+        {
+            return EnvironmentChangesGitConfig(Environment.GetEnvironmentVariables());
+        }
+
+        internal static bool EnvironmentChangesGitConfig(IDictionary environment)
+        {
+            foreach (object key in environment.Keys)
+            {
+                string name = key as string;
+                foreach (string variable in ConfigEnvironmentVariablesLibGit2Ignores)
+                {
+                    if (string.Equals(name, variable, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static string GetGlobalAndSystemConfigString(ITracer tracer, string name)
+        {
+            Native.Init();
+            try
+            {
+                return GitConfigReadRetry.InvokeCatching(
+                    name,
+                    () =>
+                    {
+                        if (Native.Config.GetGlobalAndSystemConfig(out IntPtr configHandle) != Native.ResultCode.Success)
+                        {
+                            throw new LibGit2Exception($"Failed to get global and system config handle: {Native.GetLastError()}");
+                        }
+
+                        try
+                        {
+                            return GetStringFromSnapshot(configHandle, name, rejectIncludesLibGit2Ignores: true);
+                        }
+                        finally
+                        {
+                            Native.Config.Free(configHandle);
+                        }
+                    },
+                    GitConfigReadRetry.IsTransientLibGit2Error,
+                    tracer,
+                    GitConfigReadRetry.Delay);
+            }
+            finally
+            {
+                Native.Shutdown();
             }
         }
 
@@ -786,6 +975,13 @@ namespace GVFS.Common.Git
                 public static extern ResultCode GetMultivarForeach(
                     IntPtr configHandle,
                     [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+                    [MarshalAs(UnmanagedType.LPUTF8Str)] string regex,
+                    GitConfigMultivarCallback callback,
+                    IntPtr payload);
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_config_foreach_match")]
+                public static extern ResultCode ForeachMatch(
+                    IntPtr configHandle,
                     [MarshalAs(UnmanagedType.LPUTF8Str)] string regex,
                     GitConfigMultivarCallback callback,
                     IntPtr payload);

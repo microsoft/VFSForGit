@@ -3,6 +3,7 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 
@@ -70,6 +71,47 @@ namespace GVFS.UnitTests.Common
                 tracer.RelatedWarningEvents.Count.ShouldEqual(1);
                 tracer.RelatedWarningEvents[0].ShouldContain("Failed to read gvfs.test config, using default: corrupt config");
             }
+        }
+
+        [TestCase("GIT_CONFIG_PARAMETERS")]
+        [TestCase("GIT_CONFIG_COUNT")]
+        [TestCase("GIT_CONFIG_GLOBAL")]
+        [TestCase("GIT_CONFIG_SYSTEM")]
+        [TestCase("GIT_CONFIG_NOSYSTEM")]
+        [TestCase("GIT_CONFIG")]
+        [TestCase("GIT_DIR")]
+        [TestCase("git_config_parameters")]
+        public void EnvironmentChangesGitConfigDetectsVariablesThatLibGit2Ignores(string name)
+        {
+            Hashtable environment = new Hashtable { { "PATH", "C:\\bin" }, { name, "1" } };
+
+            LibGit2Repo.EnvironmentChangesGitConfig(environment).ShouldBeTrue();
+        }
+
+        [TestCase]
+        public void EnvironmentChangesGitConfigIgnoresOtherGitVariables()
+        {
+            Hashtable environment = new Hashtable
+            {
+                { "GIT_TRACE", "1" },
+                { "GIT_CONFIG_KEY_0", "gvfs.max-retries" },
+                { "GIT_WORK_TREE", "C:\\repo" },
+            };
+
+            LibGit2Repo.EnvironmentChangesGitConfig(environment).ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void TryGetConfigStringReportsAnUnopenableRepository()
+        {
+            string missingRepoPath = Path.Combine(
+                Path.GetTempPath(),
+                "LibGit2RepoConfigLookupTests_" + Guid.NewGuid().ToString("N"));
+
+            LibGit2Repo.TryGetConfigString(new MockTracer(), missingRepoPath, "gvfs.test", out string value, out string error).ShouldBeFalse();
+
+            value.ShouldBeNull();
+            error.ShouldContain("Error while reading 'gvfs.test' from config: Couldn't open repo at");
         }
 
         [TestCase]
