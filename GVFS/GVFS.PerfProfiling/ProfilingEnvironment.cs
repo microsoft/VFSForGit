@@ -70,11 +70,12 @@ namespace GVFS.PerfProfiling
             this.Enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
 
             CacheServerInfo cacheServer = new CacheServerInfo(this.Context.Enlistment.RepoUrl, "None");
+            RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(this.Context.Tracer, this.Context.Enlistment);
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(
                 this.Context.Tracer, 
                 this.Context.Enlistment,
                 cacheServer,
-                new RetryConfig());
+                retryConfig);
 
             this.gvfsDatabase = new GVFSDatabase(this.Context.FileSystem, this.Context.Enlistment.DotGVFSRoot, new SqliteDatabase());
             GVFSGitObjects gitObjects = new GVFSGitObjects(this.Context, objectRequestor);

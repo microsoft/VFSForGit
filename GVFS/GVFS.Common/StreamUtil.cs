@@ -33,9 +33,9 @@ namespace GVFS.Common
                 {
                     read = source.Read(buffer, 0, buffer.Length);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
-                    // All exceptions potentially from network should be retried
+                    // Network read failures can be retried.
                     throw new RetryableException("Exception while reading stream. See inner exception for details.", ex);
                 }
 
@@ -71,9 +71,9 @@ namespace GVFS.Common
                 {
                     read = stream.Read(buf, start, length);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
-                    // All exceptions potentially from network should be retried
+                    // Network read failures can be retried.
                     throw new RetryableException("Exception while reading stream. See inner exception for details.", ex);
                 }
 

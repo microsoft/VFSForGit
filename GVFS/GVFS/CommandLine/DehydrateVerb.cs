@@ -228,14 +228,10 @@ from a parent of the folders list.
                         this.ReportErrorAndExit(tracer, error);
                     }
 
-                    RetryConfig retryConfig;
-                    if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
-                    {
-                        this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
-                    }
+                    RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
 
                     string errorMessage;
-                    if (!this.TryAuthenticate(tracer, enlistment, out errorMessage))
+                    if (!this.TryAuthenticateAndQueryGVFSConfig(tracer, enlistment, retryConfig, out _, out errorMessage))
                     {
                         this.ReportErrorAndExit(tracer, errorMessage);
                     }

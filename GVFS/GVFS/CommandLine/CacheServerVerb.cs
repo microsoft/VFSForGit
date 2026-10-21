@@ -56,10 +56,11 @@ namespace GVFS.CommandLine
         {
             this.BlockEmptyCacheServerUrl(this.CacheToSet);
 
-            RetryConfig retryConfig = new RetryConfig(RetryConfig.DefaultMaxRetries, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
-
             using (ITracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "CacheVerb"))
             {
+                RetryConfig retryConfig = this.GetRetryConfig(
+                    tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
+
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
                 ServerGVFSConfig serverGVFSConfig = null;
                 string error = null;
