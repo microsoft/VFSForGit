@@ -49,6 +49,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 "gvfs.cache-server", "gvfs.prefetch.cache-server",
                 "gvfs.read-timeout-seconds", "gvfs.max-retries",
+                "gvfs.prefetch-offload",
             };
             Dictionary<string, string> previous = this.ReadLocalConfig(keys);
 
@@ -64,6 +65,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.SetLocalConfig(keys[1], endpoint);
                 this.SetLocalConfig(keys[2], "1");
                 this.SetLocalConfig(keys[3], "0");
+                this.SetLocalConfig(keys[4], "false");
 
                 ProcessResult result = await Task.Run(() => ProcessHelper.Run(
                     GVFSTestConfig.PathToGVFS,
@@ -100,14 +102,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void InvalidRetrySettingsDoNotStopAMountedEnlistment()
         {
-            Dictionary<string, string> previous = this.ReadLocalConfig(new[]
+            string[] retryKeys = new[]
             {
                 "gvfs.max-retries", "gvfs.timeout-seconds", "gvfs.read-timeout-seconds",
-            });
+            };
+            Dictionary<string, string> previous = this.ReadLocalConfig(
+                retryKeys.Concat(new[] { "gvfs.prefetch-offload" }));
             this.Enlistment.IsMounted().ShouldEqual(true);
             try
             {
-                foreach (string key in previous.Keys)
+                this.SetLocalConfig("gvfs.prefetch-offload", "false");
+                foreach (string key in retryKeys)
                 {
                     this.SetLocalConfig(key, "invalid");
                 }
@@ -124,14 +129,30 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     .Select(File.ReadAllText)
                     .First();
                 log.ShouldContain("VFS for Git uses the default value.");
-                foreach (string key in previous.Keys)
+                foreach (string key in retryKeys)
                 {
                     log.ShouldContain("\"ConfigName\":\"" + key + "\"");
+                }
+
+                this.Enlistment.UnmountGVFS();
+                this.Enlistment.MountGVFS();
+                this.Enlistment.IsMounted().ShouldEqual(true);
+                string mountLog = Directory.GetFiles(Path.Combine(this.Enlistment.DotGVFSRoot, "logs"), "gvfs_mount_process_*.log")
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .Select(GVFSHelpers.ReadAllTextFromWriteLockedFile)
+                    .First();
+                foreach (string key in retryKeys)
+                {
+                    mountLog.ShouldContain("\"ConfigName\":\"" + key + "\"");
                 }
             }
             finally
             {
                 this.RestoreLocalConfig(previous);
+                if (!this.Enlistment.IsMounted())
+                {
+                    this.Enlistment.MountGVFS();
+                }
             }
         }
 

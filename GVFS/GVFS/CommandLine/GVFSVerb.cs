@@ -254,7 +254,7 @@ namespace GVFS.CommandLine
             string error = null;
             if (retryConfig == null)
             {
-                RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out _);
+                retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
             }
 
             bool result = this.ShowStatusWhileRunning(
@@ -321,7 +321,7 @@ namespace GVFS.CommandLine
 
         protected RetryConfig GetRetryConfig(ITracer tracer, GVFSEnlistment enlistment, TimeSpan? timeoutOverride = null)
         {
-            RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out RetryConfig retryConfig, out _);
+            RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
 
             if (timeoutOverride.HasValue)
             {
@@ -1184,7 +1184,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     {
                         if (retryConfig == null)
                         {
-                            RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out _);
+                            retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
                         }
 
                         serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);

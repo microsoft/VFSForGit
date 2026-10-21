@@ -1,7 +1,10 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.CommandLine;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
@@ -30,8 +33,7 @@ namespace GVFS.UnitTests.Common
                     () => new GitProcess.Result(string.Empty, string.Empty, exitCode));
             }
 
-            RetryConfig.TryLoadFromGitConfig(tracer, git, out RetryConfig config, out string error).ShouldEqual(true);
-            error.ShouldEqual(string.Empty);
+            RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, git);
             config.MaxRetries.ShouldEqual(6);
             config.MaxAttempts.ShouldEqual(7);
             config.Timeout.ShouldEqual(TimeSpan.FromSeconds(30));
@@ -45,8 +47,7 @@ namespace GVFS.UnitTests.Common
         {
             using MockTracer tracer = new MockTracer();
             MockGitProcess git = CreateGitProcess();
-            RetryConfig.TryLoadFromGitConfig(tracer, git, out RetryConfig config, out string error).ShouldEqual(true);
-            error.ShouldEqual(string.Empty);
+            RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, git);
             config.MaxRetries.ShouldEqual(9);
             config.MaxAttempts.ShouldEqual(10);
             config.Timeout.ShouldEqual(TimeSpan.FromSeconds(45));
@@ -59,6 +60,7 @@ namespace GVFS.UnitTests.Common
         [TestCase("gvfs.max-retries", "-1", 6)]
         [TestCase("gvfs.max-retries", "invalid", 6)]
         [TestCase("gvfs.max-retries", "2147483647", 6)]
+        [TestCase("gvfs.max-retries", "2147483645", 6)]
         [TestCase("gvfs.timeout-seconds", "-1", 30)]
         [TestCase("gvfs.timeout-seconds", "0", 30)]
         [TestCase("gvfs.timeout-seconds", "invalid", 30)]
@@ -74,8 +76,7 @@ namespace GVFS.UnitTests.Common
             git.SetExpectedCommandResult("config " + key,
                 () => new GitProcess.Result(value, string.Empty, GitProcess.Result.SuccessCode));
 
-            RetryConfig.TryLoadFromGitConfig(tracer, git, out RetryConfig config, out string error).ShouldEqual(true);
-            error.ShouldEqual(string.Empty);
+            RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, git);
             config.MaxRetries.ShouldEqual(key == "gvfs.max-retries" ? 6 : 9);
             config.Timeout.ShouldEqual(TimeSpan.FromSeconds(key == "gvfs.timeout-seconds" ? 30 : 45));
             config.ReadTimeout.ShouldEqual(TimeSpan.FromSeconds(key == "gvfs.read-timeout-seconds" ? 60 : 90));
@@ -94,7 +95,7 @@ namespace GVFS.UnitTests.Common
             MockGitProcess git = CreateGitProcess();
             git.SetExpectedCommandResult("config gvfs.read-timeout-seconds",
                 () => new GitProcess.Result(value, string.Empty, GitProcess.Result.SuccessCode));
-            RetryConfig.TryLoadFromGitConfig(tracer, git, out RetryConfig config, out _).ShouldEqual(true);
+            RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, git);
             config.ReadTimeout.ShouldEqual(TimeSpan.FromMilliseconds(expectedMilliseconds));
             config.MaxRetries.ShouldEqual(9);
             config.Timeout.ShouldEqual(TimeSpan.FromSeconds(45));
@@ -112,8 +113,7 @@ namespace GVFS.UnitTests.Common
                     () => new GitProcess.Result(string.Empty, "Failed to read config", GitProcess.Result.GenericFailureCode));
             }
 
-            RetryConfig.TryLoadFromGitConfig(tracer, git, out RetryConfig config, out string error).ShouldEqual(true);
-            error.ShouldEqual(string.Empty);
+            RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, git);
             config.MaxRetries.ShouldEqual(6);
             config.Timeout.ShouldEqual(TimeSpan.FromSeconds(30));
             config.ReadTimeout.ShouldEqual(TimeSpan.FromSeconds(60));
@@ -123,12 +123,12 @@ namespace GVFS.UnitTests.Common
 
         [TestCase(false)]
         [TestCase(true)]
+        [NUnit.Framework.Category(CategoryConstants.ExceptionExpected)]
         public void ConfigReadExceptionsUseDefaultsAndKeepTheExceptionInDiagnostics(bool processError)
         {
             using MockTracer tracer = new MockTracer();
             MockGitProcess git = CreateGitProcess(new ThrowingGitProcess(processError));
-            RetryConfig.TryLoadFromGitConfig(tracer, git, out RetryConfig config, out string error).ShouldEqual(true);
-            error.ShouldEqual(string.Empty);
+            RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, git);
             config.MaxRetries.ShouldEqual(9);
             config.Timeout.ShouldEqual(TimeSpan.FromSeconds(45));
             config.ReadTimeout.ShouldEqual(TimeSpan.FromSeconds(60));
@@ -143,11 +143,11 @@ namespace GVFS.UnitTests.Common
         {
             using MockTracer tracer = new MockTracer();
             MockGitProcess git = CreateGitProcess();
-            RetryConfig.TryLoadFromGitConfig(tracer, git, out RetryConfig existing, out _).ShouldEqual(true);
+            RetryConfig existing = RetryConfig.LoadFromGitConfig(tracer, git);
             git.SetExpectedCommandResult("config gvfs.read-timeout-seconds",
                 () => new GitProcess.Result("invalid", string.Empty, GitProcess.Result.SuccessCode));
 
-            RetryConfig.TryLoadFromGitConfig(tracer, git, out RetryConfig reloaded, out _).ShouldEqual(true);
+            RetryConfig reloaded = RetryConfig.LoadFromGitConfig(tracer, git);
             existing.ReadTimeout.ShouldEqual(TimeSpan.FromSeconds(90));
             reloaded.ReadTimeout.ShouldEqual(TimeSpan.FromSeconds(60));
             reloaded.MaxRetries.ShouldEqual(existing.MaxRetries);
@@ -158,13 +158,50 @@ namespace GVFS.UnitTests.Common
         public void CommandOverridesDoNotDiscardLoadedReadTimeout()
         {
             using MockTracer tracer = new MockTracer();
-            RetryConfig.TryLoadFromGitConfig(tracer, CreateGitProcess(), out RetryConfig config, out _).ShouldEqual(true);
-            config.MaxRetries = 2;
-            config.Timeout = TimeSpan.FromMinutes(10);
-            config.MaxRetries.ShouldEqual(2);
-            config.MaxAttempts.ShouldEqual(3);
+            MockGitProcess git = CreateGitProcess();
+            RetryConfig config = new RetryConfigVerb().Load(
+                tracer, new MockGVFSEnlistment(git), TimeSpan.FromMinutes(10));
+            config.MaxRetries.ShouldEqual(9);
+            config.MaxAttempts.ShouldEqual(10);
             config.Timeout.ShouldEqual(TimeSpan.FromMinutes(10));
             config.ReadTimeout.ShouldEqual(TimeSpan.FromSeconds(90));
+        }
+
+        [TestCase]
+        public void LargestAcceptedValuesDoNotOverflowConsumerArithmetic()
+        {
+            using MockTracer tracer = new MockTracer();
+            MockGitProcess git = CreateGitProcess();
+            git.SetExpectedCommandResult("config gvfs.max-retries",
+                () => new GitProcess.Result("2147483644", string.Empty, 0));
+            git.SetExpectedCommandResult("config gvfs.timeout-seconds",
+                () => new GitProcess.Result("2147483", string.Empty, 0));
+            RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, git);
+            checked(config.MaxAttempts + 2).ShouldEqual(int.MaxValue);
+            config.Timeout.ShouldEqual(TimeSpan.FromMilliseconds(2147483000));
+            tracer.RelatedWarningEvents.Count.ShouldEqual(0);
+        }
+
+        [TestCase]
+        [NUnit.Framework.Category(CategoryConstants.ExceptionExpected)]
+        public void CompleteLoaderRejectsMissingDependencies()
+        {
+            Assert.Throws<ArgumentNullException>(() => RetryConfig.LoadFromGitConfig(null, (GitProcess)null));
+            Assert.Throws<ArgumentNullException>(() => RetryConfig.LoadFromGitConfig(null, (Enlistment)null));
+        }
+
+        private class RetryConfigVerb : GVFSVerb
+        {
+            public override string EnlistmentRootPathParameter { get; set; }
+            protected override string VerbName => "retry-config-test";
+            public override void Execute()
+            {
+            }
+
+            public RetryConfig Load(ITracer tracer, GVFSEnlistment enlistment, TimeSpan timeout)
+            {
+                return this.GetRetryConfig(tracer, enlistment, timeout);
+            }
         }
 
         private static MockGitProcess CreateGitProcess(MockGitProcess git = null)

@@ -231,10 +231,10 @@ from a parent of the folders list.
                         this.ReportErrorAndExit(tracer, error);
                     }
 
-                    RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out RetryConfig retryConfig, out _);
+                    RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
 
                     string errorMessage;
-                    if (!this.TryAuthenticate(tracer, enlistment, out errorMessage))
+                    if (!this.TryAuthenticateAndQueryGVFSConfig(tracer, enlistment, retryConfig, out _, out errorMessage))
                     {
                         this.ReportErrorAndExit(tracer, errorMessage);
                     }

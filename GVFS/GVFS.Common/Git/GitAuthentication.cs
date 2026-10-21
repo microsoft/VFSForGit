@@ -222,7 +222,7 @@ namespace GVFS.Common.Git
         /// </summary>
         public bool TryInitialize(ITracer tracer, Enlistment enlistment, out string errorMessage)
         {
-            RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out RetryConfig retryConfig, out _);
+            RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
 
             // Delegate to the combined method, discarding the config result.
             // This avoids duplicating the anonymous-probe + credential-fetch logic.
