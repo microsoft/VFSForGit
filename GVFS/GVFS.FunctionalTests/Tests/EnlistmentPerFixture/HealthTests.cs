@@ -140,38 +140,31 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 enlistmentHealthStatus: "Highly Hydrated");
         }
 
-        [TestCase, Order(5)]
-        public void StatusRecordsTheDisplayedResultAndFallbackDiagnostics()
+        [TestCase(0), Order(5)]
+        [TestCase(5)]
+        public void StatusRecordsTheDisplayedResultAndFallbackDiagnostics(int backoffSeconds)
         {
-            this.RemountWithHydrationStatus(false);
-            HashSet<string> previousLogs = new HashSet<string>(Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log"));
-            string output = this.Enlistment.Health(statusOnly: true);
-            string log = Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log").Single(path => !previousLogs.Contains(path));
-            string[] lines = File.ReadAllLines(log);
-            string completion = lines.Single(line => line.Contains("health (Stop)"));
-            using (JsonDocument document = JsonDocument.Parse(completion.Substring(completion.IndexOf('{'))))
+            this.RemountWithHydrationStatus(false, backoffSeconds);
+            JsonElement root = this.WaitForHydrationCacheState("FeatureDisabled", out string output, out string[] lines);
+            Assert.AreEqual("Status", root.GetProperty("Mode").GetString());
+            Guid.ParseExact(root.GetProperty("CommandId").GetString(), "N").ShouldNotEqual(Guid.Empty);
+            JsonElement cache = root.GetProperty("Cache");
+            cache.GetProperty("Outcome").GetString().ShouldEqual("NotAvailable");
+            cache.GetProperty("DiagnosticsStatus").GetString().ShouldEqual("Parsed");
+            Assert.IsTrue(cache.GetProperty("DiagnosticsAvailable").GetBoolean());
+            cache.GetProperty("State").GetString().ShouldEqual("FeatureDisabled");
+            string displayOutcome = root.GetProperty("DisplayOutcome").GetString();
+            output.ShouldContain(displayOutcome == "Percentage" ? "% of files and " : "Error calculating hydration summary.");
+            root.GetProperty("ResultSource").GetString().ShouldEqual("Fallback");
+            string calculation = lines.Single(line => line.Contains("HydrationSummaryDuration "));
+            using (JsonDocument calculationDocument = JsonDocument.Parse(calculation.Substring(calculation.IndexOf('{'))))
             {
-                JsonElement root = document.RootElement;
-                Assert.AreEqual("Status", root.GetProperty("Mode").GetString());
-                Guid.ParseExact(root.GetProperty("CommandId").GetString(), "N").ShouldNotEqual(Guid.Empty);
-                JsonElement cache = root.GetProperty("Cache");
-                cache.GetProperty("Outcome").GetString().ShouldEqual("NotAvailable");
-                cache.GetProperty("DiagnosticsStatus").GetString().ShouldEqual("Parsed");
-                Assert.IsTrue(cache.GetProperty("DiagnosticsAvailable").GetBoolean());
-                cache.GetProperty("State").GetString().ShouldEqual("FeatureDisabled");
-                string displayOutcome = root.GetProperty("DisplayOutcome").GetString();
-                output.ShouldContain(displayOutcome == "Percentage" ? "% of files and " : "Error calculating hydration summary.");
-                root.GetProperty("ResultSource").GetString().ShouldEqual("Fallback");
-                string calculation = lines.Single(line => line.Contains("HydrationSummaryDuration "));
-                using (JsonDocument calculationDocument = JsonDocument.Parse(calculation.Substring(calculation.IndexOf('{'))))
-                {
-                    JsonElement summary = calculationDocument.RootElement;
-                    summary.GetProperty("CommandId").GetString().ShouldEqual(root.GetProperty("CommandId").GetString());
-                    summary.GetProperty("CalculationId").GetString().ShouldEqual(root.GetProperty("CalculationId").GetString());
-                    summary.GetProperty("FolderCountSource").GetString().ShouldEqual("IndexParser");
-                    Assert.AreEqual(JsonValueKind.Number, summary.GetProperty("TotalFileCount").ValueKind);
-                    Assert.AreEqual(JsonValueKind.Number, summary.GetProperty("PlaceholderFolderCount").ValueKind);
-                }
+                JsonElement summary = calculationDocument.RootElement;
+                summary.GetProperty("CommandId").GetString().ShouldEqual(root.GetProperty("CommandId").GetString());
+                summary.GetProperty("CalculationId").GetString().ShouldEqual(root.GetProperty("CalculationId").GetString());
+                summary.GetProperty("FolderCountSource").GetString().ShouldEqual("IndexParser");
+                Assert.AreEqual(JsonValueKind.Number, summary.GetProperty("TotalFileCount").ValueKind);
+                Assert.AreEqual(JsonValueKind.Number, summary.GetProperty("PlaceholderFolderCount").ValueKind);
             }
         }
 
@@ -180,7 +173,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             HashSet<string> previous = new HashSet<string>(Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log"));
             this.Enlistment.Health();
-            using (JsonDocument completion = this.ReadHealthCompletion(previous))
+            using (JsonDocument completion = this.ReadHealthCompletion(previous, out _))
             {
                 completion.RootElement.GetProperty("Mode").GetString().ShouldEqual("Detailed");
                 completion.RootElement.GetProperty("Outcome").GetString().ShouldEqual("Success");
@@ -192,52 +185,62 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CachedStatusRecordsThePublishedCalculationIdentity()
         {
             this.RemountWithHydrationStatus(true);
+            JsonElement root = this.WaitForHydrationCacheState("Available", out string output, out _);
+            root.GetProperty("ResultSource").GetString().ShouldEqual("Cache");
+            JsonElement cache = root.GetProperty("Cache");
+            cache.GetProperty("Outcome").GetString().ShouldEqual("Success");
+            cache.GetProperty("DiagnosticsStatus").GetString().ShouldEqual("Parsed");
+            cache.GetProperty("State").GetString().ShouldEqual("Available");
+            Assert.IsTrue(cache.GetProperty("CountsComplete").GetBoolean());
+            Assert.That(cache.GetProperty("AgeMs").GetInt64(), Is.GreaterThanOrEqualTo(0));
+            Guid.ParseExact(cache.GetProperty("CalculationId").GetString(), "N").ShouldNotEqual(Guid.Empty);
+            root.GetProperty("CalculationId").GetString().ShouldEqual(cache.GetProperty("CalculationId").GetString());
+            root.GetProperty("Outcome").GetString().ShouldEqual("Success");
+            root.GetProperty("CalculationOutcome").GetString().ShouldEqual("Success");
+            output.ShouldContain("% of files and ");
+        }
+
+        private JsonElement WaitForHydrationCacheState(string expectedState, out string output, out string[] lines)
+        {
             Stopwatch deadline = Stopwatch.StartNew();
             string lastCompletion = string.Empty;
+            output = string.Empty;
+            lines = Array.Empty<string>();
             while (deadline.Elapsed < TimeSpan.FromSeconds(30))
             {
                 HashSet<string> previous = new HashSet<string>(Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log"));
-                string output = this.Enlistment.Health(statusOnly: true);
-                using (JsonDocument completion = this.ReadHealthCompletion(previous))
+                output = this.Enlistment.Health(statusOnly: true);
+                using (JsonDocument completion = this.ReadHealthCompletion(previous, out lines))
                 {
                     JsonElement root = completion.RootElement;
                     lastCompletion = root.GetRawText();
-                    if (root.GetProperty("ResultSource").GetString() == "Cache")
+                    if (root.GetProperty("Cache").GetProperty("State").GetString() == expectedState)
                     {
-                        JsonElement cache = root.GetProperty("Cache");
-                        cache.GetProperty("Outcome").GetString().ShouldEqual("Success");
-                        cache.GetProperty("DiagnosticsStatus").GetString().ShouldEqual("Parsed");
-                        cache.GetProperty("State").GetString().ShouldEqual("Available");
-                        Assert.IsTrue(cache.GetProperty("CountsComplete").GetBoolean());
-                        Assert.That(cache.GetProperty("AgeMs").GetInt64(), Is.GreaterThanOrEqualTo(0));
-                        Guid.ParseExact(cache.GetProperty("CalculationId").GetString(), "N").ShouldNotEqual(Guid.Empty);
-                        root.GetProperty("CalculationId").GetString().ShouldEqual(cache.GetProperty("CalculationId").GetString());
-                        root.GetProperty("Outcome").GetString().ShouldEqual("Success");
-                        root.GetProperty("CalculationOutcome").GetString().ShouldEqual("Success");
-                        output.ShouldContain("% of files and ");
-                        return;
+                        return root.Clone();
                     }
                 }
 
                 Thread.Sleep(100);
             }
 
-            Assert.Fail("The mount did not publish a valid hydration summary. Last completion: " + lastCompletion);
+            throw new AssertionException("The hydration cache did not reach " + expectedState + ". Last completion: " + lastCompletion);
         }
 
-        private void RemountWithHydrationStatus(bool enabled)
+        private void RemountWithHydrationStatus(bool enabled, int backoffSeconds = 2)
         {
             this.Enlistment.UnmountGVFS();
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local gvfs.show-hydration-status " + (enabled ? "true" : "false")).ExitCode.ShouldEqual(0);
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local gvfs.status-cache-backoff-seconds " + backoffSeconds).ExitCode.ShouldEqual(0);
             this.Enlistment.MountGVFS();
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "status --porcelain").ExitCode.ShouldEqual(0);
             this.Enlistment.WaitForBackgroundOperations();
         }
 
-        private JsonDocument ReadHealthCompletion(HashSet<string> previous)
+        private JsonDocument ReadHealthCompletion(HashSet<string> previous, out string[] lines)
         {
             string log = Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log").Single(path => !previous.Contains(path));
-            string line = File.ReadAllLines(log).Single(value => value.Contains("health (Stop)"));
+            lines = File.ReadAllLines(log);
+            string line = lines.Single(value => value.Contains("health (Stop)"));
             return JsonDocument.Parse(line.Substring(line.IndexOf('{')));
         }
 
