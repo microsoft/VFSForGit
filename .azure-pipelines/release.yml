@@ -52,7 +52,7 @@ parameters:
 
 variables:
   - name: 'GVFSMajorAndMinorVersion'
-    value: '2.0'
+    value: '2.1'
   - name: 'GVFSRevision'
     value: $(Build.BuildNumber)
   - name: 'GVFSVersion'
