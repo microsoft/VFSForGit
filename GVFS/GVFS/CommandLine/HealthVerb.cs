@@ -71,25 +71,38 @@ namespace GVFS.CommandLine
                     Keywords.Any);
 
                 Guid commandId = Guid.NewGuid();
-                EventMetadata metadata = new EventMetadata
-                {
-                    ["SchemaVersion"] = 1,
-                    ["CommandId"] = commandId.ToString("N"),
-                    ["Mode"] = this.StatusOnly ? "Status" : "Detailed",
-                    ["Outcome"] = "Failed",
-                };
-                try
-                {
-                    this.ExecuteWithTracer(enlistment, tracer, metadata, commandId);
-                }
-                finally
-                {
-                    tracer.Stop(metadata);
-                }
+                this.ExecuteWithCompletion(enlistment, tracer, commandId);
             }
         }
 
-        private void ExecuteWithTracer(GVFSEnlistment enlistment, ITracer tracer, EventMetadata metadata, Guid commandId)
+        internal void ExecuteWithCompletion(GVFSEnlistment enlistment, ITracer tracer, Guid commandId)
+        {
+            EventMetadata metadata = new EventMetadata
+            {
+                ["SchemaVersion"] = 1,
+                ["CommandId"] = commandId.ToString("N"),
+                ["Mode"] = this.StatusOnly ? "Status" : "Detailed",
+                ["Outcome"] = HealthCommandOutcome.Failed,
+            };
+            try
+            {
+                this.ExecuteWithTracer(enlistment, tracer, metadata, commandId);
+            }
+            catch (Exception e)
+            {
+                metadata["Outcome"] = HealthCommandOutcome.Failed;
+                metadata["ExceptionType"] = e.GetType().FullName;
+                metadata["ExceptionHResult"] = e.HResult;
+                tracer.RelatedWarning(new EventMetadata { ["Exception"] = e.ToString() }, "Health command failed.", Keywords.None);
+                throw;
+            }
+            finally
+            {
+                tracer.Stop(metadata);
+            }
+        }
+
+        internal virtual void ExecuteWithTracer(GVFSEnlistment enlistment, ITracer tracer, EventMetadata metadata, Guid commandId)
         {
             if (this.StatusOnly)
             {
@@ -127,7 +140,7 @@ namespace GVFS.CommandLine
             EnlistmentHealthData enlistmentHealthData = enlistmentHealthCalculator.CalculateStatistics(this.Directory);
 
             this.PrintOutput(enlistmentHealthData);
-            metadata["Outcome"] = "Success";
+            metadata["Outcome"] = HealthCommandOutcome.Success;
         }
 
         internal void OutputHydrationPercent(GVFSEnlistment enlistment, ITracer tracer, EventMetadata metadata, Guid commandId)
@@ -143,8 +156,9 @@ namespace GVFS.CommandLine
             {
                 metadata["ResultSource"] = "Cache";
                 metadata["DisplayOutcome"] = "Percentage";
-                metadata["Outcome"] = cache.Info == null ? "LegacyCache"
-                    : cache.Info.CountsComplete ? "Success" : "IncompleteData";
+                metadata["Outcome"] = HealthCommandOutcome.Success;
+                metadata["CalculationOutcome"] = cache.Info == null ? null
+                    : cache.Info.CountsComplete ? HydrationSummaryOutcome.Success : HydrationSummaryOutcome.IncompleteData;
                 metadata["CalculationId"] = cache.Info?.CalculationId?.ToString("N");
                 this.Output.WriteLine(cache.Response.ToDisplayMessage());
                 return;
@@ -160,7 +174,8 @@ namespace GVFS.CommandLine
             EnlistmentHydrationSummary summary = this.CreateHydrationSummary(enlistment, tracer, diagnostics);
             metadata["Summary"] = diagnostics.GetMetadata();
             metadata["CalculationId"] = diagnostics.CalculationId.ToString("N");
-            metadata["Outcome"] = diagnostics.Outcome;
+            metadata["Outcome"] = summary.IsValid ? HealthCommandOutcome.Success : HealthCommandOutcome.Failed;
+            metadata["CalculationOutcome"] = diagnostics.Outcome;
             metadata["DisplayOutcome"] = summary.IsValid ? "Percentage" : "Error";
             this.Output.WriteLine(summary.ToMessage());
         }
@@ -182,7 +197,7 @@ namespace GVFS.CommandLine
             {
                 try
                 {
-                    using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+                    using (NamedPipeClient pipeClient = this.CreateHydrationPipeClient(enlistment))
                     {
                         if (!pipeClient.Connect(ConnectTimeoutMs, out Exception error))
                         {
@@ -221,6 +236,17 @@ namespace GVFS.CommandLine
 
             result.DurationMs = stopwatch.ElapsedMilliseconds;
             return result;
+        }
+
+        internal virtual NamedPipeClient CreateHydrationPipeClient(GVFSEnlistment enlistment)
+        {
+            return new NamedPipeClient(enlistment.NamedPipeName);
+        }
+
+        internal enum HealthCommandOutcome
+        {
+            Success,
+            Failed,
         }
 
         internal static CacheLookupResult ParseCachedResponse(NamedPipeMessages.Message message)

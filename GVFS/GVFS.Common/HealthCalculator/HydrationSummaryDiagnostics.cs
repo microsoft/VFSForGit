@@ -113,6 +113,7 @@ namespace GVFS.Common
         public long? TreeCountMs { get; private set; }
         public long TotalMs { get; internal set; }
         public bool EarlyExit { get; internal set; }
+        public bool? CancellationRequested { get; internal set; }
         public bool IsValid { get; internal set; }
         public string ExceptionType { get; internal set; }
         public int? ExceptionHResult { get; internal set; }
@@ -213,6 +214,7 @@ namespace GVFS.Common
                 [nameof(this.ModifiedPathsLoadMs)] = this.ModifiedPathsLoadMs,
                 [nameof(this.TreeCountMs)] = this.TreeCountMs,
                 [nameof(this.EarlyExit)] = this.EarlyExit,
+                [nameof(this.CancellationRequested)] = this.CancellationRequested,
                 [nameof(this.ExceptionType)] = this.ExceptionType,
                 [nameof(this.ExceptionHResult)] = this.ExceptionHResult,
             };

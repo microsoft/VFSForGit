@@ -291,7 +291,7 @@ namespace GVFS.Common
             {
                 metadata["HydrationStatus.RequestCount"] = hydrationRequests;
                 metadata["HydrationStatus.UnavailableCount"] = hydrationUnavailable;
-                metadata["HydrationStatus.CacheState"] = this.hydrationCache.State;
+                metadata["HydrationStatus.CurrentCacheState"] = this.hydrationCache.State;
                 wroteTelemetry = true;
             }
 
@@ -456,31 +456,27 @@ namespace GVFS.Common
 
         internal void UpdateHydrationSummary()
         {
-            HydrationStatusCircuitBreaker circuitBreaker = new HydrationStatusCircuitBreaker(
-                this.context.Enlistment.DotGVFSRoot,
-                this.context.Tracer);
+            if (this.projectedFolderCountProvider == null)
+            {
+                this.RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState.ProviderUnavailable);
+                return;
+            }
+
+            if (!this.GetHydrationSummaryEnabled())
+            {
+                this.RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState.FeatureDisabled);
+                return;
+            }
+
+            HydrationStatusCircuitBreaker circuitBreaker = this.CreateHydrationCircuitBreaker();
+            if (circuitBreaker.IsDisabled())
+            {
+                this.RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState.CircuitBreakerDisabled);
+                return;
+            }
+
             try
             {
-                if (this.projectedFolderCountProvider == null)
-                {
-                    this.RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState.ProviderUnavailable);
-                    return;
-                }
-
-                bool enabled = TEST_EnableHydrationSummaryOverride
-                    ?? this.context.Repository.LibGit2RepoInvoker.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
-                if (!enabled)
-                {
-                    this.RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState.FeatureDisabled);
-                    return;
-                }
-
-                if (circuitBreaker.IsDisabled())
-                {
-                    this.RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState.CircuitBreakerDisabled);
-                    return;
-                }
-
                 /* While not strictly part of git status, enlistment hydration summary is used
                  * in "git status" pre-command hook, and can take several seconds to compute on very large repos.
                  * Accessing it here ensures that the value is cached for when a user invokes "git status",
@@ -493,7 +489,7 @@ namespace GVFS.Common
                     FolderCountSource = HydrationFolderCountSource.Projection,
                 };
                 EnlistmentHydrationSummary hydrationSummary =
-                    EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer, this.projectedFolderCountProvider, this.shutdownTokenSource.Token, diagnostics);
+                    this.CreateHydrationSummary(diagnostics);
                 NamedPipeMessages.HydrationStatus.CacheState state = hydrationSummary.IsValid
                     ? diagnostics.CountsComplete ? NamedPipeMessages.HydrationStatus.CacheState.Available : NamedPipeMessages.HydrationStatus.CacheState.IncompleteData
                     : diagnostics.Outcome == HydrationSummaryOutcome.Cancelled ? NamedPipeMessages.HydrationStatus.CacheState.Cancelled
@@ -545,6 +541,23 @@ namespace GVFS.Common
                     $"{nameof(GitStatusCache)}{nameof(RebuildStatusCacheIfNeeded)}: Exception trying to update hydration summary cache.",
                     Keywords.Telemetry);
             }
+        }
+
+        internal virtual bool GetHydrationSummaryEnabled()
+        {
+            return TEST_EnableHydrationSummaryOverride
+                ?? this.context.Repository.LibGit2RepoInvoker.GetConfigBoolOrDefault(GVFSConstants.GitConfig.ShowHydrationStatus, GVFSConstants.GitConfig.ShowHydrationStatusDefault);
+        }
+
+        internal virtual HydrationStatusCircuitBreaker CreateHydrationCircuitBreaker()
+        {
+            return new HydrationStatusCircuitBreaker(this.context.Enlistment.DotGVFSRoot, this.context.Tracer);
+        }
+
+        internal virtual EnlistmentHydrationSummary CreateHydrationSummary(HydrationSummaryDiagnostics diagnostics)
+        {
+            return EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer,
+                this.projectedFolderCountProvider, this.shutdownTokenSource.Token, diagnostics);
         }
 
         private void RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState state)

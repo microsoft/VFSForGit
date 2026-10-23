@@ -9,6 +9,9 @@ The diagnostic fields describe both attempts without a repository path or a raw 
 `HydrationSummaryDuration` contains one terminal record for each calculation.
 It retains the existing duration fields and adds `SchemaVersion: 1`.
 It records success, invalid counts, incomplete data, cancellation, and exceptions.
+Success and cancellation use the Informational level.
+Invalid counts, incomplete data, and exceptions use the Warning level.
+This terminal record replaces the generic exception telemetry and the early-exit warning.
 
 The six count fields contain numbers or JSON null.
 A null value means that the calculation did not obtain that count.
@@ -21,13 +24,16 @@ Partial counts remain available, but their source state is not `Complete`.
 `ValidationFailures` independently records missing counts, negative counts, overflow, and hydrated counts that exceed their totals.
 Its arithmetic uses 64-bit sums.
 
-`Phase` identifies the last phase.
+`Phase` identifies the last started phase, which can already be complete when cancellation occurs between phases.
+`CancellationRequested` distinguishes caller-requested cancellation from other cancellation exceptions.
+Neither cancellation type increments the circuit breaker.
 Each duration includes failed work in that phase.
 An unattempted phase has a null duration.
 `TreeCountMs` retains its existing name and measures the folder-count provider.
 `FolderCountSource` identifies `Projection`, `IndexParser`, or `Unknown`.
 
 The index fields record its observed length, version, signature validity, and header-read result.
+An unavailable index total produces `IncompleteData`, not an arithmetic inconsistency.
 They do not prove that all sources came from one atomic repository snapshot.
 The placeholder fields distinguish partial, expanded, and possible-tombstone folders.
 
@@ -40,6 +46,9 @@ They do not change its replay semantics or the recursive meaning of modified-fol
 
 The `health` completion record distinguishes `Status` mode from `Detailed` mode.
 Status mode records the cache outcome, fallback decision, displayed result, and calculation identity.
+Command `Outcome` uses `Success` when the command displays its result, or `Failed` when it reports an error.
+`CalculationOutcome` describes the calculation separately.
+Legacy cache responses leave `CalculationOutcome` unknown.
 The nested `Cache` object retains parseable counts even when response validation fails.
 Legacy mount responses have no cache diagnostics.
 Their absent fields remain unknown.
@@ -58,7 +67,20 @@ D1,state,calculationId,ageMs,invalidated,countsComplete
 ```
 
 An `NA` response can contain this extension without counts.
-The state is an integer from `CacheState`.
+The state integers are fixed wire values:
+
+| State | Integer |
+| --- | --- |
+| NotComputed | 0 |
+| Available | 1 |
+| ProviderUnavailable | 2 |
+| FeatureDisabled | 3 |
+| CircuitBreakerDisabled | 4 |
+| InvalidCounts | 5 |
+| IncompleteData | 6 |
+| Cancelled | 7 |
+| Failed | 8 |
+
 The calculation identifier uses the GUID `N` format, or `-` when unavailable.
 The age is nonnegative, or `-1` when unavailable.
 The last two fields use `0` or `1`.
@@ -71,6 +93,7 @@ A skipped refresh can retain an earlier valid summary.
 `Invalidated` compares the calculation's invalidation generation with the current generation.
 It does not reject a cached summary or change the existing cache policy.
 Heartbeat telemetry aggregates hydration requests and unavailable responses.
+`HydrationStatus.CurrentCacheState` describes the cache at the heartbeat, not the state of earlier requests.
 
 ## Limits and privacy
 
@@ -82,6 +105,7 @@ The modified-path reader retains its existing connection and response-wait behav
 
 Telemetry contains exception types and HRESULT values, not arbitrary exception messages or stacks.
 Local warnings retain full exception details.
+Hydration exceptions no longer produce generic Error-level telemetry or telemetry warnings with full exception text.
 The structured result fields are identical in local logs and telemetry.
 Raw details appear only in local warnings.
 

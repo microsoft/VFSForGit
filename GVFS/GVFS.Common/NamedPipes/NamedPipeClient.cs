@@ -21,7 +21,7 @@ namespace GVFS.Common.NamedPipes
             return this.Connect(timeoutMilliseconds, out _);
         }
 
-        public bool Connect(int timeoutMilliseconds, out Exception error)
+        public virtual bool Connect(int timeoutMilliseconds, out Exception error)
         {
             error = null;
             if (this.clientStream != null)
@@ -65,7 +65,7 @@ namespace GVFS.Common.NamedPipes
             return false;
         }
 
-        public void SendRequest(NamedPipeMessages.Message message)
+        public virtual void SendRequest(NamedPipeMessages.Message message)
         {
             this.SendRequest(message.ToString());
         }
@@ -102,7 +102,7 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
-        public NamedPipeMessages.Message ReadResponse()
+        public virtual NamedPipeMessages.Message ReadResponse()
         {
             return NamedPipeMessages.Message.FromString(this.ReadRawResponse());
         }
@@ -121,7 +121,7 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
             this.ValidateConnection();
 

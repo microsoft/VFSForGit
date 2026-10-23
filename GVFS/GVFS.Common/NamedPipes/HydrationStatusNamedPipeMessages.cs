@@ -13,15 +13,15 @@ namespace GVFS.Common.NamedPipes
 
             public enum CacheState
             {
-                NotComputed,
-                Available,
-                ProviderUnavailable,
-                FeatureDisabled,
-                CircuitBreakerDisabled,
-                InvalidCounts,
-                IncompleteData,
-                Cancelled,
-                Failed,
+                NotComputed = 0,
+                Available = 1,
+                ProviderUnavailable = 2,
+                FeatureDisabled = 3,
+                CircuitBreakerDisabled = 4,
+                InvalidCounts = 5,
+                IncompleteData = 6,
+                Cancelled = 7,
+                Failed = 8,
             }
 
             public enum ParseOutcome
@@ -84,6 +84,7 @@ namespace GVFS.Common.NamedPipes
 
             /// <summary>
             /// Wire format: PlaceholderFileCount,PlaceholderFolderCount,ModifiedFileCount,ModifiedFolderCount,TotalFileCount,TotalFolderCount
+            /// An optional D1 extension follows the six counts. CacheInfo defines the extension fields.
             /// </summary>
             public class Response
             {

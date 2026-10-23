@@ -51,14 +51,7 @@ namespace GVFS.Common
         /// <param name="enlistment">The current GVFS enlistment being operated on</param>
         public virtual void LoadPlaceholdersFromDatabase(GVFSEnlistment enlistment, HydrationSummaryDiagnostics diagnostics = null)
         {
-            List<IPlaceholderData> filePlaceholders = new List<IPlaceholderData>();
-            List<IPlaceholderData> folderPlaceholders = new List<IPlaceholderData>();
-
-            using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.DotGVFSRoot, new SqliteDatabase()))
-            {
-                PlaceholderTable placeholderTable = new PlaceholderTable(database);
-                placeholderTable.GetAllEntries(out filePlaceholders, out folderPlaceholders);
-            }
+            this.ReadPlaceholderEntries(enlistment, out List<IPlaceholderData> filePlaceholders, out List<IPlaceholderData> folderPlaceholders);
 
             this.PlaceholderFilePaths.AddRange(filePlaceholders.Select(placeholderData => placeholderData.Path));
             if (diagnostics != null)
@@ -136,15 +129,11 @@ namespace GVFS.Common
             string filePath = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.ModifiedPaths);
             try
             {
-                using (FileStream file = File.Open(filePath, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read))
-                using (StreamReader reader = new StreamReader(file))
+                AddModifiedPaths(this.ReadModifiedPathsFile(filePath, diagnostics));
+                if (diagnostics != null)
                 {
-                    AddModifiedPaths(ReadModifiedPathDatabaseLines(reader, diagnostics));
-                    if (diagnostics != null)
-                    {
-                        diagnostics.ModifiedPathsDiskOutcome = HydrationPathSourceOutcome.Success;
-                        diagnostics.ModifiedPathsState = HydrationDataState.Complete;
-                    }
+                    diagnostics.ModifiedPathsDiskOutcome = HydrationPathSourceOutcome.Success;
+                    diagnostics.ModifiedPathsState = HydrationDataState.Complete;
                 }
             }
             catch (Exception ex)
@@ -160,6 +149,31 @@ namespace GVFS.Common
 
                 tracer.RelatedWarning($"Failed to read modified paths file at {filePath}: {ex}");
             }
+        }
+
+        protected virtual void ReadPlaceholderEntries(GVFSEnlistment enlistment, out List<IPlaceholderData> files, out List<IPlaceholderData> folders)
+        {
+            using (GVFSDatabase database = new GVFSDatabase(new PhysicalFileSystem(), enlistment.DotGVFSRoot, new SqliteDatabase()))
+            {
+                new PlaceholderTable(database).GetAllEntries(out files, out folders);
+            }
+        }
+
+        protected virtual IEnumerable<string> ReadModifiedPathsFile(string filePath, HydrationSummaryDiagnostics diagnostics)
+        {
+            using (FileStream file = File.Open(filePath, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read))
+            using (StreamReader reader = new StreamReader(file))
+            {
+                foreach (string path in this.ReadModifiedPathDatabaseLines(reader, diagnostics))
+                {
+                    yield return path;
+                }
+            }
+        }
+
+        protected virtual NamedPipeClient CreateModifiedPathsPipeClient(GVFSEnlistment enlistment)
+        {
+            return new NamedPipeClient(enlistment.NamedPipeName);
         }
 
         internal IEnumerable<string> ReadModifiedPathDatabaseLines(StreamReader r, HydrationSummaryDiagnostics diagnostics = null)
@@ -206,7 +220,7 @@ namespace GVFS.Common
         /// <returns>An array containing all of the modified paths in string format</returns>
         private bool TryLoadModifiedPathsFromPipe(GVFSEnlistment enlistment, ITracer tracer, HydrationSummaryDiagnostics diagnostics)
         {
-            using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+            using (NamedPipeClient pipeClient = this.CreateModifiedPathsPipeClient(enlistment))
             {
                 string[] modifiedPathsList = Array.Empty<string>();
 

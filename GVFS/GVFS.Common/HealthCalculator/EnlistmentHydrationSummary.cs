@@ -102,7 +102,8 @@ namespace GVFS.Common
                 {
                     summary.TotalFolderCount = 0;
                     diagnostics.EarlyExit = true;
-                    diagnostics.Outcome = HydrationSummaryOutcome.InvalidCounts;
+                    diagnostics.Outcome = diagnostics.IndexState == HydrationDataState.Failed
+                        ? HydrationSummaryOutcome.IncompleteData : HydrationSummaryOutcome.InvalidCounts;
                     return summary;
                 }
 
@@ -115,9 +116,12 @@ namespace GVFS.Common
                     : diagnostics.CountsComplete ? HydrationSummaryOutcome.Success : HydrationSummaryOutcome.IncompleteData;
                 return summary;
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException e)
             {
                 diagnostics.Outcome = HydrationSummaryOutcome.Cancelled;
+                diagnostics.CancellationRequested = cancellationToken.IsCancellationRequested;
+                diagnostics.ExceptionType = e.GetType().FullName;
+                diagnostics.ExceptionHResult = e.HResult;
                 diagnostics.FinishPhase(HydrationDataState.Cancelled);
                 CapturePartialCounts(pathData, diagnostics);
                 summary.InvalidateCounts();
