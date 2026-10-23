@@ -1,6 +1,11 @@
 Troubleshooting
 ===============
 
+Hydration status
+----------------
+
+[Hydration status diagnostics](hydration-status-diagnostics.md) describes the structured results from `gvfs health --status` and the mount cache.
+
 Deleting a VFS for Git repo
 ---------------------------
 
