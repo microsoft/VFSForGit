@@ -22,6 +22,9 @@ namespace GVFS.Hooks
 
         private const int PostCommandSpinnerDelayMs = 500;
 
+        // Hooks run on the git command path, so config reads retry at most once.
+        private const int ConfigReadMaxAttempts = 2;
+
         private static string enlistmentRoot;
         private static string enlistmentPipename;
         private static string normalizedCurrentDirectory;
@@ -171,11 +174,13 @@ namespace GVFS.Hooks
 
         private static bool ConfigurationAllowsHydrationStatus()
         {
+            // See ConfigReadMaxAttempts for why the retry budget is small here.
             return LibGit2Repo.GetConfigBoolOrDefault(
                 NullTracer.Instance,
                 normalizedCurrentDirectory,
                 GVFSConstants.GitConfig.ShowHydrationStatus,
-                GVFSConstants.GitConfig.ShowHydrationStatusDefault);
+                GVFSConstants.GitConfig.ShowHydrationStatusDefault,
+                ConfigReadMaxAttempts);
         }
 
         /// <summary>
@@ -517,7 +522,16 @@ namespace GVFS.Hooks
 
         private static bool IsAlias(string command)
         {
-            ProcessResult result = ProcessHelper.Run("git", "config --get alias." + command);
+            string aliasKey = "alias." + command;
+            ProcessResult result = GitConfigReadRetry.InvokeResult(
+                aliasKey,
+                () => ProcessHelper.Run("git", "config --get " + aliasKey),
+                (ProcessResult processResult) =>
+                    processResult.ExitCode != 0 &&
+                    GitConfigReadRetry.IsTransientFileAccessError(processResult.Errors, lineMustContain: "unable to access"),
+                NullTracer.Instance,
+                GitConfigReadRetry.Delay,
+                ConfigReadMaxAttempts);
 
             return !string.IsNullOrEmpty(result.Output);
         }
