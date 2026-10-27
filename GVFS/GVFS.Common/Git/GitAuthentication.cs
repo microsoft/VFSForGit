@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Http;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
@@ -377,9 +377,9 @@ namespace GVFS.Common.Git
             if (credentialString != null)
             {
                 byte[] data = Convert.FromBase64String(credentialString);
-                string rawCredString = Encoding.ASCII.GetString(data);
+                string rawCredString = Encoding.UTF8.GetString(data);
 
-                string[] usernamePassword = rawCredString.Split(':');
+                string[] usernamePassword = rawCredString.Split(new[] { ':' }, 2);
                 if (usernamePassword.Length == 2)
                 {
                     username = usernamePassword[0];
@@ -438,9 +438,9 @@ namespace GVFS.Common.Git
                     return false;
                 }
 
-                if (!string.IsNullOrEmpty(gitUsername) && !string.IsNullOrEmpty(gitPassword))
+                if (!string.IsNullOrEmpty(gitPassword))
                 {
-                    this.cachedCredentialString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
+                    this.cachedCredentialString = Convert.ToBase64String(Encoding.UTF8.GetBytes(gitUsername + ":" + gitPassword));
                     this.isCachedCredentialStringApproved = false;
                 }
                 else
