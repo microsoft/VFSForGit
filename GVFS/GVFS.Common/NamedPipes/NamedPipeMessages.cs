@@ -36,6 +36,14 @@ namespace GVFS.Common.NamedPipes
             {
                 public string MountStatus { get; set; }
                 public string MountProgress { get; set; }
+
+                /// <summary>
+                /// Why the mount failed. Set only when <see cref="MountStatus"/> is
+                /// <see cref="MountFailed"/>, so the client can report the real cause
+                /// instead of a generic failure message.
+                /// </summary>
+                public string MountError { get; set; }
+
                 public string EnlistmentRoot { get; set; }
                 public string LocalCacheRoot { get; set; }
                 public string RepoUrl { get; set; }
