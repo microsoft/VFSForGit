@@ -491,9 +491,10 @@ namespace GVFS.Common
                 EnlistmentHydrationSummary hydrationSummary =
                     this.CreateHydrationSummary(diagnostics);
                 NamedPipeMessages.HydrationStatus.CacheState state = hydrationSummary.IsValid
-                    ? diagnostics.CountsComplete ? NamedPipeMessages.HydrationStatus.CacheState.Available : NamedPipeMessages.HydrationStatus.CacheState.IncompleteData
+                    ? NamedPipeMessages.HydrationStatus.CacheState.Available
                     : diagnostics.Outcome == HydrationSummaryOutcome.Cancelled ? NamedPipeMessages.HydrationStatus.CacheState.Cancelled
                     : diagnostics.Outcome == HydrationSummaryOutcome.Failed ? NamedPipeMessages.HydrationStatus.CacheState.Failed
+                    : diagnostics.Outcome == HydrationSummaryOutcome.IncompleteData ? NamedPipeMessages.HydrationStatus.CacheState.IncompleteData
                     : NamedPipeMessages.HydrationStatus.CacheState.InvalidCounts;
                 this.hydrationCache = new HydrationCacheSnapshot(hydrationSummary, state, invalidationVersion);
                 EventMetadata metadata = new EventMetadata();

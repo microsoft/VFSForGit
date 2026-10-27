@@ -1,3 +1,5 @@
+extern alias Hooks;
+
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
@@ -10,6 +12,7 @@ using NUnit.Framework;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using HookResponse = Hooks::GVFS.Common.NamedPipes.NamedPipeMessages.HydrationStatus.Response;
 
 namespace GVFS.UnitTests.Common
 {
@@ -111,6 +114,8 @@ namespace GVFS.UnitTests.Common
         [TestCase("0,-1,0,0,10,5")]
         [TestCase("0,0,-1,0,10,5")]
         [TestCase("0,0,0,-1,10,5")]
+        [TestCase("0,0,0,0,-1,5")]
+        [TestCase("0,0,0,0,10,-1")]
         public void TryParse_NegativeCounts_ReturnsFalse(string body)
         {
             bool result = NamedPipeMessages.HydrationStatus.Response.TryParse(body, out NamedPipeMessages.HydrationStatus.Response response);
@@ -119,10 +124,39 @@ namespace GVFS.UnitTests.Common
 
         [TestCase("100,0,100,0,50,5")]
         [TestCase("0,100,0,100,10,5")]
-        public void TryParse_HydratedExceedsTotal_ReturnsFalse(string body)
+        public void TryParse_HydratedExceedsTotal_PreservesRawCounts(string body)
         {
             bool result = NamedPipeMessages.HydrationStatus.Response.TryParse(body, out NamedPipeMessages.HydrationStatus.Response response);
-            Assert.IsFalse(result);
+            Assert.IsTrue(result);
+            Assert.AreEqual(body, response.ToBody());
+            Assert.That(response.ToDisplayMessage(), Does.Contain("100% (counts exceed current total)"));
+        }
+
+        [TestCase("0,0,0,0,0,0", "files 0%; folders 0%")]
+        [TestCase("40,10,10,5,100,50", "files 50%; folders 30%")]
+        [TestCase("100,5,1,1,100,5", "files 100% (counts exceed current total); folders 100% (counts exceed current total)")]
+        [TestCase("1,1,0,0,0,2", "files n/a (no current denominator); folders 50%")]
+        [TestCase("1,1,0,0,2,0", "files 50%; folders n/a (no current denominator)")]
+        [TestCase("2147483647,2147483647,2147483647,2147483647,2147483647,2147483647",
+            "files 100% (counts exceed current total); folders 100% (counts exceed current total)")]
+        public void SummaryProtocolAndHookUseTheSameEstimates(string body, string estimate)
+        {
+            Assert.IsTrue(NamedPipeMessages.HydrationStatus.Response.TryParse(body, out NamedPipeMessages.HydrationStatus.Response response));
+            Assert.IsTrue(HookResponse.TryParse(body, out HookResponse hookResponse));
+            Assert.AreEqual(body, response.ToBody());
+            Assert.AreEqual(response.ToBody(), hookResponse.ToBody());
+            Assert.AreEqual("Estimated hydration: " + estimate + ". Run 'gvfs health' at the repository root for details.", response.ToDisplayMessage());
+            Assert.AreEqual(response.ToDisplayMessage(), hookResponse.ToDisplayMessage());
+            Assert.AreEqual((long)response.PlaceholderFileCount + response.ModifiedFileCount, response.HydratedFileCount);
+            Assert.AreEqual((long)response.PlaceholderFolderCount + response.ModifiedFolderCount, response.HydratedFolderCount);
+        }
+
+        [TestCase("1,2,3,4,100,50,D1,6,-,0,0,0")]
+        [TestCase("-1,2,3,4,100,50")]
+        public void SummaryProtocolAndHookRejectUnavailableObservations(string body)
+        {
+            Assert.IsFalse(NamedPipeMessages.HydrationStatus.Response.TryParse(body, out _));
+            Assert.IsFalse(HookResponse.TryParse(body, out _));
         }
 
         [TestCase]
