@@ -31,6 +31,7 @@ namespace GVFS.Common.NamedPipes
                 TooFewFields,
                 InvalidNumber,
                 InvalidCounts,
+                IncompleteData,
             }
 
             public sealed class CacheInfo
@@ -95,16 +96,20 @@ namespace GVFS.Common.NamedPipes
                 public int TotalFileCount { get; set; }
                 public int TotalFolderCount { get; set; }
 
-                public int HydratedFileCount => this.PlaceholderFileCount + this.ModifiedFileCount;
-                public int HydratedFolderCount => this.PlaceholderFolderCount + this.ModifiedFolderCount;
+                public long HydratedFileCount => (long)this.PlaceholderFileCount + this.ModifiedFileCount;
+                public long HydratedFolderCount => (long)this.PlaceholderFolderCount + this.ModifiedFolderCount;
+                public long FileCountDelta => this.HydratedFileCount - this.TotalFileCount;
+                public long FolderCountDelta => this.HydratedFolderCount - this.TotalFolderCount;
+                public long FileCountExcess => Math.Max(0, this.FileCountDelta);
+                public long FolderCountExcess => Math.Max(0, this.FolderCountDelta);
 
                 public bool IsValid =>
                     this.PlaceholderFileCount >= 0
                     && this.PlaceholderFolderCount >= 0
                     && this.ModifiedFileCount >= 0
                     && this.ModifiedFolderCount >= 0
-                    && this.TotalFileCount >= this.HydratedFileCount
-                    && this.TotalFolderCount >= this.HydratedFolderCount;
+                    && this.TotalFileCount >= 0
+                    && this.TotalFolderCount >= 0;
 
                 public string ToDisplayMessage()
                 {
@@ -113,9 +118,9 @@ namespace GVFS.Common.NamedPipes
                         return null;
                     }
 
-                    int filePercent = this.TotalFileCount == 0 ? 0 : (int)((100L * this.HydratedFileCount) / this.TotalFileCount);
-                    int folderPercent = this.TotalFolderCount == 0 ? 0 : (int)((100L * this.HydratedFolderCount) / this.TotalFolderCount);
-                    return $"{filePercent}% of files and {folderPercent}% of folders hydrated. Run 'gvfs health' at the repository root for details.";
+                    return $"Estimated hydration: files {FormatEstimate(this.HydratedFileCount, this.TotalFileCount)}; "
+                        + $"folders {FormatEstimate(this.HydratedFolderCount, this.TotalFolderCount)}. "
+                        + "Run 'gvfs health' at the repository root for details.";
                 }
 
                 public string ToBody(CacheInfo info = null)
@@ -172,8 +177,32 @@ namespace GVFS.Common.NamedPipes
                         TotalFolderCount = totalFolderCount,
                     };
 
-                    outcome = response.IsValid ? ParseOutcome.Success : ParseOutcome.InvalidCounts;
-                    return response.IsValid;
+                    if (!response.IsValid)
+                    {
+                        outcome = ParseOutcome.InvalidCounts;
+                        return false;
+                    }
+
+                    if (CacheInfo.TryParse(body, out CacheInfo info, hasCounts: true) && !info.CountsComplete)
+                    {
+                        outcome = ParseOutcome.IncompleteData;
+                        return false;
+                    }
+
+                    outcome = ParseOutcome.Success;
+                    return true;
+                }
+
+                private static string FormatEstimate(long hydratedCount, int totalCount)
+                {
+                    if (totalCount == 0)
+                    {
+                        return hydratedCount == 0 ? "0%" : "n/a (no current denominator)";
+                    }
+
+                    return hydratedCount > totalCount
+                        ? "100% (counts exceed current total)"
+                        : ((100L * hydratedCount) / totalCount).ToString(CultureInfo.InvariantCulture) + "%";
                 }
             }
         }

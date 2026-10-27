@@ -168,6 +168,8 @@ namespace GVFS.Common
 
         public EventMetadata GetMetadata()
         {
+            long? fileCountDelta = (long?)this.PlaceholderFileCount + this.ModifiedFileCount - this.TotalFileCount;
+            long? folderCountDelta = (long?)this.PlaceholderFolderCount + this.ModifiedFolderCount - this.TotalFolderCount;
             return new EventMetadata
             {
                 ["SchemaVersion"] = 1,
@@ -187,6 +189,11 @@ namespace GVFS.Common
                 [nameof(this.TotalFolderCount)] = this.TotalFolderCount,
                 ["HydratedFileCount"] = (long?)this.PlaceholderFileCount + this.ModifiedFileCount,
                 ["HydratedFolderCount"] = (long?)this.PlaceholderFolderCount + this.ModifiedFolderCount,
+                ["FileCountSource"] = "IndexHeader",
+                ["FileCountDelta"] = fileCountDelta,
+                ["FolderCountDelta"] = folderCountDelta,
+                ["FileCountExcess"] = fileCountDelta.HasValue ? Math.Max(0, fileCountDelta.Value) : null,
+                ["FolderCountExcess"] = folderCountDelta.HasValue ? Math.Max(0, folderCountDelta.Value) : null,
                 [nameof(this.IndexState)] = this.IndexState,
                 [nameof(this.PlaceholderState)] = this.PlaceholderState,
                 [nameof(this.ModifiedPathsState)] = this.ModifiedPathsState,

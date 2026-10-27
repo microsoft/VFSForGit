@@ -64,7 +64,8 @@ namespace GVFS.UnitTests.Common
         [TestCase(null, "MalformedResponse")]
         [TestCase("1,2", "MalformedResponse")]
         [TestCase("1,2,secret,4,100,50", "MalformedResponse")]
-        [TestCase("1,2,3,4,100,1", "InvalidCounts")]
+        [TestCase("1,2,3,4,100,-1", "InvalidCounts")]
+        [TestCase("1,2,3,4,100,1", "Success")]
         [TestCase("1,2,3,4,100,50", "Success")]
         public void CacheResultDistinguishesMalformedAndInvalidCounts(string body, string outcome)
         {
@@ -112,7 +113,7 @@ namespace GVFS.UnitTests.Common
                 EventMetadata cache = (EventMetadata)metadata["Cache"];
                 Assert.AreEqual(HealthVerb.CacheLookupOutcome.Success, cache["Outcome"]);
                 Assert.AreEqual(100, ((EventMetadata)cache["Counts"])["TotalFileCount"]);
-                Assert.That(output.ToString(), Does.Contain("4% of files and 12% of folders hydrated."));
+                Assert.That(output.ToString(), Does.Contain("Estimated hydration: files 4%; folders 12%."));
             }
         }
 
@@ -175,17 +176,16 @@ namespace GVFS.UnitTests.Common
             }
         }
 
-        [TestCase(true)]
-        [TestCase(false)]
-        public void CacheHitKeepsCommandOutcomeSeparateFromCompleteness(bool complete)
+        [TestCase]
+        public void CacheHitKeepsCommandOutcomeSeparateFromCompleteness()
         {
             using (StringWriter output = new StringWriter())
             using (MockTracer tracer = new MockTracer())
             {
                 NamedPipeMessages.HydrationStatus.CacheInfo info = new NamedPipeMessages.HydrationStatus.CacheInfo
                 {
-                    CountsComplete = complete,
-                    State = complete ? NamedPipeMessages.HydrationStatus.CacheState.Available : NamedPipeMessages.HydrationStatus.CacheState.IncompleteData,
+                    CountsComplete = true,
+                    State = NamedPipeMessages.HydrationStatus.CacheState.Available,
                     CalculationId = Guid.NewGuid(),
                 };
                 WorkerHealthVerb verb = new WorkerHealthVerb { Output = output };
@@ -193,10 +193,44 @@ namespace GVFS.UnitTests.Common
                 EventMetadata metadata = new EventMetadata();
                 verb.OutputHydrationPercent(null, tracer, metadata, Guid.NewGuid());
                 Assert.AreEqual(HealthVerb.HealthCommandOutcome.Success, metadata["Outcome"]);
-                Assert.AreEqual(complete ? HydrationSummaryOutcome.Success : HydrationSummaryOutcome.IncompleteData, metadata["CalculationOutcome"]);
+                Assert.AreEqual(HydrationSummaryOutcome.Success, metadata["CalculationOutcome"]);
                 Assert.AreEqual(info.CalculationId.Value.ToString("N"), metadata["CalculationId"]);
                 Assert.AreEqual("Cache", metadata["ResultSource"]);
                 Assert.IsTrue(verb.Pipe.Disposed);
+            }
+        }
+
+        [TestCase]
+        public void PartialCacheResponseRemainsDistinctFromCountDrift()
+        {
+            HealthVerb.CacheLookupResult result = HealthVerb.ParseCachedResponse(
+                new NamedPipeMessages.Message("S", "1,2,3,4,100,50,D1,6,-,0,0,0"));
+            Assert.AreEqual(HealthVerb.CacheLookupOutcome.IncompleteData, result.Outcome);
+            Assert.AreEqual(NamedPipeMessages.HydrationStatus.ParseOutcome.IncompleteData, result.ParseOutcome);
+            Assert.AreEqual(100, result.Counts["TotalFileCount"]);
+        }
+
+        [TestCase]
+        public void CachedDriftPreservesRawCountsAndExcessWithoutFallback()
+        {
+            using (StringWriter output = new StringWriter())
+            using (MockTracer tracer = new MockTracer())
+            {
+                WorkerHealthVerb verb = new WorkerHealthVerb { Output = output };
+                verb.Pipe.Response = new NamedPipeMessages.Message("S", "2147483647,2,2147483647,3,1,0,D1,1,-,0,0,1");
+                EventMetadata metadata = new EventMetadata();
+                verb.OutputHydrationPercent(null, tracer, metadata, Guid.NewGuid());
+                Assert.AreEqual("Cache", metadata["ResultSource"]);
+                Assert.AreEqual(HealthVerb.HealthCommandOutcome.Success, metadata["Outcome"]);
+                Assert.AreEqual(HydrationSummaryOutcome.Success, metadata["CalculationOutcome"]);
+                EventMetadata cache = (EventMetadata)metadata["Cache"];
+                Assert.AreEqual(1, ((EventMetadata)cache["Counts"])["TotalFileCount"]);
+                Assert.AreEqual(4294967293L, cache["FileCountDelta"]);
+                Assert.AreEqual(4294967293L, cache["FileCountExcess"]);
+                Assert.AreEqual(5L, cache["FolderCountExcess"]);
+                Assert.AreEqual("IndexHeader", cache["FileCountSource"]);
+                Assert.AreEqual(HydrationFolderCountSource.Projection, cache["FolderCountSource"]);
+                Assert.That(output.ToString(), Does.Contain("files 100% (counts exceed current total); folders n/a (no current denominator)"));
             }
         }
 
@@ -333,6 +367,9 @@ namespace GVFS.UnitTests.Common
             Assert.IsTrue(failures.HasFlag(HydrationValidationFailure.HydratedFilesExceedTotal));
             Assert.IsTrue(failures.HasFlag(HydrationValidationFailure.HydratedFoldersExceedTotal));
             Assert.AreEqual(4294967294L, diagnostics.GetMetadata()["HydratedFileCount"]);
+            Assert.AreEqual(4294967293L, diagnostics.GetMetadata()["FileCountDelta"]);
+            Assert.AreEqual(4294967293L, diagnostics.GetMetadata()["FileCountExcess"]);
+            Assert.AreEqual(4L, diagnostics.GetMetadata()["FolderCountExcess"]);
         }
 
         [TestCase]

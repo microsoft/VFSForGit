@@ -149,7 +149,7 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase("InvalidCounts", false)]
-        [TestCase("IncompleteData", true)]
+        [TestCase("IncompleteData", false)]
         [TestCase("Cancelled", false)]
         [TestCase("Failed", false)]
         [Category(CategoryConstants.ExceptionExpected)]
@@ -175,6 +175,38 @@ namespace GVFS.UnitTests.Common
                 Assert.IsNotNull(info.CalculationId);
                 Assert.IsFalse(info.CountsComplete && state != "InvalidCounts");
                 Assert.AreEqual(state == "Failed" ? 1 : 0, cache.Breaker.Failures);
+            }
+        }
+
+        [TestCase]
+        public void CountDriftRemainsCachedWithoutRepeatedCalculationOrBreakerFailures()
+        {
+            this.AddHydrationIndex();
+            using (DiagnosticStatusCache cache = new DiagnosticStatusCache(this.context))
+            {
+                int calculations = 0;
+                cache.Calculate = diagnostics =>
+                {
+                    calculations++;
+                    return EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.fileSystem, this.context.Tracer,
+                        () => 1, new EmptyHydrationPaths { CountDrift = true }, diagnostics: diagnostics);
+                };
+                cache.UpdateHydrationSummary();
+                EnlistmentHydrationSummary summary = cache.GetCachedHydrationSummary(out NamedPipeMessages.HydrationStatus.CacheInfo info);
+                Assert.IsNotNull(summary);
+                Assert.AreEqual(NamedPipeMessages.HydrationStatus.CacheState.Available, info.State);
+                Assert.IsTrue(info.CountsComplete);
+                Assert.AreEqual(2, summary.HydratedFolderCount);
+                Assert.AreEqual(1, summary.TotalFolderCount);
+                Assert.IsTrue(NamedPipeMessages.HydrationStatus.Response.TryParse(summary.ToResponse().ToBody(info), out _));
+                for (int i = 0; i < 3; i++)
+                {
+                    Assert.AreSame(summary, cache.GetCachedHydrationSummary(out NamedPipeMessages.HydrationStatus.CacheInfo repeated));
+                    Assert.AreEqual(info.CalculationId, repeated.CalculationId);
+                }
+
+                Assert.AreEqual(1, calculations);
+                Assert.AreEqual(0, cache.Breaker.Failures);
             }
         }
 
@@ -269,9 +301,14 @@ namespace GVFS.UnitTests.Common
         private sealed class EmptyHydrationPaths : EnlistmentPathData
         {
             public bool FailModified { get; set; }
+            public bool CountDrift { get; set; }
 
             public override void LoadPlaceholdersFromDatabase(GVFSEnlistment enlistment, HydrationSummaryDiagnostics diagnostics = null)
             {
+                if (this.CountDrift)
+                {
+                    this.PlaceholderFolderPaths.AddRange(new[] { "old", "new" });
+                }
             }
 
             public override void LoadModifiedPaths(GVFSEnlistment enlistment, ITracer tracer, HydrationSummaryDiagnostics diagnostics = null)

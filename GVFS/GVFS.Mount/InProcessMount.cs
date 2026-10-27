@@ -781,15 +781,7 @@ namespace GVFS.Mount
                 return;
             }
 
-            NamedPipeMessages.HydrationStatus.Response response = new NamedPipeMessages.HydrationStatus.Response
-            {
-                PlaceholderFileCount = summary.PlaceholderFileCount,
-                PlaceholderFolderCount = summary.PlaceholderFolderCount,
-                ModifiedFileCount = summary.ModifiedFileCount,
-                ModifiedFolderCount = summary.ModifiedFolderCount,
-                TotalFileCount = summary.TotalFileCount,
-                TotalFolderCount = summary.TotalFolderCount,
-            };
+            NamedPipeMessages.HydrationStatus.Response response = summary.ToResponse();
 
             connection.TrySendResponse(
                 new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.SuccessResult, response.ToBody(info)));

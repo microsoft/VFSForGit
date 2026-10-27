@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.FileSystem;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
 using System.Diagnostics;
@@ -18,33 +19,32 @@ namespace GVFS.Common
         public Exception Error { get; private set; } = null;
         public HydrationSummaryDiagnostics Diagnostics { get; private set; }
 
-        public int HydratedFileCount => PlaceholderFileCount + ModifiedFileCount;
-        public int HydratedFolderCount => PlaceholderFolderCount + ModifiedFolderCount;
+        public long HydratedFileCount => (long)this.PlaceholderFileCount + this.ModifiedFileCount;
+        public long HydratedFolderCount => (long)this.PlaceholderFolderCount + this.ModifiedFolderCount;
 
-
-        public bool IsValid
-        {
-            get
-            {
-                return PlaceholderFileCount >= 0
-                && PlaceholderFolderCount >= 0
-                && ModifiedFileCount >= 0
-                && ModifiedFolderCount >= 0
-                && TotalFileCount >= HydratedFileCount
-                && TotalFolderCount >= HydratedFolderCount;
-            }
-        }
+        public bool IsValid => this.Diagnostics?.CountsComplete == true && this.ToResponse().IsValid;
 
         public string ToMessage()
         {
-            if (!IsValid)
+            if (!this.IsValid)
             {
                 return "Error calculating hydration summary. Run 'gvfs health' at the repository root for hydration status details.";
             }
 
-            int fileHydrationPercent = TotalFileCount == 0 ? 0 : (int)((100L * HydratedFileCount) / TotalFileCount);
-            int folderHydrationPercent = TotalFolderCount == 0 ? 0 : (int)((100L * HydratedFolderCount) / TotalFolderCount);
-            return $"{fileHydrationPercent}% of files and {folderHydrationPercent}% of folders hydrated. Run 'gvfs health' at the repository root for details.";
+            return this.ToResponse().ToDisplayMessage();
+        }
+
+        public NamedPipeMessages.HydrationStatus.Response ToResponse()
+        {
+            return new NamedPipeMessages.HydrationStatus.Response
+            {
+                PlaceholderFileCount = this.PlaceholderFileCount,
+                PlaceholderFolderCount = this.PlaceholderFolderCount,
+                ModifiedFileCount = this.ModifiedFileCount,
+                ModifiedFolderCount = this.ModifiedFolderCount,
+                TotalFileCount = this.TotalFileCount,
+                TotalFolderCount = this.TotalFolderCount,
+            };
         }
 
         public static EnlistmentHydrationSummary CreateSummary(
@@ -96,14 +96,10 @@ namespace GVFS.Common
                 diagnostics.FinishPhase(diagnostics.ModifiedPathsState == HydrationDataState.NotStarted ? HydrationDataState.Complete : diagnostics.ModifiedPathsState);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Preserve the early-exit check without reporting its temporary folder total as an observation.
-                summary.TotalFolderCount = summary.HydratedFolderCount + 1;
-                if (!summary.IsValid)
+                if (summary.TotalFileCount < 0)
                 {
-                    summary.TotalFolderCount = 0;
                     diagnostics.EarlyExit = true;
-                    diagnostics.Outcome = diagnostics.IndexState == HydrationDataState.Failed
-                        ? HydrationSummaryOutcome.IncompleteData : HydrationSummaryOutcome.InvalidCounts;
+                    diagnostics.Outcome = HydrationSummaryOutcome.IncompleteData;
                     return summary;
                 }
 
@@ -112,8 +108,8 @@ namespace GVFS.Common
                 summary.TotalFolderCount = projectedFolderCountProvider();
                 diagnostics.TotalFolderCount = summary.TotalFolderCount;
                 diagnostics.FinishPhase(HydrationDataState.Complete);
-                diagnostics.Outcome = !summary.IsValid || (diagnostics.GetValidationFailures() & ~HydrationValidationFailure.MissingCounts) != HydrationValidationFailure.None ? HydrationSummaryOutcome.InvalidCounts
-                    : diagnostics.CountsComplete ? HydrationSummaryOutcome.Success : HydrationSummaryOutcome.IncompleteData;
+                diagnostics.Outcome = !diagnostics.CountsComplete ? HydrationSummaryOutcome.IncompleteData
+                    : summary.IsValid ? HydrationSummaryOutcome.Success : HydrationSummaryOutcome.InvalidCounts;
                 return summary;
             }
             catch (OperationCanceledException e)

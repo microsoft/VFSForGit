@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
@@ -326,11 +327,12 @@ namespace GVFS.UnitTests.Common
             Assert.IsNull(result.Error);
         }
 
-        [TestCase(20, "Success", "None")]
-        [TestCase(1, "InvalidCounts", "HydratedFoldersExceedTotal")]
-        public void CalculationEmitsCountsAndFinalValidity(int folderCount, string outcome, string validationFailures)
+        [TestCase(100, 20, "None")]
+        [TestCase(100, 1, "HydratedFoldersExceedTotal")]
+        [TestCase(4, 1, "HydratedFilesExceedTotal, HydratedFoldersExceedTotal")]
+        public void CalculationEmitsCountsAndFinalValidity(int fileCount, int folderCount, string validationFailures)
         {
-            this.AddIndex(100);
+            this.AddIndex(fileCount);
             using (JsonTracer tracer = new JsonTracer("test", "test", disableTelemetry: true))
             {
                 RecordingListener listener = new RecordingListener(Keywords.Telemetry);
@@ -339,16 +341,21 @@ namespace GVFS.UnitTests.Common
                     this.context.Enlistment, this.fileSystem, tracer, () => folderCount, new TestPathData());
 
                 TraceEventMessage message = listener.Events.Single(e => e.EventName == "HydrationSummaryDuration");
-                Assert.AreEqual(outcome == "Success" ? EventLevel.Informational : EventLevel.Warning, message.Level);
+                Assert.AreEqual(EventLevel.Informational, message.Level);
                 using (JsonDocument json = JsonDocument.Parse(message.Payload))
                 {
                     JsonElement root = json.RootElement;
-                    Assert.AreEqual(outcome, root.GetProperty("Outcome").GetString());
+                    Assert.AreEqual("Success", root.GetProperty("Outcome").GetString());
                     Assert.AreEqual(validationFailures, root.GetProperty("ValidationFailures").GetString());
-                    Assert.AreEqual(100, root.GetProperty("TotalFileCount").GetInt32());
+                    Assert.AreEqual(fileCount, root.GetProperty("TotalFileCount").GetInt32());
                     Assert.AreEqual(2, root.GetProperty("PlaceholderFileCount").GetInt32());
                     Assert.AreEqual(3, root.GetProperty("ModifiedFileCount").GetInt32());
                     Assert.AreEqual(folderCount, root.GetProperty("TotalFolderCount").GetInt32());
+                    Assert.AreEqual(5L - fileCount, root.GetProperty("FileCountDelta").GetInt64());
+                    Assert.AreEqual(2L - folderCount, root.GetProperty("FolderCountDelta").GetInt64());
+                    Assert.AreEqual(Math.Max(0, 5L - fileCount), root.GetProperty("FileCountExcess").GetInt64());
+                    Assert.AreEqual(Math.Max(0, 2L - folderCount), root.GetProperty("FolderCountExcess").GetInt64());
+                    Assert.AreEqual("IndexHeader", root.GetProperty("FileCountSource").GetString());
                     Assert.AreEqual(summary.IsValid, root.GetProperty("IsValid").GetBoolean());
                     Assert.IsTrue(root.GetProperty("CountsComplete").GetBoolean());
                     Assert.AreNotEqual(Guid.Empty, Guid.Parse(root.GetProperty("CalculationId").GetString()));
@@ -401,18 +408,21 @@ namespace GVFS.UnitTests.Common
             }
         }
 
-        [TestCase]
-        public void FailedSourceDoesNotReportZeroAsAvailable()
+        [TestCase(HydrationDataState.Failed, true)]
+        [TestCase(HydrationDataState.Partial, false)]
+        public void IncompleteSourceDoesNotProduceUsableSummary(HydrationDataState state, bool empty)
         {
             this.AddIndex(100);
-            TestPathData paths = new TestPathData { ModifiedState = HydrationDataState.Failed, EmptyModifiedPaths = true };
+            TestPathData paths = new TestPathData { ModifiedState = state, EmptyModifiedPaths = empty };
             EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
                 this.context.Enlistment, this.fileSystem, this.tracer, () => 20, paths);
-            Assert.IsNull(summary.Diagnostics.ModifiedFileCount);
-            Assert.IsNull(summary.Diagnostics.ModifiedFolderCount);
-            Assert.AreEqual(HydrationDataState.Failed, summary.Diagnostics.ModifiedPathsState);
+            Assert.AreEqual(empty ? (int?)null : 3, summary.Diagnostics.ModifiedFileCount);
+            Assert.AreEqual(empty ? (int?)null : 1, summary.Diagnostics.ModifiedFolderCount);
+            Assert.AreEqual(state, summary.Diagnostics.ModifiedPathsState);
             Assert.IsFalse(summary.Diagnostics.CountsComplete);
             Assert.AreEqual(HydrationSummaryOutcome.IncompleteData, summary.Diagnostics.Outcome);
+            Assert.IsFalse(summary.IsValid);
+            Assert.That(summary.ToMessage(), Does.StartWith("Error calculating hydration summary."));
         }
 
         [TestCase]
@@ -429,18 +439,37 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void EarlyExitLeavesFolderCountAndTimingUnavailable()
+        public void EmptyCompleteSummaryDisplaysZeroRatherThanUnavailable()
         {
             this.AddIndex(0);
             EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
-                this.context.Enlistment, this.fileSystem, this.tracer, () => throw new AssertionException("Folder provider must not run."), new TestPathData());
-            Assert.IsTrue(summary.Diagnostics.EarlyExit);
-            Assert.IsFalse(summary.IsValid);
-            Assert.AreEqual(HydrationSummaryOutcome.InvalidCounts, summary.Diagnostics.Outcome);
-            Assert.IsNull(summary.Diagnostics.TotalFolderCount);
-            Assert.IsNull(summary.Diagnostics.TreeCountMs);
-            Assert.AreEqual(HydrationDataState.NotStarted, summary.Diagnostics.FolderCountState);
-            Assert.IsTrue(summary.Diagnostics.GetValidationFailures().HasFlag(HydrationValidationFailure.HydratedFilesExceedTotal));
+                this.context.Enlistment, this.fileSystem, this.tracer, () => 0,
+                new TestPathData { EmptyPlaceholders = true, EmptyModifiedPaths = true });
+            Assert.IsTrue(summary.IsValid);
+            Assert.That(summary.ToMessage(), Does.Contain("files 0%; folders 0%"));
+        }
+
+        [TestCase(4, 1, "files 100% (counts exceed current total); folders 100% (counts exceed current total)")]
+        [TestCase(0, 20, "files n/a (no current denominator); folders 10%")]
+        [TestCase(100, 0, "files 5%; folders n/a (no current denominator)")]
+        public void CountDriftCollectsBothDenominatorsAndSharesTheWireDisplay(int files, int folders, string estimate)
+        {
+            this.AddIndex(files);
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, this.fileSystem, this.tracer, () => folders, new TestPathData());
+            Assert.IsFalse(summary.Diagnostics.EarlyExit);
+            Assert.IsTrue(summary.IsValid);
+            Assert.AreEqual(HydrationSummaryOutcome.Success, summary.Diagnostics.Outcome);
+            Assert.AreEqual(folders, summary.Diagnostics.TotalFolderCount);
+            Assert.IsNotNull(summary.Diagnostics.TreeCountMs);
+            Assert.AreEqual(HydrationDataState.Complete, summary.Diagnostics.FolderCountState);
+            Assert.AreEqual("Estimated hydration: " + estimate + ". Run 'gvfs health' at the repository root for details.", summary.ToMessage());
+            Assert.IsTrue(NamedPipeMessages.HydrationStatus.Response.TryParse(summary.ToResponse().ToBody(), out NamedPipeMessages.HydrationStatus.Response response));
+            Assert.AreEqual(summary.ToMessage(), response.ToDisplayMessage());
+            Assert.AreEqual(files, response.TotalFileCount);
+            Assert.AreEqual(folders, response.TotalFolderCount);
+            Assert.AreEqual(5, response.HydratedFileCount);
+            Assert.AreEqual(2, response.HydratedFolderCount);
         }
 
         [TestCase]
@@ -454,6 +483,7 @@ namespace GVFS.UnitTests.Common
                 EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
                     this.context.Enlistment, this.fileSystem, this.tracer, () => 20, paths, cts.Token);
                 Assert.AreEqual(HydrationSummaryOutcome.Cancelled, summary.Diagnostics.Outcome);
+                Assert.IsFalse(summary.IsValid);
                 Assert.IsTrue(summary.Diagnostics.CancellationRequested);
                 Assert.AreEqual(HydrationSummaryPhase.Placeholders, summary.Diagnostics.Phase);
                 Assert.AreEqual(HydrationDataState.Complete, summary.Diagnostics.PlaceholderState);
@@ -588,13 +618,17 @@ namespace GVFS.UnitTests.Common
             public HydrationSummaryPhase FailurePhase { get; set; }
             public HydrationDataState ModifiedState { get; set; } = HydrationDataState.Complete;
             public bool EmptyModifiedPaths { get; set; }
+            public bool EmptyPlaceholders { get; set; }
             public Action AfterPlaceholders { get; set; }
             public Action DuringModifiedPaths { get; set; }
 
             public override void LoadPlaceholdersFromDatabase(GVFSEnlistment enlistment, HydrationSummaryDiagnostics diagnostics = null)
             {
-                this.PlaceholderFilePaths.AddRange(new[] { "a", "b" });
-                this.PlaceholderFolderPaths.Add("folder");
+                if (!this.EmptyPlaceholders)
+                {
+                    this.PlaceholderFilePaths.AddRange(new[] { "a", "b" });
+                    this.PlaceholderFolderPaths.Add("folder");
+                }
                 if (this.FailurePhase == HydrationSummaryPhase.Placeholders)
                 {
                     throw new IOException("mock:\\private\\placeholder {secret}");
