@@ -584,9 +584,9 @@ namespace GVFS.Virtualization
             }
         }
 
-        public EnlistmentHydrationSummary GetCachedHydrationSummary()
+        public EnlistmentHydrationSummary GetCachedHydrationSummary(out NamedPipeMessages.HydrationStatus.CacheInfo info)
         {
-            return this.gitStatusCache.GetCachedHydrationSummary();
+            return this.gitStatusCache.GetCachedHydrationSummary(out info);
         }
 
         public int GetProjectedFolderCount()

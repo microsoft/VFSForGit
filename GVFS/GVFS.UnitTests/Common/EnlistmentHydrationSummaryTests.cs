@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
@@ -10,6 +11,10 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using GVFS.UnitTests.Category;
 using static GVFS.Virtualization.Projection.GitIndexProjection.GitIndexParser;
 
 namespace GVFS.UnitTests.Common
@@ -320,6 +325,347 @@ namespace GVFS.UnitTests.Common
 
             Assert.IsFalse(result.IsValid);
             Assert.IsNull(result.Error);
+        }
+
+        [TestCase(100, 20, "None")]
+        [TestCase(100, 1, "HydratedFoldersExceedTotal")]
+        [TestCase(4, 1, "HydratedFilesExceedTotal, HydratedFoldersExceedTotal")]
+        public void CalculationEmitsCountsAndFinalValidity(int fileCount, int folderCount, string validationFailures)
+        {
+            this.AddIndex(fileCount);
+            using (JsonTracer tracer = new JsonTracer("test", "test", disableTelemetry: true))
+            {
+                RecordingListener listener = new RecordingListener(Keywords.Telemetry);
+                tracer.AddEventListener(listener);
+                EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                    this.context.Enlistment, this.fileSystem, tracer, () => folderCount, new TestPathData());
+
+                TraceEventMessage message = listener.Events.Single(e => e.EventName == "HydrationSummaryDuration");
+                Assert.AreEqual(EventLevel.Informational, message.Level);
+                using (JsonDocument json = JsonDocument.Parse(message.Payload))
+                {
+                    JsonElement root = json.RootElement;
+                    Assert.AreEqual("Success", root.GetProperty("Outcome").GetString());
+                    Assert.AreEqual(validationFailures, root.GetProperty("ValidationFailures").GetString());
+                    Assert.AreEqual(fileCount, root.GetProperty("TotalFileCount").GetInt32());
+                    Assert.AreEqual(2, root.GetProperty("PlaceholderFileCount").GetInt32());
+                    Assert.AreEqual(3, root.GetProperty("ModifiedFileCount").GetInt32());
+                    Assert.AreEqual(folderCount, root.GetProperty("TotalFolderCount").GetInt32());
+                    Assert.AreEqual(5L - fileCount, root.GetProperty("FileCountDelta").GetInt64());
+                    Assert.AreEqual(2L - folderCount, root.GetProperty("FolderCountDelta").GetInt64());
+                    Assert.AreEqual(Math.Max(0, 5L - fileCount), root.GetProperty("FileCountExcess").GetInt64());
+                    Assert.AreEqual(Math.Max(0, 2L - folderCount), root.GetProperty("FolderCountExcess").GetInt64());
+                    Assert.AreEqual("IndexHeader", root.GetProperty("FileCountSource").GetString());
+                    Assert.AreEqual(summary.IsValid, root.GetProperty("IsValid").GetBoolean());
+                    Assert.IsTrue(root.GetProperty("CountsComplete").GetBoolean());
+                    Assert.AreNotEqual(Guid.Empty, Guid.Parse(root.GetProperty("CalculationId").GetString()));
+                }
+            }
+        }
+
+        [TestCase(HydrationSummaryPhase.Placeholders)]
+        [TestCase(HydrationSummaryPhase.ModifiedPaths)]
+        [TestCase(HydrationSummaryPhase.FolderCount)]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void FailureRetainsEarlierAndPartialCounts(HydrationSummaryPhase phase)
+        {
+            this.AddIndex(100);
+            using (JsonTracer tracer = new JsonTracer("test", "test", disableTelemetry: true))
+            {
+                RecordingListener telemetry = new RecordingListener(Keywords.Telemetry);
+                RecordingListener local = new RecordingListener(Keywords.Any);
+                tracer.AddEventListener(telemetry);
+                tracer.AddEventListener(local);
+                TestPathData paths = new TestPathData { FailurePhase = phase };
+                EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                    this.context.Enlistment, this.fileSystem, tracer,
+                    () => throw new IOException("mock:\\private\\folder {secret}"), paths);
+
+                Assert.IsFalse(summary.IsValid);
+                Assert.AreEqual(HydrationSummaryOutcome.Failed, summary.Diagnostics.Outcome);
+                Assert.AreEqual(100, summary.Diagnostics.TotalFileCount);
+                Assert.AreEqual(phase, summary.Diagnostics.Phase);
+                Assert.AreEqual(HydrationDataState.Complete, summary.Diagnostics.IndexState);
+                Assert.AreEqual(phase == HydrationSummaryPhase.Placeholders ? HydrationDataState.Partial : HydrationDataState.Complete, summary.Diagnostics.PlaceholderState);
+                Assert.AreEqual(phase == HydrationSummaryPhase.Placeholders ? HydrationDataState.NotStarted
+                    : phase == HydrationSummaryPhase.ModifiedPaths ? HydrationDataState.Partial : HydrationDataState.Complete, summary.Diagnostics.ModifiedPathsState);
+                Assert.AreEqual(phase == HydrationSummaryPhase.FolderCount ? HydrationDataState.Failed : HydrationDataState.NotStarted, summary.Diagnostics.FolderCountState);
+                Assert.IsFalse(summary.Diagnostics.CountsComplete);
+                Assert.AreEqual(2, summary.Diagnostics.PlaceholderFileCount);
+                Assert.IsNull(summary.Diagnostics.TotalFolderCount);
+                if (phase != HydrationSummaryPhase.Placeholders)
+                {
+                    Assert.AreEqual(3, summary.Diagnostics.ModifiedFileCount);
+                }
+
+                TraceEventMessage completion = telemetry.Events.Single(e => e.EventName == "HydrationSummaryDuration");
+                Assert.AreEqual(EventLevel.Warning, completion.Level);
+                string payload = completion.Payload;
+                Assert.That(payload, Does.Not.Contain("secret"));
+                Assert.That(payload, Does.Contain("System.IO.IOException"));
+                Assert.That(local.Events.Single(e => e.EventName == "Warning").Payload, Does.Contain("secret"));
+                Assert.AreEqual(1, telemetry.Events.Count);
+            }
+        }
+
+        [TestCase(HydrationDataState.Failed, true)]
+        [TestCase(HydrationDataState.Partial, false)]
+        public void IncompleteSourceDoesNotProduceUsableSummary(HydrationDataState state, bool empty)
+        {
+            this.AddIndex(100);
+            TestPathData paths = new TestPathData { ModifiedState = state, EmptyModifiedPaths = empty };
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, this.fileSystem, this.tracer, () => 20, paths);
+            Assert.AreEqual(empty ? (int?)null : 3, summary.Diagnostics.ModifiedFileCount);
+            Assert.AreEqual(empty ? (int?)null : 1, summary.Diagnostics.ModifiedFolderCount);
+            Assert.AreEqual(state, summary.Diagnostics.ModifiedPathsState);
+            Assert.IsFalse(summary.Diagnostics.CountsComplete);
+            Assert.AreEqual(HydrationSummaryOutcome.IncompleteData, summary.Diagnostics.Outcome);
+            Assert.IsFalse(summary.IsValid);
+            Assert.That(summary.ToMessage(), Does.StartWith("Error calculating hydration summary."));
+        }
+
+        [TestCase]
+        public void EmptySourceReportsCollectedZero()
+        {
+            this.AddIndex(100);
+            TestPathData paths = new TestPathData { EmptyModifiedPaths = true };
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, this.fileSystem, this.tracer, () => 20, paths);
+            Assert.AreEqual(0, summary.Diagnostics.ModifiedFileCount);
+            Assert.AreEqual(0, summary.Diagnostics.ModifiedFolderCount);
+            Assert.IsTrue(summary.Diagnostics.CountsComplete);
+            Assert.AreEqual(HydrationSummaryOutcome.Success, summary.Diagnostics.Outcome);
+        }
+
+        [TestCase]
+        public void EmptyCompleteSummaryDisplaysZeroRatherThanUnavailable()
+        {
+            this.AddIndex(0);
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, this.fileSystem, this.tracer, () => 0,
+                new TestPathData { EmptyPlaceholders = true, EmptyModifiedPaths = true });
+            Assert.IsTrue(summary.IsValid);
+            Assert.That(summary.ToMessage(), Does.Contain("files 0%; folders 0%"));
+        }
+
+        [TestCase(4, 1, "files 100% (counts exceed current total); folders 100% (counts exceed current total)")]
+        [TestCase(0, 20, "files n/a (no current denominator); folders 10%")]
+        [TestCase(100, 0, "files 5%; folders n/a (no current denominator)")]
+        public void CountDriftCollectsBothDenominatorsAndSharesTheWireDisplay(int files, int folders, string estimate)
+        {
+            this.AddIndex(files);
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, this.fileSystem, this.tracer, () => folders, new TestPathData());
+            Assert.IsFalse(summary.Diagnostics.EarlyExit);
+            Assert.IsTrue(summary.IsValid);
+            Assert.AreEqual(HydrationSummaryOutcome.Success, summary.Diagnostics.Outcome);
+            Assert.AreEqual(folders, summary.Diagnostics.TotalFolderCount);
+            Assert.IsNotNull(summary.Diagnostics.TreeCountMs);
+            Assert.AreEqual(HydrationDataState.Complete, summary.Diagnostics.FolderCountState);
+            Assert.AreEqual("Estimated hydration: " + estimate + ". Run 'gvfs health' at the repository root for details.", summary.ToMessage());
+            Assert.IsTrue(NamedPipeMessages.HydrationStatus.Response.TryParse(summary.ToResponse().ToBody(), out NamedPipeMessages.HydrationStatus.Response response));
+            Assert.AreEqual(summary.ToMessage(), response.ToDisplayMessage());
+            Assert.AreEqual(files, response.TotalFileCount);
+            Assert.AreEqual(folders, response.TotalFolderCount);
+            Assert.AreEqual(5, response.HydratedFileCount);
+            Assert.AreEqual(2, response.HydratedFolderCount);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void CancellationRetainsSuccessfulObservations()
+        {
+            this.AddIndex(100);
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                TestPathData paths = new TestPathData { AfterPlaceholders = cts.Cancel };
+                EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                    this.context.Enlistment, this.fileSystem, this.tracer, () => 20, paths, cts.Token);
+                Assert.AreEqual(HydrationSummaryOutcome.Cancelled, summary.Diagnostics.Outcome);
+                Assert.IsFalse(summary.IsValid);
+                Assert.IsTrue(summary.Diagnostics.CancellationRequested);
+                Assert.AreEqual(HydrationSummaryPhase.Placeholders, summary.Diagnostics.Phase);
+                Assert.AreEqual(HydrationDataState.Complete, summary.Diagnostics.PlaceholderState);
+                Assert.AreEqual(100, summary.Diagnostics.TotalFileCount);
+                Assert.AreEqual(2, summary.Diagnostics.PlaceholderFileCount);
+                Assert.IsNull(summary.Diagnostics.ModifiedFileCount);
+                Assert.AreEqual(HydrationDataState.NotStarted, summary.Diagnostics.ModifiedPathsState);
+                Assert.IsNull(summary.Error);
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void UnrelatedCancellationDoesNotChangeCircuitBreakerPolicy()
+        {
+            this.AddIndex(100);
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, this.fileSystem, this.tracer, () => throw new OperationCanceledException(), new TestPathData());
+            Assert.AreEqual(HydrationSummaryOutcome.Cancelled, summary.Diagnostics.Outcome);
+            Assert.IsFalse(summary.Diagnostics.CancellationRequested);
+            Assert.AreEqual(HydrationDataState.Cancelled, summary.Diagnostics.FolderCountState);
+            Assert.IsNull(summary.Error);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void MissingIndexRecordsFailedFirstPhaseAndUnavailableLaterCounts()
+        {
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, new MissingIndexFileSystem(), this.tracer, () => 20, new TestPathData());
+            Assert.AreEqual(HydrationSummaryOutcome.Failed, summary.Diagnostics.Outcome);
+            Assert.AreEqual(HydrationSummaryPhase.IndexRead, summary.Diagnostics.Phase);
+            Assert.AreEqual(HydrationDataState.Failed, summary.Diagnostics.IndexState);
+            Assert.AreEqual(HydrationDataState.NotStarted, summary.Diagnostics.PlaceholderState);
+            Assert.IsNull(summary.Diagnostics.TotalFileCount);
+            Assert.IsNull(summary.Diagnostics.PlaceholderFileCount);
+            Assert.IsNull(summary.Diagnostics.ModifiedFileCount);
+            Assert.IsNotNull(summary.Diagnostics.IndexReadMs);
+            Assert.IsNull(summary.Diagnostics.PlaceholderLoadMs);
+        }
+
+        [TestCase(true, "ShortIndex")]
+        [TestCase(false, "NegativeEntryCount")]
+        public void UnavailableIndexTotalIsIncompleteRatherThanArithmeticInvalidity(bool shortIndex, string reason)
+        {
+            if (shortIndex)
+            {
+                this.enlistmentDirectory.CreateFile(this.context.Enlistment.GitIndexPath, "short");
+            }
+            else
+            {
+                this.AddIndex(-1);
+            }
+
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, this.fileSystem, this.tracer, () => 20, new TestPathData());
+            Assert.AreEqual(HydrationSummaryOutcome.IncompleteData, summary.Diagnostics.Outcome);
+            Assert.AreEqual(reason, summary.Diagnostics.IndexReadReason);
+            Assert.AreEqual(HydrationDataState.Failed, summary.Diagnostics.IndexState);
+            Assert.IsNull(summary.Diagnostics.TotalFileCount);
+            Assert.IsNull(summary.Diagnostics.TotalFolderCount);
+            Assert.IsFalse(summary.IsValid);
+            Assert.AreEqual(HydrationValidationFailure.MissingCounts, summary.Diagnostics.GetValidationFailures());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void IndexDiagnosticsRecordHeaderWithoutLeakingItsBytes(bool validSignature)
+        {
+            this.AddIndex(100, validSignature);
+            HydrationSummaryDiagnostics diagnostics = new HydrationSummaryDiagnostics();
+            Assert.AreEqual(100, EnlistmentHydrationSummary.GetIndexFileCount(this.context.Enlistment, this.fileSystem, diagnostics));
+            Assert.AreEqual(12, diagnostics.IndexLength);
+            Assert.AreEqual(4, diagnostics.IndexVersion);
+            Assert.AreEqual(validSignature, diagnostics.IndexSignatureValid);
+            Assert.AreEqual("Success", diagnostics.IndexReadReason);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void InPhaseCancellationPreservesPartialModifiedCountsAndEmitsInformationalResult()
+        {
+            this.AddIndex(100);
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            using (JsonTracer tracer = new JsonTracer("test", "test", disableTelemetry: true))
+            {
+                RecordingListener listener = new RecordingListener(Keywords.Telemetry);
+                tracer.AddEventListener(listener);
+                TestPathData paths = new TestPathData
+                {
+                    DuringModifiedPaths = () => { cts.Cancel(); cts.Token.ThrowIfCancellationRequested(); },
+                };
+                EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                    this.context.Enlistment, this.fileSystem, tracer, () => 20, paths, cts.Token);
+                Assert.AreEqual(HydrationSummaryOutcome.Cancelled, summary.Diagnostics.Outcome);
+                Assert.AreEqual(HydrationDataState.Cancelled, summary.Diagnostics.ModifiedPathsState);
+                Assert.AreEqual(3, summary.Diagnostics.ModifiedFileCount);
+                Assert.AreEqual(HydrationSummaryPhase.ModifiedPaths, summary.Diagnostics.Phase);
+                TraceEventMessage message = listener.Events.Single(e => e.EventName == "HydrationSummaryDuration");
+                Assert.AreEqual(EventLevel.Informational, message.Level);
+                using (JsonDocument json = JsonDocument.Parse(message.Payload))
+                {
+                    Assert.AreEqual(JsonValueKind.Null, json.RootElement.GetProperty("TreeCountMs").ValueKind);
+                }
+            }
+        }
+
+        private sealed class MissingIndexFileSystem : GVFS.Common.FileSystem.PhysicalFileSystem
+        {
+            public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool flushesToDisk)
+            {
+                throw new FileNotFoundException("mock:\\missing\\index");
+            }
+        }
+
+        private void AddIndex(int count, bool validSignature = true)
+        {
+            byte[] bytes = new byte[12];
+            Encoding.ASCII.GetBytes("DIRC").CopyTo(bytes, 0);
+            if (!validSignature)
+            {
+                bytes[0] = 0xFF;
+            }
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(4, 4), 4);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(8, 4), count);
+            MockFile file = new MockFile(this.context.Enlistment.GitIndexPath, bytes);
+            this.enlistmentDirectory.FindDirectory(Path.Combine(this.gitParentPath, ".git")).Files.Add(file.FullName, file);
+        }
+
+        private sealed class TestPathData : EnlistmentPathData
+        {
+            public HydrationSummaryPhase FailurePhase { get; set; }
+            public HydrationDataState ModifiedState { get; set; } = HydrationDataState.Complete;
+            public bool EmptyModifiedPaths { get; set; }
+            public bool EmptyPlaceholders { get; set; }
+            public Action AfterPlaceholders { get; set; }
+            public Action DuringModifiedPaths { get; set; }
+
+            public override void LoadPlaceholdersFromDatabase(GVFSEnlistment enlistment, HydrationSummaryDiagnostics diagnostics = null)
+            {
+                if (!this.EmptyPlaceholders)
+                {
+                    this.PlaceholderFilePaths.AddRange(new[] { "a", "b" });
+                    this.PlaceholderFolderPaths.Add("folder");
+                }
+                if (this.FailurePhase == HydrationSummaryPhase.Placeholders)
+                {
+                    throw new IOException("mock:\\private\\placeholder {secret}");
+                }
+
+                this.AfterPlaceholders?.Invoke();
+            }
+
+            public override void LoadModifiedPaths(GVFSEnlistment enlistment, ITracer tracer, HydrationSummaryDiagnostics diagnostics = null)
+            {
+                if (!this.EmptyModifiedPaths)
+                {
+                    this.ModifiedFilePaths.AddRange(new[] { "c", "d", "e" });
+                    this.ModifiedFolderPaths.Add("other");
+                }
+
+                diagnostics.ModifiedPathsState = this.ModifiedState;
+                this.DuringModifiedPaths?.Invoke();
+                if (this.FailurePhase == HydrationSummaryPhase.ModifiedPaths)
+                {
+                    throw new IOException("mock:\\private\\modified {secret}");
+                }
+            }
+        }
+
+        private sealed class RecordingListener : EventListener
+        {
+            public RecordingListener(Keywords keywords) : base(EventLevel.Verbose, keywords, null)
+            {
+            }
+
+            public List<TraceEventMessage> Events { get; } = new List<TraceEventMessage>();
+
+            protected override void RecordMessageInternal(TraceEventMessage message)
+            {
+                this.Events.Add(message);
+            }
         }
     }
 }

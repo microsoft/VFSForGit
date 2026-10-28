@@ -13,6 +13,7 @@
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
     <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
     <ProjectReference Include="..\GVFS\GVFS.csproj" />
+    <ProjectReference Include="..\GVFS.Hooks\GVFS.Hooks.csproj" Aliases="Hooks" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
