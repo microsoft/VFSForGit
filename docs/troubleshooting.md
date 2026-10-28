@@ -124,6 +124,18 @@ Commands retain their explicit retry and header-timeout overrides.
 
 Only the body-read setting uses zero to disable its deadline.
 
+The retry configuration also applies to the network steps within `gvfs clone`.
+Each request uses the existing retry policy. Clone does not add a second retry loop.
+
+If clone completes but synchronous prefetch fails, `gvfs clone` returns exit code 12.
+The enlistment remains available. A requested mount failure takes precedence and returns its own failure code.
+
+From the enlistment directory, run `gvfs prefetch --commits` to retry only prefetch.
+This command retains completed packs. Do not delete the enlistment or repeat clone for this result.
+
+The background-prefetch path still returns success after it starts prefetch.
+That result does not mean that background prefetch completed.
+
 Local GVFS logs contain `NetworkBodyProgress` reports that start 30 seconds after
 the first body read. They stop at end-of-stream, timeout, cancellation, a read
 failure, or response closure. These reports also reach the configured telemetry pipe.
@@ -160,6 +172,11 @@ If `ReadPending` is true and bytes do not increase, a transport read remains out
 This wait also includes managed scheduling delay. It does not prove that the cache server or network caused the delay.
 When `ReadPending` is false, a pause occurs in the consumer rather than in a network read.
 Response closure alone does not prove that the client consumed the complete body.
+
+Response-body diagnostics are best-effort. An unexpected diagnostic failure disables further reports for that response, but does not stop the transfer.
+The client attempts one warning through the tracer.
+If the tracer fails, the client attempts a fixed warning through standard error.
+The read deadline, cancellation, and response cleanup remain active.
 
 ### TRY THIS FIRST: `gvfs repair`
 
