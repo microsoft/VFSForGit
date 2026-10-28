@@ -70,6 +70,7 @@ namespace GVFS.Common.Git
                     EventMetadata metadata = CreateEventMetadata(eArgs.Error);
                     metadata.Add("Operation", "DownloadAndSaveObjects");
                     metadata.Add("WillRetry", eArgs.WillRetry);
+                    eArgs.AddTelemetryMetadata(metadata, "DownloadAndSaveObjects");
 
                     if (eArgs.WillRetry)
                     {

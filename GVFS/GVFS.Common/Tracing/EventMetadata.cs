@@ -14,5 +14,17 @@ namespace GVFS.Common.Tracing
             : base(metadata)
         {
         }
+
+        public TelemetryAggregation TelemetryAggregation { get; private set; }
+
+        public void SetTelemetryAggregation(string operation, TelemetryFailureCategory failureCategory, string result, long count = 1)
+        {
+            this.TelemetryAggregation = new TelemetryAggregation(operation, failureCategory, result, count);
+            this["TelemetrySchemaVersion"] = GVFS.Common.Tracing.TelemetryAggregation.SchemaVersion;
+            this["TelemetryAggregation"] = "Sample";
+            this["Operation"] = operation;
+            this["FailureCategory"] = failureCategory.ToString();
+            this["AggregationResult"] = result;
+        }
     }
 }

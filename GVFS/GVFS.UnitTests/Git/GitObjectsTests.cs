@@ -31,6 +31,37 @@ namespace GVFS.UnitTests.Git
         private readonly Dictionary<string, MemoryStream> pathsToData = new Dictionary<string, MemoryStream>();
 
         [TestCase]
+        public void CommitDownloadCustomHandlerMarksLocalRejections()
+        {
+            RetryCircuitBreaker.Reset();
+            try
+            {
+                MockTracer tracer = new MockTracer();
+                MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+                using (GitObjectsHttpRequestor requestor = new GitObjectsHttpRequestor(
+                    tracer,
+                    enlistment,
+                    new CacheServerInfo("mock://cache", "Synthetic", false),
+                    new RetryConfig()))
+                {
+                    GitObjects objects = new GVFSGitObjects(
+                        new GVFSContext(tracer, new MockFileSystemWithCallbacks(), null, enlistment),
+                        requestor);
+                    RetryCircuitBreaker.Configure(1, 30000);
+                    RetryCircuitBreaker.RecordFailure();
+                    Assert.That(objects.TryDownloadCommit(RealSha), Is.False);
+                    Assert.That(tracer.RelatedErrorEvents.Count, Is.EqualTo(1));
+                    Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("\"FailureCategory\":\"CircuitBreakerOpen\""));
+                    Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("\"Operation\":\"DownloadAndSaveObjects\""));
+                }
+            }
+            finally
+            {
+                RetryCircuitBreaker.Reset();
+            }
+        }
+
+        [TestCase]
         public void WriteLooseObject_DetectsDataNotCompressed()
         {
             ITracer tracer = new MockTracer();

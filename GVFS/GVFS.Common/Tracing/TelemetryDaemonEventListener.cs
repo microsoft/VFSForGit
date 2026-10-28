@@ -13,15 +13,17 @@ namespace GVFS.Common.Tracing
         private readonly string mountId;
         private readonly string vfsVersion;
         private readonly string vfsArchitecture;
+        private readonly TelemetryAggregator aggregator;
 
         private QueuedPipeStringWriter pipeWriter;
 
-        private TelemetryDaemonEventListener(
+        internal TelemetryDaemonEventListener(
             string providerName,
             string enlistmentId,
             string mountId,
             string pipeName,
-            IEventListenerEventSink eventSink)
+            IEventListenerEventSink eventSink,
+            TimeProvider timeProvider = null)
             : base(EventLevel.Verbose, Keywords.Telemetry, eventSink)
         {
             this.providerName = providerName;
@@ -29,6 +31,7 @@ namespace GVFS.Common.Tracing
             this.mountId = mountId;
             this.vfsVersion = ProcessHelper.GetCurrentProcessVersion();
             this.vfsArchitecture = ProcessHelper.GetCurrentProcessArchitecture();
+            this.aggregator = new TelemetryAggregator(timeProvider);
 
             this.pipeWriter = new QueuedPipeStringWriter(
                 () => new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous),
@@ -69,6 +72,7 @@ namespace GVFS.Common.Tracing
         {
             if (this.pipeWriter != null)
             {
+                this.aggregator.Flush(this.SendMessage);
                 this.pipeWriter.Stop();
                 this.pipeWriter.Dispose();
                 this.pipeWriter = null;
@@ -94,6 +98,11 @@ namespace GVFS.Common.Tracing
         }
 
         protected override void RecordMessageInternal(TraceEventMessage message)
+        {
+            this.aggregator.Record(message, this.SendMessage);
+        }
+
+        private void SendMessage(TraceEventMessage message)
         {
             string pipeMessage = this.CreatePipeMessage(message);
 
