@@ -25,6 +25,12 @@ namespace GVFS.Platform.Windows
         private const string PrjFltAutoLoggerKey = "SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\Microsoft-Windows-ProjFS-Filter-Log";
         private const string PrjFltAutoLoggerStartValue = "Start";
 
+        // ERROR_SERVICE_DISABLED - returned by StartService when the service Start type is Disabled.
+        private const int ServiceDisabledWin32Error = 1058;
+
+        // ERROR_SERVICE_DOES_NOT_EXIST - returned when the service is not installed.
+        private const int ServiceDoesNotExistWin32Error = 1060;
+
         private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
 
         // From "Autologger" section of prjflt.inf
@@ -44,6 +50,15 @@ namespace GVFS.Platform.Windows
             NotInbox = 2,
             Enabled = 3,
             Disabled = 4,
+        }
+
+        // Stable values: recorded in telemetry, so do not rename them.
+        public enum ServiceStartFailureReason
+        {
+            None,
+            ServiceDisabled,
+            ServiceNotFound,
+            StartFailed,
         }
 
         public bool EnumerationExpandsDirectories { get; } = false;
@@ -176,31 +191,90 @@ namespace GVFS.Platform.Windows
             return isRunning;
         }
 
-        public static bool TryStartService(ITracer tracer)
+        public static bool TryStartService(ITracer tracer, out ServiceStartFailureReason failureReason, out string error)
         {
+            failureReason = ServiceStartFailureReason.None;
+            error = null;
             try
             {
                 ServiceController controller = new ServiceController(DriverName);
+
                 if (!controller.Status.Equals(ServiceControllerStatus.Running))
                 {
+                    // A disabled service cannot be started. Return a specific, actionable message
+                    // naming the driver and the re-enable command.
+                    if (TryGetDisabledStartTypeError(controller.StartType, out error))
+                    {
+                        failureReason = ServiceStartFailureReason.ServiceDisabled;
+                        tracer.RelatedError($"{nameof(TryStartService)}: {error}");
+                        return false;
+                    }
+
                     controller.Start();
                 }
 
                 return true;
             }
-            catch (InvalidOperationException e)
+            catch (Exception e) when (e is InvalidOperationException || e is Win32Exception)
             {
+                failureReason = GetStartFailureReason(e);
+                error = GetStartFailureMessage(failureReason);
                 EventMetadata metadata = CreateEventMetadata(e);
-                tracer.RelatedError(metadata, $"{nameof(TryStartService)}: InvalidOperationException: {ServiceName} Service was not found");
-            }
-            catch (Win32Exception e)
-            {
-                EventMetadata metadata = CreateEventMetadata(e);
-                tracer.RelatedError(metadata, $"{nameof(TryStartService)}: Win32Exception while trying to start prjflt");
+                metadata.Add(nameof(failureReason), failureReason.ToString());
+                tracer.RelatedError(metadata, $"{nameof(TryStartService)}: {error}");
             }
 
             return false;
         }
+
+        // Returns true with an actionable message when a service start type is Disabled; otherwise
+        // returns false and a null message.
+        internal static bool TryGetDisabledStartTypeError(ServiceStartMode startType, out string error)
+        {
+            if (startType == ServiceStartMode.Disabled)
+            {
+                error = DisabledServiceErrorMessage;
+                return true;
+            }
+
+            error = null;
+            return false;
+        }
+
+        // ServiceController reports a failed native service call as an InvalidOperationException whose
+        // InnerException is the Win32Exception, so unwrap before reading the native error code.
+        internal static ServiceStartFailureReason GetStartFailureReason(Exception exception)
+        {
+            Win32Exception win32Exception = exception as Win32Exception ?? exception.InnerException as Win32Exception;
+
+            switch (win32Exception?.NativeErrorCode)
+            {
+                case ServiceDisabledWin32Error:
+                    return ServiceStartFailureReason.ServiceDisabled;
+                case ServiceDoesNotExistWin32Error:
+                    return ServiceStartFailureReason.ServiceNotFound;
+                default:
+                    return ServiceStartFailureReason.StartFailed;
+            }
+        }
+
+        internal static string GetStartFailureMessage(ServiceStartFailureReason failureReason)
+        {
+            switch (failureReason)
+            {
+                case ServiceStartFailureReason.ServiceDisabled:
+                    return DisabledServiceErrorMessage;
+                case ServiceStartFailureReason.ServiceNotFound:
+                    return $"The {ServiceName} service was not found.";
+                default:
+                    return $"Failed to start the {ServiceName} service.";
+            }
+        }
+
+        private static string DisabledServiceErrorMessage =>
+            $"The {ServiceName} driver service is disabled and cannot be started. "
+            + "A security policy, anti-virus product, or another program may have disabled it. "
+            + $"To re-enable it, run this command from an elevated command prompt, then try again: sc.exe config {DriverName} start= auto";
 
         public static bool IsAutoLoggerEnabled(ITracer tracer)
         {
