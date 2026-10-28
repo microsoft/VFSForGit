@@ -177,6 +177,43 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        public void MountReportsUpgradeExceptionWithoutStackTrace()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            string originalMetadata = File.ReadAllText(metadataPath);
+
+            try
+            {
+                File.WriteAllText(metadataPath, "\r\n");
+
+                string output = this.MountShouldFail(
+                    GVFSGenericError,
+                    "Failed to upgrade repo disk layout.",
+                    additionalExpectedErrorMessage: GVFSLogMessage);
+
+                output.ShouldContain("Index was outside the bounds of the array.");
+                output.ShouldNotContain(
+                    ignoreCase: false,
+                    "System.IndexOutOfRangeException",
+                    "FileBasedCollectionException",
+                    "TryLoadFromDisk",
+                    "TryRunAllUpgrades");
+
+                this.LatestGVFSLogShouldContain("System.IndexOutOfRangeException");
+                this.LatestGVFSLogShouldContain("TryLoadFromDisk");
+                this.LatestGVFSLogShouldContain("TryRunAllUpgrades");
+            }
+            finally
+            {
+                File.WriteAllText(metadataPath, originalMetadata);
+            }
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
         public void MountFailsWhenNoLocalCacheRootInRepoMetadata()
         {
             this.Enlistment.UnmountGVFS();
@@ -394,7 +431,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.MountGVFS();
         }
 
-        private void MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null, string additionalExpectedErrorMessage = null)
+        private string MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null, string additionalExpectedErrorMessage = null)
         {
             string enlistmentRoot = this.Enlistment.EnlistmentRoot;
 
@@ -420,6 +457,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     combinedOutput.ShouldContain(additionalExpectedErrorMessage);
                 }
             }
+
+            return result.Output + "\n" + result.Errors;
         }
 
         private void MountShouldFail(string expectedErrorMessage, string mountWorkingDirectory = null)

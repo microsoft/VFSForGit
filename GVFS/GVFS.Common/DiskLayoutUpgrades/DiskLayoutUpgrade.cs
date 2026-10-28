@@ -59,7 +59,7 @@ namespace GVFS.DiskLayoutUpgrades
                 {
                     StartLogFile(enlistmentRoot, tracer);
                     tracer.RelatedError(e.ToString());
-                    error = e.ToString();
+                    error = e.Message;
                     returnCode = ReturnCode.GenericError;
                     return false;
                 }
