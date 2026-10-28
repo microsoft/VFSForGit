@@ -793,14 +793,7 @@ from a parent of the folders list.
                 enlistment.DotGitRoot,
                 out string[] worktreePaths,
                 out string error,
-                out Exception exception,
-                out List<string> skippedRegistrationErrors);
-            foreach (string skippedRegistrationError in skippedRegistrationErrors)
-            {
-                tracer.RelatedWarning(
-                    new EventMetadata { { "Error", skippedRegistrationError } },
-                    "Skipped unreadable worktree registration file.");
-            }
+                out Exception exception);
 
             if (!readSucceeded)
             {

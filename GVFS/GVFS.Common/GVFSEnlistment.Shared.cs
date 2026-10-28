@@ -214,21 +214,19 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Reads registrations, skipping missing, empty, or unreadable files as Git does.
-        /// Nonempty malformed files and directory enumeration failures are reported to the caller.
+        /// Reads registrations for destructive-operation guards.
+        /// Missing or empty reverse pointers are ignored only when no other metadata remains.
         /// </summary>
         public static bool TryGetKnownWorktreePaths(
             string gitDir,
             out string[] paths,
             out string error,
-            out Exception exception,
-            out List<string> skippedRegistrationErrors)
+            out Exception exception)
         {
             ArgumentNullException.ThrowIfNull(gitDir);
             paths = null;
             error = null;
             exception = null;
-            skippedRegistrationErrors = new List<string>();
             string pathToRead = gitDir;
             try
             {
@@ -261,32 +259,36 @@ namespace GVFS.Common
                 foreach (string entry in Directory.GetDirectories(worktreesDir))
                 {
                     pathToRead = Path.Combine(entry, "gitdir");
-                    string gitdirContent;
+                    string gitdirContent = string.Empty;
                     try
                     {
                         using (FileStream stream = File.OpenRead(pathToRead))
                         {
-                            if (stream.Length == 0)
-                            {
-                                continue;
-                            }
-
                             using (StreamReader reader = new StreamReader(stream))
                             {
-                                gitdirContent = reader.ReadToEnd().Trim().Replace('/', Path.DirectorySeparatorChar);
+                                gitdirContent = reader.ReadToEnd();
                             }
                         }
                     }
                     catch (FileNotFoundException)
                     {
-                        continue;
                     }
-                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+
+                    if (gitdirContent.Length == 0)
                     {
-                        skippedRegistrationErrors.Add($"Failed to read '{pathToRead}': {ex}");
+                        foreach (string metadataPath in Directory.GetFileSystemEntries(entry))
+                        {
+                            if (!string.Equals(Path.GetFileName(metadataPath), "gitdir", StringComparison.Ordinal))
+                            {
+                                error = $"Cannot verify worktree registration at '{pathToRead}': the pointer is missing or empty, but metadata remains at '{metadataPath}'.";
+                                return false;
+                            }
+                        }
+
                         continue;
                     }
 
+                    gitdirContent = gitdirContent.Trim().Replace('/', Path.DirectorySeparatorChar);
                     if (string.IsNullOrEmpty(gitdirContent) ||
                         !string.Equals(Path.GetFileName(gitdirContent), GVFSConstants.DotGit.Root, StringComparison.Ordinal))
                     {

@@ -469,6 +469,73 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase("missing")]
+        [TestCase("empty")]
+        [TestCase("unreadable")]
+        public void FullDehydrateRejectsUsableWorktreeOmittedByGit(string pointerState)
+        {
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 8);
+            string worktreePath = Path.Combine(this.Enlistment.EnlistmentRoot, $"hidden-guard-{suffix}");
+            string branchName = $"hidden-guard-{suffix}";
+            string reversePointer = null;
+            byte[] originalPointer = null;
+            FileStream lockedPointer = null;
+            try
+            {
+                ProcessResult addResult = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot, $"worktree add -b {branchName} \"{worktreePath}\"");
+                addResult.ExitCode.ShouldEqual(0, addResult.Errors);
+                this.AssertWorktreeMounted(worktreePath, "worktree with incomplete reverse pointer");
+                string primaryIndex = this.GetGitIndexPath(this.Enlistment.RepoRoot);
+                string worktreeIndex = this.GetGitIndexPath(worktreePath);
+                reversePointer = Path.Combine(Path.GetDirectoryName(worktreeIndex), "gitdir");
+                originalPointer = File.ReadAllBytes(reversePointer);
+                if (pointerState == "missing")
+                {
+                    File.Delete(reversePointer);
+                }
+                else if (pointerState == "empty")
+                {
+                    File.WriteAllBytes(reversePointer, Array.Empty<byte>());
+                }
+                else
+                {
+                    lockedPointer = new FileStream(reversePointer, FileMode.Open, FileAccess.Read, FileShare.None);
+                }
+
+                ProcessResult list = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "worktree list --porcelain");
+                list.ExitCode.ShouldEqual(0, list.Errors);
+                list.Output.Contains(worktreePath.Replace('\\', '/')).ShouldBeFalse("Git must omit the worktree in this regression scenario.");
+                ProcessResult status = GitHelpers.InvokeGitAgainstGVFSRepo(worktreePath, "status --porcelain=v1");
+                status.ExitCode.ShouldEqual(0, status.Errors);
+
+                byte[] primaryIndexBefore = File.ReadAllBytes(primaryIndex);
+                byte[] worktreeIndexBefore = File.ReadAllBytes(worktreeIndex);
+                ProcessResult result = ProcessHelper.Run(
+                    GVFSTestConfig.PathToGVFS,
+                    $"dehydrate \"{this.Enlistment.EnlistmentRoot}\" --full --confirm {TestConstants.InternalUseOnlyFlag} " +
+                    GVFSHelpers.GetInternalParameter(serviceName: this.Enlistment.ServiceName),
+                    workingDirectory: this.Enlistment.EnlistmentRoot,
+                    timeoutMs: 120000);
+                result.ExitCode.ShouldEqual(3, result.Output + result.Errors);
+                result.Output.ShouldContain("Full dehydrate is blocked.");
+                result.Output.ShouldContain(reversePointer);
+                CollectionAssert.AreEqual(primaryIndexBefore, File.ReadAllBytes(primaryIndex));
+                CollectionAssert.AreEqual(worktreeIndexBefore, File.ReadAllBytes(worktreeIndex));
+                this.AssertWorktreeMounted(worktreePath, "worktree after blocked full dehydrate");
+            }
+            finally
+            {
+                lockedPointer?.Dispose();
+                if (originalPointer != null)
+                {
+                    File.WriteAllBytes(reversePointer, originalPointer);
+                }
+
+                this.ForceCleanupWorktree(worktreePath, branchName);
+            }
+        }
+
         [TestCase]
         public void WorktreeDehydrateReportsBackupFailure()
         {

@@ -250,7 +250,7 @@ namespace GVFS.UnitTests.CommandLine
         }
 
         [TestCase]
-        public void FullDehydrateIgnoresUnreadableRegistration()
+        public void FullDehydrateRejectsUnreadableRegistration()
         {
             GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
             string worktreeGitDir = Path.Combine(enlistment.DotGitRoot, "worktrees", "locked");
@@ -263,15 +263,15 @@ namespace GVFS.UnitTests.CommandLine
             using (MockTracer tracer = new MockTracer())
             {
                 DehydrateVerb verb = new DehydrateVerb { Full = true, Output = output };
-                Assert.DoesNotThrow(() => verb.ValidateFullDehydrate(tracer, enlistment));
-                output.ToString().Length.ShouldEqual(0);
-                tracer.RelatedErrorEvents.Count.ShouldEqual(0);
-                tracer.RelatedWarningEvents.Count.ShouldEqual(1);
-                using (JsonDocument metadata = JsonDocument.Parse(tracer.RelatedWarningEvents[0]))
+                Assert.Throws<GVFSVerb.VerbAbortedException>(() => verb.ValidateFullDehydrate(tracer, enlistment));
+                output.ToString().ShouldContain("Full dehydrate is blocked.");
+                output.ToString().ShouldContain(gitdirFile);
+                tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+                tracer.RelatedWarningEvents.Count.ShouldEqual(0);
+                using (JsonDocument metadata = JsonDocument.Parse(tracer.RelatedErrorEvents[0]))
                 {
-                    metadata.RootElement.GetProperty("Error").GetString().ShouldContain(gitdirFile);
-                    metadata.RootElement.GetProperty("Error").GetString().ShouldContain("System.IO.IOException");
-                    metadata.RootElement.GetProperty("Error").GetString().ShouldContain("TryGetKnownWorktreePaths");
+                    metadata.RootElement.GetProperty("Exception").GetString().ShouldContain("System.IO.IOException");
+                    metadata.RootElement.GetProperty("Exception").GetString().ShouldContain("TryGetKnownWorktreePaths");
                 }
 
                 output.ToString().Contains("System.IO.IOException").ShouldBeFalse();
@@ -350,7 +350,7 @@ namespace GVFS.UnitTests.CommandLine
         }
 
         [TestCase]
-        public void FullDehydrateStillRejectsVisibleWorktreeWhenAnotherEntryIsUnreadable()
+        public void FullDehydrateRejectsUnverifiableStateWhenAnotherWorktreeIsReadable()
         {
             GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
             string validDir = Path.Combine(enlistment.DotGitRoot, "worktrees", "valid");
@@ -367,9 +367,46 @@ namespace GVFS.UnitTests.CommandLine
             {
                 DehydrateVerb verb = new DehydrateVerb { Full = true, Output = output };
                 Assert.Throws<GVFSVerb.VerbAbortedException>(() => verb.ValidateFullDehydrate(tracer, enlistment));
-                output.ToString().ShouldContain("not supported while linked worktrees exist.");
-                output.ToString().ShouldContain(worktreePath);
-                tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+                output.ToString().ShouldContain("Full dehydrate is blocked.");
+                output.ToString().ShouldContain(unreadableFile);
+                tracer.RelatedWarningEvents.Count.ShouldEqual(0);
+                tracer.RelatedErrorEvents.Count.ShouldEqual(1);
+            }
+        }
+
+        [TestCase(false, "HEAD")]
+        [TestCase(true, "HEAD")]
+        [TestCase(false, "commondir")]
+        [TestCase(true, "commondir")]
+        [TestCase(false, ".gvfs")]
+        [TestCase(true, ".gvfs")]
+        public void FullDehydrateRejectsMissingOrEmptyPointerWithRemainingMetadata(bool emptyPointer, string metadataName)
+        {
+            GVFSEnlistment enlistment = this.CreateEnlistment(isWorktree: false);
+            string entry = Path.Combine(enlistment.DotGitRoot, "worktrees", "incomplete");
+            Directory.CreateDirectory(entry);
+            if (emptyPointer)
+            {
+                File.WriteAllBytes(Path.Combine(entry, "gitdir"), Array.Empty<byte>());
+            }
+
+            string metadataPath = Path.Combine(entry, metadataName);
+            if (metadataName == ".gvfs")
+            {
+                Directory.CreateDirectory(metadataPath);
+            }
+            else
+            {
+                File.WriteAllText(metadataPath, "remaining metadata");
+            }
+
+            using (StringWriter output = new StringWriter())
+            using (MockTracer tracer = new MockTracer())
+            {
+                DehydrateVerb verb = new DehydrateVerb { Full = true, Output = output };
+                Assert.Throws<GVFSVerb.VerbAbortedException>(() => verb.ValidateFullDehydrate(tracer, enlistment));
+                output.ToString().ShouldContain("Full dehydrate is blocked.");
+                output.ToString().ShouldContain(metadataPath);
                 tracer.RelatedErrorEvents.Count.ShouldEqual(1);
             }
         }
