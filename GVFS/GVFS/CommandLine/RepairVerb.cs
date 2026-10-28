@@ -92,9 +92,10 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
             }
 
             string error;
-            if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer: null, enlistmentRoot: enlistment.PrimaryEnlistmentRoot, error: out error))
+            ReturnCode returnCode;
+            if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer: null, enlistmentRoot: enlistment.PrimaryEnlistmentRoot, error: out error, returnCode: out returnCode))
             {
-                this.ReportErrorAndExit(error);
+                this.ReportErrorAndExit(tracer: null, exitCode: returnCode, error: error);
             }
 
             if (!ConsoleHelper.ShowStatusWhileRunning(
