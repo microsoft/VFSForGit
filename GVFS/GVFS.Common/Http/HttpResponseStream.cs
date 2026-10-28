@@ -11,7 +11,6 @@ namespace GVFS.Common.Http
 {
     internal sealed class HttpResponseStream : Stream
     {
-        private const int FatalErrorExitCode = 1;
         internal const int DefaultProgressIntervalSeconds = 30;
         private const string ProgressEventName = "NetworkBodyProgress";
         private const string TimeoutEventName = "NetworkBodyReadTimeout";
@@ -37,6 +36,7 @@ namespace GVFS.Common.Http
         private double _lastProgressMilliseconds;
         private bool _reportedProgress;
         private int _reportingProgress;
+        private int _reportingDisabled;
         private volatile bool _disposed;
         private TransferOutcome _outcome;
 
@@ -123,6 +123,7 @@ namespace GVFS.Common.Http
                 cancellationToken,
                 this._requestCancellationToken))
             {
+                Exception? reportingError = null;
                 lock (this._gate)
                 {
                     ObjectDisposedException.ThrowIf(this._disposed, this);
@@ -138,10 +139,25 @@ namespace GVFS.Common.Http
 
                     this._pendingRead = readCancellation;
                     this._readStarted = Stopwatch.GetTimestamp();
-                    if (this._tracer != null && this._progressTimer == null && this._outcome == TransferOutcome.InProgress)
+                    if (this._tracer != null &&
+                        this._progressTimer == null &&
+                        this._outcome == TransferOutcome.InProgress &&
+                        Volatile.Read(ref this._reportingDisabled) == 0)
                     {
-                        this._progressTimer = new Timer(this.ReportProgress, null, this._progressInterval, this._progressInterval);
+                        try
+                        {
+                            this._progressTimer = new Timer(this.ReportProgress, null, this._progressInterval, this._progressInterval);
+                        }
+                        catch (Exception e)
+                        {
+                            reportingError = e;
+                        }
                     }
+                }
+
+                if (reportingError != null)
+                {
+                    this.DisableReporting(reportingError);
                 }
 
                 TransferOutcome outcome = TransferOutcome.InProgress;
@@ -204,11 +220,11 @@ namespace GVFS.Common.Http
                         this._pendingRead = null;
                         if (outcome != TransferOutcome.InProgress)
                         {
-                            finalReport = this.Finish(outcome, readError);
+                            finalReport = this.Finish(outcome, out reportingError, readError);
                         }
                     }
 
-                    this.Trace(finalReport, outcome);
+                    this.Trace(finalReport, outcome, reportingError);
                 }
             }
         }
@@ -226,6 +242,7 @@ namespace GVFS.Common.Http
                 if (disposing)
                 {
                     EventMetadata? finalReport = null;
+                    Exception? reportingError = null;
                     bool disposeInner = false;
                     try
                     {
@@ -238,7 +255,7 @@ namespace GVFS.Common.Http
 
                             disposeInner = true;
                             this._disposed = true;
-                            finalReport = this.Finish(TransferOutcome.Closed);
+                            finalReport = this.Finish(TransferOutcome.Closed, out reportingError);
                             Timer? progressTimer = this._progressTimer;
                             this._progressTimer = null;
                             try
@@ -261,7 +278,7 @@ namespace GVFS.Common.Http
                             }
                             finally
                             {
-                                this.Trace(finalReport, TransferOutcome.Closed);
+                                this.Trace(finalReport, TransferOutcome.Closed, reportingError);
                             }
                         }
                     }
@@ -275,7 +292,8 @@ namespace GVFS.Common.Http
 
         private void ReportProgress(object? state)
         {
-            if (Interlocked.CompareExchange(ref this._reportingProgress, 1, 0) != 0)
+            if (Volatile.Read(ref this._reportingDisabled) != 0 ||
+                Interlocked.CompareExchange(ref this._reportingProgress, 1, 0) != 0)
             {
                 return;
             }
@@ -285,7 +303,9 @@ namespace GVFS.Common.Http
                 EventMetadata? report = null;
                 lock (this._gate)
                 {
-                    if (!this._disposed && this._outcome == TransferOutcome.InProgress)
+                    if (!this._disposed &&
+                        this._outcome == TransferOutcome.InProgress &&
+                        Volatile.Read(ref this._reportingDisabled) == 0)
                     {
                         this._reportedProgress = true;
                         report = this.CreateReport();
@@ -296,16 +316,7 @@ namespace GVFS.Common.Http
             }
             catch (Exception e)
             {
-                try
-                {
-                    this._tracer?.RelatedError(
-                        new EventMetadata { { "Exception", e.ToString() } },
-                        "The response body progress report failed.");
-                }
-                finally
-                {
-                    Environment.Exit(FatalErrorExitCode);
-                }
+                this.DisableReporting(e);
             }
             finally
             {
@@ -313,31 +324,45 @@ namespace GVFS.Common.Http
             }
         }
 
-        private EventMetadata? Finish(TransferOutcome outcome, Exception? readError = null)
+        private EventMetadata? Finish(TransferOutcome outcome, out Exception? reportingError, Exception? readError = null)
         {
+            reportingError = null;
             if (this._outcome != TransferOutcome.InProgress)
             {
                 return null;
             }
 
             this._outcome = outcome;
-            this._progressTimer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-            if (this._reportedProgress ||
-                this._elapsed.Elapsed >= this._progressInterval ||
-                outcome == TransferOutcome.TimedOut ||
-                outcome == TransferOutcome.ReadError ||
-                outcome == TransferOutcome.Canceled ||
-                (outcome == TransferOutcome.Closed && this._pendingRead != null))
+            try
             {
-                return this.CreateReport(readError);
+                this._progressTimer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                if (Volatile.Read(ref this._reportingDisabled) == 0 &&
+                    (this._reportedProgress ||
+                     this._elapsed.Elapsed >= this._progressInterval ||
+                     outcome == TransferOutcome.TimedOut ||
+                     outcome == TransferOutcome.ReadError ||
+                     outcome == TransferOutcome.Canceled ||
+                     (outcome == TransferOutcome.Closed && this._pendingRead != null)))
+                {
+                    return this.CreateReport(readError);
+                }
+            }
+            catch (Exception e)
+            {
+                reportingError = e;
             }
 
             return null;
         }
 
-        private void Trace(EventMetadata? report, TransferOutcome outcome)
+        private void Trace(EventMetadata? report, TransferOutcome outcome, Exception? reportingError = null)
         {
-            if (report == null || this._tracer == null)
+            if (reportingError != null)
+            {
+                this.DisableReporting(reportingError);
+            }
+
+            if (report == null || this._tracer == null || Volatile.Read(ref this._reportingDisabled) != 0)
             {
                 return;
             }
@@ -358,6 +383,46 @@ namespace GVFS.Common.Http
             {
                 // Maintenance responses can outlive the root tracer during unmount.
                 return;
+            }
+            catch (Exception e)
+            {
+                this.DisableReporting(e);
+            }
+        }
+
+        private void DisableReporting(Exception error)
+        {
+            if (Interlocked.Exchange(ref this._reportingDisabled, 1) != 0)
+            {
+                return;
+            }
+
+            Timer? timer;
+            lock (this._gate)
+            {
+                timer = this._progressTimer;
+                this._progressTimer = null;
+            }
+
+            timer?.Dispose();
+            const string Warning = "Response body diagnostics failed. Further reports for this response are disabled.";
+            try
+            {
+                this._tracer?.RelatedWarning(
+                    new EventMetadata { { "ResponseId", this.ResponseId }, { "Exception", error.ToString() } },
+                    Warning,
+                    Keywords.Network | Keywords.Telemetry);
+            }
+            catch (Exception)
+            {
+                try
+                {
+                    Console.Error.WriteLine(Warning);
+                }
+                catch (Exception)
+                {
+                    // A failed diagnostic sink must not interrupt the transfer.
+                }
             }
         }
 

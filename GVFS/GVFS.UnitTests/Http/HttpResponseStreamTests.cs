@@ -6,6 +6,7 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
+using Moq;
 using NUnit.Framework;
 using System;
 using System.IO;
@@ -836,7 +837,7 @@ namespace GVFS.UnitTests.Http
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
-        public void ResponseDisposalReleasesPermitWhenFinalDiagnosticsThrow()
+        public void ResponseDisposalReleasesPermitWhenFinalDiagnosticsFail()
         {
             using CallbackTracer tracer = new CallbackTracer();
             tracer.Callback = name =>
@@ -853,10 +854,153 @@ namespace GVFS.UnitTests.Http
                 HttpStatusCode.OK, "application/json", stream, new HttpResponseMessage(), () => ++releases);
             stream.ReadByte().ShouldEqual(1);
             Thread.Sleep(40);
-            Assert.Throws<InvalidOperationException>(() => response.Dispose());
+            response.Dispose();
             innerStream.CanRead.ShouldEqual(false);
             response.Dispose();
             releases.ShouldEqual(1);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void DiagnosticFailureDoesNotReplaceTheReadTimeout(bool failReportConstruction)
+        {
+            Mock<ITracer> tracer = new Mock<ITracer>();
+            using ManualResetEventSlim warningReported = new ManualResetEventSlim();
+            int reports = 0;
+            EventMetadata warningMetadata = null;
+            string warningMessage = null;
+            tracer.Setup(item => item.RelatedEvent(
+                It.IsAny<EventLevel>(), It.IsAny<string>(), It.IsAny<EventMetadata>(), It.IsAny<Keywords>()))
+                .Callback(() =>
+                {
+                    Interlocked.Increment(ref reports);
+                    throw new InvalidOperationException("diagnostic failure");
+                });
+            tracer.Setup(item => item.RelatedWarning(
+                It.IsAny<EventMetadata>(), It.IsAny<string>(), It.IsAny<Keywords>()))
+                .Callback<EventMetadata, string, Keywords>((metadata, message, keyword) =>
+                {
+                    warningMetadata = metadata;
+                    warningMessage = message;
+                    warningReported.Set();
+                });
+
+            using HttpResponseStream stream = new HttpResponseStream(
+                new BlockingReadStream(), TimeSpan.FromMilliseconds(200), CancellationToken.None, tracer.Object,
+                failReportConstruction ? new EventMetadata { { "ResponseId", "duplicate" } } : null,
+                TimeSpan.FromMilliseconds(20));
+            IOException error = Assert.Throws<IOException>(() => stream.ReadByte());
+            error.Message.ShouldContain("No response body data arrived");
+            stream.ReadFailed.ShouldEqual(true);
+            warningReported.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true);
+            warningMetadata["ResponseId"].ShouldEqual(stream.ResponseId);
+            warningMessage.ShouldContain("Further reports for this response are disabled.");
+            reports.ShouldEqual(failReportConstruction ? 0 : 1);
+            tracer.Verify(item => item.RelatedWarning(
+                It.IsAny<EventMetadata>(), It.IsAny<string>(), It.IsAny<Keywords>()), Times.Once);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void DiagnosticFailureDoesNotStopSubsequentReads()
+        {
+            Mock<ITracer> tracer = new Mock<ITracer>();
+            using ManualResetEventSlim warningReported = new ManualResetEventSlim();
+            tracer.Setup(item => item.RelatedEvent(
+                It.IsAny<EventLevel>(), It.IsAny<string>(), It.IsAny<EventMetadata>(), It.IsAny<Keywords>()))
+                .Throws(new InvalidOperationException("diagnostic failure"));
+            tracer.Setup(item => item.RelatedWarning(
+                It.IsAny<EventMetadata>(), It.IsAny<string>(), It.IsAny<Keywords>()))
+                .Callback(() => warningReported.Set());
+            using HttpResponseStream stream = new HttpResponseStream(
+                new MemoryStream(new byte[] { 1, 2 }), TimeSpan.FromSeconds(1), CancellationToken.None,
+                tracer.Object, progressInterval: TimeSpan.FromMilliseconds(20));
+            stream.ReadByte().ShouldEqual(1);
+            warningReported.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true);
+            stream.ReadByte().ShouldEqual(2);
+            stream.ReadByte().ShouldEqual(-1);
+            stream.ReadFailed.ShouldEqual(false);
+            tracer.Verify(item => item.RelatedEvent(
+                It.IsAny<EventLevel>(), It.IsAny<string>(), It.IsAny<EventMetadata>(), It.IsAny<Keywords>()), Times.Once);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void FinalReportConstructionFailurePreservesTheReadError()
+        {
+            using MockTracer tracer = new MockTracer();
+            using HttpResponseStream stream = new HttpResponseStream(
+                new FailingReadStream(), TimeSpan.FromSeconds(1), CancellationToken.None, tracer,
+                new EventMetadata { { "ResponseId", "duplicate" } });
+            Assert.Throws<IOException>(() => stream.ReadByte()).Message.ShouldEqual("read failed");
+            tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            tracer.SnapshotRelatedEvents().Length.ShouldEqual(0);
+        }
+
+        [TestCase]
+        [NonParallelizable]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void DiagnosticWarningFailureUsesStandardErrorWithoutChangingTheRead()
+        {
+            Mock<ITracer> tracer = new Mock<ITracer>();
+            tracer.Setup(item => item.RelatedEvent(
+                It.IsAny<EventLevel>(), It.IsAny<string>(), It.IsAny<EventMetadata>(), It.IsAny<Keywords>()))
+                .Throws(new InvalidOperationException("diagnostic failure"));
+            tracer.Setup(item => item.RelatedWarning(
+                It.IsAny<EventMetadata>(), It.IsAny<string>(), It.IsAny<Keywords>()))
+                .Throws(new IOException("warning failure"));
+            TextWriter previousError = Console.Error;
+            using StringWriter errorOutput = new StringWriter();
+            try
+            {
+                Console.SetError(errorOutput);
+                using HttpResponseStream stream = new HttpResponseStream(
+                    new FailingReadStream(), TimeSpan.FromSeconds(1), CancellationToken.None, tracer.Object);
+                Assert.Throws<IOException>(() => stream.ReadByte()).Message.ShouldEqual("read failed");
+                errorOutput.ToString().ShouldContain("Response body diagnostics failed.");
+            }
+            finally
+            {
+                Console.SetError(previousError);
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void FailedDiagnosticListenerDoesNotInterruptTheTransfer()
+        {
+            using JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "body-test", disableTelemetry: true);
+            using ManualResetEventSlim progress = new ManualResetEventSlim();
+            tracer.AddEventListener(new FailingBodyListener(tracer, progress));
+            using HttpResponseStream stream = new HttpResponseStream(
+                new MemoryStream(new byte[] { 1 }), TimeSpan.FromSeconds(1), CancellationToken.None,
+                tracer, progressInterval: TimeSpan.FromMilliseconds(20));
+            stream.ReadByte().ShouldEqual(1);
+            progress.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true);
+            stream.ReadByte().ShouldEqual(-1);
+            stream.ReadFailed.ShouldEqual(false);
+        }
+
+        private sealed class FailingBodyListener : GVFS.Common.Tracing.EventListener
+        {
+            private readonly ManualResetEventSlim progress;
+
+            public FailingBodyListener(IEventListenerEventSink sink, ManualResetEventSlim progress)
+                : base(EventLevel.Informational, Keywords.Any, sink)
+            {
+                this.progress = progress;
+            }
+
+            protected override void RecordMessageInternal(TraceEventMessage message)
+            {
+                if (message.EventName == "NetworkBodyProgress")
+                {
+                    this.progress.Set();
+                    throw new IOException("diagnostic output failed");
+                }
+            }
         }
 
         [TestCase]
