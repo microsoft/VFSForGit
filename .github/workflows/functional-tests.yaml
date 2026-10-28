@@ -38,6 +38,11 @@ on:
         required: false
         type: string
         default: ''
+      aot_coverage_probe:
+        description: 'Use the instrumented installer and collect coverage on x64 shard 0'
+        required: false
+        type: boolean
+        default: false
     secrets:
       vfs_token:
         description: 'Token for downloading VFSForGit artifacts (required for cross-repository downloads; defaults to GITHUB_TOKEN)'
@@ -58,6 +63,8 @@ jobs:
     env:
       ARTIFACT_PREFIX: ${{ inputs.output_prefix && format('{0}_', inputs.output_prefix) || '' }}
       FT_MATRIX_NAME: ${{ format('{0}_{1}-{2}', matrix.configuration, matrix.architecture, matrix.nr) }}
+      AOT_COVERAGE_PROBE: ${{ inputs.aot_coverage_probe && matrix.architecture == 'x64' && matrix.nr == 0 }}
+      COVERAGE_SESSION_ID: gvfs-ci-${{ inputs.vfs_run_id || github.run_id }}
 
     strategy:
       matrix:
@@ -104,7 +111,7 @@ jobs:
       continue-on-error: true
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
       with:
-        name: GVFS_${{ matrix.configuration }}_${{ matrix.architecture }}
+        name: ${{ env.AOT_COVERAGE_PROBE == 'true' && 'GVFS_Coverage_Release_x64' || format('GVFS_{0}_{1}', matrix.configuration, matrix.architecture) }}
         path: gvfs
         repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}
@@ -114,7 +121,7 @@ jobs:
       if: steps.skip.outputs.result != 'true' && steps.download-gvfs.outcome == 'failure'
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
       with:
-        name: GVFS_${{ matrix.configuration }}_${{ matrix.architecture }}
+        name: ${{ env.AOT_COVERAGE_PROBE == 'true' && 'GVFS_Coverage_Release_x64' || format('GVFS_{0}_{1}', matrix.configuration, matrix.architecture) }}
         path: gvfs
         repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}
@@ -152,6 +159,40 @@ jobs:
         repository: ${{ inputs.vfs_repository || github.repository }}
         run-id: ${{ inputs.vfs_run_id || github.run_id }}
         github-token: ${{ secrets.vfs_token || github.token }}
+
+    - name: Checkout coverage configuration and source
+      if: steps.skip.outputs.result != 'true' && env.AOT_COVERAGE_PROBE == 'true'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        path: src
+        persist-credentials: false
+
+    - name: Install coverage runtime and SDK
+      if: steps.skip.outputs.result != 'true' && env.AOT_COVERAGE_PROBE == 'true'
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: src/global.json
+        dotnet-version: 8.0.x
+
+    - name: Install coverage tools
+      if: steps.skip.outputs.result != 'true' && env.AOT_COVERAGE_PROBE == 'true'
+      shell: pwsh
+      run: |
+        dotnet tool install dotnet-coverage --version 18.8.0 --tool-path coverage-tools --configfile src\nuget.config
+        if ($LASTEXITCODE -ne 0) { throw 'Coverage collector installation failed.' }
+        dotnet tool install dotnet-reportgenerator-globaltool --version 5.5.11 --tool-path coverage-tools --configfile src\nuget.config
+        if ($LASTEXITCODE -ne 0) { throw 'Coverage renderer installation failed.' }
+        New-Item -ItemType Directory -Path coverage -Force | Out-Null
+
+    - name: Start fixed-session coverage before service installation
+      id: coverage_start
+      if: steps.skip.outputs.result != 'true' && env.AOT_COVERAGE_PROBE == 'true'
+      shell: pwsh
+      run: |
+        .\coverage-tools\dotnet-coverage.exe collect --server-mode --background --session-id $env:COVERAGE_SESSION_ID --settings src\scripts\AotCoverage.config --output coverage\functional.cobertura.xml --output-format cobertura --log-file coverage\collector.log --log-level Verbose
+        if ($LASTEXITCODE -ne 0) { throw 'Coverage collector startup failed.' }
+        .\coverage-tools\dotnet-coverage.exe snapshot $env:COVERAGE_SESSION_ID --output coverage\before-install.coverage
+        if ($LASTEXITCODE -ne 0) { throw 'Coverage collector readiness check failed.' }
 
     - name: ProjFS details (pre-install)
       if: steps.skip.outputs.result != 'true'
@@ -197,6 +238,14 @@ jobs:
           git\logs
           gvfs\logs
 
+    - name: Record installed service identity
+      if: steps.skip.outputs.result != 'true' && env.AOT_COVERAGE_PROBE == 'true'
+      shell: pwsh
+      run: |
+        Get-CimInstance Win32_Service -Filter "Name = 'GVFS.Service'" |
+          Select-Object Name,StartName,State,ProcessId,PathName |
+          ConvertTo-Json | Set-Content coverage\installed-service.json
+
     - name: Run functional tests
       if: steps.skip.outputs.result != 'true'
       shell: cmd
@@ -206,6 +255,33 @@ jobs:
         SET GIT_TRACE2_PERF=C:\temp\git-trace2.log
         SET GVFS_TEST_DIAGNOSTICS_DIR=C:\temp\gvfs-ft-diagnostics
         ft\GVFS.FunctionalTests.exe /result:TestResult.xml --ci --slice=${{ matrix.nr }},12
+
+    - name: Stop coverage and verify SCM service capture
+      id: coverage_stop
+      if: always() && env.AOT_COVERAGE_PROBE == 'true' && steps.coverage_start.outcome == 'success'
+      shell: pwsh
+      run: |
+        .\coverage-tools\dotnet-coverage.exe shutdown $env:COVERAGE_SESSION_ID
+        if ($LASTEXITCODE -ne 0) { throw 'Coverage collector shutdown failed.' }
+        src\scripts\Assert-AotCoverage.ps1 -CoveragePath coverage\functional.cobertura.xml |
+          Tee-Object -FilePath coverage\probe.json
+
+    - name: Render single-shard coverage report
+      if: always() && env.AOT_COVERAGE_PROBE == 'true' && steps.coverage_stop.outcome == 'success'
+      shell: pwsh
+      run: |
+        .\coverage-tools\reportgenerator.exe -reports:coverage\functional.cobertura.xml -targetdir:coverage\report "-reporttypes:Html;MarkdownSummaryGithub;Cobertura;JsonSummary" "-filefilters:+$env:GITHUB_WORKSPACE\src\GVFS\*" "-title:Managed NativeAOT product - x64 shard 0 of 12"
+        if ($LASTEXITCODE -ne 0) { throw 'Coverage rendering failed.' }
+        'One-shard probe only. Native C++ and the other shards are not measured.' >> $env:GITHUB_STEP_SUMMARY
+        Get-Content coverage\report\SummaryGithub.md >> $env:GITHUB_STEP_SUMMARY
+
+    - name: Upload coverage-probe evidence
+      if: always() && steps.skip.outputs.result != 'true' && env.AOT_COVERAGE_PROBE == 'true'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ env.ARTIFACT_PREFIX }}AotCoverage_${{ env.FT_MATRIX_NAME }}
+        path: coverage
+        if-no-files-found: error
 
     - name: Upload failure diagnostics (mount dumps + logs)
       if: always() && steps.skip.outputs.result != 'true'
