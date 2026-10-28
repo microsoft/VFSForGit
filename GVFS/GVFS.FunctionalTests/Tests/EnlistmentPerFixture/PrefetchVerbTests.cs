@@ -7,6 +7,11 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -35,6 +40,177 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public PrefetchVerbTests()
         {
             this.fileSystem = new SystemIORunner();
+        }
+
+        [TestCase]
+        public async Task StalledPrefetchHonorsConfiguredReadDeadline()
+        {
+            string[] keys = new[]
+            {
+                "gvfs.cache-server", "gvfs.prefetch.cache-server",
+                "gvfs.read-timeout-seconds", "gvfs.max-retries",
+                "gvfs.prefetch-offload",
+            };
+            Dictionary<string, string> previous = this.ReadLocalConfig(keys);
+
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            string endpoint = $"http://127.0.0.1:{port}";
+            Task server = ServeStalledPrefetch(listener, cancellation.Token);
+            try
+            {
+                this.SetLocalConfig(keys[0], endpoint);
+                this.SetLocalConfig(keys[1], endpoint);
+                this.SetLocalConfig(keys[2], "1");
+                this.SetLocalConfig(keys[3], "0");
+                this.SetLocalConfig(keys[4], "false");
+
+                ProcessResult result = await Task.Run(() => ProcessHelper.Run(
+                    GVFSTestConfig.PathToGVFS,
+                    "prefetch --commits",
+                    this.Enlistment.RepoRoot,
+                    timeoutMs: 20000));
+                result.ExitCode.ShouldEqual(3, result.Output + result.Errors);
+                string log = Directory.GetFiles(Path.Combine(this.Enlistment.DotGVFSRoot, "logs"), "gvfs_prefetch_*.log")
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .Select(File.ReadAllText)
+                    .First();
+                log.ShouldContain("NetworkBodyReadTimeout");
+                log.ShouldContain("\"ReadTimeoutMs\":1000");
+                log.ShouldContain("\"Outcome\":\"TimedOut\"");
+            }
+            finally
+            {
+                cancellation.Cancel();
+                listener.Stop();
+                try
+                {
+                    await server.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+                {
+                }
+                finally
+                {
+                    this.RestoreLocalConfig(previous);
+                }
+            }
+        }
+
+        [TestCase]
+        public void InvalidRetrySettingsDoNotStopAMountedEnlistment()
+        {
+            string[] retryKeys = new[]
+            {
+                "gvfs.max-retries", "gvfs.timeout-seconds", "gvfs.read-timeout-seconds",
+            };
+            Dictionary<string, string> previous = this.ReadLocalConfig(
+                retryKeys.Concat(new[] { "gvfs.prefetch-offload" }));
+            this.Enlistment.IsMounted().ShouldEqual(true);
+            try
+            {
+                this.SetLocalConfig("gvfs.prefetch-offload", "false");
+                foreach (string key in retryKeys)
+                {
+                    this.SetLocalConfig(key, "invalid");
+                }
+
+                ProcessResult result = ProcessHelper.Run(
+                    GVFSTestConfig.PathToGVFS,
+                    "prefetch --commits",
+                    this.Enlistment.RepoRoot,
+                    timeoutMs: 30000);
+                result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+                this.Enlistment.IsMounted().ShouldEqual(true);
+                string log = Directory.GetFiles(Path.Combine(this.Enlistment.DotGVFSRoot, "logs"), "gvfs_prefetch_*.log")
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .Select(File.ReadAllText)
+                    .First();
+                log.ShouldContain("VFS for Git uses the default value.");
+                foreach (string key in retryKeys)
+                {
+                    log.ShouldContain("\"ConfigName\":\"" + key + "\"");
+                }
+
+                this.Enlistment.UnmountGVFS();
+                this.Enlistment.MountGVFS();
+                this.Enlistment.IsMounted().ShouldEqual(true);
+                string mountLog = Directory.GetFiles(Path.Combine(this.Enlistment.DotGVFSRoot, "logs"), "gvfs_mount_process_*.log")
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .Select(GVFSHelpers.ReadAllTextFromWriteLockedFile)
+                    .First();
+                foreach (string key in retryKeys)
+                {
+                    mountLog.ShouldContain("\"ConfigName\":\"" + key + "\"");
+                }
+            }
+            finally
+            {
+                this.RestoreLocalConfig(previous);
+                if (!this.Enlistment.IsMounted())
+                {
+                    this.Enlistment.MountGVFS();
+                }
+            }
+        }
+
+        private Dictionary<string, string> ReadLocalConfig(IEnumerable<string> keys)
+        {
+            Dictionary<string, string> values = new Dictionary<string, string>();
+            foreach (string key in keys)
+            {
+                ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local --get " + key);
+                (result.ExitCode == 0 || result.ExitCode == 1).ShouldEqual(true, result.Errors);
+                values[key] = result.ExitCode == 0 ? result.Output.TrimEnd('\r', '\n') : null;
+            }
+
+            return values;
+        }
+
+        private void RestoreLocalConfig(Dictionary<string, string> values)
+        {
+            foreach (KeyValuePair<string, string> setting in values)
+            {
+                if (setting.Value == null)
+                {
+                    ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local --unset-all " + setting.Key);
+                    (result.ExitCode == 0 || result.ExitCode == 5).ShouldEqual(true, result.Errors);
+                }
+                else
+                {
+                    this.SetLocalConfig(setting.Key, setting.Value);
+                }
+            }
+        }
+
+        private void SetLocalConfig(string key, string value)
+        {
+            ProcessResult result = GitProcess.InvokeProcess(
+                this.Enlistment.RepoRoot, $"config --local {key} \"{value}\"");
+            result.ExitCode.ShouldEqual(0, result.Errors);
+        }
+
+        private static async Task ServeStalledPrefetch(TcpListener listener, CancellationToken cancellationToken)
+        {
+            using TcpClient client = await listener.AcceptTcpClientAsync(cancellationToken);
+            using NetworkStream stream = client.GetStream();
+            using (StreamReader reader = new StreamReader(stream, Encoding.ASCII, false, 1024, leaveOpen: true))
+            {
+                string line;
+                do
+                {
+                    line = await reader.ReadLineAsync(cancellationToken);
+                }
+                while (!string.IsNullOrEmpty(line));
+            }
+
+            byte[] headers = Encoding.ASCII.GetBytes(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/x-gvfs-timestamped-packfiles-indexes\r\nContent-Length: 1024\r\n\r\n");
+            await stream.WriteAsync(headers.AsMemory(), cancellationToken);
+            await stream.WriteAsync(new byte[] { (byte)'G' }.AsMemory(), cancellationToken);
+            await Task.Delay(Timeout.Infinite, cancellationToken);
         }
 
         [SetUp]

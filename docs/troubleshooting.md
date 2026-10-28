@@ -86,6 +86,81 @@ reoccurring. Please make sure you are on the latest version using `gvfs upgrade`
 before raising an issue. Please also keep your version of Windows updated
 as that is the only way to get updates to the ProjFS filesystem driver.
 
+### Slow or stalled cache downloads
+
+If no data arrives for 60 seconds, VFS for Git stops the pending response-body read.
+The existing retry policy controls further attempts.
+The deadline applies to each pending read, not to the total download.
+A large download can continue for hours while bytes arrive.
+Time spent on disk writes or pack processing does not count against the read deadline.
+
+The `gvfs.read-timeout-seconds` setting controls this deadline independently of
+the request-header timeout. It accepts whole seconds from 0 through 2147483.
+Zero disables the response-body read deadline. Caller cancellation still applies.
+If the server requires longer pauses between bytes, increase the deadline:
+
+```powershell
+git config --global gvfs.read-timeout-seconds 120
+```
+
+Do not use this setting to limit the total download time.
+If the enlistment is mounted, remount it after a configuration change.
+New clone, cache-server, repair-authentication, and FastFetch operations load the
+settings during initialization. Non-offloaded prefetch also loads them in its CLI process.
+If prefetch offload is enabled, prefetch uses the mount's startup configuration
+and mount log. Remount the enlistment to change that configuration.
+All request initialization paths load the complete retry configuration.
+If a retry setting is invalid or unreadable, VFS for Git logs a warning and
+uses the default for that setting. Other valid retry settings remain active.
+Running mounts retain the configuration that they loaded at startup.
+Later retry-setting errors do not stop an existing mount.
+Commands retain their explicit retry and header-timeout overrides.
+
+| Setting | Default | Configured values |
+| --- | --- | --- |
+| `gvfs.max-retries` | 6 | 0 through 2147483644 |
+| `gvfs.timeout-seconds` | 30 seconds | 1 through 2147483 seconds |
+| `gvfs.read-timeout-seconds` | 60 seconds | 0 through 2147483 seconds |
+
+Only the body-read setting uses zero to disable its deadline.
+
+Local GVFS logs contain `NetworkBodyProgress` reports that start 30 seconds after
+the first body read. They stop at end-of-stream, timeout, cancellation, a read
+failure, or response closure. These reports also reach the configured telemetry pipe.
+Exact-length pack transfers do not always require an EOF read. Reports can
+continue during pack finalization, with `ReadPending=false`.
+Fast transfers emit no additional progress reports. A slow transfer or a read
+failure also emits a final outcome, with `NetworkBodyReadTimeout` for an idle timeout.
+
+Use `ResponseId` to match progress reports with final outcomes and
+`Receiving Pack/Index` events. `RequestId`, `RequestAuthority`, and `CacheName`
+identify the request and server without credentials or URL query parameters.
+Sort reports for one response by `SampleSequence`. Diagnostic writes can delay
+delivery after the client captures a sample.
+Prefetch pack events also reach the telemetry pipe.
+The `TryDownloadPrefetchPacks` summary contains `RequestId`, the attempt
+count, and the final success result.
+
+| Field | Meaning |
+| --- | --- |
+| `BytesRead`, `BytesSinceLastProgress` | Total bytes and bytes since the previous report |
+| `ElapsedMs` | Total time with the response open, including consumer work |
+| `ReadTimeMs`, `MaxReadWaitMs` | Total time in body reads and the longest read wait |
+| `ReadPending`, `CurrentReadWaitMs` | Whether a read is pending and its current wait |
+| `MillisecondsSinceLastByte` | Time since the last nonempty read, or response-stream creation before any bytes arrive |
+| `ReadTimeoutMs` | Configured read deadline in milliseconds, or -1 if disabled |
+| `HeaderWaitMs`, `ContentLength` | Header wait and expected body bytes, or -1 for an unknown length |
+| `ResponseId`, `RequestId` | Response identity and the request identity shared across retries |
+| `SampleSequence` | Increasing sample number within one response |
+| `Exception` | Full diagnostic exception for a failed or canceled read |
+| `Outcome` | Progress, completion, timeout, cancellation, read error, or response closure |
+
+If `BytesRead` increases between reports, data still arrives.
+If `ReadPending` is true and bytes do not increase, a transport read remains outstanding.
+This wait also includes managed scheduling delay. It does not prove that the cache server or network caused the delay.
+When `ReadPending` is false, a pause occurs in the consumer rather than in a network read.
+Response closure alone does not prove that the client consumed the complete body.
+
 ### TRY THIS FIRST: `gvfs repair`
 
 Some known issues can get your enlistment into a bad state. Running
