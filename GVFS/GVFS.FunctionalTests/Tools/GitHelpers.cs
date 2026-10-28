@@ -23,7 +23,7 @@ namespace GVFS.FunctionalTests.Tools
         private const string WindowsPathSeparator = "\\";
         private const string GitPathSeparator = "/";
 
-        private static string LockHolderCommandPath
+        public static string LockHolderCommandPath
         {
             get
             {
@@ -187,6 +187,46 @@ namespace GVFS.FunctionalTests.Tools
                 GitHelpers.LockHolderCommandName,
                 "done",
                 out processId);
+        }
+
+        public static void RunWithGVFSLock(GVFSFunctionalTestEnlistment enlistment, Action action)
+        {
+            ArgumentNullException.ThrowIfNull(enlistment);
+            ArgumentNullException.ThrowIfNull(action);
+
+            ProcessStartInfo processInfo = new ProcessStartInfo(LockHolderCommandPath)
+            {
+                WorkingDirectory = enlistment.RepoRoot,
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+
+            using (Process holdingProcess = Process.Start(processInfo))
+            {
+                try
+                {
+                    enlistment.WaitForLock(LockHolderCommandName)
+                        .ShouldBeTrue("The test lock holder did not acquire the GVFS lock.");
+                    action();
+                }
+                finally
+                {
+                    holdingProcess.StandardInput.WriteLine("done");
+                    holdingProcess.StandardInput.Close();
+
+                    bool exited = holdingProcess.WaitForExit(10000);
+                    if (!exited)
+                    {
+                        holdingProcess.Kill(entireProcessTree: true);
+                        holdingProcess.WaitForExit();
+                    }
+
+                    exited.ShouldBeTrue("The lock holder did not exit after the test released it.");
+                    holdingProcess.ExitCode.ShouldEqual(0);
+                }
+            }
         }
 
         /// <summary>
