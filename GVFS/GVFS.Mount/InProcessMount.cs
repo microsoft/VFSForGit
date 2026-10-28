@@ -822,7 +822,8 @@ namespace GVFS.Mount
 
         private void HandleGetHydrationStatusRequest(NamedPipeServer.Connection connection)
         {
-            EnlistmentHydrationSummary summary = this.fileSystemCallbacks?.GetCachedHydrationSummary();
+            NamedPipeMessages.HydrationStatus.CacheInfo info = new NamedPipeMessages.HydrationStatus.CacheInfo();
+            EnlistmentHydrationSummary summary = this.fileSystemCallbacks?.GetCachedHydrationSummary(out info);
             if (summary == null || !summary.IsValid)
             {
                 this.tracer.RelatedInfo(
@@ -830,7 +831,7 @@ namespace GVFS.Mount
                     (summary == null ? "No cached hydration summary available yet" : "Cached hydration summary is invalid"));
 
                 connection.TrySendResponse(
-                    new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.NotAvailableResult, null));
+                    new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.NotAvailableResult, info.ToBody()));
                 return;
             }
 
@@ -845,7 +846,7 @@ namespace GVFS.Mount
             };
 
             connection.TrySendResponse(
-                new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.SuccessResult, response.ToBody()));
+                new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.SuccessResult, response.ToBody(info)));
         }
 
         private void HandleDehydrateFolders(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)

@@ -179,8 +179,13 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("status " + this.enlistmentRoot, trace: trace);
         }
 
-        public string Health(string directory = null)
+        public string Health(string directory = null, bool statusOnly = false)
         {
+            if (statusOnly)
+            {
+                return this.CallGVFS("health --status \"" + this.enlistmentRoot + '"');
+            }
+
             if (string.IsNullOrEmpty(directory))
             {
                 return this.CallGVFS("health \"" + this.enlistmentRoot + '"');
