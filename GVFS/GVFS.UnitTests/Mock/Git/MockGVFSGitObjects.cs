@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,6 +23,7 @@ namespace GVFS.UnitTests.Mock.Git
         public bool CancelTryCopyBlobContentStream { get; set; }
         public bool ThrowOnTryCopyBlobContentStream { get; set; }
         public bool ThrowIOExceptionDuringCopy { get; set; }
+        public bool RejectHydrationWithOpenCircuit { get; set; }
         public uint FileLength { get; set; } = DefaultFileLength;
 
         public override bool TryDownloadCommit(string objectSha)
@@ -46,9 +48,17 @@ namespace GVFS.UnitTests.Mock.Git
             CancellationToken cancellationToken,
             RequestSource requestSource,
             Action<Stream, long> writeAction,
-            out GVFSGitObjects.BlobHydrationFailureCategory failureCategory)
+            out GVFSGitObjects.BlobHydrationFailureCategory failureCategory,
+            EventMetadata failureMetadata = null)
         {
             failureCategory = GVFSGitObjects.BlobHydrationFailureCategory.None;
+
+            if (this.RejectHydrationWithOpenCircuit)
+            {
+                failureCategory = GVFSGitObjects.BlobHydrationFailureCategory.NetworkUnavailable;
+                failureMetadata?.SetTelemetryAggregation(nameof(this.TryCopyBlobContentStream), TelemetryFailureCategory.CircuitBreakerOpen, "Failed");
+                return false;
+            }
 
             if (this.CancelTryCopyBlobContentStream)
             {

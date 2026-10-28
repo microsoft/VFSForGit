@@ -1097,6 +1097,7 @@ namespace GVFS.Platform.Windows
                 EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath, e);
                 metadata.Add("commandId", commandId);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.SetTelemetryAggregation(nameof(this.StartDirectoryEnumerationAsyncHandler), TelemetryFailureCategory.SizesUnavailable, "Failed");
                 this.Context.Tracer.RelatedError(metadata, nameof(this.StartDirectoryEnumerationAsyncHandler) + ": caught SizesUnavailableException");
             }
             catch (Exception e)
@@ -1247,6 +1248,7 @@ namespace GVFS.Platform.Windows
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.SetTelemetryAggregation(nameof(this.GetPlaceholderInformationAsyncHandler), TelemetryFailureCategory.SizesUnavailable, "Failed");
                 this.Context.Tracer.RelatedError(metadata, nameof(this.GetPlaceholderInformationAsyncHandler) + ": caught SizesUnavailableException");
             }
             catch (Win32Exception e)
@@ -1357,9 +1359,15 @@ namespace GVFS.Platform.Windows
                             }
                         }
                     },
-                    out GVFSGitObjects.BlobHydrationFailureCategory failureCategory))
+                    out GVFSGitObjects.BlobHydrationFailureCategory failureCategory,
+                    failureMetadata: requestMetadata))
                 {
                     requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), failureCategory.ToString());
+                    if (requestMetadata.TelemetryAggregation != null)
+                    {
+                        requestMetadata.SetTelemetryAggregation(nameof(this.GetFileStreamHandlerAsyncHandler), requestMetadata.TelemetryAggregation.FailureCategory, "Failed");
+                    }
+
                     this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                     this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);

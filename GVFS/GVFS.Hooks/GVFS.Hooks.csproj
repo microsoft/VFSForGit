@@ -86,6 +86,9 @@
     <Compile Include="..\GVFS.Common\Tracing\EventMetadata.cs">
       <Link>Common\Tracing\EventMetadata.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\Tracing\TelemetryAggregation.cs">
+      <Link>Common\Tracing\TelemetryAggregation.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\Tracing\EventOpcode.cs">
       <Link>Common\Tracing\EventOpcode.cs</Link>
     </Compile>

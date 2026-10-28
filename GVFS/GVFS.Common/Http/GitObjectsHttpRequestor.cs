@@ -58,7 +58,8 @@ namespace GVFS.Common.Http
 
             RetryWrapper<List<GitObjectSize>> retrier = new RetryWrapper<List<GitObjectSize>>(
                 this.RetryConfig.MaxAttempts + (hasEndpointOverride && !useOrigin ? 2 : 0),
-                cancellationToken);
+                cancellationToken,
+                tracer: this.Tracer);
             retrier.OnFailure += RetryWrapper<List<GitObjectSize>>.StandardErrorHandler(this.Tracer, requestId, "QueryFileSizes");
 
             RetryWrapper<List<GitObjectSize>>.InvocationResult requestTask = retrier.Invoke(
@@ -161,7 +162,7 @@ namespace GVFS.Common.Http
                 return null;
             }
 
-            RetryWrapper<GitRefs> retrier = new RetryWrapper<GitRefs>(this.RetryConfig.MaxAttempts, CancellationToken.None);
+            RetryWrapper<GitRefs> retrier = new RetryWrapper<GitRefs>(this.RetryConfig.MaxAttempts, CancellationToken.None, tracer: this.Tracer);
             retrier.OnFailure += RetryWrapper<GitRefs>.StandardErrorHandler(this.Tracer, requestId, "QueryInfoRefs");
 
             RetryWrapper<GitRefs>.InvocationResult output = retrier.Invoke(
@@ -362,7 +363,8 @@ namespace GVFS.Common.Http
 
             RetryWrapper<GitObjectTaskResult> retrier = new RetryWrapper<GitObjectTaskResult>(
                 (retryOnFailure ? this.RetryConfig.MaxAttempts : 1) + (hasFallbackEndPoint ? 1 : 0),
-                cancellationToken);
+                cancellationToken,
+                tracer: this.Tracer);
             if (onFailure != null)
             {
                 retrier.OnFailure += onFailure;

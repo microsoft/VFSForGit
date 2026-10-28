@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using GVFS.Common.Tracing;
 
 namespace GVFS.Common
 {
@@ -18,6 +19,7 @@ namespace GVFS.Common
         private static int cooldownMs = DefaultCooldownMs;
         private static int consecutiveFailures = 0;
         private static long circuitOpenedAtUtcTicks = 0;
+        private static int observedState = -1;
 
         public static bool IsOpen
         {
@@ -49,6 +51,32 @@ namespace GVFS.Common
             }
         }
 
+        internal static void TraceState(ITracer tracer, bool isOpen, string trigger)
+        {
+            if (tracer == null)
+            {
+                return;
+            }
+
+            int state = isOpen ? 1 : (ConsecutiveFailures >= failureThreshold ? 2 : 0);
+            int previousState = Interlocked.Exchange(ref observedState, state);
+            if (previousState == state)
+            {
+                return;
+            }
+
+            string[] states = { "Accepting", "Rejecting", "CooldownElapsed" };
+            EventMetadata metadata = new EventMetadata
+            {
+                { "PreviousState", previousState < 0 ? "Unknown" : states[previousState] },
+                { "State", states[state] },
+                { "Trigger", trigger },
+                { "ObservedAtUtc", DateTime.UtcNow.ToString("O") },
+            };
+            metadata.SetTelemetryAggregation(nameof(RetryCircuitBreaker), TelemetryFailureCategory.BreakerState, states[state]);
+            tracer.RelatedEvent(EventLevel.Informational, "RetryCircuitBreakerState", metadata, Keywords.Telemetry);
+        }
+
         /// <summary>
         /// Resets the circuit breaker to its initial state. Intended for testing.
         /// </summary>
@@ -58,6 +86,7 @@ namespace GVFS.Common
             Volatile.Write(ref circuitOpenedAtUtcTicks, 0);
             Volatile.Write(ref failureThreshold, DefaultFailureThreshold);
             Volatile.Write(ref cooldownMs, DefaultCooldownMs);
+            Volatile.Write(ref observedState, -1);
         }
 
         /// <summary>

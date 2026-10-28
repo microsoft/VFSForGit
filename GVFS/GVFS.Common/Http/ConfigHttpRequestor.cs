@@ -41,7 +41,7 @@ namespace GVFS.Common.Http
             }
 
             long requestId = HttpRequestor.GetNewRequestId();
-            RetryWrapper<ServerGVFSConfig> retrier = new RetryWrapper<ServerGVFSConfig>(this.RetryConfig.MaxAttempts, CancellationToken.None);
+            RetryWrapper<ServerGVFSConfig> retrier = new RetryWrapper<ServerGVFSConfig>(this.RetryConfig.MaxAttempts, CancellationToken.None, tracer: logErrors ? this.Tracer : null);
 
             if (logErrors)
             {

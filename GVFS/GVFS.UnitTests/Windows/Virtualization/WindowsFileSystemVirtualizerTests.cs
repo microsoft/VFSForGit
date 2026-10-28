@@ -738,6 +738,42 @@ namespace GVFS.UnitTests.Windows.Virtualization
         }
 
         [TestCase]
+        public void OnGetFileStreamCompletesLocalRejectionWithAnnotatedCompanionError()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                MockGVFSGitObjects objects = (MockGVFSGitObjects)this.Repo.GitObjects;
+                objects.RejectHydrationWithOpenCircuit = true;
+                tester.InvokeGetFileDataCallback(expectedResult: HResult.Pending);
+                Assert.That(tester.MockVirtualization.WaitForCompletionStatus(), Is.EqualTo((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable));
+
+                MockTracer tracer = (MockTracer)this.Repo.Context.Tracer;
+                Assert.That(tracer.RelatedErrorEvents.Single(), Does.Contain("\"FailureCategory\":\"CircuitBreakerOpen\""));
+                Assert.That(tracer.RelatedErrorEvents.Single(), Does.Contain("\"Operation\":\"GetFileStreamHandlerAsyncHandler\""));
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void MissingSizeErrorsRemainFailuresAndUseTypedAggregation(bool enumeration)
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.GitIndexProjection.ThrowSizesUnavailableExceptionOnProjectionRequest = true;
+                HResult result = enumeration
+                    ? tester.MockVirtualization.RequiredCallbacks.StartDirectoryEnumerationCallback(1, Guid.NewGuid(), "test", TriggeringProcessId, TriggeringProcessImageFileName)
+                    : tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName);
+                Assert.That(result, Is.EqualTo(HResult.Pending));
+                Assert.That(tester.MockVirtualization.WaitForCompletionStatus(), Is.EqualTo((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable));
+
+                MockTracer tracer = (MockTracer)this.Repo.Context.Tracer;
+                Assert.That(tracer.RelatedErrorEvents.Single(), Does.Contain("\"FailureCategory\":\"SizesUnavailable\""));
+                Assert.That(tester.MockVirtualization.CreatedPlaceholders, Is.Empty);
+            }
+        }
+
+        [TestCase]
         public void OnGetFileStreamHandlesWriteFailure()
         {
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))

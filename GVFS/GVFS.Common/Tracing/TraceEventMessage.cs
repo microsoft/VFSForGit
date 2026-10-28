@@ -11,5 +11,6 @@ namespace GVFS.Common.Tracing
         public Keywords Keywords { get; set; }
         public EventOpcode Opcode { get; set; }
         public string Payload { get; set; }
+        public TelemetryAggregation TelemetryAggregation { get; set; }
     }
 }

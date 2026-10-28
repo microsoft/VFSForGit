@@ -200,6 +200,7 @@ namespace GVFS.Virtualization.Projection
                         {
                             EventMetadata metadata = CreateEventMetadata();
                             metadata.Add("SHA", childNeedingSize.Sha);
+                            metadata.SetTelemetryAggregation("PopulateMissingSizesFromRemote", TelemetryFailureCategory.MissingObjectSize, "Failed");
                             tracer.RelatedError(metadata, "PopulateMissingSizesFromRemote: Failed to download size for child entry", Keywords.Network);
                             throw new SizesUnavailableException("Failed to download size for " + childNeedingSize.Sha);
                         }

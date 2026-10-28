@@ -13,12 +13,14 @@ namespace GVFS.Common
         private readonly int maxAttempts;
         private readonly double exponentialBackoffBase;
         private readonly CancellationToken cancellationToken;
+        private readonly ITracer tracer;
 
-        public RetryWrapper(int maxAttempts, CancellationToken cancellationToken, double exponentialBackoffBase = RetryBackoff.DefaultExponentialBackoffBase)
+        public RetryWrapper(int maxAttempts, CancellationToken cancellationToken, double exponentialBackoffBase = RetryBackoff.DefaultExponentialBackoffBase, ITracer tracer = null)
         {
             this.maxAttempts = maxAttempts;
             this.cancellationToken = cancellationToken;
             this.exponentialBackoffBase = exponentialBackoffBase;
+            this.tracer = tracer;
         }
 
         public event Action<ErrorEventArgs> OnFailure = delegate { };
@@ -32,6 +34,7 @@ namespace GVFS.Common
                 metadata.Add("AttemptNumber", eArgs.TryCount);
                 metadata.Add("Operation", actionName);
                 metadata.Add("WillRetry", eArgs.WillRetry);
+                eArgs.AddTelemetryMetadata(metadata, actionName);
                 string message = null;
                 if (eArgs.Error != null)
                 {
@@ -70,10 +73,11 @@ namespace GVFS.Common
             // likelihood of sustained pool exhaustion. If telemetry shows this
             // cascade occurring, consider excluding local resource pressure (pool
             // timeouts) from circuit breaker failure counts.
-            if (RetryCircuitBreaker.IsOpen)
+            bool circuitIsOpen = RetryCircuitBreaker.IsOpen;
+            RetryCircuitBreaker.TraceState(this.tracer, circuitIsOpen, "Invocation");
+            if (circuitIsOpen)
             {
-                RetryableException circuitOpenError = new RetryableException(
-                    "Circuit breaker is open - too many consecutive failures. Fast-failing to prevent resource exhaustion.");
+                CircuitBreakerOpenException circuitOpenError = new CircuitBreakerOpenException();
                 this.OnFailure(new ErrorEventArgs(circuitOpenError, tryCount: 1, willRetry: false));
                 return new InvocationResult(1, circuitOpenError);
             }
@@ -91,6 +95,7 @@ namespace GVFS.Common
                         if (result.ShouldRecordFailure)
                         {
                             RetryCircuitBreaker.RecordFailure();
+                            RetryCircuitBreaker.TraceState(this.tracer, RetryCircuitBreaker.IsOpen, "Failure");
                         }
 
                         if (!this.ShouldRetry(tryCount, null, result))
@@ -101,6 +106,7 @@ namespace GVFS.Common
                     else
                     {
                         RetryCircuitBreaker.RecordSuccess();
+                        RetryCircuitBreaker.TraceState(this.tracer, RetryCircuitBreaker.IsOpen, "Success");
                         return new InvocationResult(tryCount, true, result.Result);
                     }
                 }
@@ -117,6 +123,7 @@ namespace GVFS.Common
                     }
 
                     RetryCircuitBreaker.RecordFailure();
+                    RetryCircuitBreaker.TraceState(this.tracer, RetryCircuitBreaker.IsOpen, "Failure");
                     if (!this.ShouldRetry(tryCount, exceptionToReport, null))
                     {
                         return new InvocationResult(tryCount, exceptionToReport);
@@ -182,6 +189,14 @@ namespace GVFS.Common
             public int TryCount { get; }
 
             public Exception Error { get; }
+
+            public void AddTelemetryMetadata(EventMetadata metadata, string operation)
+            {
+                if (this.Error is CircuitBreakerOpenException)
+                {
+                    metadata.SetTelemetryAggregation(operation, TelemetryFailureCategory.CircuitBreakerOpen, "Rejected");
+                }
+            }
         }
 
         public class InvocationResult

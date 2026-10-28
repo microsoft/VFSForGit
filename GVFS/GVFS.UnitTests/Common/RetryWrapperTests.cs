@@ -1,6 +1,8 @@
 ﻿using GVFS.Common;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
+using GVFS.Common.Tracing;
+using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
 using System.IO;
@@ -16,6 +18,81 @@ namespace GVFS.UnitTests.Common
         public void SetUp()
         {
             RetryCircuitBreaker.Reset();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            RetryCircuitBreaker.Reset();
+        }
+
+        [TestCase]
+        public void LocalRejectionsKeepEveryCustomCallbackAndUseTypedClassification()
+        {
+            RetryCircuitBreaker.Configure(1, 30000);
+            RetryCircuitBreaker.RecordFailure();
+            int failures = 0;
+            RetryWrapper<bool> wrapper = new RetryWrapper<bool>(5, new CancellationToken(canceled: true));
+            wrapper.OnFailure += args =>
+            {
+                ++failures;
+                Assert.That(args.Error, Is.TypeOf<CircuitBreakerOpenException>());
+                Assert.That(args.TryCount, Is.EqualTo(1));
+                Assert.That(args.WillRetry, Is.False);
+                EventMetadata metadata = new EventMetadata();
+                args.AddTelemetryMetadata(metadata, "CustomDownload");
+                Assert.That(metadata.TelemetryAggregation.FailureCategory, Is.EqualTo(TelemetryFailureCategory.CircuitBreakerOpen));
+            };
+
+            for (int i = 0; i < 100; ++i)
+            {
+                RetryWrapper<bool>.InvocationResult result = wrapper.Invoke(attempt => throw new AssertionException("Local rejection must not invoke the callback."));
+                Assert.That(result.Succeeded, Is.False);
+                Assert.That(result.Attempts, Is.EqualTo(1));
+                Assert.That(result.Result, Is.False);
+            }
+
+            Assert.That(failures, Is.EqualTo(100));
+            Assert.That(RetryCircuitBreaker.ConsecutiveFailures, Is.EqualTo(1));
+        }
+
+        [TestCase]
+        public void StandardHandlerDoesNotClassifyMessageLookalikesAsLocalRejections()
+        {
+            MockTracer tracer = new MockTracer();
+            Action<RetryWrapper<bool>.ErrorEventArgs> handler = RetryWrapper<bool>.StandardErrorHandler(tracer, 1, "Download");
+            handler(new RetryWrapper<bool>.ErrorEventArgs(new IOException(new CircuitBreakerOpenException().Message), 1, false));
+            Assert.That(tracer.RelatedErrorEvents[0], Does.Not.Contain("TelemetryAggregation"));
+
+            handler(new RetryWrapper<bool>.ErrorEventArgs(new CircuitBreakerOpenException(), 1, false));
+            Assert.That(tracer.RelatedErrorEvents[1], Does.Contain("\"FailureCategory\":\"CircuitBreakerOpen\""));
+        }
+
+        [TestCase]
+        public void CooldownObservationIsNotReportedAsRecovery()
+        {
+            MockTracer tracer = new MockTracer();
+            RetryCircuitBreaker.Configure(1, 30000);
+            RetryCircuitBreaker.RecordFailure();
+            RetryCircuitBreaker.TraceState(tracer, isOpen: true, "Failure");
+            RetryCircuitBreaker.Configure(1, 0);
+
+            RetryWrapper<bool> wrapper = new RetryWrapper<bool>(1, CancellationToken.None, tracer: tracer);
+            int callbacks = 0;
+            wrapper.Invoke(attempt =>
+            {
+                ++callbacks;
+                return new RetryWrapper<bool>.CallbackResult(new IOException("No response"), shouldRetry: false);
+            });
+
+            Assert.That(callbacks, Is.EqualTo(1));
+            Assert.That(tracer.RelatedEventMetadata.Count, Is.EqualTo(2));
+            Assert.That(tracer.RelatedEventMetadata[1]["State"], Is.EqualTo("CooldownElapsed"));
+            Assert.That(RetryCircuitBreaker.ConsecutiveFailures, Is.EqualTo(1));
+
+            wrapper.Invoke(attempt => new RetryWrapper<bool>.CallbackResult(true));
+            Assert.That(tracer.RelatedEventMetadata[2]["State"], Is.EqualTo("Accepting"));
+            Assert.That(tracer.RelatedEventMetadata[2]["Trigger"], Is.EqualTo("Success"));
         }
 
         [TestCase]

@@ -67,13 +67,15 @@ namespace GVFS.Common.Git
         /// </summary>
         internal class DownloadAttemptResult
         {
-            public DownloadAttemptResult(DownloadAndSaveObjectResult result, HttpStatusCode? httpStatusCode)
+            public DownloadAttemptResult(DownloadAndSaveObjectResult result, HttpStatusCode? httpStatusCode, bool circuitBreakerRejected = false)
             {
                 this.Result = result;
                 this.HttpStatusCode = httpStatusCode;
+                this.CircuitBreakerRejected = circuitBreakerRejected;
             }
 
             public DownloadAndSaveObjectResult Result { get; }
+            public bool CircuitBreakerRejected { get; }
 
             // The HTTP status of the last download attempt, or null when no HTTP response was
             // received (for example an exhausted retry that ended in an exception).
@@ -87,7 +89,8 @@ namespace GVFS.Common.Git
             CancellationToken cancellationToken,
             RequestSource requestSource,
             Action<Stream, long> writeAction,
-            out BlobHydrationFailureCategory failureCategory)
+            out BlobHydrationFailureCategory failureCategory,
+            EventMetadata failureMetadata = null)
         {
             // Short-circuit a malformed SHA (for example a corrupt placeholder's all-NUL
             // content-id) before the retry loop. GitRepo already rejects it as a clean miss,
@@ -117,8 +120,9 @@ namespace GVFS.Common.Git
             DownloadAttemptResult lastDownloadResult = null;
             bool downloadSucceededButCopyFailed = false;
             BlobHydrationFailureCategory capturedCategory = BlobHydrationFailureCategory.None;
+            TelemetryFailureCategory? capturedTelemetryCategory = null;
 
-            RetryWrapper<bool> retrier = new RetryWrapper<bool>(this.GitObjectRequestor.RetryConfig.MaxAttempts, cancellationToken);
+            RetryWrapper<bool> retrier = new RetryWrapper<bool>(this.GitObjectRequestor.RetryConfig.MaxAttempts, cancellationToken, tracer: this.Tracer);
             retrier.OnFailure +=
                 errorArgs =>
                 {
@@ -165,6 +169,14 @@ namespace GVFS.Common.Git
 
                     capturedCategory = category;
                     metadata.Add(nameof(BlobHydrationFailureCategory), category.ToString());
+                    capturedTelemetryCategory =
+                        errorArgs.Error is CircuitBreakerOpenException || (errorArgs.Error == null && lastDownloadResult?.CircuitBreakerRejected == true)
+                        ? TelemetryFailureCategory.CircuitBreakerOpen
+                        : (category == BlobHydrationFailureCategory.NetworkUnavailable ? TelemetryFailureCategory.NetworkUnavailable : null);
+                    if (capturedTelemetryCategory.HasValue)
+                    {
+                        metadata.SetTelemetryAggregation(nameof(this.TryCopyBlobContentStream), capturedTelemetryCategory.Value, "Failed");
+                    }
 
                     // Surface the HTTP status of the last download attempt so telemetry can tell a
                     // genuine auth failure (401/400/302) apart from a transient one (408/5xx/503),
@@ -222,6 +234,11 @@ namespace GVFS.Common.Git
                 });
 
             failureCategory = invokeResult.Result ? BlobHydrationFailureCategory.None : capturedCategory;
+            if (!invokeResult.Result && capturedTelemetryCategory.HasValue && failureMetadata != null)
+            {
+                failureMetadata.SetTelemetryAggregation(nameof(this.TryCopyBlobContentStream), capturedTelemetryCategory.Value, "Failed");
+            }
+
             return invokeResult.Result;
         }
 
@@ -377,7 +394,7 @@ namespace GVFS.Common.Git
                 }
             }
 
-            return new DownloadAttemptResult(DownloadAndSaveObjectResult.Error, httpStatusCode);
+            return new DownloadAttemptResult(DownloadAndSaveObjectResult.Error, httpStatusCode, output.Error is CircuitBreakerOpenException);
         }
     }
 }

@@ -1,6 +1,8 @@
 using GVFS.Common;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.Common.Tracing;
+using System.Linq;
 using NUnit.Framework;
 
 namespace GVFS.UnitTests.Common
@@ -8,6 +10,25 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class MissingTreeTrackerTests
     {
+        [TestCase]
+        public void EvictionTelemetryCountsSuccessAndFailureSeparately()
+        {
+            MockTracer tracer = new MockTracer();
+            MissingTreeTracker tracker = new MissingTreeTracker(tracer, treeCapacity: 1);
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit2");
+            tracker.AddMissingRootTree("tree3", "commit2");
+            tracker.AddMissingSubTrees("tree2", new[] { "tree4", "tree5" });
+
+            EventMetadata success = tracer.RelatedEventMetadata.Single(metadata => metadata.TelemetryAggregation?.Result == "Succeeded");
+            Assert.That(success.TelemetryAggregation.Count, Is.EqualTo(1));
+            Assert.That(success["EvictedCommit"], Is.EqualTo("commit1"));
+            Assert.That(tracer.RelatedEventMetadata
+                .Where(metadata => metadata.TelemetryAggregation?.Result == "CouldNotEvict")
+                .Sum(metadata => metadata.TelemetryAggregation.Count), Is.EqualTo(3));
+            Assert.That(tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _), Is.EqualTo(4));
+        }
+
         private static MissingTreeTracker CreateTracker(int treeCapacity)
         {
             return new MissingTreeTracker(new MockTracer(), treeCapacity);
