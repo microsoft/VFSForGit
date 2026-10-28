@@ -124,7 +124,10 @@ namespace GVFS.Common
         public string GitStatusCacheFolder { get; private set; }
         public string GitStatusCachePath { get; private set; }
 
-        // These version properties are only used in logging during clone and mount to track version numbers
+        // GitVersion is load-bearing, not just logging: CloneVerb.CreateClone re-parses it
+        // to decide whether to pin 'git init' to --ref-format=files (GitProcess.Init). The
+        // other two (GVFSVersion, GVFSHooksVersion) remain logging-only, to track version
+        // numbers during clone and mount.
         public string GitVersion
         {
             get { return this.gitVersion; }
@@ -311,14 +314,27 @@ namespace GVFS.Common
                     }
                     catch (BrokenPipeException e)
                     {
-                        errorMessage = string.Format("Could not connect to GVFS.Mount: {0}", e);
-                        tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
+                        // Keep the console-facing message short - the mount process may have
+                        // exited legitimately (e.g. it already logged its own clear, specific
+                        // failure reason and called Environment.Exit, which is enough to break
+                        // an in-flight pipe write/read here). The full exception detail still
+                        // goes to this trace, and 'gvfs log' points users at the mount
+                        // process's own log, where the real root cause is recorded.
+                        errorMessage = string.Format("Could not connect to GVFS.Mount: {0}", e.Message);
+                        tracer.RelatedError(
+                            new EventMetadata { { "Exception", e.ToString() } },
+                            $"{nameof(WaitUntilMounted)}: {errorMessage}");
                         return false;
                     }
                     catch (JsonException e)
                     {
-                        errorMessage = string.Format("Failed to parse response from GVFS.Mount.\n {0}", e);
-                        tracer.RelatedError($"{nameof(WaitUntilMounted)}: {errorMessage}");
+                        // Same rationale as the BrokenPipeException case above: keep the
+                        // console-facing message short, and send the full exception detail
+                        // to the trace log instead of dumping a raw stack trace to the user.
+                        errorMessage = string.Format("Failed to parse response from GVFS.Mount: {0}", e.Message);
+                        tracer.RelatedError(
+                            new EventMetadata { { "Exception", e.ToString() } },
+                            $"{nameof(WaitUntilMounted)}: {errorMessage}");
                         return false;
                     }
                 }

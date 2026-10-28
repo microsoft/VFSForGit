@@ -291,8 +291,13 @@ namespace GVFS.Mount
                     // regardless. A genuine config-read failure is fatal here rather than a
                     // warning: a missing key reports the repo as files-format and does not reach
                     // this branch, so a read error means the config is anomalous and proceeding
-                    // into the force-write could brick an unsupported repo.
-                    if (!RefStorage.TryIsReftableRepo(git, out bool isReftableRepo, out string refStorageReadError))
+                    // into the force-write could brick an unsupported repo. Retry a few times
+                    // first (see RetryShortConfigRead) to ride out a purely transient failure -
+                    // e.g. AV momentarily holding .git/config - rather than failing mount on
+                    // something that would have succeeded moments later; a failure that
+                    // persists through the retries would fail mount later anyway once
+                    // TrySetRequiredGitConfigSettings itself tries to read/write that config.
+                    if (!RetryShortConfigRead(() => RefStorage.TryIsReftableRepo(git, out bool v, out string e) ? (true, v, e) : (false, v, e), out bool isReftableRepo, out string refStorageReadError))
                     {
                         // Pass the git error as a format argument, not concatenated into the
                         // format string: FailMountAndExit routes through ITracer.RelatedError(
@@ -304,6 +309,26 @@ namespace GVFS.Mount
                     else if (isReftableRepo)
                     {
                         this.FailMountAndExit(RefStorage.UnsupportedReftableErrorMessage);
+                    }
+
+                    // Same rationale and retry policy as above, for SHA256: applying the
+                    // required-config force-write to a SHA256 repo (extensions.objectformat)
+                    // would brick it identically, so this check must also run before that
+                    // write. A genuine config-read failure is fatal here rather than a
+                    // warning: a missing key reports the repo as SHA1 and does not reach this
+                    // branch, so a read error means the config is anomalous and proceeding
+                    // into the force-write could brick an unsupported repo.
+                    if (!RetryShortConfigRead(() => ObjectFormat.TryIsSha256Repo(git, out bool v, out string e) ? (true, v, e) : (false, v, e), out bool isSha256Repo, out string objectFormatReadError))
+                    {
+                        // See the matching comment on the ref storage format check above:
+                        // FailMountAndExit requires the git error as a format argument rather
+                        // than concatenated into the format string, to avoid a FormatException
+                        // on a stray '{' in crafted/corrupt git stderr.
+                        this.FailMountAndExit("Could not determine the repository's object format: {0}", objectFormatReadError);
+                    }
+                    else if (isSha256Repo)
+                    {
+                        this.FailMountAndExit(ObjectFormat.UnsupportedSha256ErrorMessage);
                     }
 
                     if (!GVFSPlatform.Instance.FileSystem.IsFileSystemSupported(this.enlistment.WorkingDirectoryRoot, out string fsError))
@@ -665,6 +690,39 @@ namespace GVFS.Mount
         private void FailMountAndExit(string error, params object[] args)
         {
             this.FailMountAndExit(ReturnCode.GenericError, error, args);
+        }
+
+        /// <summary>
+        /// Retries a 'git config' read a few times, a short delay apart, before giving up -
+        /// so a purely transient failure (for example AV momentarily holding .git/config)
+        /// does not fail mount outright. A failure that persists through the retries is
+        /// still fatal to the caller: mount would reach the same unreadable config again
+        /// moments later via TrySetRequiredGitConfigSettings, so there is nothing to gain by
+        /// retrying longer than this.
+        /// </summary>
+        private static bool RetryShortConfigRead(Func<(bool success, bool value, string error)> tryRead, out bool value, out string error)
+        {
+            const int maxAttempts = 3;
+            const int delayMs = 100;
+
+            (bool success, bool value, string error) result = (false, false, null);
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                result = tryRead();
+                if (result.success)
+                {
+                    break;
+                }
+
+                if (attempt < maxAttempts)
+                {
+                    Thread.Sleep(delayMs);
+                }
+            }
+
+            value = result.value;
+            error = result.error;
+            return result.success;
         }
 
         private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
