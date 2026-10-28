@@ -11,7 +11,6 @@ It retains the existing duration fields and adds `SchemaVersion: 1`.
 It records success, invalid counts, incomplete data, cancellation, and exceptions.
 Success and cancellation use the Informational level.
 Invalid counts, incomplete data, and exceptions use the Warning level.
-This terminal record replaces the generic exception telemetry and the early-exit warning.
 
 The six count fields contain numbers or JSON null.
 A null value means that the calculation did not obtain that count.
@@ -105,7 +104,6 @@ The modified-path reader retains its existing connection and response-wait behav
 
 Telemetry contains exception types and HRESULT values, not arbitrary exception messages or stacks.
 Local warnings retain full exception details.
-Hydration exceptions no longer produce generic Error-level telemetry or telemetry warnings with full exception text.
 The structured result fields are identical in local logs and telemetry.
 Raw details appear only in local warnings.
 
@@ -114,4 +112,4 @@ The listener can drop events when its queue is full or its collector is unavaila
 Process termination can also prevent a terminal record.
 Mount telemetry cannot observe a hook connection failure that never reaches the mount.
 
-This contract does not change count sets, disk-log replay, percentages, cache acceptance, or circuit-breaker policy.
+Diagnostic collection must preserve count sets, disk-log replay, percentages, cache acceptance, and circuit-breaker policy.
