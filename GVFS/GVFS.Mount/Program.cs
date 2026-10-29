@@ -11,14 +11,18 @@ namespace GVFS.Mount
     {
         public static void Main(string[] args)
         {
+            BootstrapTrace.Initialize(args);
             GVFSPlatformLoader.Initialize();
             try
             {
                 RootCommand rootCommand = BuildRootCommand();
-                rootCommand.Parse(args).Invoke();
+                int invokeResult = rootCommand.Parse(args).Invoke();
+                BootstrapTrace.Write("Invoke returned " + invokeResult);
             }
             catch (MountAbortedException e)
             {
+                BootstrapTrace.Write("MountAbortedException ReturnCode=" + e.Verb.ReturnCode);
+
                 // Calling Environment.Exit() is required, to force all background threads to exit as well
                 Environment.Exit((int)e.Verb.ReturnCode);
             }
