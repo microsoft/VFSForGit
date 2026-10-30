@@ -279,9 +279,13 @@ The design review process is as follows:
 
   Comprehensive tests are essential for maintaining the health and quality of the product.  For more details on writing tests see [Authoring Tests](https://github.com/Microsoft/VFSForGit/blob/master/AuthoringTests.md).
 
-- *Functional tests are black-box tests and should not build against any VFS4G product code*
+- *Keep black-box functional tests independent of VFS4G product code*
 
   Keeping the code separate helps ensure that bugs in the product code do not compromise the integrity of the functional tests.
+
+  White-box functional tests can reference product code when they need native filesystem or provider integration.
+  Keep them in separate fixtures under `Tests.WhiteBox` and mark them with `Categories.WhiteBox`.
+  See [White-box Functional Tests](AuthoringTests.md#white-box-functional-tests) for their scope and location.
 
 ### C# Unit Tests
 
