@@ -8,6 +8,8 @@
   <ItemGroup>
     <PackageReference Include="NUnitLite" />
     <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.Windows.ProjFS" />
+    <PackageReference Include="Moq" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="SharpZipLib" />
     <PackageReference Include="System.ServiceProcess.ServiceController" />
@@ -15,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
+    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
     <ProjectReference Include="..\FastFetch\FastFetch.csproj" />
     <ProjectReference Include="..\GVFS.FunctionalTests.LockHolder\GVFS.FunctionalTests.LockHolder.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
