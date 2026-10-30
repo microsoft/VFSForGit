@@ -327,12 +327,59 @@ jobs:
         name: GVFS_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: artifacts\GVFS.Installers
 
+  coverage_build:
+    runs-on: windows-2025
+    name: Build AOT Coverage Probe
+    needs: validate
+    timeout-minutes: 30
+
+    env:
+      AotMsCodeCoverageInstrumentation: 'true'
+      MsCodeCoverageSessionId: gvfs-ci-${{ github.run_id }}
+
+    steps:
+    - name: Checkout source
+      if: needs.validate.outputs.skip == ''
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        path: src
+        persist-credentials: false
+
+    - name: Install .NET SDK
+      if: needs.validate.outputs.skip == ''
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: src/global.json
+        dotnet-version: 8.0.x
+
+    - name: Add MSBuild to PATH
+      if: needs.validate.outputs.skip == ''
+      uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3.0.0
+
+    - name: Build instrumented x64 installer
+      if: needs.validate.outputs.skip == ''
+      shell: cmd
+      run: src\scripts\Build.bat Release 0.2.173.2 minimal x64
+
+    - name: Create build artifacts
+      if: needs.validate.outputs.skip == ''
+      shell: cmd
+      run: src\scripts\CreateBuildArtifacts.bat Release artifacts x64
+
+    - name: Upload coverage-probe installer
+      if: needs.validate.outputs.skip == ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: GVFS_Coverage_Release_x64
+        path: artifacts\GVFS.Installers
+
   functional_tests:
     name: Functional Tests
-    needs: [validate, build]
+    needs: [validate, build, coverage_build]
     uses: ./.github/workflows/functional-tests.yaml
     with:
       skip: ${{ needs.validate.outputs.skip }}
+      aot_coverage_probe: true
 
   upgrade_tests:
     name: Upgrade Tests

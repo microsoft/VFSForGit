@@ -12,6 +12,15 @@
   <!-- Include custom MSBuild targets/tasks -->
   <Import Project="$(MSBuildThisFileDirectory)GVFS\GVFS.MSBuild\GVFS.targets" />
 
+  <!-- Coverage builds use separate, non-shipping payloads. Normal publishes omit this package. -->
+  <PropertyGroup Condition="'$(AotMsCodeCoverageInstrumentation)' == 'true' and '$(MSBuildProjectExtension)' == '.csproj'">
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(AotMsCodeCoverageInstrumentation)' == 'true' and '$(PublishAot)' == 'true' and '$(OutputType)' == 'Exe'">
+    <PackageReference Include="Microsoft.CodeCoverage.MSBuild" PrivateAssets="all" />
+  </ItemGroup>
+
   <!--
     Auto-restore vcpkg native dependencies when missing.
     Modeled after vcpkg's official VcpkgInstallManifestDependencies target
