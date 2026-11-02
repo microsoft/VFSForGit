@@ -37,6 +37,7 @@ namespace GVFS.Common.Git
             0, 0, 0, 0  // file length
         };
 
+        private readonly string indexPath;
         private readonly string indexLockPath;
 
         private Enlistment enlistment;
@@ -63,7 +64,8 @@ namespace GVFS.Common.Git
             // other is from the 'gvfs repair' verb.  That environment is special in that it only runs on unmounted
             // repo's, so 'index.lock' is irrelevant as a locking mechanism in that context.  There can't be git
             // commands to lock out.
-            this.indexLockPath = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName + ".lock2");
+            this.indexPath = enlistment.GitIndexPath;
+            this.indexLockPath = this.indexPath + ".lock2";
         }
 
         public string TemporaryIndexFilePath => this.indexLockPath;
@@ -82,7 +84,12 @@ namespace GVFS.Common.Git
         /// </remarks>
         public void CreateFromRef(string refName, uint indexVersion, bool isFinal)
         {
-            using (ITracer updateIndexActivity = this.tracer.StartActivity("CreateFromHeadTree", EventLevel.Informational))
+            EventMetadata metadata = new EventMetadata
+            {
+                { "IndexPath", this.indexPath },
+                { "IsWorktree", this.enlistment is GVFSEnlistment gvfsEnlistment && gvfsEnlistment.IsWorktree },
+            };
+            using (ITracer updateIndexActivity = this.tracer.StartActivity("CreateFromHeadTree", EventLevel.Informational, metadata))
             {
                 Thread entryWritingThread = new Thread(() => this.WriteAllEntries(indexVersion, isFinal));
                 entryWritingThread.Start();
@@ -245,11 +252,10 @@ namespace GVFS.Common.Git
             return new byte[20];
         }
 
-        private void ReplaceExistingIndex()
+        internal void ReplaceExistingIndex()
         {
-            string indexPath = Path.Combine(this.enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
-            File.Delete(indexPath);
-            File.Move(this.indexLockPath, indexPath);
+            File.Delete(this.indexPath);
+            File.Move(this.indexLockPath, this.indexPath);
         }
 
         private class LsTreeEntry

@@ -327,6 +327,38 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void GitDirectoryMatchesDotGitRootForRegularEnlistment()
+        {
+            // Regular enlistments have no separate worktree .git file,
+            // so the --git-dir that reaches git matches Enlistment.DotGitRoot.
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            MockGitProcess process = new MockGitProcess(enlistment);
+            process.SetExpectedCommandResult(
+                "rev-parse HEAD",
+                () => new GitProcess.Result("abc123", string.Empty, GitProcess.Result.SuccessCode));
+
+            process.RevParse("HEAD");
+
+            process.InvocationsRun.Count.ShouldEqual(1);
+            process.InvocationsRun[0].DotGitDirectory.ShouldEqual(enlistment.DotGitRoot);
+        }
+
+        [TestCase]
+        public void NoGitDirectoryIsPassedWhenWorkingDirectoryRootIsNull()
+        {
+            // Instances without an enlistment root cannot supply a --git-dir.
+            MockGitProcess process = new MockGitProcess(Path.Combine("mock:", "git"), workingDirectoryRoot: null);
+            process.SetExpectedCommandResult(
+                "rev-parse HEAD",
+                () => new GitProcess.Result("abc123", string.Empty, GitProcess.Result.SuccessCode));
+
+            process.RevParse("HEAD");
+
+            process.InvocationsRun.Count.ShouldEqual(1);
+            process.InvocationsRun[0].DotGitDirectory.ShouldBeNull();
+        }
+
+        [TestCase]
         public void ResultHasNoErrors()
         {
             GitProcess.Result result = new GitProcess.Result(

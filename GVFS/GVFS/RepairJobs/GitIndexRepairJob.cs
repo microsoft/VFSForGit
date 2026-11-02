@@ -13,8 +13,10 @@ namespace GVFS.RepairJobs
         public GitIndexRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
-            this.indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
+            this.indexPath = enlistment.GitIndexPath;
         }
+
+        internal string IndexPath => this.indexPath;
 
         public override string Name
         {

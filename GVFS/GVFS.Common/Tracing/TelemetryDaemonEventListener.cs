@@ -16,7 +16,7 @@ namespace GVFS.Common.Tracing
 
         private QueuedPipeStringWriter pipeWriter;
 
-        private TelemetryDaemonEventListener(
+        internal TelemetryDaemonEventListener(
             string providerName,
             string enlistmentId,
             string mountId,
