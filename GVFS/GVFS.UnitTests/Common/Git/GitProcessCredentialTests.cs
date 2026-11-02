@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.UnitTests.Common.Git
 {
@@ -145,9 +146,11 @@ namespace GVFS.UnitTests.Common.Git
             ((bool)tracer.RelatedEventMetadata.Single()["WillRetry"]).ShouldBeFalse();
         }
 
-        [TestCase(true)]
-        [TestCase(false)]
-        public void CredentialFillHandlesARealLockedGitConfig(bool releaseAfterFirstAttempt)
+        [TestCase(true, 30000)]
+        [TestCase(false, 30000)]
+        [TestCase(true, Timeout.Infinite)]
+        [TestCase(false, Timeout.Infinite)]
+        public void CredentialFillHandlesARealLockedGitConfig(bool releaseAfterFirstAttempt, int timeoutMs)
         {
             string gitPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "cmd", "git.exe");
             if (!File.Exists(gitPath))
@@ -166,7 +169,7 @@ namespace GVFS.UnitTests.Common.Git
                 LockedConfigGitProcess gitProcess = new LockedConfigGitProcess(gitPath, repoPath, releaseAfterFirstAttempt);
                 MockTracer tracer = new MockTracer();
 
-                bool success = gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out string error, timeoutMs: 10000);
+                bool success = gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out string error, timeoutMs: timeoutMs);
 
                 success.ShouldEqual(releaseAfterFirstAttempt, error);
                 gitProcess.Results.Count.ShouldEqual(releaseAfterFirstAttempt ? 2 : 5);

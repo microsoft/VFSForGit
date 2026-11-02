@@ -1145,6 +1145,9 @@ namespace GVFS.Common.Git
 
                             return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
                         }
+
+                        // A timed wait does not wait for redirected-stream callbacks to finish.
+                        this.executingProcess.WaitForExit();
                     }
 
                     return new Result(output.ToString(), errors.ToString(), this.executingProcess.ExitCode, output.Truncated, errors.Truncated);
