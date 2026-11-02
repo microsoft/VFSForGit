@@ -223,7 +223,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 }
 
                 ProcessResult result = await Task.Run(() => ProcessHelper.Run(process, timeoutMs: 75000));
-                result.ExitCode.ShouldEqual(failMount ? 3 : 12, result.Output + result.Errors);
+                result.ExitCode.ShouldEqual(failMount ? 3 : 13, result.Output + result.Errors);
                 result.Output.ShouldContain("Clone completed, but prefetch failed");
                 result.Output.ShouldContain("Run 'gvfs prefetch --commits'");
                 if (failMount)

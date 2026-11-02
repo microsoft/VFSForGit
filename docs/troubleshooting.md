@@ -127,7 +127,7 @@ Only the body-read setting uses zero to disable its deadline.
 The retry configuration also applies to the network steps within `gvfs clone`.
 Each request uses the existing retry policy. Clone does not add a second retry loop.
 
-If clone completes but synchronous prefetch fails, `gvfs clone` returns exit code 12.
+If clone completes but synchronous prefetch fails, `gvfs clone` returns exit code 13.
 The enlistment remains available. A requested mount failure takes precedence and returns its own failure code.
 
 From the enlistment directory, run `gvfs prefetch --commits` to retry only prefetch.

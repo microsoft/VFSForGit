@@ -14,6 +14,7 @@
         AuthenticationError = 9,
         CredentialTimeout = 10,
         RemoteGvfsConfigError = 11,
-        CloneSucceededPrefetchFailed = 12,
+        MissingDiskLayoutVersion = 12,
+        CloneSucceededPrefetchFailed = 13,
     }
 }
