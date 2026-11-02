@@ -27,6 +27,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\GVFS.Hooks\KnownGitCommands.cs">
+      <Link>Hooks\KnownGitCommands.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Hooks\Program.CommandLocking.cs">
+      <Link>Hooks\Program.CommandLocking.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Hooks\UnstageCommandParser.cs">
       <Link>Hooks\UnstageCommandParser.cs</Link>
     </Compile>
@@ -57,4 +63,3 @@
   </ItemGroup>
 
 </Project>
-

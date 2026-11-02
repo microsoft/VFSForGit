@@ -1,5 +1,7 @@
 using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System.IO;
 
@@ -89,6 +91,26 @@ namespace GVFS.UnitTests.Common
         {
             GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
             enlistment.DotGitRoot.ShouldEqual(this.sharedGitDir);
+        }
+
+        [TestCase]
+        public void GitProcessPassesWorktreeGitFileAsGitDir()
+        {
+            // The --git-dir that reaches git must be the worktree's .git file, not the gitdir:
+            // target inside it and not DotGitRoot. Git resolves per-worktree state through the file.
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            MockGitProcess gitProcess = new MockGitProcess(enlistment);
+            gitProcess.SetExpectedCommandResult(
+                "rev-parse HEAD",
+                () => new GitProcess.Result("abc123", string.Empty, GitProcess.Result.SuccessCode));
+
+            gitProcess.RevParse("HEAD");
+
+            gitProcess.InvocationsRun.Count.ShouldEqual(1);
+            string gitDir = gitProcess.InvocationsRun[0].DotGitDirectory;
+            gitDir.ShouldEqual(Path.Combine(this.worktreePath, ".git"));
+            gitDir.ShouldNotEqual(enlistment.DotGitRoot);
+            gitDir.ShouldNotEqual(this.worktreeGitDir);
         }
 
         [TestCase]

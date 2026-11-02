@@ -62,6 +62,12 @@ namespace GVFS.Common
         public string WorkingDirectoryRoot { get; }
         public string WorkingDirectoryBackingRoot { get; }
 
+        /// <summary>
+        /// Path to the git directory that holds the repository metadata GVFS reads or writes
+        /// directly. The default is "&lt;WorkingDirectoryBackingRoot&gt;\.git", which is a file in a
+        /// linked worktree. Enlistments that support linked worktrees must set it to the
+        /// shared (common) git directory during construction.
+        /// </summary>
         public string DotGitRoot { get; protected set; }
         public abstract string GitObjectsRoot { get; protected set; }
         public abstract string LocalObjectsRoot { get; protected set; }
