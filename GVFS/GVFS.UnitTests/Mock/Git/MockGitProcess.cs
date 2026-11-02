@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
@@ -15,36 +16,39 @@ namespace GVFS.UnitTests.Mock.Git
         private List<CommandInfo> expectedCommandInfos = new List<CommandInfo>();
 
         public MockGitProcess()
-            : base(new MockGVFSEnlistment())
+            : this(new MockGVFSEnlistment())
         {
-            this.Initialize();
+        }
+
+        public MockGitProcess(Enlistment enlistment)
+            : base(enlistment)
+        {
         }
 
         public MockGitProcess(string gitBinPath, string workingDirectoryRoot)
             : base(gitBinPath, workingDirectoryRoot)
         {
-            this.Initialize();
         }
 
-        public List<string> CommandsRun { get; private set; }
+        public List<string> CommandsRun { get; } = new List<string>();
 
         /// <summary>
-        /// Records every call into <see cref="InvokeGitImpl"/> in order, with the mayRequireAuth and
-        /// hasVisibleConsoleWindow values passed to it. Recording each invocation (rather than keeping only
+        /// Records every call into <see cref="InvokeGitImpl"/> in order, with the mayRequireAuth,
+        /// hasVisibleConsoleWindow and --git-dir values passed to it. Recording each invocation (rather than keeping only
         /// the last value per command) keeps the wiring assertions honest if a command is ever run more than
         /// once with different flags.
         /// </summary>
-        public List<GitInvocation> InvocationsRun { get; private set; }
+        public List<GitInvocation> InvocationsRun { get; } = new List<GitInvocation>();
         public bool ShouldFail { get; set; }
-        public Dictionary<string, Credential> StoredCredentials { get; private set; }
-        public Dictionary<string, List<Credential>> CredentialApprovals { get; private set; }
-        public Dictionary<string, List<Credential>> CredentialRejections { get; private set; }
+        public Dictionary<string, Credential> StoredCredentials { get; } = new Dictionary<string, Credential>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, List<Credential>> CredentialApprovals { get; } = new Dictionary<string, List<Credential>>();
+        public Dictionary<string, List<Credential>> CredentialRejections { get; } = new Dictionary<string, List<Credential>>();
 
         /// <summary>
         /// The value passed as --git-dir for each invocation, in the order the
         /// invocations happened. An entry is null when no --git-dir was passed.
         /// </summary>
-        public List<string> DotGitDirectoriesUsed { get; private set; }
+        public List<string> DotGitDirectoriesUsed { get; } = new List<string>();
 
         /// <summary>
         /// Returns the mayRequireAuth value the given command was invoked with, asserting the command ran and
@@ -125,7 +129,7 @@ namespace GVFS.UnitTests.Mock.Git
         {
             this.CommandsRun.Add(command);
             this.DotGitDirectoriesUsed.Add(dotGitDirectory);
-            this.InvocationsRun.Add(new GitInvocation(command, mayRequireAuth, hasVisibleConsoleWindow));
+            this.InvocationsRun.Add(new GitInvocation(command, dotGitDirectory, mayRequireAuth, hasVisibleConsoleWindow));
 
             if (this.ShouldFail)
             {
@@ -180,26 +184,20 @@ namespace GVFS.UnitTests.Mock.Git
             return result;
         }
 
-        private void Initialize()
-        {
-            this.CommandsRun = new List<string>();
-            this.DotGitDirectoriesUsed = new List<string>();
-            this.InvocationsRun = new List<GitInvocation>();
-            this.StoredCredentials = new Dictionary<string, Credential>(StringComparer.OrdinalIgnoreCase);
-            this.CredentialApprovals = new Dictionary<string, List<Credential>>();
-            this.CredentialRejections = new Dictionary<string, List<Credential>>();
-        }
-
         public class GitInvocation
         {
-            public GitInvocation(string command, bool mayRequireAuth, bool? hasVisibleConsoleWindow)
+            public GitInvocation(string command, string dotGitDirectory, bool mayRequireAuth, bool? hasVisibleConsoleWindow)
             {
                 this.Command = command;
+                this.DotGitDirectory = dotGitDirectory;
                 this.MayRequireAuth = mayRequireAuth;
                 this.HasVisibleConsoleWindow = hasVisibleConsoleWindow;
             }
 
             public string Command { get; }
+
+            /// <summary>The --git-dir value passed to git, or null when none would be passed.</summary>
+            public string DotGitDirectory { get; }
             public bool MayRequireAuth { get; }
             public bool? HasVisibleConsoleWindow { get; }
         }

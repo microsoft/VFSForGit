@@ -4,6 +4,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -48,14 +49,82 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 "remotes/origin/" + Properties.Settings.Default.Commitish);
         }
 
-        [TestCase, Order(4)]
-        public void GitCommandWaitsWhileAnotherIsRunning()
+        [TestCase("status")]
+        [TestCase("for-each-repo")]
+        [Order(4)]
+        public void GitCommandWaitsWhileAnotherIsRunning(string command)
         {
-            int pid;
-            GitHelpers.AcquireGVFSLock(this.Enlistment, out pid, resetTimeout: 3000);
+            string emptyConfigPath = null;
+            Dictionary<string, string> environmentVariables = null;
+            try
+            {
+                if (command == "for-each-repo")
+                {
+                    emptyConfigPath = Path.Combine(this.Enlistment.EnlistmentRoot, "empty-git-config-" + Guid.NewGuid().ToString("N"));
+                    File.WriteAllText(emptyConfigPath, string.Empty);
+                    environmentVariables = new Dictionary<string, string>
+                    {
+                        { "GIT_CONFIG_GLOBAL", emptyConfigPath },
+                        { "GIT_CONFIG_NOSYSTEM", "1" },
+                        { "GIT_CONFIG_COUNT", "0" },
+                        { "GIT_CONFIG_PARAMETERS", string.Empty },
+                    };
 
-            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status", removeWaitingMessages: false);
-            statusWait.Errors.ShouldContain(ExpectedStatusWaitingText);
+                    ProcessResult alias = GitProcess.InvokeProcess(
+                        this.Enlistment.RepoRoot,
+                        "config --get alias.for-each-repo",
+                        environmentVariables);
+                    alias.ExitCode.ShouldEqual(1);
+                    alias.Output.ShouldBeEmpty();
+
+                    command = "for-each-repo --config=gvfs.test-lock-policy-repos-" + Guid.NewGuid().ToString("N");
+                }
+
+                int pid;
+                GitHelpers.AcquireGVFSLock(this.Enlistment, out pid, resetTimeout: 3000);
+
+                ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    command,
+                    environmentVariables,
+                    removeWaitingMessages: false);
+                result.ExitCode.ShouldEqual(0);
+                result.Errors.ShouldContain(ExpectedStatusWaitingText);
+            }
+            finally
+            {
+                if (emptyConfigPath != null)
+                {
+                    File.Delete(emptyConfigPath);
+                }
+            }
+        }
+
+        [TestCase("worktree list")]
+        [TestCase("worktree list --porcelain")]
+        [TestCase("worktree list --porcelain -z")]
+        [TestCase("annotate HEAD -- Readme.md")]
+        [TestCase("check-ref-format --branch topic")]
+        [TestCase("cherry HEAD HEAD")]
+        [TestCase("count-objects -vH")]
+        [TestCase("ls-remote --get-url origin")]
+        [TestCase("range-diff HEAD~1..HEAD HEAD~1..HEAD")]
+        [TestCase("shortlog -sn HEAD")]
+        [TestCase("show-branch --list")]
+        public void ReadOnlyCommandDoesNotWaitForLock(string command)
+        {
+            GitHelpers.RunWithGVFSLock(
+                this.Enlistment,
+                () =>
+                {
+                    ProcessResult result = GitProcess.InvokeProcess(
+                        this.Enlistment.RepoRoot,
+                        command,
+                        timeoutMs: AcquireGVFSLockTimeout);
+
+                    result.ExitCode.ShouldEqual(0);
+                    result.Errors.ShouldNotContain(false, ExpectedStatusWaitingText);
+                });
         }
 
         [TestCase, Order(5)]

@@ -216,12 +216,11 @@ namespace GVFS.CommandLine
         private bool IsRepoAvailableToUnmount(string repoRoot)
         {
             // For --unmount-all: only unmount a repo whose mount is in a state that accepts an
-            // unmount request. A repo already Unmounting is reaching the desired state on its own,
-            // and one still Mounting rejects the request, so both are skipped to avoid spurious
-            // "Already unmounting" / "not mounted" failures during concurrent teardown.
+            // unmount request. A repo already Unmounting or MountFailed is ending its process
+            // on its own, and one still Mounting rejects the request, so all three are skipped
+            // to avoid spurious failures during concurrent teardown.
             return this.TryGetRepoMountStatus(repoRoot, out string mountStatus)
-                && (mountStatus.Equals(NamedPipeMessages.GetStatus.Ready, StringComparison.Ordinal)
-                    || mountStatus.Equals(NamedPipeMessages.GetStatus.MountFailed, StringComparison.Ordinal));
+                && mountStatus.Equals(NamedPipeMessages.GetStatus.Ready, StringComparison.Ordinal);
         }
 
         private bool TryGetRepoMountStatus(string repoRoot, out string mountStatus)

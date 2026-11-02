@@ -706,6 +706,15 @@ namespace GVFS.Virtualization.Projection
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// Test seam. Puts the projection into the "index parsing thread is still
+        /// running" state that a failed mount produces, without needing a real repo.
+        /// </summary>
+        internal void SetIndexParsingThreadForTests(Task indexParsingTask)
+        {
+            this.indexParsingThread = indexParsingTask;
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (disposing)
@@ -730,7 +739,9 @@ namespace GVFS.Virtualization.Projection
 
                 if (this.indexParsingThread != null)
                 {
-                    this.indexParsingThread.Dispose();
+                    // Dispose can run while this task is still running, and Task.Dispose
+                    // throws unless the task has completed. A Task holds no unmanaged
+                    // resources, so it is not disposed here.
                     this.indexParsingThread = null;
                 }
             }

@@ -773,13 +773,18 @@ namespace GVFS.CommandLine
                     new ParallelOptions { MaxDegreeOfParallelism = maxParallelism },
                     filePath =>
                     {
-                        if (GVFSPlatform.Instance.FileSystem.HydrateFile(filePath, new byte[1]))
+                        if (GVFSPlatform.Instance.FileSystem.HydrateFile(filePath, new byte[1], out Exception failure))
                         {
                             Interlocked.Increment(ref hydratedCount);
                         }
                         else
                         {
-                            tracer.RelatedWarning("HydrateMatchingFiles: Failed to hydrate " + filePath);
+                            EventMetadata metadata = HydrationFailureDiagnostics.BuildMetadata(filePath, failure);
+
+                            // RelatedWarning defaults to Keywords.None, which the telemetry pipe
+                            // filters out — pass Keywords.Telemetry explicitly so this failure is
+                            // actually visible, matching RelatedError's default elsewhere.
+                            tracer.RelatedWarning(metadata, "HydrateMatchingFiles: Failed to hydrate " + filePath, Keywords.Telemetry);
                             Interlocked.Increment(ref failedCount);
                         }
                     });
