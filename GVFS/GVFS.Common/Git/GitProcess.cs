@@ -1206,16 +1206,16 @@ namespace GVFS.Common.Git
 
                 int delayMs = CredentialConfigReadRetryDelayMs << (attempt - 1);
                 bool willRetry = attempt < MaxCredentialConfigReadAttempts &&
-                    (timeoutMs < 0 || timeoutMs - timer.ElapsedMilliseconds > delayMs);
+                    (timeoutMs == Timeout.Infinite || timeoutMs - timer.ElapsedMilliseconds > delayMs);
                 tracer.RelatedEvent(
                     EventLevel.Warning,
-                    "CredentialConfigReadRetry",
+                    "CredentialConfigReadFailure",
                     new EventMetadata
                     {
                         { "AttemptNumber", attempt },
                         { "MaxAttempts", MaxCredentialConfigReadAttempts },
                         { "WillRetry", willRetry },
-                        { "RetryDelayMs", willRetry ? delayMs : 0 },
+                        { "RetryDelayMilliseconds", willRetry ? delayMs : 0 },
                     },
                     Keywords.Network | Keywords.Telemetry);
 
@@ -1226,7 +1226,7 @@ namespace GVFS.Common.Git
 
                 TraceCredentialFillErrorOutput(tracer, result.Errors);
                 Thread.Sleep(delayMs);
-                if (timeoutMs >= 0)
+                if (timeoutMs != Timeout.Infinite)
                 {
                     remainingTimeoutMs = (int)Math.Max(0, timeoutMs - timer.ElapsedMilliseconds);
                 }
@@ -1247,6 +1247,11 @@ namespace GVFS.Common.Git
             foreach (string errorLine in result.Errors.Split('\n'))
             {
                 string line = errorLine.TrimEnd('\r');
+                if (line.Length == 0)
+                {
+                    continue;
+                }
+
                 if (line == "fatal: unknown error occurred while reading the configuration files")
                 {
                     configReadFailed = true;
@@ -1254,11 +1259,22 @@ namespace GVFS.Common.Git
                 else if (line.StartsWith("warning: unable to access '", StringComparison.Ordinal))
                 {
                     int separator = line.LastIndexOf("': ", StringComparison.Ordinal);
-                    if (separator >= 0)
+                    if (separator < 0)
                     {
-                        string reason = line.Substring(separator + 3);
-                        transientAccessFailure |= reason == "Permission denied" || reason == "Device or resource busy";
+                        return false;
                     }
+
+                    string reason = line.Substring(separator + 3);
+                    if (reason != "Permission denied" && reason != "Device or resource busy")
+                    {
+                        return false;
+                    }
+
+                    transientAccessFailure = true;
+                }
+                else
+                {
+                    return false;
                 }
             }
 

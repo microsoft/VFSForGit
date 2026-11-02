@@ -24,9 +24,11 @@ namespace GVFS.UnitTests.Common.Git
             "warning: unable to access 'mock/config': Permission denied\n" +
             "fatal: unknown error occurred while reading the configuration files\n";
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void CredentialFillRetriesAConfigReadFailure(bool certificate)
+        [TestCase(false, "Permission denied", "\n")]
+        [TestCase(true, "Permission denied", "\n")]
+        [TestCase(false, "Device or resource busy", "\r\n")]
+        [TestCase(true, "Device or resource busy", "\r\n")]
+        public void CredentialFillRetriesAConfigReadFailure(bool certificate, string reason, string lineEnding)
         {
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = new MockGitProcess();
@@ -34,7 +36,7 @@ namespace GVFS.UnitTests.Common.Git
             gitProcess.SetExpectedCommandResult(
                 certificate ? CertificateFillCommand : CredentialFillCommand,
                 () => ++attempts == 1
-                    ? new GitProcess.Result(string.Empty, ConfigReadFailure, GitFatalExitCode)
+                    ? new GitProcess.Result(string.Empty, ConfigReadFailure.Replace("Permission denied", reason).Replace("\n", lineEnding), GitFatalExitCode)
                     : new GitProcess.Result("username=someone\npassword=" + SecretValue + "\n", string.Empty, GitProcess.Result.SuccessCode));
 
             string password;
@@ -46,8 +48,10 @@ namespace GVFS.UnitTests.Common.Git
             success.ShouldBeTrue(error);
             password.ShouldEqual(SecretValue);
             attempts.ShouldEqual(2);
-            tracer.RelatedEventNames.ShouldMatchInOrder("CredentialConfigReadRetry");
+            gitProcess.InvocationsRun.Select(i => i.TimeoutMs).ShouldMatchInOrder(-1, -1);
+            tracer.RelatedEventNames.ShouldMatchInOrder("CredentialConfigReadFailure");
             ((bool)tracer.RelatedEventMetadata[0]["WillRetry"]).ShouldBeTrue();
+            AssertConfigReadFailureTelemetry(tracer);
             AssertNoSecret(tracer);
         }
 
@@ -61,6 +65,10 @@ namespace GVFS.UnitTests.Common.Git
 
             gitProcess.InvocationsRun.Count.ShouldEqual(5);
             tracer.RelatedEventMetadata.Select(e => (bool)e["WillRetry"]).ShouldMatchInOrder(true, true, true, true, false);
+            tracer.RelatedEventMetadata.Select(e => (int)e["AttemptNumber"]).ShouldMatchInOrder(1, 2, 3, 4, 5);
+            tracer.RelatedEventMetadata.Select(e => (int)e["MaxAttempts"]).ShouldMatchInOrder(5, 5, 5, 5, 5);
+            tracer.RelatedEventMetadata.Select(e => (int)e["RetryDelayMilliseconds"]).ShouldMatchInOrder(20, 40, 80, 160, 0);
+            AssertConfigReadFailureTelemetry(tracer);
             AssertErrorMessageHasNoStderr(error);
             tracer.RelatedWarningEvents.Any(e => e.Contains("Permission denied")).ShouldBeTrue();
         }
@@ -72,6 +80,8 @@ namespace GVFS.UnitTests.Common.Git
         [TestCase(ConfigReadFailure, "username=someone\n", false, false)]
         [TestCase(ConfigReadFailure, "", true, false)]
         [TestCase(ConfigReadFailure, "", false, true)]
+        [TestCase(ConfigReadFailure + "fatal: credential helper 'mock-helper' told us to quit\n", "", false, false)]
+        [TestCase(ConfigReadFailure + "fatal: Authentication failed\n", "", false, false)]
         public void CredentialFillDoesNotRetryOtherFailures(string errors, string output, bool outputTruncated, bool errorsTruncated)
         {
             MockTracer tracer = new MockTracer();
@@ -101,7 +111,25 @@ namespace GVFS.UnitTests.Common.Git
 
             gitProcess.InvocationsRun.Count.ShouldEqual(2);
             gitProcess.InvocationsRun[0].TimeoutMs.ShouldEqual(5000);
-            gitProcess.InvocationsRun[1].TimeoutMs.ShouldBeAtMost(4980);
+            gitProcess.InvocationsRun[1].TimeoutMs.ShouldBeAtMost(4999);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CredentialFillDoesNotRetryATimeoutWithConfigDiagnostics(bool afterConfigFailure)
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                CredentialFillCommand,
+                () => afterConfigFailure && gitProcess.InvocationsRun.Count == 1
+                    ? new GitProcess.Result(string.Empty, ConfigReadFailure, GitFatalExitCode)
+                    : new GitProcess.Result(string.Empty, "Operation timed out: " + ConfigReadFailure, GitProcess.Result.GenericFailureCode));
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string error, timeoutMs: 5000).ShouldBeFalse();
+
+            gitProcess.InvocationsRun.Count.ShouldEqual(afterConfigFailure ? 2 : 1);
+            error.ShouldEqual("Credential manager did not respond within 5 seconds");
         }
 
         [TestCase]
@@ -396,6 +424,16 @@ namespace GVFS.UnitTests.Common.Git
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out string password, out _).ShouldBeFalse();
 
             password.ShouldBeNull();
+        }
+
+        private static void AssertConfigReadFailureTelemetry(MockTracer tracer)
+        {
+            foreach (EventMetadata metadata in tracer.RelatedEventMetadata)
+            {
+                CollectionAssert.AreEquivalent(
+                    new[] { "AttemptNumber", "MaxAttempts", "WillRetry", "RetryDelayMilliseconds" },
+                    metadata.Keys);
+            }
         }
 
         private static MockGitProcess CreateGitProcess(
