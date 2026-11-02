@@ -121,7 +121,7 @@ namespace GVFS.UnitTests.Mock.Git
             bool? hasVisibleConsoleWindow = null)
         {
             this.CommandsRun.Add(command);
-            this.InvocationsRun.Add(new GitInvocation(command, dotGitDirectory, mayRequireAuth, hasVisibleConsoleWindow));
+            this.InvocationsRun.Add(new GitInvocation(command, dotGitDirectory, mayRequireAuth, hasVisibleConsoleWindow, timeoutMs));
 
             if (this.ShouldFail)
             {
@@ -162,12 +162,13 @@ namespace GVFS.UnitTests.Mock.Git
 
         public class GitInvocation
         {
-            public GitInvocation(string command, string dotGitDirectory, bool mayRequireAuth, bool? hasVisibleConsoleWindow)
+            public GitInvocation(string command, string dotGitDirectory, bool mayRequireAuth, bool? hasVisibleConsoleWindow, int timeoutMs)
             {
                 this.Command = command;
                 this.DotGitDirectory = dotGitDirectory;
                 this.MayRequireAuth = mayRequireAuth;
                 this.HasVisibleConsoleWindow = hasVisibleConsoleWindow;
+                this.TimeoutMs = timeoutMs;
             }
 
             public string Command { get; }
@@ -176,6 +177,7 @@ namespace GVFS.UnitTests.Mock.Git
             public string DotGitDirectory { get; }
             public bool MayRequireAuth { get; }
             public bool? HasVisibleConsoleWindow { get; }
+            public int TimeoutMs { get; }
         }
 
         public class Credential

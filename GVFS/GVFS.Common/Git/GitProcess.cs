@@ -40,6 +40,8 @@ namespace GVFS.Common.Git
         private const string MissingPasswordErrorMessage = "Git credential fill returned no password";
         private const int MaxCredentialOutputKeys = 32;
         private const int MaxCredentialOutputKeyLength = 32;
+        private const int MaxCredentialConfigReadAttempts = 5;
+        private const int CredentialConfigReadRetryDelayMs = 20;
 
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
 
@@ -319,13 +321,11 @@ namespace GVFS.Common.Git
 
                 // See GetFromConfig for why pre-command hook is disabled
                 // for bootstrap-time git operations.
-                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
+                Result gitCredentialOutput = this.InvokeCredentialFill(
+                    tracer,
                     "credential fill",
-                    stdin => stdin.Write("protocol=cert\npath=" + certificatePath + "\nusername=\n\n"),
-                    parseStdOutLine: null,
-                    usePreCommandHook: false,
-                    mayRequireAuth: true,
-                    hasVisibleConsoleWindow: hasVisibleConsoleWindow);
+                    "protocol=cert\npath=" + certificatePath + "\nusername=\n\n",
+                    hasVisibleConsoleWindow);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
@@ -386,14 +386,12 @@ namespace GVFS.Common.Git
 
                 // See GetFromConfig for why pre-command hook is disabled
                 // for bootstrap-time git operations.
-                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
+                Result gitCredentialOutput = this.InvokeCredentialFill(
+                    tracer,
                     GenerateCredentialVerbCommand("fill"),
-                    stdin => stdin.Write($"url={repoUrl}\n\n"),
-                    parseStdOutLine: null,
-                    usePreCommandHook: false,
-                    timeoutMs: timeoutMs,
-                    mayRequireAuth: true,
-                    hasVisibleConsoleWindow: hasVisibleConsoleWindow);
+                    $"url={repoUrl}\n\n",
+                    hasVisibleConsoleWindow,
+                    timeoutMs);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
@@ -1179,6 +1177,92 @@ namespace GVFS.Common.Git
                 // the previous behavior (CreateNoWindow=false) rather than aborting the command.
                 return true;
             }
+        }
+
+        private Result InvokeCredentialFill(
+            ITracer tracer,
+            string command,
+            string input,
+            bool hasVisibleConsoleWindow,
+            int timeoutMs = Timeout.Infinite)
+        {
+            Stopwatch timer = Stopwatch.StartNew();
+            int remainingTimeoutMs = timeoutMs;
+            for (int attempt = 1; ; ++attempt)
+            {
+                Result result = this.InvokeGitAgainstDotGitFolder(
+                    command,
+                    stdin => stdin.Write(input),
+                    parseStdOutLine: null,
+                    usePreCommandHook: false,
+                    timeoutMs: remainingTimeoutMs,
+                    mayRequireAuth: true,
+                    hasVisibleConsoleWindow: hasVisibleConsoleWindow);
+
+                if (!IsCredentialConfigReadFailure(result))
+                {
+                    return result;
+                }
+
+                int delayMs = CredentialConfigReadRetryDelayMs << (attempt - 1);
+                bool willRetry = attempt < MaxCredentialConfigReadAttempts &&
+                    (timeoutMs < 0 || timeoutMs - timer.ElapsedMilliseconds > delayMs);
+                tracer.RelatedEvent(
+                    EventLevel.Warning,
+                    "CredentialConfigReadRetry",
+                    new EventMetadata
+                    {
+                        { "AttemptNumber", attempt },
+                        { "MaxAttempts", MaxCredentialConfigReadAttempts },
+                        { "WillRetry", willRetry },
+                        { "RetryDelayMs", willRetry ? delayMs : 0 },
+                    },
+                    Keywords.Network | Keywords.Telemetry);
+
+                if (!willRetry)
+                {
+                    return result;
+                }
+
+                TraceCredentialFillErrorOutput(tracer, result.Errors);
+                Thread.Sleep(delayMs);
+                if (timeoutMs >= 0)
+                {
+                    remainingTimeoutMs = (int)Math.Max(0, timeoutMs - timer.ElapsedMilliseconds);
+                }
+            }
+        }
+
+        private static bool IsCredentialConfigReadFailure(Result result)
+        {
+            if (!result.ExitCodeIsFailure || result.ErrorsTruncated || result.OutputTruncated ||
+                !string.IsNullOrEmpty(result.Output))
+            {
+                return false;
+            }
+
+            // Only retry Git's config-read failure, not a credential helper or prompt failure.
+            bool configReadFailed = false;
+            bool transientAccessFailure = false;
+            foreach (string errorLine in result.Errors.Split('\n'))
+            {
+                string line = errorLine.TrimEnd('\r');
+                if (line == "fatal: unknown error occurred while reading the configuration files")
+                {
+                    configReadFailed = true;
+                }
+                else if (line.StartsWith("warning: unable to access '", StringComparison.Ordinal))
+                {
+                    int separator = line.LastIndexOf("': ", StringComparison.Ordinal);
+                    if (separator >= 0)
+                    {
+                        string reason = line.Substring(separator + 3);
+                        transientAccessFailure |= reason == "Permission denied" || reason == "Device or resource busy";
+                    }
+                }
+            }
+
+            return configReadFailed && transientAccessFailure;
         }
 
         private static void AddCredentialFillResult(EventMetadata data, Result result)
