@@ -82,6 +82,7 @@ namespace GVFS.UnitTests.Common.Git
         [TestCase(ConfigReadFailure, "", false, true)]
         [TestCase(ConfigReadFailure + "fatal: credential helper 'mock-helper' told us to quit\n", "", false, false)]
         [TestCase(ConfigReadFailure + "fatal: Authentication failed\n", "", false, false)]
+        [TestCase(ConfigReadFailure + "warning: unable to access 'mock/other-config': Invalid argument\n", "", false, false)]
         public void CredentialFillDoesNotRetryOtherFailures(string errors, string output, bool outputTruncated, bool errorsTruncated)
         {
             MockTracer tracer = new MockTracer();
