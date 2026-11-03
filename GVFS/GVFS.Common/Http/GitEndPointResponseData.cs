@@ -17,11 +17,18 @@ namespace GVFS.Common.Http
         /// <summary>
         /// Constructor used when GitEndPointResponseData contains an error response
         /// </summary>
-        public GitEndPointResponseData(HttpStatusCode statusCode, Exception error, bool shouldRetry, HttpResponseMessage message, Action onResponseDisposed)
+        public GitEndPointResponseData(
+            HttpStatusCode statusCode,
+            Exception error,
+            bool shouldRetry,
+            HttpResponseMessage message,
+            Action onResponseDisposed,
+            bool shouldRecordFailure = true)
         {
             this.StatusCode = statusCode;
             this.Error = error;
             this.ShouldRetry = shouldRetry;
+            this.ShouldRecordFailure = shouldRetry && shouldRecordFailure;
             this.message = message;
             this.onResponseDisposed = onResponseDisposed;
         }
@@ -39,6 +46,8 @@ namespace GVFS.Common.Http
         public Exception Error { get; }
 
         public bool ShouldRetry { get; }
+
+        public bool ShouldRecordFailure { get; }
 
         public HttpStatusCode StatusCode { get; }
 

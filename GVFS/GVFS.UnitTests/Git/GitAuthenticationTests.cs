@@ -1019,6 +1019,8 @@ namespace GVFS.UnitTests.Git
                 {
                     response.HasErrors.ShouldEqual(true, "The rejected anonymous attempt should report its error");
                     response.ShouldRetry.ShouldEqual(true, "The rejected anonymous attempt should retry with credentials");
+                    response.ShouldRecordFailure.ShouldEqual(false, "An expected authentication challenge must not count against the circuit breaker");
+                    response.Error.Message.ShouldContain(responseBody);
                 }
 
                 using (GitEndPointResponseData response = requestor.SendRequest(
@@ -1034,6 +1036,44 @@ namespace GVFS.UnitTests.Git
             handler.AuthorizationHeaders[1].StartsWith("Basic ", StringComparison.Ordinal)
                 .ShouldEqual(true, "The retry should carry the credential");
             dut.IsAnonymous.ShouldEqual(false, "The auth-required response should promote the state");
+            tracer.RelatedInfoEvents.Any(info => info.Contains("PreviousAuthenticationState"))
+                .ShouldEqual(true, "Runtime authentication promotion should be traced");
+        }
+
+        [TestCase]
+        public void AnonymousAuthFailurePromotesWithoutPriorInitialization()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = this.GetGitProcess();
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(dut);
+            TestHttpMessageHandler handler = new TestHttpMessageHandler();
+            handler.EnqueueResponse(HttpStatusCode.Unauthorized, "Authentication required");
+            handler.EnqueueResponse(HttpStatusCode.OK, "{}");
+
+            using (TestHttpRequestor requestor = new TestHttpRequestor(tracer, new RetryConfig(), enlistment, handler))
+            {
+                using (GitEndPointResponseData response = requestor.SendRequest(
+                    new Uri("https://mock.invalid/gvfs/objects"),
+                    forceAnonymous: false))
+                {
+                    response.HasErrors.ShouldEqual(true, "The anonymous request should report the authentication challenge");
+                    response.ShouldRetry.ShouldEqual(true, "The challenge should request an authenticated retry");
+                    response.ShouldRecordFailure.ShouldEqual(false, "The expected challenge must not count against the circuit breaker");
+                }
+
+                using (GitEndPointResponseData response = requestor.SendRequest(
+                    new Uri("https://mock.invalid/gvfs/objects"),
+                    forceAnonymous: false))
+                {
+                    response.HasErrors.ShouldEqual(false, "The retry should fetch and send a credential");
+                }
+            }
+
+            handler.AuthorizationHeaders.Count.ShouldEqual(2, "Both attempts should reach the server");
+            handler.AuthorizationHeaders[0].ShouldEqual(null, "The first request should be anonymous");
+            handler.AuthorizationHeaders[1].StartsWith("Basic ", StringComparison.Ordinal)
+                .ShouldEqual(true, "Promotion must affect the next request without prior initialization");
         }
 
         private MockGitProcess GetGitProcess()

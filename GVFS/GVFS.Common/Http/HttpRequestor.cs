@@ -260,6 +260,7 @@ namespace GVFS.Common.Http
                     int statusInt = (int)response.StatusCode;
 
                     bool shouldRetry = ShouldRetry(response.StatusCode);
+                    bool shouldRecordFailure = shouldRetry;
 
                     if (sendAnonymous &&
                         ShouldRejectCredentials(response.StatusCode, errorMessage))
@@ -269,13 +270,27 @@ namespace GVFS.Common.Http
                         shouldRetry = !forceAnonymous;
                         if (!forceAnonymous)
                         {
-                            this.authentication.MarkAuthenticationRequired();
+                            shouldRecordFailure = false;
+                            if (this.authentication.PromoteToAuthenticationRequired(out string previousAuthenticationState))
+                            {
+                                EventMetadata authenticationMetadata = new EventMetadata
+                                {
+                                    ["PreviousAuthenticationState"] = previousAuthenticationState,
+                                    ["AuthenticationState"] = "Authenticated",
+                                    ["HttpStatus"] = response.StatusCode,
+                                };
+
+                                this.Tracer.RelatedInfo(
+                                    authenticationMetadata,
+                                    "Anonymous request was rejected; authentication is now required");
+                            }
                         }
 
                         errorMessage = string.Format(
-                            "Anonymous request was rejected with error code {0} ({1})",
+                            "Anonymous request was rejected with error code {0} ({1}). Original error message from server: {2}",
                             statusInt,
-                            response.StatusCode);
+                            response.StatusCode,
+                            errorMessage);
                     }
                     else if (ShouldRejectCredentials(response.StatusCode, errorMessage))
                     {
@@ -299,7 +314,8 @@ namespace GVFS.Common.Http
                         new GitObjectsHttpException(response.StatusCode, errorMessage),
                         shouldRetry,
                         message: response,
-                        onResponseDisposed: () => availableConnections.Release());
+                        onResponseDisposed: () => availableConnections.Release(),
+                        shouldRecordFailure: shouldRecordFailure);
                 }
             }
             catch (TaskCanceledException)

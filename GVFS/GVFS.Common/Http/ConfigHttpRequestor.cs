@@ -61,7 +61,11 @@ namespace GVFS.Common.Http
                     {
                         if (response.HasErrors)
                         {
-                            return new RetryWrapper<ServerGVFSConfig>.CallbackResult(response.Error, response.ShouldRetry);
+                            return new RetryWrapper<ServerGVFSConfig>.CallbackResult(
+                                response.Error,
+                                response.ShouldRetry,
+                                result: null,
+                                shouldRecordFailure: response.ShouldRecordFailure);
                         }
 
                         try

@@ -78,6 +78,8 @@ namespace GVFS.Common.Git
             get => this.GetAuthenticationState() == AuthenticationState.Anonymous;
         }
 
+        public bool IsSendingAnonymousRequests => this.ShouldSendAnonymous;
+
         internal bool ShouldSendAnonymous =>
             !this.IsInitializationStarted ||
             (this.initializationComplete.IsSet && this.GetAuthenticationState() != AuthenticationState.Authenticated);
@@ -475,6 +477,22 @@ namespace GVFS.Common.Git
         internal void MarkAuthenticationRequired()
         {
             Interlocked.Exchange(ref this.authenticationState, (int)AuthenticationState.Authenticated);
+        }
+
+        internal bool PromoteToAuthenticationRequired(out string previousAuthenticationState)
+        {
+            AuthenticationState previousState = (AuthenticationState)Interlocked.Exchange(
+                ref this.authenticationState,
+                (int)AuthenticationState.Authenticated);
+
+            previousAuthenticationState = previousState.ToString();
+
+            if (Interlocked.CompareExchange(ref this.initializationStarted, 1, 0) == 0)
+            {
+                this.MarkInitialized();
+            }
+
+            return previousState != AuthenticationState.Authenticated;
         }
 
         private AuthenticationState GetAuthenticationState()
