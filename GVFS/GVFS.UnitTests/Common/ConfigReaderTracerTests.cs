@@ -6,6 +6,7 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace GVFS.UnitTests.Common
@@ -30,15 +31,34 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void RetryConfigCreatesItsGitProcessWithTheTracer()
+        public void RetryConfigCreatesItsGitProcessWithTheTracerWhenTheEnvironmentChangesGitConfig()
         {
             MockTracer tracer = new MockTracer();
             TracerCapturingEnlistment enlistment = this.CreateEnlistment();
 
-            RetryConfig.LoadFromGitConfig(tracer, enlistment);
+            RetryConfig.LoadFromGitConfig(
+                tracer,
+                RetryConfig.CreateConfigReader(tracer, enlistment, new Hashtable { { "GIT_CONFIG_COUNT", "1" } }));
 
+            // One git.exe process reads all settings.
             enlistment.CapturedTracers.Count.ShouldEqual(1);
             enlistment.CapturedTracers[0].ShouldBeSameAs(tracer);
+        }
+
+        [TestCase]
+        public void RetryConfigDoesNotStartGitWhenLibGit2ReadsTheSettings()
+        {
+            TracerCapturingEnlistment enlistment = this.CreateEnlistment();
+
+            // The mock working directory does not exist, so libgit2 reads the empty isolated global config.
+            using (new IsolatedLibGit2Config())
+            {
+                RetryConfig.LoadFromGitConfig(
+                    new MockTracer(),
+                    RetryConfig.CreateConfigReader(new MockTracer(), enlistment, new Hashtable { { "PATH", "C:\\bin" } }));
+            }
+
+            enlistment.CapturedTracers.Count.ShouldEqual(0);
         }
 
         [TestCase]

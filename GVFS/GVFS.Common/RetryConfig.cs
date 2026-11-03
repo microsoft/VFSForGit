@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections;
 using System.ComponentModel;
 using System.IO;
 
@@ -20,6 +21,8 @@ namespace GVFS.Common
         private const int MaxConfiguredRetries = int.MaxValue - 3;
 
         private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(DefaultTimeoutSeconds);
+
+        internal delegate bool ConfigStringReader(string name, out string value, out string error);
 
         public RetryConfig(int maxRetries = DefaultMaxRetries)
             : this(maxRetries, DefaultTimeout)
@@ -45,21 +48,89 @@ namespace GVFS.Common
         public static RetryConfig LoadFromGitConfig(ITracer tracer, Enlistment enlistment)
         {
             ArgumentNullException.ThrowIfNull(enlistment);
-            return LoadFromGitConfig(tracer, enlistment.CreateGitProcess(tracer));
+            return LoadFromGitConfig(tracer, CreateConfigReader(tracer, enlistment, Environment.GetEnvironmentVariables()));
         }
 
         /// <summary>
-        /// Invalid or unreadable retry settings use defaults and emit warnings.
+        /// Reads the settings with git.exe. Invalid or unreadable retry settings use defaults and
+        /// emit warnings.
         /// </summary>
         public static RetryConfig LoadFromGitConfig(ITracer tracer, GitProcess git)
         {
             ArgumentNullException.ThrowIfNull(git);
+            return LoadFromGitConfig(
+                tracer,
+                (string name, out string value, out string error) => git.GetFromConfig(name).TryParseAsString(out value, out error));
+        }
+
+        /// <summary>
+        /// Reads the settings in process with libgit2, and with git.exe when libgit2 cannot give
+        /// the value that git.exe would give.
+        /// </summary>
+        internal static ConfigStringReader CreateConfigReader(ITracer tracer, Enlistment enlistment, IDictionary environment)
+        {
+            GitProcess git = null;
+            ConfigStringReader readWithGit = (string name, out string value, out string error) =>
+            {
+                git = git ?? enlistment.CreateGitProcess(tracer);
+                return git.GetFromConfig(name).TryParseAsString(out value, out error);
+            };
+
+            return LibGit2Repo.EnvironmentChangesGitConfig(environment)
+                ? readWithGit
+                : WithGitFallback(tracer, CreateLibGit2Reader(tracer, enlistment.WorkingDirectoryBackingRoot), readWithGit);
+        }
+
+        internal static ConfigStringReader CreateLibGit2Reader(ITracer tracer, string workingDirectoryRoot)
+        {
+            // When the working directory does not exist, for example before clone creates it,
+            // read only the global and system config. See LibGit2Repo for why GIT_DIR is ignored.
+            string repoPath = Directory.Exists(workingDirectoryRoot) ? workingDirectoryRoot : null;
+            return (string name, out string value, out string error) =>
+                LibGit2Repo.TryGetConfigString(tracer, repoPath, name, out value, out error);
+        }
+
+        /// <summary>
+        /// Reads with git.exe when libgit2 fails, for example because it rejects the repository's
+        /// ownership or skips an includeIf condition. A transient file access failure is not read
+        /// again, because libgit2 already used the GitConfigReadRetry budget for it.
+        /// </summary>
+        internal static ConfigStringReader WithGitFallback(ITracer tracer, ConfigStringReader readWithLibGit2, ConfigStringReader readWithGit)
+        {
+            return (string name, out string value, out string error) =>
+            {
+                if (readWithLibGit2(name, out value, out error))
+                {
+                    return true;
+                }
+
+                if (GitConfigReadRetry.IsTransientFileAccessError(error))
+                {
+                    return false;
+                }
+
+                tracer?.RelatedEvent(
+                    EventLevel.Informational,
+                    "RetryConfig_ReadWithGit",
+                    new EventMetadata
+                    {
+                        { "Area", EtwArea },
+                        { "ConfigName", name },
+                        { "LibGit2Error", error },
+                    });
+
+                return readWithGit(name, out value, out error);
+            };
+        }
+
+        internal static RetryConfig LoadFromGitConfig(ITracer tracer, ConfigStringReader readConfig)
+        {
             int maxRetries = LoadIntOrDefault(
-                tracer, git, GVFSConstants.GitConfig.MaxRetriesConfig, DefaultMaxRetries, 0, MaxConfiguredRetries);
+                tracer, readConfig, GVFSConstants.GitConfig.MaxRetriesConfig, DefaultMaxRetries, 0, MaxConfiguredRetries);
             int timeoutSeconds = LoadIntOrDefault(
-                tracer, git, GVFSConstants.GitConfig.TimeoutSecondsConfig, DefaultTimeoutSeconds, 1, MaxTimeoutSeconds);
+                tracer, readConfig, GVFSConstants.GitConfig.TimeoutSecondsConfig, DefaultTimeoutSeconds, 1, MaxTimeoutSeconds);
             int readTimeoutSeconds = LoadIntOrDefault(
-                tracer, git, GVFSConstants.GitConfig.ReadTimeoutSecondsConfig, DefaultReadTimeoutSeconds, 0, MaxTimeoutSeconds);
+                tracer, readConfig, GVFSConstants.GitConfig.ReadTimeoutSecondsConfig, DefaultReadTimeoutSeconds, 0, MaxTimeoutSeconds);
             RetryConfig retryConfig = new RetryConfig(maxRetries, TimeSpan.FromSeconds(timeoutSeconds))
             {
                 ReadTimeout = readTimeoutSeconds == 0
@@ -86,20 +157,20 @@ namespace GVFS.Common
         }
 
         private static int LoadIntOrDefault(
-            ITracer tracer, GitProcess git, string configName, int defaultValue, int minValue, int maxValue)
+            ITracer tracer, ConfigStringReader readConfig, string configName, int defaultValue, int minValue, int maxValue)
         {
             string error;
             Exception readException = null;
             try
             {
-                GitProcess.ConfigResult result = git.GetFromConfig(configName);
-                if (result.TryParseAsInt(defaultValue, minValue, out int value, out error) && value <= maxValue)
+                if (readConfig(configName, out string valueString, out error) &&
+                    GitConfigHelper.TryParseIntSetting(configName, valueString, defaultValue, minValue, out int value, out error))
                 {
-                    return value;
-                }
+                    if (value <= maxValue)
+                    {
+                        return value;
+                    }
 
-                if (string.IsNullOrEmpty(error))
-                {
                     error = $"Invalid value {value} for setting {configName}, value must be between {minValue} and {maxValue}";
                 }
             }
