@@ -1,7 +1,8 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
-using System.Linq;
+using System.ComponentModel;
+using System.IO;
 
 namespace GVFS.Common
 {
@@ -9,11 +10,14 @@ namespace GVFS.Common
     {
         public const int DefaultMaxRetries = 6;
         public const int DefaultTimeoutSeconds = 30;
+        public const int DefaultReadTimeoutSeconds = 60;
         public const int FetchAndCloneTimeoutMinutes = 10;
 
         private const string EtwArea = nameof(RetryConfig);
-
-        private const int MinRetries = 0;
+        // HttpClient and the response stream accept signed millisecond deadlines.
+        private const int MaxTimeoutSeconds = int.MaxValue / 1000;
+        // Leave room for the initial attempt and two endpoint-routing attempts.
+        private const int MaxConfiguredRetries = int.MaxValue - 3;
 
         private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(DefaultTimeoutSeconds);
 
@@ -28,7 +32,7 @@ namespace GVFS.Common
             this.Timeout = timeout;
         }
 
-        public int MaxRetries { get; }
+        public int MaxRetries { get; set; }
         public int MaxAttempts
         {
             get { return this.MaxRetries + 1; }
@@ -36,51 +40,32 @@ namespace GVFS.Common
 
         public TimeSpan Timeout { get; set; }
 
-        public static bool TryLoadFromGitConfig(ITracer tracer, Enlistment enlistment, out RetryConfig retryConfig, out string error)
+        public TimeSpan ReadTimeout { get; set; } = TimeSpan.FromSeconds(DefaultReadTimeoutSeconds);
+
+        public static RetryConfig LoadFromGitConfig(ITracer tracer, Enlistment enlistment)
         {
-            return TryLoadFromGitConfig(tracer, new GitProcess(enlistment), out retryConfig, out error);
+            ArgumentNullException.ThrowIfNull(enlistment);
+            return LoadFromGitConfig(tracer, enlistment.CreateGitProcess());
         }
 
-        public static bool TryLoadFromGitConfig(ITracer tracer, GitProcess git, out RetryConfig retryConfig, out string error)
+        /// <summary>
+        /// Invalid or unreadable retry settings use defaults and emit warnings.
+        /// </summary>
+        public static RetryConfig LoadFromGitConfig(ITracer tracer, GitProcess git)
         {
-            retryConfig = null;
-
-            int maxRetries;
-            if (!TryLoadMaxRetries(git, out maxRetries, out error))
+            ArgumentNullException.ThrowIfNull(git);
+            int maxRetries = LoadIntOrDefault(
+                tracer, git, GVFSConstants.GitConfig.MaxRetriesConfig, DefaultMaxRetries, 0, MaxConfiguredRetries);
+            int timeoutSeconds = LoadIntOrDefault(
+                tracer, git, GVFSConstants.GitConfig.TimeoutSecondsConfig, DefaultTimeoutSeconds, 1, MaxTimeoutSeconds);
+            int readTimeoutSeconds = LoadIntOrDefault(
+                tracer, git, GVFSConstants.GitConfig.ReadTimeoutSecondsConfig, DefaultReadTimeoutSeconds, 0, MaxTimeoutSeconds);
+            RetryConfig retryConfig = new RetryConfig(maxRetries, TimeSpan.FromSeconds(timeoutSeconds))
             {
-                if (tracer != null)
-                {
-                    tracer.RelatedError(
-                        new EventMetadata
-                        {
-                            { "Area", EtwArea },
-                            { "error", error }
-                        },
-                        "TryLoadConfig: TryLoadMaxRetries failed");
-                }
-
-                return false;
-            }
-
-            TimeSpan timeout;
-            if (!TryLoadTimeout(git, out timeout, out error))
-            {
-                if (tracer != null)
-                {
-                    tracer.RelatedError(
-                        new EventMetadata
-                        {
-                            { "Area", EtwArea },
-                            { "maxRetries", maxRetries },
-                            { "error", error }
-                        },
-                        "TryLoadConfig: TryLoadTimeout failed");
-                }
-
-                return false;
-            }
-
-            retryConfig = new RetryConfig(maxRetries, timeout);
+                ReadTimeout = readTimeoutSeconds == 0
+                    ? System.Threading.Timeout.InfiniteTimeSpan
+                    : TimeSpan.FromSeconds(readTimeoutSeconds),
+            };
 
             if (tracer != null)
             {
@@ -91,48 +76,53 @@ namespace GVFS.Common
                     {
                         { "Area", EtwArea },
                         { "Timeout", retryConfig.Timeout },
+                        { "ReadTimeout", retryConfig.ReadTimeout },
                         { "MaxRetries", retryConfig.MaxRetries },
                         { TracingConstants.MessageKey.InfoMessage, "RetryConfigLoaded" }
                     });
             }
 
-            return true;
+            return retryConfig;
         }
 
-        private static bool TryLoadMaxRetries(GitProcess git, out int attempts, out string error)
+        private static int LoadIntOrDefault(
+            ITracer tracer, GitProcess git, string configName, int defaultValue, int minValue, int maxValue)
         {
-            return TryGetFromGitConfig(
-                git,
-                GVFSConstants.GitConfig.MaxRetriesConfig,
-                DefaultMaxRetries,
-                MinRetries,
-                out attempts,
-                out error);
-        }
-
-        private static bool TryLoadTimeout(GitProcess git, out TimeSpan timeout, out string error)
-        {
-            timeout = TimeSpan.FromSeconds(0);
-            int timeoutSeconds;
-            if (!TryGetFromGitConfig(
-                git,
-                GVFSConstants.GitConfig.TimeoutSecondsConfig,
-                DefaultTimeoutSeconds,
-                0,
-                out timeoutSeconds,
-                out error))
+            string error;
+            Exception readException = null;
+            try
             {
-                return false;
+                GitProcess.ConfigResult result = git.GetFromConfig(configName);
+                if (result.TryParseAsInt(defaultValue, minValue, out int value, out error) && value <= maxValue)
+                {
+                    return value;
+                }
+
+                if (string.IsNullOrEmpty(error))
+                {
+                    error = $"Invalid value {value} for setting {configName}, value must be between {minValue} and {maxValue}";
+                }
+            }
+            catch (Exception e) when (e is IOException || e is Win32Exception)
+            {
+                readException = e;
+                error = e.Message;
             }
 
-            timeout = TimeSpan.FromSeconds(timeoutSeconds);
-            return true;
-        }
+            EventMetadata metadata = new EventMetadata
+            {
+                { "Area", EtwArea },
+                { "ConfigName", configName },
+                { "DefaultValue", defaultValue },
+                { "Error", error },
+            };
+            if (readException != null)
+            {
+                metadata.Add("Exception", readException.ToString());
+            }
 
-        private static bool TryGetFromGitConfig(GitProcess git, string configName, int defaultValue, int minValue, out int value, out string error)
-        {
-            GitProcess.ConfigResult result = git.GetFromConfig(configName);
-            return result.TryParseAsInt(defaultValue, minValue, out value, out error);
+            tracer?.RelatedWarning(metadata, "The retry setting is invalid or unavailable. VFS for Git uses the default value.", Keywords.Telemetry);
+            return defaultValue;
         }
     }
 }

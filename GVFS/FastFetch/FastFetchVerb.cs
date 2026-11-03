@@ -252,14 +252,18 @@ namespace FastFetch
                     });
 
                 string error;
-                if (!enlistment.Authentication.TryInitialize(tracer, enlistment, out error))
+                RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
+                if (!enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
+                    tracer, enlistment, retryConfig, out _, out error, out _))
                 {
                     tracer.RelatedError(error);
                     Console.WriteLine(error);
                     return ExitFailure;
                 }
 
-                RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
+                retryConfig.MaxRetries = this.MaxAttempts;
+                retryConfig.Timeout = TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes);
+
                 BlobPrefetcher prefetcher = this.GetFolderPrefetcher(tracer, enlistment, cacheServer, retryConfig);
                 if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, prefetcher.FolderList, readListFromStdIn: false, error: out error))
                 {

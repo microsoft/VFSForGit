@@ -3,6 +3,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
@@ -14,6 +15,8 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security;
 using System.Threading;
+using System.Threading.Tasks;
+using System.Linq;
 
 namespace GVFS.UnitTests.Git
 {
@@ -183,6 +186,229 @@ namespace GVFS.UnitTests.Git
 
             EventMetadata metadata = tracer.StartActivityTracer.RelatedEventMetadata[0];
             metadata["PrefetchEndpointUrl"].ShouldEqual("cache.example:8443");
+        }
+
+        [TestCase]
+        public void PrefetchPackTelemetryCorrelatesResponseAndRetrySummary()
+        {
+            using MockTracer tracer = new MockTracer();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            using StreamingPrefetchRequestor requestor = new StreamingPrefetchRequestor(tracer, enlistment);
+            requestor.Streams.Enqueue(CreatePrefetchResponse(1));
+            TestPrefetchGitObjects objects = new TestPrefetchGitObjects(tracer, enlistment, requestor);
+
+            objects.TryDownloadPrefetchPacks(null, 0, true, out List<string> indexes).ShouldEqual(true);
+            indexes.Count.ShouldEqual(1);
+            MockTracer activity = tracer.StartActivityTracer;
+            int packIndex = activity.RelatedEventNames.IndexOf("Receiving Pack/Index");
+            (packIndex >= 0).ShouldEqual(true);
+            EventMetadata pack = activity.RelatedEventMetadata[packIndex];
+            pack["ResponseId"].ShouldEqual(requestor.ResponseId);
+            pack["RequestId"].ShouldEqual(requestor.RequestId);
+            pack["PackBytes"].ShouldEqual(1L);
+            ((activity.RelatedEventKeywords[packIndex] & Keywords.Telemetry) != 0).ShouldEqual(true);
+            EventMetadata start = tracer.StartMetadata.Single(metadata => metadata != null && metadata.ContainsKey("RequestId"));
+            EventMetadata stop = activity.StopMetadata.Single();
+            start["RequestId"].ShouldEqual(requestor.RequestId);
+            stop["RequestId"].ShouldEqual(requestor.RequestId);
+            stop["Success"].ShouldEqual(true);
+            tracer.SnapshotRelatedEvents().Any(record => record.Name.StartsWith("NetworkBody", StringComparison.Ordinal))
+                .ShouldEqual(false);
+        }
+
+        [TestCase]
+        public async Task PrefetchHeaderFailureDrainsEarlierPackWorkBeforeRetry()
+        {
+            using MockTracer tracer = new MockTracer();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            using StreamingPrefetchRequestor requestor = new StreamingPrefetchRequestor(tracer, enlistment);
+            using MemoryStream initialResponse = CreatePrefetchResponse(2);
+            using HeaderFailureStream firstResponse = new HeaderFailureStream(initialResponse.ToArray());
+            requestor.Streams.Enqueue(firstResponse);
+            requestor.Streams.Enqueue(CreatePrefetchResponse(0));
+            TaskCompletionSource<bool> flush = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            TestPrefetchGitObjects objects = new TestPrefetchGitObjects(tracer, enlistment, requestor)
+            {
+                FirstFlush = flush.Task,
+            };
+            Task<bool> prefetch = Task.Run(() => objects.TryDownloadPrefetchPacks(null, 0, true, out List<string> _));
+            try
+            {
+                await firstResponse.Failed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await Task.Delay(100);
+                requestor.Requests.Count.ShouldEqual(1);
+                prefetch.IsCompleted.ShouldEqual(false);
+            }
+            finally
+            {
+                flush.TrySetResult(true);
+            }
+
+            (await prefetch.WaitAsync(TimeSpan.FromSeconds(5))).ShouldEqual(true);
+            requestor.Requests.Count.ShouldEqual(2);
+            requestor.Requests[1].Query.ShouldEqual("?lastPackTimestamp=1");
+            objects.Moves.ShouldEqual(2);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void InterruptedResponseAlsoReportsPackFinalizationFailure()
+        {
+            using MockTracer tracer = new MockTracer();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            using StreamingPrefetchRequestor requestor = new StreamingPrefetchRequestor(tracer, enlistment);
+            using MemoryStream initial = CreatePrefetchResponse(2);
+            requestor.Streams.Enqueue(new HeaderFailureStream(initial.ToArray()));
+            requestor.Streams.Enqueue(CreatePrefetchResponse(0));
+            TestPrefetchGitObjects objects = new TestPrefetchGitObjects(tracer, enlistment, requestor)
+            {
+                FirstFlush = Task.FromException(new IOException("pack finalization failed")),
+            };
+
+            objects.TryDownloadPrefetchPacks(null, 0, true, out List<string> _).ShouldEqual(true);
+            tracer.StartActivityTracer.RelatedWarningEvents.ShouldContain(
+                warning => warning.Contains("pack finalization failed", StringComparison.Ordinal) &&
+                    warning.Contains("response was interrupted", StringComparison.Ordinal));
+            requestor.Requests[1].Query.ShouldEqual("?lastPackTimestamp=0");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void TemporaryPackCancellationPropagatesWithoutAFailureWarning()
+        {
+            using MockTracer tracer = new MockTracer();
+            MockFileSystemWithCallbacks filesystem = new MockFileSystemWithCallbacks
+            {
+                OnOpenFileStream = (path, mode, access) => new MemoryStream(),
+                OnFileExists = path => false,
+            };
+            GitObjects objects = new GVFSGitObjects(
+                new GVFSContext(tracer, filesystem, null, new MockGVFSEnlistment()), null);
+            using Stream canceled = new CanceledReadStream();
+
+            Assert.Throws<OperationCanceledException>(() => objects.TryWriteTempFile(
+                tracer, canceled, "mock:\\canceled.pack", out long _, out Task _, throwOnError: false));
+            tracer.RelatedWarningEvents.Count.ShouldEqual(0);
+        }
+
+        private sealed class CanceledReadStream : MemoryStream
+        {
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                throw new OperationCanceledException();
+            }
+        }
+
+        private static MemoryStream CreatePrefetchResponse(ushort declaredPacks)
+        {
+            MemoryStream response = new MemoryStream();
+            using (BinaryWriter writer = new BinaryWriter(response, System.Text.Encoding.UTF8, leaveOpen: true))
+            {
+                writer.Write(new byte[] { (byte)'G', (byte)'P', (byte)'R', (byte)'E', (byte)' ', 1 });
+                writer.Write(declaredPacks);
+                if (declaredPacks > 0)
+                {
+                    writer.Write(1L);
+                    writer.Write(1L);
+                    writer.Write(1L);
+                    writer.Write((byte)1);
+                    writer.Write((byte)2);
+                }
+            }
+
+            response.Position = 0;
+            return response;
+        }
+
+        private class HeaderFailureStream : MemoryStream
+        {
+            public HeaderFailureStream(byte[] data) : base(data)
+            {
+            }
+
+            public TaskCompletionSource<bool> Failed { get; } = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            {
+                if (this.Position == this.Length)
+                {
+                    this.Failed.TrySetResult(true);
+                    throw new IOException("Next prefetch header failed");
+                }
+
+                return base.ReadAsync(buffer, cancellationToken);
+            }
+        }
+
+        private class StreamingPrefetchRequestor : GitObjectsHttpRequestor
+        {
+            public StreamingPrefetchRequestor(MockTracer tracer, MockGVFSEnlistment enlistment)
+                : base(tracer, enlistment, new CacheServerInfo("mock://cache/server", "cache"), new RetryConfig(1))
+            {
+            }
+
+            public Queue<Stream> Streams { get; } = new Queue<Stream>();
+            public List<Uri> Requests { get; } = new List<Uri>();
+            public string ResponseId { get; private set; }
+            public long RequestId { get; private set; }
+
+            protected override GitEndPointResponseData SendProtocolRequest(
+                long requestId, Uri requestUri, HttpMethod httpMethod, string requestContent,
+                CancellationToken cancellationToken, MediaTypeWithQualityHeaderValue acceptType = null)
+            {
+                this.RequestId = requestId;
+                this.Requests.Add(requestUri);
+                GitEndPointResponseData response = new GitEndPointResponseData(
+                    HttpStatusCode.OK, GVFSConstants.MediaTypes.PrefetchPackFilesAndIndexesMediaType,
+                    new HttpResponseStream(this.Streams.Dequeue(), this.RetryConfig.ReadTimeout,
+                        cancellationToken, this.Tracer, new EventMetadata { { "RequestId", requestId } }),
+                    null, null);
+                this.ResponseId = response.ResponseId;
+                return response;
+            }
+        }
+
+        private class TestPrefetchGitObjects : GVFSGitObjects
+        {
+            private int moves;
+            private int writes;
+
+            public TestPrefetchGitObjects(MockTracer tracer, MockGVFSEnlistment enlistment, GitObjectsHttpRequestor requestor)
+                : this(tracer, enlistment, requestor, new PrefetchFileSystem())
+            {
+            }
+
+            private TestPrefetchGitObjects(MockTracer tracer, MockGVFSEnlistment enlistment,
+                GitObjectsHttpRequestor requestor, MockFileSystemWithCallbacks filesystem)
+                : base(new GVFSContext(tracer, filesystem, null, enlistment), requestor)
+            {
+                filesystem.OnOpenFileStream = (path, mode, access) => new MemoryStream();
+                filesystem.OnMoveFile = (source, target) => Interlocked.Increment(ref this.moves);
+                filesystem.OnFileExists = path => false;
+            }
+
+            public Task FirstFlush { get; set; } = Task.CompletedTask;
+            public int Moves => this.moves;
+
+            public override bool TryWriteTempFile(ITracer tracer, Stream source, string tempFilePath,
+                out long fileLength, out Task flushTask, bool throwOnError = false)
+            {
+                fileLength = source.Length;
+                source.CopyTo(Stream.Null);
+                flushTask = ++this.writes == 1 ? this.FirstFlush : Task.CompletedTask;
+                return true;
+            }
+
+            public override string[] ReadPackFileNames(string packFolderPath, string prefixFilter = "") => Array.Empty<string>();
+        }
+
+        private class PrefetchFileSystem : MockFileSystemWithCallbacks
+        {
+            public override void MoveAndOverwriteFile(string sourceFileName, string destinationFileName)
+            {
+                this.OnMoveFile(sourceFileName, destinationFileName);
+            }
         }
 
         private Stream OnOpenFileStream(string path, FileMode mode, FileAccess access)

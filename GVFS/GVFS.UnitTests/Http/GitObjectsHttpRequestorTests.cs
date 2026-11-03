@@ -13,6 +13,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Http
 {
@@ -147,6 +148,34 @@ namespace GVFS.UnitTests.Http
             requestor.RequestUris[0].AbsoluteUri.ShouldEqual(EndpointCacheServerUrl + "/gvfs/objects");
             requestor.RequestUris[1].AbsoluteUri.ShouldEqual(GlobalCacheServerUrl + "/gvfs/objects");
             RetryCircuitBreaker.ConsecutiveFailures.ShouldEqual(0);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ResponseBodyReadTimeoutUsesExistingRetryOrFallback(bool endpointOverrides)
+        {
+            TestGitObjectsHttpRequestor requestor = this.CreateRequestor(
+                maxRetries: endpointOverrides ? 0 : 1,
+                endpointOverrides: endpointOverrides);
+            requestor.RetryConfig.ReadTimeout = TimeSpan.FromMilliseconds(100);
+            requestor.EnqueueResponse(new StallingReadStream());
+            requestor.EnqueueResponse(HttpStatusCode.OK);
+
+            RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result =
+                requestor.TryDownloadObjects(
+                    new[] { "0123456789abcdef" },
+                    onSuccess: (tryCount, response) =>
+                    {
+                        response.Stream.ReadByte();
+                        return SuccessfulRequest(tryCount, response);
+                    },
+                    onFailure: null,
+                    preferBatchedLooseObjects: false);
+
+            result.Succeeded.ShouldEqual(true);
+            requestor.RequestUris.Count.ShouldEqual(2);
+            requestor.TestTracer.RelatedEventNames.ShouldContain(name => name == "NetworkBodyReadTimeout");
+            requestor.TestTracer.RelatedEventNames.Contains("CacheServerFallback").ShouldEqual(endpointOverrides);
         }
 
         [TestCase]
@@ -440,7 +469,7 @@ namespace GVFS.UnitTests.Http
                     return new GitEndPointResponseData(
                         HttpStatusCode.OK,
                         "application/json",
-                        stream,
+                        new HttpResponseStream(stream, this.RetryConfig.ReadTimeout, cancellationToken, this.TestTracer),
                         message: null,
                         onResponseDisposed: null);
                 }
@@ -468,7 +497,7 @@ namespace GVFS.UnitTests.Http
 
         private class ThrowingReadStream : MemoryStream
         {
-            public override int ReadByte()
+            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
             {
                 throw new IOException("Response body read failed");
             }
@@ -476,9 +505,18 @@ namespace GVFS.UnitTests.Http
 
         private class CancelingReadStream : MemoryStream
         {
-            public override int Read(byte[] buffer, int offset, int count)
+            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
             {
                 throw new OperationCanceledException("Response body read canceled");
+            }
+        }
+
+        private class StallingReadStream : MemoryStream
+        {
+            public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+                return 0;
             }
         }
     }

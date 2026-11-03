@@ -283,31 +283,39 @@ namespace GVFS.Common.Git
                 this.objectNegativeCache.TryRemove(objectId, out negativeCacheRequestTime);
             }
 
-            // Coalesce concurrent requests for the same objectId so that only one HTTP
-            // download runs per SHA at a time. All concurrent callers share the result.
-            // Note: the first caller's cancellationToken and retryOnFailure settings are
-            // captured by the Lazy factory. Subsequent coalesced callers inherit those
-            // settings. In practice this is fine because the primary concurrent path
-            // (NamedPipeMessage from git.exe) always uses CancellationToken.None.
-            Lazy<DownloadAttemptResult> newLazy = new Lazy<DownloadAttemptResult>(
-                () => this.DoDownloadAndSaveObject(objectId, cancellationToken, requestSource, retryOnFailure));
-            Lazy<DownloadAttemptResult> lazy = this.inflightDownloads.GetOrAdd(objectId, newLazy);
+            // Share one download per SHA. A surviving waiter starts or joins a new
+            // download if the previous owner's cancellation interrupts the shared one.
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Lazy<DownloadAttemptResult> newLazy = new Lazy<DownloadAttemptResult>(
+                    () => this.DoDownloadAndSaveObject(objectId, cancellationToken, requestSource, retryOnFailure));
+                Lazy<DownloadAttemptResult> lazy = this.inflightDownloads.GetOrAdd(objectId, newLazy);
 
-            if (!ReferenceEquals(lazy, newLazy))
-            {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("objectId", objectId);
-                metadata.Add("requestSource", requestSource.ToString());
-                this.Context.Tracer.RelatedEvent(EventLevel.Informational, "TryDownloadAndSaveObject_CoalescedRequest", metadata);
-            }
+                if (!ReferenceEquals(lazy, newLazy))
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("objectId", objectId);
+                    metadata.Add("requestSource", requestSource.ToString());
+                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, "TryDownloadAndSaveObject_CoalescedRequest", metadata);
+                }
 
-            try
-            {
-                return lazy.Value;
-            }
-            finally
-            {
-                this.TryRemoveInflightDownload(objectId, lazy);
+                try
+                {
+                    return lazy.Value;
+                }
+                catch (OperationCanceledException) when (
+                    !ReferenceEquals(lazy, newLazy) && !cancellationToken.IsCancellationRequested)
+                {
+                    this.Context.Tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        "TryDownloadAndSaveObject_CoalescedCancellation",
+                        new EventMetadata { { "objectId", objectId }, { "requestSource", requestSource.ToString() } });
+                }
+                finally
+                {
+                    this.TryRemoveInflightDownload(objectId, lazy);
+                }
             }
         }
 
