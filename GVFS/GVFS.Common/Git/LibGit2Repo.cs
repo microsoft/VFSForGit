@@ -56,6 +56,7 @@ namespace GVFS.Common.Git
         };
 
         private bool disposedValue = false;
+        private bool initializedNative = false;
         private IntPtr odbHandle = IntPtr.Zero;
         private readonly Action<TimeSpan> configReadDelay;
         private readonly int configReadMaxAttempts;
@@ -74,6 +75,7 @@ namespace GVFS.Common.Git
             this.configReadMaxAttempts = configReadMaxAttempts;
 
             InitNative();
+            this.initializedNative = true;
 
             // Opening the repo parses .git\config, so it is subject to the same transient failures as a config read.
             IntPtr repoHandle = IntPtr.Zero;
@@ -821,8 +823,14 @@ namespace GVFS.Common.Git
                     this.odbHandle = IntPtr.Zero;
                 }
 
-                Native.Repo.Free(this.RepoHandle);
-                Native.Shutdown();
+                // The protected constructors for test doubles do not initialize libgit2, so their
+                // instances have no libgit2 reference to release.
+                if (this.initializedNative)
+                {
+                    Native.Repo.Free(this.RepoHandle);
+                    Native.Shutdown();
+                }
+
                 this.disposedValue = true;
             }
         }

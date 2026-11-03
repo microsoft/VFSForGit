@@ -396,6 +396,23 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void DisposingARepositoryWithoutNativeStateKeepsTheIsolatedConfig()
+        {
+            using (IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config())
+            {
+                File.WriteAllText(machineConfig.GlobalConfigPath, "[gvfs]\n\tmax-retries = 9\n");
+
+                // This repository never initialized libgit2, so disposing it must not shut libgit2 down.
+                new MockLibGit2Repo(new MockTracer()).Dispose();
+
+                string missingWorkingDirectory = Path.Combine(Path.GetTempPath(), "RetryConfigTests_" + Guid.NewGuid().ToString("N"));
+                RetryConfig.CreateLibGit2Reader(new MockTracer(), missingWorkingDirectory)("gvfs.max-retries", out string value, out string error)
+                    .ShouldBeTrue(error);
+                value.ShouldEqual("9");
+            }
+        }
+
+        [TestCase]
         public void LibGit2ReaderRejectsAGlobalIncludeConditionItIgnores()
         {
             using (IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config())
