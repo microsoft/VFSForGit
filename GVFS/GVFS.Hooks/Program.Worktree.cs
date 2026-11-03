@@ -91,12 +91,14 @@ namespace GVFS.Hooks
 
         /// <summary>
         /// Attempts to mount GVFS for a worktree, retrying on transient failures.
-        /// The first attempt shows output to the console; retries are quiet.
+        /// The first attempt shows output to the console; retries capture output
+        /// quietly and print it to stderr if all retries fail.
         /// Returns true if mount succeeded.
         /// </summary>
         private static bool TryMountWithRetry(string fullPath)
         {
             int[] retryDelaysMs = { 100, 250 };
+            ProcessResult[] failedRetries = new ProcessResult[retryDelaysMs.Length];
 
             ProcessResult result = ProcessHelper.Run("gvfs", $"mount \"{fullPath}\"", redirectOutput: false);
             if (result.ExitCode == 0)
@@ -111,6 +113,24 @@ namespace GVFS.Hooks
                 if (result.ExitCode == 0)
                 {
                     return true;
+                }
+
+                failedRetries[retry] = result;
+            }
+
+            for (int retry = 0; retry < failedRetries.Length; retry++)
+            {
+                result = failedRetries[retry];
+                Console.Error.WriteLine(
+                    $"warning: gvfs mount retry {retry + 1} for '{fullPath}' failed with exit code {result.ExitCode}.");
+                if (!string.IsNullOrWhiteSpace(result.Output))
+                {
+                    Console.Error.WriteLine($"  stdout: {result.Output.Trim()}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.Errors))
+                {
+                    Console.Error.WriteLine($"  stderr: {result.Errors.Trim()}");
                 }
             }
 
