@@ -153,6 +153,91 @@ namespace GVFS.UnitTests.Virtualization.Git
             this.TestPathParts(indexEntry, pathParts2, hasSameParent: false);
         }
 
+        [TestCase("a/b/first/file.txt", "a/b/second/file.txt", 2, false)]
+        [TestCase("a/b/file.txt", "a/bc/file.txt", 1, false)]
+        [TestCase("a/b/file.txt", "a/b/file2.txt", 2, true)]
+        [TestCase("a/b/file.txt", "a/b/file.txt/child.txt", 2, false)]
+        [TestCase("a/b/file.txt", "a/b.txt", 1, false)]
+        [TestCase("a/b/file.txt", "a/file.txt", 1, false)]
+        [TestCase("a/b/file.txt", "a/b/c/file.txt", 2, false)]
+        [TestCase("a/file.txt", "a.txt", 0, false)]
+        [TestCase("a.txt", "b.txt", 0, false)]
+        [TestCase("a.txt", "a/b/file.txt", 0, false)]
+        [TestCase("A/b/file.txt", "a/b/file2.txt", 0, false)]
+        [TestCase("a/B/file.txt", "a/b/file2.txt", 1, false)]
+        [TestCase("é/目录/first/file.txt", "é/目录/second/file.txt", 2, false)]
+        [TestCase("é/目录/file.txt", "é/目弓/file.txt", 1, false)]
+        public void ReusesOnlyCompleteUnchangedDirectories(string previous, string path, int reusedDirectories, bool hasSameParent)
+        {
+            GitIndexEntry indexEntry = this.SetupIndexEntry(previous);
+            LazyUTF8String[] previousParts = this.buildingNewProjection
+                ? (LazyUTF8String[])indexEntry.BuildingProjection_PathParts.Clone()
+                : null;
+            int namesBefore = LazyUTF8String.StringPoolObjectsUsed();
+            int bytesBefore = LazyUTF8String.BytePoolBytesUsed();
+            byte[] previousBytes = Encoding.UTF8.GetBytes(previous);
+            byte[] pathBytes = Encoding.UTF8.GetBytes(path);
+            int prefixLength = 0;
+            while (prefixLength < Math.Min(previousBytes.Length, pathBytes.Length) &&
+                previousBytes[prefixLength] == pathBytes[prefixLength])
+            {
+                ++prefixLength;
+            }
+
+            this.ParsePathForIndexEntry(indexEntry, path, prefixLength);
+            string[] parts = path.Split('/');
+            this.TestPathParts(indexEntry, parts, hasSameParent);
+            if (this.buildingNewProjection)
+            {
+                LazyUTF8String.StringPoolObjectsUsed().ShouldEqual(namesBefore + parts.Length - reusedDirectories);
+                int allocatedBytes = 0;
+                for (int i = 0; i < parts.Length; ++i)
+                {
+                    if (i < reusedDirectories)
+                    {
+                        Assert.AreSame(previousParts[i], indexEntry.BuildingProjection_PathParts[i]);
+                    }
+                    else
+                    {
+                        Assert.AreNotSame(previousParts[i], indexEntry.BuildingProjection_PathParts[i]);
+                        if (Array.TrueForAll(Encoding.UTF8.GetBytes(parts[i]), value => value <= 127))
+                        {
+                            allocatedBytes += parts[i].Length;
+                        }
+                    }
+                }
+
+                LazyUTF8String.BytePoolBytesUsed().ShouldEqual(bytesBefore + allocatedBytes);
+            }
+        }
+
+        [TestCase]
+        public void ReusedAncestorCanBecomeTheNextParent()
+        {
+            GitIndexEntry indexEntry = this.SetupIndexEntry("a/b/file.txt");
+            this.ParsePathForIndexEntry(indexEntry, "a/root.txt", replaceIndex: 2);
+            this.TestPathParts(indexEntry, new[] { "a", "root.txt" }, hasSameParent: false);
+            this.ParsePathForIndexEntry(indexEntry, "a/root2.txt", replaceIndex: 6);
+            this.TestPathParts(indexEntry, new[] { "a", "root2.txt" }, hasSameParent: true);
+        }
+
+        [TestCase]
+        public void ClearLastParentInvalidatesAllReusableDirectories()
+        {
+            GitIndexEntry indexEntry = this.SetupIndexEntry("a/b/file.txt");
+            if (this.buildingNewProjection)
+            {
+                LazyUTF8String[] previousParts = (LazyUTF8String[])indexEntry.BuildingProjection_PathParts.Clone();
+                indexEntry.ClearLastParent();
+                int namesBefore = LazyUTF8String.StringPoolObjectsUsed();
+                this.ParsePathForIndexEntry(indexEntry, "a/b/file2.txt", replaceIndex: 8);
+                this.TestPathParts(indexEntry, new[] { "a", "b", "file2.txt" }, hasSameParent: false);
+                LazyUTF8String.StringPoolObjectsUsed().ShouldEqual(namesBefore + 3);
+                Assert.AreNotSame(previousParts[0], indexEntry.BuildingProjection_PathParts[0]);
+                Assert.AreNotSame(previousParts[1], indexEntry.BuildingProjection_PathParts[1]);
+            }
+        }
+
         [TestCase]
         public void ClearLastParent()
         {
