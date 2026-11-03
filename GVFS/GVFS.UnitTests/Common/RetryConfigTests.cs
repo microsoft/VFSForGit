@@ -408,7 +408,7 @@ namespace GVFS.UnitTests.Common
                 RetryConfig.CreateLibGit2Reader(new MockTracer(), missingWorkingDirectory)("gvfs.max-retries", out string _, out string error)
                     .ShouldBeFalse();
 
-                error.ShouldContain("includeIf condition that libgit2 does not evaluate: hasconfig:");
+                error.ShouldContain("libgit2 does not evaluate like git: includeif.hasconfig:");
             }
         }
 
@@ -450,7 +450,7 @@ namespace GVFS.UnitTests.Common
                     git.GetFromConfig(name).TryParseAsString(out value, out error);
 
                 readWithLibGit2("gvfs.max-retries", out string _, out string libGit2Error).ShouldBeFalse();
-                libGit2Error.ShouldContain("includeIf condition that libgit2 does not evaluate: hasconfig:remote.*.url:https://example.com/**");
+                libGit2Error.ShouldContain("libgit2 does not evaluate like git: includeif.hasconfig:remote.*.url:https://example.com/**.path");
 
                 RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, RetryConfig.WithGitFallback(tracer, readWithLibGit2, readWithGit));
                 config.MaxRetries.ShouldEqual(12);
@@ -458,9 +458,61 @@ namespace GVFS.UnitTests.Common
             }
         }
 
+        // In each layout, libgit2 evaluates the include differently from git.exe.
+        [TestCase("onbranch:main", false)]
+        [TestCase("onbranch:main", true)]
+        [TestCase("gitdir:<git dir without drive>", false)]
+        [TestCase("gitdir/i:<git dir without drive>", false)]
+        public void IncludeLayoutsLibGit2EvaluatesDifferentlyAreReadWithGit(string condition, bool headOnBranch)
+        {
+            string gitPath = GetGitPathOrIgnore();
+            using (TestRepository repo = new TestRepository(string.Empty))
+            {
+                if (!headOnBranch)
+                {
+                    File.WriteAllText(Path.Combine(repo.WorkingDirectory, ".git", "HEAD"), new string('1', 40) + "\n");
+                }
+
+                string gitDir = Path.Combine(repo.WorkingDirectory, ".git").Replace('\\', '/') + "/";
+                string includedPath = Path.Combine(repo.WorkingDirectory, "included.gitconfig");
+                File.WriteAllText(includedPath, "[gvfs]\n\tmax-retries = 13\n");
+                File.AppendAllText(
+                    Path.Combine(repo.WorkingDirectory, ".git", "config"),
+                    "[includeIf \"" + condition.Replace("<git dir without drive>", gitDir.Substring(2)) + "\"]\n\tpath = " +
+                    includedPath.Replace('\\', '/') + "\n");
+
+                MockTracer tracer = new MockTracer();
+                RetryConfig.ConfigStringReader readWithLibGit2 = RetryConfig.CreateLibGit2Reader(tracer, repo.WorkingDirectory);
+                GitProcess git = new GitProcess(gitPath, repo.WorkingDirectory);
+                RetryConfig.ConfigStringReader readWithGit = (string name, out string value, out string error) =>
+                    git.GetFromConfig(name).TryParseAsString(out value, out error);
+
+                readWithLibGit2("gvfs.max-retries", out string _, out string libGit2Error).ShouldBeFalse();
+                libGit2Error.ShouldContain("libgit2 does not evaluate like git");
+
+                readWithGit("gvfs.max-retries", out string gitValue, out string gitError).ShouldBeTrue(gitError);
+                RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, RetryConfig.WithGitFallback(tracer, readWithLibGit2, readWithGit));
+                config.MaxRetries.ShouldEqual(gitValue == null ? RetryConfig.DefaultMaxRetries : int.Parse(gitValue));
+                config.MaxRetries.ShouldEqual(headOnBranch && condition.StartsWith("onbranch:") ? 13 : RetryConfig.DefaultMaxRetries);
+                tracer.RelatedWarningEvents.Count.ShouldEqual(0);
+            }
+        }
+
+        // git.exe expands %(prefix) to its installation directory. libgit2 skips the include.
+        [TestCase("[include]\n\tpath = %(prefix)/etc/gvfs.gitconfig\n")]
+        [TestCase("[includeIf \"gitdir:**/\"]\n\tpath = %(prefix)/etc/gvfs.gitconfig\n")]
+        public void IncludePathsWithAGitPrefixAreReadWithGit(string includeConfig)
+        {
+            using (TestRepository repo = new TestRepository(includeConfig))
+            {
+                RetryConfig.CreateLibGit2Reader(new MockTracer(), repo.WorkingDirectory)("gvfs.max-retries", out string _, out string error)
+                    .ShouldBeFalse();
+                error.ShouldContain("libgit2 does not evaluate like git", "%(prefix)/etc/gvfs.gitconfig");
+            }
+        }
+
         [TestCase("gitdir:**/")]
         [TestCase("gitdir/i:**/")]
-        [TestCase("onbranch:main")]
         public void LibGit2ReadsConfigWithIncludeConditionsItEvaluates(string condition)
         {
             using (TestRepository repo = new TestRepository(string.Empty))

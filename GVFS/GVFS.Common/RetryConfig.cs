@@ -92,8 +92,8 @@ namespace GVFS.Common
 
         /// <summary>
         /// Reads with git.exe when libgit2 fails, for example because it rejects the repository's
-        /// ownership or skips an includeIf condition. A transient file access failure is not read
-        /// again, because libgit2 already used the GitConfigReadRetry budget for it.
+        /// ownership or evaluates an include differently from git.exe. A transient file access
+        /// failure is not read again, because libgit2 already used the GitConfigReadRetry budget for it.
         /// </summary>
         internal static ConfigStringReader WithGitFallback(ITracer tracer, ConfigStringReader readWithLibGit2, ConfigStringReader readWithGit)
         {

@@ -47,12 +47,12 @@ namespace GVFS.Common.Git
             "GIT_CONFIG_SYSTEM",
         };
 
-        // git.exe also evaluates hasconfig:remote.*.url conditions.
-        private static readonly string[] IncludeConditionsLibGit2Evaluates =
+        // Of the includeIf conditions, libgit2 evaluates only these the way git.exe does. It skips
+        // others, such as hasconfig:remote.*.url, and it can apply onbranch: on a detached HEAD.
+        private static readonly string[] IncludeConditionsLibGit2EvaluatesLikeGit =
         {
             "gitdir:",
             "gitdir/i:",
-            "onbranch:",
         };
 
         private bool disposedValue = false;
@@ -384,10 +384,10 @@ namespace GVFS.Common.Git
             {
                 if (rejectIncludesLibGit2Ignores)
                 {
-                    string condition = FindIncludeConditionLibGit2Ignores(snapshotHandle);
-                    if (condition != null)
+                    string include = FindIncludeLibGit2EvaluatesDifferently(snapshotHandle);
+                    if (include != null)
                     {
-                        throw new LibGit2Exception($"Config has an includeIf condition that libgit2 does not evaluate: {condition}");
+                        throw new LibGit2Exception($"Config has an include that libgit2 does not evaluate like git: {include}");
                     }
                 }
 
@@ -415,47 +415,74 @@ namespace GVFS.Common.Git
         }
 
         /// <summary>
-        /// Returns the first includeIf condition that libgit2 skips but git.exe can apply, or null.
+        /// Returns the first include ("name = path") that libgit2 can evaluate differently from
+        /// git.exe, or null.
         /// </summary>
-        private static string FindIncludeConditionLibGit2Ignores(IntPtr configHandle)
+        private static string FindIncludeLibGit2EvaluatesDifferently(IntPtr configHandle)
         {
-            const string Prefix = "includeif.";
+            const string ConditionalPrefix = "includeif.";
             const string Suffix = ".path";
 
-            string ignoredCondition = null;
+            string differentInclude = null;
             Native.Config.GitConfigMultivarCallback callback = (entryPtr, payload) =>
             {
                 try
                 {
-                    string entryName = Marshal.PtrToStructure<Native.Config.GitConfigEntry>(entryPtr).GetName();
-                    string condition = entryName.Substring(Prefix.Length, entryName.Length - Prefix.Length - Suffix.Length);
-                    foreach (string evaluated in IncludeConditionsLibGit2Evaluates)
+                    Native.Config.GitConfigEntry entry = Marshal.PtrToStructure<Native.Config.GitConfigEntry>(entryPtr);
+                    string entryName = entry.GetName();
+                    string path = entry.GetValue() ?? string.Empty;
+                    if (IsIncludeLibGit2EvaluatesLikeGit(entryName, path, ConditionalPrefix, Suffix))
                     {
-                        if (condition.StartsWith(evaluated, StringComparison.Ordinal))
-                        {
-                            return Native.ResultCode.Success;
-                        }
+                        return Native.ResultCode.Success;
                     }
 
-                    ignoredCondition = condition;
+                    differentInclude = entryName + " = " + path;
                 }
                 catch (Exception e)
                 {
                     // An exception must not cross the native callback boundary.
-                    ignoredCondition = "<unreadable entry: " + e.Message + ">";
+                    differentInclude = "<unreadable entry: " + e.Message + ">";
                 }
 
                 return Native.ResultCode.Failure;
             };
 
-            Native.ResultCode resultCode = Native.Config.ForeachMatch(configHandle, @"^includeif\..*\.path$", callback, IntPtr.Zero);
+            Native.ResultCode resultCode = Native.Config.ForeachMatch(configHandle, @"^include(if\..*)?\.path$", callback, IntPtr.Zero);
             GC.KeepAlive(callback);
-            if (ignoredCondition == null && resultCode != Native.ResultCode.Success)
+            if (differentInclude == null && resultCode != Native.ResultCode.Success)
             {
-                throw new LibGit2Exception($"Failed to enumerate includeIf config: {Native.GetLastError()}");
+                throw new LibGit2Exception($"Failed to enumerate include config: {Native.GetLastError()}");
             }
 
-            return ignoredCondition;
+            return differentInclude;
+        }
+
+        private static bool IsIncludeLibGit2EvaluatesLikeGit(string entryName, string path, string conditionalPrefix, string suffix)
+        {
+            // git.exe expands %(prefix) to its installation directory. libgit2 skips the include.
+            if (path.IndexOf("%(prefix)", StringComparison.Ordinal) >= 0)
+            {
+                return false;
+            }
+
+            if (!entryName.StartsWith(conditionalPrefix, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            string condition = entryName.Substring(conditionalPrefix.Length, entryName.Length - conditionalPrefix.Length - suffix.Length);
+            foreach (string evaluated in IncludeConditionsLibGit2EvaluatesLikeGit)
+            {
+                if (condition.StartsWith(evaluated, StringComparison.Ordinal))
+                {
+                    // git.exe treats a pattern that starts with a slash as a path without a drive.
+                    // libgit2 matches it anywhere, as if it started with "**".
+                    string pattern = condition.Substring(evaluated.Length);
+                    return !pattern.StartsWith("/", StringComparison.Ordinal) && !pattern.StartsWith("\\", StringComparison.Ordinal);
+                }
+            }
+
+            return false;
         }
 
         public virtual bool? GetConfigBool(string name)
@@ -551,8 +578,8 @@ namespace GVFS.Common.Git
         /// Reads a string config value as git.exe would, without loading the object store. Reads
         /// the repo at <paramref name="repoPath"/>, or the global, XDG, system, and ProgramData
         /// config when <paramref name="repoPath"/> is null. <paramref name="value"/> is null when
-        /// the key is unset. Fails when the config has an includeIf condition that libgit2 does not
-        /// evaluate. Callers must also check <see cref="EnvironmentChangesGitConfig()"/>.
+        /// the key is unset. Fails when the config has an include that libgit2 can evaluate
+        /// differently from git.exe. Callers must also check <see cref="EnvironmentChangesGitConfig()"/>.
         /// </summary>
         internal static bool TryGetConfigString(ITracer tracer, string repoPath, string name, out string value, out string error)
         {
