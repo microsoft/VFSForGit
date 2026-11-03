@@ -318,6 +318,23 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void InvocationResultPreservesFailureAccountingDecision()
+        {
+            RetryWrapper<bool> wrapper = new RetryWrapper<bool>(1, CancellationToken.None);
+
+            RetryWrapper<bool>.InvocationResult result = wrapper.Invoke(
+                tryCount => new RetryWrapper<bool>.CallbackResult(
+                    new Exception("Expected retry"),
+                    shouldRetry: true,
+                    result: false,
+                    shouldRecordFailure: false));
+
+            result.Succeeded.ShouldEqual(false);
+            result.ShouldRecordFailure.ShouldEqual(false);
+            RetryCircuitBreaker.ConsecutiveFailures.ShouldEqual(0);
+        }
+
+        [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void CircuitBreakerClosesAfterCooldown()
         {

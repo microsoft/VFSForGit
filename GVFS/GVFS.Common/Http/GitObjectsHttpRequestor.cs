@@ -121,7 +121,11 @@ namespace GVFS.Common.Http
 
                             if (response.HasErrors)
                             {
-                                return new RetryWrapper<List<GitObjectSize>>.CallbackResult(response.Error, response.ShouldRetry);
+                                return new RetryWrapper<List<GitObjectSize>>.CallbackResult(
+                                    response.Error,
+                                    response.ShouldRetry,
+                                    result: null,
+                                    shouldRecordFailure: response.ShouldRecordFailure);
                             }
 
                             string objectSizesString = response.RetryableReadToEnd();
@@ -176,7 +180,11 @@ namespace GVFS.Common.Http
                     {
                         if (response.HasErrors)
                         {
-                            return new RetryWrapper<GitRefs>.CallbackResult(response.Error, response.ShouldRetry);
+                            return new RetryWrapper<GitRefs>.CallbackResult(
+                                response.Error,
+                                response.ShouldRetry,
+                                result: null,
+                                shouldRecordFailure: response.ShouldRecordFailure);
                         }
 
                         List<string> infoRefsResponse = response.RetryableReadAllLines();
@@ -438,7 +446,7 @@ namespace GVFS.Common.Http
                                 response.Error,
                                 shouldFallBack || response.ShouldRetry,
                                 new GitObjectTaskResult(response.StatusCode, requestEndPoint),
-                                shouldRecordFailure: response.ShouldRetry && !shouldFallBack);
+                                shouldRecordFailure: response.ShouldRecordFailure && !shouldFallBack);
                         }
 
                         RetryWrapper<GitObjectTaskResult>.CallbackResult result;

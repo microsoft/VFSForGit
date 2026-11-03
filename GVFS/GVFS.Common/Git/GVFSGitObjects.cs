@@ -67,10 +67,14 @@ namespace GVFS.Common.Git
         /// </summary>
         internal class DownloadAttemptResult
         {
-            public DownloadAttemptResult(DownloadAndSaveObjectResult result, HttpStatusCode? httpStatusCode)
+            public DownloadAttemptResult(
+                DownloadAndSaveObjectResult result,
+                HttpStatusCode? httpStatusCode,
+                bool shouldRecordFailure = true)
             {
                 this.Result = result;
                 this.HttpStatusCode = httpStatusCode;
+                this.ShouldRecordFailure = shouldRecordFailure;
             }
 
             public DownloadAndSaveObjectResult Result { get; }
@@ -78,6 +82,8 @@ namespace GVFS.Common.Git
             // The HTTP status of the last download attempt, or null when no HTTP response was
             // received (for example an exhausted retry that ended in an exception).
             public HttpStatusCode? HttpStatusCode { get; }
+
+            public bool ShouldRecordFailure { get; }
         }
 
         protected GVFSContext Context { get; private set; }
@@ -217,7 +223,11 @@ namespace GVFS.Common.Git
                             downloadSucceededButCopyFailed = true;
                         }
 
-                        return new RetryWrapper<bool>.CallbackResult(error: null, shouldRetry: true);
+                        return new RetryWrapper<bool>.CallbackResult(
+                            error: null,
+                            shouldRetry: true,
+                            result: false,
+                            shouldRecordFailure: lastDownloadResult?.ShouldRecordFailure ?? true);
                     }
                 });
 
@@ -367,17 +377,26 @@ namespace GVFS.Common.Git
             {
                 if (output.Succeeded && output.Result.Success)
                 {
-                    return new DownloadAttemptResult(DownloadAndSaveObjectResult.Success, httpStatusCode);
+                    return new DownloadAttemptResult(
+                        DownloadAndSaveObjectResult.Success,
+                        httpStatusCode,
+                        output.ShouldRecordFailure);
                 }
 
                 if (output.Result.HttpStatusCodeResult == HttpStatusCode.NotFound)
                 {
                     this.objectNegativeCache.AddOrUpdate(objectId, DateTime.Now, (unused1, unused2) => DateTime.Now);
-                    return new DownloadAttemptResult(DownloadAndSaveObjectResult.ObjectNotOnServer, httpStatusCode);
+                    return new DownloadAttemptResult(
+                        DownloadAndSaveObjectResult.ObjectNotOnServer,
+                        httpStatusCode,
+                        output.ShouldRecordFailure);
                 }
             }
 
-            return new DownloadAttemptResult(DownloadAndSaveObjectResult.Error, httpStatusCode);
+            return new DownloadAttemptResult(
+                DownloadAndSaveObjectResult.Error,
+                httpStatusCode,
+                output.ShouldRecordFailure);
         }
     }
 }

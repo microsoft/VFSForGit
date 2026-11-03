@@ -314,7 +314,7 @@ namespace GVFS.Virtualization
             // header to outgoing requests" (see HttpRequestor.cs), so a mount stuck
             // reporting true for long stretches against a server that requires auth
             // is the signature of the anonymous-auth-latch bug this field detects.
-            metadata.Add("IsSendingAnonymousRequests", this.context.Enlistment.Authentication.IsAnonymous);
+            metadata.Add("IsSendingAnonymousRequests", this.context.Enlistment.Authentication.IsSendingAnonymousRequests);
 
             return metadata;
         }

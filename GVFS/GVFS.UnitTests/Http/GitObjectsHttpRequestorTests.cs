@@ -104,6 +104,31 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        public void RetryableAuthenticationChallengeDoesNotIncrementCircuitBreaker()
+        {
+            TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 1);
+            requestor.EnqueueResponse(
+                HttpStatusCode.Unauthorized,
+                shouldRetry: true,
+                shouldRecordFailure: false);
+            requestor.EnqueueResponse(HttpStatusCode.OK);
+
+            RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result =
+                requestor.TrySendProtocolRequest(
+                    requestId: 1,
+                    onSuccess: SuccessfulRequest,
+                    onFailure: null,
+                    method: HttpMethod.Get,
+                    endPointGenerator: () => new Uri(EndpointCacheServerUrl + "/gvfs/objects"),
+                    requestBodyGenerator: () => null,
+                    cancellationToken: CancellationToken.None);
+
+            result.Succeeded.ShouldEqual(true);
+            requestor.RequestUris.Count.ShouldEqual(2);
+            RetryCircuitBreaker.ConsecutiveFailures.ShouldEqual(0);
+        }
+
+        [TestCase]
         public void TransportExceptionFallsBackToGlobalCacheServer()
         {
             TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0);
@@ -405,9 +430,13 @@ namespace GVFS.UnitTests.Http
             public MockTracer TestTracer { get; }
             public List<Uri> RequestUris { get; }
 
-            public void EnqueueResponse(HttpStatusCode statusCode, string body = "", bool shouldRetry = false)
+            public void EnqueueResponse(
+                HttpStatusCode statusCode,
+                string body = "",
+                bool shouldRetry = false,
+                bool shouldRecordFailure = true)
             {
-                this.responses.Enqueue(Tuple.Create(statusCode, body, shouldRetry));
+                this.responses.Enqueue(Tuple.Create(statusCode, body, shouldRetry, shouldRecordFailure));
             }
 
             public void EnqueueException(Exception exception)
@@ -445,7 +474,7 @@ namespace GVFS.UnitTests.Http
                         onResponseDisposed: null);
                 }
 
-                Tuple<HttpStatusCode, string, bool> response = (Tuple<HttpStatusCode, string, bool>)nextResponse;
+                Tuple<HttpStatusCode, string, bool, bool> response = (Tuple<HttpStatusCode, string, bool, bool>)nextResponse;
 
                 if (response.Item1 == HttpStatusCode.OK)
                 {
@@ -462,7 +491,8 @@ namespace GVFS.UnitTests.Http
                     new GitObjectsHttpException(response.Item1, "Test failure"),
                     shouldRetry: response.Item3,
                     message: null,
-                    onResponseDisposed: null);
+                    onResponseDisposed: null,
+                    shouldRecordFailure: response.Item4);
             }
         }
 

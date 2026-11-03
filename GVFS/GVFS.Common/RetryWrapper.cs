@@ -95,7 +95,11 @@ namespace GVFS.Common
 
                         if (!this.ShouldRetry(tryCount, null, result))
                         {
-                            return new InvocationResult(tryCount, result.Error, result.Result);
+                            return new InvocationResult(
+                                tryCount,
+                                result.Error,
+                                result.Result,
+                                result.ShouldRecordFailure);
                         }
                     }
                     else
@@ -201,15 +205,22 @@ namespace GVFS.Common
             }
 
             public InvocationResult(int tryCount, Exception error, T result)
+                : this(tryCount, error, result, shouldRecordFailure: true)
+            {
+            }
+
+            public InvocationResult(int tryCount, Exception error, T result, bool shouldRecordFailure)
                 : this(tryCount, error)
             {
                 this.Result = result;
+                this.ShouldRecordFailure = shouldRecordFailure;
             }
 
             public T Result { get; }
             public int Attempts { get; }
             public bool Succeeded { get; }
             public Exception Error { get; }
+            public bool ShouldRecordFailure { get; } = true;
         }
 
         public class CallbackResult
