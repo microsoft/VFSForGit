@@ -84,6 +84,32 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void ExpectedAuthenticationChallengeDoesNotIncrementHydrationCircuitBreaker()
+        {
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects
+            {
+                StatusCodeToReturn = HttpStatusCode.Unauthorized,
+                ShouldRecordFailureToReturn = false,
+            };
+            GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(
+                httpObjects,
+                new MissingGitRepo(new MockTracer()),
+                out _);
+
+            dut.TryCopyBlobContentStream(
+                ValidTestObjectFileSha1,
+                CancellationToken.None,
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("The challenged download should not provide content"),
+                out GVFSGitObjects.BlobHydrationFailureCategory _)
+                .ShouldEqual(false);
+
+            RetryCircuitBreaker.ConsecutiveFailures.ShouldEqual(
+                0,
+                "The outer hydration retry must preserve the expected-challenge classification");
+        }
+
+        [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void TerminalBlobHydrationFailureIsTaggedWithCategory()
         {
@@ -1050,6 +1076,7 @@ namespace GVFS.UnitTests.Git
             public Stream InputStream { get; set; }
             public string MediaType { get; set; }
             public HttpStatusCode? StatusCodeToReturn { get; set; }
+            public bool ShouldRecordFailureToReturn { get; set; } = true;
 
             // When true, TryDownloadObjects returns a failing result built from GitObjectTaskResult(bool),
             // i.e. Result is non-null but carries no HTTP status (HttpStatusCodeResult == 0). This
@@ -1100,7 +1127,8 @@ namespace GVFS.UnitTests.Git
                     return new RetryWrapper<GitObjectTaskResult>.InvocationResult(
                         0,
                         error: null,
-                        result: new GitObjectTaskResult(this.StatusCodeToReturn.Value));
+                        result: new GitObjectTaskResult(this.StatusCodeToReturn.Value),
+                        shouldRecordFailure: this.ShouldRecordFailureToReturn);
                 }
 
                 if (this.FailWithoutStatus)
@@ -1161,6 +1189,19 @@ namespace GVFS.UnitTests.Git
             public override bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
             {
                 throw this.toThrow;
+            }
+        }
+
+        private sealed class MissingGitRepo : GitRepo
+        {
+            public MissingGitRepo(ITracer tracer)
+                : base(tracer)
+            {
+            }
+
+            public override bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
+            {
+                return false;
             }
         }
 
