@@ -3,8 +3,11 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
+using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Git
 {
@@ -384,6 +387,45 @@ this is an error",
             GitProcess.QuoteGitPath(input).ShouldEqual(expected);
         }
 
+        [TestCase(30000)]
+        [TestCase(Timeout.Infinite)]
+        public void GitCommandWaitsForOutputCallbacks(int timeoutMs)
+        {
+            string gitPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "cmd", "git.exe");
+            if (!File.Exists(gitPath))
+            {
+                Assert.Ignore("Git is not installed at the expected path.");
+            }
+
+            OutputCallbackGitProcess gitProcess = new OutputCallbackGitProcess(gitPath);
+            using (ManualResetEventSlim callbackStarted = new ManualResetEventSlim())
+            using (ManualResetEventSlim releaseCallback = new ManualResetEventSlim())
+            {
+                bool callbackCompleted = false;
+                Task<GitProcess.Result> command = Task.Run(() => gitProcess.GetVersion(
+                    line =>
+                    {
+                        callbackStarted.Set();
+                        callbackCompleted = releaseCallback.Wait(TimeSpan.FromSeconds(10));
+                    },
+                    timeoutMs));
+
+                try
+                {
+                    callbackStarted.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("Git did not produce output");
+                    command.Wait(TimeSpan.FromSeconds(1)).ShouldBeFalse("The command returned before its output callback finished");
+                }
+                finally
+                {
+                    releaseCallback.Set();
+                    command.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("The command did not finish after its output callback was released");
+                }
+
+                command.Result.ExitCode.ShouldEqual(0);
+                callbackCompleted.ShouldBeTrue();
+            }
+        }
+
         [TestCase]
         [Description("Integration test: verify QuoteGitPath produces arguments that git actually receives correctly")]
         public void QuoteGitPath_RoundTripThroughProcess()
@@ -434,6 +476,27 @@ this is an error",
                         testPath,
                         $"Path round-trip failed for: {testPath} (quoted as: {quoted})");
                 }
+            }
+        }
+
+        private sealed class OutputCallbackGitProcess : GitProcess
+        {
+            public OutputCallbackGitProcess(string gitPath)
+                : base(gitPath, workingDirectoryRoot: null)
+            {
+            }
+
+            public Result GetVersion(Action<string> onOutput, int timeoutMs)
+            {
+                return this.InvokeGitImpl(
+                    "--version",
+                    workingDirectory: null,
+                    dotGitDirectory: null,
+                    useReadObjectHook: false,
+                    writeStdIn: null,
+                    parseStdOutLine: onOutput,
+                    timeoutMs: timeoutMs,
+                    usePreCommandHook: false);
             }
         }
     }
