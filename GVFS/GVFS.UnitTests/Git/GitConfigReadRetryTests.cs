@@ -55,6 +55,36 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void InvokeResultStopsWhenTheCallerCannotWaitForTheDelay()
+        {
+            MockTracer tracer = new MockTracer();
+            List<TimeSpan> requestedWaits = new List<TimeSpan>();
+            List<int> retriedResults = new List<int>();
+            int reads = 0;
+            int delays = 0;
+
+            GitConfigReadRetry.InvokeResult(
+                "gvfs.test",
+                () => ++reads,
+                (int _) => true,
+                tracer,
+                delay => ++delays,
+                canWait: wait =>
+                {
+                    requestedWaits.Add(wait);
+                    return requestedWaits.Count < 3;
+                },
+                beforeRetry: retriedResults.Add);
+
+            reads.ShouldEqual(3);
+            delays.ShouldEqual(2);
+            retriedResults.ShouldMatchInOrder(1, 2);
+            requestedWaits.ShouldMatchInOrder(TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(40), TimeSpan.FromMilliseconds(80));
+            tracer.RelatedWarningEvents.Count.ShouldEqual(3);
+            tracer.RelatedWarningEvents[2].ShouldContain("persisted after all attempts");
+        }
+
+        [TestCase]
         public void InvokeResultDoesNotRetryWhenOneAttemptIsAllowed()
         {
             int reads = 0;

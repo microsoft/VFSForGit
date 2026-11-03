@@ -50,9 +50,11 @@ namespace GVFS.UnitTests.Common.Git
             password.ShouldEqual(SecretValue);
             attempts.ShouldEqual(2);
             gitProcess.InvocationsRun.Select(i => i.TimeoutMs).ShouldMatchInOrder(-1, -1);
-            tracer.RelatedEventNames.ShouldMatchInOrder("CredentialConfigReadFailure");
-            ((bool)tracer.RelatedEventMetadata[0]["WillRetry"]).ShouldBeTrue();
-            AssertConfigReadFailureTelemetry(tracer);
+            List<EventMetadata> retryTelemetry = ConfigReadRetryTelemetry(tracer);
+            retryTelemetry.Count.ShouldEqual(1);
+            retryTelemetry[0]["ConfigName"].ShouldEqual("credential fill");
+            retryTelemetry[0]["AttemptNumber"].ShouldEqual(1);
+            AssertConfigReadRetryTelemetryHasNoStderr(tracer);
             AssertNoSecret(tracer);
         }
 
@@ -65,11 +67,13 @@ namespace GVFS.UnitTests.Common.Git
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string error).ShouldBeFalse();
 
             gitProcess.InvocationsRun.Count.ShouldEqual(5);
-            tracer.RelatedEventMetadata.Select(e => (bool)e["WillRetry"]).ShouldMatchInOrder(true, true, true, true, false);
-            tracer.RelatedEventMetadata.Select(e => (int)e["AttemptNumber"]).ShouldMatchInOrder(1, 2, 3, 4, 5);
-            tracer.RelatedEventMetadata.Select(e => (int)e["MaxAttempts"]).ShouldMatchInOrder(5, 5, 5, 5, 5);
-            tracer.RelatedEventMetadata.Select(e => (int)e["RetryDelayMilliseconds"]).ShouldMatchInOrder(20, 40, 80, 160, 0);
-            AssertConfigReadFailureTelemetry(tracer);
+            List<EventMetadata> retryTelemetry = ConfigReadRetryTelemetry(tracer);
+            retryTelemetry.Take(4).Select(e => (int)e["AttemptNumber"]).ShouldMatchInOrder(1, 2, 3, 4);
+            retryTelemetry.Take(4).Select(e => (double)e["RetryDelayMilliseconds"]).ShouldMatchInOrder(20.0, 40.0, 80.0, 160.0);
+            retryTelemetry.Take(4).Select(e => (int)e["MaxAttempts"]).ShouldMatchInOrder(5, 5, 5, 5);
+            retryTelemetry.Count.ShouldEqual(5);
+            retryTelemetry[4]["Attempts"].ShouldEqual(5);
+            AssertConfigReadRetryTelemetryHasNoStderr(tracer);
             AssertErrorMessageHasNoStderr(error);
             tracer.RelatedWarningEvents.Any(e => e.Contains("Permission denied")).ShouldBeTrue();
         }
@@ -95,7 +99,7 @@ namespace GVFS.UnitTests.Common.Git
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _).ShouldBeFalse();
 
             gitProcess.InvocationsRun.Count.ShouldEqual(1);
-            tracer.RelatedEventNames.ShouldBeEmpty();
+            ConfigReadRetryTelemetry(tracer).ShouldBeEmpty();
         }
 
         [TestCase]
@@ -143,7 +147,7 @@ namespace GVFS.UnitTests.Common.Git
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _, timeoutMs: 1).ShouldBeFalse();
 
             gitProcess.InvocationsRun.Count.ShouldEqual(1);
-            ((bool)tracer.RelatedEventMetadata.Single()["WillRetry"]).ShouldBeFalse();
+            ConfigReadRetryTelemetry(tracer).Single()["Attempts"].ShouldEqual(1);
         }
 
         [TestCase(true, 30000)]
@@ -430,13 +434,21 @@ namespace GVFS.UnitTests.Common.Git
             password.ShouldBeNull();
         }
 
-        private static void AssertConfigReadFailureTelemetry(MockTracer tracer)
+        // The GitConfigReadRetry events are the telemetry warnings that name a config read.
+        private static List<EventMetadata> ConfigReadRetryTelemetry(MockTracer tracer)
         {
-            foreach (EventMetadata metadata in tracer.RelatedEventMetadata)
+            return tracer.TelemetryWarnings.Where(metadata => metadata.ContainsKey("ConfigName")).ToList();
+        }
+
+        private static void AssertConfigReadRetryTelemetryHasNoStderr(MockTracer tracer)
+        {
+            foreach (EventMetadata metadata in ConfigReadRetryTelemetry(tracer))
             {
-                CollectionAssert.AreEquivalent(
-                    new[] { "AttemptNumber", "MaxAttempts", "WillRetry", "RetryDelayMilliseconds" },
-                    metadata.Keys);
+                foreach (string key in metadata.Keys)
+                {
+                    new[] { "ConfigName", "AttemptNumber", "MaxAttempts", "RetryDelayMilliseconds", "Attempts", "WarningMessage" }
+                        .ShouldContain(allowed => allowed == key);
+                }
             }
         }
 

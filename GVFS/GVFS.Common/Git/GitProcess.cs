@@ -40,8 +40,6 @@ namespace GVFS.Common.Git
         private const string MissingPasswordErrorMessage = "Git credential fill returned no password";
         private const int MaxCredentialOutputKeys = 32;
         private const int MaxCredentialOutputKeyLength = 32;
-        private const int MaxCredentialConfigReadAttempts = 5;
-        private const int CredentialConfigReadRetryDelayMs = 20;
 
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
 
@@ -1231,51 +1229,31 @@ namespace GVFS.Common.Git
             bool hasVisibleConsoleWindow,
             int timeoutMs = Timeout.Infinite)
         {
+            // Each attempt gets only the time that remains of the caller's timeout.
             Stopwatch timer = Stopwatch.StartNew();
-            int remainingTimeoutMs = timeoutMs;
-            for (int attempt = 1; ; ++attempt)
-            {
-                Result result = this.InvokeGitAgainstDotGitFolder(
-                    command,
-                    stdin => stdin.Write(input),
-                    parseStdOutLine: null,
-                    usePreCommandHook: false,
-                    timeoutMs: remainingTimeoutMs,
-                    mayRequireAuth: true,
-                    hasVisibleConsoleWindow: hasVisibleConsoleWindow);
-
-                if (!IsCredentialConfigReadFailure(result))
+            bool firstAttempt = true;
+            return GitConfigReadRetry.InvokeResult(
+                "credential fill",
+                () =>
                 {
-                    return result;
-                }
-
-                int delayMs = CredentialConfigReadRetryDelayMs << (attempt - 1);
-                bool willRetry = attempt < MaxCredentialConfigReadAttempts &&
-                    (timeoutMs == Timeout.Infinite || timeoutMs - timer.ElapsedMilliseconds > delayMs);
-                tracer.RelatedEvent(
-                    EventLevel.Warning,
-                    "CredentialConfigReadFailure",
-                    new EventMetadata
-                    {
-                        { "AttemptNumber", attempt },
-                        { "MaxAttempts", MaxCredentialConfigReadAttempts },
-                        { "WillRetry", willRetry },
-                        { "RetryDelayMilliseconds", willRetry ? delayMs : 0 },
-                    },
-                    Keywords.Network | Keywords.Telemetry);
-
-                if (!willRetry)
-                {
-                    return result;
-                }
-
-                TraceCredentialFillErrorOutput(tracer, result.Errors);
-                Thread.Sleep(delayMs);
-                if (timeoutMs != Timeout.Infinite)
-                {
-                    remainingTimeoutMs = (int)Math.Max(0, timeoutMs - timer.ElapsedMilliseconds);
-                }
-            }
+                    int attemptTimeoutMs = firstAttempt || timeoutMs == Timeout.Infinite
+                        ? timeoutMs
+                        : (int)Math.Max(0, timeoutMs - timer.ElapsedMilliseconds);
+                    firstAttempt = false;
+                    return this.InvokeGitAgainstDotGitFolder(
+                        command,
+                        stdin => stdin.Write(input),
+                        parseStdOutLine: null,
+                        usePreCommandHook: false,
+                        timeoutMs: attemptTimeoutMs,
+                        mayRequireAuth: true,
+                        hasVisibleConsoleWindow: hasVisibleConsoleWindow);
+                },
+                IsCredentialConfigReadFailure,
+                tracer,
+                this.configReadDelay,
+                canWait: delay => timeoutMs == Timeout.Infinite || timeoutMs - timer.ElapsedMilliseconds > delay.TotalMilliseconds,
+                beforeRetry: result => TraceCredentialFillErrorOutput(tracer, result.Errors));
         }
 
         private static bool IsCredentialConfigReadFailure(Result result)
@@ -1301,20 +1279,9 @@ namespace GVFS.Common.Git
                 {
                     configReadFailed = true;
                 }
-                else if (line.StartsWith("warning: unable to access '", StringComparison.Ordinal))
+                else if (line.StartsWith("warning: unable to access '", StringComparison.Ordinal) &&
+                    GitConfigReadRetry.IsTransientFileAccessError(line))
                 {
-                    int separator = line.LastIndexOf("': ", StringComparison.Ordinal);
-                    if (separator < 0)
-                    {
-                        return false;
-                    }
-
-                    string reason = line.Substring(separator + 3);
-                    if (reason != "Permission denied" && reason != "Device or resource busy")
-                    {
-                        return false;
-                    }
-
                     transientAccessFailure = true;
                 }
                 else

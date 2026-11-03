@@ -17,13 +17,20 @@ namespace GVFS.Common.Git
             "sharing violation",
         };
 
+        /// <param name="canWait">
+        /// Returns false when the caller's time budget cannot cover the next delay. The read then
+        /// stops as if it used all attempts.
+        /// </param>
+        /// <param name="beforeRetry">Receives each failed result that will be read again.</param>
         internal static T InvokeResult<T>(
             string configName,
             Func<T> readConfig,
             Func<T, bool> isTransientFailure,
             ITracer tracer,
             Action<TimeSpan> delay,
-            int maxAttempts = MaxAttempts)
+            int maxAttempts = MaxAttempts,
+            Func<TimeSpan, bool> canWait = null,
+            Action<T> beforeRetry = null)
         {
             for (int attempt = 1; ; ++attempt)
             {
@@ -33,14 +40,15 @@ namespace GVFS.Common.Git
                     return result;
                 }
 
-                if (attempt >= maxAttempts)
+                TimeSpan retryDelay = GetRetryDelay(attempt);
+                if (attempt >= maxAttempts || (canWait != null && !canWait(retryDelay)))
                 {
                     TraceExhausted(tracer, configName, attempt);
                     return result;
                 }
 
-                TimeSpan retryDelay = GetRetryDelay(attempt);
                 TraceRetry(tracer, configName, attempt, maxAttempts, retryDelay);
+                beforeRetry?.Invoke(result);
                 delay(retryDelay);
             }
         }
