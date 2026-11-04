@@ -577,20 +577,18 @@ namespace GVFS.Common.Git
         /// <returns>The value found for the setting.</returns>
         public virtual ConfigResult GetFromConfig(string settingName, bool forceOutsideEnlistment = false, PhysicalFileSystem fileSystem = null)
         {
-            string command = string.Format("config {0}", settingName);
-            fileSystem = fileSystem ?? new PhysicalFileSystem();
-
-            // This method is called at clone time, so the physical repo may not exist yet.
-            // Pre-command hook never applies to `git config` reads (no working tree
-            // mutation happens), and skipping the hook makes us robust to a broken
-            // hook config in the enlistment - which is exactly what we'd be trying
-            // to repair via TryUpdateHooks at mount time.
-            Result result =
-                fileSystem.DirectoryExists(this.workingDirectoryRoot) && !forceOutsideEnlistment
-                    ? this.InvokeConfigRead(settingName, () => this.InvokeGitAgainstDotGitFolder(command, usePreCommandHook: false))
-                    : this.InvokeConfigRead(settingName, () => this.InvokeGitOutsideEnlistment(command));
-
+            Result result = this.ReadConfig(settingName, string.Format("config {0}", settingName), forceOutsideEnlistment, fileSystem);
             return new ConfigResult(result, settingName);
+        }
+
+        /// <summary>
+        /// Reads a boolean config value. <paramref name="value"/> is null when the key is unset.
+        /// Matches <see cref="LibGit2Repo.TryReadConfigBoolWithGit"/>.
+        /// </summary>
+        public bool TryGetBoolFromConfig(string settingName, out bool? value, out string error)
+        {
+            Result result = this.ReadConfig(settingName, LibGit2Repo.GetConfigBoolArguments(settingName), forceOutsideEnlistment: false, fileSystem: null);
+            return LibGit2Repo.TryParseConfigBoolOutput(settingName, result.ExitCode, result.Output, result.Errors, out value, out error);
         }
 
         public ConfigResult GetFromLocalConfig(string settingName)
@@ -1291,6 +1289,21 @@ namespace GVFS.Common.Git
             }
 
             return configReadFailed && transientAccessFailure;
+        }
+
+        private Result ReadConfig(string settingName, string command, bool forceOutsideEnlistment, PhysicalFileSystem fileSystem)
+        {
+            fileSystem = fileSystem ?? new PhysicalFileSystem();
+
+            // This method is called at clone time, so the physical repo may not exist yet.
+            // Pre-command hook never applies to `git config` reads (no working tree
+            // mutation happens), and skipping the hook makes us robust to a broken
+            // hook config in the enlistment - which is exactly what we'd be trying
+            // to repair via TryUpdateHooks at mount time.
+            return
+                fileSystem.DirectoryExists(this.workingDirectoryRoot) && !forceOutsideEnlistment
+                    ? this.InvokeConfigRead(settingName, () => this.InvokeGitAgainstDotGitFolder(command, usePreCommandHook: false))
+                    : this.InvokeConfigRead(settingName, () => this.InvokeGitOutsideEnlistment(command));
         }
 
         private Result InvokeConfigRead(string configName, Func<Result> readConfig)

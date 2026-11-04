@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.Tracing;
 using System;
+using System.Collections;
 using System.Threading;
 
 namespace GVFS.Common.Git
@@ -7,6 +8,8 @@ namespace GVFS.Common.Git
     public class LibGit2RepoInvoker : IDisposable
     {
         private readonly Func<LibGit2Repo> createRepo;
+        private readonly LibGit2Repo.TryReadConfigBoolWithGit readBoolWithGit;
+        private readonly IDictionary environment;
         private readonly ITracer tracer;
         private readonly Lock sharedRepoLock = new Lock();
         private volatile bool disposing;
@@ -19,9 +22,21 @@ namespace GVFS.Common.Git
         }
 
         public LibGit2RepoInvoker(ITracer tracer, Func<LibGit2Repo> createRepo)
+            : this(tracer, createRepo, readBoolWithGit: null)
+        {
+        }
+
+        /// <param name="readBoolWithGit">
+        /// Reads a key with git.exe. <see cref="GetConfigBoolOrDefault"/> uses it instead of libgit2
+        /// when <see cref="LibGit2Repo.EnvironmentChangesGitConfig()"/> is true.
+        /// </param>
+        /// <param name="environment">The environment to check. Null selects the process environment.</param>
+        public LibGit2RepoInvoker(ITracer tracer, Func<LibGit2Repo> createRepo, LibGit2Repo.TryReadConfigBoolWithGit readBoolWithGit, IDictionary environment = null)
         {
             this.tracer = tracer;
             this.createRepo = createRepo;
+            this.readBoolWithGit = readBoolWithGit;
+            this.environment = environment;
 
             this.InitializeSharedRepo();
         }
@@ -89,6 +104,12 @@ namespace GVFS.Common.Git
 
         public bool GetConfigBoolOrDefault(string key, bool defaultValue)
         {
+            if (this.readBoolWithGit != null &&
+                LibGit2Repo.EnvironmentChangesGitConfig(this.environment ?? Environment.GetEnvironmentVariables()))
+            {
+                return LibGit2Repo.GetConfigBoolWithGitOrDefault(this.tracer, key, defaultValue, this.readBoolWithGit);
+            }
+
             bool? value = defaultValue;
             if (this.TryInvoke(repo => repo.GetConfigBool(key), out value))
             {

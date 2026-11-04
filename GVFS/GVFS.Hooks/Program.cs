@@ -177,7 +177,24 @@ namespace GVFS.Hooks
                 normalizedCurrentDirectory,
                 GVFSConstants.GitConfig.ShowHydrationStatus,
                 GVFSConstants.GitConfig.ShowHydrationStatusDefault,
+                TryReadBoolConfigWithGit,
                 ConfigReadMaxAttempts);
+        }
+
+        private static bool TryReadBoolConfigWithGit(string key, out bool? value, out string error)
+        {
+            // Git runs this hook, so the child git.exe reads the config of the same repository.
+            ProcessResult result = GitConfigReadRetry.InvokeResult(
+                key,
+                () => ProcessHelper.Run("git", LibGit2Repo.GetConfigBoolArguments(key)),
+                (ProcessResult processResult) =>
+                    processResult.ExitCode != 0 &&
+                    GitConfigReadRetry.IsTransientFileAccessError(processResult.Errors, lineMustContain: "unable to access"),
+                NullTracer.Instance,
+                GitConfigReadRetry.Delay,
+                ConfigReadMaxAttempts);
+
+            return LibGit2Repo.TryParseConfigBoolOutput(key, result.ExitCode, result.Output, result.Errors, out value, out error);
         }
 
         /// <summary>

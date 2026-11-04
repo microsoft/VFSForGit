@@ -253,6 +253,20 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void TryGetBoolFromConfigRunsGitConfigWithTypeBool()
+        {
+            MockGitProcess process = this.CreateProcessWithTransientThenSuccess(
+                "config --type=bool gvfs.test",
+                "false\n",
+                out Func<int> getDelayCount);
+
+            process.TryGetBoolFromConfig("gvfs.test", out bool? value, out string error).ShouldBeTrue(error);
+
+            value.ShouldEqual(false);
+            getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase]
         public void GetOriginUrlRetriesTransientFailure()
         {
             MockGitProcess process = this.CreateProcessWithTransientThenSuccess(

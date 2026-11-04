@@ -500,7 +500,8 @@ namespace GVFS.Mount
                 this.tracer,
                 this.enlistment.WorkingDirectoryBackingRoot,
                 GVFSConstants.GitConfig.BackgroundCacheAuth,
-                GVFSConstants.GitConfig.BackgroundCacheAuthDefault);
+                GVFSConstants.GitConfig.BackgroundCacheAuthDefault,
+                this.enlistment.CreateGitProcess(this.tracer).TryGetBoolFromConfig);
         }
 
         private void ValidateMountPoints()
@@ -629,18 +630,12 @@ namespace GVFS.Mount
             // pipe starts), and its constructor force-loads the object store, which we must
             // not do on the pre-pipe critical path. A raw LibGit2Repo opens only the repo
             // handle + config (no object store) and gives native git-bool parsing.
-            try
-            {
-                using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot))
-                {
-                    return repo.GetConfigBool(GVFSConstants.GitConfig.MountProgress) ?? GVFSConstants.GitConfig.MountProgressDefault;
-                }
-            }
-            catch (Exception e)
-            {
-                this.tracer.RelatedWarning($"Failed to read {GVFSConstants.GitConfig.MountProgress} config, using default: {e.Message}");
-                return GVFSConstants.GitConfig.MountProgressDefault;
-            }
+            return LibGit2Repo.GetConfigBoolOrDefault(
+                this.tracer,
+                this.enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.GitConfig.MountProgress,
+                GVFSConstants.GitConfig.MountProgressDefault,
+                this.enlistment.CreateGitProcess(this.tracer).TryGetBoolFromConfig);
         }
 
         private void FailMountAndExit(string error, params object[] args)

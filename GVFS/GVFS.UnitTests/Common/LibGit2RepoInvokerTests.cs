@@ -2,7 +2,9 @@
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
+using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace GVFS.UnitTests.Common
@@ -171,6 +173,48 @@ namespace GVFS.UnitTests.Common
             this.numConstructors.ShouldEqual(1);
         }
 
+        [TestCase]
+        public void GetConfigBoolOrDefaultReadsWithGitWhenTheEnvironmentChangesGitConfig()
+        {
+            List<string> gitKeys = new List<string>();
+            using (LibGit2RepoInvoker invoker = new LibGit2RepoInvoker(
+                this.tracer,
+                this.CreateRepo,
+                (string key, out bool? value, out string error) =>
+                {
+                    gitKeys.Add(key);
+                    value = false;
+                    error = null;
+                    return true;
+                },
+                new Hashtable { { "GIT_CONFIG_GLOBAL", "C:\\test.gitconfig" } }))
+            {
+                // The mock libgit2 repo returns true.
+                invoker.GetConfigBoolOrDefault("gvfs.test", true).ShouldEqual(false);
+            }
+
+            gitKeys.ShouldMatchInOrder("gvfs.test");
+        }
+
+        [TestCase]
+        public void GetConfigBoolOrDefaultReadsWithLibGit2WhenTheEnvironmentDoesNotChangeGitConfig()
+        {
+            using (LibGit2RepoInvoker invoker = new LibGit2RepoInvoker(
+                this.tracer,
+                this.CreateRepo,
+                (string key, out bool? value, out string error) =>
+                {
+                    Assert.Fail("Read " + key + " with git.exe");
+                    value = null;
+                    error = null;
+                    return false;
+                },
+                new Hashtable { { "PATH", "C:\\bin" } }))
+            {
+                invoker.GetConfigBoolOrDefault("gvfs.test", false).ShouldEqual(true);
+            }
+        }
+
         private LibGit2Repo CreateRepo()
         {
             Interlocked.Increment(ref this.numConstructors);
@@ -189,6 +233,11 @@ namespace GVFS.UnitTests.Common
             public override bool ObjectExists(string sha)
             {
                 return false;
+            }
+
+            public override bool? GetConfigBool(string name)
+            {
+                return true;
             }
 
             protected override void Dispose(bool disposing)
