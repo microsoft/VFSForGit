@@ -386,6 +386,8 @@ namespace GVFS.Common.Git
             {
                 if (rejectIncludesLibGit2Ignores)
                 {
+                    ThrowIfUserConfigFilesDifferFromGit();
+
                     string include = FindIncludeLibGit2EvaluatesDifferently(snapshotHandle);
                     if (include != null)
                     {
@@ -413,6 +415,84 @@ namespace GVFS.Common.Git
             finally
             {
                 Native.Config.Free(snapshotHandle);
+            }
+        }
+
+        /// <summary>
+        /// Throws when libgit2 reads a different global or XDG config file than git.exe. git for
+        /// Windows uses one home directory: HOME, else HOMEDRIVE and HOMEPATH, else USERPROFILE.
+        /// libgit2 uses the first of these directories that contains the file. libgit2 also looks
+        /// for the XDG file under APPDATA and LOCALAPPDATA, which git does not.
+        /// </summary>
+        private static void ThrowIfUserConfigFilesDifferFromGit()
+        {
+            string home = GetGitForWindowsHomeDirectory();
+            string xdgConfigHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+            string gitGlobal = home == null ? null : Path.Combine(home, ".gitconfig");
+            string gitXdg = !string.IsNullOrEmpty(xdgConfigHome)
+                ? Path.Combine(xdgConfigHome, "git", "config")
+                : home == null ? null : Path.Combine(home, ".config", "git", "config");
+
+            ThrowIfFileDiffersFromGit("global", FindUserConfigFile(isGlobal: true), gitGlobal);
+            ThrowIfFileDiffersFromGit("XDG", FindUserConfigFile(isGlobal: false), gitXdg);
+        }
+
+        private static string GetGitForWindowsHomeDirectory()
+        {
+            string home = Environment.GetEnvironmentVariable("HOME");
+            if (!string.IsNullOrEmpty(home))
+            {
+                return home;
+            }
+
+            string homeDrive = Environment.GetEnvironmentVariable("HOMEDRIVE");
+            string homePath = Environment.GetEnvironmentVariable("HOMEPATH");
+            if (!string.IsNullOrEmpty(homeDrive) && !string.IsNullOrEmpty(homePath) && Directory.Exists(homeDrive + homePath))
+            {
+                return homeDrive + homePath;
+            }
+
+            string userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+            return string.IsNullOrEmpty(userProfile) ? null : userProfile;
+        }
+
+        private static string FindUserConfigFile(bool isGlobal)
+        {
+            Native.Config.GitBuf buffer = default(Native.Config.GitBuf);
+            try
+            {
+                Native.ResultCode resultCode = isGlobal ? Native.Config.FindGlobal(ref buffer) : Native.Config.FindXdg(ref buffer);
+                if (resultCode == Native.ResultCode.NotFound)
+                {
+                    return null;
+                }
+
+                if (resultCode != Native.ResultCode.Success)
+                {
+                    throw new LibGit2Exception($"Failed to find the {(isGlobal ? "global" : "XDG")} config file: {Native.GetLastError()}");
+                }
+
+                return Marshal.PtrToStringUTF8(buffer.Ptr, checked((int)buffer.Size.ToUInt64()));
+            }
+            finally
+            {
+                Native.Config.DisposeBuf(ref buffer);
+            }
+        }
+
+        private static void ThrowIfFileDiffersFromGit(string level, string libGit2Path, string gitPath)
+        {
+            if (gitPath != null && !File.Exists(gitPath))
+            {
+                gitPath = null;
+            }
+
+            libGit2Path = libGit2Path == null ? null : Path.GetFullPath(libGit2Path);
+            gitPath = gitPath == null ? null : Path.GetFullPath(gitPath);
+            if (!string.Equals(libGit2Path, gitPath, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new LibGit2Exception(
+                    $"libgit2 reads the {level} config file '{libGit2Path ?? "<none>"}', but git reads '{gitPath ?? "<none>"}'");
             }
         }
 
@@ -1000,6 +1080,23 @@ namespace GVFS.Common.Git
 
             public static class Config
             {
+                [DllImport(Git2NativeLibName, EntryPoint = "git_config_find_global")]
+                public static extern ResultCode FindGlobal(ref GitBuf path);
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_config_find_xdg")]
+                public static extern ResultCode FindXdg(ref GitBuf path);
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_buf_dispose")]
+                public static extern void DisposeBuf(ref GitBuf buffer);
+
+                [StructLayout(LayoutKind.Sequential)]
+                public struct GitBuf
+                {
+                    public IntPtr Ptr;
+                    public UIntPtr Reserved;
+                    public UIntPtr Size;
+                }
+
                 [DllImport(Git2NativeLibName, EntryPoint = "git_repository_config")]
                 public static extern ResultCode GetConfig(out IntPtr configHandle, IntPtr repoHandle);
 

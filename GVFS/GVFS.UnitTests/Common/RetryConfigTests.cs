@@ -396,6 +396,53 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void UserConfigThatGitDoesNotReadIsReadWithGit()
+        {
+            string gitPath = GetGitPathOrIgnore();
+            string[] variables = { "HOMEDRIVE", "HOMEPATH", "USERPROFILE" };
+            string[] originalValues = Array.ConvertAll(variables, Environment.GetEnvironmentVariable);
+            using (IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config())
+            {
+                // git reads only HOME\.gitconfig. libgit2 also falls back to USERPROFILE\.gitconfig.
+                string emptyHome = Path.Combine(machineConfig.Directory, "home");
+                string profile = Path.Combine(machineConfig.Directory, "profile");
+                Directory.CreateDirectory(emptyHome);
+                Directory.CreateDirectory(profile);
+                File.WriteAllText(Path.Combine(profile, ".gitconfig"), "[gvfs]\n\ttimeout-seconds = 1\n");
+                try
+                {
+                    Environment.SetEnvironmentVariable("HOME", emptyHome);
+                    Environment.SetEnvironmentVariable("HOMEDRIVE", null);
+                    Environment.SetEnvironmentVariable("HOMEPATH", null);
+                    Environment.SetEnvironmentVariable("USERPROFILE", profile);
+                    IsolatedLibGit2Config.ResetUserSearchPathsFromEnvironment();
+
+                    string missingWorkingDirectory = Path.Combine(Path.GetTempPath(), "RetryConfigTests_" + Guid.NewGuid().ToString("N"));
+                    MockTracer tracer = new MockTracer();
+                    RetryConfig.ConfigStringReader readWithLibGit2 = RetryConfig.CreateLibGit2Reader(tracer, missingWorkingDirectory);
+                    GitProcess git = new GitProcess(gitPath, workingDirectoryRoot: null);
+                    RetryConfig.ConfigStringReader readWithGit = (string name, out string value, out string error) =>
+                        git.GetFromConfig(name).TryParseAsString(out value, out error);
+
+                    readWithLibGit2("gvfs.timeout-seconds", out string _, out string libGit2Error).ShouldBeFalse();
+                    libGit2Error.ShouldContain("libgit2 reads the global config file", Path.Combine(profile, ".gitconfig"));
+                    readWithGit("gvfs.timeout-seconds", out string gitValue, out string gitError).ShouldBeTrue(gitError);
+                    gitValue.ShouldBeNull();
+
+                    RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, RetryConfig.WithGitFallback(tracer, readWithLibGit2, readWithGit));
+                    config.Timeout.ShouldEqual(TimeSpan.FromSeconds(RetryConfig.DefaultTimeoutSeconds));
+                }
+                finally
+                {
+                    for (int i = 0; i < variables.Length; ++i)
+                    {
+                        Environment.SetEnvironmentVariable(variables[i], originalValues[i]);
+                    }
+                }
+            }
+        }
+
+        [TestCase]
         public void DisposingARepositoryWithoutNativeStateKeepsTheIsolatedConfig()
         {
             using (IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config())
