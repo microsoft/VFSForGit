@@ -20,6 +20,11 @@ namespace GVFS.UnitTests.Mock.Git
         {
         }
 
+        internal MockGitProcess(ITracer tracer, Action<TimeSpan> configReadDelay)
+            : base(new MockGVFSEnlistment(), tracer, configReadDelay)
+        {
+        }
+
         public MockGitProcess(Enlistment enlistment)
             : base(enlistment)
         {

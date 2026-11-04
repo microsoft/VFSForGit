@@ -171,11 +171,13 @@ namespace GVFS.Hooks
 
         private static bool ConfigurationAllowsHydrationStatus()
         {
+            // See ConfigReadMaxAttempts for why the retry budget is small here.
             return LibGit2Repo.GetConfigBoolOrDefault(
                 NullTracer.Instance,
                 normalizedCurrentDirectory,
                 GVFSConstants.GitConfig.ShowHydrationStatus,
-                GVFSConstants.GitConfig.ShowHydrationStatusDefault);
+                GVFSConstants.GitConfig.ShowHydrationStatusDefault,
+                ConfigReadMaxAttempts);
         }
 
         /// <summary>

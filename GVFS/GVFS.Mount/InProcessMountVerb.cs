@@ -131,7 +131,7 @@ namespace GVFS.Mount
             // leaving behind an empty log with no explanation.
             try
             {
-                CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
+                CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment, tracer);
 
                 tracer.WriteStartEvent(
                     enlistment.WorkingDirectoryRoot,

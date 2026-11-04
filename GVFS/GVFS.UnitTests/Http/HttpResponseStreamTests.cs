@@ -638,13 +638,18 @@ namespace GVFS.UnitTests.Http
             GitAuthentication authentication = new GitAuthentication(git, endpoint);
             MockGVFSEnlistment enlistment = new MockGVFSEnlistment(
                 "mock:\\repo", endpoint, "mock:\\git", git, authentication);
+
+            // libgit2 reads the settings from the isolated global config. When the environment
+            // changes Git config, git.exe reads the same values from the mock.
+            using IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config();
+            File.WriteAllText(machineConfig.GlobalConfigPath, "[gvfs]\n\tmax-retries = 0\n\ttimeout-seconds = 2\n\tread-timeout-seconds = 1\n");
             try
             {
                 authentication.TryInitialize(tracer, enlistment, out string error).ShouldEqual(true, error);
-                foreach (string key in new[] { "gvfs.max-retries", "gvfs.timeout-seconds", "gvfs.read-timeout-seconds" })
-                {
-                    git.CommandsRun.Count(command => command == "config " + key).ShouldEqual(1);
-                }
+                EventMetadata loaded = tracer.RelatedEventMetadata[tracer.RelatedEventNames.IndexOf("RetryConfig_LoadedRetryConfig")];
+                loaded["MaxRetries"].ShouldEqual(0);
+                loaded["Timeout"].ShouldEqual(TimeSpan.FromSeconds(2));
+                loaded["ReadTimeout"].ShouldEqual(TimeSpan.FromSeconds(1));
             }
             finally
             {

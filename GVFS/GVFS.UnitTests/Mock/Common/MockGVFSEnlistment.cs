@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using GVFS.UnitTests.Mock.Git;
 using System.IO;
 
@@ -39,6 +40,11 @@ namespace GVFS.UnitTests.Mock.Common
         public override GitProcess CreateGitProcess()
         {
             return this.gitProcess ?? new MockGitProcess();
+        }
+
+        public override GitProcess CreateGitProcess(ITracer tracer)
+        {
+            return this.CreateGitProcess();
         }
     }
 }
