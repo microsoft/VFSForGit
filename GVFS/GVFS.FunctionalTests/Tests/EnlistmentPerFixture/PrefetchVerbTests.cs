@@ -4,6 +4,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -156,6 +157,80 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase(null, "pack-index")]
+        [TestCase("false", "revparse")]
+        public void PrefetchUseIdxIsReadFromMergedConfig(string localValue, string expectedChecker)
+        {
+            string[] keys = new[] { "gvfs.prefetch-use-idx", "gvfs.prefetch-offload" };
+            Dictionary<string, string> previous = this.ReadLocalConfig(keys);
+            string homeDirectory = Path.Combine(this.Enlistment.EnlistmentRoot, "global-git-config-" + Guid.NewGuid().ToString("N"));
+            string globalConfigPath = Path.Combine(homeDirectory, ".gitconfig");
+            try
+            {
+                Directory.CreateDirectory(homeDirectory);
+                if (localValue == null)
+                {
+                    this.UnsetLocalConfig(keys[0]);
+                }
+                else
+                {
+                    this.SetLocalConfig(keys[0], localValue);
+                }
+
+                this.SetLocalConfig(keys[1], "false");
+
+                ProcessResult originalGlobals = GitProcess.InvokeProcess(this.Enlistment.EnlistmentRoot, "var GIT_CONFIG_GLOBAL");
+                originalGlobals.ExitCode.ShouldEqual(0, originalGlobals.Errors);
+                foreach (string originalGlobal in originalGlobals.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    GitProcess.InvokeProcess(this.Enlistment.EnlistmentRoot, $"config --file \"{globalConfigPath}\" --add include.path \"{originalGlobal}\"")
+                        .ExitCode.ShouldEqual(0);
+                }
+
+                // Use a git boolean value that is not "true" to check git boolean parsing.
+                GitProcess.InvokeProcess(this.Enlistment.EnlistmentRoot, $"config --file \"{globalConfigPath}\" {keys[0]} yes")
+                    .ExitCode.ShouldEqual(0);
+
+                ProcessStartInfo startInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS)
+                {
+                    Arguments = $"prefetch --files {Path.Combine("GVFS", "GVFS", "Program.cs")}",
+                    WorkingDirectory = this.Enlistment.RepoRoot,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+
+                // libgit2 finds the global config through HOME, and git.exe uses GIT_CONFIG_GLOBAL.
+                // The temporary global config includes the original global config files, so
+                // credential settings stay available to the child process.
+                startInfo.Environment["HOME"] = homeDirectory;
+                startInfo.Environment["GIT_CONFIG_GLOBAL"] = globalConfigPath;
+
+                ProcessResult result = ProcessHelper.Run(startInfo);
+                result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+                string log = Directory.GetFiles(Path.Combine(this.Enlistment.DotGVFSRoot, "logs"), "gvfs_prefetch_*.log")
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .Select(File.ReadAllText)
+                    .First();
+                log.ShouldContain($"Prefetch: Using {expectedChecker} object existence checker");
+            }
+            finally
+            {
+                try
+                {
+                    this.RestoreLocalConfig(previous);
+                }
+                finally
+                {
+                    if (Directory.Exists(homeDirectory))
+                    {
+                        Directory.Delete(homeDirectory, recursive: true);
+                    }
+                }
+            }
+        }
+
         private Dictionary<string, string> ReadLocalConfig(IEnumerable<string> keys)
         {
             Dictionary<string, string> values = new Dictionary<string, string>();
@@ -175,14 +250,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 if (setting.Value == null)
                 {
-                    ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local --unset-all " + setting.Key);
-                    (result.ExitCode == 0 || result.ExitCode == 5).ShouldEqual(true, result.Errors);
+                    this.UnsetLocalConfig(setting.Key);
                 }
                 else
                 {
                     this.SetLocalConfig(setting.Key, setting.Value);
                 }
             }
+        }
+
+        private void UnsetLocalConfig(string key)
+        {
+            ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local --unset-all " + key);
+            (result.ExitCode == 0 || result.ExitCode == 5).ShouldEqual(true, result.Errors);
         }
 
         private void SetLocalConfig(string key, string value)
