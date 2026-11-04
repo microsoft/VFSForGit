@@ -382,5 +382,20 @@ namespace GVFS.UnitTests.Hooks
             query.StandardOutputEncoding.WebName.ShouldEqual("utf-8");
             query.Environment["COMMAND_HOOK_LOCK"].ShouldEqual("true");
         }
+
+        [TestCase]
+        public void ConfigBoolQueryUsesTheParentGit()
+        {
+            const string ParentGit = @"mock:\custom git\bin\git.exe";
+            ProcessStartInfo query = GitCommandResolver.CreateConfigBoolQuery(ParentGit, "gvfs.show-hydration-status");
+
+            query.FileName.ShouldEqual(ParentGit);
+            query.UseShellExecute.ShouldBeFalse();
+            query.RedirectStandardInput.ShouldBeTrue();
+            query.RedirectStandardOutput.ShouldBeTrue();
+            query.RedirectStandardError.ShouldBeTrue();
+            query.ArgumentList.ShouldMatchInOrder("config", "--type=bool", "gvfs.show-hydration-status");
+            query.Environment["COMMAND_HOOK_LOCK"].ShouldEqual("true");
+        }
     }
 }

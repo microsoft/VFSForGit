@@ -253,6 +253,33 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public void TryGetBoolFromConfigRunsGitConfigWithTypeBool()
+        {
+            MockGitProcess process = this.CreateProcessWithTransientThenSuccess(
+                "config --type=bool gvfs.test",
+                "false\n",
+                out Func<int> getDelayCount);
+
+            process.TryGetBoolFromConfig("gvfs.test", out bool? value, out string error).ShouldBeTrue(error);
+
+            value.ShouldEqual(false);
+            getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase(1, "", true, null)]
+        [TestCase(128, "fatal: bad boolean config value 'of' for 'gvfs.test'", false, null)]
+        public void TryGetBoolFromConfigReportsUnsetAndInvalidValues(int exitCode, string errors, bool expectedSuccess, bool? expectedValue)
+        {
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => { });
+            process.SetExpectedCommandResult("config --type=bool gvfs.test", () => new GitProcess.Result(string.Empty, errors, exitCode));
+
+            process.TryGetBoolFromConfig("gvfs.test", out bool? value, out string error).ShouldEqual(expectedSuccess);
+
+            value.ShouldEqual(expectedValue);
+            (error == null).ShouldEqual(expectedSuccess);
+        }
+
+        [TestCase]
         public void GetOriginUrlRetriesTransientFailure()
         {
             MockGitProcess process = this.CreateProcessWithTransientThenSuccess(
