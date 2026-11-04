@@ -1,8 +1,13 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
+using System;
+using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 
 namespace GVFS.UnitTests.Common
@@ -27,7 +32,7 @@ namespace GVFS.UnitTests.Common
             this.numDisposals = 0;
             this.DisposalTriggers = new BlockingCollection<object>();
 
-            this.invoker = new LibGit2RepoInvoker(this.tracer, this.CreateRepo);
+            this.invoker = new LibGit2RepoInvoker(this.tracer, this.CreateRepo, ReadBoolWithGitMustNotRun, new Hashtable());
         }
 
         [TestCase]
@@ -171,6 +176,96 @@ namespace GVFS.UnitTests.Common
             this.numConstructors.ShouldEqual(1);
         }
 
+        [TestCase]
+        public void GetConfigBoolOrDefaultReadsWithGitWhenTheEnvironmentChangesGitConfig()
+        {
+            List<string> gitKeys = new List<string>();
+            using (LibGit2RepoInvoker invoker = new LibGit2RepoInvoker(
+                this.tracer,
+                this.CreateRepo,
+                (string key, out bool? value, out string error) =>
+                {
+                    gitKeys.Add(key);
+                    value = false;
+                    error = null;
+                    return true;
+                },
+                new Hashtable { { "GIT_CONFIG_GLOBAL", "C:\\test.gitconfig" } }))
+            {
+                // The mock libgit2 repo returns true.
+                invoker.GetConfigBoolOrDefault("gvfs.test", true).ShouldEqual(false);
+            }
+
+            gitKeys.ShouldMatchInOrder("gvfs.test");
+        }
+
+        [TestCase]
+        public void GetConfigBoolOrDefaultReadsWithLibGit2WhenTheEnvironmentDoesNotChangeGitConfig()
+        {
+            using (LibGit2RepoInvoker invoker = new LibGit2RepoInvoker(
+                this.tracer,
+                this.CreateRepo,
+                ReadBoolWithGitMustNotRun,
+                new Hashtable { { "PATH", "C:\\bin" } }))
+            {
+                invoker.GetConfigBoolOrDefault("gvfs.test", false).ShouldEqual(true);
+            }
+        }
+
+        [TestCase]
+        public void GetConfigBoolOrDefaultReturnsTheDefaultWhenGitReportsAnUnsetKey()
+        {
+            using (LibGit2RepoInvoker invoker = new LibGit2RepoInvoker(
+                this.tracer,
+                this.CreateRepo,
+                (string key, out bool? value, out string error) =>
+                {
+                    value = null;
+                    error = null;
+                    return true;
+                },
+                new Hashtable { { "GIT_CONFIG_COUNT", "1" } }))
+            {
+                // The mock libgit2 repo returns true.
+                invoker.GetConfigBoolOrDefault("gvfs.test", false).ShouldEqual(false);
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void GetConfigBoolOrDefaultThrowsWhenGitFailsToReadTheKey()
+        {
+            using (LibGit2RepoInvoker invoker = new LibGit2RepoInvoker(
+                this.tracer,
+                this.CreateRepo,
+                (string key, out bool? value, out string error) =>
+                {
+                    value = null;
+                    error = "fatal: bad boolean config value 'of' for 'gvfs.test'";
+                    return false;
+                },
+                new Hashtable { { "GIT_CONFIG_PARAMETERS", "'gvfs.test=of'" } }))
+            {
+                InvalidDataException exception = Assert.Throws<InvalidDataException>(() => invoker.GetConfigBoolOrDefault("gvfs.test", true));
+                exception.Message.ShouldContain("bad boolean config value");
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void ConstructorRequiresAGitReader()
+        {
+            Assert.Throws<ArgumentNullException>(() => new LibGit2RepoInvoker(this.tracer, this.CreateRepo, readBoolWithGit: null));
+        }
+
+        private static bool ReadBoolWithGitMustNotRun(string key, out bool? value, out string error)
+        {
+            Assert.Fail("Read " + key + " with git.exe");
+            value = null;
+            error = null;
+            return false;
+        }
+
         private LibGit2Repo CreateRepo()
         {
             Interlocked.Increment(ref this.numConstructors);
@@ -189,6 +284,11 @@ namespace GVFS.UnitTests.Common
             public override bool ObjectExists(string sha)
             {
                 return false;
+            }
+
+            public override bool? GetConfigBool(string name)
+            {
+                return true;
             }
 
             protected override void Dispose(bool disposing)
