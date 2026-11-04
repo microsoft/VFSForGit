@@ -1,18 +1,114 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace GVFS.UnitTests.Git
 {
     [TestFixture]
     public class GitProcessTests
     {
+        [TestCase]
+        public void WaitForOutputDrainStopsAtTimeout()
+        {
+            using (ManualResetEventSlim outputCompleted = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim errorCompleted = new ManualResetEventSlim(false))
+            {
+                Stopwatch stopwatch = Stopwatch.StartNew();
+
+                GitProcess.WaitForOutputDrain(
+                    outputCompleted,
+                    errorCompleted,
+                    timeoutMs: 20,
+                    CancellationToken.None,
+                    out bool cancellationRequested)
+                    .ShouldBeFalse("Output drain must not wait indefinitely for inherited handles to close");
+
+                cancellationRequested.ShouldBeFalse();
+                stopwatch.Elapsed.ShouldBeAtLeast(TimeSpan.FromMilliseconds(10));
+            }
+        }
+
+        [TestCase]
+        public void WaitForOutputDrainObservesCancellation()
+        {
+            using (ManualResetEventSlim outputCompleted = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim errorCompleted = new ManualResetEventSlim(false))
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                cts.Cancel();
+
+                GitProcess.WaitForOutputDrain(
+                    outputCompleted,
+                    errorCompleted,
+                    timeoutMs: 30_000,
+                    cts.Token,
+                    out bool cancellationRequested)
+                    .ShouldBeFalse();
+
+                cancellationRequested.ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
+        public void WaitForOutputDrainSucceedsAfterBothStreamsClose()
+        {
+            using (ManualResetEventSlim outputCompleted = new ManualResetEventSlim(true))
+            using (ManualResetEventSlim errorCompleted = new ManualResetEventSlim(true))
+            {
+                GitProcess.WaitForOutputDrain(
+                    outputCompleted,
+                    errorCompleted,
+                    timeoutMs: 20,
+                    CancellationToken.None,
+                    out bool cancellationRequested)
+                    .ShouldBeTrue();
+
+                cancellationRequested.ShouldBeFalse();
+            }
+        }
+
+        [TestCase]
+        public void InvokeGitImplMarksRealProcessTimeout()
+        {
+            TestGitProcess gitProcess = new TestGitProcess();
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            GitProcess.Result result = gitProcess.RunCommand(
+                "/d /c \"ping 127.0.0.1 -n 6 > nul\"",
+                timeoutMs: 100,
+                CancellationToken.None);
+
+            result.TimedOut.ShouldBeTrue();
+            result.ExitCodeIsFailure.ShouldBeTrue();
+            stopwatch.Elapsed.ShouldBeAtMost(TimeSpan.FromSeconds(15));
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void InvokeGitImplCancelsRealProcessWait()
+        {
+            TestGitProcess gitProcess = new TestGitProcess();
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                cts.CancelAfter(100);
+
+                Assert.Throws<OperationCanceledException>(
+                    () => gitProcess.RunCommand(
+                        "/d /c \"ping 127.0.0.1 -n 6 > nul\"",
+                        timeoutMs: 30_000,
+                        cts.Token));
+            }
+        }
+
         [TestCase]
         public void ReadStdOutTokens_SplitsOnNul()
         {
@@ -656,6 +752,28 @@ this is an error",
                         testPath,
                         $"Path round-trip failed for: {testPath} (quoted as: {quoted})");
                 }
+            }
+        }
+
+        private class TestGitProcess : GitProcess
+        {
+            public TestGitProcess()
+                : base(Environment.GetEnvironmentVariable("ComSpec"), Path.GetTempPath())
+            {
+            }
+
+            public Result RunCommand(string command, int timeoutMs, CancellationToken cancellationToken)
+            {
+                return this.InvokeGitImpl(
+                    command,
+                    workingDirectory: null,
+                    dotGitDirectory: null,
+                    useReadObjectHook: false,
+                    writeStdIn: null,
+                    parseStdOutLine: null,
+                    timeoutMs: timeoutMs,
+                    usePreCommandHook: false,
+                    cancellationToken: cancellationToken);
             }
         }
     }

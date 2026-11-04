@@ -23,12 +23,14 @@ namespace GVFS.Common.Http
             bool shouldRetry,
             HttpResponseMessage message,
             Action onResponseDisposed,
-            bool shouldRecordFailure = true)
+            bool shouldRecordFailure = true,
+            bool credentialFetchTimedOut = false)
         {
             this.StatusCode = statusCode;
             this.Error = error;
             this.ShouldRetry = shouldRetry;
             this.ShouldRecordFailure = shouldRetry && shouldRecordFailure;
+            this.CredentialFetchTimedOut = credentialFetchTimedOut;
             this.message = message;
             this.onResponseDisposed = onResponseDisposed;
         }
@@ -48,6 +50,8 @@ namespace GVFS.Common.Http
         public bool ShouldRetry { get; }
 
         public bool ShouldRecordFailure { get; }
+
+        public bool CredentialFetchTimedOut { get; }
 
         public HttpStatusCode StatusCode { get; }
 

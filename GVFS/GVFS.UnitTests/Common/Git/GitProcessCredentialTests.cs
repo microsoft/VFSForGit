@@ -172,7 +172,8 @@ namespace GVFS.UnitTests.Common.Git
                 RepoUrl,
                 out string username,
                 out string password,
-                out string error)
+                out string error,
+                out bool _)
                 .ShouldBeTrue(error);
 
             gitProcess.CommandsRun.ShouldContain(x => x.StartsWith(CredentialFillCommandPrefix, StringComparison.Ordinal));
@@ -189,7 +190,8 @@ namespace GVFS.UnitTests.Common.Git
                 RepoUrl,
                 "mockUser",
                 "mockPassword",
-                out string error)
+                out string error,
+                out _)
                 .ShouldBeTrue(error);
 
             gitProcess.CommandsRun.ShouldContain(x => x.StartsWith(CredentialApproveCommandPrefix, StringComparison.Ordinal));
@@ -206,7 +208,8 @@ namespace GVFS.UnitTests.Common.Git
                 RepoUrl,
                 "mockUser",
                 "mockPassword",
-                out string error)
+                out string error,
+                out _)
                 .ShouldBeTrue(error);
 
             gitProcess.CommandsRun.ShouldContain(x => x.StartsWith(CredentialRejectCommandPrefix, StringComparison.Ordinal));
@@ -384,15 +387,39 @@ namespace GVFS.UnitTests.Common.Git
         {
             MockTracer tracer = new MockTracer();
             string stderr = "Operation timed out after 5000ms; " + SecretValue;
-            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, string.Empty, stderr, GitProcess.Result.GenericFailureCode);
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, string.Empty, stderr, GitProcess.Result.GenericFailureCode, timedOut: true);
 
             gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string errorMessage, timeoutMs: 5000).ShouldBeFalse();
 
             errorMessage.ShouldEqual("Credential manager did not respond within 5 seconds");
-            EventMetadata warning = GetTelemetryWarning(tracer);
+            int timeoutEventIndex = tracer.RelatedEventNames.IndexOf("CredentialFetchTimedOut");
+            timeoutEventIndex.ShouldBeAtLeast(0);
+            EventMetadata warning = tracer.RelatedEventMetadata[timeoutEventIndex];
             ((int)warning["ErrorsLength"]).ShouldEqual(stderr.Length);
             AssertNoSecret(warning);
             tracer.RelatedWarningEvents.Any(e => e.Contains(SecretValue)).ShouldBeTrue("The local log keeps the captured stderr of a timeout");
+        }
+
+        [TestCase]
+        public void TryGetCredentialDoesNotInferTimeoutFromStderr()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = CreateGitProcess(
+                CredentialFillCommand,
+                string.Empty,
+                "Operation timed out in a credential helper",
+                GitProcess.Result.GenericFailureCode);
+
+            gitProcess.TryGetCredential(
+                tracer,
+                "mock://repoUrl",
+                out _,
+                out _,
+                out _,
+                out bool timedOut)
+                .ShouldBeFalse();
+
+            timedOut.ShouldBeFalse();
         }
 
         [TestCase]
@@ -454,12 +481,13 @@ namespace GVFS.UnitTests.Common.Git
             string output,
             string errors = "",
             int exitCode = GitProcess.Result.SuccessCode,
-            bool outputTruncated = false)
+            bool outputTruncated = false,
+            bool timedOut = false)
         {
             MockGitProcess gitProcess = new MockGitProcess();
             gitProcess.SetExpectedCommandResult(
                 command,
-                () => new GitProcess.Result(output, errors, exitCode, outputTruncated, errorsTruncated: false));
+                () => new GitProcess.Result(output, errors, exitCode, outputTruncated, errorsTruncated: false, timedOut: timedOut));
             return gitProcess;
         }
 

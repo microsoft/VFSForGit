@@ -5,6 +5,7 @@ using GVFS.Common.Tracing;
 using GVFS.Platform.Windows.DiskLayoutUpgrades;
 using Microsoft.Win32;
 using System;
+using System.ComponentModel;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -31,6 +32,7 @@ namespace GVFS.Platform.Windows
 
         // GetAncestor flag GA_ROOTOWNER (3): walk the owner chain to the root owned window.
         private const uint GA_ROOTOWNER = 3;
+        private const int ProcessTreeKillTimeoutMs = 5 * 1000;
 
         public WindowsPlatform() : base(underConstruction: new UnderConstructionFlags())
         {
@@ -457,10 +459,47 @@ namespace GVFS.Platform.Windows
 
         public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
         {
-            ProcessResult result = ProcessHelper.Run("taskkill", $"/pid {processId} /f /t");
-            error = result.Errors;
-            exitCode = result.ExitCode;
-            return result.ExitCode == 0;
+            try
+            {
+                using (Process targetProcess = Process.GetProcessById(processId))
+                {
+                    targetProcess.Kill(entireProcessTree: true);
+                    if (!targetProcess.WaitForExit(ProcessTreeKillTimeoutMs))
+                    {
+                        exitCode = StillActive;
+                        error = $"Process tree {processId} did not exit within {ProcessTreeKillTimeoutMs}ms";
+                        return false;
+                    }
+
+                    exitCode = targetProcess.ExitCode;
+                    error = null;
+                    return true;
+                }
+            }
+            catch (ArgumentException)
+            {
+                exitCode = 0;
+                error = null;
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                exitCode = 0;
+                error = null;
+                return true;
+            }
+            catch (Win32Exception e)
+            {
+                exitCode = e.NativeErrorCode;
+                error = e.Message;
+                return false;
+            }
+            catch (AggregateException e)
+            {
+                exitCode = -1;
+                error = e.ToString();
+                return false;
+            }
         }
 
         public override bool TryCopyPanicLogs(string copyToDir, out string error)
