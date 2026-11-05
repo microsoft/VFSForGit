@@ -45,11 +45,14 @@ namespace GVFS.Common
         /// </summary>
         public void AddMissingRootTree(string treeSha, string commitSha)
         {
+            EvictionTelemetry telemetry = default;
             lock (this.syncLock)
             {
                 this.EnsureCommitTracked(commitSha);
-                this.AddTreeToCommit(treeSha, commitSha);
+                this.AddTreeToCommit(treeSha, commitSha, ref telemetry);
             }
+
+            this.TraceEvictions(telemetry);
         }
 
         /// <summary>
@@ -58,6 +61,7 @@ namespace GVFS.Common
         /// </summary>
         public void AddMissingSubTrees(string parentTreeSha, string[] subTreeShas)
         {
+            EvictionTelemetry telemetry = default;
             lock (this.syncLock)
             {
                 if (!this.commitsByTree.TryGetValue(parentTreeSha, out var commits))
@@ -78,10 +82,12 @@ namespace GVFS.Common
                         }
                         /* Ensure we don't evict this commit while trying to add a tree to it. */
                         this.MarkCommitAsUsed(commitSha); 
-                        this.AddTreeToCommit(subTreeSha, commitSha);
+                        this.AddTreeToCommit(subTreeSha, commitSha, ref telemetry);
                     }
                 }
             }
+
+            this.TraceEvictions(telemetry);
         }
 
         /// <summary>
@@ -167,7 +173,7 @@ namespace GVFS.Common
             }
         }
 
-        private void AddTreeToCommit(string treeSha, string commitSha)
+        private void AddTreeToCommit(string treeSha, string commitSha, ref EvictionTelemetry telemetry)
         {
             if (!this.commitsByTree.ContainsKey(treeSha))
             {
@@ -175,7 +181,7 @@ namespace GVFS.Common
                 while (this.commitsByTree.Count >= this.treeCapacity)
                 {
                     // If evict fails it means we only have one commit left.
-                    if (!this.EvictLruCommit())
+                    if (!this.EvictLruCommit(ref telemetry))
                     {
                         break;
                     }
@@ -198,7 +204,7 @@ namespace GVFS.Common
             }
         }
 
-        private bool EvictLruCommit()
+        private bool EvictLruCommit(ref EvictionTelemetry telemetry)
         {
             var last = this.commitOrder.Last;
             if (last != null && last.Value != this.commitOrder.First.Value)
@@ -207,23 +213,64 @@ namespace GVFS.Common
                 var treeCountBefore = this.commitsByTree.Count;
                 this.RemoveCommitNoCache(lruCommit);
 
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Area", EtwArea);
-                metadata.Add("EvictedCommit", lruCommit);
-                metadata.Add("TreeCountBefore", treeCountBefore);
-                metadata.Add("TreeCountAfter", this.commitsByTree.Count);
-                this.tracer.RelatedEvent(EventLevel.Informational, nameof(this.EvictLruCommit), metadata, Keywords.Telemetry);
+                if (telemetry.SuccessCount++ == 0)
+                {
+                    telemetry.EvictedCommit = lruCommit;
+                    telemetry.TreeCountBefore = treeCountBefore;
+                    telemetry.TreeCountAfter = this.commitsByTree.Count;
+                }
 
                 return true;
             }
 
-            EventMetadata warnMetadata = new EventMetadata();
-            warnMetadata.Add("Area", EtwArea);
-            warnMetadata.Add("TreeCount", this.commitsByTree.Count);
-            warnMetadata.Add("CommitCount", this.commitNodes.Count);
-            this.tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.EvictLruCommit)}CouldNotEvict", warnMetadata, Keywords.Telemetry);
+            if (telemetry.FailureCount++ == 0)
+            {
+                telemetry.FailedTreeCount = this.commitsByTree.Count;
+                telemetry.FailedCommitCount = this.commitNodes.Count;
+            }
 
             return false;
+        }
+
+        private void TraceEvictions(EvictionTelemetry telemetry)
+        {
+            if (telemetry.SuccessCount > 0)
+            {
+                EventMetadata metadata = new EventMetadata
+                {
+                    { "Area", EtwArea },
+                    { "EvictedCommit", telemetry.EvictedCommit },
+                    { "TreeCountBefore", telemetry.TreeCountBefore },
+                    { "TreeCountAfter", telemetry.TreeCountAfter },
+                    { "EvictionCount", telemetry.SuccessCount },
+                };
+                metadata.SetTelemetryAggregation(nameof(this.EvictLruCommit), TelemetryFailureCategory.None, "Succeeded", telemetry.SuccessCount);
+                this.tracer.RelatedEvent(EventLevel.Informational, nameof(this.EvictLruCommit), metadata, Keywords.Telemetry);
+            }
+
+            if (telemetry.FailureCount > 0)
+            {
+                EventMetadata metadata = new EventMetadata
+                {
+                    { "Area", EtwArea },
+                    { "TreeCount", telemetry.FailedTreeCount },
+                    { "CommitCount", telemetry.FailedCommitCount },
+                    { "CouldNotEvictCount", telemetry.FailureCount },
+                };
+                metadata.SetTelemetryAggregation(nameof(this.EvictLruCommit), TelemetryFailureCategory.EvictionUnavailable, "CouldNotEvict", telemetry.FailureCount);
+                this.tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.EvictLruCommit)}CouldNotEvict", metadata, Keywords.Telemetry);
+            }
+        }
+
+        private struct EvictionTelemetry
+        {
+            public long SuccessCount;
+            public long FailureCount;
+            public string EvictedCommit;
+            public int TreeCountBefore;
+            public int TreeCountAfter;
+            public int FailedTreeCount;
+            public int FailedCommitCount;
         }
 
         /// <summary>

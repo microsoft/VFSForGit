@@ -1,13 +1,82 @@
 using GVFS.Common;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.Common.Tracing;
+using System.Linq;
 using NUnit.Framework;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Common
 {
     [TestFixture]
     public class MissingTreeTrackerTests
     {
+        [TestCase]
+        public void EvictionTelemetryCountsSuccessAndFailureSeparately()
+        {
+            MockTracer tracer = new MockTracer();
+            MissingTreeTracker tracker = new MissingTreeTracker(tracer, treeCapacity: 1);
+            tracker.AddMissingRootTree("tree1", "commit1");
+            tracker.AddMissingRootTree("tree2", "commit2");
+            tracker.AddMissingRootTree("tree3", "commit2");
+            tracker.AddMissingSubTrees("tree2", new[] { "tree4", "tree5" });
+
+            EventMetadata success = tracer.RelatedEventMetadata.Single(metadata => metadata.TelemetryAggregation?.Result == "Succeeded");
+            Assert.That(success.TelemetryAggregation.Count, Is.EqualTo(1));
+            Assert.That(success["EvictedCommit"], Is.EqualTo("commit1"));
+            Assert.That(tracer.RelatedEventMetadata
+                .Where(metadata => metadata.TelemetryAggregation?.Result == "CouldNotEvict")
+                .Select(metadata => metadata["CouldNotEvictCount"]), Is.EqualTo(new object[] { 1L, 2L }));
+            Assert.That(tracker.GetHighestMissingTreeCount(new[] { "commit2" }, out _), Is.EqualTo(4));
+        }
+
+        [TestCase]
+        public void MultipleEvictionsEmitOneRepresentativeBatchOutsideTheCacheLock()
+        {
+            using (LockCheckingTracer tracer = new LockCheckingTracer())
+            {
+                MissingTreeTracker tracker = new MissingTreeTracker(tracer, treeCapacity: 1);
+                tracer.Tracker = tracker;
+                tracker.AddMissingRootTree("sharedTree", "commit1");
+                tracker.AddMissingRootTree("sharedTree", "commit2");
+                tracker.AddMissingRootTree("sharedTree", "commit3");
+                tracker.AddMissingRootTree("newTree", "commit4");
+
+                EventMetadata metadata = tracer.Events.Single();
+                Assert.That(metadata["EvictionCount"], Is.EqualTo(3L));
+                Assert.That(metadata.TelemetryAggregation.Count, Is.EqualTo(3));
+                Assert.That(metadata["EvictedCommit"], Is.EqualTo("commit1"));
+                Assert.That(metadata["TreeCountBefore"], Is.EqualTo(1));
+                Assert.That(metadata["TreeCountAfter"], Is.EqualTo(1), "The snapshot describes the first removal, not the batch.");
+                Assert.That(tracker.TryGetCommits("sharedTree", out _), Is.False);
+                Assert.That(tracker.TryGetCommits("newTree", out string[] commits), Is.True);
+                Assert.That(commits, Is.EqualTo(new[] { "commit4" }));
+            }
+        }
+
+        private sealed class LockCheckingTracer : JsonTracer
+        {
+            public LockCheckingTracer()
+                : base("Microsoft-GVFS-Test", "EvictionLock", disableTelemetry: true)
+            {
+            }
+
+            public MissingTreeTracker Tracker { get; set; }
+            public List<EventMetadata> Events { get; } = new List<EventMetadata>();
+
+            public override void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata, Keywords keyword)
+            {
+                if (eventName == "EvictLruCommit")
+                {
+                    Task probe = Task.Run(() => this.Tracker.GetHighestMissingTreeCount(Array.Empty<string>(), out _));
+                    Assert.That(probe.Wait(TimeSpan.FromSeconds(5)), Is.True, "Telemetry must not hold the cache lock.");
+                    this.Events.Add(metadata);
+                }
+            }
+        }
+
         private static MissingTreeTracker CreateTracker(int treeCapacity)
         {
             return new MissingTreeTracker(new MockTracer(), treeCapacity);

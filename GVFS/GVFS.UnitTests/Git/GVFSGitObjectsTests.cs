@@ -54,6 +54,40 @@ namespace GVFS.UnitTests.Git
             RetryCircuitBreaker.Reset();
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void LocalBreakerHydrationFailureMarksBothLayersWithoutChangingTheCategory(bool nestedRejection)
+        {
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+            GVFSGitObjects objects = this.CreateTestableGVFSGitObjects(httpObjects, new MissingBlobGitRepo(), out MockTracer tracer);
+            if (nestedRejection)
+            {
+                httpObjects.RejectWithOpenCircuit = true;
+            }
+            else
+            {
+                RetryCircuitBreaker.Configure(1, 30000);
+                RetryCircuitBreaker.RecordFailure();
+            }
+            EventMetadata outerMetadata = new EventMetadata();
+
+            bool copied = objects.TryCopyBlobContentStream(
+                ValidTestObjectFileSha1,
+                CancellationToken.None,
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("Local rejection must not copy a blob."),
+                out GVFSGitObjects.BlobHydrationFailureCategory category,
+                failureMetadata: outerMetadata);
+
+            Assert.That(copied, Is.False);
+            Assert.That(category, Is.EqualTo(nestedRejection ? GVFSGitObjects.BlobHydrationFailureCategory.DownloadFailed : GVFSGitObjects.BlobHydrationFailureCategory.NetworkUnavailable));
+            Assert.That(outerMetadata.TelemetryAggregation.FailureCategory, Is.EqualTo(TelemetryFailureCategory.CircuitBreakerOpen));
+            Assert.That(outerMetadata["AggregationResult"], Is.EqualTo("Failed"));
+            Assert.That(tracer.RelatedErrorEvents.Single(), Does.Contain("\"FailureCategory\":\"CircuitBreakerOpen\""));
+            Assert.That(tracer.RelatedErrorEvents.Single(), Does.Contain(nestedRejection ? "\"AggregationResult\":\"Failed\"" : "\"AggregationResult\":\"Rejected\""));
+            Assert.That(tracer.RelatedEventMetadata, Has.Some.Matches<EventMetadata>(metadata => metadata.ContainsKey("State") && (string)metadata["State"] == (nestedRejection ? "Accepting" : "Rejecting")));
+        }
+
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void CatchesFileNotFoundAfterFileDeleted()
@@ -199,6 +233,7 @@ namespace GVFS.UnitTests.Git
             terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"DownloadFailed\"");
             terminalError.ShouldContain("\"HttpStatusCode\":401");
             terminalError.ShouldContain("\"HttpStatusName\":\"Unauthorized\"");
+            terminalError.ShouldNotContain(false, "TelemetryAggregation");
         }
 
         [TestCase]
@@ -237,6 +272,7 @@ namespace GVFS.UnitTests.Git
             terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"DownloadFailed\"");
             terminalError.ShouldContain("\"HttpStatusCode\":503");
             terminalError.ShouldContain("\"HttpStatusName\":\"ServiceUnavailable\"");
+            terminalError.ShouldNotContain(false, "TelemetryAggregation");
         }
 
         [TestCase]
@@ -381,17 +417,31 @@ namespace GVFS.UnitTests.Git
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
             GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, throwingRepo, out MockTracer tracer);
 
+            EventMetadata outerMetadata = new EventMetadata();
             bool copied = dut.TryCopyBlobContentStream(
                 ValidTestObjectFileSha1,
                 new CancellationToken(),
                 GVFSGitObjects.RequestSource.FileStreamCallback,
                 (stream, length) => Assert.Fail("Should not be able to call copy stream callback"),
-                out GVFSGitObjects.BlobHydrationFailureCategory failureCategory);
+                out GVFSGitObjects.BlobHydrationFailureCategory failureCategory,
+                failureMetadata: outerMetadata);
 
             copied.ShouldEqual(false);
             failureCategory.ShouldEqual(expected);
             string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
             terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"" + expected + "\"");
+            if (expected == GVFSGitObjects.BlobHydrationFailureCategory.NetworkUnavailable)
+            {
+                Assert.That(terminalError, Does.Contain("\"FailureCategory\":\"NetworkUnavailable\""));
+                Assert.That(terminalError, Does.Contain("\"AggregationResult\":\"Failed\""));
+                Assert.That(outerMetadata.TelemetryAggregation.FailureCategory, Is.EqualTo(TelemetryFailureCategory.NetworkUnavailable));
+                Assert.That(outerMetadata["AggregationResult"], Is.EqualTo("Failed"));
+            }
+            else
+            {
+                Assert.That(terminalError, Does.Not.Contain("TelemetryAggregation"));
+                Assert.That(outerMetadata.TelemetryAggregation, Is.Null);
+            }
         }
 
         [TestCase]
@@ -1268,6 +1318,7 @@ namespace GVFS.UnitTests.Git
             // i.e. Result is non-null but carries no HTTP status (HttpStatusCodeResult == 0). This
             // exercises the "download failed without a status" branch of the telemetry status capture.
             public bool FailWithoutStatus { get; set; }
+            public bool RejectWithOpenCircuit { get; set; }
 
             public byte[] ContentBytesToServe { get; set; }
 
@@ -1305,6 +1356,11 @@ namespace GVFS.UnitTests.Git
                 bool preferBatchedLooseObjects)
             {
                 this.TryDownloadObjectsCallCount++;
+
+                if (this.RejectWithOpenCircuit)
+                {
+                    return new RetryWrapper<GitObjectTaskResult>.InvocationResult(1, new CircuitBreakerOpenException());
+                }
 
                 if (this.StatusCodeToReturn.HasValue)
                 {
@@ -1374,6 +1430,19 @@ namespace GVFS.UnitTests.Git
             public override bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
             {
                 throw this.toThrow;
+            }
+        }
+
+        private sealed class MissingBlobGitRepo : GitRepo
+        {
+            public MissingBlobGitRepo()
+                : base(new MockTracer())
+            {
+            }
+
+            public override bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
+            {
+                return false;
             }
         }
 

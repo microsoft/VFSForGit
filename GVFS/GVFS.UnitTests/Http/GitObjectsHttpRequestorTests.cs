@@ -36,6 +36,44 @@ namespace GVFS.UnitTests.Http
         }
 
         [TestCase]
+        public void FileSizeAndObjectRequestorsObserveOpenBreakerState()
+        {
+            RetryCircuitBreaker.Configure(1, 30000);
+            RetryCircuitBreaker.RecordFailure();
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0))
+            {
+                requestor.QueryForFileSizes(new[] { "0123456789abcdef" }, CancellationToken.None);
+                Assert.That(requestor.TestTracer.RelatedEventNames, Does.Contain("RetryCircuitBreakerState"));
+                Assert.That(requestor.RequestUris, Is.Empty);
+            }
+
+            RetryCircuitBreaker.Reset();
+            RetryCircuitBreaker.Configure(1, 30000);
+            RetryCircuitBreaker.RecordFailure();
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0))
+            {
+                requestor.TryDownloadLooseObject("0123456789abcdef", false, CancellationToken.None, "test", SuccessfulRequest);
+                Assert.That(requestor.TestTracer.RelatedEventNames, Does.Contain("RetryCircuitBreakerState"));
+                Assert.That(requestor.RequestUris, Is.Empty);
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ConfigRequestorPreservesSilentErrorPolicy(bool logErrors)
+        {
+            MockTracer tracer = new MockTracer();
+            RetryCircuitBreaker.Configure(1, 30000);
+            RetryCircuitBreaker.RecordFailure();
+            using (ConfigHttpRequestor requestor = new ConfigHttpRequestor(tracer, new MockGVFSEnlistment(), new RetryConfig(maxRetries: 0)))
+            {
+                Assert.That(requestor.TryQueryGVFSConfig(logErrors, out _, out _, out _), Is.False);
+                Assert.That(tracer.RelatedEventNames.Contains("RetryCircuitBreakerState"), Is.EqualTo(logErrors));
+                Assert.That(tracer.RelatedErrorEvents.Count > 0, Is.EqualTo(logErrors));
+            }
+        }
+
+        [TestCase]
         public void LooseObjectFallsBackToGlobalCacheServerWhenEndpointRequestFails()
         {
             TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0);

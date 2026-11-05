@@ -6,6 +6,14 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
+using GVFS.Common.Git;
+using GVFS.Common.Http;
+using GVFS.UnitTests.Mock.FileSystem;
+using GVFS.UnitTests.Mock.Git;
+using GVFS.UnitTests.Mock.Virtualization.BlobSize;
+using GVFS.Virtualization.BlobSize;
+using GVFS.Virtualization.Projection;
 using static GVFS.Virtualization.Projection.GitIndexProjection;
 
 namespace GVFS.UnitTests.Virtualization.Git
@@ -69,6 +77,31 @@ namespace GVFS.UnitTests.Virtualization.Git
             LazyUTF8String findName = ConstructLazyUTF8String("Anything");
             sfe.TryGetValue(findName, out FolderEntryData folderEntryData).ShouldBeFalse();
             folderEntryData.ShouldBeNull();
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void MissingRemoteChildSizeKeepsTheFolderIncompleteAndAnnotatesItsError()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            MockGitRepo repository = new MockGitRepo(tracer, enlistment, fileSystem);
+            FolderData folder = new FolderData();
+            folder.ResetData(ConstructLazyUTF8String("folder"), isIncluded: true);
+            folder.AddChildFile(ConstructLazyUTF8String("child"), new byte[20]);
+            using (MissingSizesRequestor requestor = new MissingSizesRequestor(tracer, enlistment))
+            using (MissingSizeConnection connection = new MissingSizeConnection())
+            {
+                GVFSGitObjects objects = new GVFSGitObjects(new GVFSContext(tracer, fileSystem, repository, enlistment), requestor);
+                Assert.Throws<SizesUnavailableException>(() => folder.PopulateSizes(
+                    tracer, objects, connection, new Dictionary<string, long>(), CancellationToken.None));
+                Assert.That(folder.ChildrenHaveSizes, Is.False);
+                Assert.That(tracer.RelatedErrorEvents.Count, Is.EqualTo(1));
+                Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("\"FailureCategory\":\"MissingObjectSize\""));
+                Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("\"Operation\":\"PopulateMissingSizesFromRemote\""));
+                Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("\"AggregationResult\":\"Failed\""));
+            }
         }
 
         [TestCase]
@@ -295,6 +328,33 @@ namespace GVFS.UnitTests.Virtualization.Git
             }
 
             return length;
+        }
+
+        private sealed class MissingSizesRequestor : MockHttpGitObjects
+        {
+            public MissingSizesRequestor(MockTracer tracer, MockGVFSEnlistment enlistment)
+                : base(tracer, enlistment)
+            {
+            }
+
+            public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
+            {
+                return new List<GitObjectSize>();
+            }
+        }
+
+        private sealed class MissingSizeConnection : BlobSizes.BlobSizesConnection
+        {
+            public MissingSizeConnection()
+                : base(new MockBlobSizes())
+            {
+            }
+
+            public override bool TryGetSize(Sha1Id sha, out long length)
+            {
+                length = 0;
+                return false;
+            }
         }
 
         private static unsafe LazyUTF8String ConstructLazyUTF8String(string name)
