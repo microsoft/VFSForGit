@@ -4,7 +4,11 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.UnitTests.Common.Git
 {
@@ -17,6 +21,182 @@ namespace GVFS.UnitTests.Common.Git
         private const string CertificateFillCommand = "credential fill";
         private const string MissingPasswordMessage = "Git credential fill returned no password";
         private const int GitFatalExitCode = 128;
+        private const string ConfigReadFailure =
+            "warning: unable to access 'mock/config': Permission denied\n" +
+            "fatal: unknown error occurred while reading the configuration files\n";
+
+        [TestCase(false, "Permission denied", "\n")]
+        [TestCase(true, "Permission denied", "\n")]
+        [TestCase(false, "Device or resource busy", "\r\n")]
+        [TestCase(true, "Device or resource busy", "\r\n")]
+        public void CredentialFillRetriesAConfigReadFailure(bool certificate, string reason, string lineEnding)
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            int attempts = 0;
+            gitProcess.SetExpectedCommandResult(
+                certificate ? CertificateFillCommand : CredentialFillCommand,
+                () => ++attempts == 1
+                    ? new GitProcess.Result(string.Empty, ConfigReadFailure.Replace("Permission denied", reason).Replace("\n", lineEnding), GitFatalExitCode)
+                    : new GitProcess.Result("username=someone\npassword=" + SecretValue + "\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            string password;
+            string error;
+            bool success = certificate
+                ? gitProcess.TryGetCertificatePassword(tracer, "mock://certificate", out password, out error)
+                : gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out password, out error);
+
+            success.ShouldBeTrue(error);
+            password.ShouldEqual(SecretValue);
+            attempts.ShouldEqual(2);
+            gitProcess.InvocationsRun.Select(i => i.TimeoutMs).ShouldMatchInOrder(-1, -1);
+            List<EventMetadata> retryTelemetry = ConfigReadRetryTelemetry(tracer);
+            retryTelemetry.Count.ShouldEqual(1);
+            retryTelemetry[0]["ConfigName"].ShouldEqual("credential fill");
+            retryTelemetry[0]["AttemptNumber"].ShouldEqual(1);
+            AssertConfigReadRetryTelemetryHasNoStderr(tracer);
+            AssertNoSecret(tracer);
+        }
+
+        [TestCase]
+        public void CredentialFillStopsAfterTheConfigRetryBudget()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, string.Empty, ConfigReadFailure, GitFatalExitCode);
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string error).ShouldBeFalse();
+
+            gitProcess.InvocationsRun.Count.ShouldEqual(5);
+            List<EventMetadata> retryTelemetry = ConfigReadRetryTelemetry(tracer);
+            retryTelemetry.Take(4).Select(e => (int)e["AttemptNumber"]).ShouldMatchInOrder(1, 2, 3, 4);
+            retryTelemetry.Take(4).Select(e => (double)e["RetryDelayMilliseconds"]).ShouldMatchInOrder(20.0, 40.0, 80.0, 160.0);
+            retryTelemetry.Take(4).Select(e => (int)e["MaxAttempts"]).ShouldMatchInOrder(5, 5, 5, 5);
+            retryTelemetry.Count.ShouldEqual(5);
+            retryTelemetry[4]["Attempts"].ShouldEqual(5);
+            AssertConfigReadRetryTelemetryHasNoStderr(tracer);
+            AssertErrorMessageHasNoStderr(error);
+            tracer.RelatedWarningEvents.Any(e => e.Contains("Permission denied")).ShouldBeTrue();
+        }
+
+        [TestCase("fatal: Authentication failed\n", "", false, false)]
+        [TestCase("Operation timed out after 5000ms", "", false, false)]
+        [TestCase("warning: unable to access 'mock/config': Permission denied\nfatal: Authentication failed\n", "", false, false)]
+        [TestCase("warning: unable to access 'mock/Permission denied': Invalid argument\nfatal: unknown error occurred while reading the configuration files\n", "", false, false)]
+        [TestCase(ConfigReadFailure, "username=someone\n", false, false)]
+        [TestCase(ConfigReadFailure, "", true, false)]
+        [TestCase(ConfigReadFailure, "", false, true)]
+        [TestCase(ConfigReadFailure + "fatal: credential helper 'mock-helper' told us to quit\n", "", false, false)]
+        [TestCase(ConfigReadFailure + "fatal: Authentication failed\n", "", false, false)]
+        [TestCase(ConfigReadFailure + "warning: unable to access 'mock/other-config': Invalid argument\n", "", false, false)]
+        public void CredentialFillDoesNotRetryOtherFailures(string errors, string output, bool outputTruncated, bool errorsTruncated)
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                CredentialFillCommand,
+                () => new GitProcess.Result(output, errors, GitFatalExitCode, outputTruncated, errorsTruncated));
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _).ShouldBeFalse();
+
+            gitProcess.InvocationsRun.Count.ShouldEqual(1);
+            ConfigReadRetryTelemetry(tracer).ShouldBeEmpty();
+        }
+
+        [TestCase]
+        public void CredentialFillDoesNotRestartTheTimeoutBudget()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                CredentialFillCommand,
+                () => gitProcess.InvocationsRun.Count == 1
+                    ? new GitProcess.Result(string.Empty, ConfigReadFailure, GitFatalExitCode)
+                    : new GitProcess.Result("password=" + SecretValue + "\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string error, timeoutMs: 5000).ShouldBeTrue(error);
+
+            gitProcess.InvocationsRun.Count.ShouldEqual(2);
+            gitProcess.InvocationsRun[0].TimeoutMs.ShouldEqual(5000);
+            gitProcess.InvocationsRun[1].TimeoutMs.ShouldBeAtMost(4999);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CredentialFillDoesNotRetryATimeoutWithConfigDiagnostics(bool afterConfigFailure)
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                CredentialFillCommand,
+                () => afterConfigFailure && gitProcess.InvocationsRun.Count == 1
+                    ? new GitProcess.Result(string.Empty, ConfigReadFailure, GitFatalExitCode)
+                    : new GitProcess.Result(string.Empty, "Operation timed out: " + ConfigReadFailure, GitProcess.Result.GenericFailureCode));
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out string error, timeoutMs: 5000).ShouldBeFalse();
+
+            gitProcess.InvocationsRun.Count.ShouldEqual(afterConfigFailure ? 2 : 1);
+            error.ShouldEqual("Credential manager did not respond within 5 seconds");
+        }
+
+        [TestCase]
+        public void CredentialFillDoesNotRetryWhenTheTimeoutCannotCoverTheDelay()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = CreateGitProcess(CredentialFillCommand, string.Empty, ConfigReadFailure, GitFatalExitCode);
+
+            gitProcess.TryGetCredential(tracer, "mock://repoUrl", out _, out _, out _, timeoutMs: 1).ShouldBeFalse();
+
+            gitProcess.InvocationsRun.Count.ShouldEqual(1);
+            ConfigReadRetryTelemetry(tracer).Single()["Attempts"].ShouldEqual(1);
+        }
+
+        [TestCase(true, 30000)]
+        [TestCase(false, 30000)]
+        [TestCase(true, Timeout.Infinite)]
+        [TestCase(false, Timeout.Infinite)]
+        public void CredentialFillHandlesARealLockedGitConfig(bool releaseAfterFirstAttempt, int timeoutMs)
+        {
+            string gitPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "cmd", "git.exe");
+            if (!File.Exists(gitPath))
+            {
+                Assert.Ignore("Git is not installed at the expected path.");
+            }
+
+            string repoPath = Path.Combine(Path.GetTempPath(), nameof(GitProcessCredentialTests) + Guid.NewGuid().ToString("N"));
+            string dotGit = Path.Combine(repoPath, ".git");
+            Directory.CreateDirectory(Path.Combine(dotGit, "objects"));
+            Directory.CreateDirectory(Path.Combine(dotGit, "refs", "heads"));
+            try
+            {
+                File.WriteAllText(Path.Combine(dotGit, "HEAD"), "ref: refs/heads/main\n");
+                File.WriteAllText(Path.Combine(dotGit, "config"), "[core]\n\trepositoryformatversion = 0\n\tbare = false\n");
+                LockedConfigGitProcess gitProcess = new LockedConfigGitProcess(gitPath, repoPath, releaseAfterFirstAttempt);
+                MockTracer tracer = new MockTracer();
+
+                bool success = gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out string error, timeoutMs: timeoutMs);
+
+                success.ShouldEqual(releaseAfterFirstAttempt, error);
+                gitProcess.Results.Count.ShouldEqual(releaseAfterFirstAttempt ? 2 : 5);
+                gitProcess.Results[0].ExitCode.ShouldEqual(GitFatalExitCode);
+                gitProcess.Results[0].Errors.ShouldContain("Permission denied");
+                gitProcess.Results[0].Errors.ShouldContain("unknown error occurred while reading the configuration files");
+                if (releaseAfterFirstAttempt)
+                {
+                    username.ShouldEqual("someone");
+                    password.ShouldEqual(SecretValue);
+                }
+                else
+                {
+                    AssertErrorMessageHasNoStderr(error);
+                }
+
+                AssertNoSecret(tracer);
+            }
+            finally
+            {
+                Directory.Delete(repoPath, recursive: true);
+            }
+        }
 
         [TestCase]
         public void TryGetCredentialDoesNotTraceSecretWhenThePasswordIsMissing()
@@ -254,6 +434,24 @@ namespace GVFS.UnitTests.Common.Git
             password.ShouldBeNull();
         }
 
+        // The GitConfigReadRetry events are the telemetry warnings that name a config read.
+        private static List<EventMetadata> ConfigReadRetryTelemetry(MockTracer tracer)
+        {
+            return tracer.TelemetryWarnings.Where(metadata => metadata.ContainsKey("ConfigName")).ToList();
+        }
+
+        private static void AssertConfigReadRetryTelemetryHasNoStderr(MockTracer tracer)
+        {
+            foreach (EventMetadata metadata in ConfigReadRetryTelemetry(tracer))
+            {
+                foreach (string key in metadata.Keys)
+                {
+                    new[] { "ConfigName", "AttemptNumber", "MaxAttempts", "RetryDelayMilliseconds", "Attempts", "WarningMessage" }
+                        .ShouldContain(allowed => allowed == key);
+                }
+            }
+        }
+
         private static MockGitProcess CreateGitProcess(
             string command,
             string output,
@@ -266,6 +464,58 @@ namespace GVFS.UnitTests.Common.Git
                 command,
                 () => new GitProcess.Result(output, errors, exitCode, outputTruncated, errorsTruncated: false));
             return gitProcess;
+        }
+
+        private sealed class LockedConfigGitProcess : GitProcess
+        {
+            private readonly string configPath;
+            private readonly bool releaseAfterFirstAttempt;
+
+            public LockedConfigGitProcess(string gitPath, string repoPath, bool releaseAfterFirstAttempt)
+                : base(gitPath, repoPath)
+            {
+                this.configPath = Path.Combine(repoPath, ".git", "config");
+                this.releaseAfterFirstAttempt = releaseAfterFirstAttempt;
+            }
+
+            public List<Result> Results { get; } = new List<Result>();
+
+            protected override Result InvokeGitImpl(
+                string command,
+                string workingDirectory,
+                string dotGitDirectory,
+                bool useReadObjectHook,
+                Action<StreamWriter> writeStdIn,
+                Action<string> parseStdOutLine,
+                int timeoutMs,
+                string gitObjectsDirectory = null,
+                bool usePrecommandHook = true,
+                bool mayRequireAuth = false,
+                bool? hasVisibleConsoleWindow = null)
+            {
+                // Replace all credential helpers with a local, deterministic helper. No credentials leave the test.
+                string isolatedCommand = "-c credential.helper= -c credential.helper=\"!f() { echo username=someone; echo password=" +
+                    SecretValue + "; }; f\" " + command;
+                using (FileStream configLock = this.Results.Count == 0 || !this.releaseAfterFirstAttempt
+                    ? File.Open(this.configPath, FileMode.Open, FileAccess.Read, FileShare.None)
+                    : null)
+                {
+                    Result result = base.InvokeGitImpl(
+                        isolatedCommand,
+                        workingDirectory,
+                        dotGitDirectory,
+                        useReadObjectHook,
+                        writeStdIn,
+                        parseStdOutLine,
+                        timeoutMs,
+                        gitObjectsDirectory,
+                        usePrecommandHook,
+                        mayRequireAuth,
+                        hasVisibleConsoleWindow);
+                    this.Results.Add(result);
+                    return result;
+                }
+            }
         }
 
         private static void AssertErrorMessageHasNoStderr(string errorMessage)

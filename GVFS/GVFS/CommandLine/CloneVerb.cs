@@ -333,8 +333,9 @@ namespace GVFS.CommandLine
 
                             if (result != ReturnCode.Success)
                             {
-                                this.Output.WriteLine("\r\nError during prefetch @ {0}", fullEnlistmentRootPathParameter);
-                                exitCode = (int)result;
+                                this.Output.WriteLine("\r\nClone completed, but prefetch failed @ {0}", fullEnlistmentRootPathParameter);
+                                this.Output.WriteLine("Run 'gvfs prefetch --commits' from '{0}' to retry prefetch.", fullEnlistmentRootPathParameter);
+                                exitCode = (int)ReturnCode.CloneSucceededPrefetchFailed;
                             }
                         }
                         else
@@ -367,7 +368,7 @@ namespace GVFS.CommandLine
                     }
                     else
                     {
-                        this.Execute<MountVerb>(
+                        ReturnCode mountResult = this.Execute<MountVerb>(
                             enlistment,
                             verb =>
                             {
@@ -376,6 +377,10 @@ namespace GVFS.CommandLine
                                 verb.ResolvedCacheServer = cacheServer;
                                 verb.DownloadedGVFSConfig = serverGVFSConfig;
                             });
+                        if (mountResult != ReturnCode.Success)
+                        {
+                            exitCode = (int)mountResult;
+                        }
                     }
                 }
                 else

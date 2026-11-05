@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using GVFS.UnitTests.Mock.Git;
 using System.IO;
 
@@ -17,8 +18,9 @@ namespace GVFS.UnitTests.Mock.Common
             this.GitPackRoot = Path.Combine("mock:", "path", ".git", "objects", "pack");
         }
 
-        public MockGVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, MockGitProcess gitProcess)
-            : base(enlistmentRoot, repoUrl, gitBinPath, authentication: null)
+        public MockGVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath,
+            MockGitProcess gitProcess, GitAuthentication authentication = null)
+            : base(enlistmentRoot, repoUrl, gitBinPath, authentication)
         {
             this.gitProcess = gitProcess;
         }
@@ -38,6 +40,11 @@ namespace GVFS.UnitTests.Mock.Common
         public override GitProcess CreateGitProcess()
         {
             return this.gitProcess ?? new MockGitProcess();
+        }
+
+        public override GitProcess CreateGitProcess(ITracer tracer)
+        {
+            return this.CreateGitProcess();
         }
     }
 }
