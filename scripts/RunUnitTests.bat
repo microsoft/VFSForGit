@@ -1,8 +1,8 @@
 @ECHO OFF
 CALL %~dp0\InitializeEnvironment.bat || EXIT /b 10
 
-IF "%1"=="" (SET "CONFIGURATION=Debug") ELSE (SET "CONFIGURATION=%1")
-IF "%2"=="" (SET "ARCH=x64") ELSE (SET "ARCH=%2")
+IF "%~1"=="" (SET "CONFIGURATION=Debug") ELSE (SET "CONFIGURATION=%~1")
+IF "%~2"=="" (SET "ARCH=x64") ELSE (SET "ARCH=%~2")
 
 SET RESULT=0
 
