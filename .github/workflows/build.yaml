@@ -413,10 +413,16 @@ jobs:
       shell: pwsh
       env:
         BASE_COMMIT: ${{ github.event.pull_request.base.sha || github.event.before }}
+        IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
       run: |
         $sourceCommit = git -C src rev-parse HEAD
         if ($LASTEXITCODE -ne 0) { throw 'Cannot identify tested source.' }
         $base = $env:BASE_COMMIT
+        if ($env:IS_PULL_REQUEST -eq 'true') {
+          # The event base can lag the target used by the tested merge.
+          $base = git -C src rev-parse "$sourceCommit^1"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot identify the tested merge base.' }
+        }
         if ($base -match '^0+$') { $base = '' }
         src\scripts\Merge-Coverage.ps1 -InputDirectory coverage-inputs -OutputDirectory coverage-report -SourceDirectory src -SourceCommit $sourceCommit -Repository $env:GITHUB_REPOSITORY -BaseCommit $base
         Get-Content coverage-report\Summary.md >> $env:GITHUB_STEP_SUMMARY

@@ -72,7 +72,7 @@ function Get-TestTotals {
     if ($run.HasAttribute('errors')) {
         $errors = Get-Count $run.GetAttribute('errors') "$WorkerId test errors"
     }
-    if ($failed -ne 0 -or $errors -ne 0 -or $run.GetAttribute('result') -cne 'Passed' -or
+    if ($failed -ne 0 -or $errors -ne 0 -or $run.GetAttribute('result') -cnotin @('Passed', 'Skipped') -or
         $document.SelectNodes('//failure | //*[@result="Failed" or @result="Error"]').Count -ne 0) {
         throw "Failed NUnit tests or fixture errors in $WorkerId."
     }
@@ -252,7 +252,7 @@ function Format-Percentage {
 
 $SourceDirectory = Get-WindowsPath (Resolve-Path -LiteralPath $SourceDirectory).Path
 $InputDirectory = Get-WindowsPath (Resolve-Path -LiteralPath $InputDirectory).Path
-$OutputDirectory = Get-WindowsPath $OutputDirectory
+$OutputDirectory = Get-WindowsPath ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory))
 if ($OutputDirectory -eq $InputDirectory -or $OutputDirectory -eq $SourceDirectory -or
     $InputDirectory.StartsWith("$OutputDirectory\", [StringComparison]::OrdinalIgnoreCase) -or
     $SourceDirectory.StartsWith("$OutputDirectory\", [StringComparison]::OrdinalIgnoreCase)) {
@@ -324,9 +324,13 @@ try {
             throw "Invalid worker configuration, architecture, or suite in $($metadataFile.FullName)."
         }
         if ($metadata.Shard -isnot [long] -and $metadata.Shard -isnot [int]) { throw "Invalid worker Shard in $($metadataFile.FullName)." }
+        if ($null -ne $metadata.Scenario -and $metadata.Scenario -isnot [string]) {
+            throw "Invalid worker Scenario in $($metadataFile.FullName)."
+        }
+        $hasScenario = -not [string]::IsNullOrEmpty($metadata.Scenario)
         $group = "$($metadata.Suite.ToLowerInvariant())-$($metadata.Architecture)"
         if ($metadata.Suite -ceq 'Functional') {
-            if ($metadata.Shard -lt 0 -or $metadata.Shard -gt 11 -or $null -ne $metadata.Scenario) {
+            if ($metadata.Shard -lt 0 -or $metadata.Shard -gt 11 -or $hasScenario) {
                 throw "Invalid Functional shard or scenario in $($metadataFile.FullName)."
             }
             $workerId = "$group-shard-$($metadata.Shard)"
@@ -336,7 +340,7 @@ try {
             }
             $workerId = "$group-$($metadata.Scenario)"
         } else {
-            if ($metadata.Shard -ne -1 -or $null -ne $metadata.Scenario) { throw "Invalid Unit shard or scenario in $($metadataFile.FullName)." }
+            if ($metadata.Shard -ne -1 -or $hasScenario) { throw "Invalid Unit shard or scenario in $($metadataFile.FullName)." }
             $workerId = $group
         }
         if (-not $expected.ContainsKey($workerId)) { throw "Unexpected worker $workerId." }

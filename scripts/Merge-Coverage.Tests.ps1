@@ -146,6 +146,51 @@ Describe 'Managed-source coverage aggregation integrity' {
         (Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw) | Should -BeExactly $before
     }
 
+    It 'Resolves relative caller directories from the PowerShell location and creates a nonexistent output directory' {
+        Push-Location -LiteralPath $root
+        try {
+            foreach ($relativeOutput in @('coverage-report', '.\reports\nested\..\coverage-report')) {
+                Test-Path -LiteralPath $relativeOutput | Should -BeFalse
+                & $mergeScript -InputDirectory '.\input' -OutputDirectory $relativeOutput -SourceDirectory 'src' `
+                    -SourceCommit $commit -Repository $repository
+                $resolvedOutput = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($relativeOutput)
+                $summary = Get-Content -LiteralPath (Join-Path $resolvedOutput 'summary.json') -Raw | ConvertFrom-Json
+                $summary.Complete | Should -BeTrue
+                $summary.Workers | Should -Be 32
+                $summary.SourceDirectory | Should -Be $sourcePath
+                @(Get-ChildItem -LiteralPath (Join-Path $resolvedOutput 'normalized') -Filter '*.xml' -Recurse).Count | Should -Be 32
+                [xml]$normalized = Get-Content -LiteralPath (Join-Path $resolvedOutput 'normalized\unit-x64\unit-x64.cobertura.xml') -Raw
+                $normalized.SelectSingleNode('//class').filename | Should -Be (Join-Path $sourcePath 'GVFS\GVFS.Common\Policy.cs')
+            }
+        }
+        finally {
+            Pop-Location
+        }
+    }
+
+    It 'Accepts lifecycle empty scenarios, Int64 shards, and a skipped NUnit root with passed cases' {
+        foreach ($file in Get-ChildItem -LiteralPath $inputPath -Filter 'metadata.json' -Recurse -File) {
+            $metadata = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json -AsHashtable
+            $metadata.Shard | Should -BeOfType ([long])
+            if ($metadata.Suite -ne 'Upgrade') {
+                $metadata.Scenario = ''
+                $metadata | ConvertTo-Json | Set-Content -LiteralPath $file.FullName
+            }
+        }
+        $testPath = Join-Path $inputPath 'functional-arm64-shard-0\tests.xml'
+        (Get-Content -LiteralPath $testPath -Raw).Replace('<test-run result="Passed"', '<test-run result="Skipped" label="Ignored"') |
+            Set-Content -LiteralPath $testPath
+        Invoke-Merge
+        $summary = Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw | ConvertFrom-Json
+        $summary.Complete | Should -BeTrue
+        $summary.Workers | Should -Be 32
+        ($summary.WorkerReports | Where-Object WorkerId -eq 'functional-arm64-shard-0').Shard | Should -Be 0
+        ($summary.WorkerReports | Where-Object WorkerId -eq 'functional-arm64-shard-0').Tests.Passed | Should -Be 1
+        ($summary.WorkerReports | Where-Object WorkerId -eq 'functional-arm64-shard-0').Tests.Skipped | Should -Be 1
+        ($summary.WorkerReports | Where-Object WorkerId -eq 'unit-x64').Shard | Should -Be -1
+        ($summary.WorkerReports | Where-Object WorkerId -eq 'upgrade-x64-clean-upgrade').Scenario | Should -Be 'clean-upgrade'
+    }
+
     It 'Rejects a missing worker and invalidates an old complete report' {
         Invoke-Merge
         Remove-Item -LiteralPath (Join-Path $inputPath 'functional-arm64-shard-11') -Recurse -Force
@@ -175,7 +220,11 @@ Describe 'Managed-source coverage aggregation integrity' {
             @{ Field = 'TestOutcome'; Value = 'failure'; Original = 'success'; Error = '*TestOutcome*not success*' },
             @{ Field = 'TestOutcome'; Value = 'skipped'; Original = 'success'; Error = '*TestOutcome*not success*' },
             @{ Field = 'SchemaVersion'; Value = 2; Original = 1; Error = '*SchemaVersion*' },
+            @{ Field = 'SourceRoot'; Value = 'src'; Original = $runnerRoot; Error = '*Expected an absolute Windows source path*' },
             @{ Field = 'Shard'; Value = 12; Original = 0; Error = '*Invalid Functional shard*' },
+            @{ Field = 'Shard'; Value = '0'; Original = 0; Error = '*Invalid worker Shard*' },
+            @{ Field = 'Scenario'; Value = 0; Original = $null; Error = '*Invalid worker Scenario*' },
+            @{ Field = 'Scenario'; Value = ' '; Original = $null; Error = '*Invalid Functional shard or scenario*' },
             @{ Field = 'Architecture'; Value = 'other'; Original = 'x64'; Error = '*Invalid worker configuration*' }
         )) {
             Set-WorkerMetadata functional-x64-shard-0 $mutation.Field $mutation.Value
@@ -219,6 +268,12 @@ Describe 'Managed-source coverage aggregation integrity' {
     It 'Rejects missing source, escaped repository paths, absent reports, and empty mapped execution' {
         $path = Join-Path $inputPath 'unit-x64\coverage.cobertura.xml'
         $original = Get-Content -LiteralPath $path -Raw
+        Edit-WorkerCoverage unit-x64 {
+            param($document)
+            $document.SelectSingleNode('//class').SetAttribute('filename', 'GVFS\GVFS.Common\Policy.cs')
+        }
+        { Invoke-Merge } | Should -Throw '*Expected an absolute Windows source path*'
+        $original | Set-Content -LiteralPath $path
         Edit-WorkerCoverage unit-x64 {
             param($document)
             $document.SelectSingleNode('//class').SetAttribute('filename', "$runnerRoot\GVFS\GVFS.Common\Missing.cs")
