@@ -134,6 +134,8 @@ namespace GVFS.UnitTests.Common
 
         [TestCase("0,0,0,0,0,0", "files 0%; folders 0%")]
         [TestCase("40,10,10,5,100,50", "files 50%; folders 30%")]
+        [TestCase("50,50,50,50,100,100", "files 100%; folders 100%")]
+        [TestCase("1,1,1,1,3,3", "files 66%; folders 66%")]
         [TestCase("100,5,1,1,100,5", "files 100% (counts exceed current total); folders 100% (counts exceed current total)")]
         [TestCase("1,1,0,0,0,2", "files n/a (no current denominator); folders 50%")]
         [TestCase("1,1,0,0,2,0", "files 50%; folders n/a (no current denominator)")]

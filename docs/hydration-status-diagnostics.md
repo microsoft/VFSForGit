@@ -46,9 +46,10 @@ The CLI and the status hook use the same estimate:
 | Positive sum, zero denominator | `n/a (no current denominator)` |
 
 Every usable message starts with `Estimated hydration`.
+This format also applies to `gvfs health --status` when the status-hook feature is disabled.
 The display cap does not change raw counts, denominators, wire values, or telemetry.
 A component without a denominator does not hide the other component.
-Incomplete sources, negative counts, cancellation, and exceptions remain unavailable results.
+Incomplete sources, negative counts, cancellation, and exceptions produce unavailable results.
 Count drift alone does not increment the circuit breaker.
 
 ## Calculation phases
@@ -67,6 +68,9 @@ They do not prove that all sources came from one atomic repository snapshot.
 The placeholder fields distinguish partial, expanded, and possible-tombstone folders.
 
 The modified-path fields describe the pipe attempt and the disk fallback separately.
+Background hydration reads the mount's existing in-memory modified paths without a pipe or disk fallback.
+After a successful read, both attempt outcomes remain `NotAttempted`, and the source state is `Complete`.
+External health calculations retain the pipe attempt and disk fallback.
 The disk fields count add, delete, and other records.
 These fields describe the existing reader.
 They do not change its replay semantics or the recursive meaning of modified-folder entries.

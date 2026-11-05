@@ -2,6 +2,7 @@
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 using System.IO;
@@ -57,6 +58,7 @@ namespace GVFS.Common
         private readonly Lock hydrationStatisticsLock = new Lock();
 
         private Func<int> projectedFolderCountProvider;
+        private Func<IEnumerable<string>> modifiedPathsProvider;
 
         private volatile CacheState cacheState = CacheState.Dirty;
 
@@ -95,6 +97,12 @@ namespace GVFS.Common
         public void SetProjectedFolderCountProvider(Func<int> provider)
         {
             this.projectedFolderCountProvider = provider;
+        }
+
+        public void SetModifiedPathsProvider(Func<IEnumerable<string>> provider)
+        {
+            ArgumentNullException.ThrowIfNull(provider);
+            this.modifiedPathsProvider = provider;
         }
 
         public virtual void Initialize()
@@ -558,7 +566,7 @@ namespace GVFS.Common
         internal virtual EnlistmentHydrationSummary CreateHydrationSummary(HydrationSummaryDiagnostics diagnostics)
         {
             return EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer,
-                this.projectedFolderCountProvider, this.shutdownTokenSource.Token, diagnostics);
+                this.projectedFolderCountProvider, new EnlistmentPathData(this.modifiedPathsProvider), this.shutdownTokenSource.Token, diagnostics);
         }
 
         private void RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState state)

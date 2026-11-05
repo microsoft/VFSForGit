@@ -206,20 +206,39 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void StatusToleratesRetainedFoldersAndNewFilesAfterBranchSwitch(bool cached)
         {
             string originalCommit = this.RunGit("rev-parse HEAD").Trim();
-            string retainedFolder = Path.Combine(this.Enlistment.RepoRoot, "hydration-old-retained");
-            string removedFolder = Path.Combine(this.Enlistment.RepoRoot, "hydration-old-clean");
-            string newFolder = Path.Combine(this.Enlistment.RepoRoot, "hydration-untracked");
+            string prefix = cached ? "hydration-cached" : "hydration-fallback";
+            string retainedFolderName = prefix + "-old-retained";
+            string removedFolderName = prefix + "-old-clean";
+            string currentFolderName = prefix + "-current";
+            string retainedFolder = Path.Combine(this.Enlistment.RepoRoot, retainedFolderName);
+            string removedFolder = Path.Combine(this.Enlistment.RepoRoot, removedFolderName);
+            string newFolder = Path.Combine(this.Enlistment.RepoRoot, prefix + "-untracked");
             string untrackedFile = Path.Combine(retainedFolder, "untracked.txt");
-            string[] newFiles = Enumerable.Range(0, 3).Select(i => Path.Combine(this.Enlistment.RepoRoot, "hydration-new-" + i + ".txt")).ToArray();
+            string[] newFiles = Enumerable.Range(0, 3).Select(i => Path.Combine(this.Enlistment.RepoRoot, prefix + "-new-" + i + ".txt")).ToArray();
             bool oldBranchCreated = false;
             bool currentBranchCreated = false;
+            bool testCompleted = false;
+
+            void Cleanup(Action action)
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception exception) when (!testCompleted
+                    && (exception is IOException || exception is UnauthorizedAccessException || exception is AssertionException))
+                {
+                    TestContext.Error.WriteLine("Hydration test cleanup failed: " + exception);
+                }
+            }
+
             try
             {
                 string blob = this.RunGitWithInput("hash-object -w --stdin", "tracked\n");
                 string subtree = this.RunGitWithInput("mktree", "100644 blob " + blob + "\ttracked.txt\n");
                 string oldTree = this.RunGitWithInput("mktree",
-                    "040000 tree " + subtree + "\thydration-old-clean\n040000 tree " + subtree + "\thydration-old-retained\n");
-                string newTree = this.RunGitWithInput("mktree", "040000 tree " + subtree + "\thydration-current\n");
+                    "040000 tree " + subtree + "\t" + removedFolderName + "\n040000 tree " + subtree + "\t" + retainedFolderName + "\n");
+                string newTree = this.RunGitWithInput("mktree", "040000 tree " + subtree + "\t" + currentFolderName + "\n");
                 string oldCommit = this.RunGitWithInput("commit-tree " + oldTree + " -p " + originalCommit, "Old hydration population\n");
                 string newCommit = this.RunGitWithInput("commit-tree " + newTree + " -p " + oldCommit, "Current hydration population\n");
                 this.RunGit("branch hydration-count-old " + oldCommit);
@@ -233,7 +252,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.Enlistment.WaitForBackgroundOperations();
 
                 this.RunGit("checkout hydration-count-current");
-                File.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "hydration-current", "tracked.txt")).ShouldEqual("tracked\n");
+                File.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, currentFolderName, "tracked.txt")).ShouldEqual("tracked\n");
                 Directory.CreateDirectory(newFolder);
                 File.WriteAllText(Path.Combine(newFolder, "new.txt"), "new untracked folder");
                 foreach (string file in newFiles)
@@ -246,8 +265,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 Assert.IsFalse(Directory.Exists(removedFolder), "A clean obsolete folder must be removed, unlike the retained folder.");
                 string database = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "VFSForGit.sqlite");
                 string placeholders = GVFSHelpers.GetAllSQLitePlaceholdersAsString(database);
-                placeholders.ShouldContain("hydration-old-retained" + GVFSHelpers.PlaceholderFieldDelimiter);
-                Assert.That(placeholders, Does.Not.Contain("hydration-old-clean" + GVFSHelpers.PlaceholderFieldDelimiter));
+                placeholders.ShouldContain(retainedFolderName + GVFSHelpers.PlaceholderFieldDelimiter);
+                Assert.That(placeholders, Does.Not.Contain(removedFolderName + GVFSHelpers.PlaceholderFieldDelimiter));
 
                 this.RemountWithHydrationStatus(cached, backoffSeconds: 0);
                 JsonElement completion = this.WaitForHydrationCacheState(cached ? "Available" : "FeatureDisabled", out string output, out string[] lines);
@@ -302,36 +321,43 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                         record.RootElement.GetProperty("ValidationFailures").GetString().ShouldContain("HydratedFoldersExceedTotal");
                     }
                 }
+
+                testCompleted = true;
             }
             finally
             {
                 foreach (string file in newFiles)
                 {
-                    File.Delete(file);
+                    Cleanup(() => File.Delete(file));
                 }
 
                 if (File.Exists(untrackedFile))
                 {
-                    File.Delete(untrackedFile);
+                    Cleanup(() => File.Delete(untrackedFile));
                 }
 
                 if (Directory.Exists(newFolder))
                 {
-                    Directory.Delete(newFolder, recursive: true);
+                    Cleanup(() => Directory.Delete(newFolder, recursive: true));
                 }
 
-                this.RunGit("checkout -f " + originalCommit);
+                if (Directory.Exists(retainedFolder))
+                {
+                    Cleanup(() => Directory.Delete(retainedFolder, recursive: true));
+                }
+
+                Cleanup(() => this.RunGit("checkout -f " + originalCommit));
                 if (oldBranchCreated)
                 {
-                    this.RunGit("branch -D hydration-count-old");
+                    Cleanup(() => this.RunGit("branch -D hydration-count-old"));
                 }
 
                 if (currentBranchCreated)
                 {
-                    this.RunGit("branch -D hydration-count-current");
+                    Cleanup(() => this.RunGit("branch -D hydration-count-current"));
                 }
 
-                this.Enlistment.WaitForBackgroundOperations();
+                Cleanup(() => this.Enlistment.WaitForBackgroundOperations());
             }
         }
 
@@ -361,6 +387,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private JsonElement WaitForHydrationCacheState(string expectedState, out string output, out string[] lines)
         {
             Stopwatch deadline = Stopwatch.StartNew();
+            Stopwatch stable = new Stopwatch();
+            string calculationId = null;
             string lastCompletion = string.Empty;
             output = string.Empty;
             lines = Array.Empty<string>();
@@ -372,16 +400,43 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 {
                     JsonElement root = completion.RootElement;
                     lastCompletion = root.GetRawText();
-                    if (root.GetProperty("Cache").GetProperty("State").GetString() == expectedState)
+                    JsonElement cache = root.GetProperty("Cache");
+                    if (cache.GetProperty("State").GetString() == expectedState
+                        && (expectedState != "Available" || !cache.GetProperty("Invalidated").GetBoolean()))
                     {
-                        return root.Clone();
+                        if (expectedState != "Available")
+                        {
+                            return root.Clone();
+                        }
+
+                        string currentId = cache.GetProperty("CalculationId").GetString();
+                        if (currentId != calculationId)
+                        {
+                            calculationId = currentId;
+                            stable.Restart();
+                        }
+
+                        if (stable.Elapsed >= TimeSpan.FromSeconds(2))
+                        {
+                            return root.Clone();
+                        }
+                    }
+                    else
+                    {
+                        calculationId = null;
+                        stable.Reset();
                     }
                 }
 
                 Thread.Sleep(100);
             }
 
-            throw new AssertionException("The hydration cache did not reach " + expectedState + ". Last completion: " + lastCompletion);
+            string lastCalculation = Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_mount_*.log")
+                .OrderBy(path => path)
+                .SelectMany(path => GVFSHelpers.ReadAllTextFromWriteLockedFile(path).Split('\n'))
+                .LastOrDefault(line => line.Contains("HydrationSummaryDuration "));
+            throw new AssertionException("The hydration cache did not reach " + expectedState + ". Last completion: " + lastCompletion
+                + ". Last mount calculation: " + lastCalculation);
         }
 
         private void RemountWithHydrationStatus(bool enabled, int backoffSeconds = 2)

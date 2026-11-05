@@ -14,6 +14,33 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class EnlistmentPathDiagnosticsTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void InMemoryModifiedPathsDoNotUsePipeOrDisk(bool empty)
+        {
+            string[] entries = empty ? Array.Empty<string>() : new[] { string.Empty, "file", "folder/", string.Empty };
+            int calls = 0;
+            SourcePathData paths = new SourcePathData(() =>
+            {
+                calls++;
+                return entries;
+            });
+            HydrationSummaryDiagnostics diagnostics = new HydrationSummaryDiagnostics();
+            using (MockTracer tracer = new MockTracer())
+            {
+                paths.LoadModifiedPaths(CreateEnlistment(), tracer, diagnostics);
+            }
+
+            Assert.AreEqual(1, calls);
+            CollectionAssert.AreEqual(empty ? Array.Empty<string>() : new[] { "file" }, paths.ModifiedFilePaths);
+            CollectionAssert.AreEqual(empty ? Array.Empty<string>() : new[] { "folder/" }, paths.ModifiedFolderPaths);
+            Assert.AreEqual(HydrationDataState.Complete, diagnostics.ModifiedPathsState);
+            Assert.AreEqual(HydrationPathSourceOutcome.NotAttempted, diagnostics.ModifiedPathsPipeOutcome);
+            Assert.AreEqual(HydrationPathSourceOutcome.NotAttempted, diagnostics.ModifiedPathsDiskOutcome);
+            Assert.AreEqual(0, paths.Pipe.ConnectTimeoutMs);
+            Assert.IsFalse(paths.Pipe.Disposed);
+        }
+
         [TestCase("S", "Success")]
         [TestCase("NotReady", "MountNotReady")]
         [TestCase("InvalidVersion", "InvalidVersion")]
@@ -126,6 +153,11 @@ namespace GVFS.UnitTests.Common
 
         private sealed class SourcePathData : EnlistmentPathData
         {
+            public SourcePathData(Func<IEnumerable<string>> modifiedPathsProvider = null)
+                : base(modifiedPathsProvider)
+            {
+            }
+
             public MockNamedPipeClient Pipe { get; } = new MockNamedPipeClient
             {
                 Response = new NamedPipeMessages.Message("unknown", null),

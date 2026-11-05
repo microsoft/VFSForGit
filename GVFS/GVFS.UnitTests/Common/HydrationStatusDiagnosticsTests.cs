@@ -210,6 +210,22 @@ namespace GVFS.UnitTests.Common
             Assert.AreEqual(100, result.Counts["TotalFileCount"]);
         }
 
+        [TestCase("50,50,50,50,100,100", "files 100%; folders 100%")]
+        [TestCase("1,1,1,1,3,3", "files 66%; folders 66%")]
+        public void CachedStatusFormatsExactAndFractionalHydration(string body, string estimate)
+        {
+            using (StringWriter output = new StringWriter())
+            using (MockTracer tracer = new MockTracer())
+            {
+                WorkerHealthVerb verb = new WorkerHealthVerb { Output = output };
+                verb.Pipe.Response = new NamedPipeMessages.Message("S", body);
+                EventMetadata metadata = new EventMetadata();
+                verb.OutputHydrationPercent(null, tracer, metadata, Guid.NewGuid());
+                Assert.AreEqual("Cache", metadata["ResultSource"]);
+                Assert.That(output.ToString(), Does.Contain("Estimated hydration: " + estimate + "."));
+            }
+        }
+
         [TestCase]
         public void CachedDriftPreservesRawCountsAndExcessWithoutFallback()
         {

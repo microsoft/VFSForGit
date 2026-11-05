@@ -109,6 +109,7 @@ namespace GVFS.UnitTests.Common
             using (GitStatusCache cache = new GitStatusCache(this.context, TimeSpan.Zero))
             {
                 cache.SetProjectedFolderCountProvider(() => throw new AssertionException("A disabled feature must not count folders."));
+                cache.SetModifiedPathsProvider(() => throw new AssertionException("A disabled feature must not read modified paths."));
                 cache.UpdateHydrationSummary();
                 Assert.IsNull(cache.GetCachedHydrationSummary(out NamedPipeMessages.HydrationStatus.CacheInfo info));
                 Assert.AreEqual(NamedPipeMessages.HydrationStatus.CacheState.FeatureDisabled, info.State);
