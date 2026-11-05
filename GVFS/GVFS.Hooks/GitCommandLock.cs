@@ -7,6 +7,18 @@ namespace GVFS.Hooks
     {
         private const string CheckMount = "Run 'gvfs status' to check the mount.";
 
+        /// <summary>
+        /// Returns true if Git runs "status" without locks, so the hook only checks that the GVFS
+        /// lock is free. "--no-optional-locks" sets GIT_OPTIONAL_LOCKS to a false value. A raw
+        /// "git-status" is an external program, so it never qualifies.
+        /// </summary>
+        public static bool IsAvailabilityOnly(string[] args, Func<string, string> getEnvironmentVariable)
+        {
+            return string.Equals(args[1], "status", StringComparison.Ordinal) &&
+                (Array.Exists(args, arg => arg.Equals("--no-lock-index", StringComparison.OrdinalIgnoreCase)) ||
+                IsFalseValue(getEnvironmentVariable("GIT_OPTIONAL_LOCKS")));
+        }
+
         public static bool TryCheckOwnership(
             int pid,
             bool isElevated,
@@ -65,6 +77,14 @@ namespace GVFS.Hooks
                     error = "GVFS returned an unexpected lock-ownership response: " + response.Result + ". " + CheckMount;
                     return false;
             }
+        }
+
+        private static bool IsFalseValue(string value)
+        {
+            return string.Equals(value, "false", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value, "no", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value, "off", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value, "0", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

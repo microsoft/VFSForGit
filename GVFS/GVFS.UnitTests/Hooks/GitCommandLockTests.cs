@@ -9,6 +9,22 @@ namespace GVFS.UnitTests.Hooks
     [TestFixture]
     public class GitCommandLockTests
     {
+        [TestCase(new[] { "post-command", "status", "--no-lock-index" }, null, true)]
+        [TestCase(new[] { "post-command", "status", "--NO-LOCK-INDEX" }, null, true)]
+        [TestCase(new[] { "pre-command", "status" }, "0", true)]
+        [TestCase(new[] { "pre-command", "status" }, "Off", true)]
+        [TestCase(new[] { "pre-command", "status" }, "1", false)]
+        [TestCase(new[] { "pre-command", "status" }, null, false)]
+        [TestCase(new[] { "post-command", "git-status", "--no-lock-index" }, "0", false)]
+        [TestCase(new[] { "post-command", "STATUS", "--no-lock-index" }, "0", false)]
+        [TestCase(new[] { "post-command", "log", "--no-lock-index" }, "0", false)]
+        public void OnlyCanonicalStatusWithoutLocksIsAvailabilityOnly(string[] args, string optionalLocks, bool expected)
+        {
+            GitCommandLock.IsAvailabilityOnly(
+                args,
+                name => name == "GIT_OPTIONAL_LOCKS" ? optionalLocks : null).ShouldEqual(expected);
+        }
+
         [TestCase(123, true)]
         [TestCase(456, false)]
         public void OwnershipComparesTheTypedPidWithoutAcquiring(int ownerPid, bool expectedOwner)

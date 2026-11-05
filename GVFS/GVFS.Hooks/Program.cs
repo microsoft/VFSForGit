@@ -432,14 +432,7 @@ namespace GVFS.Hooks
         {
             try
             {
-                // Don't acquire the GVFS lock if the git command is not acquiring locks.
-                // This enables tools to run status commands without to the index and
-                // blocking other commands from running. The git argument
-                // "--no-optional-locks" results in a 'negative'
-                // value GIT_OPTIONAL_LOCKS environment variable.
-                return string.Equals(args[1], "status", StringComparison.Ordinal) &&
-                    (args.Any(arg => arg.Equals("--no-lock-index", StringComparison.OrdinalIgnoreCase)) ||
-                    IsGitEnvVarDisabled("GIT_OPTIONAL_LOCKS"));
+                return GitCommandLock.IsAvailabilityOnly(args, Environment.GetEnvironmentVariable);
             }
             catch (Exception e)
             {
@@ -460,23 +453,6 @@ namespace GVFS.Hooks
             string message = "\nGVFS was unable to " + failedOperation + " the following files. To recover, close all handles to the files and run these commands:";
             message += string.Concat(fileList.Select(x => "\n    " + recoveryCommand + x));
             return message;
-        }
-
-        private static bool IsGitEnvVarDisabled(string envVar)
-        {
-            string envVarValue = Environment.GetEnvironmentVariable(envVar);
-            if (!string.IsNullOrEmpty(envVarValue))
-            {
-                if (string.Equals(envVarValue, "false", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(envVarValue, "no", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(envVarValue, "off", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(envVarValue, "0", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         private static string GetHookType(string[] args)

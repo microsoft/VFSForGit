@@ -518,6 +518,36 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             result.Errors.ShouldContain(ExpectedStatusWaitingText);
         }
 
+        [TestCase]
+        [Order(23)]
+        public void PostCommandForExternalIgnoresAnUnmountedEnlistment()
+        {
+            string hooksExecutable = Path.Combine(Path.GetDirectoryName(Properties.Settings.Default.PathToGVFS), "GVFS.Hooks.exe");
+            string directory = Path.Combine(Path.GetTempPath(), nameof(this.PostCommandForExternalIgnoresAnUnmountedEnlistment) + "_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(directory, ".gvfs"));
+            try
+            {
+                ProcessStartInfo hook = this.CreateGitStartInfo("post-command git-gvfs-unmounted --exit_code=0");
+                hook.FileName = hooksExecutable;
+                hook.WorkingDirectory = directory;
+
+                // A false GIT_OPTIONAL_LOCKS makes post-command status skip the lock request.
+                hook.Environment.Remove("GIT_OPTIONAL_LOCKS");
+                ProcessResult external = ProcessHelper.Run(hook, timeoutMs: 30000);
+                external.ExitCode.ShouldEqual(0, external.Output + external.Errors);
+                (external.Output + external.Errors).ShouldEqual(string.Empty);
+
+                hook.Arguments = "post-command status --exit_code=0";
+                ProcessResult builtIn = ProcessHelper.Run(hook, timeoutMs: 30000);
+                builtIn.ExitCode.ShouldEqual(1, builtIn.Output + builtIn.Errors);
+                builtIn.Output.ShouldContain("The repo does not appear to be mounted.");
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+
         private ProcessStartInfo CreateGitStartInfo(string command, Dictionary<string, string> environment = null)
         {
             ProcessStartInfo startInfo = new ProcessStartInfo(Properties.Settings.Default.PathToGit, command);
