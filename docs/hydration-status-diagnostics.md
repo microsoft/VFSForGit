@@ -19,9 +19,40 @@ Partial counts remain available, but their source state is not `Complete`.
 
 `IndexState`, `PlaceholderState`, `ModifiedPathsState`, and `FolderCountState` describe source completeness.
 `CountsComplete` requires all four states to equal `Complete`.
-`IsValid` records the existing display calculation.
+`IsValid` requires complete sources and six nonnegative counts.
 `ValidationFailures` independently records missing counts, negative counts, overflow, and hydrated counts that exceed their totals.
 Its arithmetic uses 64-bit sums.
+Excess counts and sums larger than a 32-bit integer do not make a complete summary invalid.
+`FileCountDelta` and `FolderCountDelta` record the signed difference between the observed sum and its denominator.
+`FileCountExcess` and `FolderCountExcess` record the positive part of each difference.
+An unavailable input leaves its difference and excess null.
+
+`FileCountSource` identifies the index header.
+`FolderCountSource` identifies the projection or the index parser.
+The folder denominator excludes the root and folders without projection-eligible entries.
+Placeholder and modified-path records describe a different population.
+They can include new paths, deletion records, overlap, and obsolete folders that still contain untracked files.
+The summary does not intersect or deduplicate these populations.
+
+## Estimated display
+
+The CLI and the status hook use the same estimate:
+
+| Observation | Component display |
+| --- | --- |
+| Positive denominator, sum within range | Integer percentage |
+| Positive denominator, sum exceeds denominator | `100% (counts exceed current total)` |
+| Both counts zero | `0%` |
+| Positive sum, zero denominator | `n/a (no current denominator)` |
+
+Every usable message starts with `Estimated hydration`.
+This format also applies to `gvfs health --status` when the status-hook feature is disabled.
+The display cap does not change raw counts, denominators, wire values, or telemetry.
+A component without a denominator does not hide the other component.
+Incomplete sources, negative counts, cancellation, and exceptions produce unavailable results.
+Count drift alone does not increment the circuit breaker.
+
+## Calculation phases
 
 `Phase` identifies the last started phase, which can already be complete when cancellation occurs between phases.
 `CancellationRequested` distinguishes caller-requested cancellation from other cancellation exceptions.
@@ -37,6 +68,9 @@ They do not prove that all sources came from one atomic repository snapshot.
 The placeholder fields distinguish partial, expanded, and possible-tombstone folders.
 
 The modified-path fields describe the pipe attempt and the disk fallback separately.
+Background hydration reads the mount's existing in-memory modified paths without a pipe or disk fallback.
+After a successful read, both attempt outcomes remain `NotAttempted`, and the source state is `Complete`.
+External health calculations retain the pipe attempt and disk fallback.
 The disk fields count add, delete, and other records.
 These fields describe the existing reader.
 They do not change its replay semantics or the recursive meaning of modified-folder entries.
@@ -85,6 +119,10 @@ The age is nonnegative, or `-1` when unavailable.
 The last two fields use `0` or `1`.
 Older clients ignore the extension.
 New clients accept responses without it.
+New clients also accept complete nonnegative counts that exceed a denominator.
+They reject a recognized extension that reports incomplete counts.
+Older clients can reject excess counts safely.
+A new client can use the fallback when an older mount rejects its own summary.
 
 The mount publishes the summary and its diagnostic identity together.
 Cache state describes the latest refresh or skip decision.
@@ -112,4 +150,6 @@ The listener can drop events when its queue is full or its collector is unavaila
 Process termination can also prevent a terminal record.
 Mount telemetry cannot observe a hook connection failure that never reaches the mount.
 
-Diagnostic collection must preserve count sets, disk-log replay, percentages, cache acceptance, and circuit-breaker policy.
+This contract does not change count populations, disk-log replay, placeholder cleanup, or the circuit-breaker failure policy.
+The disk fallback retains its pre-existing replay limitations.
+The estimate does not make that reader an exact inventory.
