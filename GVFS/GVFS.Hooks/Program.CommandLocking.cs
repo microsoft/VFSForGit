@@ -1,6 +1,5 @@
 using GVFS.Common;
-using GVFS.Common.Git;
-using GVFS.Common.Tracing;
+using System;
 using System.Linq;
 
 namespace GVFS.Hooks
@@ -15,10 +14,41 @@ namespace GVFS.Hooks
         // Ref and object writes alone do not require this lock. Index refreshes do.
         // Keep arbitrary Git dispatchers locked because nested command hooks can be suppressed.
         // Excluded readers can observe concurrent working-tree changes. They do not receive snapshot isolation.
-        internal static bool ShouldLock(string[] args)
+        internal static bool TryShouldLock(
+            string[] args,
+            Func<ProcessResult> readGitAliasKeys,
+            string searchPath,
+            Func<string, uint> getFileAttributes,
+            out bool shouldLock,
+            out string error)
         {
+            error = null;
             string gitCommand = GetGitCommand(args);
 
+            // Git reports a built-in by its name. A git- prefix means that Git found no built-in
+            // and will run a program or expand an alias, so the read-only list does not apply.
+            // git-submodule and git-web--browse are programs that Git ships in its exec-path,
+            // which Git puts first on PATH. They keep their exemptions.
+            if (args[1].StartsWith("git-", StringComparison.Ordinal) &&
+                gitCommand != "submodule" &&
+                gitCommand != "web--browse")
+            {
+                shouldLock = true;
+                if (!GitCommandResolver.TryIsAlias(args[1], readGitAliasKeys, searchPath, getFileAttributes, out bool isAlias, out error))
+                {
+                    return false;
+                }
+
+                shouldLock = !isAlias;
+                return true;
+            }
+
+            shouldLock = ShouldLockBuiltIn(gitCommand, args);
+            return true;
+        }
+
+        private static bool ShouldLockBuiltIn(string gitCommand, string[] args)
+        {
             switch (gitCommand)
             {
                 // Keep these alphabetically sorted
@@ -94,12 +124,6 @@ namespace GVFS.Hooks
                 return false;
             }
 
-            if (!KnownGitCommands.Contains(gitCommand) &&
-                IsAlias(gitCommand))
-            {
-                return false;
-            }
-
             return true;
         }
 
@@ -112,22 +136,6 @@ namespace GVFS.Hooks
             }
 
             return command;
-        }
-
-        private static bool IsAlias(string command)
-        {
-            string aliasKey = "alias." + command;
-            ProcessResult result = GitConfigReadRetry.InvokeResult(
-                aliasKey,
-                () => ProcessHelper.Run("git", "config --get " + aliasKey),
-                (ProcessResult processResult) =>
-                    processResult.ExitCode != 0 &&
-                    GitConfigReadRetry.IsTransientFileAccessError(processResult.Errors, lineMustContain: "unable to access"),
-                NullTracer.Instance,
-                GitConfigReadRetry.Delay,
-                ConfigReadMaxAttempts);
-
-            return !string.IsNullOrEmpty(result.Output);
         }
     }
 }
