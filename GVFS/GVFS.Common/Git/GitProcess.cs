@@ -523,11 +523,16 @@ namespace GVFS.Common.Git
         public Result SetInFileConfig(string configFile, string settingName, string value, bool replaceAll = false)
         {
             return this.InvokeGitOutsideEnlistment(string.Format(
-                "config --file {0} {1} \"{2}\" \"{3}\"",
+                "config --file \"{0}\" {1}\"{2}\" \"{3}\"",
                  configFile,
                  replaceAll ? "--replace-all " : string.Empty,
                  settingName,
                  value));
+        }
+
+        public Result DeleteFromFileConfig(string configFile, string settingName)
+        {
+            return this.InvokeGitOutsideEnlistment($"config --file \"{configFile}\" --unset-all {settingName}");
         }
 
         public bool TryGetConfigUrlMatch(string section, string repositoryUrl, out Dictionary<string, GitConfigSetting> configSettings)
@@ -564,6 +569,29 @@ namespace GVFS.Common.Git
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Lists the local config with every value of every key, in file order. A key
+        /// without a value, which git reads as boolean true, has a null value.
+        /// </summary>
+        public bool TryGetLocalConfigEntries(out Dictionary<string, List<string>> configEntries)
+        {
+            // See GetFromConfig for why pre-command hook is disabled.
+            return TryParseConfigEntries(
+                this.InvokeConfigRead("--list --local", () => this.InvokeGitAgainstDotGitFolder("config --list --local -z", usePreCommandHook: false)),
+                out configEntries);
+        }
+
+        /// <summary>
+        /// Lists a config file like <see cref="TryGetLocalConfigEntries"/>. Git fails when
+        /// the file does not exist, so check for the file before you call this.
+        /// </summary>
+        public bool TryGetFileConfigEntries(string configFile, out Dictionary<string, List<string>> configEntries)
+        {
+            return TryParseConfigEntries(
+                this.InvokeConfigRead(configFile, () => this.InvokeGitOutsideEnlistment($"config --file \"{configFile}\" --list -z")),
+                out configEntries);
         }
 
         /// <summary>
@@ -1447,6 +1475,43 @@ namespace GVFS.Common.Git
             }
 
             return value;
+        }
+
+        /// <summary>
+        /// Parses `git config --list -z` output. Each entry ends with NUL and is either
+        /// "key", for a key without a value, or "key\nvalue". GitProcess reads output by
+        /// line, so the separator arrives as "\r\n" and a final line break follows.
+        /// </summary>
+        private static bool TryParseConfigEntries(Result result, out Dictionary<string, List<string>> configEntries)
+        {
+            configEntries = null;
+            if (result.ExitCodeIsFailure)
+            {
+                return false;
+            }
+
+            configEntries = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (string entry in (result.Output ?? string.Empty).Split('\0'))
+            {
+                int separator = entry.IndexOf('\n');
+                string key = (separator < 0 ? entry : entry.Substring(0, separator)).TrimEnd('\r');
+                if (key.Length == 0)
+                {
+                    continue;
+                }
+
+                string value = separator < 0 ? null : entry.Substring(separator + 1);
+
+                if (!configEntries.TryGetValue(key, out List<string> values))
+                {
+                    values = new List<string>();
+                    configEntries.Add(key, values);
+                }
+
+                values.Add(value);
+            }
+
+            return true;
         }
 
         /// <summary>

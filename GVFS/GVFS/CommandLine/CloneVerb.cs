@@ -698,8 +698,12 @@ namespace GVFS.CommandLine
                 return new Result(errorMessage);
             }
 
-            if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment) ||
-                !GVFSVerb.TrySetOptionalGitConfigSettings(enlistment))
+            if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment, out string configError))
+            {
+                return new Result("Unable to configure git repo: " + configError);
+            }
+
+            if (!GVFSVerb.TrySetOptionalGitConfigSettings(enlistment))
             {
                 return new Result("Unable to configure git repo");
             }

@@ -84,8 +84,15 @@ namespace GVFS.RepairJobs
             File.WriteAllText(configPath, string.Empty);
             this.Tracer.RelatedInfo("Created empty file: " + configPath);
 
-            if (!GVFSVerb.TrySetRequiredGitConfigSettings(this.Enlistment) ||
-                !GVFSVerb.TrySetOptionalGitConfigSettings(this.Enlistment))
+            if (!GVFSVerb.TrySetRequiredGitConfigSettings(this.Enlistment, out string configError))
+            {
+                messages.Add($"Unable to create default {GVFSConstants.DotGit.Config}: {configError}");
+                this.RestoreFromBackupFile(configBackupPath, configPath, messages);
+
+                return FixResult.Failure;
+            }
+
+            if (!GVFSVerb.TrySetOptionalGitConfigSettings(this.Enlistment))
             {
                 messages.Add($"Unable to create default {GVFSConstants.DotGit.Config}.");
                 this.RestoreFromBackupFile(configBackupPath, configPath, messages);
