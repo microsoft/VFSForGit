@@ -54,7 +54,7 @@ if ($consoleHits.Count -ne 0) {
 }
 
 [ordered]@{
-    Scope = if ($ServiceOnly) { 'SCM service startup before tests' } else { 'Managed NativeAOT product; x64 shard 0 of 12' }
+    Scope = if ($ServiceOnly) { 'SCM service execution' } else { 'Managed NativeAOT product' }
     Modules = $packages.name
     ScmServiceStartupCovered = $true
     ConsoleServiceEntryCovered = $false

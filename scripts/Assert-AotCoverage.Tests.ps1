@@ -55,7 +55,7 @@ Describe 'NativeAOT SCM coverage evidence' {
         $path = Save-CoverageReport $document
         $result = & $assertion -CoveragePath $path -ServiceOnly | ConvertFrom-Json
         $result.ScmServiceStartupCovered | Should -BeTrue
-        $result.Scope | Should -Be 'SCM service startup before tests'
+        $result.Scope | Should -Be 'SCM service execution'
     }
 
     It 'Rejects metadata-only service coverage in the startup snapshot' {

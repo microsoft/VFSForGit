@@ -258,6 +258,9 @@ jobs:
     runs-on: ${{ matrix.architecture == 'arm64' && 'windows-11-arm' || 'windows-2025' }}
     name: Build and Unit Test
     needs: validate
+    env:
+      AotMsCodeCoverageInstrumentation: 'true'
+      MsCodeCoverageSessionId: gvfs-ci-${{ github.run_id }}
 
     strategy:
       matrix:
@@ -280,12 +283,14 @@ jobs:
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         path: src
+        persist-credentials: false
 
     - name: Install .NET SDK
       if: steps.skip.outputs.result != 'true'
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
         global-json-file: src/global.json
+        dotnet-version: 8.0.x
 
     - name: Add MSBuild to PATH
       if: steps.skip.outputs.result != 'true'
@@ -296,15 +301,53 @@ jobs:
       shell: cmd
       run: src\scripts\Build.bat ${{ matrix.configuration }} 0.2.173.2 minimal ${{ matrix.architecture }}
 
-    - name: Run unit tests
+    - name: Locate coverage collector
       if: steps.skip.outputs.result != 'true'
-      shell: cmd
-      run: src\scripts\RunUnitTests.bat ${{ matrix.configuration }} ${{ matrix.architecture }}
+      uses: ./src/.github/actions/setup-coverage
+
+    - name: Record compiled coverage manifest
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      env:
+        COVERAGE_ARCH: ${{ matrix.architecture }}
+      run: src\scripts\New-CoverageManifest.ps1 -Path coverage-build.json -Repository $env:GITHUB_REPOSITORY -SessionId $env:MsCodeCoverageSessionId -Architecture $env:COVERAGE_ARCH
+
+    - name: Start unit coverage
+      id: unit_coverage
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      run: src\scripts\Invoke-Coverage.ps1 -Action Start -Directory unit-coverage -BuildManifest coverage-build.json -Suite Unit
+
+    - name: Run unit tests
+      id: unit_tests
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      run: |
+        Microsoft.CodeCoverage.Console.exe connect $env:MsCodeCoverageSessionId cmd.exe /d /c src\scripts\RunUnitTests.bat ${{ matrix.configuration }} ${{ matrix.architecture }}
+        exit $LASTEXITCODE
+
+    - name: Stop unit coverage
+      if: always() && steps.unit_coverage.outcome == 'success'
+      shell: pwsh
+      run: src\scripts\Invoke-Coverage.ps1 -Action Stop -Directory unit-coverage -TestOutcome '${{ steps.unit_tests.outcome }}'
+
+    - name: Upload unit coverage
+      if: always() && steps.unit_coverage.outcome == 'success'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: Coverage_Unit_${{ matrix.architecture }}
+        path: unit-coverage
+        if-no-files-found: error
 
     - name: Create build artifacts
       if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts ${{ matrix.architecture }}
+
+    - name: Include coverage manifest with installer
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      run: Copy-Item coverage-build.json artifacts\GVFS.Installers\coverage-build.json
 
     - name: Upload functional tests drop
       if: steps.skip.outputs.result != 'true'
@@ -327,59 +370,12 @@ jobs:
         name: GVFS_${{ matrix.configuration }}_${{ matrix.architecture }}
         path: artifacts\GVFS.Installers
 
-  coverage_build:
-    runs-on: windows-2025
-    name: Build AOT Coverage Probe
-    needs: validate
-    timeout-minutes: 30
-
-    env:
-      AotMsCodeCoverageInstrumentation: 'true'
-      MsCodeCoverageSessionId: gvfs-ci-${{ github.run_id }}
-
-    steps:
-    - name: Checkout source
-      if: needs.validate.outputs.skip == ''
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      with:
-        path: src
-        persist-credentials: false
-
-    - name: Install .NET SDK
-      if: needs.validate.outputs.skip == ''
-      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-      with:
-        global-json-file: src/global.json
-        dotnet-version: 8.0.x
-
-    - name: Add MSBuild to PATH
-      if: needs.validate.outputs.skip == ''
-      uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3.0.0
-
-    - name: Build instrumented x64 installer
-      if: needs.validate.outputs.skip == ''
-      shell: cmd
-      run: src\scripts\Build.bat Release 0.2.173.2 minimal x64
-
-    - name: Create build artifacts
-      if: needs.validate.outputs.skip == ''
-      shell: cmd
-      run: src\scripts\CreateBuildArtifacts.bat Release artifacts x64
-
-    - name: Upload coverage-probe installer
-      if: needs.validate.outputs.skip == ''
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with:
-        name: GVFS_Coverage_Release_x64
-        path: artifacts\GVFS.Installers
-
   functional_tests:
     name: Functional Tests
-    needs: [validate, build, coverage_build]
+    needs: [validate, build]
     uses: ./.github/workflows/functional-tests.yaml
     with:
       skip: ${{ needs.validate.outputs.skip }}
-      aot_coverage_probe: true
 
   upgrade_tests:
     name: Upgrade Tests
@@ -387,6 +383,62 @@ jobs:
     uses: ./.github/workflows/upgrade-tests.yaml
     with:
       skip: ${{ needs.validate.outputs.skip }}
+
+  coverage_summary:
+    name: Managed Code Coverage
+    runs-on: windows-2025
+    needs: [validate, build, functional_tests, upgrade_tests]
+    if: always() && needs.validate.outputs.skip == ''
+    steps:
+    - name: Checkout tested source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        path: src
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Install report runtime
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: src/global.json
+        dotnet-version: 8.0.x
+
+    - name: Download all coverage workers
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        pattern: Coverage_*
+        path: coverage-inputs
+
+    - name: Verify workers and changed-line evidence
+      shell: pwsh
+      env:
+        BASE_COMMIT: ${{ github.event.pull_request.base.sha || github.event.before }}
+      run: |
+        $sourceCommit = git -C src rev-parse HEAD
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot identify tested source.' }
+        $base = $env:BASE_COMMIT
+        if ($base -match '^0+$') { $base = '' }
+        src\scripts\Merge-Coverage.ps1 -InputDirectory coverage-inputs -OutputDirectory coverage-report -SourceDirectory src -SourceCommit $sourceCommit -Repository $env:GITHUB_REPOSITORY -BaseCommit $base
+        Get-Content coverage-report\Summary.md >> $env:GITHUB_STEP_SUMMARY
+        Get-Content coverage-report\ChangedLines.md >> $env:GITHUB_STEP_SUMMARY
+
+    - name: Render full managed reports
+      shell: pwsh
+      run: |
+        dotnet tool install dotnet-reportgenerator-globaltool --version 5.5.11 --tool-path coverage-tools --configfile src\nuget.config
+        if ($LASTEXITCODE -ne 0) { throw 'Coverage renderer installation failed.' }
+        foreach ($group in Get-ChildItem coverage-report\normalized -Directory) {
+          .\coverage-tools\reportgenerator.exe "-reports:$($group.FullName)\*.cobertura.xml" "-targetdir:coverage-report\$($group.Name)" "-reporttypes:Html;MarkdownSummaryGithub;Cobertura;JsonSummary" "-title:Managed source coverage - $($group.Name)"
+          if ($LASTEXITCODE -ne 0) { throw "Coverage rendering failed for $($group.Name)." }
+        }
+
+    - name: Upload complete coverage reports
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ManagedCoverage
+        path: coverage-report
+        if-no-files-found: error
 
   result:
     runs-on: ubuntu-latest

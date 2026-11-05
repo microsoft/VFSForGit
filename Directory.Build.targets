@@ -12,7 +12,7 @@
   <!-- Include custom MSBuild targets/tasks -->
   <Import Project="$(MSBuildThisFileDirectory)GVFS\GVFS.MSBuild\GVFS.targets" />
 
-  <!-- Coverage builds use separate, non-shipping payloads. Normal publishes omit this package. -->
+  <!-- CI opts into coverage. Release and local publishes omit this package by default. -->
   <PropertyGroup Condition="'$(AotMsCodeCoverageInstrumentation)' == 'true' and '$(MSBuildProjectExtension)' == '.csproj'">
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
