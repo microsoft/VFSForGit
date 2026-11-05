@@ -69,6 +69,9 @@ namespace GVFS.UnitTests.Hooks
         [TestCase("git-es", "alias..es\n")]
         [TestCase("git-ES", "alias..es\n")]
         [TestCase("git-command", "alias..command\n")]
+        [TestCase("git-.review.foo", "alias..review.foo\n")]
+        [TestCase("git-.REVIEW.FOO", "alias..review.foo\n")]
+        [TestCase("git-.review", "alias..review.command\n")]
         [TestCase("git-git-prefixed", "alias.git-prefixed\n")]
         public void AliasKeysThatGitExpandsSkipTheOuterLock(string hookCommand, string aliasKeys)
         {
@@ -98,6 +101,9 @@ namespace GVFS.UnitTests.Hooks
         [TestCase("git-co", "alias.\n", 0)]
         [TestCase("git-", "alias.\nalias..\n", 0)]
         [TestCase("git-.command", "alias..command\n", 0)]
+        [TestCase("git-review.foo", "alias..review.foo\n", 0)]
+        [TestCase("git-.REVIEW", "alias..review.command\n", 0)]
+        [TestCase("git-review", "alias..review.command\n", 0)]
         [TestCase("git-CAF\u00c9.FOO", "alias.Caf\u00e9.foo\n", 0)]
         [TestCase("git-co", "", 1)]
         public void AliasKeysThatGitDoesNotExpandKeepTheLock(string hookCommand, string aliasKeys, int exitCode)

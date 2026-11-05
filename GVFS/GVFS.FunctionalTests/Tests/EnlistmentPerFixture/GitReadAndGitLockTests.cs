@@ -507,6 +507,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase("alias..gvfs-dot-prefix.foo", ".gvfs-dot-prefix.foo")]
+        [TestCase("alias..gvfs-dot-subsection.command", ".gvfs-dot-subsection")]
+        [Order(22)]
+        public void DotPrefixedSubsectionAliasInnerCommandStillAcquiresLock(string aliasKey, string aliasName)
+        {
+            ProcessResult result = this.RunWithLockHolder(
+                "-c \"" + aliasKey + "=status --porcelain\" " + aliasName);
+            result.ExitCode.ShouldEqual(0);
+            result.Errors.ShouldContain(ExpectedStatusWaitingText);
+        }
+
         private ProcessStartInfo CreateGitStartInfo(string command, Dictionary<string, string> environment = null)
         {
             ProcessStartInfo startInfo = new ProcessStartInfo(Properties.Settings.Default.PathToGit, command);

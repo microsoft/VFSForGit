@@ -142,29 +142,35 @@ namespace GVFS.Hooks
         }
 
         /// <summary>
-        /// Mirrors Git's alias lookup. git config prints "alias.&lt;name&gt;" in lowercase, and Git
-        /// matches it for any ASCII case. It prints "alias.&lt;subsection&gt;.command" with the
-        /// subsection case unchanged, and Git matches only that exact subsection. It prints other
-        /// "alias.&lt;subsection&gt;.&lt;key&gt;" names as dotted alias names, which Git matches for any
-        /// ASCII case. Git treats an empty subsection ("alias..&lt;name&gt;") as plain [alias].
+        /// Mirrors config_alias_cb in Git's alias.c. Like parse_config_key, it splits the text
+        /// after "alias." at the last dot into a subsection and a variable name. If the
+        /// subsection is empty, the variable name is the alias name, matched for any ASCII case.
+        /// If the variable name is "command", the alias name is the subsection, which must match
+        /// exactly. Otherwise the alias name is all of the text after "alias.", matched for any
+        /// ASCII case. Thus "alias..review.foo" names ".review.foo".
         /// </summary>
         private static bool IsAliasKeyFor(string key, string command)
         {
             const string Section = "alias.";
-            const string CommandKey = ".command";
             if (!key.StartsWith(Section, StringComparison.Ordinal))
             {
                 return false;
             }
 
             string name = key.Substring(Section.Length);
-            if (name.StartsWith(".", StringComparison.Ordinal))
+            int lastDot = name.LastIndexOf('.');
+            if (lastDot >= 0)
             {
-                name = name.Substring(1);
-            }
-            else if (name.Length > CommandKey.Length && name.EndsWith(CommandKey, StringComparison.Ordinal))
-            {
-                return string.Equals(name.Substring(0, name.Length - CommandKey.Length), command, StringComparison.Ordinal);
+                string subsection = name.Substring(0, lastDot);
+                string variable = name.Substring(lastDot + 1);
+                if (subsection.Length == 0)
+                {
+                    name = variable;
+                }
+                else if (string.Equals(variable, "command", StringComparison.Ordinal))
+                {
+                    return string.Equals(subsection, command, StringComparison.Ordinal);
+                }
             }
 
             return name.Length > 0 && EqualsIgnoringAsciiCase(name, command);
