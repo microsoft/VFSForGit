@@ -94,6 +94,42 @@ jobs:
         name: GVFS_${{ matrix.configuration }}_x64
         path: gvfs-new
 
+    - name: Read installer coverage manifest
+      id: coverage_manifest
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      run: |
+        if (Test-Path gvfs-new\coverage-build.json) {
+          $manifest = Get-Content gvfs-new\coverage-build.json -Raw | ConvertFrom-Json
+          if ($manifest.SchemaVersion -ne 1 -or $manifest.SourceCommit -notmatch '^[a-f0-9]{40}$' -or $manifest.Repository -notmatch '^[\w.-]+/[\w.-]+$' -or $manifest.Architecture -ne 'x64' -or $manifest.SessionId -notmatch '^[\w.-]+$') {
+            throw 'Invalid installer coverage manifest.'
+          }
+          "enabled=true" >> $env:GITHUB_OUTPUT
+          "source_commit=$($manifest.SourceCommit)" >> $env:GITHUB_OUTPUT
+          "repository=$($manifest.Repository)" >> $env:GITHUB_OUTPUT
+        } else {
+          "enabled=false" >> $env:GITHUB_OUTPUT
+        }
+
+    - name: Checkout compiled coverage source
+      if: steps.skip.outputs.result != 'true' && steps.coverage_manifest.outputs.enabled == 'true'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        path: src
+        repository: ${{ steps.coverage_manifest.outputs.repository }}
+        ref: ${{ steps.coverage_manifest.outputs.source_commit }}
+        persist-credentials: false
+
+    - name: Locate coverage collector
+      if: steps.skip.outputs.result != 'true' && steps.coverage_manifest.outputs.enabled == 'true'
+      uses: ./src/.github/actions/setup-coverage
+
+    - name: Start coverage before upgrade scenario
+      id: coverage_start
+      if: steps.skip.outputs.result != 'true' && steps.coverage_manifest.outputs.enabled == 'true'
+      shell: pwsh
+      run: src\scripts\Invoke-Coverage.ps1 -Action Start -Directory coverage -BuildManifest gvfs-new\coverage-build.json -Suite Upgrade -Scenario '${{ matrix.scenario }}'
+
     # -- Setup --
 
     - name: Install Git
@@ -113,6 +149,7 @@ jobs:
     # -- Test Execution --
 
     - name: Run upgrade test - ${{ matrix.scenario }}
+      id: upgrade_test
       if: steps.skip.outputs.result != 'true'
       shell: pwsh
       run: |
@@ -384,6 +421,19 @@ jobs:
             throw "Unknown scenario: ${{ matrix.scenario }}"
           }
         }
+
+    - name: Stop upgrade coverage
+      if: always() && steps.coverage_start.outcome == 'success'
+      shell: pwsh
+      run: src\scripts\Invoke-Coverage.ps1 -Action Stop -Directory coverage -TestOutcome '${{ steps.upgrade_test.outcome }}'
+
+    - name: Upload upgrade coverage
+      if: always() && steps.coverage_start.outcome == 'success'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: Coverage_Upgrade_x64_${{ matrix.scenario }}
+        path: coverage
+        if-no-files-found: error
 
     - name: Upload service logs
       if: always() && steps.skip.outputs.result != 'true'
