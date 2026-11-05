@@ -47,6 +47,22 @@ Describe 'NativeAOT SCM coverage evidence' {
         { & $assertion -CoveragePath $path } | Should -Throw '*no executed GVFSService.OnStart*'
     }
 
+    It 'Accepts a service-only startup snapshot before other product processes run' {
+        $document = New-CoverageReport
+        foreach ($node in @($document.SelectNodes("//package[@name!='GVFS.Service']"))) {
+            [void]$node.ParentNode.RemoveChild($node)
+        }
+        $path = Save-CoverageReport $document
+        $result = & $assertion -CoveragePath $path -ServiceOnly | ConvertFrom-Json
+        $result.ScmServiceStartupCovered | Should -BeTrue
+        $result.Scope | Should -Be 'SCM service startup before tests'
+    }
+
+    It 'Rejects metadata-only service coverage in the startup snapshot' {
+        $path = Save-CoverageReport (New-CoverageReport -OnStartHits 0)
+        { & $assertion -CoveragePath $path -ServiceOnly } | Should -Throw '*no executed GVFSService.OnStart*'
+    }
+
     It 'Rejects console-service execution even when SCM startup also executes' {
         $path = Save-CoverageReport (New-CoverageReport -ConsoleHits 1)
         { & $assertion -CoveragePath $path } | Should -Throw '*Console-service execution contaminates*'

@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory)]
-    [string]$CoveragePath
+    [string]$CoveragePath,
+    [switch]$ServiceOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +17,9 @@ $requiredModules = @(
     'GVFS.Platform.Windows',
     'GVFS.Virtualization'
 )
+if ($ServiceOnly) {
+    $requiredModules = @('GVFS.Service')
+}
 
 foreach ($name in $requiredModules) {
     $module = @($packages | Where-Object { $_.name -eq $name })
@@ -50,7 +54,7 @@ if ($consoleHits.Count -ne 0) {
 }
 
 [ordered]@{
-    Scope = 'Managed NativeAOT product; x64 shard 0 of 12'
+    Scope = if ($ServiceOnly) { 'SCM service startup before tests' } else { 'Managed NativeAOT product; x64 shard 0 of 12' }
     Modules = $packages.name
     ScmServiceStartupCovered = $true
     ConsoleServiceEntryCovered = $false

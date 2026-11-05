@@ -178,8 +178,11 @@ jobs:
       if: steps.skip.outputs.result != 'true' && env.AOT_COVERAGE_PROBE == 'true'
       shell: pwsh
       run: |
-        dotnet tool install dotnet-coverage --version 18.8.0 --tool-path coverage-tools --configfile src\nuget.config
-        if ($LASTEXITCODE -ne 0) { throw 'Coverage collector installation failed.' }
+        $collectors = @(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -products * -latest -find Common7\IDE\Extensions\Microsoft\CodeCoverage.Console\Microsoft.CodeCoverage.Console.exe)
+        if ($LASTEXITCODE -ne 0 -or $collectors.Count -ne 1) { throw 'Expected one Visual Studio coverage collector.' }
+        Split-Path -Parent $collectors[0] >> $env:GITHUB_PATH
+        & $collectors[0] --version
+        if ($LASTEXITCODE -ne 0) { throw 'Visual Studio coverage collector cannot start.' }
         dotnet tool install dotnet-reportgenerator-globaltool --version 5.5.11 --tool-path coverage-tools --configfile src\nuget.config
         if ($LASTEXITCODE -ne 0) { throw 'Coverage renderer installation failed.' }
         New-Item -ItemType Directory -Path coverage -Force | Out-Null
@@ -189,9 +192,9 @@ jobs:
       if: steps.skip.outputs.result != 'true' && env.AOT_COVERAGE_PROBE == 'true'
       shell: pwsh
       run: |
-        .\coverage-tools\dotnet-coverage.exe collect --server-mode --background --session-id $env:COVERAGE_SESSION_ID --settings src\scripts\AotCoverage.config --output coverage\functional.cobertura.xml --output-format cobertura --log-file coverage\collector.log --log-level Verbose
+        Microsoft.CodeCoverage.Console.exe collect --server-mode --background --session-id $env:COVERAGE_SESSION_ID --settings src\scripts\AotCoverage.config --output coverage\functional.cobertura.xml --output-format cobertura --log-file coverage\collector.log --log-level Verbose
         if ($LASTEXITCODE -ne 0) { throw 'Coverage collector startup failed.' }
-        .\coverage-tools\dotnet-coverage.exe snapshot $env:COVERAGE_SESSION_ID --output coverage\before-install.coverage
+        Microsoft.CodeCoverage.Console.exe snapshot $env:COVERAGE_SESSION_ID --output coverage\before-install.coverage
         if ($LASTEXITCODE -ne 0) { throw 'Coverage collector readiness check failed.' }
 
     - name: ProjFS details (pre-install)
@@ -246,6 +249,17 @@ jobs:
           Select-Object Name,StartName,State,ProcessId,PathName |
           ConvertTo-Json | Set-Content coverage\installed-service.json
 
+    - name: Verify service coverage before functional tests
+      if: steps.skip.outputs.result != 'true' && env.AOT_COVERAGE_PROBE == 'true'
+      shell: pwsh
+      run: |
+        Microsoft.CodeCoverage.Console.exe snapshot $env:COVERAGE_SESSION_ID --output coverage\after-install.coverage
+        if ($LASTEXITCODE -ne 0) { throw 'Post-installation coverage snapshot failed.' }
+        Microsoft.CodeCoverage.Console.exe merge coverage\after-install.coverage --output coverage\after-install.cobertura.xml --output-format cobertura
+        if ($LASTEXITCODE -ne 0) { throw 'Post-installation coverage conversion failed.' }
+        src\scripts\Assert-AotCoverage.ps1 -CoveragePath coverage\after-install.cobertura.xml -ServiceOnly |
+          Tee-Object -FilePath coverage\service-startup-probe.json
+
     - name: Run functional tests
       if: steps.skip.outputs.result != 'true'
       shell: cmd
@@ -261,7 +275,7 @@ jobs:
       if: always() && env.AOT_COVERAGE_PROBE == 'true' && steps.coverage_start.outcome == 'success'
       shell: pwsh
       run: |
-        .\coverage-tools\dotnet-coverage.exe shutdown $env:COVERAGE_SESSION_ID
+        Microsoft.CodeCoverage.Console.exe shutdown $env:COVERAGE_SESSION_ID
         if ($LASTEXITCODE -ne 0) { throw 'Coverage collector shutdown failed.' }
         src\scripts\Assert-AotCoverage.ps1 -CoveragePath coverage\functional.cobertura.xml |
           Tee-Object -FilePath coverage\probe.json
