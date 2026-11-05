@@ -41,6 +41,9 @@ namespace GVFS.Mount
         // reliably trigger a commit pack download.
         private const int TrackedTreeCapacity = MissingTreeThresholdForDownloadingCommitPack * 20;
 
+        private const int StatusCacheDeleteAttempts = 5;
+        private const int StatusCacheDeleteRetryDelayMs = 100;
+
         private readonly bool showDebugWindow;
         private readonly string mountId;
 
@@ -667,6 +670,43 @@ namespace GVFS.Mount
         private void FailMountAndExit(string error, params object[] args)
         {
             this.FailMountAndExit(ReturnCode.GenericError, error, args);
+        }
+
+        /// <summary>
+        /// Deletes the status cache file of this enlistment. Without a GitStatusCache,
+        /// nothing updates or deletes that file, but git still reads it when
+        /// status.deserializePath names it. For example, an attended mount of a linked
+        /// worktree writes the path of the primary to the shared config.
+        /// </summary>
+        private void DeleteStatusCacheFileOrExit()
+        {
+            string statusCachePath = this.context.Enlistment.GitStatusCachePath;
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    if (this.context.FileSystem.FileExists(statusCachePath))
+                    {
+                        this.context.FileSystem.DeleteFile(statusCachePath);
+                    }
+
+                    return;
+                }
+                catch (IOException e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
+                {
+                    return;
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+                {
+                    if (attempt == StatusCacheDeleteAttempts)
+                    {
+                        this.FailMountAndExit("Failed to delete the unused git status cache file {0}: {1}", statusCachePath, e.Message);
+                        return;
+                    }
+
+                    Thread.Sleep(StatusCacheDeleteRetryDelayMs);
+                }
+            }
         }
 
         private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
@@ -1593,6 +1633,7 @@ namespace GVFS.Mount
             else
             {
                 this.tracer.RelatedInfo("Git status cache is not enabled");
+                this.DeleteStatusCacheFileOrExit();
             }
 
             this.gvfsDatabase = this.CreateOrReportAndExit(() => new GVFSDatabase(this.context.FileSystem, this.context.Enlistment.DotGVFSRoot, new SqliteDatabase()), "Failed to create database connection");

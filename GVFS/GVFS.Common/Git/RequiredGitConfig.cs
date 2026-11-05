@@ -62,8 +62,10 @@ namespace GVFS.Common.Git
             {
                 if (enlistment.IsWorktree && string.Equals(setting.Key, StatusDeserializePath, StringComparison.OrdinalIgnoreCase))
                 {
-                    // An empty value disables the status cache for this worktree. Without
-                    // a value, the worktree uses the status cache of the primary.
+                    // An empty value replaces a path that an attended mount of this worktree
+                    // wrote. It does not disable a readable shared path, because git keeps the
+                    // last readable path. Git rejects the cache of the primary, because that
+                    // cache does not match the index of this worktree.
                     worktreeConfigSettings.Add(setting.Key, setting.Value ?? string.Empty);
                     if (setting.Value != null && primaryStatusCachePath != null)
                     {

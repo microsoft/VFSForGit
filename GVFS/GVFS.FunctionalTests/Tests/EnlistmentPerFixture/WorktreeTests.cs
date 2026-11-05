@@ -678,6 +678,49 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase]
+        public void UnattendedMountDeletesTheStatusCacheThatItDoesNotUpdate()
+        {
+            string primaryStatusCachePath = this.GetPrimaryConfigValue(StatusDeserializePath);
+            string statusCacheFile = Path.Combine(this.Enlistment.DotGVFSRoot, "gitStatusCache", "GitStatusCache.dat");
+            string newFileName = $"unattended-status-{Guid.NewGuid():N}.txt";
+            string newFilePath = Path.Combine(this.Enlistment.RepoRoot, newFileName);
+            string unattendedValue = Environment.GetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable);
+
+            // The attended mount writes a status cache that matches the current index.
+            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status");
+            for (int i = 0; i < 10 && !File.Exists(statusCacheFile); i++)
+            {
+                Thread.Sleep(1000);
+            }
+
+            File.Exists(statusCacheFile).ShouldBeTrue("The attended mount did not write a status cache");
+
+            try
+            {
+                this.Enlistment.UnmountGVFS();
+                Environment.SetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable, "1");
+                this.Enlistment.MountGVFS();
+
+                File.Exists(statusCacheFile).ShouldBeFalse("The unattended mount kept a status cache that it does not update");
+
+                // The test writes the shared path again, as an attended worktree mount does,
+                // and then checks that git status does not use an old cache.
+                this.SetPrimaryConfig($"{StatusDeserializePath} \"{primaryStatusCachePath}\"");
+                File.WriteAllText(newFilePath, "not in the status cache");
+                ProcessResult status = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status --porcelain");
+                status.ExitCode.ShouldEqual(0, status.Errors);
+                status.Output.ShouldContain(newFileName);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable, unattendedValue);
+                try { File.Delete(newFilePath); } catch { }
+                this.Enlistment.UnmountGVFS();
+                this.Enlistment.MountGVFS();
+            }
+        }
+
         private static string GetStatusCachePath(string dotGVFSRoot)
         {
             return GitHelpers.ConvertPathToGitFormat(Path.Combine(dotGVFSRoot, "gitStatusCache", "GitStatusCache.dat"));
