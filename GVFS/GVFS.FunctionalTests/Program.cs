@@ -14,6 +14,12 @@ namespace GVFS.FunctionalTests
     {
         public static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0] == Tests.WhiteBox.DehydrateBackupProcess.Switch)
+            {
+                Environment.ExitCode = Tests.WhiteBox.DehydrateBackupProcess.Run(args);
+                return;
+            }
+
             Properties.Settings.Default.Initialize();
             GVFSPlatformLoader.Initialize();
 
