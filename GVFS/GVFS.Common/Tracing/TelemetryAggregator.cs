@@ -6,11 +6,12 @@ namespace GVFS.Common.Tracing
     internal sealed class TelemetryAggregator
     {
         internal const int Capacity = 64;
+        internal const string SummaryEventName = "TelemetrySummary";
         private static readonly TimeSpan Interval = TimeSpan.FromSeconds(60);
 
         private readonly object gate = new object();
         private readonly TimeProvider timeProvider;
-        private readonly Dictionary<(string EventName, string Operation, string Category, string Result), Counter> counters = new Dictionary<(string, string, string, string), Counter>();
+        private readonly Dictionary<(string EventName, string Operation, string Category, string Result, string PreviousState), Counter> counters = new Dictionary<(string, string, string, string, string), Counter>();
         private Counter overflow;
         private long intervalStarted;
 
@@ -36,7 +37,7 @@ namespace GVFS.Common.Tracing
                 TelemetryAggregation aggregation = message.TelemetryAggregation;
                 if (aggregation != null)
                 {
-                    (string, string, string, string) key = (message.EventName, aggregation.Operation, aggregation.FailureCategory.ToString(), aggregation.Result);
+                    (string, string, string, string, string) key = (message.EventName, aggregation.Operation, aggregation.FailureCategory.ToString(), aggregation.Result, aggregation.PreviousState);
                     if (!this.counters.TryGetValue(key, out Counter counter))
                     {
                         if (this.counters.Count < Capacity)
@@ -46,13 +47,14 @@ namespace GVFS.Common.Tracing
                         }
                         else
                         {
-                            this.overflow = this.overflow ?? new Counter(("Overflow", "Overflow", "Overflow", "Overflow"), now);
+                            this.overflow = this.overflow ?? new Counter(("Overflow", "Overflow", "Overflow", "Overflow", null), now);
                             counter = this.overflow;
                         }
                     }
 
                     sample = counter.ObservedCount == 0 && counter != this.overflow;
                     counter.ObservedCount += aggregation.Count;
+                    counter.LastObservedAtUtc = now;
                     if (sample)
                     {
                         ++counter.SampleCount;
@@ -100,11 +102,17 @@ namespace GVFS.Common.Tracing
                     { "SuppressedCount", counter.ObservedCount - counter.SampleCount },
                     { "IntervalStartUtc", counter.StartedAtUtc.ToString("O") },
                     { "IntervalEndUtc", now.ToString("O") },
+                    { "LastObservedAtUtc", counter.LastObservedAtUtc.ToString("O") },
                     { "OverflowCount", counter.Key.EventName == "Overflow" ? counter.ObservedCount : 0L },
                 };
+                if (counter.Key.PreviousState != null)
+                {
+                    metadata.Add("PreviousState", counter.Key.PreviousState);
+                }
+
                 emit(new TraceEventMessage
                 {
-                    EventName = "TelemetrySummary",
+                    EventName = SummaryEventName,
                     Level = EventLevel.Informational,
                     Keywords = Keywords.Telemetry,
                     Opcode = EventOpcode.Info,
@@ -129,16 +137,18 @@ namespace GVFS.Common.Tracing
 
         private sealed class Counter
         {
-            public Counter((string EventName, string Operation, string Category, string Result) key, DateTime startedAtUtc)
+            public Counter((string EventName, string Operation, string Category, string Result, string PreviousState) key, DateTime startedAtUtc)
             {
                 this.Key = key;
                 this.StartedAtUtc = startedAtUtc;
+                this.LastObservedAtUtc = startedAtUtc;
             }
 
-            public (string EventName, string Operation, string Category, string Result) Key { get; }
+            public (string EventName, string Operation, string Category, string Result, string PreviousState) Key { get; }
             public DateTime StartedAtUtc { get; }
             public long ObservedCount { get; set; }
             public long SampleCount { get; set; }
+            public DateTime LastObservedAtUtc { get; set; }
         }
     }
 }

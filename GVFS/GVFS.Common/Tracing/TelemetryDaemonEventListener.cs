@@ -151,7 +151,7 @@ namespace GVFS.Common.Tracing
                 {
                     EnlistmentId = this.enlistmentId,
                     MountId = this.mountId,
-                    GitCommandSessionId = this.GitCommandSessionId,
+                    GitCommandSessionId = message.EventName == TelemetryAggregator.SummaryEventName ? null : this.GitCommandSessionId,
                     Json = message.Payload
                 },
 
@@ -195,6 +195,7 @@ namespace GVFS.Common.Tracing
                 [JsonPropertyName("mountId")]
                 public string MountId { get; set; }
                 [JsonPropertyName("gitCommandSessionId")]
+                [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
                 public string GitCommandSessionId { get; set; }
                 [JsonPropertyName("json")]
                 public string Json { get; set; }

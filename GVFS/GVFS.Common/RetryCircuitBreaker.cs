@@ -78,14 +78,15 @@ namespace GVFS.Common
             }
 
             string[] states = { "Accepting", "Rejecting", "CooldownElapsed" };
+            string previousStateName = previousState < 0 ? "Unknown" : states[previousState];
             EventMetadata metadata = new EventMetadata
             {
-                { "PreviousState", previousState < 0 ? "Unknown" : states[previousState] },
+                { "PreviousState", previousStateName },
                 { "State", states[state] },
                 { "Trigger", trigger },
                 { "ObservedAtUtc", observedAtUtc.ToString("O") },
             };
-            metadata.SetTelemetryAggregation(nameof(RetryCircuitBreaker), TelemetryFailureCategory.BreakerState, states[state]);
+            metadata.SetTelemetryAggregation(nameof(RetryCircuitBreaker), TelemetryFailureCategory.BreakerState, states[state], previousState: previousStateName);
             tracer.RelatedEvent(EventLevel.Informational, "RetryCircuitBreakerState", metadata, Keywords.Telemetry);
         }
 

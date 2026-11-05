@@ -40,10 +40,12 @@ namespace GVFS.UnitTests.Tracing
                 Assert.That(root.GetProperty("IntervalEndUtc").GetDateTime(), Is.EqualTo(clock.UtcStart.AddSeconds(65).UtcDateTime));
                 Assert.That(root.TryGetProperty("RequestId", out _), Is.False);
                 Assert.That(root.GetProperty("OriginalEventName").GetString(), Is.EqualTo("NetworkError"));
-                Assert.That(root.GetProperty("TelemetrySchemaVersion").GetInt32(), Is.EqualTo(2));
+                Assert.That(root.GetProperty("TelemetrySchemaVersion").GetInt32(), Is.EqualTo(3));
                 Assert.That(root.GetProperty("TelemetryAggregation").GetString(), Is.EqualTo("Summary"));
                 Assert.That(root.GetProperty("AggregationResult").GetString(), Is.EqualTo("Rejected"));
                 Assert.That(root.GetProperty("OverflowCount").GetInt64(), Is.Zero);
+                Assert.That(root.GetProperty("LastObservedAtUtc").GetDateTime(), Is.EqualTo(clock.UtcStart.AddSeconds(5).UtcDateTime));
+                Assert.That(root.TryGetProperty("PreviousState", out _), Is.False);
                 Assert.That(output[1].Level, Is.EqualTo(EventLevel.Informational));
                 Assert.That(output[1].Opcode, Is.EqualTo(EventOpcode.Info));
             }

@@ -206,7 +206,7 @@ namespace GVFS.UnitTests.Tracing
                 {
                     Assert.That(payload.RootElement.GetProperty("result").GetString(), Is.EqualTo("0xC0000467"));
                     Assert.That(payload.RootElement.GetProperty("AggregationResult").GetString(), Is.EqualTo("Failed"));
-                    Assert.That(payload.RootElement.GetProperty("TelemetrySchemaVersion").GetInt32(), Is.EqualTo(2));
+                    Assert.That(payload.RootElement.GetProperty("TelemetrySchemaVersion").GetInt32(), Is.EqualTo(3));
                     Assert.That(payload.RootElement.GetProperty("TelemetryAggregation").GetString(), Is.EqualTo("Sample"));
                     Assert.That(payload.RootElement.TryGetProperty("Result", out _), Is.False);
                 }
@@ -224,6 +224,136 @@ namespace GVFS.UnitTests.Tracing
 
                 await disposal.WaitAsync(timeout.Token);
                 remote.Dispose();
+            }
+        }
+
+        [TestCase]
+        public async Task CrossCommandSummaryOmitsSessionButSamplesRetainIt()
+        {
+            string pipeName = "gvfs-telemetry-test-" + Guid.NewGuid().ToString("N");
+            TelemetryAggregatorTests.TestClock clock = new TelemetryAggregatorTests.TestClock();
+            using (CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+            using (NamedPipeServerStream server = CreateServer(pipeName))
+            using (StreamReader reader = new StreamReader(server, Encoding.UTF8, false, 1024, leaveOpen: true))
+            using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "Root", disableTelemetry: true))
+            using (TelemetryDaemonEventListener remote = new TelemetryDaemonEventListener("Microsoft.Git.GVFS", "synthetic-enlistment", "synthetic-mount", pipeName, null, clock))
+            {
+                tracer.AddEventListener(remote);
+                Task connection = server.WaitForConnectionAsync(timeout.Token);
+                tracer.SetGitCommandSessionId("session-A");
+                TraceRejection(tracer);
+                await connection;
+                Assert.That((await ReadMessage(reader, timeout.Token)).Payload.GitCommandSessionId, Is.EqualTo("session-A"));
+
+                tracer.SetGitCommandSessionId("session-B");
+                TraceRejection(tracer);
+                tracer.SetGitCommandSessionId("session-C");
+                clock.Advance(TimeSpan.FromSeconds(60));
+                tracer.RelatedEvent(EventLevel.Informational, "HealthyEvent", null, Keywords.Telemetry);
+                string summaryJson = await reader.ReadLineAsync(timeout.Token);
+                using (JsonDocument envelope = JsonDocument.Parse(summaryJson))
+                {
+                    Assert.That(envelope.RootElement.GetProperty("payload").TryGetProperty("gitCommandSessionId", out _), Is.False);
+                }
+
+                TelemetryDaemonEventListener.PipeMessage summary = TelemetryDaemonEventListener.PipeMessage.FromJson(summaryJson);
+                Assert.That(summary.EventName, Is.EqualTo("TelemetrySummary"));
+                Assert.That(summary.Payload.EnlistmentId, Is.EqualTo("synthetic-enlistment"));
+                Assert.That(summary.Payload.MountId, Is.EqualTo("synthetic-mount"));
+                using (JsonDocument payload = JsonDocument.Parse(summary.Payload.Json))
+                {
+                    Assert.That(payload.RootElement.GetProperty("ObservedCount").GetInt64(), Is.EqualTo(2));
+                    Assert.That(payload.RootElement.GetProperty("SampleCount").GetInt64(), Is.EqualTo(1));
+                    Assert.That(payload.RootElement.GetProperty("SuppressedCount").GetInt64(), Is.EqualTo(1));
+                }
+
+                TelemetryDaemonEventListener.PipeMessage healthy = await ReadMessage(reader, timeout.Token);
+                Assert.That(healthy.EventName, Is.EqualTo("HealthyEvent"));
+                Assert.That(healthy.Payload.GitCommandSessionId, Is.EqualTo("session-C"));
+            }
+        }
+
+        [TestCase]
+        public async Task BreakerRecoverySampleSurvivesInitialAcceptingAndRepeatedTransitions()
+        {
+            RetryCircuitBreaker.Reset();
+            try
+            {
+                string pipeName = "gvfs-telemetry-test-" + Guid.NewGuid().ToString("N");
+                TelemetryAggregatorTests.TestClock clock = new TelemetryAggregatorTests.TestClock();
+                using (CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+                using (NamedPipeServerStream server = CreateServer(pipeName))
+                using (StreamReader reader = new StreamReader(server, Encoding.UTF8, false, 1024, leaveOpen: true))
+                using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "Root", disableTelemetry: true))
+                using (TelemetryDaemonEventListener remote = new TelemetryDaemonEventListener("Microsoft.Git.GVFS", "synthetic-enlistment", "synthetic-mount", pipeName, null, clock))
+                {
+                    tracer.AddEventListener(remote);
+                    Task connection = server.WaitForConnectionAsync(timeout.Token);
+                    RetryWrapper<bool> wrapper = new RetryWrapper<bool>(1, CancellationToken.None, tracer: tracer);
+                    wrapper.Invoke(attempt => new RetryWrapper<bool>.CallbackResult(true));
+                    wrapper.Invoke(attempt =>
+                    {
+                        RetryCircuitBreaker.Configure(1, 30000);
+                        return new RetryWrapper<bool>.CallbackResult(new IOException("Synthetic failure"), shouldRetry: true);
+                    });
+                    RetryCircuitBreaker.Configure(1, 0);
+                    wrapper.Invoke(attempt => new RetryWrapper<bool>.CallbackResult(true));
+                    await connection;
+
+                    string[] previousStates = { "Unknown", "Accepting", "Rejecting", "CooldownElapsed" };
+                    string[] states = { "Accepting", "Rejecting", "CooldownElapsed", "Accepting" };
+                    for (int i = 0; i < states.Length; ++i)
+                    {
+                        TelemetryDaemonEventListener.PipeMessage sample = await ReadMessage(reader, timeout.Token);
+                        Assert.That(sample.EventName, Is.EqualTo("RetryCircuitBreakerState"));
+                        using (JsonDocument payload = JsonDocument.Parse(sample.Payload.Json))
+                        {
+                            Assert.That(payload.RootElement.GetProperty("PreviousState").GetString(), Is.EqualTo(previousStates[i]));
+                            Assert.That(payload.RootElement.GetProperty("State").GetString(), Is.EqualTo(states[i]));
+                            Assert.That(payload.RootElement.GetProperty("AggregationResult").GetString(), Is.EqualTo(states[i]));
+                        }
+                    }
+
+                    clock.Advance(TimeSpan.FromSeconds(10));
+                    wrapper.Invoke(attempt =>
+                    {
+                        RetryCircuitBreaker.Configure(1, 30000);
+                        return new RetryWrapper<bool>.CallbackResult(new IOException("Synthetic failure"), shouldRetry: true);
+                    });
+                    RetryCircuitBreaker.Configure(1, 0);
+                    clock.Advance(TimeSpan.FromSeconds(2));
+                    wrapper.Invoke(attempt =>
+                    {
+                        clock.Advance(TimeSpan.FromSeconds(1));
+                        return new RetryWrapper<bool>.CallbackResult(true);
+                    });
+                    tracer.RelatedEvent(EventLevel.Informational, "RepeatedTransitionsComplete", null, Keywords.Telemetry);
+                    Assert.That((await ReadMessage(reader, timeout.Token)).EventName, Is.EqualTo("RepeatedTransitionsComplete"));
+
+                    clock.Advance(TimeSpan.FromSeconds(60));
+                    tracer.RelatedEvent(EventLevel.Informational, "Flush", null, Keywords.Telemetry);
+                    for (int i = 0; i < states.Length; ++i)
+                    {
+                        TelemetryDaemonEventListener.PipeMessage summary = await ReadMessage(reader, timeout.Token);
+                        Assert.That(summary.EventName, Is.EqualTo("TelemetrySummary"));
+                        using (JsonDocument payload = JsonDocument.Parse(summary.Payload.Json))
+                        {
+                            Assert.That(payload.RootElement.GetProperty("PreviousState").GetString(), Is.EqualTo(previousStates[i]));
+                            Assert.That(payload.RootElement.GetProperty("AggregationResult").GetString(), Is.EqualTo(states[i]));
+                            Assert.That(payload.RootElement.GetProperty("ObservedCount").GetInt64(), Is.EqualTo(i == 0 ? 1 : 2));
+                            Assert.That(payload.RootElement.GetProperty("SampleCount").GetInt64(), Is.EqualTo(1));
+                            Assert.That(payload.RootElement.GetProperty("SuppressedCount").GetInt64(), Is.EqualTo(i == 0 ? 0 : 1));
+                            int[] lastSeconds = { 0, 10, 12, 13 };
+                            Assert.That(payload.RootElement.GetProperty("LastObservedAtUtc").GetDateTime(), Is.EqualTo(clock.UtcStart.AddSeconds(lastSeconds[i]).UtcDateTime));
+                        }
+                    }
+
+                    Assert.That((await ReadMessage(reader, timeout.Token)).EventName, Is.EqualTo("Flush"));
+                }
+            }
+            finally
+            {
+                RetryCircuitBreaker.Reset();
             }
         }
 

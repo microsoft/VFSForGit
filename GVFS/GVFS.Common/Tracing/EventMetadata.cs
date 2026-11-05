@@ -17,9 +17,9 @@ namespace GVFS.Common.Tracing
 
         public TelemetryAggregation TelemetryAggregation { get; private set; }
 
-        public void SetTelemetryAggregation(string operation, TelemetryFailureCategory failureCategory, string result, long count = 1)
+        public void SetTelemetryAggregation(string operation, TelemetryFailureCategory failureCategory, string result, long count = 1, string previousState = null)
         {
-            this.TelemetryAggregation = new TelemetryAggregation(operation, failureCategory, result, count);
+            this.TelemetryAggregation = new TelemetryAggregation(operation, failureCategory, result, count, previousState);
             this["TelemetrySchemaVersion"] = GVFS.Common.Tracing.TelemetryAggregation.SchemaVersion;
             this["TelemetryAggregation"] = "Sample";
             this["Operation"] = operation;
