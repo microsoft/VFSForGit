@@ -439,12 +439,22 @@ jobs:
         }
 
     - name: Upload complete coverage reports
+      id: coverage_reports
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ManagedCoverage
         path: coverage-report
         if-no-files-found: error
+
+    - name: Link source-level coverage reports
+      if: steps.coverage_reports.outcome == 'success'
+      shell: pwsh
+      env:
+        COVERAGE_ARTIFACT_URL: ${{ steps.coverage_reports.outputs.artifact-url }}
+      run: |
+        "[Download coverage reports]($env:COVERAGE_ARTIFACT_URL): ChangedLines.html contains per-line test evidence and links to the tested source." >> $env:GITHUB_STEP_SUMMARY
+        'Separate report folders: unit-x64, unit-arm64, functional-x64, functional-arm64, and upgrade-x64.' >> $env:GITHUB_STEP_SUMMARY
 
   result:
     runs-on: ubuntu-latest
