@@ -3,14 +3,24 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Git
 {
     [TestFixture]
     public class GitProcessTests
     {
+        // What git.exe prints on Windows while another process holds .git\config.
+        private const string LockedConfigErrors =
+            "warning: unable to access '.git/config': Permission denied\n" +
+            "warning: unable to access '.git/config': Permission denied\n" +
+            "fatal: unknown error occurred while reading the configuration files";
+
         [TestCase]
         public void BoundedGitOutputBuffer_KeepsShortOutput()
         {
@@ -146,6 +156,163 @@ namespace GVFS.UnitTests.Git
 
             result.ExitCodeIsFailure.ShouldBeFalse();
             result.StderrContainsErrors().ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void GetFromLocalConfigRetriesTransientFailureAndReturnsValue()
+        {
+            MockTracer tracer = new MockTracer();
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(tracer, delay => ++delayCount);
+            Queue<GitProcess.Result> results = new Queue<GitProcess.Result>();
+            results.Enqueue(new GitProcess.Result(
+                string.Empty,
+                LockedConfigErrors,
+                GitProcess.Result.GenericFailureCode));
+            results.Enqueue(new GitProcess.Result("configured-value\n", string.Empty, GitProcess.Result.SuccessCode));
+            process.SetExpectedCommandResult("config --local gvfs.test", () => results.Dequeue());
+
+            GitProcess.ConfigResult result = process.GetFromLocalConfig("gvfs.test");
+
+            result.TryParseAsString(out string value, out string error).ShouldBeTrue(error);
+            value.ShouldEqual("configured-value");
+            process.CommandsRun.Count.ShouldEqual(2);
+            delayCount.ShouldEqual(1);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            tracer.RelatedWarningEvents[0].ShouldContain("Transient failure while reading git config");
+        }
+
+        [TestCase]
+        public void GetFromLocalConfigDoesNotRetryMissingKey()
+        {
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => ++delayCount);
+            process.SetExpectedCommandResult(
+                "config --local gvfs.test",
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
+
+            GitProcess.ConfigResult result = process.GetFromLocalConfig("gvfs.test");
+
+            result.TryParseAsString(out string value, out string error).ShouldBeTrue(error);
+            value.ShouldBeNull();
+            process.CommandsRun.Count.ShouldEqual(1);
+            delayCount.ShouldEqual(0);
+        }
+
+        [TestCase]
+        public void GetFromLocalConfigStopsAfterRetryBudget()
+        {
+            MockTracer tracer = new MockTracer();
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(tracer, delay => ++delayCount);
+            process.SetExpectedCommandResult(
+                "config --local gvfs.test",
+                () => new GitProcess.Result(string.Empty, LockedConfigErrors, GitProcess.Result.GenericFailureCode));
+
+            GitProcess.ConfigResult result = process.GetFromLocalConfig("gvfs.test");
+
+            result.TryParseAsString(out string _, out string error).ShouldBeFalse();
+            error.ShouldContain("Permission denied");
+            process.CommandsRun.Count.ShouldEqual(GitConfigReadRetry.MaxAttempts);
+            delayCount.ShouldEqual(GitConfigReadRetry.MaxAttempts - 1);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(GitConfigReadRetry.MaxAttempts);
+            tracer.RelatedWarningEvents[GitConfigReadRetry.MaxAttempts - 1].ShouldContain("persisted after all attempts");
+        }
+
+        [TestCase]
+        public void GetFromLocalConfigDoesNotRetryWhenOnlyThePathContainsATransientPhrase()
+        {
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => ++delayCount);
+            process.SetExpectedCommandResult(
+                "config --local gvfs.test",
+                () => new GitProcess.Result(
+                    string.Empty,
+                    "fatal: unable to access 'C:/Permission denied/.git/config': No such file or directory",
+                    GitProcess.Result.GenericFailureCode));
+
+            process.GetFromLocalConfig("gvfs.test").TryParseAsString(out string _, out string _).ShouldBeFalse();
+
+            process.CommandsRun.Count.ShouldEqual(1);
+            delayCount.ShouldEqual(0);
+        }
+
+        [TestCase]
+        public void GetFromConfigRetriesTransientFailure()
+        {
+            MockGitProcess process = this.CreateProcessWithTransientThenSuccess(
+                "config gvfs.test",
+                "configured-value\n",
+                out Func<int> getDelayCount);
+
+            GitProcess.ConfigResult result = process.GetFromConfig("gvfs.test", forceOutsideEnlistment: true);
+
+            result.TryParseAsString(out string value, out string error).ShouldBeTrue(error);
+            value.ShouldEqual("configured-value");
+            getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void GetOriginUrlRetriesTransientFailure()
+        {
+            MockGitProcess process = this.CreateProcessWithTransientThenSuccess(
+                "config --local remote.origin.url",
+                "https://example.com/repo\n",
+                out Func<int> getDelayCount);
+
+            GitProcess.ConfigResult result = process.GetOriginUrl();
+
+            result.TryParseAsString(out string value, out string error).ShouldBeTrue(error);
+            value.ShouldEqual("https://example.com/repo");
+            getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void TryGetAllConfigRetriesTransientFailure()
+        {
+            MockGitProcess process = this.CreateProcessWithTransientThenSuccess(
+                "config --list --local",
+                "gvfs.test=configured-value\n",
+                out Func<int> getDelayCount);
+
+            process.TryGetAllConfig(localOnly: true, configSettings: out Dictionary<string, GitConfigSetting> settings).ShouldBeTrue();
+
+            settings.ContainsKey("gvfs.test").ShouldBeTrue();
+            getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void TryGetConfigUrlMatchRetriesTransientFailure()
+        {
+            MockGitProcess process = this.CreateProcessWithTransientThenSuccess(
+                "config --get-urlmatch http https://example.com/repo",
+                "http.proxy configured-value\n",
+                out Func<int> getDelayCount);
+
+            process.TryGetConfigUrlMatch("http", "https://example.com/repo", out Dictionary<string, GitConfigSetting> settings).ShouldBeTrue();
+
+            settings.ContainsKey("http.proxy").ShouldBeTrue();
+            getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void GetFromLocalConfigDoesNotRetryNonTransientFailure()
+        {
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => ++delayCount);
+            process.SetExpectedCommandResult(
+                "config --local gvfs.test",
+                () => new GitProcess.Result(
+                    string.Empty,
+                    "fatal: bad config line 4 in file .git/config",
+                    GitProcess.Result.GenericFailureCode));
+
+            GitProcess.ConfigResult result = process.GetFromLocalConfig("gvfs.test");
+
+            result.TryParseAsString(out string _, out string error).ShouldBeFalse();
+            error.ShouldContain("bad config line");
+            process.CommandsRun.Count.ShouldEqual(1);
+            delayCount.ShouldEqual(0);
         }
 
         [TestCase]
@@ -384,6 +551,45 @@ this is an error",
             GitProcess.QuoteGitPath(input).ShouldEqual(expected);
         }
 
+        [TestCase(30000)]
+        [TestCase(Timeout.Infinite)]
+        public void GitCommandWaitsForOutputCallbacks(int timeoutMs)
+        {
+            string gitPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "cmd", "git.exe");
+            if (!File.Exists(gitPath))
+            {
+                Assert.Ignore("Git is not installed at the expected path.");
+            }
+
+            OutputCallbackGitProcess gitProcess = new OutputCallbackGitProcess(gitPath);
+            using (ManualResetEventSlim callbackStarted = new ManualResetEventSlim())
+            using (ManualResetEventSlim releaseCallback = new ManualResetEventSlim())
+            {
+                bool callbackCompleted = false;
+                Task<GitProcess.Result> command = Task.Run(() => gitProcess.GetVersion(
+                    line =>
+                    {
+                        callbackStarted.Set();
+                        callbackCompleted = releaseCallback.Wait(TimeSpan.FromSeconds(10));
+                    },
+                    timeoutMs));
+
+                try
+                {
+                    callbackStarted.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("Git did not produce output");
+                    command.Wait(TimeSpan.FromSeconds(1)).ShouldBeFalse("The command returned before its output callback finished");
+                }
+                finally
+                {
+                    releaseCallback.Set();
+                    command.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("The command did not finish after its output callback was released");
+                }
+
+                command.Result.ExitCode.ShouldEqual(0);
+                callbackCompleted.ShouldBeTrue();
+            }
+        }
+
         [TestCase]
         [Description("Integration test: verify QuoteGitPath produces arguments that git actually receives correctly")]
         public void QuoteGitPath_RoundTripThroughProcess()
@@ -434,6 +640,39 @@ this is an error",
                         testPath,
                         $"Path round-trip failed for: {testPath} (quoted as: {quoted})");
                 }
+            }
+        }
+
+        private MockGitProcess CreateProcessWithTransientThenSuccess(string command, string successOutput, out Func<int> getDelayCount)
+        {
+            int delayCount = 0;
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => ++delayCount);
+            Queue<GitProcess.Result> results = new Queue<GitProcess.Result>();
+            results.Enqueue(new GitProcess.Result(string.Empty, LockedConfigErrors, GitProcess.Result.GenericFailureCode));
+            results.Enqueue(new GitProcess.Result(successOutput, string.Empty, GitProcess.Result.SuccessCode));
+            process.SetExpectedCommandResult(command, () => results.Dequeue());
+            getDelayCount = () => delayCount;
+            return process;
+        }
+
+        private sealed class OutputCallbackGitProcess : GitProcess
+        {
+            public OutputCallbackGitProcess(string gitPath)
+                : base(gitPath, workingDirectoryRoot: null)
+            {
+            }
+
+            public Result GetVersion(Action<string> onOutput, int timeoutMs)
+            {
+                return this.InvokeGitImpl(
+                    "--version",
+                    workingDirectory: null,
+                    dotGitDirectory: null,
+                    useReadObjectHook: false,
+                    writeStdIn: null,
+                    parseStdOutLine: onOutput,
+                    timeoutMs: timeoutMs,
+                    usePreCommandHook: false);
             }
         }
     }

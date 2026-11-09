@@ -96,16 +96,9 @@ namespace GVFS.CommandLine
 
         protected abstract string VerbName { get; }
 
-        public static bool TrySetRequiredGitConfigSettings(GVFSEnlistment enlistment)
+        public static bool TrySetRequiredGitConfigSettings(GVFSEnlistment enlistment, out string error)
         {
-            Dictionary<string, string> requiredSettings = RequiredGitConfig.GetRequiredSettings(enlistment);
-
-            if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
-            {
-                return false;
-            }
-
-            return true;
+            return RequiredGitConfig.TrySetRequiredSettings(enlistment, out error);
         }
 
         public static bool TrySetOptionalGitConfigSettings(Enlistment enlistment)
@@ -118,7 +111,7 @@ namespace GVFS.CommandLine
                 { "status.aheadbehind", "false" },
             };
 
-            if (!TrySetConfig(enlistment, optionalSettings, isRequired: false))
+            if (!TrySetMissingConfig(enlistment, optionalSettings))
             {
                 return false;
             }
@@ -237,7 +230,7 @@ namespace GVFS.CommandLine
         /// <summary>
         /// Combines authentication and GVFS config query into a single operation,
         /// eliminating a redundant HTTP round-trip. If <paramref name="retryConfig"/>
-        /// is null, a default RetryConfig is used.
+        /// is null, all retry settings are loaded from git config.
         /// If the config query fails but a valid <paramref name="fallbackCacheServer"/>
         /// URL is available, auth succeeds but <paramref name="serverGVFSConfig"/>
         /// will be null (caller should handle this gracefully).
@@ -252,12 +245,16 @@ namespace GVFS.CommandLine
         {
             ServerGVFSConfig config = null;
             string error = null;
+            if (retryConfig == null)
+            {
+                retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
+            }
 
             bool result = this.ShowStatusWhileRunning(
                 () => enlistment.Authentication.TryInitializeAndQueryGVFSConfig(
                     tracer,
                     enlistment,
-                    retryConfig ?? new RetryConfig(),
+                    retryConfig,
                     out config,
                     out error,
                     out _),
@@ -317,12 +314,7 @@ namespace GVFS.CommandLine
 
         protected RetryConfig GetRetryConfig(ITracer tracer, GVFSEnlistment enlistment, TimeSpan? timeoutOverride = null)
         {
-            RetryConfig retryConfig;
-            string error;
-            if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
-            {
-                this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
-            }
+            RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
 
             if (timeoutOverride.HasValue)
             {
@@ -659,39 +651,24 @@ You can specify a URL, a name of a configured cache server, or the special names
             return Guid.NewGuid().ToString("N");
         }
 
-        private static bool TrySetConfig(Enlistment enlistment, Dictionary<string, string> configSettings, bool isRequired)
+        private static bool TrySetMissingConfig(Enlistment enlistment, Dictionary<string, string> configSettings)
         {
             GitProcess git = new GitProcess(enlistment);
 
             Dictionary<string, GitConfigSetting> existingConfigSettings;
-
-            // If the settings are required, then only check local config settings, because we don't want to depend on
-            // global settings that can then change independent of this repo.
-            if (!git.TryGetAllConfig(localOnly: isRequired, configSettings: out existingConfigSettings))
+            if (!git.TryGetAllConfig(localOnly: false, configSettings: out existingConfigSettings))
             {
                 return false;
             }
 
             foreach (KeyValuePair<string, string> setting in configSettings)
             {
-                GitConfigSetting existingSetting;
-                if (setting.Value != null)
+                if (!existingConfigSettings.ContainsKey(setting.Key))
                 {
-                    if (!existingConfigSettings.TryGetValue(setting.Key, out existingSetting) ||
-                        (isRequired && !existingSetting.HasValue(setting.Value)))
+                    GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
+                    if (setConfigResult.ExitCodeIsFailure)
                     {
-                        GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
-                        if (setConfigResult.ExitCodeIsFailure)
-                        {
-                            return false;
-                        }
-                    }
-                }
-                else
-                {
-                    if (existingConfigSettings.TryGetValue(setting.Key, out existingSetting))
-                    {
-                        git.DeleteFromLocalConfig(setting.Key);
+                        return false;
                     }
                 }
             }
@@ -1185,10 +1162,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     {
                         if (retryConfig == null)
                         {
-                            if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
-                            {
-                                this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
-                            }
+                            retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
                         }
 
                         serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);

@@ -4,6 +4,8 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 
@@ -89,6 +91,16 @@ namespace GVFS.Common
         public WorktreeInfo Worktree { get; }
 
         public bool IsWorktree => this.Worktree != null;
+
+        public string PrimaryDotGVFSRoot => Path.Combine(this.PrimaryEnlistmentRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
+
+        /// <summary>
+        /// Path to the config.worktree file of this enlistment. Git reads it only when
+        /// extensions.worktreeConfig is enabled, and then it overrides the shared config.
+        /// </summary>
+        public string WorktreeConfigPath => Path.Combine(
+            this.IsWorktree ? this.Worktree.WorktreeGitDir : this.DotGitRoot,
+            GVFSConstants.DotGit.WorktreeConfigName);
 
         /// <summary>
         /// Path to the git index file. For worktrees this is in the
@@ -446,14 +458,61 @@ namespace GVFS.Common
             return true;
         }
 
-        public string GetMountId()
-        {
-            return this.GetId(GVFSConstants.GitConfig.MountId);
-        }
-
+        /// <summary>
+        /// Returns the enlistment id. The repo metadata of the primary is the source of
+        /// truth, and the shared git config keeps a copy of it. A linked worktree derives
+        /// its id from the primary id and the worktree name, because it must not write to
+        /// the shared config (see <see cref="RequiredGitConfig.TrySetRequiredSettings(GVFSEnlistment, out string)"/>).
+        /// </summary>
         public string GetEnlistmentId()
         {
+            if (this.IsWorktree)
+            {
+                this.TryGetPrimaryEnlistmentId(out string primaryEnlistmentId, out _);
+                return this.GetWorktreeEnlistmentId(primaryEnlistmentId);
+            }
+
+            if (RepoMetadata.TryReadEnlistmentId(this.DotGVFSRoot, out string enlistmentId, out _) &&
+                !string.IsNullOrWhiteSpace(enlistmentId))
+            {
+                return enlistmentId;
+            }
+
             return this.GetId(GVFSConstants.GitConfig.EnlistmentId);
+        }
+
+        /// <summary>
+        /// Reads the enlistment id from the repo metadata of the primary enlistment.
+        /// </summary>
+        public bool TryGetPrimaryEnlistmentId(out string primaryEnlistmentId, out string error)
+        {
+            return RepoMetadata.TryReadEnlistmentId(this.PrimaryDotGVFSRoot, out primaryEnlistmentId, out error);
+        }
+
+        /// <summary>
+        /// Returns the id that is derived from <paramref name="primaryEnlistmentId"/>, or
+        /// the id stored in the worktree's repo metadata when the primary id is empty.
+        /// </summary>
+        public string GetWorktreeEnlistmentId(string primaryEnlistmentId)
+        {
+            if (!string.IsNullOrWhiteSpace(primaryEnlistmentId))
+            {
+                return CreateWorktreeEnlistmentId(primaryEnlistmentId, this.Worktree.Name);
+            }
+
+            RepoMetadata.TryReadEnlistmentId(this.DotGVFSRoot, out string storedEnlistmentId, out _);
+            return storedEnlistmentId;
+        }
+
+        /// <summary>
+        /// Derives a stable enlistment id for a linked worktree, in the same format as
+        /// other enlistment ids. Git keeps a worktree name when the worktree moves, and
+        /// reuses it when a worktree with the same name is added again.
+        /// </summary>
+        public static string CreateWorktreeEnlistmentId(string primaryEnlistmentId, string worktreeName)
+        {
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(primaryEnlistmentId + ":" + worktreeName.ToLowerInvariant()));
+            return Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
         }
 
         private void SetOnce<T>(T value, ref T valueToSet)

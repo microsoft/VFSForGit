@@ -62,6 +62,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         public ConcurrentHashSet<string> SparseEntries { get; }
 
         public bool ThrowOperationCanceledExceptionOnProjectionRequest { get; set; }
+        public bool ThrowSizesUnavailableExceptionOnProjectionRequest { get; set; }
 
         public bool ProjectionParseComplete { get; set; }
 
@@ -203,6 +204,11 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         {
             this.waitForGetProjectedItems.Set();
 
+            if (this.ThrowSizesUnavailableExceptionOnProjectionRequest)
+            {
+                throw new SizesUnavailableException("Synthetic missing size");
+            }
+
             if (this.ThrowOperationCanceledExceptionOnProjectionRequest)
             {
                 throw new OperationCanceledException();
@@ -237,6 +243,11 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             out string parentFolderPath)
         {
             this.waitForGetProjectedFileInfo.Set();
+
+            if (this.ThrowSizesUnavailableExceptionOnProjectionRequest)
+            {
+                throw new SizesUnavailableException("Synthetic missing size");
+            }
 
             if (this.ThrowOperationCanceledExceptionOnProjectionRequest)
             {

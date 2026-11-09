@@ -104,7 +104,7 @@ namespace GVFS.FunctionalTests.Tools
             bool removeFSMonitorMessages,
             bool removeGvfsHealthMessages)
         {
-            if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages || removePartialHydrationMessages || removeFSMonitorMessages))
+            if (!string.IsNullOrEmpty(input) && (removeWaitingMessages || removeUpgradeMessages || removePartialHydrationMessages || removeFSMonitorMessages || removeGvfsHealthMessages))
             {
                 IEnumerable<string> lines = SplitLinesKeepingNewlines(input);
                 IEnumerable<string> filteredLines = lines.Where(line =>
@@ -113,7 +113,7 @@ namespace GVFS.FunctionalTests.Tools
                         (removeUpgradeMessages && line.StartsWith("A new version of VFS for Git is available.")) ||
                         (removeWaitingMessages && line.StartsWith("Waiting for ")) ||
                         (removePartialHydrationMessages && line.StartsWith("You are in a partially-hydrated checkout with ")) ||
-                        (removeGvfsHealthMessages && line.TrimEnd().EndsWith("Run 'gvfs health' for details.")) ||
+                        (removeGvfsHealthMessages && (line.StartsWith("Estimated hydration: ") || line.TrimEnd().EndsWith("Run 'gvfs health' for details."))) ||
                         (removeFSMonitorMessages && line.TrimEnd().EndsWith(" is incompatible with fsmonitor")))
                     {
                         return false;

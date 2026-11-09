@@ -25,7 +25,7 @@ namespace GVFS.Common
 
         public static bool TryLoadFromGitConfig(ITracer tracer, Enlistment enlistment, out GitStatusCacheConfig gitStatusCacheConfig, out string error)
         {
-            return TryLoadFromGitConfig(tracer, new GitProcess(enlistment), out gitStatusCacheConfig, out error);
+            return TryLoadFromGitConfig(tracer, enlistment.CreateGitProcess(tracer), out gitStatusCacheConfig, out error);
         }
 
         public static bool TryLoadFromGitConfig(ITracer tracer, GitProcess git, out GitStatusCacheConfig gitStatusCacheConfig, out string error)
