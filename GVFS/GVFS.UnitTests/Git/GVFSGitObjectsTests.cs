@@ -15,8 +15,11 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Reflection;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Git
 {
@@ -49,6 +52,40 @@ namespace GVFS.UnitTests.Git
             // Reset on exit too, so this fixture cannot leave the process-global circuit dirty for a
             // later breaker-sensitive fixture (NUnit does not guarantee cross-fixture ordering).
             RetryCircuitBreaker.Reset();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void LocalBreakerHydrationFailureMarksBothLayersWithoutChangingTheCategory(bool nestedRejection)
+        {
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+            GVFSGitObjects objects = this.CreateTestableGVFSGitObjects(httpObjects, new MissingGitRepo(new MockTracer()), out MockTracer tracer);
+            if (nestedRejection)
+            {
+                httpObjects.RejectWithOpenCircuit = true;
+            }
+            else
+            {
+                RetryCircuitBreaker.Configure(1, 30000);
+                RetryCircuitBreaker.RecordFailure();
+            }
+            EventMetadata outerMetadata = new EventMetadata();
+
+            bool copied = objects.TryCopyBlobContentStream(
+                ValidTestObjectFileSha1,
+                CancellationToken.None,
+                GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("Local rejection must not copy a blob."),
+                out GVFSGitObjects.BlobHydrationFailureCategory category,
+                failureMetadata: outerMetadata);
+
+            Assert.That(copied, Is.False);
+            Assert.That(category, Is.EqualTo(nestedRejection ? GVFSGitObjects.BlobHydrationFailureCategory.DownloadFailed : GVFSGitObjects.BlobHydrationFailureCategory.NetworkUnavailable));
+            Assert.That(outerMetadata.TelemetryAggregation.FailureCategory, Is.EqualTo(TelemetryFailureCategory.CircuitBreakerOpen));
+            Assert.That(outerMetadata["AggregationResult"], Is.EqualTo("Failed"));
+            Assert.That(tracer.RelatedErrorEvents.Single(), Does.Contain("\"FailureCategory\":\"CircuitBreakerOpen\""));
+            Assert.That(tracer.RelatedErrorEvents.Single(), Does.Contain(nestedRejection ? "\"AggregationResult\":\"Failed\"" : "\"AggregationResult\":\"Rejected\""));
+            Assert.That(tracer.RelatedEventMetadata, Has.Some.Matches<EventMetadata>(metadata => metadata.ContainsKey("State") && (string)metadata["State"] == (nestedRejection ? "Accepting" : "Rejecting")));
         }
 
         [TestCase]
@@ -222,6 +259,7 @@ namespace GVFS.UnitTests.Git
             terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"DownloadFailed\"");
             terminalError.ShouldContain("\"HttpStatusCode\":401");
             terminalError.ShouldContain("\"HttpStatusName\":\"Unauthorized\"");
+            terminalError.ShouldNotContain(false, "TelemetryAggregation");
         }
 
         [TestCase]
@@ -260,6 +298,7 @@ namespace GVFS.UnitTests.Git
             terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"DownloadFailed\"");
             terminalError.ShouldContain("\"HttpStatusCode\":503");
             terminalError.ShouldContain("\"HttpStatusName\":\"ServiceUnavailable\"");
+            terminalError.ShouldNotContain(false, "TelemetryAggregation");
         }
 
         [TestCase]
@@ -404,17 +443,31 @@ namespace GVFS.UnitTests.Git
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
             GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, throwingRepo, out MockTracer tracer);
 
+            EventMetadata outerMetadata = new EventMetadata();
             bool copied = dut.TryCopyBlobContentStream(
                 ValidTestObjectFileSha1,
                 new CancellationToken(),
                 GVFSGitObjects.RequestSource.FileStreamCallback,
                 (stream, length) => Assert.Fail("Should not be able to call copy stream callback"),
-                out GVFSGitObjects.BlobHydrationFailureCategory failureCategory);
+                out GVFSGitObjects.BlobHydrationFailureCategory failureCategory,
+                failureMetadata: outerMetadata);
 
             copied.ShouldEqual(false);
             failureCategory.ShouldEqual(expected);
             string terminalError = tracer.RelatedErrorEvents.First(e => e.Contains("Failed to provide blob contents"));
             terminalError.ShouldContain("\"BlobHydrationFailureCategory\":\"" + expected + "\"");
+            if (expected == GVFSGitObjects.BlobHydrationFailureCategory.NetworkUnavailable)
+            {
+                Assert.That(terminalError, Does.Contain("\"FailureCategory\":\"NetworkUnavailable\""));
+                Assert.That(terminalError, Does.Contain("\"AggregationResult\":\"Failed\""));
+                Assert.That(outerMetadata.TelemetryAggregation.FailureCategory, Is.EqualTo(TelemetryFailureCategory.NetworkUnavailable));
+                Assert.That(outerMetadata["AggregationResult"], Is.EqualTo("Failed"));
+            }
+            else
+            {
+                Assert.That(terminalError, Does.Not.Contain("TelemetryAggregation"));
+                Assert.That(outerMetadata.TelemetryAggregation, Is.Null);
+            }
         }
 
         [TestCase]
@@ -1031,6 +1084,216 @@ namespace GVFS.UnitTests.Git
             tracer.RelatedEventNames.ShouldContain(e => e == "TryCopyBlobContentStream_MalformedBlobSha");
         }
 
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public async Task CoalescedWaiterDoesNotInheritTheDownloadOwnersCancellation(bool namedPipeWaiter, bool cancelWaiter)
+        {
+            const string ObjectSha = "78981922613b2afb6025042ff6bd878ac1994e85";
+            using CancellationTokenSource ownerCancellation = new CancellationTokenSource();
+            using CancellationTokenSource waiterCancellation = new CancellationTokenSource();
+            using CancellationTokenSource serverCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using ManualResetEventSlim bodyStarted = new ManualResetEventSlim();
+            using CoalescedDownloadTracer tracer = new CoalescedDownloadTracer();
+            using ManualResetEventSlim waiterJoined = tracer.WaiterJoined;
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            string endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+            int requests = 0;
+            Task server = this.ServeCanceledThenSuccessfulObject(
+                listener, ObjectSha, () => Interlocked.Increment(ref requests), serverCancellation.Token);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(
+                TestEnlistmentRoot, endpoint, "mock:\\git", new MockGitProcess());
+            enlistment.InitializeCachePathsFromKey(TestLocalCacheRoot, TestObjectRoot);
+            using GitObjectsHttpRequestor requestor = new GitObjectsHttpRequestor(
+                tracer, enlistment, new CacheServerInfo(endpoint, "loopback"), new RetryConfig(0));
+            int objectAvailable = 0;
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks
+            {
+                OnFileExists = path => false,
+                OnMoveFile = (source, target) => Volatile.Write(ref objectAvailable, 1),
+                OnOpenFileStream = (path, mode, access) => access == FileAccess.Read
+                    ? new MemoryStream(this.validTestObjectFileContents)
+                    : new BodyReadMemoryStream(bodyStarted),
+            };
+            using GitRepo repository = new DownloadedBlobRepo(tracer, () => Volatile.Read(ref objectAvailable) != 0);
+            GVFSGitObjects objects = new GVFSGitObjects(
+                new GVFSContext(tracer, fileSystem, repository, enlistment), requestor);
+            Task<bool> owner = Task.Run(() => objects.TryCopyBlobContentStream(
+                ObjectSha, ownerCancellation.Token, GVFSGitObjects.RequestSource.FileStreamCallback,
+                (stream, length) => Assert.Fail("Canceled owner must not copy the blob."), out _));
+            Task<bool> waiter = null;
+            try
+            {
+                bodyStarted.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true);
+                waiter = Task.Run(() =>
+                {
+                    if (namedPipeWaiter)
+                    {
+                        return objects.TryDownloadAndSaveObject(
+                            ObjectSha, GVFSGitObjects.RequestSource.NamedPipeMessage)
+                            == GitObjects.DownloadAndSaveObjectResult.Success;
+                    }
+
+                    return objects.TryCopyBlobContentStream(
+                        ObjectSha, waiterCancellation.Token, GVFSGitObjects.RequestSource.FileStreamCallback,
+                        (stream, length) =>
+                        {
+                            length.ShouldEqual(2L);
+                            stream.ReadByte().ShouldEqual((int)'a');
+                        }, out _);
+                });
+                tracer.WaiterJoined.Wait(TimeSpan.FromSeconds(5)).ShouldEqual(true);
+                if (cancelWaiter)
+                {
+                    waiterCancellation.Cancel();
+                }
+
+                ownerCancellation.Cancel();
+                Assert.CatchAsync<OperationCanceledException>(async () => await owner.WaitAsync(TimeSpan.FromSeconds(5)));
+                if (cancelWaiter)
+                {
+                    Assert.CatchAsync<OperationCanceledException>(async () => await waiter.WaitAsync(TimeSpan.FromSeconds(5)));
+                }
+                else
+                {
+                    (await waiter.WaitAsync(TimeSpan.FromSeconds(5))).ShouldEqual(true);
+                }
+
+                requests.ShouldEqual(cancelWaiter ? 1 : 2);
+                objects.inflightDownloads.Count.ShouldEqual(0);
+                RetryCircuitBreaker.ConsecutiveFailures.ShouldEqual(0);
+                tracer.SnapshotRelatedEvents().Count(
+                    record => record.Name == "TryDownloadAndSaveObject_CoalescedCancellation")
+                    .ShouldEqual(cancelWaiter ? 0 : 1);
+            }
+            finally
+            {
+                ownerCancellation.Cancel();
+                waiterCancellation.Cancel();
+                serverCancellation.Cancel();
+                listener.Stop();
+                await ObserveCanceledDownloadTask(owner);
+                if (waiter != null)
+                {
+                    await ObserveCanceledDownloadTask(waiter);
+                }
+
+                await ObserveCanceledDownloadTask(server);
+            }
+        }
+
+        private async Task ServeCanceledThenSuccessfulObject(
+            TcpListener listener, string objectSha, Action onRequest, CancellationToken cancellationToken)
+        {
+            for (int attempt = 0; attempt < 2; ++attempt)
+            {
+                using TcpClient client = await listener.AcceptTcpClientAsync(cancellationToken);
+                using NetworkStream stream = client.GetStream();
+                using (StreamReader reader = new StreamReader(stream, Encoding.ASCII, false, 1024, leaveOpen: true))
+                {
+                    string request = await reader.ReadLineAsync(cancellationToken);
+                    request.ShouldContain(objectSha);
+                    string line;
+                    do
+                    {
+                        line = await reader.ReadLineAsync(cancellationToken);
+                    }
+                    while (!string.IsNullOrEmpty(line));
+                }
+
+                onRequest();
+                byte[] headers = Encoding.ASCII.GetBytes(
+                    $"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: application/x-git-loose-object\r\nContent-Length: {this.validTestObjectFileContents.Length}\r\n\r\n");
+                await stream.WriteAsync(headers.AsMemory(), cancellationToken);
+                if (attempt == 0)
+                {
+                    await stream.WriteAsync(this.validTestObjectFileContents.AsMemory(0, 8), cancellationToken);
+                    try
+                    {
+                        (await stream.ReadAsync(new byte[1].AsMemory(), cancellationToken)).ShouldEqual(0);
+                    }
+                    catch (IOException e) when (e.InnerException is SocketException socketError &&
+                        socketError.SocketErrorCode == SocketError.ConnectionReset)
+                    {
+                        // A canceled HTTP response can close the socket with a reset.
+                    }
+                }
+                else
+                {
+                    await stream.WriteAsync(this.validTestObjectFileContents.AsMemory(), cancellationToken);
+                }
+            }
+        }
+
+        private static async Task ObserveCanceledDownloadTask(Task task)
+        {
+            try
+            {
+                await task.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        private sealed class CoalescedDownloadTracer : MockTracer
+        {
+            public ManualResetEventSlim WaiterJoined { get; } = new ManualResetEventSlim();
+
+            public override void RelatedEvent(EventLevel level, string name, EventMetadata metadata)
+            {
+                base.RelatedEvent(level, name, metadata);
+                if (name == "TryDownloadAndSaveObject_CoalescedRequest")
+                {
+                    this.WaiterJoined.Set();
+                }
+            }
+        }
+
+        private sealed class BodyReadMemoryStream : MemoryStream
+        {
+            private readonly ManualResetEventSlim bodyStarted;
+
+            public BodyReadMemoryStream(ManualResetEventSlim bodyStarted)
+            {
+                this.bodyStarted = bodyStarted;
+            }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                base.Write(buffer, offset, count);
+                if (count > 0)
+                {
+                    this.bodyStarted.Set();
+                }
+            }
+        }
+
+        private sealed class DownloadedBlobRepo : GitRepo
+        {
+            private readonly Func<bool> objectAvailable;
+
+            public DownloadedBlobRepo(ITracer tracer, Func<bool> objectAvailable)
+                : base(tracer)
+            {
+                this.objectAvailable = objectAvailable;
+            }
+
+            public override bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
+            {
+                if (!this.objectAvailable())
+                {
+                    return false;
+                }
+
+                using MemoryStream stream = new MemoryStream(new byte[] { (byte)'a', (byte)'\n' });
+                writeAction(stream, stream.Length);
+                return true;
+            }
+        }
+
         private GVFSGitObjects CreateTestableGVFSGitObjects(GitObjectsHttpRequestor httpObjects, MockFileSystemWithCallbacks fileSystem)
         {
             return this.CreateTestableGVFSGitObjects(httpObjects, fileSystem, out _);
@@ -1082,6 +1345,7 @@ namespace GVFS.UnitTests.Git
             // i.e. Result is non-null but carries no HTTP status (HttpStatusCodeResult == 0). This
             // exercises the "download failed without a status" branch of the telemetry status capture.
             public bool FailWithoutStatus { get; set; }
+            public bool RejectWithOpenCircuit { get; set; }
 
             public byte[] ContentBytesToServe { get; set; }
 
@@ -1119,6 +1383,11 @@ namespace GVFS.UnitTests.Git
                 bool preferBatchedLooseObjects)
             {
                 this.TryDownloadObjectsCallCount++;
+
+                if (this.RejectWithOpenCircuit)
+                {
+                    return new RetryWrapper<GitObjectTaskResult>.InvocationResult(1, new CircuitBreakerOpenException());
+                }
 
                 if (this.StatusCodeToReturn.HasValue)
                 {

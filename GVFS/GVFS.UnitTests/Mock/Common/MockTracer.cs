@@ -2,6 +2,7 @@ using GVFS.Common;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
 namespace GVFS.UnitTests.Mock.Common
@@ -9,10 +10,7 @@ namespace GVFS.UnitTests.Mock.Common
     public class MockTracer : ITracer
     {
         private AutoResetEvent waitEvent;
-
-        // Guards the parallel RelatedEventNames / RelatedEventMetadata lists so their appends stay
-        // index-aligned even if two callbacks report events concurrently.
-        private readonly object relatedEventLock = new object();
+        private readonly object relatedEventsLock = new object();
 
         public MockTracer()
         {
@@ -22,11 +20,13 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedWarningKeywords = new List<Keywords>();
             this.RelatedErrorEvents = new List<string>();
             this.RelatedEventNames = new List<string>();
+            this.RelatedEventLevels = new List<EventLevel>();
             this.RelatedEventKeywords = new List<Keywords>();
             this.RelatedEventMetadata = new List<EventMetadata>();
             this.RelatedEventMetadataSerialized = new List<string>();
             this.StopMetadata = new List<EventMetadata>();
             this.TelemetryWarnings = new List<EventMetadata>();
+            this.StartMetadata = new List<EventMetadata>();
         }
 
         public MockTracer StartActivityTracer { get; private set; }
@@ -40,6 +40,7 @@ namespace GVFS.UnitTests.Mock.Common
         // Names of events reported via RelatedEvent (which, unlike RelatedInfo/Warning/Error,
         // do not otherwise get recorded). Lets tests assert a specific diagnostic event fired.
         public List<string> RelatedEventNames { get; }
+        public List<EventLevel> RelatedEventLevels { get; }
         public List<Keywords> RelatedEventKeywords { get; }
         public List<EventMetadata> RelatedEventMetadata { get; }
 
@@ -50,6 +51,7 @@ namespace GVFS.UnitTests.Mock.Common
         // Metadata passed to each Stop() call, in order — lets tests assert on activity-summary
         // fields (e.g. HydrateFilesStage's FailureSignatureCounts) that Stop would otherwise discard.
         public List<EventMetadata> StopMetadata { get; }
+        public List<EventMetadata> StartMetadata { get; }
 
         // Warnings reported with Keywords.Telemetry, which a telemetry listener would ship off the machine.
         public List<EventMetadata> TelemetryWarnings { get; }
@@ -59,36 +61,58 @@ namespace GVFS.UnitTests.Mock.Common
             this.waitEvent.WaitOne();
         }
 
-        public void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata)
+        public virtual void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata)
         {
-            lock (this.relatedEventLock)
-            {
-                this.RelatedEventNames.Add(eventName);
-                this.RelatedEventKeywords.Add(Keywords.None);
-                this.RelatedEventMetadata.Add(metadata);
-                this.RelatedEventMetadataSerialized.Add(metadata != null ? GVFSJsonOptions.Serialize(metadata) : string.Empty);
-            }
+            this.RecordEvent(error, eventName, metadata, Keywords.None);
+        }
 
-            if (eventName == this.WaitRelatedEventName)
+        public virtual void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata, Keywords keyword)
+        {
+            this.RecordEvent(error, eventName, metadata, keyword);
+        }
+
+        public RecordedEvent[] SnapshotRelatedEvents()
+        {
+            lock (this.relatedEventsLock)
             {
-                this.waitEvent.Set();
+                return this.RelatedEventNames.Select((name, index) => new RecordedEvent(
+                    name,
+                    this.RelatedEventLevels[index],
+                    this.RelatedEventMetadata[index] == null ? null : new EventMetadata(this.RelatedEventMetadata[index]),
+                    this.RelatedEventKeywords[index])).ToArray();
             }
         }
 
-        public void RelatedEvent(EventLevel error, string eventName, EventMetadata metadata, Keywords keyword)
+        private void RecordEvent(EventLevel level, string eventName, EventMetadata metadata, Keywords keyword)
         {
-            lock (this.relatedEventLock)
+            lock (this.relatedEventsLock)
             {
                 this.RelatedEventNames.Add(eventName);
+                this.RelatedEventLevels.Add(level);
                 this.RelatedEventKeywords.Add(keyword);
                 this.RelatedEventMetadata.Add(metadata);
                 this.RelatedEventMetadataSerialized.Add(metadata != null ? GVFSJsonOptions.Serialize(metadata) : string.Empty);
+                if (eventName == this.WaitRelatedEventName)
+                {
+                    this.waitEvent.Set();
+                }
+            }
+        }
+
+        public sealed class RecordedEvent
+        {
+            public RecordedEvent(string name, EventLevel level, EventMetadata metadata, Keywords keyword)
+            {
+                this.Name = name;
+                this.Level = level;
+                this.Metadata = metadata;
+                this.Keyword = keyword;
             }
 
-            if (eventName == this.WaitRelatedEventName)
-            {
-                this.waitEvent.Set();
-            }
+            public string Name { get; }
+            public EventLevel Level { get; }
+            public EventMetadata Metadata { get; }
+            public Keywords Keyword { get; }
         }
 
         public void RelatedInfo(string message)
@@ -182,6 +206,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public ITracer StartActivity(string activityName, EventLevel level, Keywords startStopKeywords, EventMetadata metadata)
         {
+            this.StartMetadata.Add(metadata);
             this.StartActivityTracer = this.StartActivityTracer ?? new MockTracer();
             return this.StartActivityTracer;
         }

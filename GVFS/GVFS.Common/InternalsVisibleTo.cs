@@ -2,3 +2,4 @@
 
 [assembly: InternalsVisibleTo("GVFS.UnitTests")]
 [assembly: InternalsVisibleTo("GVFS.Mount")]
+[assembly: InternalsVisibleTo("GVFS.Hooks")]

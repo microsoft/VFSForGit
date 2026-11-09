@@ -84,5 +84,19 @@ namespace GVFS.UnitTests.Http
 
             HttpRequestor.GetAuthorityForTelemetry(uri).ShouldEqual("cache.example.com:8443");
         }
+
+        [TestCase("", "")]
+        [TestCase("cache-01_test.example", "cache-01_test.example")]
+        [TestCase("cache:\r\nname?secret", "cache___name_secret")]
+        public void CacheNameTelemetryContainsOnlyIdentityCharacters(string input, string expected)
+        {
+            HttpRequestor.GetCacheNameForTelemetry(input).ShouldEqual(expected);
+        }
+
+        [TestCase]
+        public void CacheNameTelemetryHasABoundedLength()
+        {
+            HttpRequestor.GetCacheNameForTelemetry(new string('a', 1000)).ShouldEqual(new string('a', 128));
+        }
     }
 }

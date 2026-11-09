@@ -344,8 +344,21 @@ jobs:
   result:
     runs-on: ubuntu-latest
     name: Build, Unit and Functional Tests Successful
-    needs: [functional_tests, upgrade_tests]
+    needs: [validate, build, functional_tests, upgrade_tests]
+    # Run even when a needed job failed, was cancelled or timed out: a skipped
+    # job counts as a *passing* required check, so this job must not be skipped.
+    # Jobs in this workflow never skip themselves on purpose (they skip their
+    # steps instead), so anything other than `success` is a failure here.
+    if: always()
 
     steps:
+      - name: Fail unless every job succeeded
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "::error::Not all jobs succeeded: $RESULTS"
+          exit 1
+
       - name: Success! # for easier identification of successful runs in the Checks Required for Pull Requests
         run: echo "Workflow run is successful!"

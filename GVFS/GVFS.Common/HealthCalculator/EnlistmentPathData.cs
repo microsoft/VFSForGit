@@ -12,6 +12,8 @@ namespace GVFS.Common
 {
     public class EnlistmentPathData
     {
+        private readonly Func<IEnumerable<string>> modifiedPathsProvider;
+
         public List<string> GitFolderPaths;
         public List<string> GitFilePaths;
         public List<string> PlaceholderFolderPaths;
@@ -21,7 +23,13 @@ namespace GVFS.Common
         public List<string> GitTrackingPaths;
 
         public EnlistmentPathData()
+            : this(null)
         {
+        }
+
+        public EnlistmentPathData(Func<IEnumerable<string>> modifiedPathsProvider)
+        {
+            this.modifiedPathsProvider = modifiedPathsProvider;
             this.GitFolderPaths = new List<string>();
             this.GitFilePaths = new List<string>();
             this.PlaceholderFolderPaths = new List<string>();
@@ -115,6 +123,18 @@ namespace GVFS.Common
 
         public virtual void LoadModifiedPaths(GVFSEnlistment enlistment, ITracer tracer, HydrationSummaryDiagnostics diagnostics = null)
         {
+            if (this.modifiedPathsProvider != null)
+            {
+                // Match the pipe response's empty-entry filtering.
+                this.AddModifiedPaths(this.modifiedPathsProvider().Where(path => !string.IsNullOrEmpty(path)));
+                if (diagnostics != null)
+                {
+                    diagnostics.ModifiedPathsState = HydrationDataState.Complete;
+                }
+
+                return;
+            }
+
             if (TryLoadModifiedPathsFromPipe(enlistment, tracer, diagnostics))
             {
                 if (diagnostics != null)
