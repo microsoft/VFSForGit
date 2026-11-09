@@ -43,7 +43,7 @@ namespace GVFS.Common.Git
                 try
                 {
                     Dictionary<string, string> environment = null;
-                    GitProcess.Result result = GitConfigReader.ReadRaw(
+                    GitProcess.Result result = GitProcessConfigReader.ReadRaw(
                         "credential",
                         () =>
                         {
@@ -111,7 +111,7 @@ namespace GVFS.Common.Git
                     }
                     else
                     {
-                        GitProcess.Result systemResult = GitConfigReader.ReadRaw(
+                        GitProcess.Result systemResult = GitProcessConfigReader.ReadRaw(
                             "--system --list",
                             () =>
                             {
@@ -189,7 +189,7 @@ namespace GVFS.Common.Git
 
                     if (matchConfig.Length > 0)
                     {
-                        GitProcess.Result matched = GitConfigReader.ReadRaw(
+                        GitProcess.Result matched = GitProcessConfigReader.ReadRaw(
                             "--get-urlmatch",
                             () => CreateMatcher(createProcess, environment, url.Format(redactUsername: true)),
                             matchConfig.ToString(),
@@ -208,7 +208,7 @@ namespace GVFS.Common.Git
                     {
                         // Do not decode a valid nonmatch into a match. If a full URL fails
                         // Git normalization, report the unsupported scope rather than guess.
-                        GitProcess.Result normalized = GitConfigReader.ReadRaw(
+                        GitProcess.Result normalized = GitProcessConfigReader.ReadRaw(
                             "--get-urlmatch",
                             () => CreateMatcher(createProcess, environment, candidate.Url),
                             "[authdiagnostic]\nnormalized = true\n",

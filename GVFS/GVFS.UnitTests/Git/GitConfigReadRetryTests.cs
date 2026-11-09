@@ -48,7 +48,7 @@ namespace GVFS.UnitTests.Git
                 outputTruncated,
                 errorsTruncated);
 
-            GitProcess.Result result = GitConfigReader.Read(
+            GitProcess.Result result = GitProcessConfigReader.Read(
                 "credential",
                 () =>
                 {

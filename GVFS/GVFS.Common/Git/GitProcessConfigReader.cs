@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace GVFS.Common.Git
 {
-    internal static class GitConfigReader
+    internal static class GitProcessConfigReader
     {
         private const int MaxOutput = 65536;
         private const int MaxErrors = 4096;

@@ -1376,7 +1376,7 @@ namespace GVFS.Common.Git
 
         private Result InvokeConfigRead(string configName, Func<Result> readConfig)
         {
-            return GitConfigReader.Read(
+            return GitProcessConfigReader.Read(
                 configName,
                 readConfig,
                 this.tracer,

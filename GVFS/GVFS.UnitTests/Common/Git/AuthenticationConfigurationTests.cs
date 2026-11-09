@@ -476,9 +476,9 @@ namespace GVFS.UnitTests.Common.Git
         [Category(CategoryConstants.ExceptionExpected)]
         public void TreeKillFailuresCannotEscapeTheCancellationCallback()
         {
-            Assert.That(GitConfigReader.TryKillProcess(() => throw new AggregateException(new System.ComponentModel.Win32Exception())), Is.False);
-            Assert.That(GitConfigReader.TryKillProcess(() => throw new System.ComponentModel.Win32Exception()), Is.False);
-            Assert.That(GitConfigReader.TryKillProcess(() => throw new InvalidOperationException()), Is.True);
+            Assert.That(GitProcessConfigReader.TryKillProcess(() => throw new AggregateException(new System.ComponentModel.Win32Exception())), Is.False);
+            Assert.That(GitProcessConfigReader.TryKillProcess(() => throw new System.ComponentModel.Win32Exception()), Is.False);
+            Assert.That(GitProcessConfigReader.TryKillProcess(() => throw new InvalidOperationException()), Is.True);
         }
 
         [Test]
