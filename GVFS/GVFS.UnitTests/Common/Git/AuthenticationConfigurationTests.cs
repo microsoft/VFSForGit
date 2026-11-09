@@ -47,6 +47,8 @@ namespace GVFS.UnitTests.Common.Git
         [TestCase("unknown-" + Secret, "omitted:unknown-or-arguments")]
         [TestCase("\"C:/Users/" + Secret + "/Git/ucrt64/bin/git-credential-manager.exe\"", "<git-install>/ucrt64/bin/git-credential-manager.exe")]
         [TestCase("C:/Users/" + Secret + "/mingw64/bin/git-credential-manager.exe", "<git-install>/mingw64/bin/git-credential-manager.exe")]
+        [TestCase("C:\\Users\\" + Secret + "\\Git\\clangarm64\\bin\\git-credential-manager.exe", "<git-install>/clangarm64/bin/git-credential-manager.exe")]
+        [TestCase("\"C:\\Users\\" + Secret + "\\Git ARM64\\CLANGARM64\\bin\\git-credential-manager.exe\"", "<git-install>/clangarm64/bin/git-credential-manager.exe")]
         [TestCase("C:/Users/" + Secret + "/git-credential-manager-core.exe", "<redacted-path>/git-credential-manager-core.exe")]
         [TestCase("C:/tool --token=" + Secret + "/git-credential-manager.exe", "omitted:unknown-or-arguments")]
         [TestCase("C:/tools/git-credential-manager.exe;" + Secret, "omitted:unknown-or-arguments")]

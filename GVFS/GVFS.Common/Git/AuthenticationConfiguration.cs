@@ -294,7 +294,7 @@ namespace GVFS.Common.Git
                     string executable = "git-credential-" + name + ".exe";
                     if (normalized.EndsWith("/" + executable, StringComparison.OrdinalIgnoreCase))
                     {
-                        foreach (string layout in new[] { "mingw64/bin", "ucrt64/bin", "mingw32/bin" })
+                        foreach (string layout in new[] { "mingw64/bin", "ucrt64/bin", "mingw32/bin", "clangarm64/bin" })
                         {
                             if (normalized.EndsWith("/" + layout + "/" + executable, StringComparison.OrdinalIgnoreCase))
                             {
