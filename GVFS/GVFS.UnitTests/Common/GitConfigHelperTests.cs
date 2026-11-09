@@ -9,6 +9,29 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class GitConfigHelperTests
     {
+        [TestCase(null, 5)]
+        [TestCase("", 5)]
+        [TestCase("  ", 5)]
+        [TestCase("7", 7)]
+        [TestCase(" 7 ", 7)]
+        [TestCase("0", 0)]
+        public void TryParseIntSettingReturnsTheValueOrTheDefault(string valueString, int expected)
+        {
+            GitConfigHelper.TryParseIntSetting("gvfs.test", valueString, 5, 0, out int value, out string error).ShouldBeTrue(error);
+            value.ShouldEqual(expected);
+            error.ShouldEqual(string.Empty);
+        }
+
+        [TestCase("abc", "Misconfigured config setting gvfs.test, could not parse value `abc` as an int")]
+        [TestCase("1k", "Misconfigured config setting gvfs.test, could not parse value `1k` as an int")]
+        [TestCase("99999999999", "Misconfigured config setting gvfs.test, could not parse value `99999999999` as an int")]
+        [TestCase("-1", "Invalid value -1 for setting gvfs.test, value must be greater than or equal to 0")]
+        public void TryParseIntSettingReportsInvalidValues(string valueString, string expectedError)
+        {
+            GitConfigHelper.TryParseIntSetting("gvfs.test", valueString, 5, 0, out int _, out string error).ShouldBeFalse();
+            error.ShouldEqual(expectedError);
+        }
+
         [TestCase]
         public void SanitizeEmptyString()
         {

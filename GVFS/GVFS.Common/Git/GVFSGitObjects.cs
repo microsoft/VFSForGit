@@ -70,14 +70,17 @@ namespace GVFS.Common.Git
             public DownloadAttemptResult(
                 DownloadAndSaveObjectResult result,
                 HttpStatusCode? httpStatusCode,
-                bool shouldRecordFailure = true)
+                bool shouldRecordFailure = true,
+                bool circuitBreakerRejected = false)
             {
                 this.Result = result;
                 this.HttpStatusCode = httpStatusCode;
                 this.ShouldRecordFailure = shouldRecordFailure;
+                this.CircuitBreakerRejected = circuitBreakerRejected;
             }
 
             public DownloadAndSaveObjectResult Result { get; }
+            public bool CircuitBreakerRejected { get; }
 
             // The HTTP status of the last download attempt, or null when no HTTP response was
             // received (for example an exhausted retry that ended in an exception).
@@ -93,7 +96,8 @@ namespace GVFS.Common.Git
             CancellationToken cancellationToken,
             RequestSource requestSource,
             Action<Stream, long> writeAction,
-            out BlobHydrationFailureCategory failureCategory)
+            out BlobHydrationFailureCategory failureCategory,
+            EventMetadata failureMetadata = null)
         {
             // Short-circuit a malformed SHA (for example a corrupt placeholder's all-NUL
             // content-id) before the retry loop. GitRepo already rejects it as a clean miss,
@@ -123,8 +127,9 @@ namespace GVFS.Common.Git
             DownloadAttemptResult lastDownloadResult = null;
             bool downloadSucceededButCopyFailed = false;
             BlobHydrationFailureCategory capturedCategory = BlobHydrationFailureCategory.None;
+            TelemetryFailureCategory? capturedTelemetryCategory = null;
 
-            RetryWrapper<bool> retrier = new RetryWrapper<bool>(this.GitObjectRequestor.RetryConfig.MaxAttempts, cancellationToken);
+            RetryWrapper<bool> retrier = new RetryWrapper<bool>(this.GitObjectRequestor.RetryConfig.MaxAttempts, cancellationToken, tracer: this.Tracer);
             retrier.OnFailure +=
                 errorArgs =>
                 {
@@ -171,6 +176,17 @@ namespace GVFS.Common.Git
 
                     capturedCategory = category;
                     metadata.Add(nameof(BlobHydrationFailureCategory), category.ToString());
+                    capturedTelemetryCategory =
+                        errorArgs.Error is CircuitBreakerOpenException || (errorArgs.Error == null && lastDownloadResult?.CircuitBreakerRejected == true)
+                        ? TelemetryFailureCategory.CircuitBreakerOpen
+                        : (category == BlobHydrationFailureCategory.NetworkUnavailable ? TelemetryFailureCategory.NetworkUnavailable : null);
+                    if (capturedTelemetryCategory.HasValue)
+                    {
+                        metadata.SetTelemetryAggregation(
+                            nameof(this.TryCopyBlobContentStream),
+                            capturedTelemetryCategory.Value,
+                            errorArgs.Error is CircuitBreakerOpenException ? "Rejected" : "Failed");
+                    }
 
                     // Surface the HTTP status of the last download attempt so telemetry can tell a
                     // genuine auth failure (401/400/302) apart from a transient one (408/5xx/503),
@@ -232,6 +248,11 @@ namespace GVFS.Common.Git
                 });
 
             failureCategory = invokeResult.Result ? BlobHydrationFailureCategory.None : capturedCategory;
+            if (!invokeResult.Result && capturedTelemetryCategory.HasValue && failureMetadata != null)
+            {
+                failureMetadata.SetTelemetryAggregation(nameof(this.TryCopyBlobContentStream), capturedTelemetryCategory.Value, "Failed");
+            }
+
             return invokeResult.Result;
         }
 
@@ -293,31 +314,39 @@ namespace GVFS.Common.Git
                 this.objectNegativeCache.TryRemove(objectId, out negativeCacheRequestTime);
             }
 
-            // Coalesce concurrent requests for the same objectId so that only one HTTP
-            // download runs per SHA at a time. All concurrent callers share the result.
-            // Note: the first caller's cancellationToken and retryOnFailure settings are
-            // captured by the Lazy factory. Subsequent coalesced callers inherit those
-            // settings. In practice this is fine because the primary concurrent path
-            // (NamedPipeMessage from git.exe) always uses CancellationToken.None.
-            Lazy<DownloadAttemptResult> newLazy = new Lazy<DownloadAttemptResult>(
-                () => this.DoDownloadAndSaveObject(objectId, cancellationToken, requestSource, retryOnFailure));
-            Lazy<DownloadAttemptResult> lazy = this.inflightDownloads.GetOrAdd(objectId, newLazy);
+            // Share one download per SHA. A surviving waiter starts or joins a new
+            // download if the previous owner's cancellation interrupts the shared one.
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Lazy<DownloadAttemptResult> newLazy = new Lazy<DownloadAttemptResult>(
+                    () => this.DoDownloadAndSaveObject(objectId, cancellationToken, requestSource, retryOnFailure));
+                Lazy<DownloadAttemptResult> lazy = this.inflightDownloads.GetOrAdd(objectId, newLazy);
 
-            if (!ReferenceEquals(lazy, newLazy))
-            {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("objectId", objectId);
-                metadata.Add("requestSource", requestSource.ToString());
-                this.Context.Tracer.RelatedEvent(EventLevel.Informational, "TryDownloadAndSaveObject_CoalescedRequest", metadata);
-            }
+                if (!ReferenceEquals(lazy, newLazy))
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("objectId", objectId);
+                    metadata.Add("requestSource", requestSource.ToString());
+                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, "TryDownloadAndSaveObject_CoalescedRequest", metadata);
+                }
 
-            try
-            {
-                return lazy.Value;
-            }
-            finally
-            {
-                this.TryRemoveInflightDownload(objectId, lazy);
+                try
+                {
+                    return lazy.Value;
+                }
+                catch (OperationCanceledException) when (
+                    !ReferenceEquals(lazy, newLazy) && !cancellationToken.IsCancellationRequested)
+                {
+                    this.Context.Tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        "TryDownloadAndSaveObject_CoalescedCancellation",
+                        new EventMetadata { { "objectId", objectId }, { "requestSource", requestSource.ToString() } });
+                }
+                finally
+                {
+                    this.TryRemoveInflightDownload(objectId, lazy);
+                }
             }
         }
 
@@ -396,7 +425,8 @@ namespace GVFS.Common.Git
             return new DownloadAttemptResult(
                 DownloadAndSaveObjectResult.Error,
                 httpStatusCode,
-                output.ShouldRecordFailure);
+                output.ShouldRecordFailure,
+                circuitBreakerRejected: output.Error is CircuitBreakerOpenException);
         }
     }
 }

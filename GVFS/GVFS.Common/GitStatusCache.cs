@@ -2,6 +2,7 @@
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 using System.IO;
@@ -57,6 +58,7 @@ namespace GVFS.Common
         private readonly Lock hydrationStatisticsLock = new Lock();
 
         private Func<int> projectedFolderCountProvider;
+        private Func<IEnumerable<string>> modifiedPathsProvider;
 
         private volatile CacheState cacheState = CacheState.Dirty;
 
@@ -95,6 +97,12 @@ namespace GVFS.Common
         public void SetProjectedFolderCountProvider(Func<int> provider)
         {
             this.projectedFolderCountProvider = provider;
+        }
+
+        public void SetModifiedPathsProvider(Func<IEnumerable<string>> provider)
+        {
+            ArgumentNullException.ThrowIfNull(provider);
+            this.modifiedPathsProvider = provider;
         }
 
         public virtual void Initialize()
@@ -491,9 +499,10 @@ namespace GVFS.Common
                 EnlistmentHydrationSummary hydrationSummary =
                     this.CreateHydrationSummary(diagnostics);
                 NamedPipeMessages.HydrationStatus.CacheState state = hydrationSummary.IsValid
-                    ? diagnostics.CountsComplete ? NamedPipeMessages.HydrationStatus.CacheState.Available : NamedPipeMessages.HydrationStatus.CacheState.IncompleteData
+                    ? NamedPipeMessages.HydrationStatus.CacheState.Available
                     : diagnostics.Outcome == HydrationSummaryOutcome.Cancelled ? NamedPipeMessages.HydrationStatus.CacheState.Cancelled
                     : diagnostics.Outcome == HydrationSummaryOutcome.Failed ? NamedPipeMessages.HydrationStatus.CacheState.Failed
+                    : diagnostics.Outcome == HydrationSummaryOutcome.IncompleteData ? NamedPipeMessages.HydrationStatus.CacheState.IncompleteData
                     : NamedPipeMessages.HydrationStatus.CacheState.InvalidCounts;
                 this.hydrationCache = new HydrationCacheSnapshot(hydrationSummary, state, invalidationVersion);
                 EventMetadata metadata = new EventMetadata();
@@ -557,7 +566,7 @@ namespace GVFS.Common
         internal virtual EnlistmentHydrationSummary CreateHydrationSummary(HydrationSummaryDiagnostics diagnostics)
         {
             return EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer,
-                this.projectedFolderCountProvider, this.shutdownTokenSource.Token, diagnostics);
+                this.projectedFolderCountProvider, new EnlistmentPathData(this.modifiedPathsProvider), this.shutdownTokenSource.Token, diagnostics);
         }
 
         private void RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState state)

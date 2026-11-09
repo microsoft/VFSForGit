@@ -1106,6 +1106,7 @@ namespace GVFS.Platform.Windows
                 EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath, e);
                 metadata.Add("commandId", commandId);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.SetTelemetryAggregation(nameof(this.StartDirectoryEnumerationAsyncHandler), TelemetryFailureCategory.SizesUnavailable, "Failed");
                 this.Context.Tracer.RelatedError(metadata, nameof(this.StartDirectoryEnumerationAsyncHandler) + ": caught SizesUnavailableException");
             }
             catch (Exception e)
@@ -1256,6 +1257,7 @@ namespace GVFS.Platform.Windows
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.SetTelemetryAggregation(nameof(this.GetPlaceholderInformationAsyncHandler), TelemetryFailureCategory.SizesUnavailable, "Failed");
                 this.Context.Tracer.RelatedError(metadata, nameof(this.GetPlaceholderInformationAsyncHandler) + ": caught SizesUnavailableException");
             }
             catch (Win32Exception e)
@@ -1419,16 +1421,21 @@ namespace GVFS.Platform.Windows
                             }
                         }
                     },
-                    out GVFSGitObjects.BlobHydrationFailureCategory failureCategory))
+                    out GVFSGitObjects.BlobHydrationFailureCategory failureCategory,
+                    failureMetadata: requestMetadata))
                 {
                     requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), failureCategory.ToString());
-
                     if (repairingMalformedSha)
                     {
                         // We recovered a valid SHA from the projection but TryCopyBlobContentStream
                         // reported a clean miss (the blob itself is unavailable). Funnel it distinctly
                         // from a projection miss.
                         this.EmitMalformedShaRepairFailed(requestMetadata, MalformedShaRepairFailureReason.HydrateFailed, hydrationSha);
+                    }
+
+                    if (requestMetadata.TelemetryAggregation != null)
+                    {
+                        requestMetadata.SetTelemetryAggregation(nameof(this.GetFileStreamHandlerAsyncHandler), requestMetadata.TelemetryAggregation.FailureCategory, "Failed");
                     }
 
                     this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");

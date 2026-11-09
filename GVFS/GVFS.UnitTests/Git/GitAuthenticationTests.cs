@@ -1020,7 +1020,8 @@ namespace GVFS.UnitTests.Git
                     response.HasErrors.ShouldEqual(true, "The rejected anonymous attempt should report its error");
                     response.ShouldRetry.ShouldEqual(true, "The rejected anonymous attempt should retry with credentials");
                     response.ShouldRecordFailure.ShouldEqual(false, "An expected authentication challenge must not count against the circuit breaker");
-                    response.Error.Message.ShouldContain(responseBody);
+                    response.Error.Message.ShouldEqual("Anonymous request was rejected with a " + (int)statusCode);
+                    response.Error.Message.Contains(responseBody, StringComparison.Ordinal).ShouldEqual(false);
                 }
 
                 using (GitEndPointResponseData response = requestor.SendRequest(

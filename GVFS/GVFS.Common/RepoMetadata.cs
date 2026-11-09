@@ -3,12 +3,16 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.Common
 {
     public class RepoMetadata
     {
         public const string MissingDiskLayoutVersionMessage = "Enlistment disk layout version not found. The .gvfs metadata is incomplete. Make sure your work is pushed or backed up, then reclone this enlistment.";
+
+        private const int ReadEnlistmentIdAttempts = 3;
+        private const int ReadEnlistmentIdRetryDelayMs = 50;
 
         private FileBasedDictionary<string, string> repoMetadata;
         private ITracer tracer;
@@ -77,6 +81,35 @@ namespace GVFS.Common
             return true;
         }
 
+        /// <summary>
+        /// Reads the enlistment id from the repo metadata in <paramref name="dotGVFSPath"/>
+        /// without initializing <see cref="Instance"/> and without creating an id.
+        /// A missing metadata file or a missing value produces an empty string.
+        /// </summary>
+        public static bool TryReadEnlistmentId(string dotGVFSPath, out string enlistmentId, out string error)
+        {
+            enlistmentId = string.Empty;
+
+            string dictionaryPath = Path.Combine(dotGVFSPath, GVFSConstants.DotGVFS.Databases.RepoMetadata);
+            if (!File.Exists(dictionaryPath))
+            {
+                error = null;
+                return true;
+            }
+
+            // The mount process that owns this file can replace it at any time, and the
+            // replace makes a concurrent open fail with a sharing violation.
+            for (int attempt = 1; ; attempt++)
+            {
+                if (TryReadEnlistmentIdOnce(dictionaryPath, out enlistmentId, out error) || attempt == ReadEnlistmentIdAttempts)
+                {
+                    return error == null;
+                }
+
+                Thread.Sleep(ReadEnlistmentIdRetryDelayMs);
+            }
+        }
+
         public static void Shutdown()
         {
             if (Instance != null)
@@ -141,16 +174,28 @@ namespace GVFS.Common
 
         public void SaveCloneMetadata(ITracer tracer, GVFSEnlistment enlistment)
         {
-            this.repoMetadata.SetValuesAndFlush(
-                new[]
-                {
-                    new KeyValuePair<string, string>(Keys.DiskLayoutMajorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion.ToString()),
-                    new KeyValuePair<string, string>(Keys.DiskLayoutMinorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion.ToString()),
-                    new KeyValuePair<string, string>(Keys.GitObjectsRoot, enlistment.GitObjectsRoot),
-                    new KeyValuePair<string, string>(Keys.LocalCacheRoot, enlistment.LocalCacheRoot),
-                    new KeyValuePair<string, string>(Keys.BlobSizesRoot, enlistment.BlobSizesRoot),
-                    new KeyValuePair<string, string>(Keys.EnlistmentId, CreateNewEnlistmentId(tracer)),
-                });
+            this.SaveMetadata(enlistment, CreateNewEnlistmentId(tracer));
+        }
+
+        /// <summary>
+        /// Saves the metadata that a worktree mount copies from the primary
+        /// enlistment, and the enlistment id of the worktree. If
+        /// <paramref name="enlistmentId"/> is empty, it keeps an existing id or
+        /// creates a new one.
+        /// </summary>
+        public void SaveWorktreeMetadata(ITracer tracer, GVFSEnlistment enlistment, string enlistmentId)
+        {
+            this.SaveMetadata(enlistment, this.GetWorktreeEnlistmentIdToSave(tracer, enlistmentId));
+        }
+
+        internal string GetWorktreeEnlistmentIdToSave(ITracer tracer, string enlistmentId)
+        {
+            if (string.IsNullOrWhiteSpace(enlistmentId) && !this.TryGetEnlistmentId(out enlistmentId))
+            {
+                enlistmentId = CreateNewEnlistmentId(tracer);
+            }
+
+            return enlistmentId;
         }
 
         public void SetProjectionInvalid(bool invalid)
@@ -269,6 +314,36 @@ namespace GVFS.Common
             this.repoMetadata.SetValueAndFlush(keyName, valueName);
         }
 
+        private static bool TryReadEnlistmentIdOnce(string dictionaryPath, out string enlistmentId, out string error)
+        {
+            enlistmentId = string.Empty;
+            try
+            {
+                FileBasedDictionary<string, string> metadata;
+                if (!FileBasedDictionary<string, string>.TryCreate(NullTracer.Instance, dictionaryPath, new PhysicalFileSystem(), out metadata, out error))
+                {
+                    return false;
+                }
+
+                using (metadata)
+                {
+                    string value;
+                    if (metadata.TryGetValue(Keys.EnlistmentId, out value))
+                    {
+                        enlistmentId = value;
+                    }
+                }
+            }
+            catch (FileBasedCollectionException e)
+            {
+                error = e.Message;
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
         private static string CreateNewEnlistmentId(ITracer tracer)
         {
             string enlistmentId = Guid.NewGuid().ToString("N");
@@ -276,6 +351,35 @@ namespace GVFS.Common
             metadata.Add(nameof(enlistmentId), enlistmentId);
             tracer.RelatedEvent(EventLevel.Informational, nameof(CreateNewEnlistmentId), metadata);
             return enlistmentId;
+        }
+
+        /// <summary>
+        /// Gets the enlistment id without creating one when it is missing,
+        /// unlike <see cref="EnlistmentId"/>.
+        /// </summary>
+        private bool TryGetEnlistmentId(out string enlistmentId)
+        {
+            if (this.repoMetadata.TryGetValue(Keys.EnlistmentId, out enlistmentId) && !string.IsNullOrWhiteSpace(enlistmentId))
+            {
+                return true;
+            }
+
+            enlistmentId = null;
+            return false;
+        }
+
+        private void SaveMetadata(GVFSEnlistment enlistment, string enlistmentId)
+        {
+            this.repoMetadata.SetValuesAndFlush(
+                new[]
+                {
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMajorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMinorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.GitObjectsRoot, enlistment.GitObjectsRoot),
+                    new KeyValuePair<string, string>(Keys.LocalCacheRoot, enlistment.LocalCacheRoot),
+                    new KeyValuePair<string, string>(Keys.BlobSizesRoot, enlistment.BlobSizesRoot),
+                    new KeyValuePair<string, string>(Keys.EnlistmentId, enlistmentId),
+                });
         }
 
         private void SetInvalid(string keyName, bool invalid)

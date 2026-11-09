@@ -82,7 +82,18 @@ namespace GVFS.Mount
                 verb.ShowDebugWindow = result.GetValue(debugWindowOption);
                 verb.StartedByService = result.GetValue(startedByServiceOption) ?? "false";
                 verb.StartedByVerb = result.GetValue(startedByVerbOption);
-                verb.Execute();
+
+                // Invoke() converts an unhandled action exception to exit code 1.
+                // Preserve the GenericError code set by ReportErrorAndExit.
+                try
+                {
+                    verb.Execute();
+                    return (int)ReturnCode.Success;
+                }
+                catch (MountAbortedException e)
+                {
+                    return (int)e.Verb.ReturnCode;
+                }
             });
 
             return rootCommand;
@@ -110,50 +121,89 @@ namespace GVFS.Mount
             Keywords keywords;
             this.ParseEnumArgs(out verbosity, out keywords);
 
-            JsonTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
-
-            CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
-
-            tracer.WriteStartEvent(
-                enlistment.WorkingDirectoryRoot,
-                enlistment.RepoUrl,
-                cacheServer.Url,
-                new EventMetadata
-                {
-                    { "IsElevated", GVFSPlatform.Instance.IsElevated() },
-                    { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
-                    { nameof(this.StartedByService), this.StartedByService },
-                    { nameof(this.StartedByVerb), this.StartedByVerb },
-                });
-
-            AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) =>
+            // Create the IDs before the tracer, so every event of this mount carries them.
+            // A worktree mount reads the primary enlistment ID once and uses it everywhere.
+            string mountId = Guid.NewGuid().ToString("N");
+            string primaryEnlistmentId = null;
+            string primaryEnlistmentIdError = null;
+            string enlistmentId;
+            if (enlistment.IsWorktree)
             {
-                this.UnhandledGVFSExceptionHandler(tracer, sender, e);
-            };
-
-            string error;
-            RetryConfig retryConfig;
-            if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
+                enlistment.TryGetPrimaryEnlistmentId(out primaryEnlistmentId, out primaryEnlistmentIdError);
+                enlistmentId = enlistment.GetWorktreeEnlistmentId(primaryEnlistmentId);
+            }
+            else
             {
-                this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
+                enlistmentId = enlistment.GetEnlistmentId();
             }
 
-            GitStatusCacheConfig gitStatusCacheConfig;
-            if (!GitStatusCacheConfig.TryLoadFromGitConfig(tracer, enlistment, out gitStatusCacheConfig, out error))
+            JsonTracer tracer = this.CreateTracer(enlistment, enlistmentId, mountId, verbosity, keywords);
+            if (primaryEnlistmentIdError != null)
             {
-                tracer.RelatedWarning("Failed to determine GVFS status cache backoff time: " + error);
-                gitStatusCacheConfig = GitStatusCacheConfig.DefaultConfig;
+                tracer.RelatedWarning(
+                    new EventMetadata { { "Error", primaryEnlistmentIdError } },
+                    "Could not read the primary enlistment ID",
+                    Keywords.Telemetry);
             }
 
-            InProcessMount mountHelper = new InProcessMount(tracer, enlistment, cacheServer, retryConfig, gitStatusCacheConfig, this.ShowDebugWindow);
-
+            // Everything below this point has a live tracer (and therefore a log
+            // file on disk), so wrap it in a catch-all: any exception that isn't
+            // already a MountAbortedException (e.g. a transient failure reading
+            // git config from CacheServerResolver.GetCacheServerFromConfig) must
+            // still be traced and reported instead of escaping silently and
+            // leaving behind an empty log with no explanation.
             try
             {
-                mountHelper.Mount(verbosity, keywords);
+                CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment, tracer);
+
+                tracer.WriteStartEvent(
+                    enlistment.WorkingDirectoryRoot,
+                    enlistment.RepoUrl,
+                    cacheServer.Url,
+                    new EventMetadata
+                    {
+                        { "IsElevated", GVFSPlatform.Instance.IsElevated() },
+                        { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
+                        { nameof(this.StartedByService), this.StartedByService },
+                        { nameof(this.StartedByVerb), this.StartedByVerb },
+                    });
+
+                AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) =>
+                {
+                    this.UnhandledGVFSExceptionHandler(tracer, sender, e);
+                };
+
+                string error;
+                RetryConfig retryConfig = RetryConfig.LoadFromGitConfig(tracer, enlistment);
+
+                GitStatusCacheConfig gitStatusCacheConfig;
+                if (!GitStatusCacheConfig.TryLoadFromGitConfig(tracer, enlistment, out gitStatusCacheConfig, out error))
+                {
+                    tracer.RelatedWarning("Failed to determine GVFS status cache backoff time: " + error);
+                    gitStatusCacheConfig = GitStatusCacheConfig.DefaultConfig;
+                }
+
+                InProcessMount mountHelper = new InProcessMount(tracer, enlistment, mountId, primaryEnlistmentId, cacheServer, retryConfig, gitStatusCacheConfig, this.ShowDebugWindow);
+
+                try
+                {
+                    mountHelper.Mount(verbosity, keywords);
+                }
+                catch (Exception ex)
+                {
+                    this.ReportErrorAndExit(tracer, "Failed to mount: {0}", ex.Message);
+                }
+            }
+            catch (MountAbortedException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                this.ReportErrorAndExit(tracer, "Failed to mount: {0}", ex.Message);
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", ex.ToString());
+                tracer.RelatedError(metadata, "Mount failed unexpectedly");
+                this.ReportErrorAndExit("Mount failed unexpectedly: {0}", ex.Message);
             }
         }
 
@@ -167,9 +217,9 @@ namespace GVFS.Mount
             tracer.RelatedError(metadata, "UnhandledGVFSExceptionHandler caught unhandled exception");
         }
 
-        private JsonTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
+        private JsonTracer CreateTracer(GVFSEnlistment enlistment, string enlistmentId, string mountId, EventLevel verbosity, Keywords keywords)
         {
-            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistment.GetEnlistmentId(), enlistment.GetMountId());
+            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistmentId, mountId);
             tracer.AddLogFileEventListener(
                 GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountProcess),
                 verbosity,

@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -23,6 +24,8 @@ namespace GVFS.UnitTests.Mock.Git
         public bool ThrowOnTryCopyBlobContentStream { get; set; }
         public bool ReturnFalseFromTryCopyBlobContentStream { get; set; }
         public bool ThrowIOExceptionDuringCopy { get; set; }
+        public bool RejectHydrationWithOpenCircuit { get; set; }
+        public bool FailHydrationWithoutAggregation { get; set; }
         public uint FileLength { get; set; } = DefaultFileLength;
 
         // Records the sha most recently passed to TryCopyBlobContentStream so a test can assert that a
@@ -51,10 +54,24 @@ namespace GVFS.UnitTests.Mock.Git
             CancellationToken cancellationToken,
             RequestSource requestSource,
             Action<Stream, long> writeAction,
-            out GVFSGitObjects.BlobHydrationFailureCategory failureCategory)
+            out GVFSGitObjects.BlobHydrationFailureCategory failureCategory,
+            EventMetadata failureMetadata = null)
         {
             this.LastShaPassedToTryCopyBlobContentStream = sha;
             failureCategory = GVFSGitObjects.BlobHydrationFailureCategory.None;
+
+            if (this.FailHydrationWithoutAggregation)
+            {
+                failureCategory = GVFSGitObjects.BlobHydrationFailureCategory.DownloadFailed;
+                return false;
+            }
+
+            if (this.RejectHydrationWithOpenCircuit)
+            {
+                failureCategory = GVFSGitObjects.BlobHydrationFailureCategory.NetworkUnavailable;
+                failureMetadata?.SetTelemetryAggregation(nameof(this.TryCopyBlobContentStream), TelemetryFailureCategory.CircuitBreakerOpen, "Failed");
+                return false;
+            }
 
             if (this.CancelTryCopyBlobContentStream)
             {

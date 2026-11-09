@@ -100,8 +100,11 @@ namespace GVFS.Common.Git
         private string gitBinPath;
         private string workingDirectoryRoot;
         private string gitDirPath;
+        private readonly ITracer tracer;
+        private readonly Action<TimeSpan> configReadDelay;
         private Process executingProcess;
         private bool stopping;
+        private long lastAuthenticationConfigurationTimestamp;
 
         static GitProcess()
         {
@@ -129,11 +132,26 @@ namespace GVFS.Common.Git
         }
 
         public GitProcess(Enlistment enlistment)
-            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, NullTracer.Instance, GitConfigReadRetry.Delay)
+        {
+        }
+
+        public GitProcess(Enlistment enlistment, ITracer tracer)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, tracer, GitConfigReadRetry.Delay)
+        {
+        }
+
+        internal GitProcess(Enlistment enlistment, ITracer tracer, Action<TimeSpan> configReadDelay)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryBackingRoot, tracer, configReadDelay)
         {
         }
 
         public GitProcess(string gitBinPath, string workingDirectoryRoot)
+            : this(gitBinPath, workingDirectoryRoot, NullTracer.Instance, GitConfigReadRetry.Delay)
+        {
+        }
+
+        internal GitProcess(string gitBinPath, string workingDirectoryRoot, ITracer tracer, Action<TimeSpan> configReadDelay)
         {
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
@@ -142,6 +160,8 @@ namespace GVFS.Common.Git
 
             this.gitBinPath = gitBinPath;
             this.workingDirectoryRoot = workingDirectoryRoot;
+            this.tracer = tracer ?? NullTracer.Instance;
+            this.configReadDelay = configReadDelay ?? GitConfigReadRetry.Delay;
 
             if (this.workingDirectoryRoot != null)
             {
@@ -215,22 +235,28 @@ namespace GVFS.Common.Git
 
         public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)
         {
-            return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName),
+            GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
+            return new ConfigResult(git.InvokeConfigRead(
+                settingName,
+                () => git.InvokeGitOutsideEnlistment("config --global " + settingName)),
                 settingName);
         }
 
         public static ConfigResult GetFromSystemConfig(string gitBinPath, string settingName)
         {
-            return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName),
+            GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
+            return new ConfigResult(git.InvokeConfigRead(
+                settingName,
+                () => git.InvokeGitOutsideEnlistment("config --system " + settingName)),
                 settingName);
         }
 
         public static ConfigResult GetFromFileConfig(string gitBinPath, string configFile, string settingName)
         {
-            return new ConfigResult(
-                new GitProcess(gitBinPath, workingDirectoryRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName),
+            GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
+            return new ConfigResult(git.InvokeConfigRead(
+                settingName,
+                () => git.InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName)),
                 settingName);
         }
 
@@ -367,13 +393,12 @@ namespace GVFS.Common.Git
 
                 // See GetFromConfig for why pre-command hook is disabled
                 // for bootstrap-time git operations.
-                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
+                Result gitCredentialOutput = this.InvokeCredentialFill(
+                    tracer,
                     "credential fill",
-                    stdin => stdin.Write("protocol=cert\npath=" + certificatePath + "\nusername=\n\n"),
-                    parseStdOutLine: null,
-                    usePreCommandHook: false,
-                    mayRequireAuth: true,
-                    hasVisibleConsoleWindow: hasVisibleConsoleWindow);
+                    "protocol=cert\npath=" + certificatePath + "\nusername=\n\n",
+                    hasVisibleConsoleWindow,
+                    out _);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
@@ -434,18 +459,17 @@ namespace GVFS.Common.Git
 
                 // See GetFromConfig for why pre-command hook is disabled
                 // for bootstrap-time git operations.
-                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
+                Result gitCredentialOutput = this.InvokeCredentialFill(
+                    tracer,
                     GenerateCredentialVerbCommand("fill"),
-                    stdin => stdin.Write($"url={repoUrl}\n\n"),
+                    $"url={repoUrl}\n\n",
+                    hasVisibleConsoleWindow,
                     out bool usedDotGitFolder,
-                    parseStdOutLine: null,
-                    usePreCommandHook: false,
-                    timeoutMs: timeoutMs,
-                    mayRequireAuth: true,
-                    hasVisibleConsoleWindow: hasVisibleConsoleWindow);
+                    timeoutMs);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
+                    this.TraceAuthenticationConfiguration(tracer, repoUrl, gitCredentialOutput.CredentialFillEnvironment);
                     EventMetadata errorData = new EventMetadata();
                     errorData.Add("hasVisibleConsoleWindow", hasVisibleConsoleWindow);
                     AddCredentialFillResult(errorData, gitCredentialOutput);
@@ -493,6 +517,7 @@ namespace GVFS.Common.Git
                     errorMessage = MissingPasswordErrorMessage;
                     EventMetadata rejectedData = new EventMetadata();
                     rejectedData.Add("hasVisibleConsoleWindow", hasVisibleConsoleWindow);
+                    this.TraceAuthenticationConfiguration(tracer, repoUrl, gitCredentialOutput.CredentialFillEnvironment);
                     TraceCredentialFillMissingPassword(tracer, rejectedData, gitCredentialOutput);
                 }
 
@@ -508,6 +533,40 @@ namespace GVFS.Common.Git
             // rather than blocking the mount that would fix it.
             Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel", usePreCommandHook: false);
             return result.ExitCodeIsSuccess;
+        }
+
+        protected virtual EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment, ITracer tracer)
+        {
+            return AuthenticationConfiguration.Collect(
+                repoUrl,
+                command => this.GetGitProcess(
+                    $"-c {GitConfigSetting.CredentialUseHttpPath}=true " + command,
+                    Environment.SystemDirectory,
+                    this.DotGitRootExists() ? this.gitDirPath : null,
+                    useReadObjectHook: false,
+                    gitObjectsDirectory: null,
+                    usePreCommandHook: false),
+                credentialFillEnvironment,
+                tracer);
+        }
+
+        private void TraceAuthenticationConfiguration(ITracer tracer, string repoUrl, Dictionary<string, string> credentialFillEnvironment)
+        {
+            long now = Stopwatch.GetTimestamp();
+            long previous = Interlocked.Read(ref this.lastAuthenticationConfigurationTimestamp);
+            if (previous != 0 && Stopwatch.GetElapsedTime(previous, now) < TimeSpan.FromMinutes(5))
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref this.lastAuthenticationConfigurationTimestamp, now, previous) == previous)
+            {
+                tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "AuthenticationConfiguration",
+                    this.GetAuthenticationConfiguration(repoUrl, credentialFillEnvironment, tracer),
+                    Keywords.Network | Keywords.Telemetry);
+            }
         }
 
         public Result RevParse(string gitRef)
@@ -555,11 +614,16 @@ namespace GVFS.Common.Git
         public Result SetInFileConfig(string configFile, string settingName, string value, bool replaceAll = false)
         {
             return this.InvokeGitOutsideEnlistment(string.Format(
-                "config --file {0} {1} \"{2}\" \"{3}\"",
+                "config --file \"{0}\" {1}\"{2}\" \"{3}\"",
                  configFile,
                  replaceAll ? "--replace-all " : string.Empty,
                  settingName,
                  value));
+        }
+
+        public Result DeleteFromFileConfig(string configFile, string settingName)
+        {
+            return this.InvokeGitOutsideEnlistment($"config --file \"{configFile}\" --unset-all {settingName}");
         }
 
         public bool TryGetConfigUrlMatch(string section, string repositoryUrl, out Dictionary<string, GitConfigSetting> configSettings)
@@ -567,11 +631,12 @@ namespace GVFS.Common.Git
             // See GetFromConfig for why pre-command hook is disabled.
             // This runs from the GitAuthentication constructor, which happens before
             // clone creates the enlistment, so it must tolerate a missing .git folder.
-            Result result = this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
-                $"config --get-urlmatch {section} {repositoryUrl}",
-                writeStdIn: null,
-                usePreCommandHook: false);
-
+            Result result = this.InvokeConfigRead(
+                section,
+                () => this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
+                    $"config --get-urlmatch {section} {repositoryUrl}",
+                    writeStdIn: null,
+                    usePreCommandHook: false));
             if (result.ExitCodeIsFailure)
             {
                 configSettings = null;
@@ -587,7 +652,11 @@ namespace GVFS.Common.Git
             configSettings = null;
             string localParameter = localOnly ? "--local" : string.Empty;
             // See GetFromConfig for why pre-command hook is disabled.
-            ConfigResult result = new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --list " + localParameter, usePreCommandHook: false), "--list");
+            ConfigResult result = new ConfigResult(
+                this.InvokeConfigRead(
+                    "--list",
+                    () => this.InvokeGitAgainstDotGitFolder("config --list " + localParameter, usePreCommandHook: false)),
+                "--list");
 
             if (result.TryParseAsString(out string output, out string _, string.Empty))
             {
@@ -596,6 +665,29 @@ namespace GVFS.Common.Git
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Lists the local config with every value of every key, in file order. A key
+        /// without a value, which git reads as boolean true, has a null value.
+        /// </summary>
+        public bool TryGetLocalConfigEntries(out Dictionary<string, List<string>> configEntries)
+        {
+            // See GetFromConfig for why pre-command hook is disabled.
+            return TryParseConfigEntries(
+                this.InvokeConfigRead("--list --local", () => this.InvokeGitAgainstDotGitFolder("config --list --local -z", usePreCommandHook: false)),
+                out configEntries);
+        }
+
+        /// <summary>
+        /// Lists a config file like <see cref="TryGetLocalConfigEntries"/>. Git fails when
+        /// the file does not exist, so check for the file before you call this.
+        /// </summary>
+        public bool TryGetFileConfigEntries(string configFile, out Dictionary<string, List<string>> configEntries)
+        {
+            return TryParseConfigEntries(
+                this.InvokeConfigRead(configFile, () => this.InvokeGitOutsideEnlistment($"config --file \"{configFile}\" --list -z")),
+                out configEntries);
         }
 
         /// <summary>
@@ -617,16 +709,22 @@ namespace GVFS.Common.Git
             // mutation happens), and skipping the hook makes us robust to a broken
             // hook config in the enlistment - which is exactly what we'd be trying
             // to repair via TryUpdateHooks at mount time.
-            return
+            Result result =
                 fileSystem.DirectoryExists(this.workingDirectoryRoot) && !forceOutsideEnlistment
-                    ? new ConfigResult(this.InvokeGitAgainstDotGitFolder(command, usePreCommandHook: false), settingName)
-                    : new ConfigResult(this.InvokeGitOutsideEnlistment(command), settingName);
+                    ? this.InvokeConfigRead(settingName, () => this.InvokeGitAgainstDotGitFolder(command, usePreCommandHook: false))
+                    : this.InvokeConfigRead(settingName, () => this.InvokeGitOutsideEnlistment(command));
+
+            return new ConfigResult(result, settingName);
         }
 
         public ConfigResult GetFromLocalConfig(string settingName)
         {
             // See GetFromConfig above for why pre-command hook is disabled here.
-            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local " + settingName, usePreCommandHook: false), settingName);
+            return new ConfigResult(
+                this.InvokeConfigRead(
+                    settingName,
+                    () => this.InvokeGitAgainstDotGitFolder("config --local " + settingName, usePreCommandHook: false)),
+                settingName);
         }
 
         /// <summary>
@@ -707,7 +805,12 @@ namespace GVFS.Common.Git
         {
             /* Disable precommand hook because this config call is used during mounting process
              * which needs to be able to fix a bad precommand hook configuration. */
-            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local remote.origin.url", usePreCommandHook: false), "remote.origin.url");
+            const string ConfigName = "remote.origin.url";
+            return new ConfigResult(
+                this.InvokeConfigRead(
+                    ConfigName,
+                    () => this.InvokeGitAgainstDotGitFolder("config --local " + ConfigName, usePreCommandHook: false)),
+                ConfigName);
         }
 
         public Result DiffTree(string sourceTreeish, string targetTreeish, Action<string> onResult)
@@ -1248,6 +1351,7 @@ namespace GVFS.Common.Git
                 throw new InvalidOperationException($"{nameof(parseStdOutToken)} cannot be combined with {nameof(parseStdOutLine)}.");
             }
 
+            Dictionary<string, string> credentialFillEnvironment = null;
             try
             {
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx
@@ -1298,6 +1402,12 @@ namespace GVFS.Common.Git
                             if (this.stopping)
                             {
                                 return new Result(string.Empty, nameof(GitProcess) + " is stopping", Result.GenericFailureCode);
+                            }
+
+                            if (mayRequireAuth && command == GenerateCredentialVerbCommand("fill"))
+                            {
+                                credentialFillEnvironment = this.executingProcess.StartInfo.Environment
+                                    .ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase);
                             }
 
                             this.executingProcess.Start();
@@ -1434,17 +1544,29 @@ namespace GVFS.Common.Git
                             {
                                 this.executingProcess.Kill();
 
-                                return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
+                                return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated)
+                                {
+                                    CredentialFillEnvironment = credentialFillEnvironment,
+                                };
                             }
                         }
+
+                        // A timed wait does not wait for redirected-stream callbacks to finish.
+                        this.executingProcess.WaitForExit();
                     }
 
-                    return new Result(output.ToString(), errors.ToString(), this.executingProcess.ExitCode, output.Truncated, errors.Truncated);
+                    return new Result(output.ToString(), errors.ToString(), this.executingProcess.ExitCode, output.Truncated, errors.Truncated)
+                    {
+                        CredentialFillEnvironment = credentialFillEnvironment,
+                    };
                 }
             }
             catch (Win32Exception e)
             {
-                return new Result(string.Empty, e.Message, Result.GenericFailureCode);
+                return new Result(string.Empty, e.Message, Result.GenericFailureCode)
+                {
+                    CredentialFillEnvironment = credentialFillEnvironment,
+                };
             }
             finally
             {
@@ -1553,6 +1675,91 @@ namespace GVFS.Common.Git
                 // the previous behavior (CreateNoWindow=false) rather than aborting the command.
                 return true;
             }
+        }
+
+        private Result InvokeCredentialFill(
+            ITracer tracer,
+            string command,
+            string input,
+            bool hasVisibleConsoleWindow,
+            out bool usedDotGitFolder,
+            int timeoutMs = Timeout.Infinite)
+        {
+            // Each attempt gets only the time that remains of the caller's timeout.
+            Stopwatch timer = Stopwatch.StartNew();
+            bool firstAttempt = true;
+            bool lastAttemptUsedDotGitFolder = false;
+            Result result = GitConfigReadRetry.InvokeResult(
+                "credential fill",
+                () =>
+                {
+                    int attemptTimeoutMs = firstAttempt || timeoutMs == Timeout.Infinite
+                        ? timeoutMs
+                        : (int)Math.Max(0, timeoutMs - timer.ElapsedMilliseconds);
+                    firstAttempt = false;
+                    return this.InvokeGitAgainstDotGitFolderOrOutsideEnlistment(
+                        command,
+                        stdin => stdin.Write(input),
+                        out lastAttemptUsedDotGitFolder,
+                        parseStdOutLine: null,
+                        usePreCommandHook: false,
+                        timeoutMs: attemptTimeoutMs,
+                        mayRequireAuth: true,
+                        hasVisibleConsoleWindow: hasVisibleConsoleWindow);
+                },
+                IsCredentialConfigReadFailure,
+                tracer,
+                this.configReadDelay,
+                canWait: delay => timeoutMs == Timeout.Infinite || timeoutMs - timer.ElapsedMilliseconds > delay.TotalMilliseconds,
+                beforeRetry: result => TraceCredentialFillErrorOutput(tracer, result.Errors));
+            usedDotGitFolder = lastAttemptUsedDotGitFolder;
+            return result;
+        }
+
+        private static bool IsCredentialConfigReadFailure(Result result)
+        {
+            if (!result.ExitCodeIsFailure || result.ErrorsTruncated || result.OutputTruncated ||
+                !string.IsNullOrEmpty(result.Output))
+            {
+                return false;
+            }
+
+            // Only retry Git's config-read failure, not a credential helper or prompt failure.
+            bool configReadFailed = false;
+            bool transientAccessFailure = false;
+            foreach (string errorLine in result.Errors.Split('\n'))
+            {
+                string line = errorLine.TrimEnd('\r');
+                if (line.Length == 0)
+                {
+                    continue;
+                }
+
+                if (line == "fatal: unknown error occurred while reading the configuration files")
+                {
+                    configReadFailed = true;
+                }
+                else if (line.StartsWith("warning: unable to access '", StringComparison.Ordinal) &&
+                    GitConfigReadRetry.IsTransientFileAccessError(line))
+                {
+                    transientAccessFailure = true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            return configReadFailed && transientAccessFailure;
+        }
+
+        private Result InvokeConfigRead(string configName, Func<Result> readConfig)
+        {
+            return GitProcessConfigReader.Read(
+                configName,
+                readConfig,
+                this.tracer,
+                this.configReadDelay);
         }
 
         private static void AddCredentialFillResult(EventMetadata data, Result result)
@@ -1692,6 +1899,43 @@ namespace GVFS.Common.Git
             }
 
             return value;
+        }
+
+        /// <summary>
+        /// Parses `git config --list -z` output. Each entry ends with NUL and is either
+        /// "key", for a key without a value, or "key\nvalue". GitProcess reads output by
+        /// line, so the separator arrives as "\r\n" and a final line break follows.
+        /// </summary>
+        private static bool TryParseConfigEntries(Result result, out Dictionary<string, List<string>> configEntries)
+        {
+            configEntries = null;
+            if (result.ExitCodeIsFailure)
+            {
+                return false;
+            }
+
+            configEntries = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (string entry in (result.Output ?? string.Empty).Split('\0'))
+            {
+                int separator = entry.IndexOf('\n');
+                string key = (separator < 0 ? entry : entry.Substring(0, separator)).TrimEnd('\r');
+                if (key.Length == 0)
+                {
+                    continue;
+                }
+
+                string value = separator < 0 ? null : entry.Substring(separator + 1);
+
+                if (!configEntries.TryGetValue(key, out List<string> values))
+                {
+                    values = new List<string>();
+                    configEntries.Add(key, values);
+                }
+
+                values.Add(value);
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -1902,6 +2146,7 @@ namespace GVFS.Common.Git
             public string Output { get; }
             public string Errors { get; }
             public int ExitCode { get; }
+            internal Dictionary<string, string> CredentialFillEnvironment { get; set; }
 
             /// <summary>
             /// True if the git process produced more stdout than the capture buffer allowed, so
@@ -2033,32 +2278,13 @@ namespace GVFS.Common.Git
             public bool TryParseAsInt(int defaultValue, int minValue, out int value, out string error)
             {
                 value = defaultValue;
-                error = string.Empty;
 
                 if (!this.TryParseAsString(out string valueString, out error))
                 {
                     return false;
                 }
 
-                if (string.IsNullOrWhiteSpace(valueString))
-                {
-                    // Use default value
-                    return true;
-                }
-
-                if (!int.TryParse(valueString, out value))
-                {
-                    error = string.Format("Misconfigured config setting {0}, could not parse value `{1}` as an int", this.configName, valueString);
-                    return false;
-                }
-
-                if (value < minValue)
-                {
-                    error = string.Format("Invalid value {0} for setting {1}, value must be greater than or equal to {2}", value, this.configName, minValue);
-                    return false;
-                }
-
-                return true;
+                return GitConfigHelper.TryParseIntSetting(this.configName, valueString, defaultValue, minValue, out value, out error);
             }
         }
     }
