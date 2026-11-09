@@ -117,6 +117,7 @@ namespace GVFS.Virtualization
             this.gitStatusCache = gitStatusCache ?? new GitStatusCache(context, TimeSpan.Zero);
             this.gitStatusCache.SetProjectedFolderCountProvider(
                 () => this.GitIndexProjection.GetProjectedFolderCount());
+            this.gitStatusCache.SetModifiedPathsProvider(this.GetAllModifiedPaths);
 
             this.logsHeadPath = Path.Combine(this.context.Enlistment.DotGitRoot, GVFSConstants.DotGit.Logs.HeadRelativePath);
 

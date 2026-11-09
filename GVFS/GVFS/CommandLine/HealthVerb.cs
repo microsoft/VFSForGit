@@ -280,6 +280,7 @@ namespace GVFS.CommandLine
             result.Response = response;
             result.ParseOutcome = outcome;
             result.Outcome = valid ? CacheLookupOutcome.Success
+                : outcome == NamedPipeMessages.HydrationStatus.ParseOutcome.IncompleteData ? CacheLookupOutcome.IncompleteData
                 : outcome == NamedPipeMessages.HydrationStatus.ParseOutcome.InvalidCounts ? CacheLookupOutcome.InvalidCounts : CacheLookupOutcome.MalformedResponse;
             NamedPipeMessages.HydrationStatus.CacheInfo.TryParse(message.Body, out NamedPipeMessages.HydrationStatus.CacheInfo cacheInfo, hasCounts: true);
             result.Info = cacheInfo;
@@ -305,6 +306,7 @@ namespace GVFS.CommandLine
             UnexpectedResponse,
             MalformedResponse,
             InvalidCounts,
+            IncompleteData,
             Failed,
         }
 
@@ -339,6 +341,12 @@ namespace GVFS.CommandLine
                     ["ExceptionHResult"] = this.Exception?.HResult,
                     [nameof(this.ParseOutcome)] = this.ParseOutcome,
                     [nameof(this.Counts)] = this.Counts,
+                    ["FileCountSource"] = this.Response == null ? null : "IndexHeader",
+                    ["FolderCountSource"] = this.Response == null ? null : HydrationFolderCountSource.Projection,
+                    ["FileCountDelta"] = this.Response?.FileCountDelta,
+                    ["FolderCountDelta"] = this.Response?.FolderCountDelta,
+                    ["FileCountExcess"] = this.Response?.FileCountExcess,
+                    ["FolderCountExcess"] = this.Response?.FolderCountExcess,
                     ["DiagnosticsAvailable"] = this.Info != null,
                     [nameof(this.DiagnosticsStatus)] = this.DiagnosticsStatus,
                     ["State"] = this.Info?.State,
