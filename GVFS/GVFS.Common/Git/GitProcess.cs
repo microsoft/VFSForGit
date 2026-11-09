@@ -481,7 +481,7 @@ namespace GVFS.Common.Git
             return result.ExitCodeIsSuccess;
         }
 
-        protected virtual EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment)
+        protected virtual EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment, ITracer tracer)
         {
             return AuthenticationConfiguration.Collect(
                 repoUrl,
@@ -492,7 +492,8 @@ namespace GVFS.Common.Git
                     useReadObjectHook: false,
                     gitObjectsDirectory: null,
                     usePreCommandHook: false),
-                credentialFillEnvironment);
+                credentialFillEnvironment,
+                tracer);
         }
 
         private void TraceAuthenticationConfiguration(ITracer tracer, string repoUrl, Dictionary<string, string> credentialFillEnvironment)
@@ -509,7 +510,7 @@ namespace GVFS.Common.Git
                 tracer.RelatedEvent(
                     EventLevel.Informational,
                     "AuthenticationConfiguration",
-                    this.GetAuthenticationConfiguration(repoUrl, credentialFillEnvironment),
+                    this.GetAuthenticationConfiguration(repoUrl, credentialFillEnvironment, tracer),
                     Keywords.Network | Keywords.Telemetry);
             }
         }
@@ -1375,19 +1376,11 @@ namespace GVFS.Common.Git
 
         private Result InvokeConfigRead(string configName, Func<Result> readConfig)
         {
-            return GitConfigReadRetry.InvokeResult(
+            return GitConfigReader.Read(
                 configName,
                 readConfig,
-                IsTransientConfigReadFailure,
                 this.tracer,
                 this.configReadDelay);
-        }
-
-        private static bool IsTransientConfigReadFailure(Result result)
-        {
-            return
-                result.ExitCodeIsFailure &&
-                GitConfigReadRetry.IsTransientFileAccessError(result.Errors, lineMustContain: "unable to access");
         }
 
         private static void AddCredentialFillResult(EventMetadata data, Result result)

@@ -8,7 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace GVFS.Common.Git
 {
@@ -28,7 +27,11 @@ namespace GVFS.Common.Git
             { "interactive", "GCM_INTERACTIVE" },
         };
 
-        internal static EventMetadata Collect(string repositoryUrl, Func<string, Process> createProcess, Dictionary<string, string> credentialFillEnvironment = null)
+        internal static EventMetadata Collect(
+            string repositoryUrl,
+            Func<string, Process> createProcess,
+            Dictionary<string, string> credentialFillEnvironment = null,
+            ITracer tracer = null)
         {
             EventMetadata metadata = new EventMetadata
             {
@@ -39,164 +42,189 @@ namespace GVFS.Common.Git
             {
                 try
                 {
-                    using (Process read = createProcess(ReadCommand))
+                    Dictionary<string, string> environment = null;
+                    GitProcess.Result result = GitConfigReader.ReadRaw(
+                        "credential",
+                        () =>
+                        {
+                            Process read = createProcess(ReadCommand);
+                            if (environment == null)
+                            {
+                                if (credentialFillEnvironment != null)
+                                {
+                                    CopyEnvironment(credentialFillEnvironment, read.StartInfo);
+                                }
+
+                                // GIT_CONFIG redirects config commands, but not credential fill.
+                                read.StartInfo.Environment.Remove("GIT_CONFIG");
+                                environment = read.StartInfo.Environment.ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase);
+                            }
+                            else
+                            {
+                                CopyEnvironment(environment, read.StartInfo);
+                            }
+
+                            return read;
+                        },
+                        string.Empty,
+                        deadline.Token,
+                        tracer);
+                    metadata["GitTerminalPrompt"] = environment.TryGetValue("GIT_TERMINAL_PROMPT", out string terminalPrompt) ?
+                        DescribeValue("usehttppath", terminalPrompt) : "unset";
+                    metadata["GcmValidate"] = environment.TryGetValue("GCM_VALIDATE", out string validate) ?
+                        DescribeValue("msauthusebroker", validate) : "unset";
+                    metadata["ConfigQueryExitCode"] = result.ExitCode;
+                    if (result.OutputTruncated || result.ErrorsTruncated)
                     {
-                        if (credentialFillEnvironment != null)
-                        {
-                            CopyEnvironment(credentialFillEnvironment, read.StartInfo);
-                        }
+                        metadata["Status"] = "query-output-limit";
+                        return metadata;
+                    }
 
-                        // GIT_CONFIG redirects config commands, but not credential fill.
-                        read.StartInfo.Environment.Remove("GIT_CONFIG");
-                        Dictionary<string, string> environment = read.StartInfo.Environment.ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase);
-                        metadata["GitTerminalPrompt"] = environment.TryGetValue("GIT_TERMINAL_PROMPT", out string terminalPrompt) ?
-                            DescribeValue("usehttppath", terminalPrompt) : "unset";
-                        metadata["GcmValidate"] = environment.TryGetValue("GCM_VALIDATE", out string validate) ?
-                            DescribeValue("msauthusebroker", validate) : "unset";
-                        GitProcess.Result result = RunAsync(read, string.Empty, deadline.Token).GetAwaiter().GetResult();
-                        metadata["ConfigQueryExitCode"] = result.ExitCode;
-                        if (result.OutputTruncated || result.ErrorsTruncated)
+                    // Exit 1 means no matching keys only if there is no diagnostic output.
+                    if ((result.ExitCode != 0 && result.ExitCode != 1) || result.Errors.Length != 0 ||
+                        (result.ExitCode == 1 && result.Output.Length != 0))
+                    {
+                        metadata["Status"] = "config-query-error";
+                        return metadata;
+                    }
+
+                    if (!TryParseEntries(result.Output, out List<Entry> entries))
+                    {
+                        metadata["Status"] = "config-format-or-entry-limit";
+                        return metadata;
+                    }
+
+                    if (entries.Any(e => e.Url != null && e.Url.Any(char.IsControl)))
+                    {
+                        metadata["Status"] = "unsupported-config-url";
+                        return metadata;
+                    }
+
+                    if (environment.TryGetValue("GIT_CONFIG_NOSYSTEM", out string noSystem) &&
+                        DescribeValue("usehttppath", noSystem) == "true")
+                    {
+                        metadata["SystemConfigState"] = "disabled";
+                    }
+                    else if (entries.Any(e => e.Scope == "system"))
+                    {
+                        metadata["SystemConfigState"] = "auth-settings-present";
+                    }
+                    else
+                    {
+                        GitProcess.Result systemResult = GitConfigReader.ReadRaw(
+                            "--system --list",
+                            () =>
+                            {
+                                Process system = createProcess("config --system --null --name-only --list");
+                                CopyEnvironment(environment, system.StartInfo);
+                                return system;
+                            },
+                            string.Empty,
+                            deadline.Token,
+                            tracer);
+                        metadata["SystemConfigState"] = systemResult.ExitCodeIsSuccess && systemResult.Errors.Length == 0 ?
+                            "readable-no-auth-settings" :
+                            systemResult.Errors.Contains("No such file or directory", StringComparison.Ordinal) ?
+                            "missing" : "query-error";
+                    }
+
+                    if (!CredentialUrl.TryParse(repositoryUrl, out CredentialUrl url) || url.Scheme == null || url.Host == null)
+                    {
+                        metadata["Status"] = "unsupported-repository-url";
+                        return metadata;
+                    }
+
+                    if (url.Host.Any(c => !char.IsAsciiLetterOrDigit(c) && !".-:[]".Contains(c)) ||
+                        (url.Path != null && url.Path.IndexOfAny(new[] { '?', '#' }) >= 0))
+                    {
+                        metadata["Status"] = "unsupported-sensitive-repository-url";
+                        return metadata;
+                    }
+
+                    // credential.c uses select_all, unlike config --get-urlmatch. Unique keys
+                    // let Git match every entry without collapsing helper values by specificity.
+                    StringBuilder matchConfig = new StringBuilder();
+                    List<(Entry Entry, string Url)> fallbackCandidates = new List<(Entry, string)>();
+                    for (int i = 0; i < entries.Count; ++i)
+                    {
+                        Entry entry = entries[i];
+                        if (entry.Url == null)
                         {
-                            metadata["Status"] = "query-output-limit";
+                            entry.Matches = true;
+                        }
+                        else
+                        {
+                            if (!CredentialUrl.TryParse(entry.Url, out CredentialUrl partial))
+                            {
+                                metadata["Status"] = "unsupported-config-url";
+                                return metadata;
+                            }
+
+                            string matchUrl = RedactUserInfo(entry.Url, partial.Username, url.Username);
+                            if (matchUrl == null)
+                            {
+                                metadata["Status"] = "unsupported-config-url";
+                                return metadata;
+                            }
+
+                            matchConfig.Append("[authdiagnostic \"").Append(EscapeConfig(matchUrl))
+                                .Append("\"]\nentry").Append(i).Append(" = true\n");
+                            if (partial.Matches(url))
+                            {
+                                // Missing scheme/host always fails native normalization.
+                                entry.Matches = partial.Scheme == null || partial.Host == null;
+                                if (!entry.Matches)
+                                {
+                                    fallbackCandidates.Add((entry, matchUrl));
+                                }
+                            }
+                        }
+                    }
+
+                    if (matchConfig.Length > MaxOutput)
+                    {
+                        metadata["Status"] = "matching-input-limit";
+                        return metadata;
+                    }
+
+                    if (matchConfig.Length > 0)
+                    {
+                        GitProcess.Result matched = GitConfigReader.ReadRaw(
+                            "--get-urlmatch",
+                            () => CreateMatcher(createProcess, environment, url.Format(redactUsername: true)),
+                            matchConfig.ToString(),
+                            deadline.Token,
+                            tracer);
+                        if ((matched.ExitCode != 0 && matched.ExitCode != 1) || matched.Errors.Length != 0 ||
+                            matched.OutputTruncated || matched.ErrorsTruncated ||
+                            !TryApplyMatches(matched.Output, entries))
+                        {
+                            metadata["Status"] = "url-match-query-error";
                             return metadata;
                         }
+                    }
 
-                        // Exit 1 means no matching keys only if there is no diagnostic output.
-                        if ((result.ExitCode != 0 && result.ExitCode != 1) || result.Errors.Length != 0 ||
-                            (result.ExitCode == 1 && result.Output.Length != 0))
-                        {
-                            metadata["Status"] = "config-query-error";
-                            return metadata;
-                        }
-
-                        if (!TryParseEntries(result.Output, out List<Entry> entries))
-                        {
-                            metadata["Status"] = "config-format-or-entry-limit";
-                            return metadata;
-                        }
-
-                        if (entries.Any(e => e.Url != null && e.Url.Any(char.IsControl)))
+                    foreach (var candidate in fallbackCandidates.Where(c => !c.Entry.Matches))
+                    {
+                        // Do not decode a valid nonmatch into a match. If a full URL fails
+                        // Git normalization, report the unsupported scope rather than guess.
+                        GitProcess.Result normalized = GitConfigReader.ReadRaw(
+                            "--get-urlmatch",
+                            () => CreateMatcher(createProcess, environment, candidate.Url),
+                            "[authdiagnostic]\nnormalized = true\n",
+                            deadline.Token,
+                            tracer);
+                        if (!normalized.ExitCodeIsSuccess || normalized.Errors.Length != 0 ||
+                            normalized.OutputTruncated || normalized.ErrorsTruncated)
                         {
                             metadata["Status"] = "unsupported-config-url";
                             return metadata;
                         }
-
-                        if (environment.TryGetValue("GIT_CONFIG_NOSYSTEM", out string noSystem) &&
-                            DescribeValue("usehttppath", noSystem) == "true")
-                        {
-                            metadata["SystemConfigState"] = "disabled";
-                        }
-                        else if (entries.Any(e => e.Scope == "system"))
-                        {
-                            metadata["SystemConfigState"] = "auth-settings-present";
-                        }
-                        else
-                        {
-                            using (Process system = createProcess("config --system --null --name-only --list"))
-                            {
-                                CopyEnvironment(environment, system.StartInfo);
-                                GitProcess.Result systemResult = RunAsync(system, string.Empty, deadline.Token).GetAwaiter().GetResult();
-                                metadata["SystemConfigState"] = systemResult.ExitCodeIsSuccess && systemResult.Errors.Length == 0 ?
-                                    "readable-no-auth-settings" :
-                                    systemResult.Errors.Contains("No such file or directory", StringComparison.Ordinal) ?
-                                    "missing" : "query-error";
-                            }
-                        }
-
-                        if (!CredentialUrl.TryParse(repositoryUrl, out CredentialUrl url) || url.Scheme == null || url.Host == null)
-                        {
-                            metadata["Status"] = "unsupported-repository-url";
-                            return metadata;
-                        }
-
-                        if (url.Host.Any(c => !char.IsAsciiLetterOrDigit(c) && !".-:[]".Contains(c)) ||
-                            (url.Path != null && url.Path.IndexOfAny(new[] { '?', '#' }) >= 0))
-                        {
-                            metadata["Status"] = "unsupported-sensitive-repository-url";
-                            return metadata;
-                        }
-
-                        // credential.c uses select_all, unlike config --get-urlmatch. Unique keys
-                        // let Git match every entry without collapsing helper values by specificity.
-                        StringBuilder matchConfig = new StringBuilder();
-                        List<(Entry Entry, string Url)> fallbackCandidates = new List<(Entry, string)>();
-                        for (int i = 0; i < entries.Count; ++i)
-                        {
-                            Entry entry = entries[i];
-                            if (entry.Url == null)
-                            {
-                                entry.Matches = true;
-                            }
-                            else
-                            {
-                                if (!CredentialUrl.TryParse(entry.Url, out CredentialUrl partial))
-                                {
-                                    metadata["Status"] = "unsupported-config-url";
-                                    return metadata;
-                                }
-
-                                string matchUrl = RedactUserInfo(entry.Url, partial.Username, url.Username);
-                                if (matchUrl == null)
-                                {
-                                    metadata["Status"] = "unsupported-config-url";
-                                    return metadata;
-                                }
-
-                                matchConfig.Append("[authdiagnostic \"").Append(EscapeConfig(matchUrl))
-                                    .Append("\"]\nentry").Append(i).Append(" = true\n");
-                                if (partial.Matches(url))
-                                {
-                                    // Missing scheme/host always fails native normalization.
-                                    entry.Matches = partial.Scheme == null || partial.Host == null;
-                                    if (!entry.Matches)
-                                    {
-                                        fallbackCandidates.Add((entry, matchUrl));
-                                    }
-                                }
-                            }
-                        }
-
-                        if (matchConfig.Length > MaxOutput)
-                        {
-                            metadata["Status"] = "matching-input-limit";
-                            return metadata;
-                        }
-
-                        if (matchConfig.Length > 0)
-                        {
-                            using (Process match = CreateMatcher(createProcess, environment, url.Format(redactUsername: true)))
-                            {
-                                GitProcess.Result matched = RunAsync(match, matchConfig.ToString(), deadline.Token).GetAwaiter().GetResult();
-                                if ((matched.ExitCode != 0 && matched.ExitCode != 1) || matched.Errors.Length != 0 ||
-                                    matched.OutputTruncated || matched.ErrorsTruncated ||
-                                    !TryApplyMatches(matched.Output, entries))
-                                {
-                                    metadata["Status"] = "url-match-query-error";
-                                    return metadata;
-                                }
-                            }
-                        }
-
-                        foreach (var candidate in fallbackCandidates.Where(c => !c.Entry.Matches))
-                        {
-                            // Do not decode a valid nonmatch into a match. If a full URL fails
-                            // Git normalization, report the unsupported scope rather than guess.
-                            using (Process normalize = CreateMatcher(createProcess, environment, candidate.Url))
-                            {
-                                GitProcess.Result normalized = RunAsync(normalize, "[authdiagnostic]\nnormalized = true\n", deadline.Token).GetAwaiter().GetResult();
-                                if (!normalized.ExitCodeIsSuccess || normalized.Errors.Length != 0 ||
-                                    normalized.OutputTruncated || normalized.ErrorsTruncated)
-                                {
-                                    metadata["Status"] = "unsupported-config-url";
-                                    return metadata;
-                                }
-                            }
-                        }
-
-                        AddSettings(metadata, entries, url, environment);
-                        metadata["Status"] = "collected";
-                        return metadata;
                     }
+
+                    AddSettings(metadata, entries, url, environment);
+                    metadata["Status"] = "collected";
+                    return metadata;
                 }
                 catch (OperationCanceledException)
                 {
@@ -554,101 +582,6 @@ namespace GVFS.Common.Git
             {
                 startInfo.Environment[pair.Key] = pair.Value;
             }
-        }
-
-        private static async Task<GitProcess.Result> RunAsync(Process process, string input, CancellationToken cancellation)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            // Config output and URL-bearing command arguments must not enter inherited Git traces.
-            foreach (string key in process.StartInfo.Environment.Keys.Where(k => k.StartsWith("GIT_TRACE", StringComparison.OrdinalIgnoreCase)).ToArray())
-            {
-                process.StartInfo.Environment.Remove(key);
-            }
-
-            process.StartInfo.Environment["GIT_TRACE2"] = "0";
-            process.StartInfo.Environment["GIT_TRACE2_EVENT"] = "0";
-            process.StartInfo.Environment["GIT_TRACE2_PERF"] = "0";
-            process.StartInfo.Environment["LC_ALL"] = "C";
-            process.Start();
-            int killFailed = 0;
-            using (CancellationTokenRegistration kill = cancellation.Register(() =>
-            {
-                if (!TryKillProcess(() => process.Kill(entireProcessTree: true)))
-                {
-                    Interlocked.Exchange(ref killFailed, 1);
-                }
-            }))
-            {
-                try
-                {
-                    Task<(string Text, bool Truncated)> stdout = ReadBoundedAsync(process.StandardOutput, MaxOutput, cancellation);
-                    Task<(string Text, bool Truncated)> stderr = ReadBoundedAsync(process.StandardError, 4096, cancellation);
-                    Task write = WriteInputAsync(process, input, cancellation);
-                    await Task.WhenAll(stdout, stderr, write, process.WaitForExitAsync(cancellation));
-                    (string Text, bool Truncated) output = await stdout;
-                    (string Text, bool Truncated) errors = await stderr;
-                    return new GitProcess.Result(output.Text, errors.Text, process.ExitCode, output.Truncated, errors.Truncated);
-                }
-                finally
-                {
-                    if (!process.HasExited)
-                    {
-                        if (!TryKillProcess(() => process.Kill(entireProcessTree: true)))
-                        {
-                            Interlocked.Exchange(ref killFailed, 1);
-                        }
-                    }
-
-                    if (killFailed != 0)
-                    {
-                        throw new Win32Exception();
-                    }
-                }
-            }
-        }
-
-        internal static bool TryKillProcess(Action kill)
-        {
-            try
-            {
-                kill();
-                return true;
-            }
-            catch (InvalidOperationException)
-            {
-                // The query already exited.
-                return true;
-            }
-            catch (Win32Exception)
-            {
-                return false;
-            }
-            catch (AggregateException)
-            {
-                return false;
-            }
-        }
-
-        private static async Task WriteInputAsync(Process process, string input, CancellationToken cancellation)
-        {
-            await process.StandardInput.WriteAsync(input.AsMemory(), cancellation);
-            process.StandardInput.Close();
-        }
-
-        private static async Task<(string Text, bool Truncated)> ReadBoundedAsync(StreamReader reader, int limit, CancellationToken cancellation)
-        {
-            StringBuilder text = new StringBuilder();
-            char[] buffer = new char[4096];
-            bool truncated = false;
-            int count;
-            while ((count = await reader.ReadAsync(buffer.AsMemory(), cancellation)) != 0)
-            {
-                int retained = Math.Min(count, limit - text.Length);
-                text.Append(buffer, 0, retained);
-                truncated |= retained < count;
-            }
-
-            return (text.ToString(), truncated);
         }
 
         internal sealed class Entry

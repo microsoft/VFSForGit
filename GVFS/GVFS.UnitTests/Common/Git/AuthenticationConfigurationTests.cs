@@ -126,9 +126,54 @@ namespace GVFS.UnitTests.Common.Git
         public void ConfigReadErrorsDoNotProduceAnEmptySuccessfulSnapshot()
         {
             File.WriteAllText(Path.Combine(this.root, "global"), "[invalid\n" + Secret);
-            EventMetadata snapshot = this.Collect("https://example.com/org");
+            int reads = 0;
+            MockTracer tracer = new MockTracer();
+            EventMetadata snapshot = this.Collect("https://example.com/org", info => ++reads, tracer: tracer);
             Assert.That(snapshot["Status"], Is.EqualTo("config-query-error"));
             Assert.That(snapshot.ContainsKey("HelperChain"), Is.False);
+            Assert.That(reads, Is.EqualTo(1));
+            Assert.That(tracer.RelatedWarningEvents, Is.Empty);
+            this.AssertNoSecret(snapshot);
+        }
+
+        [TestCase(AuthenticationConfiguration.ReadCommand, 1, 2, "collected", 1)]
+        [TestCase("config --system --null --name-only --list", 1, 2, "collected", 1)]
+        [TestCase("config --file - --no-includes --null --get-urlmatch authdiagnostic", 1, 2, "collected", 1)]
+        [TestCase(AuthenticationConfiguration.ReadCommand, 5, 5, "config-query-error", 5)]
+        public void DiagnosticReadsUseSharedRetriesWithoutTracingConfiguration(
+            string query, int failures, int expectedAttempts, string expectedStatus, int expectedWarnings)
+        {
+            File.WriteAllText(Path.Combine(this.root, "global"), "[credential \"https://example.com/org\"]\nhelper = manager\n");
+            string systemConfig = Path.Combine(this.root, "system");
+            File.WriteAllText(systemConfig, string.Empty);
+            int attempts = 0;
+            MockTracer tracer = new MockTracer();
+
+            EventMetadata snapshot = this.Collect("https://example.com/org", info =>
+            {
+                info.Environment.Remove("GIT_CONFIG_NOSYSTEM");
+                info.Environment["GIT_CONFIG_SYSTEM"] = systemConfig;
+                if (info.Arguments.Contains(query, StringComparison.Ordinal) && ++attempts <= failures)
+                {
+                    info.FileName = Environment.GetEnvironmentVariable("ComSpec");
+                    info.Arguments = "/d /c \"findstr . >nul & echo warning: unable to access '" + Secret + "': Permission denied 1>&2 & exit /b 128\"";
+                }
+            }, tracer: tracer);
+
+            Assert.That(attempts, Is.EqualTo(expectedAttempts));
+            Assert.That(snapshot["Status"], Is.EqualTo(expectedStatus));
+            Assert.That(tracer.TelemetryWarnings.Count, Is.EqualTo(expectedWarnings));
+            Assert.That(string.Join("\n", tracer.RelatedWarningEvents), Does.Not.Contain(Secret));
+            if (expectedStatus == "collected")
+            {
+                Assert.That(snapshot["HelperChain"], Is.EqualTo("manager"));
+                Assert.That(snapshot["SystemConfigState"], Is.EqualTo("readable-no-auth-settings"));
+            }
+            else
+            {
+                Assert.That(snapshot.ContainsKey("HelperChain"), Is.False);
+            }
+
             this.AssertNoSecret(snapshot);
         }
 
@@ -203,11 +248,17 @@ namespace GVFS.UnitTests.Common.Git
         {
             using ManualResetEventSlim exited = new ManualResetEventSlim();
             Stopwatch timer = Stopwatch.StartNew();
+            int attempts = 0;
+            MockTracer tracer = new MockTracer();
             EventMetadata snapshot = AuthenticationConfiguration.Collect("https://example.com/org", command =>
             {
+                ++attempts;
                 Process process = new Process
                 {
-                    StartInfo = new ProcessStartInfo(Environment.GetEnvironmentVariable("ComSpec"), "/c ping -n 30 127.0.0.1 >nul")
+                    StartInfo = new ProcessStartInfo(Environment.GetEnvironmentVariable("ComSpec"),
+                        attempts == 1 ?
+                            "/d /c \"echo warning: unable to access 'config': Permission denied 1>&2 & exit /b 128\"" :
+                            "/d /c ping -n 30 127.0.0.1 >nul")
                     {
                         UseShellExecute = false,
                         RedirectStandardInput = true,
@@ -217,10 +268,16 @@ namespace GVFS.UnitTests.Common.Git
                     },
                     EnableRaisingEvents = true,
                 };
-                process.Exited += (sender, args) => exited.Set();
+                if (attempts > 1)
+                {
+                    process.Exited += (sender, args) => exited.Set();
+                }
+
                 return process;
-            });
+            }, tracer: tracer);
             Assert.That(snapshot["Status"], Is.EqualTo("query-timeout"));
+            Assert.That(attempts, Is.EqualTo(2));
+            Assert.That(tracer.TelemetryWarnings.Count, Is.EqualTo(1));
             Assert.That(timer.Elapsed, Is.LessThan(TimeSpan.FromSeconds(8)));
             Assert.That(exited.Wait(TimeSpan.FromSeconds(1)), Is.True);
         }
@@ -417,9 +474,9 @@ namespace GVFS.UnitTests.Common.Git
         [Category(CategoryConstants.ExceptionExpected)]
         public void TreeKillFailuresCannotEscapeTheCancellationCallback()
         {
-            Assert.That(AuthenticationConfiguration.TryKillProcess(() => throw new AggregateException(new System.ComponentModel.Win32Exception())), Is.False);
-            Assert.That(AuthenticationConfiguration.TryKillProcess(() => throw new System.ComponentModel.Win32Exception()), Is.False);
-            Assert.That(AuthenticationConfiguration.TryKillProcess(() => throw new InvalidOperationException()), Is.True);
+            Assert.That(GitConfigReader.TryKillProcess(() => throw new AggregateException(new System.ComponentModel.Win32Exception())), Is.False);
+            Assert.That(GitConfigReader.TryKillProcess(() => throw new System.ComponentModel.Win32Exception()), Is.False);
+            Assert.That(GitConfigReader.TryKillProcess(() => throw new InvalidOperationException()), Is.True);
         }
 
         [Test]
@@ -475,7 +532,11 @@ namespace GVFS.UnitTests.Common.Git
             Assert.That(snapshot["HelperState"], Is.EqualTo("reset-empty"));
         }
 
-        private EventMetadata Collect(string url, Action<ProcessStartInfo> customize = null, Dictionary<string, string> credentialFillEnvironment = null)
+        private EventMetadata Collect(
+            string url,
+            Action<ProcessStartInfo> customize = null,
+            Dictionary<string, string> credentialFillEnvironment = null,
+            ITracer tracer = null)
         {
             if (!File.Exists(this.gitPath))
             {
@@ -496,7 +557,7 @@ namespace GVFS.UnitTests.Common.Git
                 process.StartInfo.Environment["GIT_CONFIG_GLOBAL"] = Path.Combine(this.root, "global");
                 customize?.Invoke(process.StartInfo);
                 return process;
-            }, credentialFillEnvironment);
+            }, credentialFillEnvironment, tracer);
         }
 
         private void AssertNoSecret(EventMetadata metadata)
@@ -508,7 +569,7 @@ namespace GVFS.UnitTests.Common.Git
         {
             internal int Collections { get; private set; }
 
-            protected override EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment)
+            protected override EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment, ITracer tracer)
             {
                 ++this.Collections;
                 return new EventMetadata { { "Status", "config-query-error" } };
@@ -525,10 +586,10 @@ namespace GVFS.UnitTests.Common.Git
             internal Dictionary<string, string> ResultEnvironment { get; private set; }
             internal Dictionary<string, string> CollectedEnvironment { get; private set; }
 
-            protected override EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment)
+            protected override EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment, ITracer tracer)
             {
                 this.CollectedEnvironment = credentialFillEnvironment;
-                return base.GetAuthenticationConfiguration(repoUrl, credentialFillEnvironment);
+                return base.GetAuthenticationConfiguration(repoUrl, credentialFillEnvironment, tracer);
             }
 
             protected override Result InvokeGitImpl(

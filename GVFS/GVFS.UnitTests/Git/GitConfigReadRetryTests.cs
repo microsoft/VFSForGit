@@ -34,6 +34,36 @@ namespace GVFS.UnitTests.Git
             GitConfigReadRetry.IsTransientFileAccessError(Error, lineMustContain: "unable to access").ShouldBeFalse();
         }
 
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        public void ConfigReaderDoesNotRetryTruncatedFailures(bool outputTruncated, bool errorsTruncated)
+        {
+            MockTracer tracer = new MockTracer();
+            int reads = 0;
+            int delays = 0;
+            GitProcess.Result failure = new GitProcess.Result(
+                string.Empty,
+                "warning: unable to access 'config': Permission denied",
+                128,
+                outputTruncated,
+                errorsTruncated);
+
+            GitProcess.Result result = GitConfigReader.Read(
+                "credential",
+                () =>
+                {
+                    ++reads;
+                    return failure;
+                },
+                tracer,
+                delay => ++delays);
+
+            Assert.That(result, Is.SameAs(failure));
+            Assert.That(reads, Is.EqualTo(1));
+            Assert.That(delays, Is.Zero);
+            Assert.That(tracer.RelatedWarningEvents, Is.Empty);
+        }
+
         [TestCase]
         public void InvokeResultStopsAtTheRequestedAttemptLimit()
         {
