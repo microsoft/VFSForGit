@@ -87,6 +87,7 @@ namespace GVFS.Common.Git
         private readonly Action<TimeSpan> configReadDelay;
         private Process executingProcess;
         private bool stopping;
+        private long lastAuthenticationConfigurationTimestamp;
 
         static GitProcess()
         {
@@ -418,6 +419,7 @@ namespace GVFS.Common.Git
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
                 {
+                    this.TraceAuthenticationConfiguration(tracer, repoUrl, gitCredentialOutput.CredentialFillEnvironment);
                     EventMetadata errorData = new EventMetadata();
                     errorData.Add("hasVisibleConsoleWindow", hasVisibleConsoleWindow);
                     AddCredentialFillResult(errorData, gitCredentialOutput);
@@ -461,6 +463,7 @@ namespace GVFS.Common.Git
                     errorMessage = MissingPasswordErrorMessage;
                     EventMetadata rejectedData = new EventMetadata();
                     rejectedData.Add("hasVisibleConsoleWindow", hasVisibleConsoleWindow);
+                    this.TraceAuthenticationConfiguration(tracer, repoUrl, gitCredentialOutput.CredentialFillEnvironment);
                     TraceCredentialFillMissingPassword(tracer, rejectedData, gitCredentialOutput);
                 }
 
@@ -476,6 +479,39 @@ namespace GVFS.Common.Git
             // rather than blocking the mount that would fix it.
             Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel", usePreCommandHook: false);
             return result.ExitCodeIsSuccess;
+        }
+
+        protected virtual EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment)
+        {
+            return AuthenticationConfiguration.Collect(
+                repoUrl,
+                command => this.GetGitProcess(
+                    $"-c {GitConfigSetting.CredentialUseHttpPath}=true " + command,
+                    this.workingDirectoryRoot,
+                    this.gitDirPath,
+                    useReadObjectHook: false,
+                    gitObjectsDirectory: null,
+                    usePreCommandHook: false),
+                credentialFillEnvironment);
+        }
+
+        private void TraceAuthenticationConfiguration(ITracer tracer, string repoUrl, Dictionary<string, string> credentialFillEnvironment)
+        {
+            long now = Stopwatch.GetTimestamp();
+            long previous = Interlocked.Read(ref this.lastAuthenticationConfigurationTimestamp);
+            if (previous != 0 && Stopwatch.GetElapsedTime(previous, now) < TimeSpan.FromMinutes(5))
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref this.lastAuthenticationConfigurationTimestamp, now, previous) == previous)
+            {
+                tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "AuthenticationConfiguration",
+                    this.GetAuthenticationConfiguration(repoUrl, credentialFillEnvironment),
+                    Keywords.Network | Keywords.Telemetry);
+            }
         }
 
         public Result RevParse(string gitRef)
@@ -1140,6 +1176,7 @@ namespace GVFS.Common.Git
                 return new Result(string.Empty, "Attempting to use to stdin, but the process does not have the right input encodings set.", Result.GenericFailureCode);
             }
 
+            Dictionary<string, string> credentialFillEnvironment = null;
             try
             {
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx
@@ -1186,6 +1223,12 @@ namespace GVFS.Common.Git
                                 return new Result(string.Empty, nameof(GitProcess) + " is stopping", Result.GenericFailureCode);
                             }
 
+                            if (mayRequireAuth && command == GenerateCredentialVerbCommand("fill"))
+                            {
+                                credentialFillEnvironment = this.executingProcess.StartInfo.Environment
+                                    .ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase);
+                            }
+
                             this.executingProcess.Start();
 
                             if (this.LowerPriority)
@@ -1211,19 +1254,28 @@ namespace GVFS.Common.Git
                         {
                             this.executingProcess.Kill();
 
-                            return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated);
+                            return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode, output.Truncated, errors.Truncated)
+                            {
+                                CredentialFillEnvironment = credentialFillEnvironment,
+                            };
                         }
 
                         // A timed wait does not wait for redirected-stream callbacks to finish.
                         this.executingProcess.WaitForExit();
                     }
 
-                    return new Result(output.ToString(), errors.ToString(), this.executingProcess.ExitCode, output.Truncated, errors.Truncated);
+                    return new Result(output.ToString(), errors.ToString(), this.executingProcess.ExitCode, output.Truncated, errors.Truncated)
+                    {
+                        CredentialFillEnvironment = credentialFillEnvironment,
+                    };
                 }
             }
             catch (Win32Exception e)
             {
-                return new Result(string.Empty, e.Message, Result.GenericFailureCode);
+                return new Result(string.Empty, e.Message, Result.GenericFailureCode)
+                {
+                    CredentialFillEnvironment = credentialFillEnvironment,
+                };
             }
             finally
             {
@@ -1620,6 +1672,7 @@ namespace GVFS.Common.Git
             public string Output { get; }
             public string Errors { get; }
             public int ExitCode { get; }
+            internal Dictionary<string, string> CredentialFillEnvironment { get; set; }
 
             /// <summary>
             /// True if the git process produced more stdout than the capture buffer allowed, so
