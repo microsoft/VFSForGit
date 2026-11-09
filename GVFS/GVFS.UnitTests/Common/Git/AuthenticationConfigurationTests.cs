@@ -534,6 +534,43 @@ namespace GVFS.UnitTests.Common.Git
             Assert.That(snapshot["HelperState"], Is.EqualTo("reset-empty"));
         }
 
+        [Test]
+        public void FailedCredentialFillBeforeCloneCreatesTheWorkingDirectoryCollectsConfiguration()
+        {
+            string workingDirectory = Path.Combine(this.root, "enlistment", "src");
+            string systemConfig = Path.Combine(this.root, "system");
+            File.WriteAllText(systemConfig, string.Empty);
+            File.WriteAllText(Path.Combine(this.root, "global"),
+                "[credential]\nhelper = manager\n" +
+                "[credential \"https://dev.azure.com/org\"]\nhelper =\nhelper = store --file=" + Secret + "\n");
+            Dictionary<string, string> environment = new Dictionary<string, string>
+            {
+                { "SystemRoot", Environment.GetEnvironmentVariable("SystemRoot") },
+                { "GIT_CONFIG_SYSTEM", systemConfig },
+                { "GIT_CONFIG_GLOBAL", Path.Combine(this.root, "global") },
+                { "GIT_TERMINAL_PROMPT", "0" },
+                { "GCM_VALIDATE", "0" },
+            };
+            PreCloneGitProcess git = new PreCloneGitProcess(this.gitPath, workingDirectory, environment);
+            MockTracer tracer = new MockTracer();
+
+            Assert.That(git.TryGetCredential(tracer, "https://dev.azure.com/org/repo", out _, out _, out _), Is.False);
+            Assert.That(Directory.Exists(workingDirectory), Is.False);
+            EventMetadata snapshot = tracer.RelatedEventMetadata[tracer.RelatedEventNames.IndexOf("AuthenticationConfiguration")];
+            using (JsonDocument payload = JsonDocument.Parse(EventMetadataConverter.SerializeToString(snapshot)))
+            {
+                Assert.That(payload.RootElement.GetProperty("Status").GetString(), Is.EqualTo("collected"));
+                Assert.That(payload.RootElement.GetProperty("EnvironmentTiming").GetString(), Is.EqualTo("credential-fill-process"));
+                Assert.That(payload.RootElement.GetProperty("HelperChain").GetString(), Is.EqualTo("store:omitted-arguments"));
+                Assert.That(payload.RootElement.GetProperty("HelperOperations").GetString(),
+                    Is.EqualTo("global:manager, global:reset, global:store:omitted-arguments"));
+                Assert.That(payload.RootElement.GetProperty("SystemConfigState").GetString(), Is.EqualTo("readable-no-auth-settings"));
+                Assert.That(payload.RootElement.GetProperty("UseHttpPath").GetString(), Is.EqualTo("true"));
+            }
+
+            this.AssertNoSecret(snapshot);
+        }
+
         private EventMetadata Collect(
             string url,
             Action<ProcessStartInfo> customize = null,
@@ -575,6 +612,37 @@ namespace GVFS.UnitTests.Common.Git
             {
                 ++this.Collections;
                 return new EventMetadata { { "Status", "config-query-error" } };
+            }
+        }
+
+        private sealed class PreCloneGitProcess : GitProcess
+        {
+            private readonly Dictionary<string, string> environment;
+
+            internal PreCloneGitProcess(string gitPath, string root, Dictionary<string, string> environment)
+                : base(gitPath, root)
+            {
+                this.environment = environment;
+            }
+
+            protected override Result InvokeGitImpl(
+                string command,
+                string workingDirectory,
+                string dotGitDirectory,
+                bool useReadObjectHook,
+                Action<StreamWriter> writeStdIn,
+                Action<string> parseStdOutLine,
+                int timeoutMs,
+                string gitObjectsDirectory = null,
+                bool usePreCommandHook = true,
+                bool mayRequireAuth = false,
+                bool? hasVisibleConsoleWindow = null)
+            {
+                Assert.That(command, Does.EndWith("credential fill"));
+                return new Result(string.Empty, "Credential fill failed", 128)
+                {
+                    CredentialFillEnvironment = this.environment,
+                };
             }
         }
 

@@ -487,7 +487,7 @@ namespace GVFS.Common.Git
                 repoUrl,
                 command => this.GetGitProcess(
                     $"-c {GitConfigSetting.CredentialUseHttpPath}=true " + command,
-                    this.workingDirectoryRoot,
+                    Environment.SystemDirectory,
                     this.gitDirPath,
                     useReadObjectHook: false,
                     gitObjectsDirectory: null,
