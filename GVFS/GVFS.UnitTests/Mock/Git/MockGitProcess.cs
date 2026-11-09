@@ -112,6 +112,11 @@ namespace GVFS.UnitTests.Mock.Git
             return base.TryDeleteCredential(tracer, repoUrl, username, password, out error);
         }
 
+        protected override EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment, ITracer tracer)
+        {
+            return new EventMetadata { { "Status", "mock" } };
+        }
+
         protected override Result InvokeGitImpl(
             string command,
             string workingDirectory,
