@@ -159,10 +159,11 @@ jobs:
       shell: pwsh
       env:
         EXPECTED_ARCH: ${{ matrix.architecture }}
+        EXPECTED_REPOSITORY: ${{ inputs.vfs_repository || github.repository }}
       run: |
         if (Test-Path gvfs\coverage-build.json) {
           $manifest = Get-Content gvfs\coverage-build.json -Raw | ConvertFrom-Json
-          if ($manifest.SchemaVersion -ne 1 -or $manifest.SourceCommit -notmatch '^[a-f0-9]{40}$' -or $manifest.Repository -notmatch '^[\w.-]+/[\w.-]+$' -or $manifest.Architecture -ne $env:EXPECTED_ARCH -or $manifest.SessionId -notmatch '^[\w.-]+$') {
+          if ($manifest.SchemaVersion -ne 1 -or $manifest.SourceCommit -notmatch '^[a-f0-9]{40}$' -or $manifest.Repository -notmatch '^[\w.-]+/[\w.-]+$' -or $manifest.Repository -ine $env:EXPECTED_REPOSITORY -or $manifest.Architecture -ne $env:EXPECTED_ARCH -or $manifest.SessionId -notmatch '^[\w.-]+$') {
             throw 'Invalid installer coverage manifest.'
           }
           "enabled=true" >> $env:GITHUB_OUTPUT
@@ -255,7 +256,7 @@ jobs:
         if ($LASTEXITCODE -ne 0) { throw 'Post-installation coverage snapshot failed.' }
         Microsoft.CodeCoverage.Console.exe merge coverage\after-install.coverage --output coverage\after-install.cobertura.xml --output-format cobertura
         if ($LASTEXITCODE -ne 0) { throw 'Post-installation coverage conversion failed.' }
-        src\scripts\Assert-AotCoverage.ps1 -CoveragePath coverage\after-install.cobertura.xml -ServiceOnly |
+        src\scripts\Assert-AotCoverage.ps1 -CoveragePath coverage\after-install.cobertura.xml |
           Tee-Object -FilePath coverage\service-startup-probe.json
 
     - name: Run functional tests
@@ -275,7 +276,7 @@ jobs:
       run: src\scripts\Invoke-Coverage.ps1 -Action Stop -Directory coverage -TestOutcome '${{ steps.functional_tests.outcome }}'
 
     - name: Upload worker coverage
-      if: always() && steps.coverage_start.outcome == 'success'
+      if: always() && steps.coverage_manifest.outputs.enabled == 'true' && hashFiles('coverage/**') != ''
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ env.ARTIFACT_PREFIX }}Coverage_Functional_${{ matrix.architecture }}_${{ matrix.nr }}

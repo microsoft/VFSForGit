@@ -301,6 +301,14 @@ jobs:
       shell: cmd
       run: src\scripts\Build.bat ${{ matrix.configuration }} 0.2.173.2 minimal ${{ matrix.architecture }}
 
+    - name: Test coverage scripts
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      run: |
+        Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -ErrorAction Stop
+        Import-Module Pester -RequiredVersion 5.7.1 -ErrorAction Stop
+        Invoke-Pester -Path src\scripts\Merge-Coverage.Tests.ps1,src\scripts\Invoke-Coverage.Tests.ps1,src\scripts\Assert-AotCoverage.Tests.ps1 -CI
+
     - name: Locate coverage collector
       if: steps.skip.outputs.result != 'true'
       uses: ./src/.github/actions/setup-coverage
@@ -332,7 +340,7 @@ jobs:
       run: src\scripts\Invoke-Coverage.ps1 -Action Stop -Directory unit-coverage -TestOutcome '${{ steps.unit_tests.outcome }}'
 
     - name: Upload unit coverage
-      if: always() && steps.unit_coverage.outcome == 'success'
+      if: always() && steps.skip.outputs.result != 'true' && hashFiles('unit-coverage/**') != ''
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: Coverage_Unit_${{ matrix.architecture }}
@@ -439,12 +447,22 @@ jobs:
         }
 
     - name: Upload complete coverage reports
+      id: coverage_reports
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ManagedCoverage
         path: coverage-report
         if-no-files-found: error
+
+    - name: Link source-level coverage reports
+      if: steps.coverage_reports.outcome == 'success'
+      shell: pwsh
+      env:
+        COVERAGE_ARTIFACT_URL: ${{ steps.coverage_reports.outputs.artifact-url }}
+      run: |
+        "[Download coverage reports]($env:COVERAGE_ARTIFACT_URL): ChangedLines.html contains per-line test evidence and links to the tested source." >> $env:GITHUB_STEP_SUMMARY
+        'Separate report folders: unit-x64, unit-arm64, functional-x64, functional-arm64, and upgrade-x64.' >> $env:GITHUB_STEP_SUMMARY
 
   result:
     runs-on: ubuntu-latest

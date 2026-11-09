@@ -128,6 +128,8 @@ Describe 'Managed-source coverage aggregation integrity' {
         $summary.Measurements.PRODUCT.Hit | Should -Be 1
         $summary.Measurements.UNIT.Measured | Should -Be 2
         $summary.Measurements.UNIT.Hit | Should -Be 2
+        $summary.Measurements.COMBINED.Measured | Should -Be 2
+        $summary.Measurements.COMBINED.Hit | Should -Be 2
         ($summary.WorkerReports | Where-Object WorkerId -eq 'unit-x64').Modules[0].Coverage.Hit | Should -Be 0
         ($summary.WorkerReports | Where-Object WorkerId -eq 'unit-x64').CollectorVersion | Should -Be '18.8.0'
         $completedUtc = [datetime]($summary.WorkerReports | Where-Object WorkerId -eq 'unit-x64').CompletedUtc
@@ -141,6 +143,7 @@ Describe 'Managed-source coverage aggregation integrity' {
         $changed = Get-Content -LiteralPath (Join-Path $outputPath 'changed-lines.json') -Raw | ConvertFrom-Json
         $changed.Available | Should -BeFalse
         (Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.md') -Raw) | Should -Match 'unavailable because BaseCommit is absent'
+        (Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.html') -Raw) | Should -Match 'unavailable because BaseCommit is absent'
         $before = Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw
         Invoke-Merge
         (Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw) | Should -BeExactly $before
@@ -198,6 +201,32 @@ Describe 'Managed-source coverage aggregation integrity' {
         $summary = Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw | ConvertFrom-Json
         $summary.Complete | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $outputPath 'Summary.md') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $outputPath 'ChangedLines.html') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $outputPath 'normalized') | Should -BeFalse
+    }
+
+    It 'Invalidates previous output when <MissingDirectory> does not exist' -ForEach @(
+        @{ MissingDirectory = 'InputDirectory' },
+        @{ MissingDirectory = 'SourceDirectory' }
+    ) {
+        Invoke-Merge
+        $arguments = @{
+            InputDirectory = $inputPath; OutputDirectory = $outputPath; SourceDirectory = $sourcePath
+            SourceCommit = $commit; Repository = $repository
+        }
+        $arguments[$MissingDirectory] = Join-Path $root 'missing'
+        { & $mergeScript @arguments } | Should -Throw '*Cannot find path*'
+        (Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw | ConvertFrom-Json).Complete | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $outputPath 'Summary.md') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $outputPath 'normalized') | Should -BeFalse
+    }
+
+    It 'Rejects unsafe cleanup scope before touching source files' {
+        $sentinel = Join-Path $sourcePath 'Summary.md'
+        'preserve source' | Set-Content -LiteralPath $sentinel
+        { & $mergeScript -InputDirectory $inputPath -OutputDirectory $sourcePath -SourceDirectory $sourcePath `
+            -SourceCommit $commit -Repository $repository } | Should -Throw '*OutputDirectory must not contain*'
+        (Get-Content -LiteralPath $sentinel -Raw).Trim() | Should -Be 'preserve source'
     }
 
     It 'Rejects duplicate worker identities instead of treating them as another shard' {
@@ -346,6 +375,114 @@ Describe 'Managed-source coverage aggregation integrity' {
         { Invoke-Merge } | Should -Throw '*Missing tests.xml*'
     }
 
+    It 'Combines unique changed source lines with distinct evidence and a union denominator' {
+        $policyPath = Join-Path $sourcePath 'GVFS\GVFS.Common\Policy.cs'
+        1..7 | ForEach-Object { "old$_" } | Set-Content -LiteralPath $policyPath
+        Invoke-TestGit @('init', '--quiet') | Out-Null
+        Invoke-TestGit @('config', 'user.email', 'fixture@example.invalid') | Out-Null
+        Invoke-TestGit @('config', 'user.name', 'Coverage fixture') | Out-Null
+        Invoke-TestGit @('config', 'core.autocrlf', 'false') | Out-Null
+        Invoke-TestGit @('config', 'commit.gpgsign', 'false') | Out-Null
+        Invoke-TestGit @('add', '.') | Out-Null
+        Invoke-TestGit @('-c', 'core.hooksPath=NUL', 'commit', '--quiet', '-m', 'Base fixture') | Out-Null
+        $base = [string](Invoke-TestGit @('rev-parse', 'HEAD'))
+        1..7 | ForEach-Object { "new$_" } | Set-Content -LiteralPath $policyPath
+        Invoke-TestGit @('add', '.') | Out-Null
+        Invoke-TestGit @('-c', 'core.hooksPath=NUL', 'commit', '--quiet', '-m', 'Tested fixture') | Out-Null
+        $commit = [string](Invoke-TestGit @('rev-parse', 'HEAD'))
+        foreach ($metadataFile in Get-ChildItem -LiteralPath $inputPath -Filter 'metadata.json' -Recurse) {
+            $id = $metadataFile.Directory.Name
+            Set-WorkerMetadata $id SourceCommit $commit
+            $isUnit = $id.StartsWith('unit-')
+            Edit-WorkerCoverage $id {
+                param($document)
+                foreach ($class in $document.SelectNodes('//class')) {
+                    $hits = if ($isUnit) { @{ 1 = 1; 2 = 0; 3 = 1; 4 = 0; 6 = 1; 7 = 0 } }
+                        else { @{ 1 = 1; 2 = 1; 3 = 0; 4 = 0 } }
+                    if ($isUnit -and ($id -ne 'unit-x64' -or $class.name -ne 'GVFS.UnitTests.Policy')) {
+                        $hits.Remove(6)
+                    }
+                    $unitDuplicate = $isUnit -and $class.name -eq 'GVFS.Common.Policy'
+                    $class.SelectSingleNode('./lines').InnerXml = ($hits.Keys | Sort-Object | ForEach-Object {
+                        $hit = if ($unitDuplicate) { 0 } else { $hits[$_] }
+                        "<line number='$_' hits='$hit'/>"
+                    }) -join ''
+                }
+            }
+        }
+        Invoke-Merge -Base $base
+        $changed = Get-Content -LiteralPath (Join-Path $outputPath 'changed-lines.json') -Raw | ConvertFrom-Json
+        $combined = $changed.Files[0].COMBINED
+        $combined.Measured | Should -Be 6
+        $combined.Hit | Should -Be 4
+        $combined.Percentage | Should -Be 66.67
+        $combined.Both | Should -Be 1
+        $combined.ProductOnly | Should -Be 1
+        $combined.UnitOnly | Should -Be 2
+        $combined.Uncovered | Should -Be 2
+        $combined.NoEntry | Should -Be 1
+        @($combined.Lines.State) | Should -Be @('product-and-unit', 'product-only', 'unit-only', 'uncovered', 'no-entry/unmeasured-or-non-executable', 'unit-only', 'uncovered')
+        foreach ($scope in @('PRODUCT', 'UNIT', 'COMBINED')) {
+            foreach ($line in $changed.Files[0].$scope.Lines) {
+                ($line.Provenance -is [array]) | Should -BeTrue
+                @($line.Provenance | Where-Object { $null -eq $_ }).Count | Should -Be 0
+            }
+        }
+        $changed.Files[0].UNIT.Lines[5].Provenance.Count | Should -Be 1
+        $combined.Lines[5].Provenance.Count | Should -Be 1
+        $combined.Lines[4].Provenance.Count | Should -Be 0
+        $combined.Lines[0].Provenance.Suite | Should -Contain 'Unit'
+        $combined.Lines[0].Provenance.Suite | Should -Contain 'Functional'
+        $combined.Lines[2].Provenance.Module | Should -Contain 'GVFS.UnitTests'
+        $changed.Files[0].PRODUCT.Hit | Should -Be 2
+        $changed.Files[0].UNIT.Hit | Should -Be 3
+        $changed.Measurements.COMBINED.Hit | Should -Be 4
+        $changed.Measurements.COMBINED.NoEntry | Should -Be 1
+        $summary = Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw | ConvertFrom-Json
+        $summary.Measurements.COMBINED.Measured | Should -Be 6
+        $summary.Measurements.COMBINED.Hit | Should -Be 4
+        $markdown = Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.md') -Raw
+        $markdown | Should -Match '\*\*Combined: 66.67% \(4/6 measured changed lines\)'
+        $markdown | Should -Match 'Separate product and unit'
+        $html = Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.html') -Raw
+        $html | Should -Match "https://github.com/microsoft/VFSForGit/blob/$commit/GVFS/GVFS.Common/Policy.cs#L6"
+        $html | Should -Match 'No-entry \(coverage unknown\)'
+    }
+
+    It 'Selects only new-side lines across deletion, rename, and multiple hunks without a final newline' {
+        $policyPath = Join-Path $sourcePath 'GVFS\GVFS.Common\Policy.cs'
+        [System.IO.File]::WriteAllText($policyPath, ((1..30 | ForEach-Object { "line$_" }) -join "`n"))
+        'unchanged rename' | Set-Content -LiteralPath (Join-Path $sourcePath 'Old.cs')
+        'deleted file' | Set-Content -LiteralPath (Join-Path $sourcePath 'Deleted.cs')
+        Invoke-TestGit @('init', '--quiet') | Out-Null
+        Invoke-TestGit @('config', 'user.email', 'fixture@example.invalid') | Out-Null
+        Invoke-TestGit @('config', 'user.name', 'Coverage fixture') | Out-Null
+        Invoke-TestGit @('config', 'core.autocrlf', 'false') | Out-Null
+        Invoke-TestGit @('config', 'commit.gpgsign', 'false') | Out-Null
+        Invoke-TestGit @('add', '.') | Out-Null
+        Invoke-TestGit @('-c', 'core.hooksPath=NUL', 'commit', '--quiet', '-m', 'Base fixture') | Out-Null
+        $base = [string](Invoke-TestGit @('rev-parse', 'HEAD'))
+        $lines = foreach ($number in 1..30) {
+            if ($number -eq 10) { continue }
+            if ($number -in @(2, 20, 30)) { "changed$number" } else { "line$number" }
+        }
+        [System.IO.File]::WriteAllText($policyPath, ($lines -join "`n"))
+        Rename-Item -LiteralPath (Join-Path $sourcePath 'Old.cs') -NewName 'Renamed.cs'
+        Remove-Item -LiteralPath (Join-Path $sourcePath 'Deleted.cs')
+        Invoke-TestGit @('add', '--all') | Out-Null
+        Invoke-TestGit @('-c', 'core.hooksPath=NUL', 'commit', '--quiet', '-m', 'Tested fixture') | Out-Null
+        $commit = [string](Invoke-TestGit @('rev-parse', 'HEAD'))
+        foreach ($metadataFile in Get-ChildItem -LiteralPath $inputPath -Filter 'metadata.json' -Recurse) {
+            Set-WorkerMetadata $metadataFile.Directory.Name SourceCommit $commit
+        }
+        Invoke-Merge -Base $base
+        $changed = Get-Content -LiteralPath (Join-Path $outputPath 'changed-lines.json') -Raw | ConvertFrom-Json
+        @(($changed.Files | Where-Object Path -eq 'GVFS/GVFS.Common/Policy.cs').AddedModifiedLines) | Should -Be @(2, 19, 29)
+        ($changed.Files | Where-Object Path -eq 'Renamed.cs').AddedModifiedLines.Count | Should -Be 0
+        ($changed.Files | Where-Object Path -eq 'Deleted.cs').AddedModifiedLines.Count | Should -Be 0
+        $changed.Files.Count | Should -Be 3
+    }
+
     It 'Uses the tested git commits, separates unit-only hits, and keeps native, test, non-code, and no-entry changes visible with N/A' {
         [void][System.IO.Directory]::CreateDirectory((Join-Path $sourcePath 'GVFS\GVFS.UnitTests'))
         [void][System.IO.Directory]::CreateDirectory((Join-Path $sourcePath 'GVFS\GVFS.NativeTests'))
@@ -385,20 +522,29 @@ Describe 'Managed-source coverage aggregation integrity' {
         $policy.PRODUCT.Uncovered | Should -Be 1
         $policy.PRODUCT.Lines[0].State | Should -Be 'uncovered'
         $policy.UNIT.Hit | Should -Be 1
+        $policy.COMBINED.Hit | Should -Be 1
+        $policy.COMBINED.Lines[0].State | Should -Be 'unit-only'
+        $policy.COMBINED.UnitOnly | Should -Be 1
         $policy.UNIT.Lines[0].Provenance.Module | Should -Contain 'GVFS.UnitTests'
         $policy.PRODUCT.Lines[0].Provenance.Suite | Should -Not -Contain 'Unit'
         $absent = $changed.Files | Where-Object Path -eq 'GVFS/GVFS.Common/No Entry.cs'
         $absent.PRODUCT.Percentage | Should -BeNullOrEmpty
         $absent.PRODUCT.NoEntry | Should -Be 1
         $absent.PRODUCT.Lines[0].State | Should -Be 'no-entry/unmeasured-or-non-executable'
+        $absent.COMBINED.Percentage | Should -BeNullOrEmpty
+        $absent.COMBINED.NoEntry | Should -Be 1
+        $absent.COMBINED.Lines[0].State | Should -Be 'no-entry/unmeasured-or-non-executable'
         ($changed.Files | Where-Object Path -eq 'GVFS/GVFS.Common/No é Entry.cs').PRODUCT.NoEntry | Should -Be 1
         ($changed.Files | Where-Object Path -like '*Native.cpp').Classification | Should -Be 'unsupported-native'
+        ($changed.Files | Where-Object Path -like '*Native.cpp').COMBINED.Lines[0].State | Should -Be 'unsupported-native'
         ($changed.Files | Where-Object Path -like '*UnitTests/Test.cs').Classification | Should -Be 'intentionally-excluded-test-code'
         ($changed.Files | Where-Object Path -like '*NativeTests/Test.cpp').Classification | Should -Be 'intentionally-excluded-test-code'
         ($changed.Files | Where-Object Path -eq 'Readme.md').Classification | Should -Be 'not-applicable'
         ($changed.Files | Where-Object Path -eq 'binary.dat').Classification | Should -Be 'not-applicable'
         $changed.Files.Count | Should -Be 8
         (Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.md') -Raw) | Should -Match 'N/A'
+        (Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.md') -Raw) | Should -Match 'No%20%C3%A9%20Entry.cs'
+        $changed.Measurements.COMBINED.NoEntry | Should -Be 2
         { Invoke-Merge -Base 'not-a-sha' } | Should -Throw '*BaseCommit must be a 40-hex*'
         (Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw | ConvertFrom-Json).Complete | Should -BeFalse
     }

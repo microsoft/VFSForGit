@@ -98,10 +98,12 @@ jobs:
       id: coverage_manifest
       if: steps.skip.outputs.result != 'true'
       shell: pwsh
+      env:
+        EXPECTED_REPOSITORY: ${{ github.repository }}
       run: |
         if (Test-Path gvfs-new\coverage-build.json) {
           $manifest = Get-Content gvfs-new\coverage-build.json -Raw | ConvertFrom-Json
-          if ($manifest.SchemaVersion -ne 1 -or $manifest.SourceCommit -notmatch '^[a-f0-9]{40}$' -or $manifest.Repository -notmatch '^[\w.-]+/[\w.-]+$' -or $manifest.Architecture -ne 'x64' -or $manifest.SessionId -notmatch '^[\w.-]+$') {
+          if ($manifest.SchemaVersion -ne 1 -or $manifest.SourceCommit -notmatch '^[a-f0-9]{40}$' -or $manifest.Repository -notmatch '^[\w.-]+/[\w.-]+$' -or $manifest.Repository -ine $env:EXPECTED_REPOSITORY -or $manifest.Architecture -ne 'x64' -or $manifest.SessionId -notmatch '^[\w.-]+$') {
             throw 'Invalid installer coverage manifest.'
           }
           "enabled=true" >> $env:GITHUB_OUTPUT
@@ -428,7 +430,7 @@ jobs:
       run: src\scripts\Invoke-Coverage.ps1 -Action Stop -Directory coverage -TestOutcome '${{ steps.upgrade_test.outcome }}'
 
     - name: Upload upgrade coverage
-      if: always() && steps.coverage_start.outcome == 'success'
+      if: always() && steps.coverage_manifest.outputs.enabled == 'true' && hashFiles('coverage/**') != ''
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: Coverage_Upgrade_x64_${{ matrix.scenario }}

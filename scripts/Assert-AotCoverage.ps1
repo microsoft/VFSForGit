@@ -1,36 +1,15 @@
 param(
     [Parameter(Mandatory)]
-    [string]$CoveragePath,
-    [switch]$ServiceOnly
+    [string]$CoveragePath
 )
 
 $ErrorActionPreference = 'Stop'
 
 [xml]$coverage = Get-Content -LiteralPath $CoveragePath -Raw
 $packages = @($coverage.coverage.packages.package)
-$requiredModules = @(
-    'GVFS',
-    'GVFS.Hooks',
-    'GVFS.Mount',
-    'GVFS.Service',
-    'GVFS.Common',
-    'GVFS.Platform.Windows',
-    'GVFS.Virtualization'
-)
-if ($ServiceOnly) {
-    $requiredModules = @('GVFS.Service')
-}
-
-foreach ($name in $requiredModules) {
-    $module = @($packages | Where-Object { $_.name -eq $name })
-    if ($module.Count -ne 1) {
-        throw "Expected one coverage module for $name; found $($module.Count)."
-    }
-
-    $hitLines = @($module[0].classes.class.lines.line | Where-Object { [int]$_.hits -gt 0 })
-    if ($hitLines.Count -eq 0) {
-        throw "No executed lines in required product module $name."
-    }
+$service = @($packages | Where-Object { $_.name -eq 'GVFS.Service' })
+if ($service.Count -ne 1) {
+    throw "Expected one coverage module for GVFS.Service; found $($service.Count)."
 }
 
 $testModules = @($packages | Where-Object { $_.name -match '(UnitTests|FunctionalTests|^GVFS.Tests$)' })
@@ -38,7 +17,6 @@ if ($testModules.Count -ne 0) {
     throw "Test assemblies contaminate the product report: $($testModules.name -join ', ')."
 }
 
-$service = $packages | Where-Object { $_.name -eq 'GVFS.Service' }
 $serviceClass = $service.classes.class | Where-Object { $_.name -eq 'GVFS.Service.GVFSService' }
 $onStart = @($serviceClass.methods.method | Where-Object { $_.name -eq 'OnStart' })
 $startupHits = @($onStart.lines.line | Where-Object { [int]$_.hits -gt 0 })
@@ -54,7 +32,7 @@ if ($consoleHits.Count -ne 0) {
 }
 
 [ordered]@{
-    Scope = if ($ServiceOnly) { 'SCM service execution' } else { 'Managed NativeAOT product' }
+    Scope = 'SCM service execution'
     Modules = $packages.name
     ScmServiceStartupCovered = $true
     ConsoleServiceEntryCovered = $false

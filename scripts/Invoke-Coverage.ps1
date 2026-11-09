@@ -71,7 +71,7 @@ if ($Action -eq 'Start') {
     [xml]$report = Get-Content -LiteralPath $coveragePath -Raw
     if ([int]$report.coverage.'lines-covered' -le 0) { throw 'Coverage report contains no executed lines.' }
     if ($metadata.Suite -ne 'Unit') {
-        & (Join-Path $PSScriptRoot 'Assert-AotCoverage.ps1') -CoveragePath $coveragePath -ServiceOnly |
+        & (Join-Path $PSScriptRoot 'Assert-AotCoverage.ps1') -CoveragePath $coveragePath |
             Set-Content -LiteralPath (Join-Path $Directory 'service.json') -Encoding utf8
     }
     if ($metadata.Suite -in @('Unit', 'Functional')) {

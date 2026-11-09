@@ -221,14 +221,17 @@ function Get-ChangedMeasurement {
         foreach ($number in $Numbers) {
             $key = "$Path`0$number"
             $entry = $Index[$key]
+            $provenance = @(
+                if ($null -ne $entry -and $Classification -eq 'managed-source') {
+                    $entry.Provenance.Values | Sort-Object WorkerId, Module, SourceDocument
+                }
+            )
             [ordered]@{
                 Line = $number
                 State = if ($Classification -ne 'managed-source') { $Classification }
                     elseif ($null -eq $entry) { 'no-entry/unmeasured-or-non-executable' }
                     elseif ($entry.Hit) { 'hit' } else { 'uncovered' }
-                Provenance = if ($null -eq $entry -or $Classification -ne 'managed-source') { @() } else {
-                    @($entry.Provenance.Values | Sort-Object WorkerId, Module, SourceDocument)
-                }
+                Provenance = $provenance
             }
         }
     )
@@ -244,14 +247,61 @@ function Get-ChangedMeasurement {
     }
 }
 
+function Get-CombinedMeasurement {
+    param($Product, $Unit)
+
+    $lines = @(
+        for ($index = 0; $index -lt $Product.Lines.Count; $index++) {
+            $productLine = $Product.Lines[$index]
+            $unitLine = $Unit.Lines[$index]
+            $productHit = $productLine.State -eq 'hit'
+            $unitHit = $unitLine.State -eq 'hit'
+            $state = if ($productHit -and $unitHit) { 'product-and-unit' }
+                elseif ($productHit) { 'product-only' }
+                elseif ($unitHit) { 'unit-only' }
+                elseif ($productLine.State -eq 'uncovered' -or $unitLine.State -eq 'uncovered') { 'uncovered' }
+                else { $productLine.State }
+            [ordered]@{
+                Line = $productLine.Line
+                State = $state
+                Provenance = @(@($productLine.Provenance) + @($unitLine.Provenance) |
+                    Sort-Object WorkerId, Module, SourceDocument)
+            }
+        }
+    )
+    $both = @($lines | Where-Object State -eq 'product-and-unit').Count
+    $productOnly = @($lines | Where-Object State -eq 'product-only').Count
+    $unitOnly = @($lines | Where-Object State -eq 'unit-only').Count
+    $uncovered = @($lines | Where-Object State -eq 'uncovered').Count
+    $hit = $both + $productOnly + $unitOnly
+    $measured = $hit + $uncovered
+    return [ordered]@{
+        Measured = $measured; Hit = $hit; Uncovered = $uncovered
+        Both = $both; ProductOnly = $productOnly; UnitOnly = $unitOnly
+        NoEntry = @($lines | Where-Object State -eq 'no-entry/unmeasured-or-non-executable').Count
+        Percentage = if ($measured -eq 0) { $null } else { [Math]::Round(100.0 * $hit / $measured, 2) }
+        Lines = $lines
+    }
+}
+
+function Get-SourceLink {
+    param([string]$Path, [int]$Line)
+
+    $encodedPath = ($Path.Split('/') | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/'
+    $url = "https://github.com/$Repository/blob/$SourceCommit/$encodedPath"
+    if ($Line -gt 0) { $url += "#L$Line" }
+    return $url
+}
+
 function Format-Percentage {
     param($Value)
     if ($null -eq $Value) { return 'N/A' }
     return $Value.ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture) + '%'
 }
 
-$SourceDirectory = Get-WindowsPath (Resolve-Path -LiteralPath $SourceDirectory).Path
-$InputDirectory = Get-WindowsPath (Resolve-Path -LiteralPath $InputDirectory).Path
+# Check cleanup boundaries even if an input directory is missing.
+$SourceDirectory = Get-WindowsPath ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($SourceDirectory))
+$InputDirectory = Get-WindowsPath ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InputDirectory))
 $OutputDirectory = Get-WindowsPath ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory))
 if ($OutputDirectory -eq $InputDirectory -or $OutputDirectory -eq $SourceDirectory -or
     $InputDirectory.StartsWith("$OutputDirectory\", [StringComparison]::OrdinalIgnoreCase) -or
@@ -261,15 +311,18 @@ if ($OutputDirectory -eq $InputDirectory -or $OutputDirectory -eq $SourceDirecto
 [void][System.IO.Directory]::CreateDirectory($OutputDirectory)
 $summaryPath = Join-Path $OutputDirectory 'summary.json'
 
-# Invalidate old success reports before any input check can fail.
-foreach ($name in @('Summary.md', 'changed-lines.json', 'ChangedLines.md')) {
+foreach ($name in @('Summary.md', 'changed-lines.json', 'ChangedLines.md', 'ChangedLines.html')) {
     $path = Join-Path $OutputDirectory $name
     if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
 }
+$normalized = Join-Path $OutputDirectory 'normalized'
+if (Test-Path -LiteralPath $normalized) { Remove-Item -LiteralPath $normalized -Recurse -Force }
 [ordered]@{ SchemaVersion = 1; Complete = $false; Repository = $Repository; SourceCommit = $SourceCommit } |
     ConvertTo-Json | Set-Content -LiteralPath $summaryPath -Encoding utf8
 
 try {
+    $SourceDirectory = Get-WindowsPath (Resolve-Path -LiteralPath $SourceDirectory).Path
+    $InputDirectory = Get-WindowsPath (Resolve-Path -LiteralPath $InputDirectory).Path
     if ($SourceCommit -notmatch '^[0-9a-fA-F]{40}$') { throw 'SourceCommit must be a 40-hex tested commit SHA.' }
     if ($BaseCommit -and $BaseCommit -notmatch '^[0-9a-fA-F]{40}$') { throw 'BaseCommit must be a 40-hex commit SHA.' }
     $requiredModules = @('GVFS', 'GVFS.Hooks', 'GVFS.Mount', 'GVFS.Service', 'GVFS.Common', 'GVFS.Platform.Windows', 'GVFS.Virtualization')
@@ -492,7 +545,12 @@ try {
         SchemaVersion = 1; Repository = $Repository; SourceCommit = $SourceCommit; BaseCommit = $BaseCommit
         Available = [bool]$BaseCommit
         Reason = if ($BaseCommit) { $null } else { 'Changed-line analysis is unavailable because BaseCommit is absent.' }
-        Scopes = [ordered]@{ PRODUCT = 'Functional + Upgrade, managed NativeAOT product execution'; UNIT = 'Unit execution, including source-linked production code' }
+        Scopes = [ordered]@{
+            COMBINED = 'Unique source lines executed by product tests, unit tests, or both'
+            PRODUCT = 'Functional + Upgrade, managed NativeAOT product execution'
+            UNIT = 'Unit execution, including source-linked production code'
+        }
+        Measurements = $null
         Files = @()
     }
     if ($BaseCommit) {
@@ -509,13 +567,33 @@ try {
                     $classification = 'not-applicable'
                 }
                 $numbers = @($file.Lines | Sort-Object)
+                $product = Get-ChangedMeasurement $path $numbers $indexes.PRODUCT $classification
+                $unit = Get-ChangedMeasurement $path $numbers $indexes.UNIT $classification
                 [ordered]@{
                     Path = $path; Classification = $classification; AddedModifiedLines = $numbers
-                    PRODUCT = Get-ChangedMeasurement $path $numbers $indexes.PRODUCT $classification
-                    UNIT = Get-ChangedMeasurement $path $numbers $indexes.UNIT $classification
+                    COMBINED = Get-CombinedMeasurement $product $unit
+                    PRODUCT = $product
+                    UNIT = $unit
                 }
             }
         )
+        $changed.Measurements = [ordered]@{}
+        foreach ($scope in @('COMBINED', 'PRODUCT', 'UNIT')) {
+            $totals = [ordered]@{}
+            $fields = @('Measured', 'Hit', 'Uncovered', 'NoEntry')
+            if ($scope -eq 'COMBINED') { $fields += @('Both', 'ProductOnly', 'UnitOnly') }
+            foreach ($field in $fields) {
+                $totals[$field] = [long](($changed.Files | ForEach-Object { $_[$scope][$field] } | Measure-Object -Sum).Sum)
+            }
+            $totals.Percentage = if ($totals.Measured -eq 0) { $null } else { [Math]::Round(100.0 * $totals.Hit / $totals.Measured, 2) }
+            $changed.Measurements[$scope] = $totals
+        }
+    }
+    $combinedHits = @{}
+    foreach ($scope in @('PRODUCT', 'UNIT')) {
+        foreach ($key in $indexes[$scope].Keys) {
+            $combinedHits[$key] = $combinedHits[$key] -eq $true -or $indexes[$scope][$key].Hit
+        }
     }
     $groups = @(
         foreach ($group in @('unit-x64', 'unit-arm64', 'functional-x64', 'functional-arm64', 'upgrade-x64')) {
@@ -554,6 +632,7 @@ try {
         Workers = $workers.Count; ExpectedWorkers = 32; Groups = $groups
         Scopes = $changed.Scopes
         Measurements = [ordered]@{
+            COMBINED = Get-LineStatistics @($combinedHits.Values)
             PRODUCT = Get-LineStatistics @($indexes.PRODUCT.Values | ForEach-Object { $_.Hit })
             UNIT = Get-LineStatistics @($indexes.UNIT.Values | ForEach-Object { $_.Hit })
         }
@@ -570,7 +649,7 @@ try {
     $markdown.Add('# Managed-source coverage')
     $markdown.Add('')
     $markdown.Add("Workers: $($workers.Count)/32. Tested commit: ``$SourceCommit``.")
-    foreach ($scope in @('PRODUCT', 'UNIT')) {
+    foreach ($scope in @('COMBINED', 'PRODUCT', 'UNIT')) {
         $measurement = $summary.Measurements[$scope]
         $markdown.Add("$scope`: $($changed.Scopes[$scope]). $($measurement.Hit)/$($measurement.Measured) measured lines have hits ($(Format-Percentage $measurement.Percentage)).")
     }
@@ -589,15 +668,53 @@ try {
     foreach ($limitation in $limitations) { $markdown.Add("- $limitation") }
 
     $changedMarkdown = [System.Collections.Generic.List[string]]::new()
-    $changedMarkdown.Add('# Changed source lines')
+    $changedMarkdown.Add('# Combined changed-line coverage')
     $changedMarkdown.Add('')
+    $changedHtml = [System.Collections.Generic.List[string]]::new()
+    $changedHtml.Add('<!doctype html><html lang="en"><meta charset="utf-8"><title>Combined changed-line coverage</title>')
+    $changedHtml.Add('<style>body{font-family:system-ui;margin:2em}table{border-collapse:collapse}td,th{padding:.4em;border:1px solid #bbb;text-align:left}</style>')
+    $changedHtml.Add('<h1>Combined changed-line coverage</h1>')
     if (-not $BaseCommit) {
         $changedMarkdown.Add($changed.Reason)
+        $changedHtml.Add("<p>$([System.Net.WebUtility]::HtmlEncode($changed.Reason))</p>")
     } else {
         $changedMarkdown.Add("Diff: ``$BaseCommit`` to tested commit ``$SourceCommit``.")
-        $changedMarkdown.Add('PRODUCT uses Functional + Upgrade. UNIT uses unit execution. These measurements remain separate.')
+        $total = $changed.Measurements.COMBINED
+        $changedMarkdown.Add("**Combined: $(Format-Percentage $total.Percentage) ($($total.Hit)/$($total.Measured) measured changed lines). Uncovered: $($total.Uncovered). No-entry: $($total.NoEntry).**")
+        $changedMarkdown.Add('Each source line counts once. Product + unit, product-only, and unit-only hits count as covered.')
+        $changedMarkdown.Add('Unit-only execution does not prove execution in the deployed product.')
         $changedMarkdown.Add('Percentages use measured changed lines only. N/A means that no changed lines have coverage entries.')
         $changedMarkdown.Add('No-entry means unmeasured or non-executable. It does not mean covered.')
+        $changedMarkdown.Add('')
+        $changedMarkdown.Add('| File at tested commit | Measured | Product + unit | Product only | Unit only | Uncovered | No-entry | Combined | Classification |')
+        $changedMarkdown.Add('| --- | --- | --- | --- | --- | --- | --- | --- | --- |')
+        $changedHtml.Add("<p>Tested commit: $SourceCommit. Base: $BaseCommit.</p>")
+        $changedHtml.Add("<p>Combined: $(Format-Percentage $total.Percentage) ($($total.Hit)/$($total.Measured) measured changed lines). Uncovered: $($total.Uncovered). No-entry: $($total.NoEntry).</p>")
+        $changedHtml.Add('<p>Each source line counts once. No-entry means unmeasured or non-executable, not covered. Unit-only execution does not prove product execution. Native C++ is unsupported.</p>')
+        $evidenceLabels = @{
+            'product-and-unit' = 'Product + unit'; 'product-only' = 'Product only'; 'unit-only' = 'Unit only'
+            'uncovered' = 'Uncovered'; 'no-entry/unmeasured-or-non-executable' = 'No-entry (coverage unknown)'
+        }
+        foreach ($file in $changed.Files) {
+            $measurement = $file.COMBINED
+            $displayPath = $file.Path.Replace('|', '\|').Replace('[', '\[').Replace(']', '\]').Replace("`n", ' ').Replace("`r", ' ')
+            $sourceLink = Get-SourceLink $file.Path
+            $changedMarkdown.Add("| [$displayPath]($sourceLink) | $($measurement.Measured) | $($measurement.Both) | $($measurement.ProductOnly) | $($measurement.UnitOnly) | $($measurement.Uncovered) | $($measurement.NoEntry) | $(Format-Percentage $measurement.Percentage) | $($file.Classification) |")
+            $changedHtml.Add("<h2>$([System.Net.WebUtility]::HtmlEncode($file.Path))</h2><p>$($file.Classification)</p>")
+            if ($file.Classification -eq 'managed-source' -and $measurement.Lines.Count -gt 0) {
+                $changedHtml.Add('<table><tr><th>Changed source line</th><th>Test evidence</th></tr>')
+                foreach ($line in $measurement.Lines) {
+                    $lineLink = [System.Net.WebUtility]::HtmlEncode((Get-SourceLink $file.Path $line.Line))
+                    $label = $evidenceLabels[$line.State]
+                    $changedHtml.Add("<tr><td><a href=`"$lineLink`">$($line.Line)</a></td><td>$label</td></tr>")
+                }
+                $changedHtml.Add('</table>')
+            }
+        }
+        $changedMarkdown.Add('')
+        $changedMarkdown.Add('ChangedLines.html provides per-line evidence and links to the tested source. The artifact also retains the separate reports.')
+        $changedMarkdown.Add('')
+        $changedMarkdown.Add('<details><summary>Separate product and unit changed-line measurements</summary>')
         $changedMarkdown.Add('')
         $changedMarkdown.Add('| File | Scope | Measured | Hit | Uncovered | No-entry | Percentage | Classification |')
         $changedMarkdown.Add('| --- | --- | --- | --- | --- | --- | --- | --- |')
@@ -609,10 +726,10 @@ try {
             }
         }
         $changedMarkdown.Add('')
+        $changedMarkdown.Add('</details>')
         $changedMarkdown.Add('changed-lines.json lists new-side line numbers, per-line states, and source/module/worker provenance.')
     }
-    $normalized = Join-Path $OutputDirectory 'normalized'
-    if (Test-Path -LiteralPath $normalized) { Remove-Item -LiteralPath $normalized -Recurse -Force }
+    $changedHtml.Add('</html>')
     foreach ($worker in @($workers | Sort-Object WorkerId)) {
         $path = Join-Path $OutputDirectory $worker.NormalizedReport
         [void][System.IO.Directory]::CreateDirectory((Split-Path -Parent $path))
@@ -620,11 +737,13 @@ try {
     }
     $changed | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'changed-lines.json') -Encoding utf8
     $changedMarkdown | Set-Content -LiteralPath (Join-Path $OutputDirectory 'ChangedLines.md') -Encoding utf8
+    $changedHtml | Set-Content -LiteralPath (Join-Path $OutputDirectory 'ChangedLines.html') -Encoding utf8
     $markdown | Set-Content -LiteralPath (Join-Path $OutputDirectory 'Summary.md') -Encoding utf8
     $summary | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $summaryPath -Encoding utf8
 }
 catch {
-    foreach ($name in @('Summary.md', 'changed-lines.json', 'ChangedLines.md')) {
+    if (Test-Path -LiteralPath $normalized) { Remove-Item -LiteralPath $normalized -Recurse -Force }
+    foreach ($name in @('Summary.md', 'changed-lines.json', 'ChangedLines.md', 'ChangedLines.html')) {
         $path = Join-Path $OutputDirectory $name
         if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
     }

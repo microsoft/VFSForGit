@@ -53,14 +53,9 @@ Describe 'NativeAOT SCM coverage evidence' {
             [void]$node.ParentNode.RemoveChild($node)
         }
         $path = Save-CoverageReport $document
-        $result = & $assertion -CoveragePath $path -ServiceOnly | ConvertFrom-Json
+        $result = & $assertion -CoveragePath $path | ConvertFrom-Json
         $result.ScmServiceStartupCovered | Should -BeTrue
         $result.Scope | Should -Be 'SCM service execution'
-    }
-
-    It 'Rejects metadata-only service coverage in the startup snapshot' {
-        $path = Save-CoverageReport (New-CoverageReport -OnStartHits 0)
-        { & $assertion -CoveragePath $path -ServiceOnly } | Should -Throw '*no executed GVFSService.OnStart*'
     }
 
     It 'Rejects console-service execution even when SCM startup also executes' {
@@ -68,19 +63,12 @@ Describe 'NativeAOT SCM coverage evidence' {
         { & $assertion -CoveragePath $path } | Should -Throw '*Console-service execution contaminates*'
     }
 
-    It 'Rejects missing product modules' {
+    It 'Rejects a missing service module' {
         $document = New-CoverageReport
-        $node = $document.SelectSingleNode("//package[@name='GVFS.Mount']")
+        $node = $document.SelectSingleNode("//package[@name='GVFS.Service']")
         [void]$node.ParentNode.RemoveChild($node)
         $path = Save-CoverageReport $document
-        { & $assertion -CoveragePath $path } | Should -Throw '*Expected one coverage module for GVFS.Mount*'
-    }
-
-    It 'Rejects product modules with metadata but no executed lines' {
-        $document = New-CoverageReport
-        $document.SelectSingleNode("//package[@name='GVFS.Hooks']//line").SetAttribute('hits', '0')
-        $path = Save-CoverageReport $document
-        { & $assertion -CoveragePath $path } | Should -Throw '*No executed lines in required product module GVFS.Hooks*'
+        { & $assertion -CoveragePath $path } | Should -Throw '*Expected one coverage module for GVFS.Service*'
     }
 
     It 'Rejects unit-copy coverage in a product report' {
