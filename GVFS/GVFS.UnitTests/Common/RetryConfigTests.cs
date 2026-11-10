@@ -595,10 +595,10 @@ namespace GVFS.UnitTests.Common
 
         private static string GetGitPathOrIgnore()
         {
-            string gitPath = "C:\\Program Files\\Git\\cmd\\git.exe";
-            if (!File.Exists(gitPath))
+            string gitPath = GitTestHelper.FindGitOnPath();
+            if (gitPath == null)
             {
-                Assert.Ignore("Git not found at expected path — skipping integration test");
+                Assert.Ignore("Git was not found on PATH.");
             }
 
             return gitPath;

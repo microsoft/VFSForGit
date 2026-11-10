@@ -24,7 +24,7 @@ namespace GVFS.UnitTests.Common.Git
         [SetUp]
         public void Setup()
         {
-            this.gitPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "cmd", "git.exe");
+            this.gitPath = GitTestHelper.FindGitOnPath();
             this.root = Path.Combine(Path.GetTempPath(), nameof(AuthenticationConfigurationTests) + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(this.root, ".git", "objects"));
             Directory.CreateDirectory(Path.Combine(this.root, ".git", "refs", "heads"));
@@ -579,7 +579,7 @@ namespace GVFS.UnitTests.Common.Git
         {
             if (!File.Exists(this.gitPath))
             {
-                Assert.Fail("The authentication configuration integration tests require Git for Windows.");
+                Assert.Fail("The authentication configuration integration tests require Git on PATH.");
             }
 
             GitProcess git = new GitProcess(this.gitPath, this.root);
