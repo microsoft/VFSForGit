@@ -110,6 +110,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase("count-objects -vH")]
         [TestCase("ls-remote --get-url origin")]
         [TestCase("range-diff HEAD~1..HEAD HEAD~1..HEAD")]
+        [TestCase("reflog")]
+        [TestCase("reflog show --all")]
+        [TestCase("reflog list")]
+        [TestCase("reflog exists HEAD")]
+        [TestCase("describe --always HEAD")]
+        [TestCase("grep -n -e . HEAD -- Readme.md")]
+        [TestCase("grep --cached -e . -- Readme.md")]
+        [TestCase("refs list --count=1")]
+        [TestCase("merge-file -p .git/HEAD .git/HEAD .git/HEAD")]
+        [TestCase("merge-file --object-id HEAD:Readme.md HEAD:Readme.md HEAD:Readme.md")]
+        [TestCase("merge-tree --write-tree HEAD HEAD")]
+        [TestCase("notes list")]
+        [TestCase("replace -l")]
+        [TestCase("format-patch --stdout -1 HEAD")]
+        [TestCase("var GIT_AUTHOR_IDENT")]
         [TestCase("shortlog -sn HEAD")]
         [TestCase("show-branch --list")]
         public void ReadOnlyCommandDoesNotWaitForLock(string command)
@@ -126,6 +141,101 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     result.ExitCode.ShouldEqual(0);
                     result.Errors.ShouldNotContain(false, ExpectedStatusWaitingText);
                 });
+        }
+
+        [TestCase("describe --dirty --always", 0)]
+        [TestCase("describe --broken --always", 0)]
+        [TestCase("describe --di --always", 0)]
+        [TestCase("grep -nOcat -e . -- Readme.md", 0)]
+        [TestCase("grep --open=cat -e . -- Readme.md", 0)]
+        [TestCase("refs migrate -h", 0)]
+        public void UnsafeCommandModeStillWaitsForLock(string command, int expectedExitCode)
+        {
+            File.ReadAllText(this.Enlistment.GetVirtualPathTo("Readme.md"));
+            ProcessResult result = this.RunWithLockHolder(command);
+            result.ExitCode.ShouldEqual(expectedExitCode, result.Output + result.Errors);
+            result.Errors.ShouldContain(ExpectedStatusWaitingText);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void MergeFileOnlyBypassesLockWhenOutputModeRemainsEnabled(bool disableStdout)
+        {
+            string inputPath = Path.Combine(this.Enlistment.EnlistmentRoot, "merge-file-" + Guid.NewGuid().ToString("N"));
+            File.WriteAllText(inputPath, "merge input\n");
+            try
+            {
+                string command = $"merge-file --stdout {(disableStdout ? "--no-stdout" : string.Empty)} \"{inputPath}\" \"{inputPath}\" \"{inputPath}\"";
+                ProcessResult result = this.RunWithLockHolder(command, shouldWait: disableStdout);
+                result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+                result.Errors.Contains(ExpectedStatusWaitingText).ShouldEqual(disableStdout);
+                File.ReadAllText(inputPath).ShouldEqual("merge input\n");
+            }
+            finally
+            {
+                File.Delete(inputPath);
+            }
+        }
+
+        [TestCase]
+        public void ReflogWritesPreserveIndexAndTrackedContentUnderLockContention()
+        {
+            string refName = "refs/heads/gvfs-reflog-test-" + Guid.NewGuid().ToString("N");
+            string filePath = this.Enlistment.GetVirtualPathTo("Readme.md");
+            string indexPath = this.Enlistment.GetDotGitPath("index");
+            string originalContent = File.ReadAllText(filePath);
+            string oldObject = GitProcess.Invoke(this.Enlistment.RepoRoot, "rev-parse HEAD~1").Trim();
+            string newObject = GitProcess.Invoke(this.Enlistment.RepoRoot, "rev-parse HEAD").Trim();
+            try
+            {
+                File.WriteAllText(filePath, originalContent + "\nstaged reflog test\n");
+                GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "add -- Readme.md");
+                string dirtyContent = originalContent + "\nunstaged reflog test\n";
+                File.WriteAllText(filePath, dirtyContent);
+                GitHelpers.CheckGitCommandAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    $"update-ref --create-reflog -m first {refName} {oldObject}");
+                GitHelpers.CheckGitCommandAgainstGVFSRepo(
+                    this.Enlistment.RepoRoot,
+                    $"update-ref -m second {refName} {newObject}");
+
+                GitHelpers.RunWithGVFSLock(
+                    this.Enlistment,
+                    () =>
+                    {
+                        byte[] index = File.ReadAllBytes(indexPath);
+                        DateTime indexWriteTime = File.GetLastWriteTimeUtc(indexPath);
+                        string[] commands =
+                        {
+                            $"reflog write {refName} {newObject} {newObject} appended",
+                            $"reflog delete --rewrite --updateref {refName}@{{0}}",
+                            $"reflog delete --rewrite --updateref {refName}@{{0}}",
+                            $"reflog expire --stale-fix --rewrite --updateref --expire=never --expire-unreachable=never {refName}",
+                            $"reflog expire --stale-fix --rewrite --updateref --expire=all {refName}",
+                            $"reflog drop {refName}",
+                        };
+
+                        foreach (string command in commands)
+                        {
+                            ProcessResult result = GitProcess.InvokeProcess(
+                                this.Enlistment.RepoRoot,
+                                command,
+                                timeoutMs: AcquireGVFSLockTimeout);
+                            result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+                            result.Errors.ShouldNotContain(false, ExpectedStatusWaitingText);
+                            File.ReadAllBytes(indexPath).ShouldMatchInOrder(index);
+                            File.GetLastWriteTimeUtc(indexPath).ShouldEqual(indexWriteTime);
+                            File.ReadAllText(filePath).ShouldEqual(dirtyContent);
+                        }
+
+                        GitProcess.Invoke(this.Enlistment.RepoRoot, "rev-parse " + refName).Trim().ShouldEqual(oldObject);
+                    });
+            }
+            finally
+            {
+                GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "reset --hard");
+                GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-ref -d " + refName);
+            }
         }
 
         [TestCase, Order(5)]
