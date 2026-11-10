@@ -4,9 +4,7 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
-using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 
@@ -148,54 +146,6 @@ namespace GVFS.UnitTests.Common.Git
 
             gitProcess.InvocationsRun.Count.ShouldEqual(1);
             ConfigReadRetryTelemetry(tracer).Single()["Attempts"].ShouldEqual(1);
-        }
-
-        [TestCase(true, 30000)]
-        [TestCase(false, 30000)]
-        [TestCase(true, Timeout.Infinite)]
-        [TestCase(false, Timeout.Infinite)]
-        public void CredentialFillHandlesARealLockedGitConfig(bool releaseAfterFirstAttempt, int timeoutMs)
-        {
-            string gitPath = GitTestHelper.FindGitOnPath();
-            if (gitPath == null)
-            {
-                Assert.Ignore("Git was not found on PATH.");
-            }
-
-            string repoPath = Path.Combine(Path.GetTempPath(), nameof(GitProcessCredentialTests) + Guid.NewGuid().ToString("N"));
-            string dotGit = Path.Combine(repoPath, ".git");
-            Directory.CreateDirectory(Path.Combine(dotGit, "objects"));
-            Directory.CreateDirectory(Path.Combine(dotGit, "refs", "heads"));
-            try
-            {
-                File.WriteAllText(Path.Combine(dotGit, "HEAD"), "ref: refs/heads/main\n");
-                File.WriteAllText(Path.Combine(dotGit, "config"), "[core]\n\trepositoryformatversion = 0\n\tbare = false\n");
-                LockedConfigGitProcess gitProcess = new LockedConfigGitProcess(gitPath, repoPath, releaseAfterFirstAttempt);
-                MockTracer tracer = new MockTracer();
-
-                bool success = gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out string error, timeoutMs: timeoutMs);
-
-                success.ShouldEqual(releaseAfterFirstAttempt, error);
-                gitProcess.Results.Count.ShouldEqual(releaseAfterFirstAttempt ? 2 : 5);
-                gitProcess.Results[0].ExitCode.ShouldEqual(GitFatalExitCode);
-                gitProcess.Results[0].Errors.ShouldContain("Permission denied");
-                gitProcess.Results[0].Errors.ShouldContain("unknown error occurred while reading the configuration files");
-                if (releaseAfterFirstAttempt)
-                {
-                    username.ShouldEqual("someone");
-                    password.ShouldEqual(SecretValue);
-                }
-                else
-                {
-                    AssertErrorMessageHasNoStderr(error);
-                }
-
-                AssertNoSecret(tracer);
-            }
-            finally
-            {
-                Directory.Delete(repoPath, recursive: true);
-            }
         }
 
         [TestCase]
@@ -464,58 +414,6 @@ namespace GVFS.UnitTests.Common.Git
                 command,
                 () => new GitProcess.Result(output, errors, exitCode, outputTruncated, errorsTruncated: false));
             return gitProcess;
-        }
-
-        private sealed class LockedConfigGitProcess : GitProcess
-        {
-            private readonly string configPath;
-            private readonly bool releaseAfterFirstAttempt;
-
-            public LockedConfigGitProcess(string gitPath, string repoPath, bool releaseAfterFirstAttempt)
-                : base(gitPath, repoPath)
-            {
-                this.configPath = Path.Combine(repoPath, ".git", "config");
-                this.releaseAfterFirstAttempt = releaseAfterFirstAttempt;
-            }
-
-            public List<Result> Results { get; } = new List<Result>();
-
-            protected override Result InvokeGitImpl(
-                string command,
-                string workingDirectory,
-                string dotGitDirectory,
-                bool useReadObjectHook,
-                Action<StreamWriter> writeStdIn,
-                Action<string> parseStdOutLine,
-                int timeoutMs,
-                string gitObjectsDirectory = null,
-                bool usePrecommandHook = true,
-                bool mayRequireAuth = false,
-                bool? hasVisibleConsoleWindow = null)
-            {
-                // Replace all credential helpers with a local, deterministic helper. No credentials leave the test.
-                string isolatedCommand = "-c credential.helper= -c credential.helper=\"!f() { echo username=someone; echo password=" +
-                    SecretValue + "; }; f\" " + command;
-                using (FileStream configLock = this.Results.Count == 0 || !this.releaseAfterFirstAttempt
-                    ? File.Open(this.configPath, FileMode.Open, FileAccess.Read, FileShare.None)
-                    : null)
-                {
-                    Result result = base.InvokeGitImpl(
-                        isolatedCommand,
-                        workingDirectory,
-                        dotGitDirectory,
-                        useReadObjectHook,
-                        writeStdIn,
-                        parseStdOutLine,
-                        timeoutMs,
-                        gitObjectsDirectory,
-                        usePrecommandHook,
-                        mayRequireAuth,
-                        hasVisibleConsoleWindow);
-                    this.Results.Add(result);
-                    return result;
-                }
-            }
         }
 
         private static void AssertErrorMessageHasNoStderr(string errorMessage)

@@ -74,7 +74,7 @@ if (-not (Test-Path (Join-Path $payloadDir "GVFS.exe"))) {
     Write-Error "Payload GVFS.exe not found at $payloadDir. Has the solution been built for $Arch / $Configuration?"
     exit 1
 }
-$env:PATH = "$payloadDir;C:\Program Files\Git\cmd;$env:PATH"
+$env:PATH = "$payloadDir;$env:PATH"
 
 Write-Host "============================================"
 Write-Host "GVFS Functional Tests - Dev Mode (no admin)"

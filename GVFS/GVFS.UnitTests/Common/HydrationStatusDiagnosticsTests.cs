@@ -271,17 +271,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        [Category(CategoryConstants.ExceptionExpected)]
-        public void RealPipeConnectionReturnsItsTimeoutCause()
-        {
-            using (NamedPipeClient client = new NamedPipeClient("GVFS.UnitTests.Missing." + Guid.NewGuid().ToString("N")))
-            {
-                Assert.IsFalse(client.Connect(25, out Exception error));
-                Assert.IsInstanceOf<TimeoutException>(error);
-            }
-        }
-
-        [TestCase]
         public void LateWorkerDoesNotMutateTimeoutMetadata()
         {
             using (ManualResetEventSlim release = new ManualResetEventSlim())

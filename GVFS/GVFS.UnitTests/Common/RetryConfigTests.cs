@@ -198,7 +198,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void LibGit2ReaderReadsRepositoryValues()
         {
-            using (TestRepository repo = new TestRepository("[gvfs]\n\tmax-retries = 7\n\ttimeout-seconds = 31\n\tread-timeout-seconds = 0\n"))
+            using (RetryConfigTestRepository repo = new RetryConfigTestRepository("[gvfs]\n\tmax-retries = 7\n\ttimeout-seconds = 31\n\tread-timeout-seconds = 0\n"))
             {
                 MockTracer tracer = new MockTracer();
                 RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, RetryConfig.CreateLibGit2Reader(tracer, repo.WorkingDirectory));
@@ -213,7 +213,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void LibGit2ReaderUsesDefaultValuesWhenEntriesAreBlank()
         {
-            using (TestRepository repo = new TestRepository("[gvfs]\n\tmax-retries =\n\ttimeout-seconds\n"))
+            using (RetryConfigTestRepository repo = new RetryConfigTestRepository("[gvfs]\n\tmax-retries =\n\ttimeout-seconds\n"))
             {
                 MockTracer tracer = new MockTracer();
                 RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, RetryConfig.CreateLibGit2Reader(tracer, repo.WorkingDirectory));
@@ -230,7 +230,7 @@ namespace GVFS.UnitTests.Common
         [TestCase("read-timeout-seconds = 2147484", "gvfs.read-timeout-seconds", "Invalid value 2147484 for setting gvfs.read-timeout-seconds, value must be between 0 and 2147483")]
         public void LibGit2ReaderReportsTheSameInvalidValueErrorsAsGit(string setting, string configName, string expectedError)
         {
-            using (TestRepository repo = new TestRepository("[gvfs]\n\t" + setting + "\n"))
+            using (RetryConfigTestRepository repo = new RetryConfigTestRepository("[gvfs]\n\t" + setting + "\n"))
             {
                 MockTracer tracer = new MockTracer();
                 RetryConfig.LoadFromGitConfig(tracer, RetryConfig.CreateLibGit2Reader(tracer, repo.WorkingDirectory));
@@ -243,7 +243,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void LibGit2ReaderUsesDefaultsWhenConfigIsCorrupt()
         {
-            using (TestRepository repo = new TestRepository("[gvfs\n"))
+            using (RetryConfigTestRepository repo = new RetryConfigTestRepository("[gvfs\n"))
             {
                 MockTracer tracer = new MockTracer();
                 RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, RetryConfig.CreateLibGit2Reader(tracer, repo.WorkingDirectory));
@@ -396,53 +396,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void UserConfigThatGitDoesNotReadIsReadWithGit()
-        {
-            string gitPath = GetGitPathOrIgnore();
-            string[] variables = { "HOMEDRIVE", "HOMEPATH", "USERPROFILE" };
-            string[] originalValues = Array.ConvertAll(variables, Environment.GetEnvironmentVariable);
-            using (IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config())
-            {
-                // git reads only HOME\.gitconfig. libgit2 also falls back to USERPROFILE\.gitconfig.
-                string emptyHome = Path.Combine(machineConfig.Directory, "home");
-                string profile = Path.Combine(machineConfig.Directory, "profile");
-                Directory.CreateDirectory(emptyHome);
-                Directory.CreateDirectory(profile);
-                File.WriteAllText(Path.Combine(profile, ".gitconfig"), "[gvfs]\n\ttimeout-seconds = 1\n");
-                try
-                {
-                    Environment.SetEnvironmentVariable("HOME", emptyHome);
-                    Environment.SetEnvironmentVariable("HOMEDRIVE", null);
-                    Environment.SetEnvironmentVariable("HOMEPATH", null);
-                    Environment.SetEnvironmentVariable("USERPROFILE", profile);
-                    IsolatedLibGit2Config.ResetUserSearchPathsFromEnvironment();
-
-                    string missingWorkingDirectory = Path.Combine(Path.GetTempPath(), "RetryConfigTests_" + Guid.NewGuid().ToString("N"));
-                    MockTracer tracer = new MockTracer();
-                    RetryConfig.ConfigStringReader readWithLibGit2 = RetryConfig.CreateLibGit2Reader(tracer, missingWorkingDirectory);
-                    GitProcess git = new GitProcess(gitPath, workingDirectoryRoot: null);
-                    RetryConfig.ConfigStringReader readWithGit = (string name, out string value, out string error) =>
-                        git.GetFromConfig(name).TryParseAsString(out value, out error);
-
-                    readWithLibGit2("gvfs.timeout-seconds", out string _, out string libGit2Error).ShouldBeFalse();
-                    libGit2Error.ShouldContain("libgit2 reads the global config file", Path.Combine(profile, ".gitconfig"));
-                    readWithGit("gvfs.timeout-seconds", out string gitValue, out string gitError).ShouldBeTrue(gitError);
-                    gitValue.ShouldBeNull();
-
-                    RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, RetryConfig.WithGitFallback(tracer, readWithLibGit2, readWithGit));
-                    config.Timeout.ShouldEqual(TimeSpan.FromSeconds(RetryConfig.DefaultTimeoutSeconds));
-                }
-                finally
-                {
-                    for (int i = 0; i < variables.Length; ++i)
-                    {
-                        Environment.SetEnvironmentVariable(variables[i], originalValues[i]);
-                    }
-                }
-            }
-        }
-
-        [TestCase]
         public void DisposingARepositoryWithoutNativeStateKeepsTheIsolatedConfig()
         {
             using (IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config())
@@ -476,98 +429,12 @@ namespace GVFS.UnitTests.Common
             }
         }
 
-        [TestCase]
-        public void LibGit2AndGitReadTheSameRepositoryValues()
-        {
-            string gitPath = GetGitPathOrIgnore();
-            using (TestRepository repo = new TestRepository("[gvfs]\n\tmax-retries = 7\n\tmax-retries = 8\n\ttimeout-seconds = 31\n\tread-timeout-seconds = 32\n"))
-            {
-                RetryConfig libGit2Config = RetryConfig.LoadFromGitConfig(new MockTracer(), RetryConfig.CreateLibGit2Reader(new MockTracer(), repo.WorkingDirectory));
-                RetryConfig gitConfig = RetryConfig.LoadFromGitConfig(new MockTracer(), new GitProcess(gitPath, repo.WorkingDirectory));
-
-                libGit2Config.MaxRetries.ShouldEqual(8);
-                gitConfig.MaxRetries.ShouldEqual(8);
-                libGit2Config.Timeout.ShouldEqual(TimeSpan.FromSeconds(31));
-                gitConfig.Timeout.ShouldEqual(TimeSpan.FromSeconds(31));
-                libGit2Config.ReadTimeout.ShouldEqual(TimeSpan.FromSeconds(32));
-                gitConfig.ReadTimeout.ShouldEqual(TimeSpan.FromSeconds(32));
-            }
-        }
-
-        [TestCase]
-        public void ConfigWithAnIncludeConditionLibGit2IgnoresIsReadWithGit()
-        {
-            string gitPath = GetGitPathOrIgnore();
-            using (TestRepository repo = new TestRepository(string.Empty))
-            {
-                string includedPath = Path.Combine(repo.WorkingDirectory, "included.gitconfig");
-                File.WriteAllText(includedPath, "[gvfs]\n\tmax-retries = 12\n");
-                File.AppendAllText(
-                    Path.Combine(repo.WorkingDirectory, ".git", "config"),
-                    "[remote \"origin\"]\n\turl = https://example.com/repo\n" +
-                    "[includeIf \"hasconfig:remote.*.url:https://example.com/**\"]\n\tpath = " + includedPath.Replace('\\', '/') + "\n");
-
-                MockTracer tracer = new MockTracer();
-                RetryConfig.ConfigStringReader readWithLibGit2 = RetryConfig.CreateLibGit2Reader(tracer, repo.WorkingDirectory);
-                GitProcess git = new GitProcess(gitPath, repo.WorkingDirectory);
-                RetryConfig.ConfigStringReader readWithGit = (string name, out string value, out string error) =>
-                    git.GetFromConfig(name).TryParseAsString(out value, out error);
-
-                readWithLibGit2("gvfs.max-retries", out string _, out string libGit2Error).ShouldBeFalse();
-                libGit2Error.ShouldContain("libgit2 does not evaluate like git: includeif.hasconfig:remote.*.url:https://example.com/**.path");
-
-                RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, RetryConfig.WithGitFallback(tracer, readWithLibGit2, readWithGit));
-                config.MaxRetries.ShouldEqual(12);
-                tracer.RelatedWarningEvents.Count.ShouldEqual(0);
-            }
-        }
-
-        // In each layout, libgit2 evaluates the include differently from git.exe.
-        [TestCase("onbranch:main", false)]
-        [TestCase("onbranch:main", true)]
-        [TestCase("gitdir:<git dir without drive>", false)]
-        [TestCase("gitdir/i:<git dir without drive>", false)]
-        public void IncludeLayoutsLibGit2EvaluatesDifferentlyAreReadWithGit(string condition, bool headOnBranch)
-        {
-            string gitPath = GetGitPathOrIgnore();
-            using (TestRepository repo = new TestRepository(string.Empty))
-            {
-                if (!headOnBranch)
-                {
-                    File.WriteAllText(Path.Combine(repo.WorkingDirectory, ".git", "HEAD"), new string('1', 40) + "\n");
-                }
-
-                string gitDir = Path.Combine(repo.WorkingDirectory, ".git").Replace('\\', '/') + "/";
-                string includedPath = Path.Combine(repo.WorkingDirectory, "included.gitconfig");
-                File.WriteAllText(includedPath, "[gvfs]\n\tmax-retries = 13\n");
-                File.AppendAllText(
-                    Path.Combine(repo.WorkingDirectory, ".git", "config"),
-                    "[includeIf \"" + condition.Replace("<git dir without drive>", gitDir.Substring(2)) + "\"]\n\tpath = " +
-                    includedPath.Replace('\\', '/') + "\n");
-
-                MockTracer tracer = new MockTracer();
-                RetryConfig.ConfigStringReader readWithLibGit2 = RetryConfig.CreateLibGit2Reader(tracer, repo.WorkingDirectory);
-                GitProcess git = new GitProcess(gitPath, repo.WorkingDirectory);
-                RetryConfig.ConfigStringReader readWithGit = (string name, out string value, out string error) =>
-                    git.GetFromConfig(name).TryParseAsString(out value, out error);
-
-                readWithLibGit2("gvfs.max-retries", out string _, out string libGit2Error).ShouldBeFalse();
-                libGit2Error.ShouldContain("libgit2 does not evaluate like git");
-
-                readWithGit("gvfs.max-retries", out string gitValue, out string gitError).ShouldBeTrue(gitError);
-                RetryConfig config = RetryConfig.LoadFromGitConfig(tracer, RetryConfig.WithGitFallback(tracer, readWithLibGit2, readWithGit));
-                config.MaxRetries.ShouldEqual(gitValue == null ? RetryConfig.DefaultMaxRetries : int.Parse(gitValue));
-                config.MaxRetries.ShouldEqual(headOnBranch && condition.StartsWith("onbranch:") ? 13 : RetryConfig.DefaultMaxRetries);
-                tracer.RelatedWarningEvents.Count.ShouldEqual(0);
-            }
-        }
-
         // git.exe expands %(prefix) to its installation directory. libgit2 skips the include.
         [TestCase("[include]\n\tpath = %(prefix)/etc/gvfs.gitconfig\n")]
         [TestCase("[includeIf \"gitdir:**/\"]\n\tpath = %(prefix)/etc/gvfs.gitconfig\n")]
         public void IncludePathsWithAGitPrefixAreReadWithGit(string includeConfig)
         {
-            using (TestRepository repo = new TestRepository(includeConfig))
+            using (RetryConfigTestRepository repo = new RetryConfigTestRepository(includeConfig))
             {
                 RetryConfig.CreateLibGit2Reader(new MockTracer(), repo.WorkingDirectory)("gvfs.max-retries", out string _, out string error)
                     .ShouldBeFalse();
@@ -579,7 +446,7 @@ namespace GVFS.UnitTests.Common
         [TestCase("gitdir/i:**/")]
         public void LibGit2ReadsConfigWithIncludeConditionsItEvaluates(string condition)
         {
-            using (TestRepository repo = new TestRepository(string.Empty))
+            using (RetryConfigTestRepository repo = new RetryConfigTestRepository(string.Empty))
             {
                 string includedPath = Path.Combine(repo.WorkingDirectory, "included.gitconfig");
                 File.WriteAllText(includedPath, "[gvfs]\n\tmax-retries = 13\n");
@@ -593,16 +460,6 @@ namespace GVFS.UnitTests.Common
             }
         }
 
-        private static string GetGitPathOrIgnore()
-        {
-            string gitPath = GitTestHelper.FindGitOnPath();
-            if (gitPath == null)
-            {
-                Assert.Ignore("Git was not found on PATH.");
-            }
-
-            return gitPath;
-        }
         private class RetryConfigVerb : GVFSVerb
         {
             public override string EnlistmentRootPathParameter { get; set; }
@@ -657,34 +514,6 @@ namespace GVFS.UnitTests.Common
                 }
 
                 return base.GetFromConfig(settingName, forceOutsideEnlistment, fileSystem);
-            }
-        }
-
-        // A minimal repository that libgit2 can open without git.exe. libgit2 does not read the
-        // machine's config while the repository exists. The non-ASCII path checks the UTF-8
-        // marshalling of the repository path.
-        private sealed class TestRepository : IDisposable
-        {
-            private readonly IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config();
-
-            public TestRepository(string extraConfig)
-            {
-                this.WorkingDirectory = Path.Combine(Path.GetTempPath(), "RetryConfigTests_ü_" + Guid.NewGuid().ToString("N"));
-                string dotGit = Path.Combine(this.WorkingDirectory, ".git");
-                Directory.CreateDirectory(Path.Combine(dotGit, "objects"));
-                Directory.CreateDirectory(Path.Combine(dotGit, "refs", "heads"));
-                File.WriteAllText(Path.Combine(dotGit, "HEAD"), "ref: refs/heads/main\n");
-                File.WriteAllText(
-                    Path.Combine(dotGit, "config"),
-                    "[core]\n\trepositoryformatversion = 0\n\tbare = false\n" + extraConfig);
-            }
-
-            public string WorkingDirectory { get; }
-
-            public void Dispose()
-            {
-                Directory.Delete(this.WorkingDirectory, recursive: true);
-                this.machineConfig.Dispose();
             }
         }
     }

@@ -214,6 +214,13 @@ extends:
                       ${{ dim.arch }}
                   displayName: 'Run unit tests'
 
+                - task: PowerShell@2
+                  displayName: 'Run local functional components'
+                  inputs:
+                    pwsh: true
+                    filePath: '$(Build.SourcesDirectory)\scripts\RunLocalComponentTests-Dev.ps1'
+                    arguments: '-Configuration $(BuildConfiguration) -Arch ${{ dim.arch }}'
+
                 # ESRP signing of the standalone binaries (Payload + FastFetch).
                 # The installer hasn't been built yet, so it can be packaged from
                 # signed binaries in a single Inno Setup pass.
