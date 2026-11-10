@@ -76,10 +76,10 @@ namespace GVFS.UnitTests.Common
             }
         }
 
-        private GVFSEnlistment CreateWorktreeEnlistment(string gitBinPath = @"mock:\git")
+        private GVFSEnlistment CreateWorktreeEnlistment()
         {
             return GVFSEnlistment.CreateForWorktree(
-                this.primaryRoot, gitBinPath, authentication: null,
+                this.primaryRoot, @"mock:\git", authentication: null,
                 GVFSEnlistment.TryGetWorktreeInfo(this.worktreePath),
                 repoUrl: "https://mock/repo");
         }

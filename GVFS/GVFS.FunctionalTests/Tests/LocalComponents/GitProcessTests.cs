@@ -1,6 +1,6 @@
 using GVFS.Common.Git;
 using GVFS.Tests.Should;
-using GVFS.UnitTests;
+using GVFS.FunctionalTests.Properties;
 using NUnit.Framework;
 using System;
 using System.Diagnostics;
@@ -17,8 +17,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         [TestCase(Timeout.Infinite)]
         public void GitCommandWaitsForOutputCallbacks(int timeoutMs)
         {
-            string gitPath = GitTestHelper.FindGitOnPath();
-            gitPath.ShouldNotBeNull("Git must be available on PATH.");
+            string gitPath = Settings.Default.PathToGit;
 
             using IsolatedGitEnvironment environment = new IsolatedGitEnvironment();
             OutputCallbackGitProcess gitProcess = new OutputCallbackGitProcess(gitPath);
@@ -60,8 +59,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
                 "path\\with\\backslashes\\file.txt",
             };
 
-            string gitPath = GitTestHelper.FindGitOnPath();
-            gitPath.ShouldNotBeNull("Git must be available on PATH.");
+            string gitPath = Settings.Default.PathToGit;
 
             using IsolatedGitEnvironment environment = new IsolatedGitEnvironment();
             foreach (string testPath in testPaths)

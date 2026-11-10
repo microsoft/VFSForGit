@@ -82,9 +82,9 @@ namespace GVFS.FunctionalTests.Properties
                     PathToGVFSService = @"C:\Program Files\VFS for Git\GVFS.Service.exe";
                 }
 
-                PathToGit = GVFS.UnitTests.GitTestHelper.FindGitOnPath()
-                    ?? throw new FileNotFoundException("Functional tests require Git on PATH.");
-                PathToBash = @"C:\Program Files\Git\bin\bash.exe";
+                PathToGit = GVFS.Common.GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath()
+                    ?? throw new FileNotFoundException("Functional tests require the Git installation that GVFS uses.");
+                PathToBash = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(PathToGit)), "bin", "bash.exe");
             }
         }
     }

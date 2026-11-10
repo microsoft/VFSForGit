@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Text.Json;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;

@@ -14,7 +14,7 @@ if (Test-Path -LiteralPath $resultPath) {
 }
 
 & (Join-Path $PSScriptRoot "RunFunctionalTests-Dev.ps1") -Configuration $Configuration -Arch $Arch `
-    -ExtraArgs "--test=GVFS.FunctionalTests.Tests.LocalComponents", "--result=$resultPath"
+    -ExtraArgs "--test=GVFS.FunctionalTests.Tests.LocalComponents", "--result=`"$resultPath`""
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }

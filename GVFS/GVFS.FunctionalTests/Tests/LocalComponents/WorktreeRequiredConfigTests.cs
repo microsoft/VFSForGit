@@ -2,7 +2,7 @@ using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
-using GVFS.UnitTests;
+using GVFS.FunctionalTests.Properties;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -27,12 +27,8 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         [SetUp]
         public void SetUp()
         {
-            this.environment = new IsolatedGitEnvironment();
             // The required settings depend on GVFS_UNATTENDED, and git config file
             // arguments must handle a path with a space.
-            this.unattendedValue = Environment.GetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable);
-            Environment.SetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable, null);
-
             this.testRoot = Path.Combine(Path.GetTempPath(), "GVFS WT Enl Tests_" + Path.GetRandomFileName());
             this.primaryRoot = Path.Combine(this.testRoot, "enlistment");
             string primarySrc = Path.Combine(this.primaryRoot, "src");
@@ -65,6 +61,9 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             File.WriteAllText(
                 Path.Combine(this.worktreeGitDir, "gitdir"),
                 Path.Combine(this.worktreePath, ".git"));
+            this.environment = new IsolatedGitEnvironment();
+            this.unattendedValue = Environment.GetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable);
+            Environment.SetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable, null);
         }
 
         [TearDown]
@@ -257,9 +256,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
 
         private static string GetGitBinPath()
         {
-            string gitPath = GitTestHelper.FindGitOnPath();
-            Assert.That(gitPath, Is.Not.Null, "The required-settings tests require Git on PATH.");
-            return gitPath;
+            return Settings.Default.PathToGit;
         }
 
         private string GetConfigValues(string configFile, string key)

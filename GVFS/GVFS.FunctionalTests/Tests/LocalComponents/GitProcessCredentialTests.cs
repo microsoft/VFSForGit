@@ -1,7 +1,7 @@
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
-using GVFS.UnitTests;
+using GVFS.FunctionalTests.Properties;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
@@ -25,8 +25,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         [TestCase(false, Timeout.Infinite)]
         public void CredentialFillHandlesARealLockedGitConfig(bool releaseAfterFirstAttempt, int timeoutMs)
         {
-            string gitPath = GitTestHelper.FindGitOnPath();
-            gitPath.ShouldNotBeNull("Git must be available on PATH.");
+            string gitPath = Settings.Default.PathToGit;
 
             using IsolatedGitEnvironment environment = new IsolatedGitEnvironment();
             string repoPath = Path.Combine(environment.RootDirectory, "repo");

@@ -94,14 +94,6 @@ if (-not $gvfsPath) {
 }
 Write-Host "gvfs location:       $($gvfsPath.Source)"
 
-$gitPath = Get-Command git -ErrorAction SilentlyContinue
-if (-not $gitPath) {
-    Write-Error "Unable to locate git on the PATH."
-    exit 1
-}
-Write-Host "git location:        $($gitPath.Source)"
-Write-Host ""
-
 # Build test exe path. The FunctionalTests csproj is a regular AOT-published
 # executable, so it ends up under the standard publish layout.
 $testExe = Join-Path $outDir "GVFS.FunctionalTests\bin\$Configuration\net10.0-windows10.0.17763.0\win-$Arch\publish\GVFS.FunctionalTests.exe"
@@ -111,7 +103,7 @@ if (-not (Test-Path $testExe)) {
 }
 
 # Build arguments
-$testArgs = @("/result:$(Join-Path $enlistmentDir 'TestResult.xml')")
+$testArgs = @("/result:`"$(Join-Path $enlistmentDir 'TestResult.xml')`"")
 if ($ExtraArgs) { $testArgs += $ExtraArgs }
 
 Write-Host "Running: $testExe"

@@ -1,7 +1,7 @@
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Tests.Should;
-using GVFS.UnitTests;
+using GVFS.FunctionalTests.Properties;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
@@ -20,8 +20,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         [SetUp]
         public void SetUp()
         {
-            this.gitPath = GitTestHelper.FindGitOnPath();
-            this.gitPath.ShouldNotBeNull("Git must be available on PATH.");
+            this.gitPath = Settings.Default.PathToGit;
             this.environment = new IsolatedGitEnvironment();
         }
 

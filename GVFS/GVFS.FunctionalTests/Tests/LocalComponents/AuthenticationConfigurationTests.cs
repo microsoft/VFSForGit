@@ -1,5 +1,5 @@
 using GVFS.Common.Git;
-using GVFS.UnitTests;
+using GVFS.FunctionalTests.Properties;
 using GVFS.Common.Tracing;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
@@ -27,14 +27,14 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         [SetUp]
         public void Setup()
         {
-            this.environment = new IsolatedGitEnvironment();
-            this.gitPath = GitTestHelper.FindGitOnPath();
+            this.gitPath = Settings.Default.PathToGit;
             this.root = Path.Combine(Path.GetTempPath(), nameof(AuthenticationConfigurationTests) + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(this.root, ".git", "objects"));
             Directory.CreateDirectory(Path.Combine(this.root, ".git", "refs", "heads"));
             File.WriteAllText(Path.Combine(this.root, ".git", "HEAD"), "ref: refs/heads/main\n");
             File.WriteAllText(Path.Combine(this.root, ".git", "config"), "[core]\nrepositoryformatversion = 0\nbare = false\n");
             File.WriteAllText(Path.Combine(this.root, "global"), string.Empty);
+            this.environment = new IsolatedGitEnvironment();
         }
 
         [TearDown]
@@ -514,7 +514,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         {
             if (!File.Exists(this.gitPath))
             {
-                Assert.Fail("The authentication configuration integration tests require Git on PATH.");
+                Assert.Fail("The Git installation that GVFS uses is unavailable.");
             }
 
             return this.gitPath;
