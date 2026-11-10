@@ -23,10 +23,11 @@ namespace GVFS.UnitTests.Git
             Directory.Delete(this.root, recursive: true);
         }
 
-        [Test]
-        public void FindsTheFirstGitInQuotedPathEntriesWithSpaces()
+        [TestCase("First Git")]
+        [TestCase("First; Git")]
+        public void FindsTheFirstGitInQuotedPathEntriesWithSpaces(string firstDirectoryName)
         {
-            string firstDirectory = Path.Combine(this.root, "First Git");
+            string firstDirectory = Path.Combine(this.root, firstDirectoryName);
             string secondDirectory = Path.Combine(this.root, "Second Git");
             Directory.CreateDirectory(firstDirectory);
             Directory.CreateDirectory(secondDirectory);
@@ -66,7 +67,7 @@ namespace GVFS.UnitTests.Git
             File.WriteAllText(expectedGit, string.Empty);
             string searchPath = Path.GetRelativePath(Environment.CurrentDirectory, this.root);
 
-            Assert.That(GitTestHelper.FindGitOnPath(searchPath), Is.EqualTo(expectedGit));
+            Assert.That(GitTestHelper.FindGitOnPath(searchPath), Is.EqualTo(expectedGit).IgnoreCase);
         }
 
         [Test]

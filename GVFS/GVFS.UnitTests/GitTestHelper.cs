@@ -17,9 +17,25 @@ namespace GVFS.UnitTests
                 return null;
             }
 
-            foreach (string entry in searchPath.Split(Path.PathSeparator))
+            int entryStart = 0;
+            bool quoted = false;
+            for (int index = 0; index <= searchPath.Length; ++index)
             {
-                string directory = entry.Trim('"');
+                if (index < searchPath.Length)
+                {
+                    if (searchPath[index] == '"')
+                    {
+                        quoted = !quoted;
+                    }
+
+                    if (searchPath[index] != Path.PathSeparator || quoted)
+                    {
+                        continue;
+                    }
+                }
+
+                string directory = searchPath.Substring(entryStart, index - entryStart).Trim('"');
+                entryStart = index + 1;
                 if (string.IsNullOrWhiteSpace(directory))
                 {
                     continue;

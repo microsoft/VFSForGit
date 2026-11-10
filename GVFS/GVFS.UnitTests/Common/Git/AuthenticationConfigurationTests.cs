@@ -521,7 +521,7 @@ namespace GVFS.UnitTests.Common.Git
         {
             File.AppendAllText(Path.Combine(this.root, ".git", "config"),
                 "[credential]\nhelper =\ninteractive = never\n");
-            PlumbingGitProcess git = new PlumbingGitProcess(this.gitPath, this.root);
+            PlumbingGitProcess git = new PlumbingGitProcess(this.GetGitPath(), this.root);
             MockTracer tracer = new MockTracer();
             Assert.That(git.TryGetCredential(tracer, "https://dev.azure.com/org/repo", out _, out _, out _, timeoutMs: 5000), Is.False);
             Assert.That(git.CollectedEnvironment, Is.SameAs(git.ResultEnvironment));
@@ -551,7 +551,7 @@ namespace GVFS.UnitTests.Common.Git
                 { "GIT_TERMINAL_PROMPT", "0" },
                 { "GCM_VALIDATE", "0" },
             };
-            PreCloneGitProcess git = new PreCloneGitProcess(this.gitPath, workingDirectory, environment);
+            PreCloneGitProcess git = new PreCloneGitProcess(this.GetGitPath(), workingDirectory, environment);
             MockTracer tracer = new MockTracer();
 
             Assert.That(git.TryGetCredential(tracer, "https://dev.azure.com/org/repo", out _, out _, out _), Is.False);
@@ -571,18 +571,23 @@ namespace GVFS.UnitTests.Common.Git
             this.AssertNoSecret(snapshot);
         }
 
-        private EventMetadata Collect(
-            string url,
-            Action<ProcessStartInfo> customize = null,
-            Dictionary<string, string> credentialFillEnvironment = null,
-            ITracer tracer = null)
+        private string GetGitPath()
         {
             if (!File.Exists(this.gitPath))
             {
                 Assert.Fail("The authentication configuration integration tests require Git on PATH.");
             }
 
-            GitProcess git = new GitProcess(this.gitPath, this.root);
+            return this.gitPath;
+        }
+
+        private EventMetadata Collect(
+            string url,
+            Action<ProcessStartInfo> customize = null,
+            Dictionary<string, string> credentialFillEnvironment = null,
+            ITracer tracer = null)
+        {
+            GitProcess git = new GitProcess(this.GetGitPath(), this.root);
             return AuthenticationConfiguration.Collect(url, command =>
             {
                 Process process = git.GetGitProcess(command, this.root, Path.Combine(this.root, ".git"), false, null, false);
