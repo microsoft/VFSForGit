@@ -2,6 +2,7 @@
 //
 
 #include "stdafx.h"
+#include <cwchar>
 #include <fstream>
 #include <string>
 
@@ -91,6 +92,36 @@ int wmain(int argc, WCHAR *argv[])
     return 0;
 }
 
+static void AppendCommandLineArgument(std::wstring &commandLine, const wchar_t *argument)
+{
+    commandLine += L' ';
+    if (*argument != L'\0' && std::wcspbrk(argument, L" \t\"") == nullptr)
+    {
+        commandLine += argument;
+        return;
+    }
+
+    commandLine += L'"';
+    size_t backslashes = 0;
+    for (; *argument != L'\0'; ++argument)
+    {
+        if (*argument == L'\\')
+        {
+            ++backslashes;
+        }
+        else
+        {
+            // Double backslashes before quotes, then escape the literal quote.
+            commandLine.append(*argument == L'"' ? backslashes * 2 + 1 : backslashes, L'\\');
+            commandLine += *argument;
+            backslashes = 0;
+        }
+    }
+
+    commandLine.append(backslashes * 2, L'\\');
+    commandLine += L'"';
+}
+
 int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc, WCHAR *argv[])
 {
     wchar_t expandedPath[MAX_PATH + 1];
@@ -101,10 +132,11 @@ int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc
         exit(6);
     }
     
-    std::wstring commandLine = std::wstring(expandedPath) + L" " + hookName;
+    std::wstring commandLine = std::wstring(expandedPath);
+    AppendCommandLineArgument(commandLine, hookName);
     for (int x = 1; x < argc; x++)
     {
-        commandLine += L" " + std::wstring(argv[x]);
+        AppendCommandLineArgument(commandLine, argv[x]);
     }
     
     // Start the child process. 

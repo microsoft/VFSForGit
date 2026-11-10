@@ -8,6 +8,12 @@ namespace GVFS.FunctionalTests.LockHolder
     {
         public static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0] == "--echo-arguments")
+            {
+                Console.Write(string.Join("\0", args, 1, args.Length - 1));
+                return;
+            }
+
             if (args.Length > 0 && args[0] == "--wait-for-event")
             {
                 string eventName = Environment.GetEnvironmentVariable("GVFS_TEST_HOOK_WAIT_EVENT_NAME");

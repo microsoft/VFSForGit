@@ -8,11 +8,12 @@ namespace GVFS.Hooks
     {
         // Hooks run on the git command path, so config reads retry at most once.
         private const int ConfigReadMaxAttempts = 2;
+        private const string GitPidArg = "--git-pid=";
 
         // The lock serializes changes to the enlistment's index and tracked working tree with GVFS projection updates.
         // Before adding an exemption, check all supported options, subcommands, and child-command paths.
         // Ref and object writes alone do not require this lock.
-        // Existing diff exemptions allow opportunistic stat-cache refreshes.
+        // Keep index refresh modes locked. RequiredGitConfig enables opportunistic stat refreshes for diff and difftool.
         // Keep arbitrary Git dispatchers locked because nested command hooks can be suppressed.
         // Excluded readers can observe concurrent working-tree changes. They do not receive snapshot isolation.
         internal static bool TryShouldLock(
@@ -134,7 +135,7 @@ namespace GVFS.Hooks
                     return !HasOnlySafeOptions(args, GetGrepOptionType, out _);
 
                 case "merge-file":
-                    return !HasOnlySafeOptions(args, GetMergeFileOptionType, out bool hasReadOnlyMode) || !hasReadOnlyMode;
+                    return !HasOnlySafeOptions(args, GetMergeFileOptionType, out bool hasSafeOutputMode) || !hasSafeOutputMode;
 
                 case "refs":
                     switch (args.Length > 2 ? args[2] : null)
@@ -176,22 +177,28 @@ namespace GVFS.Hooks
             return true;
         }
 
-        private static bool HasOnlySafeOptions(string[] args, Func<string, CommandOptionType> getOptionType, out bool hasReadOnlyMode)
+        private static bool HasOnlySafeOptions(string[] args, Func<string, CommandOptionType> getOptionType, out bool hasSafeOutputMode)
         {
-            hasReadOnlyMode = false;
+            hasSafeOutputMode = false;
             int end = args.Length;
 
             // Only the appended hook metadata is excluded. User arguments with these names remain unknown options.
-            if (end > 2 && args[0] == "post-command" && args[end - 1].StartsWith("--exit_code=", StringComparison.Ordinal))
+            if (args[0] == "post-command")
             {
+                if (end <= 2 || !args[end - 1].StartsWith("--exit_code=", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
                 --end;
             }
 
-            if (end > 2 && args[end - 1].StartsWith("--git-pid=", StringComparison.Ordinal))
+            if (end <= 2 || !args[end - 1].StartsWith(GitPidArg, StringComparison.Ordinal))
             {
-                --end;
+                return false;
             }
 
+            --end;
             for (int i = 2; i < end; ++i)
             {
                 string argument = args[i];
@@ -216,7 +223,7 @@ namespace GVFS.Hooks
                         return false;
                     }
 
-                    hasReadOnlyMode |= type == CommandOptionType.ReadOnlyMode;
+                    hasSafeOutputMode |= type == CommandOptionType.SafeOutputMode;
                     if (type == CommandOptionType.Value && equals < 0 && ++i >= end)
                     {
                         return false;
@@ -232,10 +239,10 @@ namespace GVFS.Hooks
                             return false;
                         }
 
-                        hasReadOnlyMode |= type == CommandOptionType.ReadOnlyMode;
-                        if (type == CommandOptionType.Value || type == CommandOptionType.OptionalValue)
+                        hasSafeOutputMode |= type == CommandOptionType.SafeOutputMode;
+                        if (type == CommandOptionType.Value)
                         {
-                            if (type == CommandOptionType.Value && j == argument.Length - 1 && ++i >= end)
+                            if (j == argument.Length - 1 && ++i >= end)
                             {
                                 return false;
                             }
@@ -363,7 +370,7 @@ namespace GVFS.Hooks
                 case "-p":
                 case "--stdout":
                 case "--object-id":
-                    return CommandOptionType.ReadOnlyMode;
+                    return CommandOptionType.SafeOutputMode;
 
                 case "-q":
                 case "--quiet":
@@ -400,7 +407,7 @@ namespace GVFS.Hooks
             Flag,
             Value,
             OptionalValue,
-            ReadOnlyMode,
+            SafeOutputMode,
         }
     }
 }

@@ -31,6 +31,8 @@ namespace GVFS.UnitTests.Hooks
         [TestCase("credential")]
         [TestCase("describe")]
         [TestCase("describe --tags --always --abbrev=7 HEAD")]
+        [TestCase("describe --abbrev")]
+        [TestCase("describe --abbrev 7")]
         [TestCase("describe --contains --all --long --first-parent --exact-match")]
         [TestCase("describe --match mock-* --exclude=excluded-* --candidates 5")]
         [TestCase("describe --match --dirty")]
@@ -53,6 +55,7 @@ namespace GVFS.UnitTests.Hooks
         [TestCase("grep -e -O -f patterns --cached")]
         [TestCase("grep -e-O")]
         [TestCase("grep --context=2 --threads 1 --color=never pattern")]
+        [TestCase("grep --color pattern")]
         [TestCase("grep -- --open-files-in-pager")]
         [TestCase("grep -- -O")]
         [TestCase("help")]
@@ -150,6 +153,7 @@ namespace GVFS.UnitTests.Hooks
         [TestCase("commit")]
         [TestCase("describe --dirty")]
         [TestCase("describe --dirty=modified")]
+        [TestCase("describe --abbrev --dirty")]
         [TestCase("describe --di")]
         [TestCase("describe --dir=modified")]
         [TestCase("describe --broken")]
@@ -159,6 +163,8 @@ namespace GVFS.UnitTests.Hooks
         [TestCase("describe --match")]
         [TestCase("describe --git-pid=123")]
         [TestCase("grep -O pattern")]
+        [TestCase("grep --color -O pattern")]
+        [TestCase("grep --cached=value pattern")]
         [TestCase("grep -Omock-pager pattern")]
         [TestCase("grep -inO pattern")]
         [TestCase("grep -nOmock-pager pattern")]
@@ -211,6 +217,17 @@ namespace GVFS.UnitTests.Hooks
         public void CommandsWithLockPreserveTheirPolicy(string command)
         {
             AssertLockPolicy(command, shouldLock: true);
+        }
+
+        [TestCase("describe")]
+        [TestCase("describe --match value")]
+        [TestCase("grep pattern")]
+        [TestCase("grep --color pattern")]
+        [TestCase("merge-file -p a b c")]
+        [TestCase("merge-file --object-id a b c")]
+        public void PartialExemptionsRequireSeparateHookMetadata(string command)
+        {
+            AssertLockPolicy(command, shouldLock: true, includeHookMetadata: false);
         }
 
         [TestCase("git-annotate")]
@@ -290,7 +307,7 @@ namespace GVFS.UnitTests.Hooks
             return new[] { "pre-command" }.Concat(command.Split(' ')).Concat(new[] { "--git-pid=456" }).ToArray();
         }
 
-        private static void AssertLockPolicy(string command, bool shouldLock)
+        private static void AssertLockPolicy(string command, bool shouldLock, bool includeHookMetadata = true)
         {
             // The hook sends post-command for git-<name> to the lock-ownership check, not to this policy.
             string[] hooks = command.StartsWith("git-", System.StringComparison.Ordinal)
@@ -300,7 +317,9 @@ namespace GVFS.UnitTests.Hooks
             {
                 string[] args = new[] { hook }
                     .Concat(command.Split(' '))
-                    .Concat(hook == "post-command"
+                    .Concat(!includeHookMetadata
+                        ? System.Array.Empty<string>()
+                        : hook == "post-command"
                         ? new[] { "--git-pid=456", "--exit_code=0" }
                         : new[] { "--git-pid=456" })
                     .ToArray();

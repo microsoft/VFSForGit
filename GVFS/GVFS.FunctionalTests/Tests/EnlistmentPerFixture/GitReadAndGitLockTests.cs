@@ -143,17 +143,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 });
         }
 
-        [TestCase("describe --dirty --always", 0)]
-        [TestCase("describe --broken --always", 0)]
-        [TestCase("describe --di --always", 0)]
-        [TestCase("grep -nOcat -e . -- Readme.md", 0)]
-        [TestCase("grep --open=cat -e . -- Readme.md", 0)]
-        [TestCase("refs migrate -h", 0)]
-        public void UnsafeCommandModeStillWaitsForLock(string command, int expectedExitCode)
+        [TestCase("describe --dirty --always")]
+        [TestCase("describe --broken --always")]
+        [TestCase("describe --di --always")]
+        [TestCase("grep -nOcat -e . -- Readme.md")]
+        [TestCase("grep --open=cat -e . -- Readme.md")]
+        [TestCase("refs migrate -h")]
+        public void UnsafeCommandModeStillWaitsForLock(string command)
         {
             File.ReadAllText(this.Enlistment.GetVirtualPathTo("Readme.md"));
             ProcessResult result = this.RunWithLockHolder(command);
-            result.ExitCode.ShouldEqual(expectedExitCode, result.Output + result.Errors);
+            result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
             result.Errors.ShouldContain(ExpectedStatusWaitingText);
         }
 
@@ -205,17 +205,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     {
                         byte[] index = File.ReadAllBytes(indexPath);
                         DateTime indexWriteTime = File.GetLastWriteTimeUtc(indexPath);
-                        string[] commands =
+                        (string Command, string ExpectedRef, int ReflogEntries)[] commands =
                         {
-                            $"reflog write {refName} {newObject} {newObject} appended",
-                            $"reflog delete --rewrite --updateref {refName}@{{0}}",
-                            $"reflog delete --rewrite --updateref {refName}@{{0}}",
-                            $"reflog expire --stale-fix --rewrite --updateref --expire=never --expire-unreachable=never {refName}",
-                            $"reflog expire --stale-fix --rewrite --updateref --expire=all {refName}",
-                            $"reflog drop {refName}",
+                            ($"reflog write {refName} {newObject} {newObject} appended", newObject, 3),
+                            ($"reflog delete --rewrite --updateref {refName}@{{0}}", newObject, 2),
+                            ($"reflog delete --rewrite --updateref {refName}@{{0}}", oldObject, 1),
+                            ($"reflog expire --stale-fix --rewrite --updateref --expire=never --expire-unreachable=never {refName}", oldObject, 1),
+                            ($"reflog expire --stale-fix --rewrite --updateref --expire=all {refName}", oldObject, 0),
+                            ($"reflog drop {refName}", oldObject, -1),
                         };
 
-                        foreach (string command in commands)
+                        foreach ((string command, string expectedRef, int reflogEntries) in commands)
                         {
                             ProcessResult result = GitProcess.InvokeProcess(
                                 this.Enlistment.RepoRoot,
@@ -223,18 +223,105 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                                 timeoutMs: AcquireGVFSLockTimeout);
                             result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
                             result.Errors.ShouldNotContain(false, ExpectedStatusWaitingText);
+                            GitProcess.Invoke(this.Enlistment.RepoRoot, "rev-parse " + refName).Trim().ShouldEqual(expectedRef);
+                            if (reflogEntries < 0)
+                            {
+                                GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "reflog exists " + refName).ExitCode.ShouldEqual(1);
+                            }
+                            else
+                            {
+                                ProcessResult reflog = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "reflog show --format=%H " + refName);
+                                reflog.ExitCode.ShouldEqual(0, reflog.Errors);
+                                reflog.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length.ShouldEqual(reflogEntries);
+                            }
+
                             File.ReadAllBytes(indexPath).ShouldMatchInOrder(index);
                             File.GetLastWriteTimeUtc(indexPath).ShouldEqual(indexWriteTime);
                             File.ReadAllText(filePath).ShouldEqual(dirtyContent);
                         }
-
-                        GitProcess.Invoke(this.Enlistment.RepoRoot, "rev-parse " + refName).Trim().ShouldEqual(oldObject);
                     });
             }
             finally
             {
                 GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "reset --hard");
                 GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-ref -d " + refName);
+            }
+        }
+
+        [TestCase("")]
+        [TestCase("with space")]
+        [TestCase("with\ttab")]
+        [TestCase("with\"quote")]
+        [TestCase("trailing space slash\\")]
+        [TestCase("before\\\\\"quote")]
+        public void HookLoaderPreservesArgumentBoundaries(string argument)
+        {
+            string loaderPath = this.Enlistment.GetDotGitPath("hooks", "pre-command.exe");
+            string hookListPath = this.Enlistment.GetDotGitPath("hooks", "pre-command.hooks");
+            string originalHookList = File.ReadAllText(hookListPath);
+            try
+            {
+                File.WriteAllText(hookListPath, $"\"{GitHelpers.LockHolderCommandPath}\" --echo-arguments");
+                ProcessStartInfo loader = new ProcessStartInfo(loaderPath)
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                loader.ArgumentList.Add("first");
+                loader.ArgumentList.Add(argument);
+                loader.ArgumentList.Add("last");
+                loader.Environment.Remove("GITHOOKSLOADER_PERFTRACE");
+                ProcessResult result = ProcessHelper.Run(loader, timeoutMs: AcquireGVFSLockTimeout);
+                result.ExitCode.ShouldEqual(0, result.Errors);
+                result.Output.Split('\0').ShouldMatchInOrder("pre-command", "first", argument, "last");
+            }
+            finally
+            {
+                File.WriteAllText(hookListPath, originalHookList);
+            }
+        }
+
+        [TestCase("rm -f")]
+        [TestCase("foo --")]
+        public void GrepOptionValuesCannotHidePagerDispatch(string pattern)
+        {
+            File.ReadAllText(this.Enlistment.GetVirtualPathTo("Readme.md"));
+            string[] arguments = { "grep", "-e", pattern, "-Ocat", "-e", ".", "--", "Readme.md" };
+            ProcessResult result = this.RunWithLockHolder(string.Empty, argumentList: arguments);
+            // Git grep returns 1 when no line matches.
+            Assert.That(result.ExitCode, Is.InRange(0, 1), result.Output + result.Errors);
+            result.Errors.ShouldContain(ExpectedStatusWaitingText);
+        }
+
+        [TestCase("v1* --")]
+        [TestCase("v\"")]
+        public void DescribeOptionValuesCannotHideIndexRefresh(string pattern)
+        {
+            string[] arguments = { "describe", "--match", pattern, "--dirty", "--always" };
+            ProcessResult result = this.RunWithLockHolder(string.Empty, argumentList: arguments);
+            result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+            result.Errors.ShouldContain(ExpectedStatusWaitingText);
+        }
+
+        [TestCase("ours -p")]
+        [TestCase("ours\t-p")]
+        [TestCase("ours\"")]
+        public void MergeFileLabelsCannotEnableAnOutputMode(string label)
+        {
+            string inputPath = Path.Combine(this.Enlistment.EnlistmentRoot, "merge-label-" + Guid.NewGuid().ToString("N"));
+            File.WriteAllText(inputPath, "merge input\n");
+            try
+            {
+                string[] arguments = { "merge-file", "-L", label, inputPath, inputPath, inputPath };
+                ProcessResult result = this.RunWithLockHolder(string.Empty, argumentList: arguments);
+                result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+                result.Errors.ShouldContain(ExpectedStatusWaitingText);
+                File.ReadAllText(inputPath).ShouldEqual("merge input\n");
+            }
+            finally
+            {
+                File.Delete(inputPath);
             }
         }
 
@@ -677,7 +764,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             return startInfo;
         }
 
-        private ProcessResult RunWithLockHolder(string command, Dictionary<string, string> environment = null, bool shouldWait = true)
+        private ProcessResult RunWithLockHolder(
+            string command,
+            Dictionary<string, string> environment = null,
+            bool shouldWait = true,
+            string[] argumentList = null)
         {
             using (Process holder = new Process())
             using (Process git = new Process())
@@ -703,6 +794,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     this.Enlistment.WaitForLock("GVFS.FunctionalTests.LockHolder (PID:" + holder.Id + ")")
                         .ShouldBeTrue("The expected lock-holder process did not acquire the lock.");
                     git.StartInfo = this.CreateGitStartInfo(command, environment);
+                    if (argumentList != null)
+                    {
+                        foreach (string argument in argumentList)
+                        {
+                            git.StartInfo.ArgumentList.Add(argument);
+                        }
+                    }
+
                     git.OutputDataReceived += (sender, args) =>
                     {
                         if (args.Data != null)
