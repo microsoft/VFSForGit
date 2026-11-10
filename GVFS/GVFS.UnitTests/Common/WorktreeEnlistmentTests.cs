@@ -77,10 +77,8 @@ namespace GVFS.UnitTests.Common
             }
         }
 
-        private GVFSEnlistment CreateWorktreeEnlistment()
+        private GVFSEnlistment CreateWorktreeEnlistment(string gitBinPath = @"mock:\git")
         {
-            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath()
-                ?? @"C:\Program Files\Git\cmd\git.exe";
             return GVFSEnlistment.CreateForWorktree(
                 this.primaryRoot, gitBinPath, authentication: null,
                 GVFSEnlistment.TryGetWorktreeInfo(this.worktreePath),
@@ -206,7 +204,7 @@ namespace GVFS.UnitTests.Common
         public void WorktreeEnlistmentIdIsEmptyWhenNothingIsPersisted()
         {
             this.AppendToSharedConfig("[gvfs]\n\tenlistment-id = primaryenlistmentid\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             enlistment.GetEnlistmentId().ShouldEqual(string.Empty);
             File.Exists(GetRepoMetadataPath(enlistment.DotGVFSRoot)).ShouldBeFalse("Reading the id must not create worktree repo metadata");
@@ -218,10 +216,10 @@ namespace GVFS.UnitTests.Common
         {
             this.AppendToSharedConfig("[gvfs]\n\tenlistment-id = sharedconfigenlistmentid\n");
             EditRepoMetadata(this.PrimaryDotGVFSRoot, metadata => metadata.SetEntry(RepoMetadata.Keys.EnlistmentId, "primaryenlistmentid"));
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             enlistment.GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
-            this.CreateWorktreeEnlistment().GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
+            this.CreateWorktreeEnlistment(GetGitBinPath()).GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
             RepoMetadata.Instance.ShouldBeNull("Reading the id must not initialize RepoMetadata.Instance");
         }
 
@@ -308,7 +306,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void RequiredSettingsEnableWorktreeConfigAndWritePerWorktreeValues()
         {
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             string error;
             RequiredGitConfig.TrySetRequiredSettings(
@@ -331,7 +329,7 @@ namespace GVFS.UnitTests.Common
         {
             this.AppendToSharedConfig("[status]\n\tdeserializePath = C:/sibling/status.dat\n");
             File.WriteAllText(this.WorktreeConfigPath, "[status]\n\tdeserializePath = C:/sibling/status.dat\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             string error;
             RequiredGitConfig.TrySetRequiredSettings(
@@ -348,7 +346,7 @@ namespace GVFS.UnitTests.Common
         {
             this.AppendToSharedConfig("[extensions]\n\tworktreeConfig = true\n[status]\n\tdeserializePath = C:/primary/status.dat\n");
             File.WriteAllText(this.WorktreeConfigPath, "[status]\n\tdeserializePath = C:/worktree/status.dat\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             string error;
             RequiredGitConfig.TrySetRequiredSettings(
@@ -365,7 +363,7 @@ namespace GVFS.UnitTests.Common
         public void RequiredSettingsRemoveRequiredOverridesFromWorktreeConfig()
         {
             File.WriteAllText(this.WorktreeConfigPath, "[core]\n\tautocrlf = true\n[gvfs]\n\tmount-id = worktreemountid\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             string error;
             RequiredGitConfig.TrySetRequiredSettings(
@@ -382,7 +380,7 @@ namespace GVFS.UnitTests.Common
         public void RequiredSettingsReplaceDuplicateWorktreeConfigExtensionValues()
         {
             this.AppendToSharedConfig("[extensions]\n\tworktreeConfig = true\n\tworktreeConfig = false\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             string error;
             RequiredGitConfig.TrySetRequiredSettings(enlistment, new Dictionary<string, string>(), out error).ShouldBeTrue(error);
@@ -429,7 +427,7 @@ namespace GVFS.UnitTests.Common
         public void RequiredSettingsWriteNothingWhenAppliedAgain()
         {
             GVFSEnlistment primary = new GVFSEnlistment(this.primaryRoot, "https://mock/repo", GetGitBinPath(), authentication: null);
-            GVFSEnlistment worktree = this.CreateWorktreeEnlistment();
+            GVFSEnlistment worktree = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             string error;
             RequiredGitConfig.TrySetRequiredSettings(primary, out error).ShouldBeTrue(error);
@@ -449,7 +447,7 @@ namespace GVFS.UnitTests.Common
         public void RequiredSettingsFailWhenWorktreeConfigIsCorrupt()
         {
             File.WriteAllText(this.WorktreeConfigPath, "[status\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             string error;
             RequiredGitConfig.TrySetRequiredSettings(
@@ -470,7 +468,9 @@ namespace GVFS.UnitTests.Common
 
         private static string GetGitBinPath()
         {
-            return GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath() ?? @"C:\Program Files\Git\cmd\git.exe";
+            string gitPath = GitTestHelper.FindGitOnPath();
+            Assert.That(gitPath, Is.Not.Null, "The required-settings tests require Git on PATH.");
+            return gitPath;
         }
 
         private static string GetRepoMetadataPath(string dotGVFSRoot)
