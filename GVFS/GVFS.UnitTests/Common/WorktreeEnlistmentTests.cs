@@ -196,7 +196,7 @@ namespace GVFS.UnitTests.Common
         public void WorktreeEnlistmentIdIsEmptyWhenNothingIsPersisted()
         {
             this.AppendToSharedConfig("[gvfs]\n\tenlistment-id = primaryenlistmentid\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             enlistment.GetEnlistmentId().ShouldEqual(string.Empty);
             File.Exists(GetRepoMetadataPath(enlistment.DotGVFSRoot)).ShouldBeFalse("Reading the id must not create worktree repo metadata");
@@ -208,10 +208,10 @@ namespace GVFS.UnitTests.Common
         {
             this.AppendToSharedConfig("[gvfs]\n\tenlistment-id = sharedconfigenlistmentid\n");
             EditRepoMetadata(this.PrimaryDotGVFSRoot, metadata => metadata.SetEntry(RepoMetadata.Keys.EnlistmentId, "primaryenlistmentid"));
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
             enlistment.GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
-            this.CreateWorktreeEnlistment().GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
+            this.CreateWorktreeEnlistment(GetGitBinPath()).GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
             RepoMetadata.Instance.ShouldBeNull("Reading the id must not initialize RepoMetadata.Instance");
         }
 
