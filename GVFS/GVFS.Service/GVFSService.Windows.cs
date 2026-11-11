@@ -30,6 +30,9 @@ namespace GVFS.Service
         private INotificationHandler notificationHandler;
         private PendingUpgradeMonitor pendingUpgradeMonitor;
         private DeferredTelemetryAttacher telemetryAttacher;
+        private InstallationTelemetryMonitor installationTelemetry;
+        private readonly Lock installationTelemetryLock = new Lock();
+        private bool stopping;
 
         public GVFSService(JsonTracer tracer)
         {
@@ -86,6 +89,22 @@ namespace GVFS.Service
                     // SessionLogon events also won't fire for sessions that
                     // were already established before the service started.
                     this.TryAttachTelemetryPipeForAnySessions();
+                }
+
+                lock (this.installationTelemetryLock)
+                {
+                    if (this.stopping)
+                    {
+                        return;
+                    }
+
+                    this.installationTelemetry = new InstallationTelemetryMonitor(
+                        new InstallationTelemetryStore(
+                            Path.Combine(GVFSPlatform.Instance.GetCommonAppDataRootForGVFS(), this.serviceName, InstallationTelemetryStore.DirectoryName),
+                            this.tracer),
+                        this.tracer,
+                        this.tracer.GetTelemetryPipeName);
+                    this.installationTelemetry.Start();
                 }
 
                 // Check for a staged upgrade before doing anything else.
@@ -150,6 +169,16 @@ namespace GVFS.Service
                     this.tracer.RelatedInfo("Stopping");
                 }
 
+                InstallationTelemetryMonitor monitor;
+                lock (this.installationTelemetryLock)
+                {
+                    this.stopping = true;
+                    monitor = this.installationTelemetry;
+                    this.installationTelemetry = null;
+                }
+
+                monitor?.Dispose();
+
                 if (this.telemetryAttacher != null)
                 {
                     this.telemetryAttacher.Dispose();
@@ -201,6 +230,7 @@ namespace GVFS.Service
                         // session is available.  Buffered pre-logon events are
                         // replayed.  No-ops if already attached.
                         this.TryAttachTelemetryPipeForSession(changeDescription.SessionId);
+                        this.installationTelemetry?.Wake();
 
                         using (ITracer activity = this.tracer.StartActivity("LogonAutomount", EventLevel.Informational))
                         {
@@ -462,29 +492,10 @@ namespace GVFS.Service
 
             try
             {
-                using (CurrentUser user = new CurrentUser(this.tracer, sessionId))
+                string globalConfigPath = this.GetSessionGlobalConfigPath(sessionId);
+                if (globalConfigPath != null)
                 {
-                    if (user.Identity == null)
-                    {
-                        this.tracer.RelatedWarning("TryAttachTelemetryPipe: Could not get user identity for session {0}", sessionId);
-                        return;
-                    }
-
                     string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-
-                    string userProfile = null;
-                    WindowsIdentity.RunImpersonated(user.Identity.AccessToken, () =>
-                    {
-                        userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                    });
-
-                    if (string.IsNullOrEmpty(userProfile))
-                    {
-                        this.tracer.RelatedWarning("TryAttachTelemetryPipe: Could not resolve user profile for session {0}", sessionId);
-                        return;
-                    }
-
-                    string globalConfigPath = Path.Combine(userProfile, ".gitconfig");
                     this.telemetryAttacher.TryAttach(gitBinRoot, globalConfigPath);
                 }
             }
@@ -535,6 +546,31 @@ namespace GVFS.Service
                 this.tracer.RelatedWarning(
                     "TryAttachTelemetryPipeForAnySessions: Could not attach from any of {0} interactive session(s)",
                     sessionIds.Count);
+            }
+        }
+
+        private string GetSessionGlobalConfigPath(int sessionId)
+        {
+            using (CurrentUser user = new CurrentUser(this.tracer, sessionId))
+            {
+                if (user.Identity == null)
+                {
+                    this.tracer.RelatedWarning("TryAttachTelemetryPipe: Could not get user identity for session {0}", sessionId);
+                    return null;
+                }
+
+                string profile = null;
+                WindowsIdentity.RunImpersonated(user.Identity.AccessToken, () =>
+                {
+                    profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                });
+                if (string.IsNullOrEmpty(profile))
+                {
+                    this.tracer.RelatedWarning("TryAttachTelemetryPipe: Could not resolve user profile for session {0}", sessionId);
+                    return null;
+                }
+
+                return Path.Combine(profile, ".gitconfig");
             }
         }
 

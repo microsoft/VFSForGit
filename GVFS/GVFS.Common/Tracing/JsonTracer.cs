@@ -89,6 +89,11 @@ namespace GVFS.Common.Tracing
             }
         }
 
+        public string GetTelemetryPipeName()
+        {
+            return this.listeners.OfType<TelemetryDaemonEventListener>().FirstOrDefault()?.PipeName;
+        }
+
         public void SetGitCommandSessionId(string sessionId)
         {
             TelemetryDaemonEventListener daemonListener = this.listeners.FirstOrDefault(x => x is TelemetryDaemonEventListener) as TelemetryDaemonEventListener;

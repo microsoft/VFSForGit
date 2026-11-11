@@ -100,6 +100,16 @@ Root: HKLM; Subkey: "{#FileSystemKey}"; \
 Root: HKLM; SubKey: "{#GvFltAutologgerKey}"; Flags: deletekey
 
 [Code]
+#ifdef TelemetryTestSid
+#error TelemetryTestSid is only permitted in the test harness.
+#endif
+#if TargetArch == "arm64"
+#define TelemetryPackageArchitecture "arm64"
+#else
+#define TelemetryPackageArchitecture "x64"
+#endif
+#include "InstallationTelemetry.iss"
+
 var
   ExitCode: Integer;
   KeepMountsRunning: Boolean;
@@ -176,19 +186,25 @@ end;
 procedure StopService(ServiceName: string);
 var
   ResultCode: integer;
+  PreviousPhase: String;
 begin
+  PreviousPhase := TelemetryPhase;
+  TelemetryPhase := 'Service';
   Log('StopService: stopping: ' + ServiceName);
   if not Exec(ExpandConstant('{sys}\SC.EXE'), 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
     begin
       Log('StopService: Failed to launch sc.exe');
+      TelemetryOutcome := 'Failed';
       RaiseException('Fatal: Could not stop service: ' + ServiceName);
     end;
   // 1060 = service not installed, 1062 = service not started
   if (ResultCode <> 0) and (ResultCode <> 1060) and (ResultCode <> 1062) then
     begin
       Log('StopService: sc stop returned error code ' + IntToStr(ResultCode));
+      TelemetryOutcome := 'Failed';
       RaiseException('Fatal: Could not stop service: ' + ServiceName + ' (exit code ' + IntToStr(ResultCode) + ')');
     end;
+  TelemetryPhase := PreviousPhase;
 end;
 
 procedure WaitForServiceProcessToExit(ServiceName: string);
@@ -259,6 +275,7 @@ begin
         if not Exec(ExpandConstant('{sys}\SC.EXE'), 'delete ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
           begin
             Log('UninstallService: Could not uninstall service: ' + ServiceName);
+            TelemetryOutcome := 'Failed';
             RaiseException('Fatal: Could not uninstall service: ' + ServiceName);
           end;
 
@@ -327,6 +344,7 @@ begin
 
   if InstallSuccessful = False then
     begin
+      TelemetryOutcome := 'Failed';
       RaiseException('Fatal: An error occured while installing GVFS.Service.');
     end;
 end;
@@ -425,6 +443,7 @@ begin
       end
     else
       begin
+          TelemetryOutcome := 'Failed';
           RaiseException('Fatal: An error occured while uninstalling GvFlt drivers.');
       end;
   end;
@@ -498,6 +517,7 @@ begin
 
       if UninstallSuccessful = False then
       begin
+        TelemetryOutcome := 'Failed';
         RaiseException('Fatal: An error occured while uninstalling ProjFS.');
       end;
     end;
@@ -550,12 +570,20 @@ var
   MountOutput: ansiString;
   ResultCode: integer;
   MsgBoxText: string;
+  MountRan: Boolean;
 begin
+  TelemetryPhase := 'Remount';
+  TelemetryRemount := 'Unknown';
   StatusText := WizardForm.StatusLabel.Caption;
   WizardForm.StatusLabel.Caption := 'Mounting Repos.';
   WizardForm.ProgressGauge.Style := npbstMarquee;
 
-  ExecWithResult(ExpandConstant('{app}') + '\gvfs.exe', 'service --mount-all', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, MountOutput);
+  MountRan := ExecWithResult(ExpandConstant('{app}') + '\gvfs.exe', 'service --mount-all', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, MountOutput);
+  if MountRan then
+    begin
+      if ResultCode = 0 then TelemetryRemount := 'Succeeded'
+      else TelemetryRemount := 'Failed';
+    end;
   WizardForm.StatusLabel.Caption := StatusText;
   WizardForm.ProgressGauge.Style := npbstNormal;
 
@@ -563,6 +591,7 @@ begin
   if (ResultCode = 4) then
     begin
       Log('gvfs service --mount-all failed with FilterError: ' + MountOutput);
+      TelemetryOutcome := 'Failed';
       RaiseException('Fatal: Could not configure and start Windows Projected File System.' + #13#10 + MountOutput);
     end
   else if (ResultCode <> 0) then
@@ -570,6 +599,7 @@ begin
       MsgBoxText := 'Mounting one or more repos failed:' + #13#10 + MountOutput;
       SuppressibleMsgBox(MsgBoxText, mbConfirmation, MB_OK, IDOK);
       ExitCode := 17;
+      TelemetryScriptResult := 17;
     end;
 end;
 
@@ -617,6 +647,7 @@ begin
         end;
       if(MsgBoxResult = IDCANCEL) then
         begin
+          TelemetryOutcome := 'Cancelled';
           Result := False;
           Abort();
         end;
@@ -650,11 +681,13 @@ begin
   case CurStep of
     ssInstall:
       begin
+        TelemetryPhase := 'Install';
         if not KeepMountsRunning then
           UninstallService('GVFS.Service', True);
       end;
     ssPostInstall:
       begin
+        TelemetryPhase := 'PostInstall';
         if KeepMountsRunning then
           begin
             // All staged files have been written to PendingUpgrade.
@@ -672,9 +705,18 @@ begin
         if (not KeepMountsRunning) and (ExpandConstant('{param:REMOUNTREPOS|true}') = 'true') then
           begin
             MountRepos();
-          end
+          end;
+      end;
+    ssDone:
+      begin
+        TelemetryDone();
       end;
     end;
+end;
+
+procedure DeinitializeSetup();
+begin
+  TelemetryFinish(TelemetryOutcome);
 end;
 
 function GetCustomSetupExitCode: Integer;
@@ -820,8 +862,12 @@ var
   ResultCode: integer;
   HasMounts: Boolean;
 begin
+  TelemetryBegin(ExpandConstant('{commonappdata}\GVFS\{#ServiceName}\InstallationTelemetry'), ExpandConstant('{app}\gvfs.exe'));
+  TelemetryPhase := 'Prepare';
+  TelemetryOutcome := 'Incomplete';
   NeedsRestart := False;
   KeepMountsRunning := False;
+  TelemetryMode := TelemetryOriginalMode;
   Result := '';
 
   // Check for mounted repos by querying the service, and also check for
@@ -859,6 +905,7 @@ begin
           // staging the upgrade (deferred until repos are unmounted).
           if not ShowMountChoiceDialog(Repos, KeepMountsRunning) then
             begin
+              TelemetryOutcome := 'Cancelled';
               Result := 'Installation cancelled.';
               exit;
             end;
@@ -867,6 +914,7 @@ begin
 
   if KeepMountsRunning then
     begin
+      TelemetryMode := 'Staged';
       // Staging mode: most files go to {app}\PendingUpgrade\ via [Files] entries
       // with Check: IsStagingInstall. GVFS.Service.exe goes directly to {app}.
       // Clean up any leftover staging dirs from a prior attempt first,

@@ -1,5 +1,6 @@
 using System;
 using System.IO.Pipes;
+using System.Security.Principal;
 using GVFS.Common.Git;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -32,14 +33,28 @@ namespace GVFS.Common.Tracing
             this.vfsVersion = ProcessHelper.GetCurrentProcessVersion();
             this.vfsArchitecture = ProcessHelper.GetCurrentProcessArchitecture();
             this.aggregator = new TelemetryAggregator(timeProvider);
+            this.PipeName = pipeName;
 
             this.pipeWriter = new QueuedPipeStringWriter(
-                () => new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous),
+                () => new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous, TokenImpersonationLevel.Identification),
                 this);
             this.pipeWriter.Start();
         }
 
         public string GitCommandSessionId { get; set; }
+
+        public string PipeName { get; }
+
+        public static string ResolvePipeName(Func<string> readSystemConfig, Func<string> readGlobalConfig)
+        {
+            string value = readSystemConfig();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                value = readGlobalConfig();
+            }
+
+            return value?.TrimEnd('\r', '\n') ?? string.Empty;
+        }
 
         public static TelemetryDaemonEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId, IEventListenerEventSink eventSink)
         {
@@ -116,25 +131,17 @@ namespace GVFS.Common.Tracing
 
         private static string GetConfigValue(string gitBinRoot, string configKey, string globalConfigPath = null)
         {
-            string value = string.Empty;
-            string error;
+            return ResolvePipeName(
+                () => ReadConfigValue(GitProcess.GetFromSystemConfig(gitBinRoot, configKey)),
+                () => ReadConfigValue(string.IsNullOrEmpty(globalConfigPath)
+                    ? GitProcess.GetFromGlobalConfig(gitBinRoot, configKey)
+                    : GitProcess.GetFromFileConfig(gitBinRoot, globalConfigPath, configKey)));
+        }
 
-            GitProcess.ConfigResult result = GitProcess.GetFromSystemConfig(gitBinRoot, configKey);
-            if (!result.TryParseAsString(out value, out error, defaultValue: string.Empty) || string.IsNullOrWhiteSpace(value))
-            {
-                if (!string.IsNullOrEmpty(globalConfigPath))
-                {
-                    result = GitProcess.GetFromFileConfig(gitBinRoot, globalConfigPath, configKey);
-                }
-                else
-                {
-                    result = GitProcess.GetFromGlobalConfig(gitBinRoot, configKey);
-                }
-
-                result.TryParseAsString(out value, out error, defaultValue: string.Empty);
-            }
-
-            return value.TrimEnd('\r', '\n');
+        private static string ReadConfigValue(GitProcess.ConfigResult result)
+        {
+            result.TryParseAsString(out string value, out string error, defaultValue: string.Empty);
+            return value;
         }
 
         private string CreatePipeMessage(TraceEventMessage message)

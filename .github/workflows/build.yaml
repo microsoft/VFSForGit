@@ -301,6 +301,13 @@ jobs:
       shell: cmd
       run: src\scripts\RunUnitTests.bat ${{ matrix.configuration }} ${{ matrix.architecture }}
 
+    - name: Run installer telemetry tests
+      if: steps.skip.outputs.result != 'true'
+      shell: pwsh
+      run: |
+        dotnet msbuild .\src\GVFS\GVFS.Installers\GVFS.Installers.csproj `
+          -t:RunInstallerTelemetryTests -p:Configuration=${{ matrix.configuration }} -p:VfsArch=${{ matrix.architecture }}
+
     - name: Create build artifacts
       if: steps.skip.outputs.result != 'true'
       shell: cmd

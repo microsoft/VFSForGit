@@ -96,7 +96,11 @@ namespace GVFS.FunctionalTests.Tools
         private static void StartServiceAsConsoleProcess(string serviceName)
         {
             StopConsoleServiceProcess(serviceName);
+            ConsoleServiceProcesses[serviceName] = StartConsoleService(serviceName);
+        }
 
+        public static Process StartConsoleService(string serviceName, Dictionary<string, string> environment = null)
+        {
             string pathToService = GetPathToService();
             Console.WriteLine("Starting test service in console mode: " + pathToService);
 
@@ -106,36 +110,54 @@ namespace GVFS.FunctionalTests.Tools
             startInfo.CreateNoWindow = true;
             startInfo.RedirectStandardOutput = true;
             startInfo.RedirectStandardError = true;
+            if (environment != null)
+            {
+                foreach (KeyValuePair<string, string> variable in environment)
+                {
+                    startInfo.Environment[variable.Key] = variable.Value;
+                }
+            }
 
             Process consoleServiceProcess = Process.Start(startInfo);
             consoleServiceProcess.ShouldNotBeNull("Failed to start test service process");
-            ConsoleServiceProcesses[serviceName] = consoleServiceProcess;
-
-            // Consume output asynchronously to prevent buffer deadlock
-            consoleServiceProcess.BeginOutputReadLine();
-            consoleServiceProcess.BeginErrorReadLine();
-
-            // Wait for the service to start listening on its named pipe
-            string pipeName = serviceName + ".pipe";
-            int retries = 50;
-            while (retries-- > 0)
+            try
             {
-                if (consoleServiceProcess.HasExited)
+                // Consume output asynchronously to prevent buffer deadlock.
+                consoleServiceProcess.BeginOutputReadLine();
+                consoleServiceProcess.BeginErrorReadLine();
+
+                string pipeName = serviceName + ".pipe";
+                int retries = 50;
+                while (retries-- > 0)
                 {
-                    throw new InvalidOperationException(
-                        $"Test service process exited with code {consoleServiceProcess.ExitCode} before becoming ready");
+                    if (consoleServiceProcess.HasExited)
+                    {
+                        throw new InvalidOperationException(
+                            $"Test service process exited with code {consoleServiceProcess.ExitCode} before becoming ready");
+                    }
+
+                    if (File.Exists(@"\\.\pipe\" + pipeName))
+                    {
+                        Console.WriteLine("Test service is ready (pipe: " + pipeName + ")");
+                        return consoleServiceProcess;
+                    }
+
+                    Thread.Sleep(200);
                 }
 
-                if (File.Exists(@"\\.\pipe\" + pipeName))
-                {
-                    Console.WriteLine("Test service is ready (pipe: " + pipeName + ")");
-                    return;
-                }
-
-                Thread.Sleep(200);
+                throw new System.TimeoutException("Timed out waiting for test service pipe: " + pipeName);
             }
+            catch
+            {
+                if (!consoleServiceProcess.HasExited)
+                {
+                    consoleServiceProcess.Kill(entireProcessTree: true);
+                    consoleServiceProcess.WaitForExit();
+                }
 
-            throw new System.TimeoutException("Timed out waiting for test service pipe: " + pipeName);
+                consoleServiceProcess.Dispose();
+                throw;
+            }
         }
 
         private static void StopConsoleServiceProcess(string serviceName)

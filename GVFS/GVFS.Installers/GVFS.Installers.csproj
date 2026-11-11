@@ -38,6 +38,7 @@
 
   <ItemGroup>
     <None Include="Setup.iss" />
+    <None Include="InstallationTelemetry.iss" />
     <Content Include="install.bat" />
     <Content Include="info.bat" />
   </ItemGroup>
@@ -51,6 +52,10 @@
       <FilesToDelete Include="$(OutputPath)**\*"/>
     </ItemGroup>
     <Delete Files="@(FilesToDelete)" />
+  </Target>
+
+  <Target Name="RunInstallerTelemetryTests">
+    <Exec Command='pwsh -NoProfile -File "$(MSBuildThisFileDirectory)..\..\scripts\RunInstallerTelemetryTests.ps1" -CompilerPath "$(PkgTools_InnoSetup)\tools\ISCC.exe" -ArtifactDirectory "$(OutputPath)TelemetryTests"' />
   </Target>
 
 </Project>

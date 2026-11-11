@@ -9,6 +9,7 @@ namespace GVFS.Service
     /// fallback is not available.
     /// </summary>
     [JsonSerializable(typeof(RepoRegistration))]
+    [JsonSerializable(typeof(InstallationTelemetryRecord))]
     internal partial class ServiceJsonContext : JsonSerializerContext
     {
     }
