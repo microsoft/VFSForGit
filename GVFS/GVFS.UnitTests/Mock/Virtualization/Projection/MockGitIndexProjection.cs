@@ -2,6 +2,7 @@
 using GVFS.Common.Git;
 using GVFS.Virtualization.Background;
 using GVFS.Virtualization.BlobSize;
+using GVFS.Virtualization.FileSystem;
 using GVFS.Virtualization.Projection;
 using System;
 using System.Collections.Concurrent;
@@ -26,7 +27,12 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
         private AutoResetEvent placeholderCreated;
 
-        public MockGitIndexProjection(IEnumerable<string> projectedFiles)
+        public MockGitIndexProjection(
+            IEnumerable<string> projectedFiles,
+            GVFSContext context = null,
+            FileSystemVirtualizer fileSystemVirtualizer = null,
+            BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner = null)
+            : base(context, fileSystemVirtualizer, backgroundFileSystemTaskRunner)
         {
             this.projectedFiles = new ConcurrentHashSet<string>();
             foreach (string entry in projectedFiles)

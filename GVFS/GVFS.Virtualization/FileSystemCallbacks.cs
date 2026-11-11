@@ -38,6 +38,7 @@ namespace GVFS.Virtualization
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> filePlaceHolderCreationCount;
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> folderPlaceHolderCreationCount;
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> fileHydrationCount;
+        private long placeholderCreationBlockedForGitCount;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
@@ -274,6 +275,13 @@ namespace GVFS.Virtualization
             metadata.Add(
                 "FilePlaceholdersHydrated",
                 this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.fileHydrationCount), ref logToFile));
+
+            long blockedForGitCount = Interlocked.Exchange(ref this.placeholderCreationBlockedForGitCount, 0);
+            metadata.Add("FilePlaceholderCreationBlockedForGit", blockedForGitCount);
+            if (blockedForGitCount > 0)
+            {
+                logToFile = true;
+            }
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
             metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
@@ -730,6 +738,7 @@ namespace GVFS.Virtualization
 
         public void OnPlaceholderCreateBlockedForGit()
         {
+            Interlocked.Increment(ref this.placeholderCreationBlockedForGitCount);
             this.GitIndexProjection.OnPlaceholderCreateBlockedForGit();
         }
 

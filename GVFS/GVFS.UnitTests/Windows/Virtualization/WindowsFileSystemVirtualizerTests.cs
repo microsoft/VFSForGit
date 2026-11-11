@@ -1,4 +1,5 @@
-﻿using GVFS.Platform.Windows;
+﻿using GVFS.Common.NamedPipes;
+using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
@@ -491,6 +492,111 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
                 tester.MockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
                 tester.GitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
+            }
+        }
+
+        [TestCase]
+        public void GitLockRejectionsAccumulateInHeartbeatIndependentlyOfNegativeCacheClears()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                tester.MockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(0);
+                tester.MockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(0);
+                this.Repo.Repository.GVFSLock.TryAcquireLockForExternalRequestor(
+                    new NamedPipeMessages.LockData(123, false, false, "git checkout-index --stdin", string.Empty),
+                    out NamedPipeMessages.LockData _).ShouldBeTrue();
+
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.FileNotFound);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(2, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.FileNotFound);
+                tester.BackgroundTaskRunner.Count.ShouldEqual(1);
+
+                tester.MockVirtualization.NegativePathCacheCount = 2;
+                tester.GitIndexProjection.ClearNegativePathCacheIfPollutedByGit();
+                tester.MockVirtualization.NegativePathCacheCount.ShouldEqual(0U);
+                tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool logToFile).ShouldContain("FilePlaceholderCreationBlockedForGit", 2L);
+                logToFile.ShouldBeTrue();
+                tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out logToFile).ShouldContain("FilePlaceholderCreationBlockedForGit", 0L);
+                logToFile.ShouldBeFalse();
+
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(3, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.FileNotFound);
+                tester.BackgroundTaskRunner.Count.ShouldEqual(2);
+                tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out logToFile).ShouldContain("FilePlaceholderCreationBlockedForGit", 1L);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(4, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.FileNotFound);
+                tester.BackgroundTaskRunner.Count.ShouldEqual(2);
+                tester.GitIndexProjection.ClearNegativePathCacheIfPollutedByGit();
+                tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out logToFile).ShouldContain("FilePlaceholderCreationBlockedForGit", 1L);
+                tester.MockVirtualization.CreatedPlaceholders.Count.ShouldEqual(0);
+                tester.GitIndexProjection.PlaceholdersCreated.Count.ShouldEqual(0);
+            }
+        }
+
+        [TestCase("git checkout-index --stdin", "doesNotExist", HResult.FileNotFound)]
+        [TestCase(null, "test.txt", HResult.Pending)]
+        [TestCase("git status", "test.txt", HResult.Pending)]
+        [TestCase("git checkout-index --stdin", ".gitattributes", HResult.Pending)]
+        [TestCase("git checkout-index --stdin", ".gitignore", HResult.Pending)]
+        public void OtherPlaceholderOutcomesDoNotCountAsGitLockRejections(string command, string path, HResult expectedResult)
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { "test.txt", ".gitattributes", ".gitignore" }))
+            {
+                tester.MockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(0);
+                tester.MockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(0);
+                if (command != null)
+                {
+                    this.Repo.Repository.GVFSLock.TryAcquireLockForExternalRequestor(
+                        new NamedPipeMessages.LockData(123, false, false, command, string.Empty),
+                        out NamedPipeMessages.LockData _).ShouldBeTrue();
+                }
+
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, path, TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(expectedResult);
+                if (expectedResult == HResult.Pending)
+                {
+                    tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
+                    tester.MockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == path);
+                }
+
+                tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool _).ShouldContain("FilePlaceholderCreationBlockedForGit", 0L);
+            }
+        }
+
+        [TestCase]
+        public async Task ConcurrentGitLockRejectionsAreNotLostAcrossHeartbeats()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            using (ManualResetEventSlim start = new ManualResetEventSlim(false))
+            {
+                tester.MockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(0);
+                tester.MockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(0);
+                const int WorkerCount = 4;
+                const int RejectionsPerWorker = 1000;
+                Task[] workers = new Task[WorkerCount];
+                for (int i = 0; i < workers.Length; ++i)
+                {
+                    workers[i] = Task.Run(() =>
+                    {
+                        start.Wait();
+                        for (int rejection = 0; rejection < RejectionsPerWorker; ++rejection)
+                        {
+                            tester.FileSystemCallbacks.OnPlaceholderCreateBlockedForGit();
+                        }
+                    });
+                }
+
+                Task allWorkers = Task.WhenAll(workers);
+                long total = 0;
+                start.Set();
+                do
+                {
+                    EventMetadata metadata = tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool _);
+                    total += (long)metadata["FilePlaceholderCreationBlockedForGit"];
+                    Thread.Yield();
+                }
+                while (!allWorkers.IsCompleted);
+
+                await allWorkers;
+                total += (long)tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool _)["FilePlaceholderCreationBlockedForGit"];
+                total.ShouldEqual((long)WorkerCount * RejectionsPerWorker);
+                tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool _).ShouldContain("FilePlaceholderCreationBlockedForGit", 0L);
             }
         }
 
