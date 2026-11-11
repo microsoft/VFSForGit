@@ -13,6 +13,14 @@ namespace GVFS.UnitTests.Mock.Git
         private Dictionary<string, MockGitObject> objects = new Dictionary<string, MockGitObject>();
         private string rootSha;
 
+        public Dictionary<string, string> ConfigValues { get; } = new Dictionary<string, string>();
+
+        public override bool TryGetConfigValue(string name, out string value)
+        {
+            this.ConfigValues.TryGetValue(name, out value);
+            return true;
+        }
+
         public MockGitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem)
             : base(tracer)
         {

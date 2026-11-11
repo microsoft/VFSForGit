@@ -20,6 +20,12 @@ namespace GVFS.UnitTests.Windows.Mock
         {
         }
 
+        public WindowsFileSystemVirtualizerTester(CommonRepoSetup repo, bool enablePlaceholderLockWait)
+            : base(ConfigurePlaceholderLockWait(repo, enablePlaceholderLockWait))
+        {
+            this.GitIndexProjection.ProjectionParseComplete = true;
+        }
+
         public MockVirtualizationInstance MockVirtualization { get; private set; }
         public WindowsFileSystemVirtualizer WindowsVirtualizer { get; private set; }
 
@@ -45,8 +51,16 @@ namespace GVFS.UnitTests.Windows.Mock
         protected override FileSystemVirtualizer CreateVirtualizer(CommonRepoSetup repo)
         {
             this.MockVirtualization = new MockVirtualizationInstance();
-            this.WindowsVirtualizer = new WindowsFileSystemVirtualizer(repo.Context, repo.GitObjects, this.MockVirtualization, FileSystemVirtualizerTester.NumberOfWorkThreads);
+            this.WindowsVirtualizer = new WindowsFileSystemVirtualizer(
+                repo.Context, repo.GitObjects, this.MockVirtualization, FileSystemVirtualizerTester.NumberOfWorkThreads,
+                enablePlaceholderLockWait: repo.Context.Repository.TryGetConfigValue("gvfs.placeholder-lock-wait", out string enabled) && enabled == "true");
             return this.WindowsVirtualizer;
+        }
+
+        private static CommonRepoSetup ConfigurePlaceholderLockWait(CommonRepoSetup repo, bool enabled)
+        {
+            repo.Repository.ConfigValues["gvfs.placeholder-lock-wait"] = enabled ? "true" : "false";
+            return repo;
         }
     }
 }

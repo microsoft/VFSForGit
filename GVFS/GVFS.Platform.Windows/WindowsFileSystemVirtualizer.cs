@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 
 namespace GVFS.Platform.Windows
 {
-    public class WindowsFileSystemVirtualizer : FileSystemVirtualizer, IRequiredCallbacks
+    public partial class WindowsFileSystemVirtualizer : FileSystemVirtualizer, IRequiredCallbacks
     {
         /// <summary>
         /// GVFS uses the first byte of the providerId field of placeholders to version
@@ -32,6 +32,8 @@ namespace GVFS.Platform.Windows
         private IVirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
+        private readonly bool enablePlaceholderLockWait;
+        private PlaceholderCreationWaitQueue placeholderWaitQueue;
 
         // ProjFS does not always deliver EndDirectoryEnumeration for a StartDirectoryEnumeration
         // (for example when an enumeration is cancelled), which leaks the corresponding
@@ -75,7 +77,12 @@ namespace GVFS.Platform.Windows
                   gitObjects,
                   virtualizationInstance: null,
                   numWorkerThreads: FileSystemVirtualizer.DefaultNumWorkerThreads,
-                  maxActiveEnumerations: ReadMaxActiveEnumerationsFromConfig(context))
+                  maxActiveEnumerations: ReadMaxActiveEnumerationsFromConfig(context),
+                  enablePlaceholderLockWait: LibGit2Repo.GetConfigBoolOrDefault(
+                      context.Tracer,
+                      context.Enlistment.WorkingDirectoryRoot,
+                      GVFSConstants.GitConfig.PlaceholderLockWait,
+                      GVFSConstants.GitConfig.PlaceholderLockWaitDefault))
         {
         }
 
@@ -84,7 +91,8 @@ namespace GVFS.Platform.Windows
             GVFSGitObjects gitObjects,
             IVirtualizationInstance virtualizationInstance,
             int numWorkerThreads,
-            int maxActiveEnumerations = 0)
+            int maxActiveEnumerations = 0,
+            bool enablePlaceholderLockWait = false)
             : base(context, gitObjects, numWorkerThreads)
         {
             List<NotificationMapping> notificationMappings = new List<NotificationMapping>()
@@ -112,6 +120,7 @@ namespace GVFS.Platform.Windows
             this.activeCommands = new ConcurrentDictionary<int, CancellationTokenSource>();
 
             this.maxActiveEnumerations = maxActiveEnumerations;
+            this.enablePlaceholderLockWait = enablePlaceholderLockWait;
         }
 
         protected override string EtwArea => ClassName;
@@ -315,6 +324,18 @@ namespace GVFS.Platform.Windows
         public override void Stop()
         {
             this.virtualizationInstance.StopVirtualizing();
+        }
+
+        public override void PrepareToStop()
+        {
+            this.placeholderWaitQueue?.Stop();
+            base.PrepareToStop();
+        }
+
+        public override void Dispose()
+        {
+            this.placeholderWaitQueue?.Dispose();
+            base.Dispose();
         }
 
         public override FileSystemResult ClearNegativePathCache(out uint totalEntryCount)
@@ -637,6 +658,11 @@ namespace GVFS.Platform.Windows
         {
             try
             {
+                if (this.enablePlaceholderLockWait)
+                {
+                    return this.DeferPlaceholderCreation(commandId, virtualPath, triggeringProcessId, triggeringProcessImageFileName);
+                }
+
                 bool isFolder;
                 string fileName;
                 if (!this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder))
@@ -812,6 +838,11 @@ namespace GVFS.Platform.Windows
         public override bool TryStart(out string error)
         {
             error = string.Empty;
+
+            if (this.enablePlaceholderLockWait)
+            {
+                this.placeholderWaitQueue = new PlaceholderCreationWaitQueue(this);
+            }
 
             this.InitializeEnumerationPatternMatcher();
 
@@ -1157,23 +1188,25 @@ namespace GVFS.Platform.Windows
             return HResult.Ok;
         }
 
-        private void GetPlaceholderInformationAsyncHandler(
+        private bool GetPlaceholderInformationAsyncHandler(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection,
             int commandId,
             string virtualPath,
             uint triggeringProcessId,
-            string triggeringProcessImageFileName)
+            string triggeringProcessImageFileName,
+            PlaceholderCreationWaitQueue.Request deferredRequest = null)
         {
             if (cancellationToken.IsCancellationRequested)
             {
-                return;
+                return true;
             }
 
             HResult result = HResult.Ok;
 
             try
             {
+                long generation = deferredRequest == null ? 0 : this.FileSystemCallbacks.GitIndexProjection.ProjectionGeneration;
                 ProjectedFileInfo fileInfo;
                 string parentFolderPath;
                 try
@@ -1181,8 +1214,15 @@ namespace GVFS.Platform.Windows
                     fileInfo = this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo(cancellationToken, blobSizesConnection, virtualPath, out parentFolderPath);
                     if (fileInfo == null)
                     {
+                        if (deferredRequest != null &&
+                            (!this.FileSystemCallbacks.GitIndexProjection.IsProjectionParseComplete() ||
+                             generation != this.FileSystemCallbacks.GitIndexProjection.ProjectionGeneration))
+                        {
+                            return false;
+                        }
+
                         this.TryCompleteCommand(commandId, HResult.FileNotFound);
-                        return;
+                        return true;
                     }
                 }
                 catch (OperationCanceledException)
@@ -1193,7 +1233,7 @@ namespace GVFS.Platform.Windows
                         EventLevel.Informational,
                         $"{nameof(this.GetPlaceholderInformationAsyncHandler)}_{nameof(this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo)}_Cancelled",
                         metadata);
-                    return;
+                    return true;
                 }
 
                 // The file name case in the virtualPath parameter might be different than the file name case in the repo.
@@ -1201,41 +1241,57 @@ namespace GVFS.Platform.Windows
                 // with proper case.
                 string gitCaseVirtualPath = Path.Combine(parentFolderPath, fileInfo.Name);
 
-                string sha;
-                FileSystemResult fileSystemResult;
-                if (fileInfo.IsFolder)
+                string sha = fileInfo.IsFolder ? string.Empty : fileInfo.Sha.ToString();
+                Action create = () =>
                 {
-                    sha = string.Empty;
-                    fileSystemResult = this.WritePlaceholderDirectory(gitCaseVirtualPath);
-                }
-                else
-                {
-                    sha = fileInfo.Sha.ToString();
-                    fileSystemResult = this.WritePlaceholderFile(gitCaseVirtualPath, fileInfo.Size, sha);
-                }
+                    if (deferredRequest != null && cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
 
-                result = (HResult)fileSystemResult.RawResult;
-                if (result != HResult.Ok)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add("gitCaseVirtualPath", gitCaseVirtualPath);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    metadata.Add("FileName", fileInfo.Name);
-                    metadata.Add("IsFolder", fileInfo.IsFolder);
-                    metadata.Add(nameof(sha), sha);
-                    metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
-                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.GetPlaceholderInformationAsyncHandler)}: {nameof(this.virtualizationInstance.WritePlaceholderInfo)} failed");
-                }
-                else
-                {
-                    if (fileInfo.IsFolder)
+                    FileSystemResult fileSystemResult = fileInfo.IsFolder
+                        ? this.WritePlaceholderDirectory(gitCaseVirtualPath)
+                        : this.WritePlaceholderFile(gitCaseVirtualPath, fileInfo.Size, sha);
+                    result = (HResult)fileSystemResult.RawResult;
+                    if (result != HResult.Ok)
+                    {
+                        EventMetadata metadata = this.CreateEventMetadata(virtualPath);
+                        metadata.Add("gitCaseVirtualPath", gitCaseVirtualPath);
+                        metadata.Add("triggeringProcessId", triggeringProcessId);
+                        metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                        metadata.Add("FileName", fileInfo.Name);
+                        metadata.Add("IsFolder", fileInfo.IsFolder);
+                        metadata.Add(nameof(sha), sha);
+                        metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
+                        this.Context.Tracer.RelatedError(metadata, $"{nameof(this.GetPlaceholderInformationAsyncHandler)}: {nameof(this.virtualizationInstance.WritePlaceholderInfo)} failed");
+                    }
+                    else if (fileInfo.IsFolder)
                     {
                         this.FileSystemCallbacks.OnPlaceholderFolderCreated(gitCaseVirtualPath, triggeringProcessImageFileName);
                     }
                     else
                     {
                         this.FileSystemCallbacks.OnPlaceholderFileCreated(gitCaseVirtualPath, sha, triggeringProcessImageFileName);
+                    }
+                };
+
+                if (deferredRequest == null)
+                {
+                    create();
+                }
+                else
+                {
+                    if (!this.Context.Repository.GVFSLock.TryAcquirePlaceholderCreation(CanCreatePlaceholderForCommand, out IDisposable lease))
+                    {
+                        return false;
+                    }
+
+                    using (lease)
+                    {
+                        if (!this.FileSystemCallbacks.GitIndexProjection.TryCreatePlaceholder(generation, create))
+                        {
+                            return false;
+                        }
                     }
                 }
             }
@@ -1273,6 +1329,7 @@ namespace GVFS.Platform.Windows
             }
 
             this.TryCompleteCommand(commandId, result);
+            return true;
         }
 
         private void GetFileStreamHandlerAsyncHandler(

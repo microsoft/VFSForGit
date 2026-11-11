@@ -11,6 +11,7 @@ namespace GVFS.Common
         private readonly Lock acquisitionLock = new Lock();
         private readonly ITracer tracer;
         private readonly LockHolder currentLockHolder = new LockHolder();
+        private int placeholderCreations;
 
         public GVFSLock(ITracer tracer)
         {
@@ -60,7 +61,7 @@ namespace GVFS.Common
             {
                 lock (this.acquisitionLock)
                 {
-                    if (this.currentLockHolder.IsGVFS)
+                    if (this.currentLockHolder.IsGVFS || this.placeholderCreations > 0)
                     {
                         metadata.Add("CurrentLockHolder", "GVFS");
                         metadata.Add("Result", "Denied");
@@ -103,6 +104,11 @@ namespace GVFS.Common
             {
                 lock (this.acquisitionLock)
                 {
+                    if (this.placeholderCreations > 0)
+                    {
+                        return false;
+                    }
+
                     if (this.currentLockHolder.IsGVFS)
                     {
                         return true;
@@ -174,6 +180,23 @@ namespace GVFS.Common
             return null;
         }
 
+        public bool TryAcquirePlaceholderCreation(Func<string, bool> canCreate, out IDisposable lease)
+        {
+            lock (this.acquisitionLock)
+            {
+                lease = null;
+                if (this.currentLockHolder.IsGVFS ||
+                    !canCreate(this.GetLockedGitCommand()))
+                {
+                    return false;
+                }
+
+                ++this.placeholderCreations;
+                lease = new PlaceholderCreationLease(this);
+                return true;
+            }
+        }
+
         public string GetStatus()
         {
             lock (this.acquisitionLock)
@@ -198,7 +221,7 @@ namespace GVFS.Common
             lock (this.acquisitionLock)
             {
                 if (!checkExternalHolderOnly &&
-                    this.currentLockHolder.IsGVFS)
+                    (this.currentLockHolder.IsGVFS || this.placeholderCreations > 0))
                 {
                     existingExternalHolder = null;
                     return false;
@@ -284,6 +307,28 @@ namespace GVFS.Common
             EventMetadata metadata = new EventMetadata();
             metadata.Add("ExternalHolderTerminationReason", terminationReason ?? "Unknown");
             this.ReleaseExternalLock(pid, "ExternalLockHolderExited", metadata);
+        }
+
+        private sealed class PlaceholderCreationLease : IDisposable
+        {
+            private GVFSLock owner;
+
+            public PlaceholderCreationLease(GVFSLock owner)
+            {
+                this.owner = owner;
+            }
+
+            public void Dispose()
+            {
+                GVFSLock lockOwner = Interlocked.Exchange(ref this.owner, null);
+                if (lockOwner != null)
+                {
+                    lock (lockOwner.acquisitionLock)
+                    {
+                        --lockOwner.placeholderCreations;
+                    }
+                }
+            }
         }
 
         // The lock release event is a convenient place to record stats about things that happened while a git command was running,

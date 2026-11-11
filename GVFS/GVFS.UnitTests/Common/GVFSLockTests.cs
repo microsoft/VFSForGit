@@ -22,6 +22,33 @@ namespace GVFS.UnitTests.Common
             gitCommandSessionId: "123");
 
         [TestCase]
+        public void PlaceholderCreationLeasesBlockNewOwnersUntilEveryLeaseEnds()
+        {
+            GVFSLock gvfsLock = new GVFSLock(new MockTracer());
+            gvfsLock.TryAcquirePlaceholderCreation(_ => true, out IDisposable first).ShouldBeTrue();
+            gvfsLock.TryAcquirePlaceholderCreation(_ => true, out IDisposable second).ShouldBeTrue();
+            try
+            {
+                gvfsLock.TryAcquireLockForExternalRequestor(DefaultLockData, out _).ShouldBeFalse();
+                gvfsLock.TryAcquireLockForGVFS().ShouldBeFalse();
+                gvfsLock.IsLockAvailableForExternalRequestor(out _).ShouldBeFalse();
+                first.Dispose();
+                first.Dispose();
+                gvfsLock.TryAcquireLockForGVFS().ShouldBeFalse();
+            }
+            finally
+            {
+                first.Dispose();
+                second.Dispose();
+            }
+
+            gvfsLock.TryAcquireLockForGVFS().ShouldBeTrue();
+            gvfsLock.TryAcquirePlaceholderCreation(_ => true, out _).ShouldBeFalse();
+            gvfsLock.ReleaseLockHeldByGVFS();
+            gvfsLock.TryAcquirePlaceholderCreation(_ => false, out _).ShouldBeFalse();
+        }
+
+        [TestCase]
         public void TryAcquireAndReleaseLockForExternalRequestor()
         {
             Mock<ITracer> mockTracer = new Mock<ITracer>(MockBehavior.Strict);
