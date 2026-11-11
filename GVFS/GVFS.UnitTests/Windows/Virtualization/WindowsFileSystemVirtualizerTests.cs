@@ -562,38 +562,41 @@ namespace GVFS.UnitTests.Windows.Virtualization
         [TestCase]
         public async Task ConcurrentGitLockRejectionsAreNotLostAcrossHeartbeats()
         {
+            const int WorkerCount = 4;
+            const int RejectionsPerWorker = 100000;
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
             using (ManualResetEventSlim start = new ManualResetEventSlim(false))
+            using (CountdownEvent ready = new CountdownEvent(WorkerCount))
             {
                 tester.MockPlaceholderDb.Setup(x => x.GetFilePlaceholdersCount()).Returns(0);
                 tester.MockPlaceholderDb.Setup(x => x.GetFolderPlaceholdersCount()).Returns(0);
-                const int WorkerCount = 4;
-                const int RejectionsPerWorker = 1000;
                 Task[] workers = new Task[WorkerCount];
                 for (int i = 0; i < workers.Length; ++i)
                 {
-                    workers[i] = Task.Run(() =>
+                    workers[i] = Task.Factory.StartNew(() =>
                     {
-                        start.Wait();
+                        ready.Signal();
+                        start.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
                         for (int rejection = 0; rejection < RejectionsPerWorker; ++rejection)
                         {
                             tester.FileSystemCallbacks.OnPlaceholderCreateBlockedForGit();
                         }
-                    });
+                    }, TaskCreationOptions.LongRunning);
                 }
 
                 Task allWorkers = Task.WhenAll(workers);
                 long total = 0;
+                bool allWorkersReady = ready.Wait(TimeSpan.FromSeconds(10));
                 start.Set();
-                do
+                for (int heartbeat = 0; heartbeat < 1000 && !allWorkers.IsCompleted; ++heartbeat)
                 {
                     EventMetadata metadata = tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool _);
                     total += (long)metadata["FilePlaceholderCreationBlockedForGit"];
                     Thread.Yield();
                 }
-                while (!allWorkers.IsCompleted);
 
-                await allWorkers;
+                await allWorkers.WaitAsync(TimeSpan.FromSeconds(30));
+                allWorkersReady.ShouldBeTrue();
                 total += (long)tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool _)["FilePlaceholderCreationBlockedForGit"];
                 total.ShouldEqual((long)WorkerCount * RejectionsPerWorker);
                 tester.FileSystemCallbacks.GetAndResetHeartBeatMetadata(out bool _).ShouldContain("FilePlaceholderCreationBlockedForGit", 0L);
