@@ -105,8 +105,13 @@ namespace GVFS.Common.Prefetch
 
         public void UpdateIndex(int packNumber, string message)
         {
-            // Git progress arrives on stderr. Do not copy terminal controls into our status line or log.
+            // Strip C0/C1 controls before native status text reaches the pipe, console, or log.
             string status = new string(message.Where(c => !char.IsControl(c)).Take(160).ToArray()).Trim();
+            if (status.Length == 0)
+            {
+                return;
+            }
+
             lock (this.progressLock)
             {
                 this.indexers[packNumber] = status;
@@ -159,7 +164,8 @@ namespace GVFS.Common.Prefetch
                 if (this.indexers.Count > 0)
                 {
                     KeyValuePair<int, string> oldest = this.indexers.First();
-                    status += $"; indexing {this.indexers.Count}; pack {oldest.Key}: {oldest.Value ?? "Starting index"}";
+                    status = $"{oldest.Value ?? "Starting index"} [pack {oldest.Key}]; " +
+                        status + $"; indexing {this.indexers.Count}";
                 }
                 else if (this.downloadsComplete)
                 {

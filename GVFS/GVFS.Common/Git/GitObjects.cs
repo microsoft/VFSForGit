@@ -860,8 +860,9 @@ namespace GVFS.Common.Git
                                 }
                             }
 
-                            progress?.CompletePackDownload();
                         }
+
+                        progress?.CompletePackDownload();
                     }
 
                     if (allSucceeded)

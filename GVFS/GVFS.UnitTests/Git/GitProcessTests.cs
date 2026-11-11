@@ -586,12 +586,17 @@ this is an error",
                 Assert.That(result.ExitCode, Is.Zero, result.Errors);
                 Assert.That(File.Exists(indexPath), Is.True);
                 Assert.That(progress, Has.Some.Contains("Indexing objects:"));
-                Assert.That(result.Errors, Does.Contain("Indexing objects:"));
+                Assert.That(result.Errors, Does.Not.Contain("Indexing objects:"));
 
-                File.WriteAllBytes(packPath, new byte[] { 1, 2, 3 });
+                byte[] corruptPack = File.ReadAllBytes(packPath);
+                corruptPack[corruptPack.Length - 1] ^= 1;
+                File.WriteAllBytes(packPath, corruptPack);
+                progress.Clear();
                 result = process.IndexPack(packPath, indexPath, progress.Add);
                 Assert.That(result.ExitCodeIsFailure, Is.True);
                 Assert.That(result.Errors, Does.Contain("fatal:"));
+                Assert.That(result.Errors, Does.Not.Contain("Indexing objects:"));
+                Assert.That(progress, Has.Some.Contains("Indexing objects:"));
             }
             finally
             {
@@ -641,6 +646,20 @@ this is an error",
                 command.Result.ExitCode.ShouldEqual(0);
                 callbackCompleted.ShouldBeTrue();
             }
+        }
+
+        [TestCase("Indexing objects: 100% (1/1), done.", true)]
+        [TestCase("Resolving deltas:  42% (42/100)", true)]
+        [TestCase("Objekte indizieren: 80% (8/10)", true)]
+        [TestCase("fatal: 100% (1/1)", false)]
+        [TestCase("warning: 100% (1/1)", false)]
+        [TestCase("fatal: pack checksum mismatch", false)]
+        [TestCase("Indexing objects: 101% (1/1)", false)]
+        [TestCase("Indexing objects: 1% (-1/10)", false)]
+        [TestCase("Indexing objects: 1% (invalid)", false)]
+        public void IndexProgressClassificationPreservesDiagnostics(string line, bool expected)
+        {
+            Assert.That(GitProcess.IsIndexPackProgress(line), Is.EqualTo(expected));
         }
 
         [TestCase]

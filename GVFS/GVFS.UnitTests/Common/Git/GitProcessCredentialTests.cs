@@ -492,7 +492,7 @@ namespace GVFS.UnitTests.Common.Git
                 bool usePrecommandHook = true,
                 bool mayRequireAuth = false,
                 bool? hasVisibleConsoleWindow = null,
-                Action<string> onStdErrLine = null)
+                Func<string, bool> onStdErrLine = null)
             {
                 // Replace all credential helpers with a local, deterministic helper. No credentials leave the test.
                 string isolatedCommand = "-c credential.helper= -c credential.helper=\"!f() { echo username=someone; echo password=" +

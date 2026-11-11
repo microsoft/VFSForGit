@@ -129,7 +129,7 @@ namespace GVFS.UnitTests.Mock.Git
             bool usePrecommandHook = true,
             bool mayRequireAuth = false,
             bool? hasVisibleConsoleWindow = null,
-            Action<string> onStdErrLine = null)
+            Func<string, bool> onStdErrLine = null)
         {
             this.CommandsRun.Add(command);
             this.InvocationsRun.Add(new GitInvocation(command, dotGitDirectory, mayRequireAuth, hasVisibleConsoleWindow, timeoutMs));

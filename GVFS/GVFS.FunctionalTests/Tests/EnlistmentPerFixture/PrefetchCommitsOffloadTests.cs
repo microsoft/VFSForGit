@@ -3,8 +3,14 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 using System.IO;
+using System.IO.Pipes;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -101,7 +107,65 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string output = this.Enlistment.Prefetch("--commits");
             Assert.That(output, Does.Contain("Fetching commits and trees...Succeeded"));
+            Assert.That(Regex.Matches(output, "Fetching commits and trees").Count, Is.EqualTo(1));
             Assert.That(Regex.IsMatch(output, @"\r(?!\n)"), Is.False);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        [Order(6)]
+        [Timeout(60000)]
+        public async Task MountPrefetchProtocolSupportsLegacyAndProgressClients(bool reportProgress)
+        {
+            string pipeName = "GVFS_" + this.Enlistment.EnlistmentRoot.ToUpper().Replace(':', '_');
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            using NamedPipeClientStream client = new NamedPipeClientStream(
+                ".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            await client.ConnectAsync(10000, cancellation.Token);
+            string request = reportProgress ? "PrefetchCommits|ReportProgress" : "PrefetchCommits";
+            await client.WriteAsync(Encoding.UTF8.GetBytes(request + "\x03"), cancellation.Token);
+            string response = await ReadPrefetchResponse(client, cancellation.Token);
+            if (reportProgress)
+            {
+                Assert.That(response, Is.EqualTo("PrefetchCommitsStarted"));
+                while (true)
+                {
+                    response = await ReadPrefetchResponse(client, cancellation.Token);
+                    if (!response.StartsWith("PrefetchCommitsProgress|", StringComparison.Ordinal))
+                    {
+                        break;
+                    }
+
+                    Assert.That(response, Does.Contain("elapsed "));
+                    Assert.That(Regex.IsMatch(response, @"\r|\n"), Is.False);
+                }
+            }
+
+            const string CompleteHeader = "PrefetchCommitsComplete|";
+            Assert.That(response, Does.StartWith(CompleteHeader));
+            using JsonDocument result = JsonDocument.Parse(response.Substring(CompleteHeader.Length));
+            Assert.That(result.RootElement.GetProperty("Success").GetBoolean(), Is.True, response);
+        }
+
+        private static async Task<string> ReadPrefetchResponse(NamedPipeClientStream client, CancellationToken cancellationToken)
+        {
+            using MemoryStream frame = new MemoryStream();
+            byte[] next = new byte[1];
+            while (await client.ReadAsync(next.AsMemory(), cancellationToken) != 0)
+            {
+                if (next[0] == 3)
+                {
+                    return Encoding.UTF8.GetString(frame.ToArray());
+                }
+
+                frame.WriteByte(next[0]);
+                if (frame.Length > 4096)
+                {
+                    throw new InvalidDataException("Prefetch response exceeded the test frame limit");
+                }
+            }
+
+            throw new EndOfStreamException("Mount closed the connection before the prefetch response ended");
         }
 
         private string[] ReadPrefetchPackFileNames()

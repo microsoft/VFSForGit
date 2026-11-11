@@ -1396,6 +1396,7 @@ namespace GVFS.Mount
                 {
                     if (!connection.TrySendResponse(new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.StartedResult, null)))
                     {
+                        this.tracer.RelatedInfo("Prefetch progress client disconnected before prefetch started");
                         return;
                     }
 
@@ -1409,6 +1410,7 @@ namespace GVFS.Mount
                             if (!connection.TrySendResponse(new NamedPipeMessages.Message(
                                 NamedPipeMessages.PrefetchCommits.ProgressResult, progress.GetMessage())))
                             {
+                                this.tracer.RelatedInfo("Prefetch progress client disconnected; prefetch is not canceled");
                                 break;
                             }
                         }
@@ -1429,7 +1431,10 @@ namespace GVFS.Mount
                 };
             }
 
-            connection.TrySendResponse(response.CreateMessage());
+            if (!connection.TrySendResponse(response.CreateMessage()))
+            {
+                this.tracer.RelatedInfo("Failed to send the prefetch completion response");
+            }
         }
 
         private void HandlePrefetchBlobsRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)

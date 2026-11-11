@@ -642,7 +642,7 @@ namespace GVFS.UnitTests.Common.Git
                 bool usePreCommandHook = true,
                 bool mayRequireAuth = false,
                 bool? hasVisibleConsoleWindow = null,
-                Action<string> onStdErrLine = null)
+                Func<string, bool> onStdErrLine = null)
             {
                 Assert.That(command, Does.EndWith("credential fill"));
                 return new Result(string.Empty, "Credential fill failed", 128)
@@ -680,7 +680,7 @@ namespace GVFS.UnitTests.Common.Git
                 bool usePreCommandHook = true,
                 bool mayRequireAuth = false,
                 bool? hasVisibleConsoleWindow = null,
-                Action<string> onStdErrLine = null)
+                Func<string, bool> onStdErrLine = null)
             {
                 Result result = base.InvokeGitImpl(command, workingDirectory, dotGitDirectory, useReadObjectHook, writeStdIn,
                     parseStdOutLine, timeoutMs, gitObjectsDirectory, usePreCommandHook, mayRequireAuth, hasVisibleConsoleWindow, onStdErrLine);
