@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Http;
 using GVFS.Common.NetworkStreams;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using ICSharpCode.SharpZipLib;
 using ICSharpCode.SharpZipLib.Zip.Compression.Streams;
@@ -154,7 +155,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, bool trustPackIndexes, out List<string> packIndexes)
+        public virtual bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, bool trustPackIndexes, out List<string> packIndexes, PrefetchProgress progress = null)
         {
             EventMetadata metadata = CreateEventMetadata();
             metadata.Add("latestTimestamp", latestTimestamp);
@@ -174,7 +175,7 @@ namespace GVFS.Common.Git
                 List<string> innerPackIndexes = null;
                 RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
                     requestId: requestId,
-                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, requestId, ref latestTimestamp, ref bytesDownloaded, ref innerPackIndexes, gitProcess, trustPackIndexes),
+                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, requestId, ref latestTimestamp, ref bytesDownloaded, ref innerPackIndexes, gitProcess, trustPackIndexes, progress),
                     onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, requestId, "TryDownloadPrefetchPacks"),
                     method: HttpMethod.Get,
                     endPointGenerator: () => new Uri(
@@ -318,7 +319,8 @@ namespace GVFS.Common.Git
             string tempFilePath,
             out long fileLength,
             out Task flushTask,
-            bool throwOnError = false)
+            bool throwOnError = false,
+            Action<long> onBytesCopied = null)
         {
             fileLength = 0;
             flushTask = null;
@@ -335,7 +337,7 @@ namespace GVFS.Common.Git
                         FileShare.Read,
                         callFlushFileBuffers: false); // Any flushing to disk will be done asynchronously
 
-                    StreamUtil.CopyToWithBuffer(source, fileStream);
+                    StreamUtil.CopyToWithBuffer(source, fileStream, onBytesCopied: onBytesCopied);
                     fileLength = fileStream.Length;
 
                     if (this.Enlistment.FlushFileBuffersForPacks)
@@ -435,7 +437,7 @@ namespace GVFS.Common.Git
             return result;
         }
 
-        public virtual GitProcess.Result IndexPackFile(string packfilePath, GitProcess gitProcess)
+        public virtual GitProcess.Result IndexPackFile(string packfilePath, GitProcess gitProcess, Action<string> onProgress = null)
         {
             string tempIdxPath = Path.ChangeExtension(packfilePath, TempIdxExtension);
             string idxPath = Path.ChangeExtension(packfilePath, ".idx");
@@ -448,7 +450,7 @@ namespace GVFS.Common.Git
                     gitProcess = new GitProcess(this.Enlistment);
                 }
 
-                GitProcess.Result result = gitProcess.IndexPack(packfilePath, tempIdxPath);
+                GitProcess.Result result = gitProcess.IndexPack(packfilePath, tempIdxPath, onProgress);
                 if (result.ExitCodeIsFailure)
                 {
                     Exception exception;
@@ -728,7 +730,8 @@ namespace GVFS.Common.Git
            ref long bytesDownloaded,
            ref List<string> packIndexes,
            GitProcess gitProcess,
-           bool trustPackIndexes)
+           bool trustPackIndexes,
+           PrefetchProgress progress)
         {
             if (packIndexes == null)
             {
@@ -754,8 +757,11 @@ namespace GVFS.Common.Git
                 bool responseLoopExitedNormally = false;
                 try
                 {
-                    foreach (PrefetchPacksDeserializer.PackAndIndex packHandle in deserializer.EnumeratePacks())
+                    int packNumber = 0;
+                    foreach (PrefetchPacksDeserializer.PackAndIndex packHandle in deserializer.EnumeratePacks(
+                        onPackCount: count => progress?.StartResponse(count)))
                     {
+                        int currentPackNumber = ++packNumber;
                         var pack = packHandle; // Capture packHandle in a new variable to avoid closure issues with async index task
                         long packLength;
 
@@ -775,11 +781,14 @@ namespace GVFS.Common.Git
                         data["RequestId"] = requestId;
                         data["PackBytes"] = pack.PackStream.Length;
                         activity.RelatedEvent(EventLevel.Informational, "Receiving Pack/Index", data, Keywords.Telemetry);
+                        progress?.StartPack(currentPackNumber, pack.PackStream.Length + (pack.IndexStream?.Length ?? 0));
 
                         // Write the pack
                         // If it fails, TryWriteTempFile cleans up the file and we retry the prefetch
                         Task packFlushTask;
-                        if (!this.TryWriteTempFile(activity, pack.PackStream, packTempPath, out packLength, out packFlushTask))
+                        if (!this.TryWriteTempFile(
+                            activity, pack.PackStream, packTempPath, out packLength, out packFlushTask,
+                            onBytesCopied: progress == null ? null : progress.AddDownloadedBytes))
                         {
                             bytesDownloaded += packLength;
                             allSucceeded = false;
@@ -792,20 +801,22 @@ namespace GVFS.Common.Git
                         if (trustPackIndexes
                             && pack.IndexStream != null)
                         {
-                            if (this.TryWriteTempFile(activity, pack.IndexStream, currentOperation.IndexTempPath, out var indexLength, out var indexFlushTask))
+                            if (this.TryWriteTempFile(
+                                activity, pack.IndexStream, currentOperation.IndexTempPath, out var indexLength, out var indexFlushTask,
+                                onBytesCopied: progress == null ? null : progress.AddDownloadedBytes))
                             {
                                 bytesDownloaded += indexLength;
                                 currentOperation.ReadyTask = Task.WhenAll(currentOperation.ReadyTask, indexFlushTask);
-                                previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask);
+                                previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask, progress);
 
                             }
                             else
                             {
                                 bytesDownloaded += indexLength;
                                 // we can try to build the index ourself, and if it's successful then on the retry we can pick up from that point.
-                                var indexTask = StartPackIndexAsync(activity, packTempPath);
+                                var indexTask = StartPackIndexAsync(activity, packTempPath, currentPackNumber, progress);
                                 currentOperation.ReadyTask = Task.WhenAll(currentOperation.ReadyTask, indexTask);
-                                previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask);
+                                previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask, progress);
 
                                 // but we need to stop trying to read from the download stream as that has failed.
                                 allSucceeded = false;
@@ -817,9 +828,9 @@ namespace GVFS.Common.Git
 
                             // Either we can't trust the index file from the server, or the server didn't provide one, so we will build our own.
                             // For performance, we run the index build in the background while we continue downloading the next pack.
-                            var indexTask = StartPackIndexAsync(activity, packTempPath);
+                            var indexTask = StartPackIndexAsync(activity, packTempPath, currentPackNumber, progress);
                             currentOperation.ReadyTask = Task.WhenAll(currentOperation.ReadyTask, indexTask);
-                            previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask);
+                            previousPackTask = AddFinalizationTasks(currentOperation, previousPackTask, progress);
 
                             // If the server provided an index stream, we still need to consume and handle any exceptions it even
                             // though we are otherwise ignoring it.
@@ -831,10 +842,13 @@ namespace GVFS.Common.Git
                                     if (pack.IndexStream.CanSeek)
                                     {
                                         pack.IndexStream.Seek(0, SeekOrigin.End);
+                                        progress?.AddDownloadedBytes(pack.IndexStream.Length);
                                     }
                                     else
                                     {
-                                        pack.IndexStream.CopyTo(Stream.Null);
+                                        StreamUtil.CopyToWithBuffer(
+                                            pack.IndexStream, Stream.Null,
+                                            onBytesCopied: progress == null ? null : progress.AddDownloadedBytes);
                                     }
                                 }
                                 catch (Exception e) when (!(e is OperationCanceledException))
@@ -845,7 +859,14 @@ namespace GVFS.Common.Git
                                     break;
                                 }
                             }
+
+                            progress?.CompletePackDownload();
                         }
+                    }
+
+                    if (allSucceeded)
+                    {
+                        progress?.CompleteDownloads();
                     }
 
                     responseLoopExitedNormally = true;
@@ -890,13 +911,13 @@ namespace GVFS.Common.Git
             }
         }
 
-        private Task AddFinalizationTasks(TempPrefetchPackAndIdx currentOperation, Task previousPackTask)
+        private Task AddFinalizationTasks(TempPrefetchPackAndIdx currentOperation, Task previousPackTask, PrefetchProgress progress)
         {
-            currentOperation.ReadyTask = FinalizePackFileAsync(currentOperation, previousPackTask);
+            currentOperation.ReadyTask = FinalizePackFileAsync(currentOperation, previousPackTask, progress);
             return currentOperation.ReadyTask;
         }
 
-        private async Task FinalizePackFileAsync(TempPrefetchPackAndIdx currentOperation, Task previousPackTask)
+        private async Task FinalizePackFileAsync(TempPrefetchPackAndIdx currentOperation, Task previousPackTask, PrefetchProgress progress)
         {
             await currentOperation.ReadyTask;
             /* Before moving this pack and index from the temp folder to the live pack folder, create a marker
@@ -917,25 +938,33 @@ namespace GVFS.Common.Git
                 this.fileSystem.TryDeleteFile(markerFilePath);
                 throw ex;
             }
+            // Count usable indexes before the ordered recovery-marker cleanup waits for earlier packs.
+            progress?.CompletePack();
             await previousPackTask;
             this.fileSystem.DeleteFile(markerFilePath);
         }
 
-        private Task StartPackIndexAsync(ITracer activity, string packTempPath)
+        private Task StartPackIndexAsync(ITracer activity, string packTempPath, int packNumber, PrefetchProgress progress)
         {
+            progress?.StartIndex(packNumber);
             var indexTask = Task.Run(() =>
             {
                 // GitProcess only permits one process per instance at a time, so we need to duplicate it to run the index build in parallel.
                 // This is safe because each process is only accessing the pack file we direct it to which is not yet part
                 // of the enlistment.
                 GitProcess gitProcessForIndex = new GitProcess(this.Enlistment);
-                if (this.TryBuildIndex(activity, packTempPath, out var _, gitProcessForIndex))
+                try
                 {
-                    return;
+                    if (!this.TryBuildIndex(
+                        activity, packTempPath, out GitProcess.Result _, gitProcessForIndex,
+                        onProgress: progress == null ? null : line => progress.UpdateIndex(packNumber, line)))
+                    {
+                        throw new InvalidDataException();
+                    }
                 }
-                else
+                finally
                 {
-                    throw new InvalidDataException();
+                    progress?.CompleteIndex(packNumber);
                 }
             });
             return indexTask;
@@ -990,9 +1019,10 @@ namespace GVFS.Common.Git
             ITracer activity,
             string packFullPath,
             out GitProcess.Result result,
-            GitProcess gitProcess)
+            GitProcess gitProcess,
+            Action<string> onProgress = null)
         {
-            result = this.IndexPackFile(packFullPath, gitProcess);
+            result = this.IndexPackFile(packFullPath, gitProcess, onProgress);
 
             if (result.ExitCodeIsFailure)
             {

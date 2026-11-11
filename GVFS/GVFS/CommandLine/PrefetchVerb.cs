@@ -362,7 +362,7 @@ namespace GVFS.CommandLine
         /// handled the request (success or failure); returns false if offload
         /// is unavailable and the caller should fall back to direct auth.
         /// </summary>
-        private bool TryPrefetchCommitsViaMountProcess(ITracer tracer, GVFSEnlistment enlistment)
+        internal bool TryPrefetchCommitsViaMountProcess(ITracer tracer, GVFSEnlistment enlistment)
         {
             using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
             {
@@ -372,7 +372,8 @@ namespace GVFS.CommandLine
                     return false;
                 }
 
-                NamedPipeMessages.Message request = new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.Request, null);
+                NamedPipeMessages.Message request = new NamedPipeMessages.Message(
+                    NamedPipeMessages.PrefetchCommits.Request, NamedPipeMessages.PrefetchCommits.ReportProgress);
                 if (!pipeClient.TrySendRequest(request))
                 {
                     tracer.RelatedWarning("TryPrefetchCommitsViaMountProcess: Failed to send request, falling back to direct prefetch");
@@ -384,6 +385,54 @@ namespace GVFS.CommandLine
                 {
                     tracer.RelatedWarning("TryPrefetchCommitsViaMountProcess: Failed to read response, falling back to direct prefetch");
                     return false;
+                }
+
+                if (response.Header == NamedPipeMessages.PrefetchCommits.StartedResult)
+                {
+                    string currentProgress = null;
+                    bool receivedCompletion = false;
+                    Func<bool> readProgress = () =>
+                    {
+                        while (pipeClient.TryReadResponse(out response))
+                        {
+                            if (response.Header == NamedPipeMessages.PrefetchCommits.ProgressResult)
+                            {
+                                System.Threading.Volatile.Write(ref currentProgress, response.Body);
+                            }
+                            else if (response.Header == NamedPipeMessages.PrefetchCommits.CompleteResult)
+                            {
+                                receivedCompletion = true;
+                                return NamedPipeMessages.PrefetchCommits.Response.FromMessage(response).Success;
+                            }
+                            else
+                            {
+                                tracer.RelatedWarning("Unexpected response after prefetch started: {0}", response.Header);
+                                return false;
+                            }
+                        }
+
+                        tracer.RelatedWarning("Connection closed before the mount completed prefetch");
+                        return false;
+                    };
+
+                    if (this.Verbose)
+                    {
+                        readProgress();
+                    }
+                    else
+                    {
+                        this.ShowStatusWhileRunning(
+                            readProgress,
+                            getMessage: () => System.Threading.Volatile.Read(ref currentProgress),
+                            message: "Fetching commits and trees",
+                            gvfsLogEnlistmentRoot: enlistment.PrimaryEnlistmentRoot);
+                    }
+
+                    if (!receivedCompletion)
+                    {
+                        this.ReportErrorAndExit(tracer, "Lost progress connection to the mount. Run 'gvfs prefetch --commits' to retry.");
+                        return true;
+                    }
                 }
 
                 switch (response.Header)
@@ -495,16 +544,19 @@ namespace GVFS.CommandLine
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem);
             GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
             GitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
+            PrefetchProgress progress = new PrefetchProgress(tracer);
 
             if (this.Verbose)
             {
-                success = new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error);
+                success = new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error, progress: progress);
             }
             else
             {
                 success = this.ShowStatusWhileRunning(
-                    () => new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error),
-                "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
+                    () => new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error, progress: progress),
+                    getMessage: progress.GetMessage,
+                    message: "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl),
+                    gvfsLogEnlistmentRoot: enlistment.PrimaryEnlistmentRoot);
             }
 
             if (!success)

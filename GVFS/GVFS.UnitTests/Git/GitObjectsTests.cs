@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
@@ -248,6 +249,57 @@ namespace GVFS.UnitTests.Git
         }
 
         [TestCase]
+        public async Task PrefetchProgressReportsLaterIndexesBeforeTheFirstIndexCompletes()
+        {
+            using MockTracer tracer = new MockTracer();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+            using StreamingPrefetchRequestor requestor = new StreamingPrefetchRequestor(tracer, enlistment);
+            requestor.Streams.Enqueue(CreatePrefetchResponse(3, actualPacks: 3));
+            PrefetchProgress progress = new PrefetchProgress(tracer);
+            using ManualResetEventSlim releaseFirstIndex = new ManualResetEventSlim();
+            TestPrefetchGitObjects objects = new TestPrefetchGitObjects(tracer, enlistment, requestor)
+            {
+                OnIndexPack = (path, onProgress) =>
+                {
+                    if (Path.GetFileName(path).StartsWith("prefetch-1-", StringComparison.Ordinal))
+                    {
+                        onProgress("Resolving deltas: 42%");
+                        if (!releaseFirstIndex.Wait(TimeSpan.FromSeconds(10)))
+                        {
+                            throw new TimeoutException("Test did not release the first index");
+                        }
+                    }
+                    else
+                    {
+                        onProgress("Indexing objects: 100%");
+                    }
+
+                    return new GitProcess.Result(string.Empty, string.Empty, 0);
+                },
+            };
+            Task<bool> prefetch = Task.Run(() => objects.TryDownloadPrefetchPacks(
+                null, 0, false, out List<string> _, progress));
+            try
+            {
+                Assert.That(SpinWait.SpinUntil(
+                    () => progress.GetMessage().Contains("indexes ready 2/3", StringComparison.Ordinal),
+                    TimeSpan.FromSeconds(5)), Is.True, progress.GetMessage());
+                string message = progress.GetMessage();
+                Assert.That(message, Does.Contain("Downloaded 3/3 packs"));
+                Assert.That(message, Does.Contain("indexing 1; pack 1: Resolving deltas: 42%"));
+                Assert.That(prefetch.IsCompleted, Is.False);
+            }
+            finally
+            {
+                releaseFirstIndex.Set();
+                await prefetch.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+
+            Assert.That(prefetch.Result, Is.True);
+            Assert.That(progress.GetMessage(), Does.Contain("indexes ready 3/3"));
+        }
+
+        [TestCase]
         public async Task PrefetchHeaderFailureDrainsEarlierPackWorkBeforeRetry()
         {
             using MockTracer tracer = new MockTracer();
@@ -330,16 +382,16 @@ namespace GVFS.UnitTests.Git
             }
         }
 
-        private static MemoryStream CreatePrefetchResponse(ushort declaredPacks)
+        private static MemoryStream CreatePrefetchResponse(ushort declaredPacks, int actualPacks = 1)
         {
             MemoryStream response = new MemoryStream();
             using (BinaryWriter writer = new BinaryWriter(response, System.Text.Encoding.UTF8, leaveOpen: true))
             {
                 writer.Write(new byte[] { (byte)'G', (byte)'P', (byte)'R', (byte)'E', (byte)' ', 1 });
                 writer.Write(declaredPacks);
-                if (declaredPacks > 0)
+                for (int i = 0; i < Math.Min(declaredPacks, actualPacks); ++i)
                 {
-                    writer.Write(1L);
+                    writer.Write((long)i + 1);
                     writer.Write(1L);
                     writer.Write(1L);
                     writer.Write((byte)1);
@@ -421,12 +473,18 @@ namespace GVFS.UnitTests.Git
 
             public Task FirstFlush { get; set; } = Task.CompletedTask;
             public int Moves => this.moves;
+            public Func<string, Action<string>, GitProcess.Result> OnIndexPack { get; set; }
+
+            public override GitProcess.Result IndexPackFile(string path, GitProcess process, Action<string> onProgress = null)
+            {
+                return this.OnIndexPack(path, onProgress);
+            }
 
             public override bool TryWriteTempFile(ITracer tracer, Stream source, string tempFilePath,
-                out long fileLength, out Task flushTask, bool throwOnError = false)
+                out long fileLength, out Task flushTask, bool throwOnError = false, Action<long> onBytesCopied = null)
             {
                 fileLength = source.Length;
-                source.CopyTo(Stream.Null);
+                StreamUtil.CopyToWithBuffer(source, Stream.Null, onBytesCopied: onBytesCopied);
                 flushTask = ++this.writes == 1 ? this.FirstFlush : Task.CompletedTask;
                 return true;
             }

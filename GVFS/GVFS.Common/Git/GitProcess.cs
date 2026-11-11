@@ -948,19 +948,19 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: true);
         }
 
-        public Result IndexPack(string packfilePath, string idxOutputPath)
+        public Result IndexPack(string packfilePath, string idxOutputPath, Action<string> onProgress = null)
         {
             /* Git's default thread count is Environment.ProcessorCount / 2, with a maximum of 20.
              * Testing shows that we can get a 5% decrease in gvfs clone time for large repositories by using more threads, but
              * we won't go over ProcessorCount or 20. */
             var threadCount = Math.Min(Environment.ProcessorCount, 20);
-            string command = $"index-pack --threads={threadCount} -o \"{idxOutputPath}\" \"{packfilePath}\"";
+            string command = $"index-pack{(onProgress == null ? string.Empty : " -v")} --threads={threadCount} -o \"{idxOutputPath}\" \"{packfilePath}\"";
 
             // If index-pack is invoked within an enlistment, then it reads all the other objects and pack indexes available
             // in the enlistment in order to verify references from within this pack file, even if --verify or similar
             // options are not passed.
             // Since we aren't verifying, we invoke index-pack outside the enlistment for performance.
-            return this.InvokeGitOutsideEnlistment(command);
+            return this.InvokeGitOutsideEnlistment(command, null, null, onStdErrLine: onProgress);
         }
 
         /// <summary>
@@ -1170,7 +1170,8 @@ namespace GVFS.Common.Git
             string gitObjectsDirectory = null,
             bool usePreCommandHook = true,
             bool mayRequireAuth = false,
-            bool? hasVisibleConsoleWindow = null)
+            bool? hasVisibleConsoleWindow = null,
+            Action<string> onStdErrLine = null)
         {
             if (failedToSetEncoding && writeStdIn != null)
             {
@@ -1198,6 +1199,7 @@ namespace GVFS.Common.Git
                         if (args.Data != null)
                         {
                             errors.AppendLine(args.Data);
+                            onStdErrLine?.Invoke(args.Data);
                         }
                     };
                     this.executingProcess.OutputDataReceived += (sender, args) =>
@@ -1575,7 +1577,8 @@ namespace GVFS.Common.Git
             string command,
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine,
-            int timeout = -1)
+            int timeout = -1,
+            Action<string> onStdErrLine = null)
         {
             return this.InvokeGitImpl(
                 command,
@@ -1584,7 +1587,8 @@ namespace GVFS.Common.Git
                 useReadObjectHook: false,
                 writeStdIn: writeStdIn,
                 parseStdOutLine: parseStdOutLine,
-                timeoutMs: timeout);
+                timeoutMs: timeout,
+                onStdErrLine: onStdErrLine);
         }
 
         /// <summary>

@@ -7,6 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -549,6 +551,57 @@ this is an error",
         public void QuoteGitPath(string input, string expected)
         {
             GitProcess.QuoteGitPath(input).ShouldEqual(expected);
+        }
+
+        [TestCase]
+        public void IndexPackVerboseProgressReachesTheCallbackAndRetainsErrors()
+        {
+            string gitPath = GitTestHelper.FindGitOnPath();
+            if (gitPath == null)
+            {
+                Assert.Ignore("Git was not found on PATH.");
+            }
+
+            string directory = Path.Combine(TestContext.CurrentContext.WorkDirectory, "GVFSIndexProgress-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            try
+            {
+                string packPath = Path.Combine(directory, "test.pack");
+                string indexPath = Path.Combine(directory, "test.idx");
+                using (MemoryStream pack = new MemoryStream())
+                {
+                    pack.Write(new byte[] { 80, 65, 67, 75, 0, 0, 0, 2, 0, 0, 0, 1, 0x35 });
+                    using (ZLibStream compressed = new ZLibStream(pack, CompressionLevel.Optimal, leaveOpen: true))
+                    {
+                        compressed.Write(new byte[] { 104, 101, 108, 108, 111 });
+                    }
+
+                    pack.Write(SHA1.HashData(pack.ToArray()));
+                    File.WriteAllBytes(packPath, pack.ToArray());
+                }
+
+                GitProcess process = new GitProcess(gitPath, workingDirectoryRoot: null);
+                List<string> progress = new List<string>();
+                GitProcess.Result result = process.IndexPack(packPath, indexPath, progress.Add);
+                Assert.That(result.ExitCode, Is.Zero, result.Errors);
+                Assert.That(File.Exists(indexPath), Is.True);
+                Assert.That(progress, Has.Some.Contains("Indexing objects:"));
+                Assert.That(result.Errors, Does.Contain("Indexing objects:"));
+
+                File.WriteAllBytes(packPath, new byte[] { 1, 2, 3 });
+                result = process.IndexPack(packPath, indexPath, progress.Add);
+                Assert.That(result.ExitCodeIsFailure, Is.True);
+                Assert.That(result.Errors, Does.Contain("fatal:"));
+            }
+            finally
+            {
+                foreach (string path in Directory.EnumerateFiles(directory))
+                {
+                    File.SetAttributes(path, FileAttributes.Normal);
+                }
+
+                Directory.Delete(directory, recursive: true);
+            }
         }
 
         [TestCase(30000)]

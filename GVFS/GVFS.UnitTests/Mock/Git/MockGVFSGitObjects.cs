@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
@@ -119,7 +120,7 @@ namespace GVFS.UnitTests.Mock.Git
             return Array.Empty<string>();
         }
 
-        public override GitProcess.Result IndexPackFile(string packfilePath, GitProcess process)
+        public override GitProcess.Result IndexPackFile(string packfilePath, GitProcess process, Action<string> onProgress = null)
         {
             return new GitProcess.Result("mocked", null, 0);
         }
@@ -128,7 +129,7 @@ namespace GVFS.UnitTests.Mock.Git
         {
         }
 
-        public override bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, bool trustPackIndexes, out List<string> packIndexes)
+        public override bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, bool trustPackIndexes, out List<string> packIndexes, PrefetchProgress progress = null)
         {
             packIndexes = new List<string>();
             return true;

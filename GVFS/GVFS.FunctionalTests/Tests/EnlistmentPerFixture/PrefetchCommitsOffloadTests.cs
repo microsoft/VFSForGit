@@ -4,6 +4,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -91,6 +92,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             prefetchPacks.Length.ShouldBeAtLeast(1, "There should be at least one prefetch pack after remount prefetch");
             this.AllPrefetchPacksShouldHaveIdx(prefetchPacks);
+        }
+
+        [TestCase]
+        [Order(5)]
+        [Timeout(60000)]
+        public void PrefetchCommitsDoesNotAnimateRedirectedOutput()
+        {
+            string output = this.Enlistment.Prefetch("--commits");
+            Assert.That(output, Does.Contain("Fetching commits and trees...Succeeded"));
+            Assert.That(Regex.IsMatch(output, @"\r(?!\n)"), Is.False);
         }
 
         private string[] ReadPrefetchPackFileNames()

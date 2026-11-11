@@ -31,13 +31,14 @@ namespace GVFS.Common.NetworkStreams
         /// Read all the packs and indexes from the source stream and return a <see cref="PackAndIndex"/> for each pack
         /// and index. Caller must consume pack stream fully before the index stream.
         /// </summary>
-        public IEnumerable<PackAndIndex> EnumeratePacks()
+        public IEnumerable<PackAndIndex> EnumeratePacks(Action<int> onPackCount = null)
         {
             this.ValidateHeader();
 
             byte[] buffer = new byte[NumPackHeaderBytes];
 
             int packCount = this.ReadPackCount(buffer);
+            onPackCount?.Invoke(packCount);
 
             for (int i = 0; i < packCount; i++)
             {
