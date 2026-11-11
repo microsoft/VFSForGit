@@ -156,10 +156,10 @@ namespace GVFS.UnitTests.Common.Git
         [TestCase(false, Timeout.Infinite)]
         public void CredentialFillHandlesARealLockedGitConfig(bool releaseAfterFirstAttempt, int timeoutMs)
         {
-            string gitPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "cmd", "git.exe");
-            if (!File.Exists(gitPath))
+            string gitPath = GitTestHelper.FindGitOnPath();
+            if (gitPath == null)
             {
-                Assert.Ignore("Git is not installed at the expected path.");
+                Assert.Ignore("Git was not found on PATH.");
             }
 
             string repoPath = Path.Combine(Path.GetTempPath(), nameof(GitProcessCredentialTests) + Guid.NewGuid().ToString("N"));
