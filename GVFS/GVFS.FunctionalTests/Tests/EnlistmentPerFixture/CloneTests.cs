@@ -258,9 +258,134 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase(false, false, false)]
+        [TestCase(true, false, false)]
+        [TestCase(true, true, false)]
+        [TestCase(false, false, true)]
+        public async Task CloneAnnouncesOnlyInitialBackgroundPrefetch(bool cachedPack, bool noPrefetch, bool trustPackIndexes)
+        {
+            string root = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+            Directory.CreateDirectory(root);
+            string destination = Path.Combine(root, "clone");
+            string packRoot = Path.Combine(Directory.GetDirectories(
+                this.localCacheRoot, "gitObjects", SearchOption.AllDirectories).Single(), "pack");
+            string cachedPackPath = null;
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            string endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+            int prefetchRequests = 0;
+            Task server = ServeCloneRequests(listener, cancellation.Token, path =>
+            {
+                path.ShouldContain("/gvfs/prefetch");
+                Interlocked.Increment(ref prefetchRequests);
+                return ("application/x-gvfs-timestamped-packfiles-indexes", new byte[]
+                {
+                    (byte)'G', (byte)'P', (byte)'R', (byte)'E', (byte)' ', 1, 0, 0
+                });
+            });
+            try
+            {
+                if (cachedPack)
+                {
+                    string source = Path.Combine(root, "pack-source");
+                    GitProcess.InvokeProcess(root, $"init --object-format=sha1 \"{source}\"").ExitCode.ShouldEqual(0);
+                    string prefix = Path.Combine(packRoot, "prefetch-1000");
+                    ProcessResult pack = GitProcess.InvokeProcess(source, $"pack-objects --all \"{prefix}\"");
+                    pack.ExitCode.ShouldEqual(0, pack.Errors);
+                    cachedPackPath = prefix + "-" + pack.Output.Trim() + ".pack";
+                    File.Exists(cachedPackPath).ShouldBeTrue();
+                    File.Exists(Path.ChangeExtension(cachedPackPath, ".idx")).ShouldBeTrue();
+                }
+
+                ProcessStartInfo process = this.CreateCloneProcess(
+                    root, GVFSTestConfig.RepoToClone, destination,
+                    "--branch", Properties.Settings.Default.Commitish,
+                    "--local-cache-path", this.localCacheRoot,
+                    "--cache-server-url", endpoint, "--no-mount");
+                GitProcess.InvokeProcess(
+                    root, $"config --file \"{process.Environment["GIT_CONFIG_GLOBAL"]}\" gvfs.trust-pack-indexes {trustPackIndexes.ToString().ToLowerInvariant()}")
+                    .ExitCode.ShouldEqual(0);
+                if (noPrefetch)
+                {
+                    process.ArgumentList.Add("--no-prefetch");
+                }
+
+                ProcessResult result = await Task.Run(() => ProcessHelper.Run(process, timeoutMs: 75000));
+                result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+                result.Output.Contains("Prefetch of commit graph has been started")
+                    .ShouldEqual(!cachedPack && !noPrefetch && !trustPackIndexes, result.Output);
+
+                string logsRoot = Path.Combine(destination, ".gvfs", "logs");
+                if (noPrefetch)
+                {
+                    Volatile.Read(ref prefetchRequests).ShouldEqual(0);
+                    Directory.GetFiles(logsRoot, "gvfs_prefetch_*.log").Length.ShouldEqual(0);
+                }
+                else
+                {
+                    Stopwatch wait = Stopwatch.StartNew();
+                    string[] logs;
+                    string prefetchLog = string.Empty;
+                    do
+                    {
+                        logs = Directory.GetFiles(logsRoot, "gvfs_prefetch_*.log");
+                        if (logs.Length == 1)
+                        {
+                            using FileStream stream = new FileStream(
+                                logs[0], FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                            using StreamReader reader = new StreamReader(stream);
+                            prefetchLog = reader.ReadToEnd();
+                            if (prefetchLog.Contains(" Prefetch (Stop)"))
+                            {
+                                break;
+                            }
+                        }
+
+                        await Task.Delay(50, cancellation.Token);
+                    }
+                    while (wait.Elapsed < TimeSpan.FromSeconds(30));
+
+                    logs.Length.ShouldEqual(1, "Prefetch must still run when the announcement is suppressed.");
+                    prefetchLog.ShouldContain(" Prefetch (Stop)");
+                    (Volatile.Read(ref prefetchRequests) > 0).ShouldBeTrue();
+                }
+            }
+            finally
+            {
+                cancellation.Cancel();
+                listener.Stop();
+                try
+                {
+                    await ObserveCloneServer(server, cancellation.Token);
+                }
+                finally
+                {
+                    if (cachedPackPath != null)
+                    {
+                        foreach (string file in new[]
+                        {
+                            Path.ChangeExtension(cachedPackPath, ".keep"),
+                            Path.ChangeExtension(cachedPackPath, ".idx"),
+                            cachedPackPath,
+                        })
+                        {
+                            if (File.Exists(file))
+                            {
+                                File.SetAttributes(file, FileAttributes.Normal);
+                                File.Delete(file);
+                            }
+                        }
+                    }
+
+                    RepositoryHelpers.DeleteTestDirectory(root);
+                }
+            }
+        }
+
         private ProcessStartInfo CreateCloneProcess(string root, string repository, string destination, params string[] options)
         {
-            string config = Path.Combine(root, "global.config");
+            string config = Path.Combine(root, ".gitconfig");
             string originalGlobal = Environment.GetEnvironmentVariable("GIT_CONFIG_GLOBAL") ??
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gitconfig");
             GitProcess.InvokeProcess(root, $"config --file \"{config}\" include.path \"{originalGlobal}\"")
@@ -284,6 +409,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 WorkingDirectory = root,
             };
             process.Environment["GIT_CONFIG_GLOBAL"] = config;
+            process.Environment["HOME"] = root;
             process.ArgumentList.Add("clone");
             process.ArgumentList.Add(repository);
             process.ArgumentList.Add(destination);

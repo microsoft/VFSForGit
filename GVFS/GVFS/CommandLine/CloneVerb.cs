@@ -2,6 +2,7 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
@@ -202,6 +203,7 @@ namespace GVFS.CommandLine
                 CacheServerInfo cacheServer = null;
                 ServerGVFSConfig serverGVFSConfig = null;
                 bool trustPackIndexes = GVFSConstants.GitConfig.TrustPackIndexesDefault;
+                bool hasPrefetchPacks = false;
 
                 using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
@@ -309,6 +311,11 @@ namespace GVFS.CommandLine
                             enlistment.WorkingDirectoryBackingRoot,
                             GVFSConstants.GitConfig.TrustPackIndexes,
                             GVFSConstants.GitConfig.TrustPackIndexesDefault);
+
+                        if (!this.NoPrefetch && !trustPackIndexes)
+                        {
+                            hasPrefetchPacks = HasPrefetchPacks(tracer, new PhysicalFileSystem(), enlistment.GitPackRoot);
+                        }
                     }
                 }
 
@@ -340,24 +347,15 @@ namespace GVFS.CommandLine
                         }
                         else
                         {
-                            try
-                            {
-                                string gvfsExecutable = Environment.ProcessPath;
-                                Process.Start(new ProcessStartInfo(
-                                    fileName: gvfsExecutable,
-                                    arguments: "prefetch --commits")
+                            this.StartBackgroundPrefetch(
+                                enlistment.PrimaryEnlistmentRoot,
+                                hasPrefetchPacks,
+                                startInfo =>
+                                {
+                                    using (Process process = Process.Start(startInfo))
                                     {
-                                        UseShellExecute = true,
-                                        WindowStyle = ProcessWindowStyle.Minimized,
-                                        WorkingDirectory = enlistment.PrimaryEnlistmentRoot
-                                    });
-                                this.Output.WriteLine("\r\nPrefetch of commit graph has been started as a background process. Git operations involving history may be slower until prefetch has completed.\r\n");
-                            }
-                            catch (Win32Exception ex)
-                            {
-                                this.Output.WriteLine("\r\nError starting prefetch: " + ex.Message);
-                                this.Output.WriteLine("Run 'gvfs prefetch --commits' from within your enlistment to prefetch the commit graph.");
-                            }
+                                    }
+                                });
                         }
                     }
 
@@ -410,6 +408,54 @@ namespace GVFS.CommandLine
             }
 
             Environment.Exit(exitCode);
+        }
+
+        internal static bool HasPrefetchPacks(ITracer tracer, PhysicalFileSystem fileSystem, string gitPackRoot)
+        {
+            try
+            {
+                return fileSystem.DirectoryExists(gitPackRoot) &&
+                    fileSystem.GetFiles(gitPackRoot, GVFSConstants.PrefetchPackPrefix + "-*.pack").Any(
+                        pack => PrefetchStep.GetPrefetchPackTimestamp(pack).HasValue &&
+                            fileSystem.FileExists(Path.ChangeExtension(pack, ".idx")) &&
+                            !fileSystem.FileExists(Path.ChangeExtension(pack, GVFSConstants.InProgressPrefetchMarkerExtension)));
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                tracer.RelatedWarning(
+                    new EventMetadata
+                    {
+                        { nameof(gitPackRoot), gitPackRoot },
+                        { "Exception", ex.ToString() },
+                    },
+                    "Could not check for cached prefetch packs. Prefetch will use the initial-prefetch announcement and window.");
+                return false;
+            }
+        }
+
+        internal void StartBackgroundPrefetch(string enlistmentRoot, bool hasPrefetchPacks, Action<ProcessStartInfo> startProcess)
+        {
+            try
+            {
+                startProcess(new ProcessStartInfo(
+                    fileName: Environment.ProcessPath,
+                    arguments: "prefetch --commits")
+                    {
+                        UseShellExecute = true,
+                        WindowStyle = hasPrefetchPacks ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Minimized,
+                        WorkingDirectory = enlistmentRoot
+                    });
+
+                if (!hasPrefetchPacks)
+                {
+                    this.Output.WriteLine("\r\nPrefetch of commit graph has been started as a background process. Git operations involving history may be slower until prefetch has completed.\r\n");
+                }
+            }
+            catch (Win32Exception ex)
+            {
+                this.Output.WriteLine("\r\nError starting prefetch: " + ex.Message);
+                this.Output.WriteLine("Run 'gvfs prefetch --commits' from within your enlistment to prefetch the commit graph.");
+            }
         }
 
         private static bool IsForceCheckoutErrorCloneFailure(string checkoutError)
