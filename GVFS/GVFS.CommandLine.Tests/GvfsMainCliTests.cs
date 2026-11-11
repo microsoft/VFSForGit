@@ -147,6 +147,20 @@ namespace GVFS.CommandLine.Tests
             Assert.That(opt.Aliases, Does.Contain("-c"), "Expected -c short alias for prefetch --commits");
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Prefetch_FromClone_IsHiddenAndOptIn(bool fromClone)
+        {
+            Option<bool> option = (Option<bool>)FindOptionOnCommand("prefetch", "--from-clone");
+            ParseResult result = rootCommand.Parse(fromClone
+                ? new[] { "prefetch", "--commits", "--from-clone" }
+                : new[] { "prefetch", "--commits" });
+
+            Assert.That(result.Errors, Is.Empty);
+            Assert.That(option.Hidden, Is.True);
+            Assert.That(result.GetValue(option), Is.EqualTo(fromClone));
+        }
+
         #endregion
 
         #region Sparse Short Aliases (7 aliases)
