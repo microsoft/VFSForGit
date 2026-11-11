@@ -60,6 +60,9 @@ namespace GVFS.Common
             public const string ShowHydrationStatus = GVFSPrefix + "show-hydration-status";
             public const bool ShowHydrationStatusDefault = false;
 
+            public const string OptimisticCloneCheckout = GVFSPrefix + "optimistic-clone-checkout";
+            public const bool OptimisticCloneCheckoutDefault = false;
+
             /* Gates the CLI mount-progress display layer (progress phase strings surfaced
              * over the named pipe during `gvfs mount`). Disabled by default so stabilization
              * builds keep the reliability-relevant early-pipe infrastructure without shipping

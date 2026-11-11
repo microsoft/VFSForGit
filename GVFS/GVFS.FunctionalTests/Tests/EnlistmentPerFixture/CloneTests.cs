@@ -4,12 +4,14 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -295,10 +297,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             return process;
         }
 
-        private static async Task ServeCloneRequests(
+        internal static async Task ServeCloneRequests(
             TcpListener listener,
             CancellationToken cancellationToken,
-            Func<string, (string ContentType, byte[] Body)> respond)
+            Func<string, (string ContentType, byte[] Body)> respond,
+            Action<string> observeBody = null)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -309,11 +312,23 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 {
                     request = await reader.ReadLineAsync(cancellationToken);
                     string line;
+                    int contentLength = 0;
                     do
                     {
                         line = await reader.ReadLineAsync(cancellationToken);
+                        if (line != null && line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            contentLength = int.Parse(line.Substring("Content-Length:".Length));
+                        }
                     }
                     while (!string.IsNullOrEmpty(line));
+
+                    char[] requestBody = new char[contentLength];
+                    if (contentLength > 0)
+                    {
+                        (await reader.ReadBlockAsync(requestBody.AsMemory(), cancellationToken)).ShouldEqual(contentLength);
+                    }
+                    observeBody?.Invoke(new string(requestBody));
                 }
 
                 (string contentType, byte[] body) = respond(request.Split(' ')[1]);
@@ -330,7 +345,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        private static async Task ObserveCloneServer(Task server, CancellationToken cancellationToken)
+        internal static async Task ObserveCloneServer(Task server, CancellationToken cancellationToken)
         {
             try
             {
@@ -338,6 +353,271 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+            }
+        }
+    }
+
+    [TestFixture]
+    [NonParallelizable]
+    public class CloneCachedTreesTests
+    {
+        [TestCase]
+        public Task CloneRecoversMissingNestedTree()
+        {
+            return this.CloneReusesCachedTreesAndRecoversMissingTrees(true, "nested", 1, true);
+        }
+
+        [TestCase(true, "complete", 0, true)]
+        [TestCase(false, "complete", 1, true)]
+        [TestCase(true, "commit", 1, true)]
+        [TestCase(true, "root", 1, true)]
+        [TestCase(true, "download-fails", 1, false)]
+        [TestCase(true, "download-incomplete", 1, false)]
+        [TestCase(false, "packed", 0, true)]
+        [TestCase(true, "packed-loose", 0, true)]
+        [TestCase(false, "packed-loose", 1, true)]
+        [TestCase(true, "global-override", 1, true)]
+        [TestCase(false, "global-override", 0, true)]
+        [TestCase(true, "process-override", 1, true)]
+        [TestCase(false, "process-override", 0, true)]
+        public async Task CloneReusesCachedTreesAndRecoversMissingTrees(
+            bool optimisticCheckout, string cacheState, int expectedDownloads, bool expectSuccess)
+        {
+            string root = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+            Directory.CreateDirectory(root);
+            string source = Path.Combine(root, "source");
+            string cache = Path.Combine(root, "cache");
+            string destination = Path.Combine(root, "clone");
+            string globalConfig = Path.Combine(root, ".gitconfig");
+            File.WriteAllText(
+                globalConfig,
+                $"[gvfs]\noptimistic-clone-checkout = {optimisticCheckout.ToString().ToLowerInvariant()}\nmax-retries = 0\n");
+            Dictionary<string, string> environment = new Dictionary<string, string>
+                {
+                    { "GIT_CONFIG_GLOBAL", globalConfig },
+                    { "GIT_CONFIG_NOSYSTEM", "1" },
+                    { "HOME", root },
+                };
+            bool effectiveOptimisticCheckout = optimisticCheckout;
+            if (cacheState == "global-override" || cacheState == "process-override")
+            {
+                effectiveOptimisticCheckout = !optimisticCheckout;
+                string overrideValue = effectiveOptimisticCheckout.ToString().ToLowerInvariant();
+                if (cacheState == "global-override")
+                {
+                    string selectedConfig = Path.Combine(root, "selected.config");
+                    File.WriteAllText(selectedConfig, $"[gvfs]\noptimistic-clone-checkout = {overrideValue}\nmax-retries = 0\n");
+                    environment["GIT_CONFIG_GLOBAL"] = selectedConfig;
+                }
+                else
+                {
+                    environment["GIT_CONFIG_COUNT"] = "1";
+                    environment["GIT_CONFIG_KEY_0"] = "gvfs.optimistic-clone-checkout";
+                    environment["GIT_CONFIG_VALUE_0"] = overrideValue;
+                }
+            }
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            Task server = null;
+            try
+            {
+                GitProcess.InvokeProcess(root, $"init \"{source}\"", environment).ExitCode.ShouldEqual(0);
+                File.WriteAllText(Path.Combine(source, ".gitattributes"), "* -text\n");
+                Directory.CreateDirectory(Path.Combine(source, "sub", "folder"));
+                File.WriteAllText(Path.Combine(source, "sub", "folder", "file.txt"), "test\n");
+                GitProcess.InvokeProcess(source, "-c core.hooksPath=NUL add .", environment).ExitCode.ShouldEqual(0);
+                GitProcess.InvokeProcess(
+                    source,
+                    "-c core.hooksPath=NUL -c user.name=Test -c user.email=test@example.com commit -m test",
+                    environment).ExitCode.ShouldEqual(0);
+                string commit = GitProcess.Invoke(source, "rev-parse HEAD").Trim();
+                string rootTree = GitProcess.Invoke(source, "rev-parse HEAD^{tree}").Trim();
+                string nestedTree = GitProcess.Invoke(source, "rev-parse HEAD:sub/folder").Trim();
+
+                listener.Start();
+                string endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+                const string CacheKey = "cached-trees";
+                string objects = Path.Combine(cache, CacheKey, "gitObjects");
+                Directory.CreateDirectory(objects);
+                File.WriteAllText(
+                    Path.Combine(cache, "mapping.dat"),
+                    "A {\"Key\":\"GVFS_LocalCache_MappingVersion\",\"Value\":\"1\"}\r\n" +
+                    $"A {{\"Key\":\"{endpoint}\",\"Value\":\"{CacheKey}\"}}\r\n");
+                foreach (string directory in Directory.GetDirectories(Path.Combine(source, ".git", "objects")))
+                {
+                    if (Path.GetFileName(directory).Length != 2)
+                    {
+                        continue;
+                    }
+
+                    string target = Path.Combine(objects, Path.GetFileName(directory));
+                    Directory.CreateDirectory(target);
+                    foreach (string file in Directory.GetFiles(directory))
+                    {
+                        File.Copy(file, Path.Combine(target, Path.GetFileName(file)));
+                    }
+                }
+
+                bool missingNestedTree = cacheState == "nested" || cacheState == "download-fails" || cacheState == "download-incomplete";
+                string missingObject = cacheState == "commit" ? commit :
+                    cacheState == "root" ? rootTree :
+                    missingNestedTree ? nestedTree : null;
+                if (missingObject != null)
+                {
+                    string path = Path.Combine(objects, missingObject.Substring(0, 2), missingObject.Substring(2));
+                    File.SetAttributes(path, FileAttributes.Normal);
+                    File.Delete(path);
+                }
+
+                string[] commitAndTrees = GitProcess.Invoke(
+                    source, "rev-list --objects --no-object-names --filter=blob:none HEAD")
+                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                if (cacheState == "packed" || cacheState == "packed-loose")
+                {
+                    string packDirectory = Path.Combine(objects, "pack");
+                    Directory.CreateDirectory(packDirectory);
+                    using MemoryStream cacheInput = new MemoryStream(Encoding.ASCII.GetBytes(string.Join("\n", commitAndTrees) + "\n"));
+                    ProcessResult cachePack = GitProcess.InvokeProcess(
+                        source, $"pack-objects \"{Path.Combine(packDirectory, "pack")}\"", environment, cacheInput);
+                    cachePack.ExitCode.ShouldEqual(0, cachePack.Errors);
+                    if (cacheState == "packed")
+                    {
+                        string looseCommit = Path.Combine(objects, commit.Substring(0, 2), commit.Substring(2));
+                        File.SetAttributes(looseCommit, FileAttributes.Normal);
+                        File.Delete(looseCommit);
+                    }
+                }
+
+                IEnumerable<string> servedObjects = cacheState == "download-incomplete"
+                    ? commitAndTrees.Where(objectId => objectId != nestedTree)
+                    : commitAndTrees;
+                using MemoryStream input = new MemoryStream(Encoding.ASCII.GetBytes(string.Join("\n", servedObjects) + "\n"));
+                string packPrefix = Path.Combine(root, "server-pack");
+                ProcessResult packed = GitProcess.InvokeProcess(source, $"pack-objects \"{packPrefix}\"", environment, input);
+                packed.ExitCode.ShouldEqual(0, packed.Errors);
+                byte[] pack = cacheState == "download-fails"
+                    ? Encoding.ASCII.GetBytes("invalid pack")
+                    : File.ReadAllBytes(packPrefix + "-" + packed.Output.Trim() + ".pack");
+                int downloads = 0;
+                List<string> requestedObjects = new List<string>();
+                server = CloneNetworkTests.ServeCloneRequests(listener, cancellation.Token, path =>
+                {
+                    if (path.StartsWith("/gvfs/config", StringComparison.Ordinal))
+                    {
+                        return ("application/json", Encoding.UTF8.GetBytes("{}"));
+                    }
+
+                    if (path.StartsWith("/info/refs", StringComparison.Ordinal))
+                    {
+                        string reference = commit + " refs/heads/test-branch\n";
+                        return ("application/x-git-upload-pack-advertisement",
+                            Encoding.ASCII.GetBytes((reference.Length + 4).ToString("x4") + reference));
+                    }
+
+                    path.ShouldEqual("/gvfs/objects");
+                    ++downloads;
+                    return ("application/x-git-packfile", pack);
+                }, body =>
+                {
+                    if (body.Length > 0)
+                    {
+                        using JsonDocument document = JsonDocument.Parse(body);
+                        document.RootElement.GetProperty("commitDepth").GetInt32().ShouldEqual(1);
+                        foreach (JsonElement objectId in document.RootElement.GetProperty("objectIds").EnumerateArray())
+                        {
+                            requestedObjects.Add(objectId.GetString());
+                        }
+                    }
+                });
+                ProcessStartInfo process = new ProcessStartInfo(GVFSTestConfig.PathToGVFS)
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    WorkingDirectory = root,
+                };
+                foreach (KeyValuePair<string, string> variable in environment)
+                {
+                    process.Environment[variable.Key] = variable.Value;
+                }
+
+                foreach (string argument in new[]
+                {
+                        "clone", endpoint, destination, "--branch", "test-branch",
+                        "--cache-server-url", "None", "--local-cache-path", cache, "--no-mount", "--no-prefetch",
+                    })
+                {
+                    process.ArgumentList.Add(argument);
+                }
+
+                ProcessResult result;
+                try
+                {
+                    result = await Task.Run(() => ProcessHelper.Run(process, timeoutMs: 90000));
+                }
+                catch (TimeoutException)
+                {
+                    string logs = Path.Combine(destination, ".gvfs", "logs");
+                    if (Directory.Exists(logs))
+                    {
+                        foreach (string file in Directory.GetFiles(logs, "gvfs_clone_*.log"))
+                        {
+                            TestContext.WriteLine(File.ReadAllText(file));
+                        }
+                    }
+
+                    throw;
+                }
+
+                result.ExitCode.ShouldEqual(expectSuccess ? 0 : 3, result.Output + result.Errors);
+                downloads.ShouldEqual(expectedDownloads);
+                requestedObjects.Count.ShouldEqual(expectedDownloads);
+                foreach (string requestedObject in requestedObjects)
+                {
+                    requestedObject.ShouldEqual(commit);
+                }
+                string log = File.ReadAllText(Directory.GetFiles(
+                    Path.Combine(destination, ".gvfs", "logs"), "gvfs_clone_*.log").Single());
+                bool reusedCommit = effectiveOptimisticCheckout && cacheState != "commit" && cacheState != "root";
+                log.Contains("Clone_UseCachedCommit").ShouldEqual(reusedCommit, log);
+                if (reusedCommit && missingNestedTree)
+                {
+                    log.ShouldContain("Download the commit pack and retry checkout.");
+                    log.ShouldContain($"fatal: unable to read tree ({nestedTree})");
+                }
+
+                if (!expectSuccess)
+                {
+                    (result.Output + result.Errors).ShouldContain(cacheState == "download-fails"
+                        ? "Could not download commit"
+                        : "Could not complete checkout of branch: test-branch");
+                }
+
+                if (expectSuccess)
+                {
+                    string repo = Path.Combine(destination, "src");
+                    GitProcess.Invoke(repo, "-c core.hooksPath=NUL rev-parse HEAD").Trim().ShouldEqual(commit);
+                    ProcessResult index = GitProcess.InvokeProcess(
+                        repo, "-c core.hooksPath=NUL -c core.virtualFileSystem= -c core.gvfs=0 write-tree");
+                    index.ExitCode.ShouldEqual(0, index.Errors);
+                    index.Output.Trim().ShouldEqual(rootTree);
+                }
+            }
+            finally
+            {
+                cancellation.Cancel();
+                listener.Stop();
+                try
+                {
+                    if (server != null)
+                    {
+                        await CloneNetworkTests.ObserveCloneServer(server, cancellation.Token);
+                    }
+                }
+                finally
+                {
+                    RepositoryHelpers.DeleteTestDirectory(root);
+                }
             }
         }
     }
