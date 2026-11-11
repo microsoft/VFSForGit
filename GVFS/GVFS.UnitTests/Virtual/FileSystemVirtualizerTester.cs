@@ -28,8 +28,8 @@ namespace GVFS.UnitTests.Virtual
             this.MockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
             this.MockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
             this.BackgroundTaskRunner = new MockBackgroundFileSystemTaskRunner();
-            this.GitIndexProjection = new MockGitIndexProjection(projectedFiles);
             this.Virtualizer = this.CreateVirtualizer(repo);
+            this.GitIndexProjection = new MockGitIndexProjection(projectedFiles, repo.Context, this.Virtualizer, this.BackgroundTaskRunner);
             this.FileSystemCallbacks = new MockFileSystemCallbacks(
                 repo.Context,
                 repo.GitObjects,

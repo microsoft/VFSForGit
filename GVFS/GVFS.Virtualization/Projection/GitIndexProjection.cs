@@ -124,8 +124,14 @@ namespace GVFS.Virtualization.Projection
         }
 
         // For Unit Testing
-        protected GitIndexProjection()
+        protected GitIndexProjection(
+            GVFSContext context = null,
+            FileSystemVirtualizer fileSystemVirtualizer = null,
+            BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner = null)
         {
+            this.context = context;
+            this.fileSystemVirtualizer = fileSystemVirtualizer;
+            this.backgroundFileSystemTaskRunner = backgroundFileSystemTaskRunner;
         }
 
         public enum FileType : short
