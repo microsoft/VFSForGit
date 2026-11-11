@@ -17,8 +17,7 @@ namespace GVFS.UnitTests.Mock.Git
 
         public override bool TryGetConfigValue(string name, out string value)
         {
-            this.ConfigValues.TryGetValue(name, out value);
-            return true;
+            return this.ConfigValues.TryGetValue(name, out value);
         }
 
         public MockGitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem)

@@ -31,12 +31,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.EnablePlaceholderLockWait();
             string expected = File.ReadAllText(Path.Combine(this.ControlGitRepo.RootPath, FileToRead));
-            using (Process git = this.CreateWaitingCheckout())
+            using (Process git = this.CreateWaitingCheckout(materializeWhileWaiting))
             {
                 git.Start().ShouldBeTrue();
                 try
                 {
-                    this.Enlistment.WaitForLock("git checkout-index --stdin").ShouldBeTrue();
+                    this.Enlistment.WaitForLock("git " + git.StartInfo.Arguments).ShouldBeTrue();
                     Task<string> read = Task.Factory.StartNew(
                         () => File.ReadAllText(this.Enlistment.GetVirtualPathTo(FileToRead)),
                         TaskCreationOptions.LongRunning);
@@ -44,7 +44,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                         () => Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_mount_*.log")
                             .Any(path => GVFSHelpers.ReadAllTextFromWriteLockedFile(path)
                                 .Split('\n').Any(line => line.Contains("PlaceholderLockWait") &&
-                                    line.Contains("\"outcome\":\"Queued\"") && line.Contains("Program.cs"))),
+                                    line.Contains("\"outcome\":\"Queued\"") &&
+                                    line.Contains(FileToRead.Replace("\\", "\\\\")))),
                         TimeSpan.FromSeconds(10)).ShouldBeTrue("The read did not reach the deferred callback.");
 
                     if (releaseBeforeTimeout)
@@ -85,13 +86,67 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void PlaceholderWaitPreservesGitCheckoutWrites()
         {
+            this.VerifyGitCheckoutWrites(enabled: true);
+        }
+
+        [TestCase]
+        public void LegacyPlaceholderRejectionPreservesGitCheckoutWrites()
+        {
+            this.VerifyGitCheckoutWrites(enabled: false);
+        }
+
+        [TestCase]
+        public void PlaceholderWaitPreservesChildHookRejection()
+        {
             this.EnablePlaceholderLockWait();
-            using (Process git = this.CreateWaitingCheckout())
+            string hooks = this.Enlistment.GetVirtualPathTo(".git", "hooks", "post-command.hooks");
+            string original = File.ReadAllText(hooks);
+            string eventName = "GVFS.PlaceholderRejected." + Guid.NewGuid().ToString("N");
+            using (EventWaitHandle rejected = new EventWaitHandle(false, EventResetMode.ManualReset, eventName))
+            {
+                try
+                {
+                    File.WriteAllText(hooks, $"\"{GitHelpers.LockHolderCommandPath}\" --read-placeholder" + Environment.NewLine + original);
+                    using (Process git = this.CreateWaitingCheckout())
+                    {
+                        git.StartInfo.Environment["GVFS_TEST_PLACEHOLDER_PATH"] = this.Enlistment.GetVirtualPathTo(FileToRead);
+                        git.StartInfo.Environment["GVFS_TEST_PLACEHOLDER_EVENT_NAME"] = eventName;
+                        git.Start().ShouldBeTrue();
+                        try
+                        {
+                            this.Enlistment.WaitForLock("git checkout-index --stdin").ShouldBeTrue();
+                            git.StandardInput.Close();
+                            git.WaitForExit(15000).ShouldBeTrue("The child hook did not finish.");
+                            git.ExitCode.ShouldEqual(0, git.StandardError.ReadToEnd());
+                            rejected.WaitOne(TimeSpan.FromSeconds(1)).ShouldBeTrue("The child did not report FileNotFound.");
+                        }
+                        finally
+                        {
+                            this.StopWaitingCheckout(git);
+                        }
+                    }
+                }
+                finally
+                {
+                    File.WriteAllText(hooks, original);
+                }
+            }
+
+            this.FileContentsShouldMatch(FileToRead);
+        }
+
+        private void VerifyGitCheckoutWrites(bool enabled)
+        {
+            if (enabled)
+            {
+                this.EnablePlaceholderLockWait();
+            }
+            using (Process git = this.CreateWaitingCheckout(materialize: true))
             {
                 git.Start().ShouldBeTrue();
                 try
                 {
-                    this.Enlistment.WaitForLock("git checkout-index --stdin").ShouldBeTrue();
+                    this.Enlistment.WaitForLock("git " + git.StartInfo.Arguments).ShouldBeTrue();
                     git.StandardInput.Write(GitHelpers.ConvertPathToGitFormat(FileToRead) + "\n");
                     git.StandardInput.Close();
                     git.WaitForExit(15000).ShouldBeTrue();
@@ -112,11 +167,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.Enlistment.MountGVFS();
         }
 
-        private Process CreateWaitingCheckout()
+        private Process CreateWaitingCheckout(bool materialize = false)
         {
             return new Process
             {
-                StartInfo = new ProcessStartInfo(Settings.Default.PathToGit, "checkout-index --stdin")
+                StartInfo = new ProcessStartInfo(
+                    Settings.Default.PathToGit,
+                    materialize ? "checkout-index --ignore-skip-worktree-bits --stdin" : "checkout-index --stdin")
                 {
                     WorkingDirectory = this.Enlistment.RepoRoot,
                     UseShellExecute = false,

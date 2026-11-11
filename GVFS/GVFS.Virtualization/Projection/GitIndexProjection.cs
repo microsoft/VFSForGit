@@ -425,7 +425,7 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public void OnPlaceholderFolderCreated(string virtualPath)
+        public virtual void OnPlaceholderFolderCreated(string virtualPath)
         {
             string sha = null;
             if (this.updateUsnJournal && this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData))

@@ -1,4 +1,5 @@
 using GVFS.Common.Tracing;
+using GVFS.Common.NamedPipes;
 using GVFS.Virtualization.FileSystem;
 using Microsoft.Windows.ProjFS;
 using System;
@@ -25,7 +26,8 @@ namespace GVFS.Platform.Windows
                 return HResult.Pending;
             }
 
-            if (isFolder || this.IsSpecialGitFile(fileName))
+            NamedPipeMessages.LockData holder = this.Context.Repository.GVFSLock.GetLockHolderForCallbacks(out long? ownerStartTime);
+            if (isFolder || this.IsSpecialGitFile(fileName) || CanCreatePlaceholderForCommand(holder?.ParsedCommand))
             {
                 FileOrNetworkRequest work = new FileOrNetworkRequest(
                     connection => this.GetPlaceholderInformationAsyncHandler(
@@ -43,18 +45,56 @@ namespace GVFS.Platform.Windows
 
             PlaceholderCreationWaitQueue.Request request = new PlaceholderCreationWaitQueue.Request(
                 commandId, virtualPath, processId, processName, cancellation);
-            if (!this.placeholderWaitQueue.TryEnqueue(request))
+            request.BlockingCommand = holder.ParsedCommand;
+            request.BlockingReason = "GitCommand";
+            if (this.ShouldRejectDependentRequest(request, holder, ownerStartTime))
             {
-                this.TracePlaceholderWait(request, "QueueFull");
-                this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+                request.Result = HResult.FileNotFound;
+                this.FileSystemCallbacks.OnPlaceholderCreateBlockedForGit();
+                this.TracePlaceholderWait(request, request.BlockingReason);
+                this.TryCompleteCommand(commandId, HResult.FileNotFound);
+                cancellation.Dispose();
+            }
+            else if (!this.placeholderWaitQueue.TryEnqueue(request, out bool stopping))
+            {
+                if (!stopping)
+                {
+                    Interlocked.Increment(ref this.placeholderWaitQueueFull);
+                }
+
+                request.Result = stopping ?
+                    (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady :
+                    (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable;
+                this.TracePlaceholderWait(request, stopping ? "Stopping" : "QueueFull");
+                this.TryCompleteCommand(commandId, request.Result.Value);
                 cancellation.Dispose();
             }
             else
             {
+                Interlocked.Increment(ref this.placeholderWaitStarted);
                 this.TracePlaceholderWait(request, "Queued");
             }
 
             return HResult.Pending;
+        }
+
+        private bool ShouldRejectDependentRequest(PlaceholderCreationWaitQueue.Request request, NamedPipeMessages.LockData holder, long? ownerStartTime)
+        {
+            if (ReferenceEquals(request.CheckedHolder, holder))
+            {
+                return false;
+            }
+
+            request.CheckedHolder = holder;
+            bool? related = request.ProcessId == holder.PID ? true : this.IsRequestDescendant(request.ProcessId, holder.PID, ownerStartTime);
+            if (related == false)
+            {
+                return false;
+            }
+
+            request.BlockingCommand = holder.ParsedCommand;
+            request.BlockingReason = related == true ? "OwnerOrDescendantRejected" : "DependencyUnknown";
+            return true;
         }
 
         private void TracePlaceholderWait(PlaceholderCreationWaitQueue.Request request, string outcome)
@@ -65,8 +105,13 @@ namespace GVFS.Platform.Windows
             metadata.Add("triggeringProcessImageFileName", request.ProcessName);
             metadata.Add("outcome", outcome);
             metadata.Add("elapsedMs", Environment.TickCount64 - request.StartTick);
-            metadata.Add("lockedGitCommand", this.Context.Repository.GVFSLock.GetLockedGitCommand());
-            this.Context.Tracer.RelatedEvent(EventLevel.Informational, "PlaceholderLockWait", metadata);
+            metadata.Add("lockedGitCommand", request.BlockingCommand);
+            metadata.Add("blockingReason", request.BlockingReason);
+            metadata.Add("attempts", request.Attempts);
+            metadata.Add("completionResult", request.Result?.ToString("X"));
+            EventLevel level = outcome == "OwnerOrDescendantRejected" || outcome == "DependencyUnknown" ?
+                EventLevel.Verbose : EventLevel.Informational;
+            this.Context.Tracer.RelatedEvent(level, "PlaceholderLockWait", metadata);
         }
 
         private sealed class PlaceholderCreationWaitQueue : IDisposable
@@ -90,11 +135,12 @@ namespace GVFS.Platform.Windows
                 this.thread.Start();
             }
 
-            public bool TryEnqueue(Request request)
+            public bool TryEnqueue(Request request, out bool stopping)
             {
                 lock (this.gate)
                 {
-                    if (this.stopping || this.requests.Count >= MaximumRequests)
+                    stopping = this.stopping;
+                    if (stopping || this.requests.Count >= MaximumRequests)
                     {
                         return false;
                     }
@@ -150,9 +196,14 @@ namespace GVFS.Platform.Windows
                         }
 
                         bool ready = false;
+                        bool commandAllowsCreation = false;
+                        NamedPipeMessages.LockData holder = null;
+                        long? ownerStartTime = null;
                         if (!stop && snapshot.Count > 0)
                         {
-                            ready = this.owner.CanCreatePlaceholder() &&
+                            holder = this.owner.Context.Repository.GVFSLock.GetLockHolderForCallbacks(out ownerStartTime);
+                            commandAllowsCreation = CanCreatePlaceholderForCommand(holder?.ParsedCommand);
+                            ready = commandAllowsCreation &&
                                 this.owner.FileSystemCallbacks.GitIndexProjection.IsProjectionParseComplete();
                         }
 
@@ -160,6 +211,8 @@ namespace GVFS.Platform.Windows
                         {
                             bool schedule = false;
                             string outcome = null;
+                            bool rejectDependent = !stop && !request.Scheduled && !request.Token.IsCancellationRequested &&
+                                !commandAllowsCreation && this.owner.ShouldRejectDependentRequest(request, holder, ownerStartTime);
                             lock (this.gate)
                             {
                                 if (!this.requests.TryGetValue(request.CommandId, out Request active) ||
@@ -177,20 +230,42 @@ namespace GVFS.Platform.Windows
                                     }
 
                                     outcome = stop ? "Stopping" : "Cancelled";
+                                    request.Result = (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                                     request.Cancellation.Cancel();
                                 }
                                 else if (!request.Scheduled)
                                 {
-                                    if (Environment.TickCount64 - request.StartTick >= WaitTimeoutMs)
+                                    if (rejectDependent)
                                     {
                                         this.requests.Remove(request.CommandId);
                                         request.Terminated = true;
-                                        outcome = "TimedOut";
+                                        request.Result = HResult.FileNotFound;
+                                        outcome = request.BlockingReason;
                                     }
-                                    else if (ready)
+                                    else
                                     {
-                                        request.Scheduled = true;
-                                        schedule = true;
+                                        if (!ready)
+                                        {
+                                            request.BlockingReason = commandAllowsCreation ? "ProjectionUnavailable" : "GitCommand";
+                                            request.BlockingCommand = holder?.ParsedCommand;
+                                        }
+
+                                        long waited = Environment.TickCount64 - request.WaitTick;
+                                        if (request.WaitedMs + waited >= WaitTimeoutMs)
+                                        {
+                                            this.requests.Remove(request.CommandId);
+                                            request.Terminated = true;
+                                            outcome = "TimedOut";
+                                            request.Result = (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable;
+                                            Interlocked.Increment(ref this.owner.placeholderWaitTimedOut);
+                                        }
+                                        else if (ready)
+                                        {
+                                            request.WaitedMs += waited;
+                                            ++request.Attempts;
+                                            request.Scheduled = true;
+                                            schedule = true;
+                                        }
                                     }
                                 }
                             }
@@ -200,8 +275,14 @@ namespace GVFS.Platform.Windows
                                 this.owner.TracePlaceholderWait(request, outcome);
                                 if (outcome != "Cancelled")
                                 {
+                                    if (rejectDependent)
+                                    {
+                                        this.owner.FileSystemCallbacks.OnPlaceholderCreateBlockedForGit();
+                                    }
+
                                     this.owner.TryCompleteCommand(
                                         request.CommandId,
+                                        rejectDependent ? HResult.FileNotFound :
                                         stop ? (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady :
                                             (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                                 }
@@ -242,29 +323,53 @@ namespace GVFS.Platform.Windows
                 if (!this.owner.TryScheduleFileOrNetworkRequest(work, out Exception error))
                 {
                     this.owner.Context.Tracer.RelatedWarning(this.owner.CreateEventMetadata(request.Path, error), "Cannot schedule deferred placeholder command");
+                    request.Result = (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                     this.owner.TryCompleteCommand(request.CommandId, (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady);
-                    this.FinishAttempt(request, completed: true);
+                    this.FinishAttempt(request, completed: true, outcome: "ScheduleFailed");
                 }
             }
 
-            private void FinishAttempt(Request request, bool completed)
+            private void FinishAttempt(Request request, bool completed, string outcome = "Completed")
             {
+                bool trace;
+                bool completeStopping;
                 lock (this.gate)
                 {
+                    completeStopping = !completed && this.stopping && !request.Terminated;
+                    trace = (completed || completeStopping) && !request.Terminated;
                     if (completed || this.stopping || request.Token.IsCancellationRequested)
                     {
+                        if (completeStopping)
+                        {
+                            request.Result = (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
+                            request.Cancellation.Cancel();
+                        }
+
+                        request.Terminated = true;
                         this.requests.Remove(request.CommandId);
                         request.Cancellation.Dispose();
                     }
                     else
                     {
+                        request.WaitTick = Environment.TickCount64;
                         request.Scheduled = false;
                     }
                 }
 
-                if (completed)
+                if (completeStopping)
                 {
-                    this.owner.TracePlaceholderWait(request, request.Token.IsCancellationRequested ? "Cancelled" : "Completed");
+                    this.owner.TryCompleteCommand(request.CommandId, request.Result.Value);
+                }
+
+                if (trace)
+                {
+                    if (!request.Token.IsCancellationRequested && request.Result == HResult.Ok)
+                    {
+                        Interlocked.Increment(ref this.owner.placeholderWaitSucceeded);
+                    }
+
+                    this.owner.TracePlaceholderWait(request, completeStopping ? "Stopping" :
+                        request.Token.IsCancellationRequested ? "Cancelled" : outcome);
                 }
             }
 
@@ -279,6 +384,7 @@ namespace GVFS.Platform.Windows
                     this.Cancellation = cancellation;
                     this.Token = cancellation.Token;
                     this.StartTick = Environment.TickCount64;
+                    this.WaitTick = this.StartTick;
                 }
 
                 public int CommandId { get; }
@@ -288,8 +394,15 @@ namespace GVFS.Platform.Windows
                 public CancellationTokenSource Cancellation { get; }
                 public CancellationToken Token { get; }
                 public long StartTick { get; }
+                public long WaitTick { get; set; }
+                public long WaitedMs { get; set; }
                 public bool Scheduled { get; set; }
                 public bool Terminated { get; set; }
+                public NamedPipeMessages.LockData CheckedHolder { get; set; }
+                public string BlockingCommand { get; set; }
+                public string BlockingReason { get; set; }
+                public int Attempts { get; set; }
+                public HResult? Result { get; set; }
             }
         }
     }

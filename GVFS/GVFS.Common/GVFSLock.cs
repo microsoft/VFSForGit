@@ -61,7 +61,7 @@ namespace GVFS.Common
             {
                 lock (this.acquisitionLock)
                 {
-                    if (this.currentLockHolder.IsGVFS || this.placeholderCreations > 0)
+                    if (this.currentLockHolder.IsGVFS)
                     {
                         metadata.Add("CurrentLockHolder", "GVFS");
                         metadata.Add("Result", "Denied");
@@ -75,6 +75,13 @@ namespace GVFS.Common
                         metadata.Add("CurrentLockHolder", existingExternalHolder.ToString());
                         metadata.Add("Result", "Denied");
 
+                        return false;
+                    }
+
+                    if (this.placeholderCreations > 0)
+                    {
+                        metadata.Add("CurrentLockHolder", "PlaceholderCreation");
+                        metadata.Add("Result", "Denied");
                         return false;
                     }
 
@@ -104,14 +111,14 @@ namespace GVFS.Common
             {
                 lock (this.acquisitionLock)
                 {
-                    if (this.placeholderCreations > 0)
-                    {
-                        return false;
-                    }
-
                     if (this.currentLockHolder.IsGVFS)
                     {
                         return true;
+                    }
+
+                    if (this.placeholderCreations > 0)
+                    {
+                        return false;
                     }
 
                     NamedPipeMessages.LockData existingExternalHolder = this.GetExternalHolder();
@@ -180,13 +187,22 @@ namespace GVFS.Common
             return null;
         }
 
-        public bool TryAcquirePlaceholderCreation(Func<string, bool> canCreate, out IDisposable lease)
+        public NamedPipeMessages.LockData GetLockHolderForCallbacks(out long? processStartTime)
+        {
+            lock (this.acquisitionLock)
+            {
+                processStartTime = this.currentLockHolder.ExternalStartTime;
+                return this.currentLockHolder.GetExternalHolder();
+            }
+        }
+
+        public bool TryAcquirePlaceholderCreation(Func<string, bool> canCreate, out IDisposable lease, out string command)
         {
             lock (this.acquisitionLock)
             {
                 lease = null;
-                if (this.currentLockHolder.IsGVFS ||
-                    !canCreate(this.GetLockedGitCommand()))
+                command = this.GetLockedGitCommand();
+                if (!canCreate(command))
                 {
                     return false;
                 }
@@ -211,6 +227,11 @@ namespace GVFS.Common
                 {
                     return string.Format("Held by {0} (PID:{1})", externalHolder.ParsedCommand, externalHolder.PID);
                 }
+
+                if (this.placeholderCreations > 0)
+                {
+                    return "Held by placeholder creation.";
+                }
             }
 
             return "Free";
@@ -221,7 +242,7 @@ namespace GVFS.Common
             lock (this.acquisitionLock)
             {
                 if (!checkExternalHolderOnly &&
-                    (this.currentLockHolder.IsGVFS || this.placeholderCreations > 0))
+                    this.currentLockHolder.IsGVFS)
                 {
                     existingExternalHolder = null;
                     return false;
@@ -251,7 +272,8 @@ namespace GVFS.Common
                     this.tracer.RelatedEvent(EventLevel.Verbose, "ExternalHolderLivenessIndeterminate", metadata);
                 }
 
-                return existingExternalHolder == null;
+                return existingExternalHolder == null &&
+                    (checkExternalHolderOnly || this.placeholderCreations == 0);
             }
         }
 
@@ -459,6 +481,8 @@ namespace GVFS.Common
         {
             private NamedPipeMessages.LockData externalLockHolder;
             private long? externalLockHolderStartTime;
+
+            public long? ExternalStartTime => this.externalLockHolderStartTime;
 
             public bool IsFree
             {

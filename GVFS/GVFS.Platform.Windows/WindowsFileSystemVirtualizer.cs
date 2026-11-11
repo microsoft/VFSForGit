@@ -34,6 +34,10 @@ namespace GVFS.Platform.Windows
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
         private readonly bool enablePlaceholderLockWait;
         private PlaceholderCreationWaitQueue placeholderWaitQueue;
+        private long placeholderWaitStarted;
+        private long placeholderWaitTimedOut;
+        private long placeholderWaitQueueFull;
+        private long placeholderWaitSucceeded;
 
         // ProjFS does not always deliver EndDirectoryEnumeration for a StartDirectoryEnumeration
         // (for example when an enumeration is cancelled), which leaks the corresponding
@@ -132,7 +136,17 @@ namespace GVFS.Platform.Windows
             // can be observed in the field before enabling eviction anywhere.
             metadata.Add("ActiveEnumerationCount", this.activeEnumerations.Count);
             metadata.Add("ActiveCommandCount", this.activeCommands.Count);
+            if (this.enablePlaceholderLockWait)
+            {
+                metadata.Add("PlaceholderLockWaitEnabled", true);
+                metadata.Add("PlaceholderLockWaitStarted", Interlocked.Exchange(ref this.placeholderWaitStarted, 0));
+                metadata.Add("PlaceholderLockWaitTimedOut", Interlocked.Exchange(ref this.placeholderWaitTimedOut, 0));
+                metadata.Add("PlaceholderLockWaitQueueFull", Interlocked.Exchange(ref this.placeholderWaitQueueFull, 0));
+                metadata.Add("PlaceholderLockWaitSucceeded", Interlocked.Exchange(ref this.placeholderWaitSucceeded, 0));
+            }
         }
+
+        internal Func<uint, int, long?, bool?> IsRequestDescendant { private get; set; }
 
         /// <summary>
         /// Reads the gvfs.max-active-enumerations git config value (0 = eviction disabled, the
@@ -841,6 +855,8 @@ namespace GVFS.Platform.Windows
 
             if (this.enablePlaceholderLockWait)
             {
+                this.IsRequestDescendant ??= (processId, ancestorId, startTime) =>
+                    PlaceholderRequestProcessTree.IsDescendant(processId, ancestorId, startTime, this.Context.Tracer);
                 this.placeholderWaitQueue = new PlaceholderCreationWaitQueue(this);
             }
 
@@ -1214,11 +1230,22 @@ namespace GVFS.Platform.Windows
                     fileInfo = this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo(cancellationToken, blobSizesConnection, virtualPath, out parentFolderPath);
                     if (fileInfo == null)
                     {
+                        if (deferredRequest != null && cancellationToken.IsCancellationRequested)
+                        {
+                            return true;
+                        }
+
                         if (deferredRequest != null &&
                             (!this.FileSystemCallbacks.GitIndexProjection.IsProjectionParseComplete() ||
                              generation != this.FileSystemCallbacks.GitIndexProjection.ProjectionGeneration))
                         {
+                            deferredRequest.BlockingReason = "ProjectionChangedOrUnavailable";
                             return false;
+                        }
+
+                        if (deferredRequest != null)
+                        {
+                            deferredRequest.Result = HResult.FileNotFound;
                         }
 
                         this.TryCompleteCommand(commandId, HResult.FileNotFound);
@@ -1233,6 +1260,12 @@ namespace GVFS.Platform.Windows
                         EventLevel.Informational,
                         $"{nameof(this.GetPlaceholderInformationAsyncHandler)}_{nameof(this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo)}_Cancelled",
                         metadata);
+                    if (deferredRequest != null && !cancellationToken.IsCancellationRequested)
+                    {
+                        deferredRequest.Result = (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable;
+                        this.TryCompleteCommand(commandId, deferredRequest.Result.Value);
+                    }
+
                     return true;
                 }
 
@@ -1281,8 +1314,11 @@ namespace GVFS.Platform.Windows
                 }
                 else
                 {
-                    if (!this.Context.Repository.GVFSLock.TryAcquirePlaceholderCreation(CanCreatePlaceholderForCommand, out IDisposable lease))
+                    if (!this.Context.Repository.GVFSLock.TryAcquirePlaceholderCreation(
+                        CanCreatePlaceholderForCommand, out IDisposable lease, out string blockingCommand))
                     {
+                        deferredRequest.BlockingReason = "GitCommand";
+                        deferredRequest.BlockingCommand = blockingCommand;
                         return false;
                     }
 
@@ -1290,6 +1326,7 @@ namespace GVFS.Platform.Windows
                     {
                         if (!this.FileSystemCallbacks.GitIndexProjection.TryCreatePlaceholder(generation, create))
                         {
+                            deferredRequest.BlockingReason = "ProjectionChangedOrUnavailable";
                             return false;
                         }
                     }
@@ -1326,6 +1363,16 @@ namespace GVFS.Platform.Windows
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 this.LogUnhandledExceptionAndExit(nameof(this.GetPlaceholderInformationAsyncHandler), metadata);
+            }
+
+            if (deferredRequest != null)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return true;
+                }
+
+                deferredRequest.Result = result;
             }
 
             this.TryCompleteCommand(commandId, result);

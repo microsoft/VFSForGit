@@ -29,7 +29,7 @@ namespace GVFS.UnitTests.Windows.Mock
         public MockVirtualizationInstance MockVirtualization { get; private set; }
         public WindowsFileSystemVirtualizer WindowsVirtualizer { get; private set; }
 
-        public void InvokeGetFileDataCallback(HResult expectedResult = HResult.Pending, byte[] providerId = null, ulong byteOffset = 0)
+        public void InvokeGetFileDataCallback(HResult expectedResult = HResult.Pending, byte[] providerId = null, ulong byteOffset = 0, int commandId = 1)
         {
             if (providerId == null)
             {
@@ -37,7 +37,7 @@ namespace GVFS.UnitTests.Windows.Mock
             }
 
             this.MockVirtualization.RequiredCallbacks.GetFileDataCallback(
-                commandId: 1,
+                commandId: commandId,
                 relativePath: "test.txt",
                 byteOffset: byteOffset,
                 length: MockGVFSGitObjects.DefaultFileLength,
@@ -53,13 +53,16 @@ namespace GVFS.UnitTests.Windows.Mock
             this.MockVirtualization = new MockVirtualizationInstance();
             this.WindowsVirtualizer = new WindowsFileSystemVirtualizer(
                 repo.Context, repo.GitObjects, this.MockVirtualization, FileSystemVirtualizerTester.NumberOfWorkThreads,
-                enablePlaceholderLockWait: repo.Context.Repository.TryGetConfigValue("gvfs.placeholder-lock-wait", out string enabled) && enabled == "true");
+                enablePlaceholderLockWait: repo.Context.Repository.TryGetConfigValue(GVFS.Common.GVFSConstants.GitConfig.PlaceholderLockWait, out string enabled) && enabled == "true")
+            {
+                IsRequestDescendant = (_, _, _) => false,
+            };
             return this.WindowsVirtualizer;
         }
 
         private static CommonRepoSetup ConfigurePlaceholderLockWait(CommonRepoSetup repo, bool enabled)
         {
-            repo.Repository.ConfigValues["gvfs.placeholder-lock-wait"] = enabled ? "true" : "false";
+            repo.Repository.ConfigValues[GVFS.Common.GVFSConstants.GitConfig.PlaceholderLockWait] = enabled ? "true" : "false";
             return repo;
         }
     }
