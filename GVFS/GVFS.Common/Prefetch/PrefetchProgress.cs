@@ -4,12 +4,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.Common.Prefetch
 {
     public class PrefetchProgress
     {
-        private readonly object progressLock = new object();
+        private readonly Lock progressLock = new Lock();
         private readonly SortedDictionary<int, string> indexers = new SortedDictionary<int, string>();
         private readonly Stopwatch elapsed = Stopwatch.StartNew();
         private readonly ITracer tracer;
