@@ -354,6 +354,7 @@ namespace GVFS.CommandLine
                                 {
                                     using (Process process = Process.Start(startInfo))
                                     {
+                                        return process?.Id;
                                     }
                                 });
                         }
@@ -410,22 +411,31 @@ namespace GVFS.CommandLine
             Environment.Exit(exitCode);
         }
 
-        internal void StartBackgroundPrefetch(string enlistmentRoot, bool hasPrefetchPacks, Action<ProcessStartInfo> startProcess)
+        internal void StartBackgroundPrefetch(string enlistmentRoot, bool hasPrefetchPacks, Func<ProcessStartInfo, int?> startProcess)
         {
             try
             {
-                startProcess(new ProcessStartInfo(
+                int? processId = startProcess(new ProcessStartInfo(
                     fileName: Environment.ProcessPath,
-                    arguments: "prefetch --commits")
+                    arguments: hasPrefetchPacks ? "prefetch --commits" : "prefetch --commits --from-clone")
                     {
                         UseShellExecute = true,
                         WindowStyle = hasPrefetchPacks ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Minimized,
                         WorkingDirectory = enlistmentRoot
                     });
 
-                if (!hasPrefetchPacks)
+                if (!processId.HasValue)
                 {
-                    this.Output.WriteLine("\r\nPrefetch of commit graph has been started as a background process. Git operations involving history may be slower until prefetch has completed.\r\n");
+                    this.Output.WriteLine("\r\nError starting prefetch: Windows did not return a process.");
+                    this.Output.WriteLine("Run 'gvfs prefetch --commits' from '{0}' to retry prefetch.", enlistmentRoot);
+                }
+                else if (!hasPrefetchPacks)
+                {
+                    this.Output.WriteLine(
+                        "\r\nStarted history prefetch in a minimized window (client PID {0}) for '{1}'.",
+                        processId.Value,
+                        enlistmentRoot);
+                    this.Output.WriteLine("History commands can be slower until prefetch finishes.\r\n");
                 }
             }
             catch (Win32Exception ex)
