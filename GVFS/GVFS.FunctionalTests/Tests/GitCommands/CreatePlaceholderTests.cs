@@ -41,6 +41,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase("hash-object --stdin")]
         [TestCase("index-pack --stdin")]
         [TestCase("name-rev --stdin")]
+        [TestCase("notes copy --stdin")]
         [TestCase("rev-list --stdin --quiet --all")]
         [TestCase("update-ref --stdin")]
         public void AllowsPlaceholderCreationWhileGitCommandIsRunning(string commandToRun)
@@ -50,7 +51,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         [TestCase("checkout-index --stdin")]
         [TestCase("fetch-pack --stdin URL")]
-        [TestCase("notes copy --stdin")]
         [TestCase("reset --stdin")]
         [TestCase("send-pack --stdin URL")]
         [TestCase("update-index --stdin")]
@@ -62,11 +62,16 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase("worktree list")]
         [TestCase("worktree list --porcelain")]
         [TestCase("worktree list --porcelain -z")]
-        public void AllowsPlaceholderCreationWhileWorktreeListIsRunning(string command)
+        [TestCase("reflog")]
+        [TestCase("describe --always HEAD")]
+        [TestCase("grep -q -e . HEAD -- Readme.md")]
+        [TestCase("refs list --count=1")]
+        [TestCase("merge-file --object-id HEAD:Readme.md HEAD:Readme.md HEAD:Readme.md")]
+        public void AllowsPlaceholderCreationWhileExemptCommandIsRunning(string command)
         {
             string hookListPath = this.Enlistment.GetVirtualPathTo(".git", "hooks", "post-command.hooks");
             string originalHookList = File.ReadAllText(hookListPath);
-            string eventName = "GVFS.WorktreeList." + Guid.NewGuid().ToString("N");
+            string eventName = "GVFS.ExemptCommand." + Guid.NewGuid().ToString("N");
             string expectedContent = File.ReadAllText(Path.Combine(this.ControlGitRepo.RootPath, FileToRead));
 
             using (EventWaitHandle ready = new EventWaitHandle(false, EventResetMode.ManualReset, eventName + ".Ready"))

@@ -17,7 +17,6 @@ namespace GVFS.Hooks
         private const string PreCommandHook = "pre-command";
         private const string PostCommandHook = "post-command";
 
-        private const string GitPidArg = "--git-pid=";
         private const int InvalidProcessId = -1;
 
         private const int PostCommandSpinnerDelayMs = 500;
