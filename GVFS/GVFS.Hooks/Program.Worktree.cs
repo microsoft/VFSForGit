@@ -2,7 +2,6 @@ using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Hooks.HooksPlatform;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -297,15 +296,10 @@ namespace GVFS.Hooks
                 }
 
                 // Check for uncommitted changes while ProjFS is still mounted.
-                ProcessStartInfo statusProcess = ProcessHelper.CreateGitStartInfo("git");
-                statusProcess.Arguments = $"-C \"{fullPath}\" status --porcelain";
-                statusProcess.UseShellExecute = false;
-                statusProcess.RedirectStandardInput = true;
-                statusProcess.RedirectStandardOutput = true;
-                statusProcess.RedirectStandardError = true;
-                statusProcess.WindowStyle = ProcessWindowStyle.Hidden;
-                statusProcess.CreateNoWindow = false;
-                ProcessResult statusResult = ProcessHelper.Run(statusProcess);
+                ProcessResult statusResult = ProcessHelper.RunGit(
+                    "git",
+                    $"-C \"{fullPath}\" status --porcelain",
+                    redirectOutput: true);
 
                 if (!string.IsNullOrWhiteSpace(statusResult.Output))
                 {
@@ -439,15 +433,10 @@ namespace GVFS.Hooks
                     File.WriteAllText(emptyVfsHook, "#!/bin/sh\nprintf \".gitattributes\\n\"\n");
                     string emptyVfsHookGitPath = emptyVfsHook.Replace('\\', '/');
 
-                    ProcessStartInfo checkoutProcess = ProcessHelper.CreateGitStartInfo("git");
-                    checkoutProcess.Arguments = $"-C \"{fullPath}\" -c core.virtualfilesystem=\"'{emptyVfsHookGitPath}'\" -c core.hookspath= checkout -f HEAD";
-                    checkoutProcess.UseShellExecute = false;
-                    checkoutProcess.RedirectStandardInput = true;
-                    checkoutProcess.RedirectStandardOutput = false;
-                    checkoutProcess.RedirectStandardError = false;
-                    checkoutProcess.WindowStyle = ProcessWindowStyle.Hidden;
-                    checkoutProcess.CreateNoWindow = false;
-                    ProcessResult checkoutResult = ProcessHelper.Run(checkoutProcess);
+                    ProcessResult checkoutResult = ProcessHelper.RunGit(
+                        "git",
+                        $"-C \"{fullPath}\" -c core.virtualfilesystem=\"'{emptyVfsHookGitPath}'\" -c core.hookspath= checkout -f HEAD",
+                        redirectOutput: false);
                     checkoutSucceeded = checkoutResult.ExitCode == 0;
                 }
                 finally

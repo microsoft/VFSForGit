@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
@@ -185,6 +186,45 @@ namespace GVFS.UnitTests.Git
                 }
 
                 Environment.GetEnvironmentVariable("LC_ALL").ShouldEqual(inheritedLocale);
+                Environment.GetEnvironmentVariable("LANGUAGE").ShouldEqual("de");
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", originalLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", originalLanguage);
+            }
+        }
+
+        [TestCase(true, true)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(false, false)]
+        [NonParallelizable]
+        public void ProcessHelperPreservesLocalePolicyAndOutputRedirection(bool gitSpecific, bool redirectOutput)
+        {
+            string gitPath = GitTestHelper.FindGitOnPath();
+            if (gitPath == null)
+            {
+                Assert.Ignore("Git was not found on PATH.");
+            }
+
+            const string InheritedLocale = "fr_FR.UTF-8";
+            string originalLocale = Environment.GetEnvironmentVariable("LC_ALL");
+            string originalLanguage = Environment.GetEnvironmentVariable("LANGUAGE");
+            try
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", InheritedLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", "de");
+                string expectedLocale = gitSpecific ? "C" : InheritedLocale;
+                string command = $"-c alias.gvfs-locale-test=\"!test $LC_ALL/$LANGUAGE = {expectedLocale}/de && echo locale-output && echo locale-error >&2\" gvfs-locale-test";
+                ProcessResult result = gitSpecific ?
+                    ProcessHelper.RunGit(gitPath, command, redirectOutput) :
+                    ProcessHelper.Run(gitPath, command, redirectOutput);
+
+                result.ExitCode.ShouldEqual(0, result.Errors);
+                result.Output.Trim().ShouldEqual(redirectOutput ? "locale-output" : string.Empty);
+                result.Errors.Trim().ShouldEqual(redirectOutput ? "locale-error" : string.Empty);
+                Environment.GetEnvironmentVariable("LC_ALL").ShouldEqual(InheritedLocale);
                 Environment.GetEnvironmentVariable("LANGUAGE").ShouldEqual("de");
             }
             finally
