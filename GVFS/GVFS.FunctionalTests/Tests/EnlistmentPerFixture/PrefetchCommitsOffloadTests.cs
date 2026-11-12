@@ -35,12 +35,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [SetUp]
+        public void EnablePrefetchOffload()
+        {
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local gvfs.prefetch-offload true")
+                .ExitCode.ShouldEqual(0);
+        }
+
         [TestCase, Order(1)]
         public void PrefetchCommitsMountedUsesOffload()
         {
             // With the enlistment mounted, prefetch --commits should succeed
             // by offloading to the mount process (using its warm auth).
-            this.Enlistment.Prefetch("--commits");
+            this.Enlistment.Prefetch("--commits").ShouldContain("Fetching commits and trees...Succeeded");
             this.PostFetchJobShouldComplete();
 
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
@@ -55,7 +62,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // (may be a no-op if packs are already up to date).
             string[] packsBefore = this.ReadPrefetchPackFileNames();
 
-            this.Enlistment.Prefetch("--commits");
+            this.Enlistment.Prefetch("--commits").ShouldContain("Fetching commits and trees...Succeeded");
             this.PostFetchJobShouldComplete();
 
             string[] packsAfter = this.ReadPrefetchPackFileNames();
@@ -92,7 +99,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.UnmountGVFS();
             this.Enlistment.MountGVFS();
 
-            this.Enlistment.Prefetch("--commits");
+            this.Enlistment.Prefetch("--commits").ShouldContain("Fetching commits and trees...Succeeded");
             this.PostFetchJobShouldComplete();
 
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
@@ -100,13 +107,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.AllPrefetchPacksShouldHaveIdx(prefetchPacks);
         }
 
-        [TestCase]
+        [TestCase(false)]
+        [TestCase(true)]
         [Order(5)]
         [Timeout(60000)]
-        public void PrefetchCommitsDoesNotAnimateRedirectedOutput()
+        public void PrefetchCommitsDoesNotAnimateRedirectedOutput(bool offload)
         {
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, $"config --local gvfs.prefetch-offload {offload.ToString().ToLowerInvariant()}")
+                .ExitCode.ShouldEqual(0);
             string output = this.Enlistment.Prefetch("--commits");
-            Assert.That(output, Does.Contain("Fetching commits and trees...Succeeded"));
+            string source = offload ? string.Empty : @" from (?:cache server|origin \(no cache server\))";
+            Assert.That(Regex.IsMatch(output, @"^Fetching commits and trees" + source + @"\.\.\.Succeeded\r?$", RegexOptions.Multiline), Is.True, output);
             Assert.That(Regex.Matches(output, "Fetching commits and trees").Count, Is.EqualTo(1));
             Assert.That(Regex.IsMatch(output, @"\r(?!\n)"), Is.False);
         }
