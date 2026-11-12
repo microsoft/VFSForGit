@@ -37,6 +37,24 @@ namespace GVFS.Common.Maintenance
 
         protected GitObjects GitObjects { get; }
 
+        public static long? GetPrefetchPackTimestamp(string packName)
+        {
+            string filename = Path.GetFileName(packName);
+            if (!filename.StartsWith(GVFSConstants.PrefetchPackPrefix))
+            {
+                return null;
+            }
+
+            string[] parts = filename.Split('-');
+            long parsed;
+            if (parts.Length > 1 && long.TryParse(parts[1], out parsed))
+            {
+                return parsed;
+            }
+
+            return null;
+        }
+
         public bool TryPrefetchCommitsAndTrees(out string error, GitProcess gitProcess = null)
         {
             if (gitProcess == null)
@@ -129,24 +147,6 @@ namespace GVFS.Common.Maintenance
             }
         }
 
-        private static long? GetTimestamp(string packName)
-        {
-            string filename = Path.GetFileName(packName);
-            if (!filename.StartsWith(GVFSConstants.PrefetchPackPrefix))
-            {
-                return null;
-            }
-
-            string[] parts = filename.Split('-');
-            long parsed;
-            if (parts.Length > 1 && long.TryParse(parts[1], out parsed))
-            {
-                return parsed;
-            }
-
-            return null;
-        }
-
         private static void WaitUntilLockIsAcquired(ITracer tracer, FileBasedLock fileBasedLock)
         {
             int attempt = 0;
@@ -168,10 +168,10 @@ namespace GVFS.Common.Maintenance
 
             string[] packs = this.GitObjects.ReadPackFileNames(this.Context.Enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
             List<PrefetchPackInfo> orderedPacks = packs
-                .Where(pack => GetTimestamp(pack).HasValue
+                .Where(pack => GetPrefetchPackTimestamp(pack).HasValue
                     && !this.Context.FileSystem.FileExists(
                         Path.ChangeExtension(pack, GVFSConstants.InProgressPrefetchMarkerExtension)))
-                .Select(pack => new PrefetchPackInfo(GetTimestamp(pack).Value, pack))
+                .Select(pack => new PrefetchPackInfo(GetPrefetchPackTimestamp(pack).Value, pack))
                 .OrderBy(packInfo => packInfo.Timestamp)
                 .ToList();
 
