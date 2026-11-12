@@ -291,7 +291,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     string source = Path.Combine(root, "pack-source");
                     GitProcess.InvokeProcess(root, $"init --object-format=sha1 \"{source}\"").ExitCode.ShouldEqual(0);
                     string prefix = Path.Combine(packRoot, "prefetch-1000");
-                    ProcessResult pack = GitProcess.InvokeProcess(source, $"pack-objects --all \"{prefix}\"");
+                    using MemoryStream packInput = new MemoryStream();
+                    ProcessResult pack = GitProcess.InvokeProcess(source, $"pack-objects --all \"{prefix}\"", inputStream: packInput);
                     pack.ExitCode.ShouldEqual(0, pack.Errors);
                     cachedPackPath = prefix + "-" + pack.Output.Trim() + ".pack";
                     File.Exists(cachedPackPath).ShouldBeTrue();
