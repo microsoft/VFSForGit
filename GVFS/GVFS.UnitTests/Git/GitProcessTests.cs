@@ -146,6 +146,54 @@ namespace GVFS.UnitTests.Git
             process.InvocationsRun[0].DotGitDirectory.ShouldBeNull();
         }
 
+        [TestCase(null)]
+        [TestCase("fr_FR.UTF-8")]
+        [NonParallelizable]
+        public void GitChildUsesCLocaleWithoutChangingParentEnvironment(string inheritedLocale)
+        {
+            string gitPath = GitTestHelper.FindGitOnPath();
+            if (gitPath == null)
+            {
+                Assert.Ignore("Git was not found on PATH.");
+            }
+
+            string originalLocale = Environment.GetEnvironmentVariable("LC_ALL");
+            string originalLanguage = Environment.GetEnvironmentVariable("LANGUAGE");
+            try
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", inheritedLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", "de");
+                GitProcess git = new GitProcess(gitPath, workingDirectoryRoot: null);
+                using (Process child = git.GetGitProcess(
+                    "-c alias.gvfs-locale-test=\"!echo $LC_ALL/$LANGUAGE\" gvfs-locale-test",
+                    Environment.SystemDirectory,
+                    dotGitDirectory: null,
+                    useReadObjectHook: false,
+                    gitObjectsDirectory: null,
+                    usePreCommandHook: false))
+                {
+                    child.StartInfo.Environment["LC_ALL"].ShouldEqual("C");
+                    child.StartInfo.Environment["LANGUAGE"].ShouldEqual("de");
+                    child.Start();
+                    child.StandardInput.Close();
+                    string output = child.StandardOutput.ReadToEnd();
+                    string errors = child.StandardError.ReadToEnd();
+                    child.WaitForExit();
+
+                    child.ExitCode.ShouldEqual(0, errors);
+                    output.Trim().ShouldEqual("C/de");
+                }
+
+                Environment.GetEnvironmentVariable("LC_ALL").ShouldEqual(inheritedLocale);
+                Environment.GetEnvironmentVariable("LANGUAGE").ShouldEqual("de");
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", originalLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", originalLanguage);
+            }
+        }
+
         [TestCase]
         public void ResultHasNoErrors()
         {

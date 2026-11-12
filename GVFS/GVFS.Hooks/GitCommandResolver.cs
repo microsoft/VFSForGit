@@ -117,7 +117,7 @@ namespace GVFS.Hooks
 
         public static ProcessStartInfo CreateAliasKeyQuery(string gitPath)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(gitPath);
+            ProcessStartInfo processInfo = ProcessHelper.CreateGitStartInfo(gitPath);
             processInfo.UseShellExecute = false;
 
             // The query reads no input. Do not give it the hook's standard input.

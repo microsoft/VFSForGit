@@ -12,6 +12,15 @@ namespace GVFS.Common
         private static string currentProcessVersion = null;
         private static string currentProcessArchitecture = null;
 
+        public static ProcessStartInfo CreateGitStartInfo(string gitBinPath)
+        {
+            ProcessStartInfo processInfo = new ProcessStartInfo(gitBinPath);
+
+            // GVFS parses English Git diagnostics. The C locale also disables LANGUAGE overrides.
+            processInfo.Environment["LC_ALL"] = "C";
+            return processInfo;
+        }
+
         public static ProcessResult Run(string programName, string args, bool redirectOutput = true)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(programName);
