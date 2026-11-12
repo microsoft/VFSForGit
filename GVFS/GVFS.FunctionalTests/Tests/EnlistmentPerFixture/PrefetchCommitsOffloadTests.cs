@@ -1,11 +1,13 @@
-﻿using GVFS.Common.NamedPipes;
-using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
+using System.Diagnostics;
 using System.IO;
-using GVFSPlatform = GVFS.Common.GVFSPlatform;
+using System.Text;
+using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -43,15 +45,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(1)]
         public void PrefetchCommitsMountedWithEmptyCacheRunsDirectly()
         {
-            this.ReadPrefetchPackFileNames().Length.ShouldEqual(0);
-            string pipeName = GVFSPlatform.Instance.GetNamedPipeName(this.Enlistment.EnlistmentRoot);
-            using (NamedPipeClient client = new NamedPipeClient(pipeName))
-            {
-                client.Connect().ShouldEqual(true);
-                client.SendRequest(new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.Request, null));
-                client.ReadResponse().Header.ShouldEqual(NamedPipeMessages.PrefetchCommits.MountNotReadyResult);
-            }
-
             this.ReadPrefetchPackFileNames().Length.ShouldEqual(0);
             string output = this.Enlistment.Prefetch("--commits --verbose");
             output.ShouldContain("Mount not ready, falling back to direct prefetch");
@@ -126,6 +119,114 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             Assert.That(output, Does.Not.Contain("TryPrefetchCommitsViaMountProcess"));
             output.ShouldContain("TryDownloadPrefetchPacks");
             this.PostFetchJobShouldComplete();
+        }
+
+        [TestCase("git-maintenance-step.lock")]
+        [TestCase("prefetch-commits-trees.lock")]
+        [Order(6)]
+        public void PrefetchCommitsFallsBackWhileCacheOrPrefetchIsBusy(string lockName)
+        {
+            string lockRoot = lockName == "git-maintenance-step.lock"
+                ? this.Enlistment.GetObjectRoot(this.fileSystem)
+                : this.PackRoot;
+            string lockPath = Path.Combine(lockRoot, lockName);
+            using (ManualResetEventSlim declined = new ManualResetEventSlim())
+            using (Process prefetch = new Process
+            {
+                StartInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS, "prefetch --commits --verbose")
+                {
+                    UseShellExecute = false,
+                    WorkingDirectory = this.Enlistment.EnlistmentRoot,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                },
+            })
+            {
+                StringBuilder output = new StringBuilder();
+                prefetch.OutputDataReceived += (_, args) =>
+                {
+                    if (args.Data != null)
+                    {
+                        output.AppendLine(args.Data);
+                        if (args.Data.Contains("Mount not ready, falling back to direct prefetch"))
+                        {
+                            declined.Set();
+                        }
+                    }
+                };
+                FileStream heldLock = new FileStream(lockPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+                try
+                {
+                    prefetch.Start().ShouldEqual(true);
+                    prefetch.BeginOutputReadLine();
+                    prefetch.BeginErrorReadLine();
+                    Assert.That(declined.Wait(TimeSpan.FromSeconds(30)), Is.True, "Offload did not decline while the lock was held.");
+                }
+                finally
+                {
+                    heldLock.Dispose();
+                    File.Delete(lockPath);
+                    if (!prefetch.WaitForExit(60000))
+                    {
+                        prefetch.Kill(entireProcessTree: true);
+                        prefetch.WaitForExit();
+                        Assert.Fail("Direct prefetch did not finish after lock release.");
+                    }
+
+                    prefetch.WaitForExit();
+                }
+
+                prefetch.ExitCode.ShouldEqual(0, output.ToString());
+            }
+
+            this.PostFetchJobShouldComplete();
+        }
+
+        [TestCase, Order(7)]
+        public void PrefetchCommitsWithOnlyIncompletePacksRunsDirectly()
+        {
+            string[] packs = this.ReadPrefetchPackFileNames();
+            packs.Length.ShouldBeAtLeast(1);
+            try
+            {
+                foreach (string pack in packs)
+                {
+                    File.WriteAllText(Path.ChangeExtension(pack, ".incomplete"), string.Empty);
+                }
+
+                string output = this.Enlistment.Prefetch("--commits --verbose");
+                output.ShouldContain("Mount not ready, falling back to direct prefetch");
+                this.PostFetchJobShouldComplete();
+                this.AllPrefetchPacksShouldHaveIdx(this.ReadPrefetchPackFileNames());
+            }
+            finally
+            {
+                foreach (string pack in packs)
+                {
+                    File.Delete(Path.ChangeExtension(pack, ".incomplete"));
+                }
+            }
+        }
+
+        [TestCase, Order(8)]
+        public void PrefetchCommitsWithAnUnindexedOlderPackRunsDirectly()
+        {
+            this.ReadPrefetchPackFileNames().Length.ShouldBeAtLeast(1);
+            string badPack = Path.Combine(this.PackRoot, "prefetch-1-" + Guid.NewGuid().ToString("N") + ".pack");
+            try
+            {
+                File.WriteAllText(badPack, "BADPACK");
+                string output = this.Enlistment.Prefetch("--commits --verbose");
+                output.ShouldContain("Mount not ready, falling back to direct prefetch");
+                this.PostFetchJobShouldComplete();
+                Assert.That(File.Exists(badPack), Is.False);
+                this.AllPrefetchPacksShouldHaveIdx(this.ReadPrefetchPackFileNames());
+            }
+            finally
+            {
+                File.Delete(badPack);
+                File.Delete(Path.ChangeExtension(badPack, ".idx"));
+            }
         }
 
         private string[] ReadPrefetchPackFileNames()
