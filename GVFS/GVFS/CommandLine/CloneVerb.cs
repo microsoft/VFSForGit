@@ -825,7 +825,8 @@ namespace GVFS.CommandLine
                 tracer.RelatedEvent(
                     EventLevel.Informational,
                     "Clone_UseCachedCommit",
-                    new EventMetadata { { "CommitId", commitId } });
+                    new EventMetadata { { "CommitId", commitId } },
+                    Keywords.Telemetry);
             }
             else if (!this.TryDownloadCommit(
                 commitId,
