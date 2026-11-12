@@ -314,7 +314,7 @@ namespace GVFS.CommandLine
 
                         if (!this.NoPrefetch && !trustPackIndexes)
                         {
-                            hasPrefetchPacks = HasPrefetchPacks(tracer, new PhysicalFileSystem(), enlistment.GitPackRoot);
+                            hasPrefetchPacks = PrefetchStep.HasCompletedPrefetchPacks(tracer, new PhysicalFileSystem(), enlistment.GitPackRoot);
                         }
                     }
                 }
@@ -408,29 +408,6 @@ namespace GVFS.CommandLine
             }
 
             Environment.Exit(exitCode);
-        }
-
-        internal static bool HasPrefetchPacks(ITracer tracer, PhysicalFileSystem fileSystem, string gitPackRoot)
-        {
-            try
-            {
-                return fileSystem.DirectoryExists(gitPackRoot) &&
-                    fileSystem.GetFiles(gitPackRoot, GVFSConstants.PrefetchPackPrefix + "-*.pack").Any(
-                        pack => PrefetchStep.GetPrefetchPackTimestamp(pack).HasValue &&
-                            fileSystem.FileExists(Path.ChangeExtension(pack, ".idx")) &&
-                            !fileSystem.FileExists(Path.ChangeExtension(pack, GVFSConstants.InProgressPrefetchMarkerExtension)));
-            }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
-            {
-                tracer.RelatedWarning(
-                    new EventMetadata
-                    {
-                        { nameof(gitPackRoot), gitPackRoot },
-                        { "Exception", ex.ToString() },
-                    },
-                    "Could not check for cached prefetch packs. Prefetch will use the initial-prefetch announcement and window.");
-                return false;
-            }
         }
 
         internal void StartBackgroundPrefetch(string enlistmentRoot, bool hasPrefetchPacks, Action<ProcessStartInfo> startProcess)

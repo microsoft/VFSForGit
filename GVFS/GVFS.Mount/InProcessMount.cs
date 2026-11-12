@@ -1367,6 +1367,14 @@ namespace GVFS.Mount
                 return;
             }
 
+            if (!PrefetchStep.HasCompletedPrefetchPacks(this.tracer, this.context.FileSystem, this.enlistment.GitPackRoot))
+            {
+                this.tracer.RelatedInfo("Initial commit prefetch must run in the requesting process.");
+                connection.TrySendResponse(
+                    new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.MountNotReadyResult, null));
+                return;
+            }
+
             NamedPipeMessages.PrefetchCommits.Response response;
             try
             {

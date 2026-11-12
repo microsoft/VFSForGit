@@ -1,6 +1,7 @@
 using GVFS.CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Maintenance;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using Moq;
@@ -37,6 +38,7 @@ namespace GVFS.UnitTests.CommandLine
         [TestCase("prefetch-1000-aabb.pack", false, false, false)]
         [TestCase("prefetch-1000-aabb.pack", true, true, false)]
         [TestCase("prefetch-invalid-aabb.pack", true, false, false)]
+        [TestCase("pack-1000-aabb.pack", true, false, false)]
         public void BackgroundPrefetchUsesCompletedCachedPacks(
             string packName,
             bool hasIndex,
@@ -92,7 +94,7 @@ namespace GVFS.UnitTests.CommandLine
                     : new IOException("Cache read failed");
                 this.fileSystem.Setup(fs => fs.GetFiles(PackRoot, "prefetch-*.pack")).Throws(failure);
 
-                Assert.That(CloneVerb.HasPrefetchPacks(tracer, this.fileSystem.Object, PackRoot), Is.False);
+                Assert.That(PrefetchStep.HasCompletedPrefetchPacks(tracer, this.fileSystem.Object, PackRoot), Is.False);
                 Assert.That(tracer.RelatedWarningEvents, Has.Count.EqualTo(1));
                 Assert.That(tracer.RelatedWarningEvents[0], Does.Contain(failure.Message));
             }
@@ -122,7 +124,7 @@ namespace GVFS.UnitTests.CommandLine
             using (MockTracer tracer = new MockTracer())
             using (StringWriter output = new StringWriter())
             {
-                bool hasPrefetchPacks = CloneVerb.HasPrefetchPacks(tracer, this.fileSystem.Object, PackRoot);
+                bool hasPrefetchPacks = PrefetchStep.HasCompletedPrefetchPacks(tracer, this.fileSystem.Object, PackRoot);
                 Assert.That(hasPrefetchPacks, Is.EqualTo(expectCachedPrefetch));
 
                 CloneVerb verb = new CloneVerb { Output = output };

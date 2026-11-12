@@ -55,6 +55,29 @@ namespace GVFS.Common.Maintenance
             return null;
         }
 
+        public static bool HasCompletedPrefetchPacks(ITracer tracer, PhysicalFileSystem fileSystem, string gitPackRoot)
+        {
+            try
+            {
+                return fileSystem.DirectoryExists(gitPackRoot) &&
+                    fileSystem.GetFiles(gitPackRoot, GVFSConstants.PrefetchPackPrefix + "-*.pack").Any(
+                        pack => GetPrefetchPackTimestamp(pack).HasValue &&
+                            fileSystem.FileExists(Path.ChangeExtension(pack, ".idx")) &&
+                            !fileSystem.FileExists(Path.ChangeExtension(pack, GVFSConstants.InProgressPrefetchMarkerExtension)));
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                tracer.RelatedWarning(
+                    new EventMetadata
+                    {
+                        { nameof(gitPackRoot), gitPackRoot },
+                        { "Exception", ex.ToString() },
+                    },
+                    "Could not check for completed prefetch packs. Using initial-prefetch behavior.");
+                return false;
+            }
+        }
+
         public bool TryPrefetchCommitsAndTrees(out string error, GitProcess gitProcess = null)
         {
             if (gitProcess == null)

@@ -1,13 +1,16 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.Common.NamedPipes;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.IO;
+using GVFSPlatform = GVFS.Common.GVFSPlatform;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [NonParallelizable]
     public class PrefetchCommitsOffloadTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchPackPrefix = "prefetch";
@@ -28,12 +31,30 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        [TestCase, Order(1)]
-        public void PrefetchCommitsMountedUsesOffload()
+        [SetUp]
+        public void EnablePrefetchOffload()
         {
-            // With the enlistment mounted, prefetch --commits should succeed
-            // by offloading to the mount process (using its warm auth).
-            this.Enlistment.Prefetch("--commits");
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local gvfs.prefetch-offload true")
+                .ExitCode.ShouldEqual(0);
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local gvfs.trust-pack-indexes false")
+                .ExitCode.ShouldEqual(0);
+        }
+
+        [TestCase, Order(1)]
+        public void PrefetchCommitsMountedWithEmptyCacheRunsDirectly()
+        {
+            this.ReadPrefetchPackFileNames().Length.ShouldEqual(0);
+            string pipeName = GVFSPlatform.Instance.GetNamedPipeName(this.Enlistment.EnlistmentRoot);
+            using (NamedPipeClient client = new NamedPipeClient(pipeName))
+            {
+                client.Connect().ShouldEqual(true);
+                client.SendRequest(new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.Request, null));
+                client.ReadResponse().Header.ShouldEqual(NamedPipeMessages.PrefetchCommits.MountNotReadyResult);
+            }
+
+            this.ReadPrefetchPackFileNames().Length.ShouldEqual(0);
+            string output = this.Enlistment.Prefetch("--commits --verbose");
+            output.ShouldContain("Mount not ready, falling back to direct prefetch");
             this.PostFetchJobShouldComplete();
 
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
@@ -42,13 +63,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(2)]
-        public void PrefetchCommitsMountedIsIdempotent()
+        public void PrefetchCommitsMountedWithCompletedCacheUsesOffload()
         {
-            // Running prefetch --commits again while mounted should succeed
-            // (may be a no-op if packs are already up to date).
             string[] packsBefore = this.ReadPrefetchPackFileNames();
+            packsBefore.Length.ShouldBeAtLeast(1);
 
-            this.Enlistment.Prefetch("--commits");
+            string output = this.Enlistment.Prefetch("--commits --verbose");
+            output.ShouldContain("Mount completed prefetch successfully");
             this.PostFetchJobShouldComplete();
 
             string[] packsAfter = this.ReadPrefetchPackFileNames();
@@ -85,12 +106,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.UnmountGVFS();
             this.Enlistment.MountGVFS();
 
-            this.Enlistment.Prefetch("--commits");
+            string output = this.Enlistment.Prefetch("--commits --verbose");
+            output.ShouldContain("Mount completed prefetch successfully");
             this.PostFetchJobShouldComplete();
 
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             prefetchPacks.Length.ShouldBeAtLeast(1, "There should be at least one prefetch pack after remount prefetch");
             this.AllPrefetchPacksShouldHaveIdx(prefetchPacks);
+        }
+
+        [TestCase, Order(5)]
+        public void PrefetchCommitsWithOffloadDisabledRunsDirectly()
+        {
+            this.ReadPrefetchPackFileNames().Length.ShouldBeAtLeast(1);
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local gvfs.prefetch-offload false")
+                .ExitCode.ShouldEqual(0);
+
+            string output = this.Enlistment.Prefetch("--commits --verbose");
+            Assert.That(output, Does.Not.Contain("TryPrefetchCommitsViaMountProcess"));
+            output.ShouldContain("TryDownloadPrefetchPacks");
+            this.PostFetchJobShouldComplete();
         }
 
         private string[] ReadPrefetchPackFileNames()
