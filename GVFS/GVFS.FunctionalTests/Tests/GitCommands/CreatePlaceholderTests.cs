@@ -29,7 +29,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase(true, true)]
         public void BoundedPlaceholderWaitResumesOrReturnsTransientFailure(bool releaseBeforeTimeout, bool materializeWhileWaiting)
         {
-            this.EnablePlaceholderLockWait();
+            this.VerifyPlaceholderWait(releaseBeforeTimeout, materializeWhileWaiting, 2000);
+        }
+
+        [TestCase]
+        public void PlaceholderWaitUsesConfiguredTimeout()
+        {
+            this.VerifyPlaceholderWait(releaseBeforeTimeout: false, materializeWhileWaiting: false, waitMs: 500);
+        }
+
+        private void VerifyPlaceholderWait(bool releaseBeforeTimeout, bool materializeWhileWaiting, int waitMs)
+        {
+            this.EnablePlaceholderLockWait(waitMs);
             string expected = File.ReadAllText(Path.Combine(this.ControlGitRepo.RootPath, FileToRead));
             using (Process git = this.CreateWaitingCheckout(materializeWhileWaiting))
             {
@@ -160,9 +171,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             }
         }
 
-        private void EnablePlaceholderLockWait()
+        private void EnablePlaceholderLockWait(int waitMs = 2000)
         {
-            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "config gvfs.placeholder-lock-wait true").ExitCode.ShouldEqual(0);
+            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "config gvfs.placeholder-lock-wait-ms " + waitMs).ExitCode.ShouldEqual(0);
             this.Enlistment.UnmountGVFS();
             this.Enlistment.MountGVFS();
         }

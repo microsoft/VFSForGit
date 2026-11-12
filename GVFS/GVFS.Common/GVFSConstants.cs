@@ -60,8 +60,9 @@ namespace GVFS.Common
             public const string ShowHydrationStatus = GVFSPrefix + "show-hydration-status";
             public const bool ShowHydrationStatusDefault = false;
 
-            public const string PlaceholderLockWait = GVFSPrefix + "placeholder-lock-wait";
-            public const bool PlaceholderLockWaitDefault = false;
+            public const string PlaceholderLockWaitMs = GVFSPrefix + "placeholder-lock-wait-ms";
+            public const int PlaceholderLockWaitMsDefault = 0;
+            public const int PlaceholderLockWaitMsMaximum = 60000;
 
             /* Gates the CLI mount-progress display layer (progress phase strings surfaced
              * over the named pipe during `gvfs mount`). Disabled by default so stabilization

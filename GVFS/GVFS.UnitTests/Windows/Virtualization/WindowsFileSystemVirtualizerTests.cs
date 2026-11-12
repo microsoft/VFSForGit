@@ -17,6 +17,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using GVFS.Common.Tracing;
 using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.UnitTests.Mock.Virtualization.BlobSize;
 using GVFS.Virtualization.Projection;
 using System.Reflection;
@@ -41,11 +42,149 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
         private static int numWorkThreads = 1;
 
+        [TestCase(null, 0, false)]
+        [TestCase("0", 0, false)]
+        [TestCase("1", 1, false)]
+        [TestCase("500", 500, false)]
+        [TestCase(" 500 ", 500, false)]
+        [TestCase("60000", 60000, false)]
+        [TestCase("", 0, true)]
+        [TestCase("true", 0, true)]
+        [TestCase("false", 0, true)]
+        [TestCase("-1", 0, true)]
+        [TestCase("500.5", 0, true)]
+        [TestCase("60001", 0, true)]
+        [TestCase("2147483648", 0, true)]
+        public void PlaceholderWaitConfigControlsAdmissionAndReportsTheEffectiveBudget(string value, int expectedMs, bool warning)
+        {
+            this.Repo.Repository.ConfigValues["gvfs.placeholder-lock-wait"] = "true";
+            if (value != null)
+            {
+                this.Repo.Repository.ConfigValues["gvfs.placeholder-lock-wait-ms"] = value;
+            }
+
+            MockTracer tracer = (MockTracer)this.Repo.Context.Tracer;
+            int previousWarnings = tracer.RelatedWarningEvents.Count;
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                EventMetadata metadata = new EventMetadata();
+                tester.WindowsVirtualizer.AddHeartbeatMetadata(metadata);
+                ((int)metadata["PlaceholderLockWaitMs"]).ShouldEqual(expectedMs);
+                metadata.ContainsKey("PlaceholderLockWaitEnabled").ShouldEqual(expectedMs > 0);
+                metadata.ContainsKey("PlaceholderLockWaitStarted").ShouldEqual(expectedMs > 0);
+                (tracer.RelatedWarningEvents.Count - previousWarnings).ShouldEqual(warning ? 1 : 0);
+                if (warning)
+                {
+                    tracer.RelatedWarningEvents.Last().ShouldContain("gvfs.placeholder-lock-wait-ms");
+                }
+
+                if (expectedMs == 0)
+                {
+                    this.HoldCheckoutLock();
+                    try
+                    {
+                        tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", 1, "reader").ShouldEqual(HResult.FileNotFound);
+                        tester.MockVirtualization.CommandCompletions.Count.ShouldEqual(0);
+                    }
+                    finally
+                    {
+                        this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234);
+                    }
+                }
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PlaceholderWaitConfigReadFailuresWarnAndDisableTheFeature(bool invalidRepository)
+        {
+            MockTracer tracer = (MockTracer)this.Repo.Context.Tracer;
+            int previousWarnings = tracer.RelatedWarningEvents.Count;
+            WindowsFileSystemVirtualizer.ReadPlaceholderLockWaitMs(tracer, () =>
+            {
+                if (invalidRepository)
+                {
+                    throw new InvalidDataException("Config read failure");
+                }
+
+                throw new LibGit2Exception("Config read failure");
+            }).ShouldEqual(0);
+            (tracer.RelatedWarningEvents.Count - previousWarnings).ShouldEqual(1);
+            tracer.RelatedWarningEvents.Last().ShouldContain("Config read failure", "gvfs.placeholder-lock-wait-ms");
+        }
+
+        [TestCase("placeholder-lock-wait-ms = 500", 500, 0)]
+        [TestCase("placeholder-lock-wait-ms", 0, 1)]
+        [TestCase("placeholder-lock-wait-ms = 60001", 0, 1)]
+        public void PlaceholderWaitReadsTheNativeConfigIncludingValuelessEntries(string config, int expectedMs, int expectedWarnings)
+        {
+            string root = Path.Combine(Path.GetTempPath(), "PlaceholderWaitConfig" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(root, ".git", "objects"));
+            Directory.CreateDirectory(Path.Combine(root, ".git", "refs", "heads"));
+            try
+            {
+                File.WriteAllText(Path.Combine(root, ".git", "HEAD"), "ref: refs/heads/main\n");
+                File.WriteAllText(Path.Combine(root, ".git", "config"),
+                    "[core]\nrepositoryformatversion = 0\nbare = false\n[gvfs]\n" + config + "\n");
+                MockTracer tracer = new MockTracer();
+                WindowsFileSystemVirtualizer.ReadPlaceholderLockWaitMs(tracer, root).ShouldEqual(expectedMs);
+                tracer.RelatedWarningEvents.Count.ShouldEqual(expectedWarnings);
+                if (expectedWarnings > 0)
+                {
+                    tracer.RelatedWarningEvents.Last().ShouldContain("gvfs.placeholder-lock-wait-ms");
+                }
+            }
+            finally
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+
+        [TestCase(-1)]
+        [TestCase(60001)]
+        public void PlaceholderWaitConstructorRejectsOutOfRangeBudgets(int milliseconds)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new WindowsFileSystemVirtualizer(
+                this.Repo.Context, this.Repo.GitObjects, new MockVirtualizationInstance(), 1, placeholderLockWaitMs: milliseconds));
+        }
+
+        [TestCase(250)]
+        [TestCase(500)]
+        public void PlaceholderWaitUsesTheMountTimeBudgetForExpiration(int milliseconds)
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, milliseconds))
+            {
+                this.Repo.Repository.ConfigValues["gvfs.placeholder-lock-wait-ms"] = "0";
+                EventMetadata metadata = new EventMetadata();
+                tester.WindowsVirtualizer.AddHeartbeatMetadata(metadata);
+                ((int)metadata["PlaceholderLockWaitMs"]).ShouldEqual(milliseconds);
+                this.HoldCheckoutLock();
+                try
+                {
+                    long start = Environment.TickCount64;
+                    tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", 1, "reader").ShouldEqual(HResult.Pending);
+                    tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+                    long elapsed = Environment.TickCount64 - start;
+                    (elapsed >= milliseconds - 25).ShouldBeTrue();
+                    (elapsed < milliseconds + 1000).ShouldBeTrue();
+                    tester.MockVirtualization.CreatedPlaceholders.Count.ShouldEqual(0);
+                    EventMetadata nextInterval = new EventMetadata();
+                    tester.WindowsVirtualizer.AddHeartbeatMetadata(nextInterval);
+                    ((int)nextInterval["PlaceholderLockWaitMs"]).ShouldEqual(milliseconds);
+                    ((long)nextInterval["PlaceholderLockWaitTimedOut"]).ShouldEqual(1);
+                }
+                finally
+                {
+                    this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234);
+                }
+            }
+        }
+
         [TestCase]
         public void PlaceholderAncestryCacheSharesOneLookupAcrossOneHundredFiles()
         {
             string[] files = Enumerable.Range(1, 100).Select(id => "file" + id + ".txt").ToArray();
-            this.Repo.Repository.ConfigValues[GVFSConstants.GitConfig.PlaceholderLockWait] = "true";
+            this.Repo.Repository.ConfigValues[GVFSConstants.GitConfig.PlaceholderLockWaitMs] = "2000";
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, files))
             {
                 tester.GitIndexProjection.ProjectionParseComplete = true;
@@ -394,7 +533,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         [TestCase("folder", true)]
         public void PlaceholderWaitPreservesSpecialFileAndFolderAllowances(string path, bool folder)
         {
-            this.Repo.Repository.ConfigValues["gvfs.placeholder-lock-wait"] = "true";
+            this.Repo.Repository.ConfigValues["gvfs.placeholder-lock-wait-ms"] = "2000";
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, new[] { path }))
             {
                 tester.GitIndexProjection.ProjectedPathIsFolder = folder;

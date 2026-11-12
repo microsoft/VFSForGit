@@ -117,7 +117,6 @@ namespace GVFS.Platform.Windows
         private sealed class PlaceholderCreationWaitQueue : IDisposable
         {
             private const int MaximumRequests = 128;
-            private const int WaitTimeoutMs = 2000;
             private const int PollIntervalMs = 25;
 
             private readonly WindowsFileSystemVirtualizer owner;
@@ -251,7 +250,7 @@ namespace GVFS.Platform.Windows
                                         }
 
                                         long waited = Environment.TickCount64 - request.WaitTick;
-                                        if (request.WaitedMs + waited >= WaitTimeoutMs)
+                                        if (request.WaitedMs + waited >= this.owner.placeholderLockWaitMs)
                                         {
                                             this.requests.Remove(request.CommandId);
                                             request.Terminated = true;

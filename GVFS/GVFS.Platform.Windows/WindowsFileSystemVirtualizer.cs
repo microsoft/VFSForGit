@@ -12,6 +12,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,7 +34,7 @@ namespace GVFS.Platform.Windows
         private IVirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
-        private readonly bool enablePlaceholderLockWait;
+        private readonly int placeholderLockWaitMs;
         private PlaceholderCreationWaitQueue placeholderWaitQueue;
         private long placeholderWaitStarted;
         private long placeholderWaitTimedOut;
@@ -83,11 +84,7 @@ namespace GVFS.Platform.Windows
                   virtualizationInstance: null,
                   numWorkerThreads: FileSystemVirtualizer.DefaultNumWorkerThreads,
                   maxActiveEnumerations: ReadMaxActiveEnumerationsFromConfig(context),
-                  enablePlaceholderLockWait: LibGit2Repo.GetConfigBoolOrDefault(
-                      context.Tracer,
-                      context.Enlistment.WorkingDirectoryRoot,
-                      GVFSConstants.GitConfig.PlaceholderLockWait,
-                      GVFSConstants.GitConfig.PlaceholderLockWaitDefault))
+                  placeholderLockWaitMs: ReadPlaceholderLockWaitMs(context.Tracer, context.Enlistment.WorkingDirectoryRoot))
         {
         }
 
@@ -97,9 +94,14 @@ namespace GVFS.Platform.Windows
             IVirtualizationInstance virtualizationInstance,
             int numWorkerThreads,
             int maxActiveEnumerations = 0,
-            bool enablePlaceholderLockWait = false)
+            int placeholderLockWaitMs = GVFSConstants.GitConfig.PlaceholderLockWaitMsDefault)
             : base(context, gitObjects, numWorkerThreads)
         {
+            if (placeholderLockWaitMs < 0 || placeholderLockWaitMs > GVFSConstants.GitConfig.PlaceholderLockWaitMsMaximum)
+            {
+                throw new ArgumentOutOfRangeException(nameof(placeholderLockWaitMs), placeholderLockWaitMs, "Placeholder lock wait must be between 0 and 60000 milliseconds.");
+            }
+
             List<NotificationMapping> notificationMappings = new List<NotificationMapping>()
             {
                 new NotificationMapping(Notifications.FilesInWorkingFolder | Notifications.FoldersInWorkingFolder, string.Empty),
@@ -125,7 +127,7 @@ namespace GVFS.Platform.Windows
             this.activeCommands = new ConcurrentDictionary<int, CancellationTokenSource>();
 
             this.maxActiveEnumerations = maxActiveEnumerations;
-            this.enablePlaceholderLockWait = enablePlaceholderLockWait;
+            this.placeholderLockWaitMs = placeholderLockWaitMs;
         }
 
         protected override string EtwArea => ClassName;
@@ -137,7 +139,8 @@ namespace GVFS.Platform.Windows
             // can be observed in the field before enabling eviction anywhere.
             metadata.Add("ActiveEnumerationCount", this.activeEnumerations.Count);
             metadata.Add("ActiveCommandCount", this.activeCommands.Count);
-            if (this.enablePlaceholderLockWait)
+            metadata.Add("PlaceholderLockWaitMs", this.placeholderLockWaitMs);
+            if (this.placeholderLockWaitMs > 0)
             {
                 metadata.Add("PlaceholderLockWaitEnabled", true);
                 metadata.Add("PlaceholderLockWaitStarted", Interlocked.Exchange(ref this.placeholderWaitStarted, 0));
@@ -148,6 +151,60 @@ namespace GVFS.Platform.Windows
         }
 
         internal Func<uint, NamedPipeMessages.LockData, long?, bool?> IsRequestDescendant { private get; set; }
+
+        internal static int ReadPlaceholderLockWaitMs(ITracer tracer, string repoPath)
+        {
+            return ReadPlaceholderLockWaitMs(tracer, () =>
+            {
+                using (LibGit2Repo repo = new LibGit2Repo(tracer, repoPath))
+                {
+                    string value = repo.GetConfigString(GVFSConstants.GitConfig.PlaceholderLockWaitMs);
+                    // String lookup cannot distinguish an unset key from a valueless key.
+                    return value ?? (repo.GetConfigBool(GVFSConstants.GitConfig.PlaceholderLockWaitMs).HasValue ? string.Empty : null);
+                }
+            });
+        }
+
+        internal static int ReadPlaceholderLockWaitMs(ITracer tracer, Func<string> readConfig)
+        {
+            string rawValue;
+            try
+            {
+                rawValue = readConfig();
+            }
+            catch (Exception e) when (e is InvalidDataException || e is LibGit2Exception)
+            {
+                tracer.RelatedWarning(
+                    new EventMetadata
+                    {
+                        { "Area", ClassName },
+                        { "ConfigName", GVFSConstants.GitConfig.PlaceholderLockWaitMs },
+                        { "Exception", e.ToString() },
+                    },
+                    "Cannot read the placeholder lock wait config. Placeholder lock waits remain disabled.");
+                return GVFSConstants.GitConfig.PlaceholderLockWaitMsDefault;
+            }
+
+            if (rawValue == null)
+            {
+                return GVFSConstants.GitConfig.PlaceholderLockWaitMsDefault;
+            }
+
+            if (int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) &&
+                value >= 0 && value <= GVFSConstants.GitConfig.PlaceholderLockWaitMsMaximum)
+            {
+                return value;
+            }
+
+            tracer.RelatedWarning(
+                new EventMetadata
+                {
+                    { "Area", ClassName },
+                    { "ConfigName", GVFSConstants.GitConfig.PlaceholderLockWaitMs },
+                },
+                "Invalid placeholder lock wait config. Use an integer from 0 to 60000 milliseconds. Placeholder lock waits remain disabled.");
+            return GVFSConstants.GitConfig.PlaceholderLockWaitMsDefault;
+        }
 
         /// <summary>
         /// Reads the gvfs.max-active-enumerations git config value (0 = eviction disabled, the
@@ -673,7 +730,7 @@ namespace GVFS.Platform.Windows
         {
             try
             {
-                if (this.enablePlaceholderLockWait)
+                if (this.placeholderLockWaitMs > 0)
                 {
                     return this.DeferPlaceholderCreation(commandId, virtualPath, triggeringProcessId, triggeringProcessImageFileName);
                 }
@@ -854,7 +911,7 @@ namespace GVFS.Platform.Windows
         {
             error = string.Empty;
 
-            if (this.enablePlaceholderLockWait)
+            if (this.placeholderLockWaitMs > 0)
             {
                 this.IsRequestDescendant ??= new PlaceholderRequestProcessTree(this.Context.Tracer).IsDescendant;
                 this.placeholderWaitQueue = new PlaceholderCreationWaitQueue(this);

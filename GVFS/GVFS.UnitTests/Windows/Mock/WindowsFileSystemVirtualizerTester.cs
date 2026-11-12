@@ -5,6 +5,7 @@ using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization.FileSystem;
 using Microsoft.Windows.ProjFS;
 using System;
+using System.Globalization;
 
 namespace GVFS.UnitTests.Windows.Mock
 {
@@ -21,7 +22,12 @@ namespace GVFS.UnitTests.Windows.Mock
         }
 
         public WindowsFileSystemVirtualizerTester(CommonRepoSetup repo, bool enablePlaceholderLockWait)
-            : base(ConfigurePlaceholderLockWait(repo, enablePlaceholderLockWait))
+            : this(repo, enablePlaceholderLockWait ? 2000 : 0)
+        {
+        }
+
+        public WindowsFileSystemVirtualizerTester(CommonRepoSetup repo, int placeholderLockWaitMs)
+            : base(ConfigurePlaceholderLockWait(repo, placeholderLockWaitMs))
         {
             this.GitIndexProjection.ProjectionParseComplete = true;
         }
@@ -53,16 +59,18 @@ namespace GVFS.UnitTests.Windows.Mock
             this.MockVirtualization = new MockVirtualizationInstance();
             this.WindowsVirtualizer = new WindowsFileSystemVirtualizer(
                 repo.Context, repo.GitObjects, this.MockVirtualization, FileSystemVirtualizerTester.NumberOfWorkThreads,
-                enablePlaceholderLockWait: repo.Context.Repository.TryGetConfigValue(GVFS.Common.GVFSConstants.GitConfig.PlaceholderLockWait, out string enabled) && enabled == "true")
+                placeholderLockWaitMs: WindowsFileSystemVirtualizer.ReadPlaceholderLockWaitMs(
+                    repo.Context.Tracer,
+                    () => repo.Context.Repository.TryGetConfigValue(GVFS.Common.GVFSConstants.GitConfig.PlaceholderLockWaitMs, out string value) ? value : null))
             {
                 IsRequestDescendant = (_, _, _) => false,
             };
             return this.WindowsVirtualizer;
         }
 
-        private static CommonRepoSetup ConfigurePlaceholderLockWait(CommonRepoSetup repo, bool enabled)
+        private static CommonRepoSetup ConfigurePlaceholderLockWait(CommonRepoSetup repo, int milliseconds)
         {
-            repo.Repository.ConfigValues[GVFS.Common.GVFSConstants.GitConfig.PlaceholderLockWait] = enabled ? "true" : "false";
+            repo.Repository.ConfigValues[GVFS.Common.GVFSConstants.GitConfig.PlaceholderLockWaitMs] = milliseconds.ToString(CultureInfo.InvariantCulture);
             return repo;
         }
     }
