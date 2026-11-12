@@ -1,18 +1,108 @@
 using GVFS.Common;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace GVFS.Platform.Windows
 {
-    internal static class PlaceholderRequestProcessTree
+    internal sealed class PlaceholderRequestProcessTree
     {
+        private const int MaximumCachedProcesses = 64;
         private const uint SnapshotProcesses = 2;
         private const int NoMoreFiles = 18;
         private const int MaximumAncestryDepth = 64;
         private const uint UnknownParent = uint.MaxValue;
+
+        private readonly object cacheGate = new object();
+        private readonly Dictionary<ProcessPair, CacheEntry> cache = new Dictionary<ProcessPair, CacheEntry>();
+        private readonly LinkedList<ProcessPair> recency = new LinkedList<ProcessPair>();
+        private readonly Func<uint, long?> getStartTime;
+        private readonly Func<uint, int, long?, bool?> classify;
+
+        internal PlaceholderRequestProcessTree(ITracer tracer)
+            : this(GetStartTime, (processId, ancestorId, startTime) => IsDescendant(processId, ancestorId, startTime, tracer))
+        {
+        }
+
+        internal PlaceholderRequestProcessTree(Func<uint, long?> getStartTime, Func<uint, int, long?, bool?> classify)
+        {
+            this.getStartTime = getStartTime;
+            this.classify = classify;
+        }
+
+        internal bool? IsDescendant(uint processId, NamedPipeMessages.LockData holder, long? ownerStartTime)
+        {
+            int ownerId = holder.PID;
+            if (processId == ownerId)
+            {
+                return true;
+            }
+
+            if (processId == 0 || ownerId <= 0 || !ownerStartTime.HasValue)
+            {
+                return null;
+            }
+
+            long? requestStart = this.getStartTime(processId);
+            if (!requestStart.HasValue || this.getStartTime((uint)ownerId) != ownerStartTime)
+            {
+                return null;
+            }
+
+            ProcessPair key = new ProcessPair(holder, ownerId, ownerStartTime.Value, processId, requestStart.Value);
+            CacheEntry entry;
+            lock (this.cacheGate)
+            {
+                if (this.cache.TryGetValue(key, out entry))
+                {
+                    this.recency.Remove(entry.Node);
+                    this.recency.AddLast(entry.Node);
+                }
+                else
+                {
+                    if (this.cache.Count == MaximumCachedProcesses)
+                    {
+                        this.cache.Remove(this.recency.First.Value);
+                        this.recency.RemoveFirst();
+                    }
+
+                    entry = new CacheEntry(
+                        this.recency.AddLast(key),
+                        () => this.classify(processId, ownerId, ownerStartTime));
+                    this.cache.Add(key, entry);
+                }
+            }
+
+            bool? related = null;
+            try
+            {
+                related = entry.Result.Value;
+                if (this.getStartTime(processId) != requestStart || this.getStartTime((uint)ownerId) != ownerStartTime)
+                {
+                    related = null;
+                }
+
+                return related;
+            }
+            finally
+            {
+                if (!related.HasValue)
+                {
+                    lock (this.cacheGate)
+                    {
+                        if (this.cache.TryGetValue(key, out CacheEntry current) && ReferenceEquals(current, entry))
+                        {
+                            this.cache.Remove(key);
+                            this.recency.Remove(entry.Node);
+                        }
+                    }
+                }
+            }
+        }
 
         internal static bool? IsDescendant(uint processId, int ancestorId, long? expectedAncestorStart, ITracer tracer)
         {
@@ -159,6 +249,21 @@ namespace GVFS.Platform.Windows
             tracer.RelatedWarning(
                 new EventMetadata { { "NativeErrorCode", error } },
                 "Cannot determine placeholder request ancestry; retaining the Git-lock rejection policy");
+        }
+
+        private readonly record struct ProcessPair(
+            NamedPipeMessages.LockData Holder, int OwnerId, long OwnerStart, uint RequestId, long RequestStart);
+
+        private sealed class CacheEntry
+        {
+            public CacheEntry(LinkedListNode<ProcessPair> node, Func<bool?> classify)
+            {
+                this.Node = node;
+                this.Result = new Lazy<bool?>(classify, LazyThreadSafetyMode.ExecutionAndPublication);
+            }
+
+            public LinkedListNode<ProcessPair> Node { get; }
+            public Lazy<bool?> Result { get; }
         }
 
         [DllImport("kernel32.dll", SetLastError = true)]

@@ -41,6 +41,245 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
         private static int numWorkThreads = 1;
 
+        [TestCase]
+        public void PlaceholderAncestryCacheSharesOneLookupAcrossOneHundredFiles()
+        {
+            string[] files = Enumerable.Range(1, 100).Select(id => "file" + id + ".txt").ToArray();
+            this.Repo.Repository.ConfigValues[GVFSConstants.GitConfig.PlaceholderLockWait] = "true";
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, files))
+            {
+                tester.GitIndexProjection.ProjectionParseComplete = true;
+                int lookups = 0;
+                PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(
+                    id => id, (_, _, _) => { Interlocked.Increment(ref lookups); return false; });
+                tester.WindowsVirtualizer.IsRequestDescendant = tree.IsDescendant;
+                this.HoldCheckoutLock();
+                try
+                {
+                    for (int id = 1; id <= 100; ++id)
+                    {
+                        tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(id, files[id - 1], 1, "reader").ShouldEqual(HResult.Pending);
+                    }
+
+                    lookups.ShouldEqual(1);
+                    tester.WindowsVirtualizer.PrepareToStop();
+                    tester.MockVirtualization.CommandCompletions.Count.ShouldEqual(100);
+                    tester.MockVirtualization.CreatedPlaceholders.Count.ShouldEqual(0);
+                }
+                finally
+                {
+                    this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234);
+                }
+            }
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void PlaceholderAncestryCacheKeysBothIdentitiesAndTheLockAcquisition(bool related)
+        {
+            long readerStart = 20;
+            long ownerStart = 10;
+            int lookups = 0;
+            PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(
+                id => id == 10 ? ownerStart : readerStart,
+                (_, _, _) => { ++lookups; return related; });
+            NamedPipeMessages.LockData holder = new NamedPipeMessages.LockData(10, false, false, "git checkout", string.Empty);
+            tree.IsDescendant(20, holder, 10).ShouldEqual(related);
+            tree.IsDescendant(20, holder, 10).ShouldEqual(related);
+            lookups.ShouldEqual(1);
+            ++readerStart;
+            tree.IsDescendant(20, holder, 10).ShouldEqual(related);
+            lookups.ShouldEqual(2);
+            holder = new NamedPipeMessages.LockData(10, false, false, "git checkout", string.Empty);
+            tree.IsDescendant(20, holder, 10).ShouldEqual(related);
+            lookups.ShouldEqual(3);
+            ++ownerStart;
+            tree.IsDescendant(20, holder, 10).ShouldEqual(null);
+            lookups.ShouldEqual(3);
+            tree.IsDescendant(20, holder, ownerStart).ShouldEqual(related);
+            lookups.ShouldEqual(4);
+        }
+
+        [TestCase]
+        public void PlaceholderAncestryCacheRetriesUnknownAndFailedLookups()
+        {
+            int lookups = 0;
+            PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(
+                id => id, (_, _, _) =>
+                {
+                    ++lookups;
+                    if (lookups == 1)
+                    {
+                        return null;
+                    }
+
+                    if (lookups == 2)
+                    {
+                        throw new IOException("Ancestry probe failure");
+                    }
+
+                    return false;
+                });
+            NamedPipeMessages.LockData holder = new NamedPipeMessages.LockData(10, false, false, "git checkout", string.Empty);
+            tree.IsDescendant(20, holder, 10).ShouldEqual(null);
+            Assert.Throws<IOException>(() => tree.IsDescendant(20, holder, 10));
+            tree.IsDescendant(20, holder, 10).ShouldEqual(false);
+            tree.IsDescendant(20, holder, 10).ShouldEqual(false);
+            lookups.ShouldEqual(3);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PlaceholderAncestryCacheRejectsAnIdentityChangeDuringLookupAndAnUnreadableHit(bool ownerChanges)
+        {
+            long? readerStart = 20;
+            long? ownerStart = 10;
+            int lookups = 0;
+            PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(
+                id => id == 10 ? ownerStart : readerStart,
+                (_, _, _) =>
+                {
+                    ++lookups;
+                    if (ownerChanges)
+                    {
+                        ownerStart = 11;
+                    }
+                    else
+                    {
+                        readerStart = 21;
+                    }
+
+                    return false;
+                });
+            NamedPipeMessages.LockData holder = new NamedPipeMessages.LockData(10, false, false, "git checkout", string.Empty);
+            tree.IsDescendant(20, holder, 10).ShouldEqual(null);
+            tree.IsDescendant(20, holder, ownerStart).ShouldEqual(false);
+            lookups.ShouldEqual(2);
+            if (ownerChanges)
+            {
+                ownerStart = null;
+            }
+            else
+            {
+                readerStart = null;
+            }
+
+            tree.IsDescendant(20, holder, ownerChanges ? 11 : 10).ShouldEqual(null);
+            lookups.ShouldEqual(2);
+        }
+
+        [TestCase]
+        public void PlaceholderAncestryCacheEvictsTheLeastRecentlyUsedIdentity()
+        {
+            int lookups = 0;
+            PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(
+                id => id, (_, _, _) => { ++lookups; return false; });
+            NamedPipeMessages.LockData holder = new NamedPipeMessages.LockData(10, false, false, "git checkout", string.Empty);
+            for (uint id = 200; id < 264; ++id)
+            {
+                tree.IsDescendant(id, holder, 10).ShouldEqual(false);
+            }
+
+            lookups.ShouldEqual(64);
+            tree.IsDescendant(200, holder, 10).ShouldEqual(false);
+            tree.IsDescendant(264, holder, 10).ShouldEqual(false);
+            tree.IsDescendant(200, holder, 10).ShouldEqual(false);
+            lookups.ShouldEqual(65);
+            tree.IsDescendant(201, holder, 10).ShouldEqual(false);
+            lookups.ShouldEqual(66);
+        }
+
+        [TestCase]
+        public void EvictedUnknownAncestryLookupCannotRemoveItsReplacement()
+        {
+            using (ManualResetEventSlim lookupStarted = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim releaseLookup = new ManualResetEventSlim(false))
+            {
+                int lookups = 0;
+                PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(
+                    id => id, (id, _, _) =>
+                    {
+                        int count = Interlocked.Increment(ref lookups);
+                        if (count == 1)
+                        {
+                            lookupStarted.Set();
+                            releaseLookup.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                            return null;
+                        }
+
+                        return false;
+                    });
+                NamedPipeMessages.LockData holder = new NamedPipeMessages.LockData(10, false, false, "git checkout", string.Empty);
+                Task<bool?> first = Task.Factory.StartNew(
+                    () => tree.IsDescendant(200, holder, 10), TaskCreationOptions.LongRunning);
+                try
+                {
+                    lookupStarted.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                    for (uint id = 201; id <= 264; ++id)
+                    {
+                        tree.IsDescendant(id, holder, 10).ShouldEqual(false);
+                    }
+
+                    tree.IsDescendant(200, holder, 10).ShouldEqual(false);
+                }
+                finally
+                {
+                    releaseLookup.Set();
+                    first.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                }
+
+                first.Result.ShouldEqual(null);
+                tree.IsDescendant(200, holder, 10).ShouldEqual(false);
+                lookups.ShouldEqual(66);
+            }
+        }
+
+        [TestCase]
+        public void PlaceholderAncestryCacheCoalescesConcurrentMissesWithoutBlockingOtherIdentities()
+        {
+            using (ManualResetEventSlim lookupStarted = new ManualResetEventSlim(false))
+            using (ManualResetEventSlim releaseLookup = new ManualResetEventSlim(false))
+            using (CountdownEvent callersStarted = new CountdownEvent(8))
+            {
+                int lookups = 0;
+                PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(
+                    id => id, (id, _, _) =>
+                    {
+                        Interlocked.Increment(ref lookups);
+                        if (id == 20)
+                        {
+                            lookupStarted.Set();
+                            releaseLookup.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                        }
+
+                        return false;
+                    });
+                NamedPipeMessages.LockData holder = new NamedPipeMessages.LockData(10, false, false, "git checkout", string.Empty);
+                Task[] calls = Enumerable.Range(0, 8).Select(_ => Task.Factory.StartNew(
+                    () =>
+                    {
+                        callersStarted.Signal();
+                        tree.IsDescendant(20, holder, 10).ShouldEqual(false);
+                    }, TaskCreationOptions.LongRunning)).ToArray();
+                try
+                {
+                    callersStarted.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                    lookupStarted.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                    Task<bool?> other = Task.Factory.StartNew(
+                        () => tree.IsDescendant(21, holder, 10), TaskCreationOptions.LongRunning);
+                    other.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                    other.Result.ShouldEqual(false);
+                }
+                finally
+                {
+                    releaseLookup.Set();
+                    Task.WaitAll(calls, TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                }
+
+                lookups.ShouldEqual(2);
+            }
+        }
+
         [TestCase(1234u, false)]
         [TestCase(2345u, true)]
         [TestCase(2345u, null)]

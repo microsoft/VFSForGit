@@ -86,7 +86,7 @@ namespace GVFS.Platform.Windows
             }
 
             request.CheckedHolder = holder;
-            bool? related = request.ProcessId == holder.PID ? true : this.IsRequestDescendant(request.ProcessId, holder.PID, ownerStartTime);
+            bool? related = request.ProcessId == holder.PID ? true : this.IsRequestDescendant(request.ProcessId, holder, ownerStartTime);
             if (related == false)
             {
                 return false;

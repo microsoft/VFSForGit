@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization;
 using GVFS.Virtualization.BlobSize;
@@ -146,7 +147,7 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        internal Func<uint, int, long?, bool?> IsRequestDescendant { private get; set; }
+        internal Func<uint, NamedPipeMessages.LockData, long?, bool?> IsRequestDescendant { private get; set; }
 
         /// <summary>
         /// Reads the gvfs.max-active-enumerations git config value (0 = eviction disabled, the
@@ -855,8 +856,7 @@ namespace GVFS.Platform.Windows
 
             if (this.enablePlaceholderLockWait)
             {
-                this.IsRequestDescendant ??= (processId, ancestorId, startTime) =>
-                    PlaceholderRequestProcessTree.IsDescendant(processId, ancestorId, startTime, this.Context.Tracer);
+                this.IsRequestDescendant ??= new PlaceholderRequestProcessTree(this.Context.Tracer).IsDescendant;
                 this.placeholderWaitQueue = new PlaceholderCreationWaitQueue(this);
             }
 
