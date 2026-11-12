@@ -461,7 +461,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 ProcessResult result = await Task.Run(() => ProcessHelper.Run(process, timeoutMs: 75000));
                 result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
-                result.Output.Contains("Prefetch of commit graph has been started")
+                result.Output.Contains("Started history prefetch in a minimized window (client PID ")
                     .ShouldEqual(!cachedPack && !noPrefetch && !trustPackIndexes, result.Output);
 
                 string logsRoot = Path.Combine(destination, ".gvfs", "logs");
