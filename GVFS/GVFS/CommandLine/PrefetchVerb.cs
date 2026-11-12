@@ -155,12 +155,11 @@ namespace GVFS.CommandLine
 
                 try
                 {
-                    bool prefetchOffloadEnabled = this.IsPrefetchOffloadEnabled(tracer, enlistment);
+                    bool prefetchOffloadEnabled = !this.FromClone && this.IsPrefetchOffloadEnabled(tracer, enlistment);
                     this.WriteClonePrefetchContext(
                         tracer,
                         enlistment.PrimaryEnlistmentRoot,
                         logFilePath,
-                        prefetchOffloadEnabled,
                         title => Console.Title = title);
 
                     EventMetadata metadata = new EventMetadata();
@@ -505,7 +504,6 @@ namespace GVFS.CommandLine
             ITracer tracer,
             string enlistmentRoot,
             string logFilePath,
-            bool prefetchOffloadEnabled,
             Action<string> setConsoleTitle)
         {
             if (!this.FromClone)
@@ -530,11 +528,6 @@ namespace GVFS.CommandLine
             this.Output.WriteLine("Prefetch downloads commits and trees and builds local pack indexes.");
             this.Output.WriteLine("After mount succeeds, you can use the repository while prefetch runs.");
             this.Output.WriteLine("History commands can be slower until prefetch finishes.");
-            if (prefetchOffloadEnabled)
-            {
-                this.Output.WriteLine("If the mount performs this prefetch, closing this window does not stop that work.");
-            }
-
             this.Output.WriteLine("To retry an interrupted prefetch, run 'gvfs prefetch --commits' from '{0}'.", enlistmentRoot);
             this.Output.WriteLine("Log: {0}\r\n", logFilePath);
         }

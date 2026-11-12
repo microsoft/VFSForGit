@@ -9,11 +9,9 @@ namespace GVFS.UnitTests.CommandLine
     [TestFixture]
     public class PrefetchVerbTests
     {
-        [TestCase(false, false)]
-        [TestCase(false, true)]
-        [TestCase(true, false)]
-        [TestCase(true, true)]
-        public void ClonePrefetchContextIsOptIn(bool fromClone, bool prefetchOffloadEnabled)
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ClonePrefetchContextIsOptIn(bool fromClone)
         {
             const string EnlistmentRoot = @"mock:\repo with spaces";
             const string LogFilePath = @"mock:\repo with spaces\.gvfs\logs\gvfs_prefetch.log";
@@ -22,7 +20,7 @@ namespace GVFS.UnitTests.CommandLine
             {
                 PrefetchVerb verb = new PrefetchVerb { FromClone = fromClone, Output = output };
                 string title = "Original title";
-                verb.WriteClonePrefetchContext(tracer, EnlistmentRoot, LogFilePath, prefetchOffloadEnabled, value => title = value);
+                verb.WriteClonePrefetchContext(tracer, EnlistmentRoot, LogFilePath, value => title = value);
                 Assert.That(tracer.RelatedWarningEvents, Is.Empty);
                 if (fromClone)
                 {
@@ -33,9 +31,7 @@ namespace GVFS.UnitTests.CommandLine
                     Assert.That(output.ToString(), Does.Contain("After mount succeeds, you can use the repository while prefetch runs."));
                     Assert.That(output.ToString(), Does.Contain("gvfs prefetch --commits"));
                     Assert.That(output.ToString(), Does.Contain("Log: " + LogFilePath));
-                    Assert.That(
-                        output.ToString().Contains("If the mount performs this prefetch, closing this window does not stop that work."),
-                        Is.EqualTo(prefetchOffloadEnabled));
+                    Assert.That(output.ToString(), Does.Not.Contain("If the mount performs this prefetch"));
                 }
                 else
                 {
@@ -61,7 +57,6 @@ namespace GVFS.UnitTests.CommandLine
                     tracer,
                     @"mock:\repo",
                     @"mock:\repo\.gvfs\logs\gvfs_prefetch.log",
-                    prefetchOffloadEnabled: false,
                     _ => throw failure);
 
                 Assert.That(tracer.RelatedWarningEvents, Has.Count.EqualTo(1));
