@@ -296,7 +296,7 @@ namespace GVFS.Hooks
                 }
 
                 // Check for uncommitted changes while ProjFS is still mounted.
-                ProcessResult statusResult = ProcessHelper.Run(
+                ProcessResult statusResult = ProcessHelper.RunGit(
                     "git",
                     $"-C \"{fullPath}\" status --porcelain",
                     redirectOutput: true);
@@ -433,7 +433,7 @@ namespace GVFS.Hooks
                     File.WriteAllText(emptyVfsHook, "#!/bin/sh\nprintf \".gitattributes\\n\"\n");
                     string emptyVfsHookGitPath = emptyVfsHook.Replace('\\', '/');
 
-                    ProcessResult checkoutResult = ProcessHelper.Run(
+                    ProcessResult checkoutResult = ProcessHelper.RunGit(
                         "git",
                         $"-C \"{fullPath}\" -c core.virtualfilesystem=\"'{emptyVfsHookGitPath}'\" -c core.hookspath= checkout -f HEAD",
                         redirectOutput: false);

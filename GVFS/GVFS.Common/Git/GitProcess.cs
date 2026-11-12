@@ -1077,7 +1077,7 @@ namespace GVFS.Common.Git
 
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, string gitObjectsDirectory, bool usePreCommandHook, bool mayRequireAuth = false, bool? hasVisibleConsoleWindow = null)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);
+            ProcessStartInfo processInfo = ProcessHelper.CreateGitStartInfo(this.gitBinPath);
             processInfo.WorkingDirectory = workingDirectory;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardInput = true;
